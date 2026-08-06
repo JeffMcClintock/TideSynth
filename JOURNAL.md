@@ -22,6 +22,54 @@ Template:
 
 ---
 
+## 2026-08-06 — jeff — decision: free, donation-supported (manual, not a scheduled run)
+
+**Did:** Recorded a product decision that had not been written down anywhere:
+
+> **TIDE is free. No paid tier, no trial, no licence key. Funding is by
+> donation, and both the plugin and tidesynth.com should support it.**
+
+Added as a "Price and funding" section in [PLAN.md](PLAN.md), next to the
+open-source section rather than as a numbered design constraint — it is a
+commercial fact like the plugin-export boundary, not something every backlog item
+gets checked against. Amended **W1** to carry a donation link on the website, and
+filed **D1** for the plugin side.
+
+**Learned — why the plugin side is a design note and not a task:**
+
+1. **Two existing constraints delete most of the obvious answers.** Constraints 1
+   and 5 (one view, minimal dialogs) rule out a splash, a nag dialog or a second
+   window, which is how almost every donation-funded plugin does this. What is
+   left is the breadcrumb bar or an about pane.
+
+2. **The remaining answer may not work on the platform that matters.** A "Donate"
+   button that opens a browser is the natural fallback, and
+   [docs/design-notes.md](docs/design-notes.md) already lists
+   `browseto.mm`/`openurl.mm` as removed-or-restricted under AUv3. So the one
+   implementation that survives the UX constraints may not survive constraint 3.
+   Whether an AUv3 can open a URL at all is a **factual question only the macOS
+   box can answer** — hence D1 says to establish that first and to say so plainly
+   if you are running on Windows or Linux instead of guessing.
+
+3. **Free is not open source, and this decision does not touch L1.** Price and
+   licence are separate. A free binary with no LICENSE file is exactly what
+   `SynthEditLib` is today. L1 stays NEEDS-JEFF.
+
+4. **The website side is the easy half and should not wait.** A static page with
+   an `<a href>` has none of the sandbox or one-view problems. The one trap is
+   that W1 already says "no trackers", and hosted donate *widgets* ship
+   third-party script and cookies — so W1 now says plain link, not embed, and
+   leaves the destination as a placeholder because choosing the platform is a
+   Jeff decision like L1 and G1.
+
+**Next:** W1 can absorb the website half whenever it is taken. D1 is `any` but is
+really a macOS question; if the Mac takes it, it can answer the AUv3 URL question
+properly instead of deferring it.
+
+**Branch/PR:** `plan/free-donation-supported`
+
+---
+
 ## 2026-08-06 — windows — P2
 
 **Did:** Loaded the P1 build of `TIDE_VST3.vst3` in REAPER 7.78 and watched it.
@@ -226,54 +274,6 @@ useful item to pair with the carve-out when C0/L1 clear; it is worth doing
 *before* C3/C4 move those files, not after.
 
 **Branch/PR:** `tide/win/P1-verify-prototype-build`
-
----
-
-## 2026-08-06 — jeff — decision: free, donation-supported (manual, not a scheduled run)
-
-**Did:** Recorded a product decision that had not been written down anywhere:
-
-> **TIDE is free. No paid tier, no trial, no licence key. Funding is by
-> donation, and both the plugin and tidesynth.com should support it.**
-
-Added as a "Price and funding" section in [PLAN.md](PLAN.md), next to the
-open-source section rather than as a numbered design constraint — it is a
-commercial fact like the plugin-export boundary, not something every backlog item
-gets checked against. Amended **W1** to carry a donation link on the website, and
-filed **D1** for the plugin side.
-
-**Learned — why the plugin side is a design note and not a task:**
-
-1. **Two existing constraints delete most of the obvious answers.** Constraints 1
-   and 5 (one view, minimal dialogs) rule out a splash, a nag dialog or a second
-   window, which is how almost every donation-funded plugin does this. What is
-   left is the breadcrumb bar or an about pane.
-
-2. **The remaining answer may not work on the platform that matters.** A "Donate"
-   button that opens a browser is the natural fallback, and
-   [docs/design-notes.md](docs/design-notes.md) already lists
-   `browseto.mm`/`openurl.mm` as removed-or-restricted under AUv3. So the one
-   implementation that survives the UX constraints may not survive constraint 3.
-   Whether an AUv3 can open a URL at all is a **factual question only the macOS
-   box can answer** — hence D1 says to establish that first and to say so plainly
-   if you are running on Windows or Linux instead of guessing.
-
-3. **Free is not open source, and this decision does not touch L1.** Price and
-   licence are separate. A free binary with no LICENSE file is exactly what
-   `SynthEditLib` is today. L1 stays NEEDS-JEFF.
-
-4. **The website side is the easy half and should not wait.** A static page with
-   an `<a href>` has none of the sandbox or one-view problems. The one trap is
-   that W1 already says "no trackers", and hosted donate *widgets* ship
-   third-party script and cookies — so W1 now says plain link, not embed, and
-   leaves the destination as a placeholder because choosing the platform is a
-   Jeff decision like L1 and G1.
-
-**Next:** W1 can absorb the website half whenever it is taken. D1 is `any` but is
-really a macOS question; if the Mac takes it, it can answer the AUv3 URL question
-properly instead of deferring it.
-
-**Branch/PR:** `plan/free-donation-supported`
 
 ---
 
