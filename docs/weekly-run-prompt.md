@@ -1,8 +1,15 @@
 # The weekly run prompt
 
-This is the canonical text each machine's scheduled task runs. The Windows box
-already has it installed. For macOS and Linux, substitute the three marked
-values and create the task on that machine.
+This is the **master copy** of the text each machine's scheduled task runs.
+
+Nothing reads this file at run time. Each machine holds its own copy, made when
+its task was created, and **editing this file changes nothing on any machine
+until that machine's task is reinstalled** — see
+[The prompt is copied, not shared](agent-setup.md#the-prompt-is-copied-not-shared)
+for why that matters more than it sounds, and which boxes are currently stale.
+
+All three machines are set up. To install or update one, substitute the three
+marked values and create or replace the task on that machine.
 
 Substitutions:
 
