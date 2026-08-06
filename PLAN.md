@@ -9,6 +9,8 @@ Companion documents:
 - [docs/carve-out.md](docs/carve-out.md) — the code-sharing migration plan.
 - [docs/design-notes.md](docs/design-notes.md) — UX model, RNBO as reference.
 - [docs/agent-setup.md](docs/agent-setup.md) — how the three machines coordinate.
+- [docs/module-enumeration.md](docs/module-enumeration.md) — how modules get into
+  the factory without a filesystem scan. Basis for constraint 7.
 
 ## What TIDE Synth is
 
@@ -42,6 +44,11 @@ These are the non-negotiables. Every backlog item is checked against them.
 6. **Share code with SynthEdit.** TIDE is a second consumer of the same core,
    not a fork. A fix in the shared core benefits both. See
    [docs/carve-out.md](docs/carve-out.md).
+7. **Fixed module set, compiled in.** The modules TIDE ships are statically
+   registered at link time. No module scanning, no module cache, no loading of
+   third-party modules — on *any* platform, not just iOS. On iOS this follows
+   from constraint 3; on desktop it is a deliberate product choice. Decided by
+   Jeff, 2026-08-06. See [docs/module-enumeration.md](docs/module-enumeration.md).
 
 ## Where the code currently lives
 
