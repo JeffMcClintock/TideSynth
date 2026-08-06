@@ -264,6 +264,131 @@ prompted it — `tide/linux/s1-module-enumeration-design`, PR #1.
 
 ---
 
+## 2026-08-06 — macos — S1 (duplicate run — see "The collision" below)
+
+**Did:** Took S1, independently analysed it, then discovered the Linux run had
+taken the same item hours earlier and already had a PR open. Folded the macOS
+findings into the Linux note as **Addendum A1–A6** rather than landing a
+competing document at the same path. Filed G2 and S6. No code changed, no build
+run, nothing in `SynthEdit` or `SynthEditLib` modified.
+
+STEP 1 was clear — `gh issue list` on `JeffMcClintock/TideSynth` returns nothing
+at all, there are no issues yet of any label. P1 and P2 are `win`, so S1 was the
+topmost eligible item, exactly as it was for Linux.
+
+**Result:** Addendum delivered. Independent analysis reached the same
+recommendation as the Linux note (static registry, not scanning), by a different
+route, which is worth something as corroboration. Four findings are additive and
+one materially changes what the note's §9 verification will show.
+
+**The collision — read this before assuming the stagger works.** Both boxes ran
+on 2026-08-06. [agent-setup.md](docs/agent-setup.md) staggers Windows Fri /
+macOS Sat / Linux Sun precisely so two machines cannot take the same backlog
+item — but both were *set up* on the 6th, so both fired immediately and the
+stagger had not taken effect yet. The mechanism is fine; the first week is the
+hole. Nothing in the process caught it: I only noticed at `gh pr create` time,
+when the push succeeded and the PR failed. Two cheap fixes, neither of which is
+mine to make:
+
+1. Have STEP 2 check open PRs and remote branches for `<backlog-id>` before
+   marking an item DOING. `git ls-remote --heads origin` would have caught this
+   in one call, before any work.
+2. Mark DOING and **push that commit** before starting, not just commit it
+   locally. The DOING mark is only useful as a claim if other machines can see
+   it.
+
+Also note the remote default branch is **`main`**, but a fresh clone here left
+me on `master` — `gh pr create --base master` fails with a confusing "No commits
+between…" rather than "no such branch". Use `main`.
+
+**Learned — additive to the Linux entry, not repeating it:**
+
+- **The `INIT_STATIC_FILE` list is three regions, not two, and this changes the
+  §9 prediction.** The Linux note's §6 trap correctly spots that the JUCE arm
+  (`UgDatabase.cpp:1063`–1139, ~70 entries) and the `#else` arm (`:1140`–1155,
+  14) differ. But ~66 more entries sit *after* the `#endif` at `:1156` and are
+  **unconditional**. Verified placements: `ug_adsr` `:1168`, `ug_oscillator2`
+  `:1201`, `ug_vca` `:1215` are unconditional; `ug_filter_sv` `:1145` and
+  `ug_filter_biquad` `:1144` are `#else`-only; `ADSR` `:1064`, `Converters`
+  `:1070`, `OscillatorNaive` `:1082`, `Slider` `:1089` are JUCE-only.
+  **Consequence:** after stage 1 the module browser will be *populated but
+  wrong* — legacy `ug_*` modules present (enough for v0.1), modern SEM modules
+  absent, and `ug_soundcard_in/out` + `ug_midi_out` present in violation of
+  constraint 2. Whoever runs §9 must record *which* modules appear, not just
+  whether the list is non-empty, or they will misread the result in either
+  direction.
+
+- **The "third, explicit list" the Linux note asks for already has a hook.**
+  `SE_EXTRA_STATIC_FILE_CPP` at `UgDatabase.cpp:1239`, plus
+  `initialise_synthedit_extra_modules()` at `:1243` (editor implementation at
+  `ModuleFactory_Editor.cpp:170`). A TIDE module list can live in the TIDE
+  target with **no edit to the shared function** — which makes stage 3 smaller
+  than the note assumes. Four lines at the bottom of a 190-line function; easy
+  to miss, and I nearly did.
+
+- **The metadata half has a shipping mechanism too.**
+  `RegisterExternalPluginsXmlOnce` (`UgDatabase.cpp:526`) reads
+  `database.se.xml` from bundle resources (`:543`); the `imbeddedFilename`
+  attribute (`:587`) is the switch between compiled-in and `dlopen`. And every
+  module already ships its own descriptor beside its source (e.g.
+  `SynthEditLib/modules/OscillatorNaive/OscillatorNaive.xml`), so the database
+  can be **generated at build time by concatenation** with the attribute
+  omitted. That is how the modern SEM modules get their pin metadata in without
+  a scan. Blocker: `plugin_helper.cmake` emits `add_library(… MODULE)` at both
+  `:70` and `:186` — there is no static-library variant of either macro today.
+
+- **`-DSE_EXTERNAL_SEM_SUPPORT=0` will not work.** Both the Linux note's stage 3
+  and its §5 want that macro settable independently. `xplatform.h:34` defines it
+  unconditionally, so a CMake `-D` collides. `GMPI_IS_PLATFORM_JUCE` at `:25` is
+  wrapped in `#if !defined(…)` for exactly this reason — giving
+  `SE_EXTERNAL_SEM_SUPPORT` the same guard is a one-line change that alters no
+  existing target's value.
+
+- **`SE16/SE_IOS_APP/TIDE/Plugins/` is a decoy — do not try to make it load.**
+  Six checked-in `.sem` bundles that look like an iOS module story. `file` says
+  every binary is `Mach-O 64-bit bundle x86_64`; they are macOS bundle layout;
+  and the Run Script that installs them
+  (`SE_IOS_APP.xcodeproj/project.pbxproj:2064`) copies to
+  `${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/`, a macOS-only path.
+  Nothing there can load on arm64. Filed as **S6**. This is the one finding only
+  the Mac could have made, and it is a partial answer to the question the Linux
+  note explicitly addressed to the Mac in its §4 — the full answer still needs
+  M2 and a real device.
+
+- **One scan root that stage 1 will not remove.** `TideApp.cpp:109` overrides a
+  *good* default: `BundleInfo.cpp:699` already points `semFolder` inside the
+  bundle. But `BundleInfo.cpp:712` adds a dev-tree fallback that walks **parent
+  directories** hunting for a sibling `SynthEdit2/PlugIns`. It is not in
+  `TideApp`, so deleting line 109 leaves it. One for S2.
+
+- **Where the trees are on the Mac:** `~/Documents/GitHub/SynthEdit` (= `SE16`)
+  and `~/Documents/GitHub/SynthEditLib`, **siblings, not nested** — same shape
+  as the Linux box, different paths from PLAN.md's `C:\SE\…` table. `SynthEdit`
+  was at `e6b50de2b`. `build/modules/Debug/` has 54 built `.sem`/`.gmpi`
+  bundles, so the module set does build here.
+
+**The process problem — Jeff should read this one.** STEP 5 of the run prompt
+says agents must not modify `SE16` or `SynthEditLib` unless the item is an
+approved carve-out stage. But S1a, S3, S4 and S5 all edit
+`SE16/SynthEditSem/TideApp.cpp` or `SE16/SynthEdit2/`. As written, **no agent
+can ever write TIDE code — only design notes.** Both today's runs happened to
+draw design items so neither was blocked, but the next machine to pick up S1a
+will either stop or quietly break the rule. Filed as **G2** (NEEDS-JEFF). I did
+not downgrade S1a to BLOCKED: that is someone else's item and the reading is
+ambiguous enough that the call should be Jeff's, not mine.
+
+**Next:** G2 first — it gates everything with code in it, including S1a which is
+otherwise the obvious next step. Then P1/P2 on Windows, since §9's check and
+S1a both need a machine that can build and run TIDE. S6 is small and mac-owned
+but also gated by G2.
+
+**Branch/PR:** `tide/mac/s1-module-enumeration`, branched from
+`tide/linux/s1-module-enumeration-design` rather than `main` so it is a clean
+delta on PR #1 with no conflict. **If PR #1 is closed rather than merged, this
+work goes with it** — the addendum lives in the Linux note's file.
+
+---
+
 ## 2026-08-06 — linux — S1
 
 **Did:** Wrote [docs/module-enumeration.md](docs/module-enumeration.md) — the design
