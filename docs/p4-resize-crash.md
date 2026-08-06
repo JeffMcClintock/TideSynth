@@ -1,8 +1,13 @@
 # P4 — the editor-resize crash, diagnosed
 
-BACKLOG **P4**. Root cause found, from the minidumps P2 left behind. **No fix
-was applied**, because the whole fix lives outside this agent's write scope —
-see [Where the fix has to go](#where-the-fix-has-to-go).
+BACKLOG **P4**. Root cause found, from the minidumps P2 left behind.
+
+**Update, same day:** Jeff lifted the scope block (G3), so the fixes were
+written and landed — see [The fixes](#the-fixes). **They are not verified against
+the original failure**: the crash could not be reproduced in a fresh harness,
+even with both fixes disabled. Read
+[What could not be reproduced](#what-could-not-be-reproduced) before trusting
+this as closed.
 
 Everything in "The chain" was read out of the crash dump or the source. The one
 inference is marked so.
@@ -172,7 +177,86 @@ stack are `00000882 00000000`, and `0x7fa0` also appears in the caller's `r15`
 fields somewhere. That is a loose end, not a conclusion. It does not change
 either fix — a plugin must not crash on a rect it dislikes.
 
-## Where the fix has to go
+## The fixes
+
+Both landed 2026-08-07, after Jeff added `gmpi_ui` and `GMPI_Wrappers` to the
+ALLOWED list (G3). Committed in their own repos, **not pushed**.
+
+**P4a — `gmpi_ui/backends/DrawingFrameWin.cpp`.** `reSize` now re-reads both
+pointers after `SetWindowPos` instead of trusting the test it made before it,
+and refuses degenerate or over-limit extents up front:
+
+```cpp
+constexpr int maxSwapChainDimension = 16384;
+
+if (width <= 0 || height <= 0 || width > maxSwapChainDimension || height > maxSwapChainDimension)
+    return;
+
+if (!d2dDeviceContext || (swapChainSize.width == width && swapChainSize.height == height))
+    return;
+
+SetWindowPos(windowHandle, nullptr, 0, 0, width, height, SWP_NOZORDER);
+
+// SetWindowPos *sends* WM_SIZE and WM_PAINT rather than posting them, so OnSize
+// and PaintFrame have already run by the time it returns -- and either releases
+// the device. The check above is stale by this line.
+if (!d2dDeviceContext || !swapChain)
+    return;
+```
+
+This also closes the second latent deref: `swapChain` was never checked at all.
+
+`reSize` is Windows-only. X11 has a separate `reSize(int, int)`
+(`DrawingFrameX11.cpp:920`) and macOS an `onResize()` (`DrawingFrameMac.mm:434`);
+neither was touched, and neither was audited for the same pattern — worth a look
+by whoever owns those platforms.
+
+**P4b — `GMPI_Wrappers/wrapper/VST3/SEVSTGUIEditorWin.cpp`.**
+`checkSizeConstraint` now writes the nearest acceptable size back into the rect,
+which is what the VST3 contract asks for, instead of returning `kResultFalse`
+with the rect untouched.
+
+**Not changed, deliberately:** `OnSize` has the same over-limit weakness as
+`reSize` did — an out-of-range `WM_SIZE` arriving by some other route would still
+fail `ResizeBuffers` and be misread as device loss, tearing down a working
+device. It cannot crash (it checks both pointers), and with `reSize` clamped it
+is no longer reachable from this path, so it was left alone rather than widening
+a shared-code change. Worth filing if it ever bites.
+
+## What could not be reproduced
+
+**The original crash did not happen again, so the fixes are unverified.**
+
+P2 recorded it 3 times out of 3. A fresh portable-REAPER harness, rebuilt from
+P2's own recipe, could not produce it once — in any of these configurations:
+
+| Build | Fixes | Resizes | Result |
+|---|---|---|---|
+| Release | both on | 7 | survived, window resized correctly |
+| Release | gmpi_ui fix off | 1 | survived |
+| Release | **both off** | 1 | survived |
+| Debug | **both off** | 1 | survived |
+| Release | both on (final) | 5 | survived, 0 crash dumps |
+
+With both fixes disabled the code is behaviourally identical to what crashed, so
+this is a harness difference, not a fix. One concrete discrepancy points at
+where: **P2 reported that `MoveWindow` did not actually resize the window** —
+`GetWindowRect` returned 1672×995 before and after — and that it crashed anyway.
+In this harness `MoveWindow` resizes correctly every time (1672×995 → 1200×800 →
+…). So the plugin window was in a different state in P2's session, and that state
+is probably what produced the `{0, 0, 2178, 32672}` rect.
+
+Untested guesses at what differs, for whoever picks this up: the portable copy
+takes `%APPDATA%\REAPER` as it is *today*, which may have changed since 2026-08-06;
+P2 made five launches with screenshots and `SetForegroundWindow` in between; the
+monitor/DPI layout may differ. Filed as **P4c**.
+
+So the fixes rest on the crash dump rather than on a before/after. That evidence
+is strong — the stack proves the null dereference happened at that line, and the
+re-entrancy is plain in the source — but it is not the same thing as watching the
+crash stop.
+
+## Where the fix had to go
 
 Both files are outside the ALLOWED list in the weekly run prompt, and outside
 the GATED list too — the run prompt does not mention these repos at all:
@@ -199,7 +283,11 @@ Two further reasons not to reach across:
   good way to lose both.
 
 Filed as BACKLOG **P4a** (gmpi_ui) and **P4b** (GMPI_Wrappers), and the scope
-gap itself as **G3**.
+gap itself as **G3**. **G3 was resolved the same day** — Jeff added both repos to
+the ALLOWED list — so P4a and P4b were then implemented rather than left queued.
+The two "do not reach across" reasons above still shape *how*: changes kept
+tight, and only the intended file staged in each repo, leaving the Wayland work
+untouched.
 
 ## What was changed
 
