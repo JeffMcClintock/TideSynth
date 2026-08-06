@@ -1,0 +1,16 @@
+build/
+out/
+.vs/
+.vscode/
+.idea/
+DerivedData/
+*.user
+*.suo
+*.sdf
+*.opendb
+.DS_Store
+Thumbs.db
+CMakeCache.txt
+CMakeFiles/
+compile_commands.json
+node_modules/

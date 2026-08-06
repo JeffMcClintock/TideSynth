@@ -1,0 +1,76 @@
+# Cross-platform build matrix.
+#
+# EXPECTED TO FAIL until BACKLOG C7 is done. Until the carve-out completes,
+# TIDE depends on EditorLib, which lives in the private SynthEdit repo, so a
+# clean checkout genuinely cannot build. That failure is the point: when this
+# workflow goes green from a clean clone with no private access, the project is
+# actually open source. Do not add a private deploy key to "fix" it — that
+# would hide the very thing we are measuring.
+#
+# BACKLOG B1: get this failing for exactly that one honest reason, rather than
+# for toolchain or syntax errors.
+
+name: build
+
+on:
+  push:
+    branches: ["main", "tide/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true # remove once C7 lands and green is achievable
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            platform: win
+          - name: macos
+            os: macos-latest
+            platform: mac
+          - name: linux
+            os: ubuntu-latest
+            platform: linux
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux deps
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build \
+            libx11-dev libxcb1-dev libgl1-mesa-dev libfreetype-dev \
+            libfontconfig1-dev libasound2-dev
+
+      - name: Configure
+        id: configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        id: build
+        run: cmake --build build --config Release --parallel
+
+      # A failing build on mac or linux is only useful if the machine that owns
+      # that platform finds out about it. See docs/agent-setup.md.
+      - name: File a platform issue on failure
+        if: failure() && matrix.platform != 'win' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Build failure on ${{ matrix.name }} — ${{ github.ref_name }}" \
+            --label "platform:${{ matrix.platform }}" \
+            --body "Branch: \`${{ github.ref_name }}\`
+          Commit: ${{ github.sha }}
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          The ${{ matrix.name }} machine's next weekly run should pick this up
+          before taking a backlog item. Full compiler output is in the run log."
