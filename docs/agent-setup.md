@@ -130,14 +130,23 @@ surrounding edits easy to drop.
 
 | Machine | Prompt version | Needs reinstall? |
 |---|---|---|
-| Windows | as originally installed | **yes** |
-| macOS | current — matches `weekly-run-prompt.md` | no |
+| Windows | reinstalled 2026-08-06, after the P2 run | no |
+| macOS | PR #4 text — predates the constraint-count fix | **yes** |
 | Linux | as originally installed | **yes** |
 
-Windows and Linux predate PR #4, so on those two boxes: agents still refuse to
-edit `SE16/SynthEditSem/` (STEP 5's old blanket ban), and still claim backlog
-items without pushing the DOING mark, which is what let Linux and macOS both
-take S1 on 2026-08-06.
+Linux still predates PR #4, so on that box agents refuse to edit
+`SE16/SynthEditSem/` (STEP 5's old blanket ban) and claim backlog items without
+pushing the DOING mark — which is what let Linux and macOS both take S1 on
+2026-08-06.
+
+macOS has the PR #4 text but was installed before the "six constraints" wording
+was removed, so its agent is told to check against six of PLAN.md's seven. Less
+dangerous than Linux's copy, still wrong.
+
+Windows was reinstalled by hand after the P2 run. Note what that cost: the P2 run
+itself executed under the old blanket ban. It was an observe-only item so nothing
+was blocked, but S1a — the next `win` item that touches code — would have been
+refused by its own instructions.
 
 A future refinement worth considering: stamp a version or date into the prompt
 text and have STEP 4 echo it into the journal entry. Staleness would then be

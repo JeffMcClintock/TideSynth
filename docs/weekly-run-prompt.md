@@ -32,7 +32,7 @@ role is {PLATFORM}. The repo is at {REPO}.
 You have no memory of any previous run. Everything you know comes from the
 files below. Read all four before doing anything:
 
-  1. PLAN.md      — the goal and the six design constraints. Treat as given.
+  1. PLAN.md      — the goal and the design constraints. Treat as given.
   2. BACKLOG.md   — the queue.
   3. JOURNAL.md   — what previous runs did and learned. Read at least the last
                     four entries.
@@ -89,7 +89,7 @@ STEP 3 — Do the work, on the branch you pushed in STEP 2.
 
   - Scope yourself to that one item. If you find other problems, file them as
     new BACKLOG items or GitHub issues — do not fix them now.
-  - Check your work against the six constraints in PLAN.md, especially:
+  - Check your work against the design constraints in PLAN.md, especially:
     sandbox-safe (no filesystem access outside the plugin bundle) and
     self-contained (no caches or writes scattered across the disk).
   - Build it. Run whatever tests exist. If you cannot build, that is the
@@ -166,6 +166,13 @@ item with no journal entry is not.
   than the reverse.
 - **The NEEDS-JEFF gate** exists because licensing and publishing are
   irreversible and not an agent's call.
+- **The constraints are not counted.** This prompt used to say "the six design
+  constraints" in two places. PLAN.md grew a seventh on 2026-08-06 and the prompt
+  did not, so every installed copy was telling its agent to check against six —
+  quietly excluding the newest ruling, which is exactly the invisibility problem
+  constraint 7 was written into PLAN.md to avoid. A number here has to be updated
+  in lockstep with PLAN.md *and* reinstalled on three machines to mean anything.
+  Do not put one back.
 - **Claim before you work, and push the claim.** On 2026-08-06 the Linux and
   macOS boxes both took S1 and both wrote a design note. The Fri/Sat/Sun stagger
   in [agent-setup.md](agent-setup.md) exists to prevent exactly that, but all
