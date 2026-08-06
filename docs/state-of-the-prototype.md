@@ -107,7 +107,11 @@ produces no PDB** (only `Debug/TIDE_VST3.pdb` exists in the build tree), so the
 `0x44d8c` offset cannot be symbolised as-is — use the Debug dump, whose PDB does
 exist, or add `/DEBUG` to the Release link.
 
-Filed as **P4**.
+Filed as **P4**. **Diagnosed 2026-08-07** — root cause, symbolised stack and the
+`cdb` recipe are in [p4-resize-crash.md](p4-resize-crash.md). It is a
+time-of-check/time-of-use bug in `gmpi_ui`'s `DrawingFrame::reSize`, which
+explains the "did not actually change size" observation below: the crash happens
+inside `SetWindowPos`, before any new size is adopted.
 
 ---
 
