@@ -22,6 +22,125 @@ Template:
 
 ---
 
+## 2026-08-06 — windows — P2
+
+**Did:** Loaded the P1 build of `TIDE_VST3.vst3` in REAPER 7.78 and watched it.
+Wrote [docs/state-of-the-prototype.md](docs/state-of-the-prototype.md) with two
+screenshots under `docs/images/`. Observation only — nothing under `SE16`,
+`SynthEditLib` or `C:\SE\build-tide-p1` was modified, and no bug was fixed.
+
+Branched from `tide/win/P1-verify-prototype-build`, not `main`: that PR (#2) is
+still open, P2 uses the build tree P1 produced, and both runs edit the same
+BACKLOG rows. Before claiming P2 I checked `git ls-remote --heads origin` and
+`gh pr list` — no branch or PR named it. (There *are* open PRs #1 and #3 from the
+Linux and macOS boxes, both for S1; they collided. #4 is the macOS run's fix to
+the run prompt, which is what told me to check remotes first. None are merged, so
+`main` still shows P1 as TODO.)
+
+**Result:** It loads and the editor opens — the prototype really is a working
+plugin in a real DAW. Four findings, in descending order of how much they hurt:
+
+1. **Resizing the editor window crashes the host.** 3/3 reproductions,
+   `0xc0000005` inside `TIDE_VST3.vst3`, Release fault RVA `0x44d8c`, Debug
+   `0x184ed9`, followed 3–5 s later by `0xc000041d` at the same offset (unhandled
+   exception in a user callback — so it is dying in a window proc, not on the
+   audio thread). Filed **P4**.
+2. **The plugin is not called TIDE anywhere the user can see it** — REAPER shows
+   `VST3i: SynthEdit (GMPI)`. Filed **P5**.
+3. **Zero host-automatable parameters.** REAPER reports 3 params and all three
+   are its own wrapper's (Bypass/Wet/Delta). That is the concrete state of V2.
+4. **The module browser is populated from `C:\ProgramData\SynthEdit\Plugin-Cache-16.xml`**,
+   written by the *installed SynthEdit app* at 11:30 that morning. TIDE works on
+   this machine only because SynthEdit is installed on it. Evidence for S1/S2.
+5. **No breadcrumb bar, no properties pane, canvas drawn ~440 px in from the
+   top-left.** Filed **U1**.
+
+**Learned:**
+
+1. **A portable REAPER is the right harness for this, and it takes one copy
+   command.** Copy `C:\Program Files\REAPER (x64)\*` and then `%APPDATA%\REAPER\*`
+   into one scratch directory (152 MB, ~30 s). Because `reaper.ini` now sits next
+   to `reaper.exe`, REAPER runs portable: its own config, its own plug-in scan
+   cache, its own `Scripts` folder, and the developer's REAPER is untouched. Set
+   `vstpath64` to just the build folder so the scan finds exactly one plug-in.
+   `-splashlog <file>` gives a timestamped startup trace.
+
+2. **Drive it from `Scripts/__startup.lua`, not from the mouse.** REAPER runs that
+   file automatically at startup, so `InsertTrackAtIndex` + `TrackFX_AddByName` +
+   `TrackFX_Show(tr, idx, 3)` instantiates the plugin and floats its editor with
+   no UI automation at all, and `TrackFX_GetNumParams`/`GetParamName` dump the
+   host-visible parameter list to a log file. This is how finding 3 was measured.
+   Two traps: `TrackFX_AddByName` needs `"TIDE_VST3.vst3"` (the *filename*) —
+   `"TIDE_VST3"` returns -1 because of finding 2. And the startup script does not
+   re-run if REAPER restores project tabs from a previous session; strip
+   `projecttab*` and `lastproject=` from the portable ini between runs or you will
+   test an empty REAPER and think the plugin is stable. I lost one run to exactly
+   that and briefly believed the crash was spontaneous.
+
+3. **Screenshots and window control need no MCP.** `Graphics.CopyFromScreen` from
+   PowerShell captures the virtual desktop; `EnumWindows` + `GetWindowRect`
+   locates the plugin's floating window by title. One gotcha: declare
+   `GetWindowTextW` with `CharSet=CharSet.Unicode`, otherwise StringBuilder
+   marshals as ANSI and every window title comes back as its first character.
+
+4. **How to prove a crash is caused by what you think it is.** Run 4 sat idle
+   2.5 minutes with the editor open, polled every 5 s, `Responding=True`
+   throughout, then died 1 second after the resize. An earlier
+   `SetForegroundWindow` + screenshot on the same window did not kill it. Without
+   that idle control I could not have ruled out a timer or idle callback.
+
+5. **`MoveWindow` on the plugin window does not resize it** — `GetWindowRect`
+   returns the same `1672x995` before and after — and it crashes anyway. So the
+   fault is in *handling* the size-change message, before any new size is adopted.
+   Useful narrowing for whoever takes P4.
+
+6. **The Release configuration produces no PDB.** `build-tide-p1/SynthEditSem/Release`
+   has the `.vst3` and nothing else, so the Release fault RVA cannot be
+   symbolised. Debug does have `TIDE_VST3.pdb` (57 MB). I tried to symbolise the
+   Debug RVA with `dbghelp.dll` from `C:\Program Files (x86)\Windows Kits\10\Debuggers\x64`
+   P/Invoked from PowerShell; `SymLoadModuleExW` succeeded but `SymFromAddrW`
+   returned `<no symbol>` and I did not chase it further. **There is no `cdb.exe`
+   on this machine** — that Debuggers folder holds only `dbghelp/dbgcore/srcsrv/symsrv`
+   DLLs. Installing the Debugging Tools for Windows feature, or opening the dump
+   in Visual Studio, is the shorter road.
+
+7. **Windows kept full minidumps** (`%LOCALAPPDATA%\CrashDumps\reaper.exe.<pid>.dmp`,
+   ~37 MB each) because LocalDumps is enabled on this box. The WER `ReportArchive`
+   copies, by contrast, contain only `Report.wer` — the `.tmp.dmp` files it
+   references are already deleted by the time you look. Go to `CrashDumps`, not
+   `ReportArchive`.
+
+8. **`GetHomeDir()` has no trailing separator.** It ends in
+   `std::filesystem::path::parent_path()` (`SynthEdit2/Application.cpp:203-234`),
+   so `TideApp.cpp:109`'s `GetHomeDir() + L"modules\\"` composes
+   `...\Releasemodules\`, not `...\Release\modules\`. Harmless here because
+   neither path exists, but `SynthEditAppBase.cpp:1108` concatenates the same way.
+   Not filed separately — it belongs with S1, which rewrites that line anyway.
+
+9. **The module cache filename does not distinguish TIDE from SynthEdit.**
+   `SemCacheName()` only adds a per-folder hash when `BundleInfo::isSemFolderOverridden`
+   is set (`ModuleFactory_Editor.cpp:175-191`), and `TideApp::InitInstance` assigns
+   `semFolder` directly rather than through the setter — so TIDE reads, and on a
+   cache miss would *rewrite*, `C:\ProgramData\SynthEdit\Plugin-Cache-16.xml`, the
+   installed app's own file. Whoever takes S2 should force the cache-miss path,
+   but do it on a machine without SynthEdit installed, or back that file up first.
+
+10. **Reordering note:** P4 is now the topmost Ready-now item, ahead of S1/S2/S3.
+    A crash that kills the host blocks V1 and makes every by-hand test impossible,
+    so it seemed to belong there. P5 and U1 went to the bottom of the table.
+
+**Next:** P4. It has a one-line repro, two minidumps and a narrowed message path,
+and nothing else that touches the editor by hand is testable until it is fixed.
+Add `/DEBUG` to the Release link while you are there, so the next crash report is
+symbolisable. Whoever takes it: the fix may sit in `SE16/SynthEdit2` (GATED under
+the run prompt's ALLOWED/GATED split) — do the TIDE-side part and file the rest.
+The portable-REAPER harness in §"How it was observed" is worth rebuilding rather
+than clicking; it took about 15 minutes.
+
+**Branch/PR:** `tide/win/P2-daw-load-observation`
+
+---
+
 ## 2026-08-06 — windows — P1
 
 **Did:** Verified the prototype builds from a clean CMake configure, in a fresh
