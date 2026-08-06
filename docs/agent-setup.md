@@ -80,6 +80,69 @@ using [the prompt in this repo](weekly-run-prompt.md), with:
 - macOS: cron `0 2 * * 6`, machine name `macos`, platform role `mac`
 - Linux: cron `0 2 * * 0`, machine name `linux`, platform role `linux`
 
+All three machines are now set up, so in practice this section is about
+*re*-installing — which is a routine need, not a one-off. Read the next section
+before assuming a prompt change has reached anywhere.
+
+## The prompt is copied, not shared
+
+This is the sharpest edge in the whole arrangement, and it is invisible from
+inside a run.
+
+[weekly-run-prompt.md](weekly-run-prompt.md) is the **master copy**, but nothing
+reads it at run time. Creating the scheduled task *copies* that text into the
+machine's own task definition:
+
+| Machine | Where its copy lives |
+|---|---|
+| Windows | the `tidesynth-weekly-windows` scheduled task |
+| macOS | `~/.claude/scheduled-tasks/tidesynth-weekly-macos/SKILL.md` |
+| Linux | the `tidesynth-weekly-linux` scheduled task |
+
+From then on the two are unrelated files. **Editing the master copy changes
+nothing on any machine.** A PR that fixes the prompt fixes a document; the
+machines keep running whatever text they were installed with, possibly for
+months.
+
+The reason this bites harder here than it would elsewhere: a run has no memory
+and no way to notice. It cannot compare its own instructions against the repo —
+the instructions are all it has, and they look authoritative. So a stale machine
+does not fail loudly; it quietly follows old rules while the repo says otherwise,
+and the journal it writes gives no hint. Three machines can be running three
+different rulebooks and every entry will read as if everything is fine.
+
+**So: any change to `weekly-run-prompt.md` is only half a change until every
+machine's task is reinstalled.** Treat the two as one job.
+
+### Reinstalling a machine's prompt
+
+On that machine, in Claude Code:
+
+> Update my `tidesynth-weekly-<machine>` scheduled task to match
+> `docs/weekly-run-prompt.md` in the TideSynth repo, substituting `{MACHINE}`,
+> `{PLATFORM}` and `{REPO}` for this box. Leave the cron alone.
+
+Then diff the result against the master copy to confirm the only differences are
+the intended substitutions — the substitutions are easy to get right and the
+surrounding edits easy to drop.
+
+### Current state — 2026-08-06
+
+| Machine | Prompt version | Needs reinstall? |
+|---|---|---|
+| Windows | as originally installed | **yes** |
+| macOS | current — matches `weekly-run-prompt.md` | no |
+| Linux | as originally installed | **yes** |
+
+Windows and Linux predate PR #4, so on those two boxes: agents still refuse to
+edit `SE16/SynthEditSem/` (STEP 5's old blanket ban), and still claim backlog
+items without pushing the DOING mark, which is what let Linux and macOS both
+take S1 on 2026-08-06.
+
+A future refinement worth considering: stamp a version or date into the prompt
+text and have STEP 4 echo it into the journal entry. Staleness would then be
+visible in the handoff instead of having to be remembered.
+
 ### Caveats worth knowing before relying on this
 
 - **Scheduled tasks only run while the Claude app is open.** If the machine is
