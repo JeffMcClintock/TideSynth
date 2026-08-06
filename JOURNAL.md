@@ -22,6 +22,139 @@ Template:
 
 ---
 
+## 2026-08-07 — windows — P4
+
+**Did:** Diagnosed the host-killing resize crash down to file and line, from the
+minidumps P2 left behind. Wrote [docs/p4-resize-crash.md](docs/p4-resize-crash.md).
+**Did not fix it** — the entire fix is in `gmpi_ui` and `GMPI_Wrappers`, which
+are outside my write scope; see "The scope problem" below. The one thing I did
+change is `SE16/SynthEditSem/CMakeLists.txt` (ALLOWED), which now emits a PDB
+for Release, as P4 itself asked.
+
+STEP 1 was clear: `gh issue list` returns nothing, no issues of any label. STEP 2
+— all seven PRs are merged and `main` is the only remote branch, so nothing had
+claimed P4. Claimed it, pushed the DOING mark, then started.
+
+**Result — the crash, in one sentence:** `DrawingFrame::reSize` checks that its
+Direct2D device context is alive, calls `SetWindowPos`, and then uses the device
+context — but `SetWindowPos` dispatches `WM_SIZE` *synchronously*, and that
+handler releases the device. Time-of-check/time-of-use across a re-entrant Win32
+call.
+
+```
+TIDE_VST3!gmpi::hosting::DrawingFrame::reSize+0x139
+00007fff`24304ed9  mov  rax,qword ptr [rax]  ds:00000000`00000000   <- rax = 0
+[C:\SE\gmpi_ui\backends\DrawingFrameWin.cpp @ 1418]
+01  TIDE_VST3!wrapper::SEVSTGUIEditorWin::onSize+0x4c
+[C:\SE\GMPI_Wrappers\wrapper\VST3\SEVSTGUIEditorWin.cpp @ 88]
+02  reaper+0x405ae
+```
+
+Base `0x7fff24180000` → RVA `0x184ED9`, which is exactly the Debug RVA P2
+recorded, so this is provably the same crash. The chain, step by step, is in the
+note; the short version is `reSize:1406` checks → `SetWindowPos:1408` →
+`WindowProc:592` `WM_SIZE` → `OnSize:1371` → `ResizeBuffers` fails →
+`ReleaseDevice()` nulls both pointers (`DrawingFrameWin.h:376-377`) →
+`reSize:1418` dereferences the null. Two defects, both needed:
+**P4a** the stale check, **P4b** nothing clamps the size.
+
+**Learned:**
+
+1. **This machine *does* have `cdb.exe`, and P2's journal is wrong about that.**
+   It is in the Store WinDbg package:
+   `C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2603.20001.0_x64__8wekyb3d8bbwe\amd64\cdb.exe`.
+   P2 concluded there was none after searching only `Windows Kits\10\Debuggers`
+   (which holds just `dbghelp`/`dbgcore`/`srcsrv`/`symsrv` DLLs) and then lost
+   time P/Invoking `dbghelp` from PowerShell. Search `WindowsApps` too. Nothing
+   needed installing and the whole symbolisation took about five minutes.
+
+2. **Two cdb flags are the difference between an answer and a wall of noise.**
+   `.symopt-0x100` (clear `SYMOPT_NO_UNQUALIFIED_LOADS`) — without it `!analyze`
+   prints the "you specified an unqualified symbol" boilerplate three times and
+   resolves nothing. And `.reload /f TIDE_VST3.vst3` — the module loads
+   *deferred*, so `lm` shows it with no symbols until you force it. My first run
+   produced 340 lines of nothing because of these two.
+
+3. **The Debug artifacts from P1 are still on disk and still match.**
+   `C:\SE\build-tide-p1\SynthEditSem\Debug\TIDE_VST3.{vst3,pdb}`, timestamped
+   14:07:29 on 2026-08-06 — before the 16:52 crash. So does
+   `%LOCALAPPDATA%\CrashDumps\reaper.exe.44464.dmp`. Nothing had been cleaned up
+   in the day between runs, but do not count on that indefinitely.
+
+4. **`dv` in the Debug dump gives the host's actual arguments, and they are
+   absurd.** `right = 2178`, `bottom = 32672`. 32672 is past the D3D11 maximum
+   texture dimension of 16384, so `ResizeBuffers` *cannot* succeed — which is
+   why this reproduced 3/3 rather than intermittently. Where REAPER got that
+   number I could not establish; the note records the bit patterns as a loose
+   end rather than guessing.
+
+5. **The bug is visible in the source once you know where to look, and the
+   codebase already knows about it.** `OnSize`, twenty lines above `reSize`,
+   checks `!swapChain || !d2dDeviceContext` and carries a comment explaining
+   that the device can legitimately be gone. `reSize` checks one of the two,
+   before the re-entrant call instead of after, and never checks `swapChain` at
+   all — line 1419 is a second latent null deref on the same path.
+
+6. **A minidump gives you locals but not the whole object.** `dt -r1 this` died
+   with "Memory read error" partway through — a minidump keeps stack and
+   registers, not the full heap. I could not read `swapChain`/`d2dDeviceContext`
+   out of the object directly and had to pin the null pointer from the
+   disassembly instead: the fault at `+0x139` falls between the
+   `ComPtr<ID2D1DeviceContext>::operator->` call at `+0x12a` and the indirect
+   call at `+0x14f`, while the `swapChain` accessor is not reached until
+   `+0x174`. `uf /c` on the function is what makes that legible.
+
+**The scope problem — this one is Jeff's, and it is the reason P4 is not
+fixed.** The run prompt's ALLOWED list is `SE16/SynthEditSem/`,
+`SE16/TideModules/`, `SE16/SE_IOS_APP/TIDE/`; the GATED list is `EditorLib`,
+`SynthEdit2`, `SynthEditLib`. **`gmpi_ui` and `GMPI_Wrappers` are in neither.**
+They are separate public repos that the build consumes via
+`GMPI_UI_FOLDER_OVERRIDE` / `GMPI_WRAPPER_FOLDER_OVERRIDE`, and they are where
+TIDE's rendering and windowing bugs actually live. The prompt says "do the
+TIDE-side part and file the rest" — but I grepped `SE16/SynthEditSem/` for
+`DrawingFrame`, `reSize` and `SEVSTGUIEditorWin` and there are **no hits**.
+There was no TIDE-side part. Filed as **G3**.
+
+I did not reach across, for three reasons: the prompt explicitly warns that "the
+fix looks small" is exactly when not to; `gmpi_ui` is the render backend for
+every GMPI plugin *and* SynthEdit, so it is shared code in the sense the GATED
+rule means; and **both working copies were dirty** with in-progress Wayland work
+(`gmpi_ui` at `11051f1`, `backends/DrawingFrameWayland.h` modified;
+`GMPI_Wrappers` at `4a6a733`, `tests/wayland_editor_host.cpp` modified).
+Committing into someone's uncommitted branch is how you lose both.
+
+**What I did change, and it builds.** `SE16/SynthEditSem/CMakeLists.txt` now
+adds `/Zi` + `/DEBUG` for Release on the TIDE targets, with `/OPT:REF` and
+`/OPT:ICF` restored explicitly because `/DEBUG` silently turns both off. Scoped
+to `${SUB_PROJECT_NAME}` inside the existing `FORMATS_LIST` loop, so it reaches
+`TIDE` and `TIDE_VST3` and nothing else.
+
+| Target | Exit | Result |
+|---|---|---|
+| `TIDE`, `TIDE_VST3` Release | 0 | `TIDE_VST3.pdb` 10,031,104 B and `TIDE.pdb` 8,998,912 B now exist |
+| `SynthEditCL` Release | 0 | unaffected, built to confirm rather than assumed |
+
+Binary cost is 11,776 bytes each (`TIDE_VST3.vst3` 2,969,600 → 2,981,376), which
+is the debug directory entry — if it had grown by megabytes, `/OPT:REF` would
+have been lost. The next Release crash report symbolises without needing a Debug
+repro, which is what P4 asked for.
+
+**Next:** **G3 first** — it is one ruling and it unblocks a crash that kills the
+host. P4a is a few lines (re-check both pointers after `SetWindowPos`, mirroring
+`OnSize:1376`) and P4b is a clamp in `checkSizeConstraint`; both are written up
+with exact line numbers in the note, so whoever is allowed to touch those repos
+can land them quickly — including Jeff directly, which may be the fastest route.
+Until then **V1 stays untestable by hand**, since the editor still cannot be
+resized without killing the DAW.
+
+After that the queue is S1a (win, and the §9 check still wants doing first),
+then S1b/S4/S5. Note S4 is still open and still worth closing as a side effect
+of S1a rather than fixing twice.
+
+**Branch/PR:** `tide/win/P4-editor-resize-crash`
+
+---
+
 ## 2026-08-06 — jeff — decision: free, donation-supported (manual, not a scheduled run)
 
 **Did:** Recorded a product decision that had not been written down anywhere:
