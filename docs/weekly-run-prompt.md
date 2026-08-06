@@ -10,7 +10,11 @@ Substitutions:
 |---|---|---|---|
 | `{MACHINE}` | `windows` | `macos` | `linux` |
 | `{PLATFORM}` | `win` | `mac` | `linux` |
-| `{REPO}` | `C:\SE\TideSynth` | `~/TideSynth` | `~/TideSynth` |
+| `{REPO}` | `C:\SE\TideSynth` | `~/Documents/GitHub/TideSynth` | `~/TideSynth` |
+
+The macOS box was actually set up at `~/Documents/GitHub/TideSynth`, alongside
+its `SynthEdit` and `SynthEditLib` checkouts. Use the real path on each machine
+rather than this table if they disagree — the installed task is what runs.
 
 ---
 
@@ -61,9 +65,10 @@ On a branch: `tide/{PLATFORM}/<backlog-id>-<short-slug>`. Never work on main.
   - Build it. Run whatever tests exist. If you cannot build, that is the
     finding — record it honestly rather than committing hopeful code.
   - Do not fix build failures for a platform you cannot compile on. File a
-    GitHub issue labelled `platform:mac` or `platform:linux` with the full
-    compiler output, the branch, and the commit sha. The machine that owns that
-    platform will pick it up on its own run.
+    GitHub issue labelled with that platform (`platform:win`, `platform:mac`
+    or `platform:linux` — whichever is not yours) carrying the full compiler
+    output, the branch, and the commit sha. The machine that owns that platform
+    will pick it up on its own run.
 
 STEP 4 — Write the handoff. This is not optional.
 The next run knows only what you write down.
@@ -77,9 +82,35 @@ The next run knows only what you write down.
 
 STEP 5 — Stop.
 Do NOT merge the PR. Do NOT push to main. Do NOT create public repositories.
-Do NOT deploy the website. Do NOT modify anything in C:\SE\SE16 or
-C:\SE\SynthEditLib unless your item is an approved carve-out stage (C1-C7) and
-BACKLOG shows C0 as approved.
+Do NOT deploy the website.
+
+What you may edit outside this repo:
+
+  ALLOWED — TIDE's own files. These belong to TIDE, not to SynthEdit, and
+  ordinary backlog work is expected to change them:
+    - SE16/SynthEditSem/      the plugin shell and TideApp
+    - SE16/TideModules/       demo patches and prefabs
+    - SE16/SE_IOS_APP/TIDE/   the iOS TIDE folder
+
+  GATED — shared and commercial code. Do NOT modify unless your item is an
+  approved carve-out stage (C1-C7) and BACKLOG shows C0 as approved:
+    - SE16/EditorLib/
+    - SE16/SynthEdit2/
+    - the SynthEditLib repo
+
+  If the fix you need is in a GATED path, do the TIDE-side part, then file the
+  gated part as its own BACKLOG item naming the exact file and why. Do not
+  reach across the line because the fix looks small — that is precisely when
+  it is tempting and precisely when it breaks someone else's build.
+
+  Shared build files stay GATED even when they configure a TIDE target. In
+  particular SE16/SE_IOS_APP/SE_IOS_APP.xcodeproj/project.pbxproj is shared
+  with the non-TIDE iOS and macOS targets, so a TIDE build phase living there
+  is still a risk to SynthEdit's own builds. File it rather than editing it.
+
+Whatever you touch, leave SynthEdit, SynthEditCL and TIDE all building. If you
+cannot verify that on your platform, say so in the journal rather than
+assuming.
 
 If you are running low on context, stop early — but always complete STEP 4
 first. An unfinished item with a good journal entry is recoverable. A finished
@@ -102,3 +133,10 @@ item with no journal entry is not.
   than the reverse.
 - **The NEEDS-JEFF gate** exists because licensing and publishing are
   irreversible and not an agent's call.
+- **STEP 5's ALLOWED/GATED split** replaced a blanket "do not modify anything in
+  SE16 or SynthEditLib". The blanket version was too wide: S1a, S3, S4 and S5 all
+  edit `SE16/SynthEditSem/TideApp.cpp`, so as written **no agent could ever write
+  TIDE code — only design notes.** The 2026-08-06 macOS run hit this and filed it
+  as BACKLOG G2. The line now sits where the risk actually is: TIDE's own three
+  folders are TIDE's to change; `EditorLib`, `SynthEdit2` and `SynthEditLib` are
+  shared with the commercial product and stay behind the C0 gate.
