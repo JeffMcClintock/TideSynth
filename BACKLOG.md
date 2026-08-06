@@ -26,13 +26,13 @@ that in the journal.
 
 | ID | Status | Plat | Item |
 |---|---|---|---|
-| P1 | DOING | win | **Verify the prototype still builds.** Build `SE16/SynthEditSem` (TIDE, VST3 + GMPI) from a clean CMake configure. Record the exact commands that work in `docs/building.md`. Everything downstream assumes this baseline; nobody has confirmed it recently. |
 | P2 | TODO | win | **Load TIDE in a DAW and record what actually happens.** Screenshot the structure view, note what is broken or missing versus [docs/design-notes.md](docs/design-notes.md). Write findings to `docs/state-of-the-prototype.md`. Do not fix anything in this item — observe only, then file follow-up items. |
 | S1 | TODO | any | **Design module enumeration without filesystem scanning.** `TideApp::InitInstance` calls `LoadOrScanModuleData()` and points `BundleInfo::semFolder` at `GetHomeDir() + "modules\\"` (`SE16/SynthEditSem/TideApp.cpp:109`). Neither works under an iOS AUv3 sandbox. Produce a design note first — do not implement yet. Options to weigh: compile-in a static module registry; enumerate from inside the plugin bundle; a hybrid. |
 | S2 | TODO | any | **Audit every filesystem and cache write** reachable from a TIDE build. Grep for `GetHomeDir`, `AppData`, `%TEMP%`, `~/Library`, `CreateFile`, `fopen`, registry access. Produce `docs/sandbox-audit.md` listing each hit as keep / stub / remove. Constraint 4 in [PLAN.md](PLAN.md) cannot be verified without this. |
 | S3 | TODO | any | **Make the removed dialogs genuinely absent.** `TideApp.cpp` currently stubs `doDialogConnectUg`, `doDialogPatchManager` and `doDialogBuildCodeSkeleton` with `assert(false)`. In a release build these silently fall through. Make the code paths that reach them unreachable, or fail loudly in release too. |
 | B1 | TODO | any | **CI that builds nothing yet but is correct.** `.github/workflows/build.yml` exists as a skeleton and is expected to fail until C7. Get it to the point where it fails for exactly one honest reason (missing private dependency) rather than for syntax or toolchain errors. |
 | W1 | TODO | any | **tidesynth.com holding page.** Static, self-contained, no trackers. Say what TIDE is and link the repo. Do not deploy — build it under `website/` and leave deployment to Jeff. |
+| P3 | TODO | win | **Remove the MFC dependency from the two shared-core files that have one.** `SynthEdit2/CContainer.cpp:8` and `SynthEdit2/MfcDocPresenter.cpp:4` include `afxres.h` under `#ifdef _WIN32`. That header ships only with Visual Studio's MFC component, so a contributor with VS Build Tools (no MFC) cannot build TIDE at all — see the "MFC trap" section of [docs/building.md](docs/building.md). Both files are on the carve-out list (C3 and C4), so this lands in the public repo as a hard MFC requirement unless it is removed first. Find out what they actually need from `afxres.h` — it is likely only `ID_*`/`IDR_*` resource constants, which could move to the local `resource.h`. Verify SynthEdit and SynthEditCL still build. |
 
 ---
 
@@ -69,4 +69,6 @@ building before the next starts. See [docs/carve-out.md](docs/carve-out.md).
 
 ## Done
 
-*(nothing yet — append here with the date and the JOURNAL entry it refers to)*
+| ID | Done | Plat | Item |
+|---|---|---|---|
+| P1 | 2026-08-06 | win | **Verify the prototype still builds.** Clean CMake configure + Release and Debug builds of `TIDE` (GMPI) and `TIDE_VST3`, both exit 0 with zero warnings. Commands and the MFC/`afxres.h` trap recorded in [docs/building.md](docs/building.md). Spun off P3. See the JOURNAL entry for 2026-08-06. |
