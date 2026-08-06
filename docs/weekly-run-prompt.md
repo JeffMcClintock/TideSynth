@@ -52,10 +52,33 @@ or `any`, and (c) not blocked.
     the queue is blocked and why, and stop. A run that does nothing is a fine
     outcome; a run that invents busywork is not.
 
-Mark the item DOING and commit that, so a crash is diagnosable.
+Before you claim it, check that no other machine already has. BACKLOG.md in
+your working copy is only as fresh as your last fetch, and the DOING mark of a
+run in progress elsewhere will not be in it:
 
-STEP 3 — Do the work.
-On a branch: `tide/{PLATFORM}/<backlog-id>-<short-slug>`. Never work on main.
+    git fetch origin
+    git ls-remote --heads origin
+    gh pr list --state open
+
+If a remote branch or an open PR already names that backlog id, the item is
+taken. Move to the next eligible item. If that leaves nothing, write a journal
+entry saying so and stop — do not start a second version of work already in
+flight. If you get all the way to opening a PR and only then discover the
+collision, say so plainly in the journal and make your branch a delta on top of
+theirs rather than a competing document.
+
+Now claim it. The order matters:
+
+  1. Create your branch: `tide/{PLATFORM}/<backlog-id>-<short-slug>`.
+     Never work on main.
+  2. Commit the DOING mark on that branch.
+  3. PUSH it immediately, before doing any of the work.
+
+A DOING mark that only exists on your disk is not a claim — no other machine
+can see it. Pushing it first is what makes a crash diagnosable *and* what stops
+the next machine to wake up duplicating your item.
+
+STEP 3 — Do the work, on the branch you pushed in STEP 2.
 
   - Scope yourself to that one item. If you find other problems, file them as
     new BACKLOG items or GitHub issues — do not fix them now.
@@ -78,7 +101,10 @@ The next run knows only what you write down.
     not work. "Investigated the view code" helps nobody.
   - Update BACKLOG.md: mark the item DONE (move it to the Done section with
     today's date) or back to TODO with a note on what stopped you.
-  - Commit both, push the branch, open a PR.
+  - Commit both, push the branch, open a PR. The repo's default branch is
+    `main` — a fresh clone may leave you on `master`, and
+    `gh pr create --base master` then fails with a misleading
+    "No commits between…" rather than "no such branch".
 
 STEP 5 — Stop.
 Do NOT merge the PR. Do NOT push to main. Do NOT create public repositories.
@@ -133,6 +159,14 @@ item with no journal entry is not.
   than the reverse.
 - **The NEEDS-JEFF gate** exists because licensing and publishing are
   irreversible and not an agent's call.
+- **Claim before you work, and push the claim.** On 2026-08-06 the Linux and
+  macOS boxes both took S1 and both wrote a design note. The Fri/Sat/Sun stagger
+  in [agent-setup.md](agent-setup.md) exists to prevent exactly that, but all
+  three machines were *set up* that day so all three fired at once — the stagger
+  has no effect in week one, and none in any week where a machine was asleep and
+  runs late. A pushed DOING mark is the only thing that makes a claim visible
+  across machines that cannot talk to each other, and checking remote branches
+  costs one command.
 - **STEP 5's ALLOWED/GATED split** replaced a blanket "do not modify anything in
   SE16 or SynthEditLib". The blanket version was too wide: S1a, S3, S4 and S5 all
   edit `SE16/SynthEditSem/TideApp.cpp`, so as written **no agent could ever write
