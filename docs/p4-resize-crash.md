@@ -276,11 +276,19 @@ Two further reasons not to reach across:
 - `gmpi_ui` is the rendering backend for **every** GMPI plugin and for SynthEdit
   itself, not just TIDE. It is exactly the shared code the GATED rule exists to
   protect, and "the fix looks small" is what the run prompt warns about.
-- Both working copies were **dirty** at the time of this run, with in-progress
-  Wayland work (`gmpi_ui` at `11051f1` with `backends/DrawingFrameWayland.h`
+- Both working copies were **dirty** at the time of this run — at the time read
+  as in-progress Wayland work (`gmpi_ui` at `11051f1` with `backends/DrawingFrameWayland.h`
   modified; `GMPI_Wrappers` at `4a6a733` with `tests/wayland_editor_host.cpp`
   modified). Committing a resize fix into someone else's uncommitted branch is a
   good way to lose both.
+
+  **Corrected later the same day:** that was a misreading. The dirt was **pure
+  CRLF line-ending churn** — `git diff --ignore-all-space` returns nothing for
+  all three files, despite 8,424 and 1,019 lines of raw diff. No work was ever at
+  risk. Always run that test before treating a dirty tree as work-in-progress,
+  and revert churn rather than stashing it: restoring an 8,000-line CRLF rewrite
+  is what turns a clean rebase into a merge conflict. See
+  [the churn section](#the-crlf-churn-trap).
 
 Filed as BACKLOG **P4a** (gmpi_ui) and **P4b** (GMPI_Wrappers), and the scope
 gap itself as **G3**. **G3 was resolved the same day** — Jeff added both repos to
@@ -288,6 +296,36 @@ the ALLOWED list — so P4a and P4b were then implemented rather than left queue
 The two "do not reach across" reasons above still shape *how*: changes kept
 tight, and only the intended file staged in each repo, leaving the Wayland work
 untouched.
+
+## The CRLF churn trap
+
+Both shared repos sit dirty most of the time, and the dirt is **not** work. It is
+whole files rewritten with the opposite line endings and no content change —
+`backends/DrawingFrameWayland.h` (8,116 lines), `docs/vst3-linux-editor.md`,
+`tests/wayland_editor_host.cpp`. The tell is a diffstat with matching insertion
+and deletion counts:
+
+```
+ backends/DrawingFrameWayland.h | 8116 ++++++++++++-------------------
+ docs/vst3-linux-editor.md      |  298 +-
+ 2 files changed, 4207 insertions(+), 4207 deletions(-)
+                                 ^^^^ equal -- suspect churn
+```
+
+Confirm it, and act on it:
+
+```bash
+git diff --ignore-all-space -- <file>
+```
+
+Empty output means there is no real change. Revert with
+`git checkout HEAD -- <file>`. Do **not** stash and restore it: this run stashed
+the churn to rebase, and popping the stash conflicted against a genuine upstream
+commit that touched the same file, leaving a conflicted tree for no reason. The
+churn was reverted instead and the rebase went through clean.
+
+This is also why the repo rule says never commit line-ending-only changes — a
+churn commit would bury every real change to those files in the blame.
 
 ## What was changed
 

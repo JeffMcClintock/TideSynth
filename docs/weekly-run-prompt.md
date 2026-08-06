@@ -131,9 +131,20 @@ What you may edit outside this repo:
   that a host-killing crash lived entirely in those two repos and neither list
   mentioned them (BACKLOG G3). They are shared with SynthEdit and every other
   GMPI plugin, so treat them with the care that implies: keep changes tight,
-  comment the reasoning, rebuild SynthEditCL as well as TIDE, and never sweep up
-  unrelated modifications — both working copies are routinely dirty with
-  in-progress work on other platforms. Commit only the files you meant to change.
+  comment the reasoning, rebuild SynthEditCL as well as TIDE, and stage only the
+  files you actually changed (`git add <path>`, never `git add -A`).
+
+  Expect to find both working copies already dirty, and check what that dirt is
+  before working around it. On 2026-08-07 it was **pure CRLF line-ending churn**
+  — whole files rewritten with zero content change. Test it:
+
+      git diff --ignore-all-space -- <file>
+
+  No output means line-ending churn only. Revert those files
+  (`git checkout HEAD -- <file>`); do not stash-and-restore them and do not
+  commit them. Restoring the churn is what turns a clean rebase into a conflict:
+  a stash pop of an 8,000-line CRLF rewrite conflicts with any real upstream
+  commit that touched the same file.
 
   GATED — shared and commercial code. Do NOT modify unless your item is an
   approved carve-out stage (C1-C7) and BACKLOG shows C0 as approved:
