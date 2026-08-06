@@ -123,6 +123,14 @@ rule means; and **both working copies were dirty** with in-progress Wayland work
 `GMPI_Wrappers` at `4a6a733`, `tests/wayland_editor_host.cpp` modified).
 Committing into someone's uncommitted branch is how you lose both.
 
+> **Correction, later the same day:** that dirt was **not** in-progress Wayland
+> work. It was pure CRLF line-ending churn — `git diff --ignore-all-space`
+> returns nothing for all three files (8,424 and 1,019 diff lines respectively,
+> zero real content). Nobody's work was at risk. The caution above was still the
+> right call for the other two reasons, but do not repeat the mistake of reading
+> a dirty tree as work-in-progress without testing it. See the entry for the
+> push/cleanup below.
+
 **What I did change, and it builds.** `SE16/SynthEditSem/CMakeLists.txt` now
 adds `/Zi` + `/DEBUG` for Release on the TIDE targets, with `/OPT:REF` and
 `/OPT:ICF` restored explicitly because `/DEBUG` silently turns both off. Scoped
@@ -152,6 +160,61 @@ then S1b/S4/S5. Note S4 is still open and still worth closing as a side effect
 of S1a rather than fixing twice.
 
 **Branch/PR:** `tide/win/P4-editor-resize-crash`
+
+---
+
+## 2026-08-07 — windows — push + branch cleanup (same run, at Jeff's request)
+
+**Did:** Pushed the two shared-repo fixes, tidied branches, and corrected a
+factual error I had put in this journal earlier the same day.
+
+**Result:**
+
+| Repo | Outcome |
+|---|---|
+| `gmpi_ui` | `9c79f30` pushed to `main` (rebased over 2 new upstream commits) |
+| `GMPI_Wrappers` | `e6a4541` pushed to `main` (rebased over 1) |
+| `SE16` | nothing to push — Jeff had already re-committed the PDB change as `0e19fdd6a` |
+| `TideSynth` | nothing to push — PRs #9 and #10 both merged while the run was still going |
+
+Rebuilt after both rebases (upstream had touched rendering): `TIDE`, `TIDE_VST3`
+and `SynthEditCL` all exit 0, zero warnings. Deleted six fully-merged local
+branches in TideSynth with `git branch -d`; origin already had only `main`.
+
+**Learned — the correction, and it is the useful part of this entry:**
+
+1. **A dirty tree is not necessarily work.** I twice described `gmpi_ui` and
+   `GMPI_Wrappers` as "dirty with in-progress Wayland work" and used that as a
+   reason not to touch them. It was **pure CRLF line-ending churn**: 8,424 and
+   1,019 lines of raw diff, and `git diff --ignore-all-space` returns *nothing*
+   for every file. Nobody's work was ever at risk. The giveaway was visible from
+   the start and I did not read it — a diffstat with **equal** insertion and
+   deletion counts (`4207 insertions(+), 4207 deletions(-)`).
+
+2. **Revert churn; never stash and restore it.** I stashed it to rebase, pushed
+   fine, and then the `git stash pop` **conflicted** — an 8,000-line CRLF rewrite
+   against a real upstream commit touching the same file. Git keeps the stash on
+   a failed pop, so nothing was lost; I cleared the tree and left `stash@{0}` in
+   place rather than resolving someone else's apparent work. Once the churn was
+   identified, `git checkout HEAD -- <file>` made the second repo trivial. The
+   repo rule already says never commit line-ending-only changes; the corollary is
+   never *preserve* them either.
+
+3. **Check the PR you are adding to is still open.** PR #8 was merged while I was
+   working, so a follow-up commit pushed to that branch recreated a deleted
+   branch and needed a fresh PR. `gh pr view <n> --json state` before pushing a
+   follow-up.
+
+4. **Do not delete other sessions' branches.** `claude/*` branches in `gmpi_ui`
+   and `SE16` are merged and look stale, but each has a live worktree under
+   `.claude/worktrees/` and one is actively checked out. Left alone.
+
+**Next:** unchanged — **P4c** (reproduce the crash, then re-run the A/B) is still
+the top item, and the resize fix is still fixed-by-reasoning rather than
+fixed-by-test. One loose end: `gmpi_ui stash@{0}` holds the reverted churn; it is
+provably zero-content and safe to drop.
+
+**Branch/PR:** `docs/crlf-churn-correction`
 
 ---
 
@@ -229,10 +292,11 @@ dragging the window edge instead of calling `MoveWindow`.
    device loss, tearing down a working device. It cannot *crash* (it checks both
    pointers), and `reSize`'s clamp makes it unreachable from this path, so I left
    it rather than widening a shared-code change. Noted in the doc, not filed.
-6. **Staging discipline in the shared repos.** Both had uncommitted Wayland work.
-   I staged only my own file in each (`git add <path>`, never `-A`) and committed
+6. **Staging discipline in the shared repos.** Both had uncommitted changes. I
+   staged only my own file in each (`git add <path>`, never `-A`) and committed
    locally without pushing. `git diff --stat` on just that path is the quick check
-   that nothing else came along.
+   that nothing else came along. *(Correction: I called those changes "Wayland
+   work". They were CRLF churn — see the push/cleanup entry below.)*
 
 **Next:** **P4c** — reproduce the crash, then re-run the A/B. Until that lands,
 P4 is fixed-by-reasoning, not fixed-by-test, and V1 should not be assumed
