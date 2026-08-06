@@ -81,6 +81,37 @@ sells the ability to export patches as plugins. TIDE embeds patches instead of
 exporting them, so it does not need that code. See
 [docs/carve-out.md](docs/carve-out.md) for how the seam works.
 
+## Price and funding — decided
+
+**TIDE is free.** No paid tier, no trial period, no licence key, no unlock, no
+feature held back for a paid version. Decided by Jeff, 2026-08-06.
+
+**Funding is by donation.** Both the plugin and tidesynth.com should make
+donating possible. Neither should nag: no splash screen, no countdown, no modal
+reminder, nothing that interrupts making sound. A donation route that a user has
+to go looking for is the intended outcome, not a failure of the design.
+
+Free is **not** the same as open source. This section settles the price; it does
+not settle the licence, which is still L1 and still Jeff's alone. A free binary
+with no LICENSE file is exactly the state `SynthEditLib` is in today.
+
+Two constraints above already narrow what a donation affordance can be, and they
+narrow it a lot:
+
+- **Constraints 1 and 5** — one view, minimal dialogs. Whatever this is, it is
+  not a dialog and not a second window. It has to live in the breadcrumb bar or
+  an about pane, or it does not exist.
+- **Constraint 3** — sandbox-safe. Opening an external URL is the obvious
+  implementation and it is the one most at risk: `browseto.mm` / `openurl.mm`
+  are already listed as removed-or-restricted under AUv3 in
+  [docs/design-notes.md](docs/design-notes.md). On iOS a "Donate" button may
+  simply not be able to open a browser. Design this before building it — see
+  BACKLOG **D1**.
+
+Timing: none of this is v0.1. v0.1 is the acceptance test below and nothing else.
+The website side (**W1**) can carry a donation link immediately, because a static
+page has none of the above problems.
+
 ## Target formats
 
 | Platform | Formats | Owning machine |
