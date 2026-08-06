@@ -1,8 +1,15 @@
 # The weekly run prompt
 
-This is the canonical text each machine's scheduled task runs. The Windows box
-already has it installed. For macOS and Linux, substitute the three marked
-values and create the task on that machine.
+This is the **master copy** of the text each machine's scheduled task runs.
+
+Nothing reads this file at run time. Each machine holds its own copy, made when
+its task was created, and **editing this file changes nothing on any machine
+until that machine's task is reinstalled** — see
+[The prompt is copied, not shared](agent-setup.md#the-prompt-is-copied-not-shared)
+for why that matters more than it sounds, and which boxes are currently stale.
+
+All three machines are set up. To install or update one, substitute the three
+marked values and create or replace the task on that machine.
 
 Substitutions:
 
@@ -10,7 +17,11 @@ Substitutions:
 |---|---|---|---|
 | `{MACHINE}` | `windows` | `macos` | `linux` |
 | `{PLATFORM}` | `win` | `mac` | `linux` |
-| `{REPO}` | `C:\SE\TideSynth` | `~/TideSynth` | `~/TideSynth` |
+| `{REPO}` | `C:\SE\TideSynth` | `~/Documents/GitHub/TideSynth` | `~/TideSynth` |
+
+The macOS box was actually set up at `~/Documents/GitHub/TideSynth`, alongside
+its `SynthEdit` and `SynthEditLib` checkouts. Use the real path on each machine
+rather than this table if they disagree — the installed task is what runs.
 
 ---
 
@@ -48,10 +59,33 @@ or `any`, and (c) not blocked.
     the queue is blocked and why, and stop. A run that does nothing is a fine
     outcome; a run that invents busywork is not.
 
-Mark the item DOING and commit that, so a crash is diagnosable.
+Before you claim it, check that no other machine already has. BACKLOG.md in
+your working copy is only as fresh as your last fetch, and the DOING mark of a
+run in progress elsewhere will not be in it:
 
-STEP 3 — Do the work.
-On a branch: `tide/{PLATFORM}/<backlog-id>-<short-slug>`. Never work on main.
+    git fetch origin
+    git ls-remote --heads origin
+    gh pr list --state open
+
+If a remote branch or an open PR already names that backlog id, the item is
+taken. Move to the next eligible item. If that leaves nothing, write a journal
+entry saying so and stop — do not start a second version of work already in
+flight. If you get all the way to opening a PR and only then discover the
+collision, say so plainly in the journal and make your branch a delta on top of
+theirs rather than a competing document.
+
+Now claim it. The order matters:
+
+  1. Create your branch: `tide/{PLATFORM}/<backlog-id>-<short-slug>`.
+     Never work on main.
+  2. Commit the DOING mark on that branch.
+  3. PUSH it immediately, before doing any of the work.
+
+A DOING mark that only exists on your disk is not a claim — no other machine
+can see it. Pushing it first is what makes a crash diagnosable *and* what stops
+the next machine to wake up duplicating your item.
+
+STEP 3 — Do the work, on the branch you pushed in STEP 2.
 
   - Scope yourself to that one item. If you find other problems, file them as
     new BACKLOG items or GitHub issues — do not fix them now.
@@ -61,9 +95,10 @@ On a branch: `tide/{PLATFORM}/<backlog-id>-<short-slug>`. Never work on main.
   - Build it. Run whatever tests exist. If you cannot build, that is the
     finding — record it honestly rather than committing hopeful code.
   - Do not fix build failures for a platform you cannot compile on. File a
-    GitHub issue labelled `platform:mac` or `platform:linux` with the full
-    compiler output, the branch, and the commit sha. The machine that owns that
-    platform will pick it up on its own run.
+    GitHub issue labelled with that platform (`platform:win`, `platform:mac`
+    or `platform:linux` — whichever is not yours) carrying the full compiler
+    output, the branch, and the commit sha. The machine that owns that platform
+    will pick it up on its own run.
 
 STEP 4 — Write the handoff. This is not optional.
 The next run knows only what you write down.
@@ -73,13 +108,42 @@ The next run knows only what you write down.
     not work. "Investigated the view code" helps nobody.
   - Update BACKLOG.md: mark the item DONE (move it to the Done section with
     today's date) or back to TODO with a note on what stopped you.
-  - Commit both, push the branch, open a PR.
+  - Commit both, push the branch, open a PR. The repo's default branch is
+    `main` — a fresh clone may leave you on `master`, and
+    `gh pr create --base master` then fails with a misleading
+    "No commits between…" rather than "no such branch".
 
 STEP 5 — Stop.
 Do NOT merge the PR. Do NOT push to main. Do NOT create public repositories.
-Do NOT deploy the website. Do NOT modify anything in C:\SE\SE16 or
-C:\SE\SynthEditLib unless your item is an approved carve-out stage (C1-C7) and
-BACKLOG shows C0 as approved.
+Do NOT deploy the website.
+
+What you may edit outside this repo:
+
+  ALLOWED — TIDE's own files. These belong to TIDE, not to SynthEdit, and
+  ordinary backlog work is expected to change them:
+    - SE16/SynthEditSem/      the plugin shell and TideApp
+    - SE16/TideModules/       demo patches and prefabs
+    - SE16/SE_IOS_APP/TIDE/   the iOS TIDE folder
+
+  GATED — shared and commercial code. Do NOT modify unless your item is an
+  approved carve-out stage (C1-C7) and BACKLOG shows C0 as approved:
+    - SE16/EditorLib/
+    - SE16/SynthEdit2/
+    - the SynthEditLib repo
+
+  If the fix you need is in a GATED path, do the TIDE-side part, then file the
+  gated part as its own BACKLOG item naming the exact file and why. Do not
+  reach across the line because the fix looks small — that is precisely when
+  it is tempting and precisely when it breaks someone else's build.
+
+  Shared build files stay GATED even when they configure a TIDE target. In
+  particular SE16/SE_IOS_APP/SE_IOS_APP.xcodeproj/project.pbxproj is shared
+  with the non-TIDE iOS and macOS targets, so a TIDE build phase living there
+  is still a risk to SynthEdit's own builds. File it rather than editing it.
+
+Whatever you touch, leave SynthEdit, SynthEditCL and TIDE all building. If you
+cannot verify that on your platform, say so in the journal rather than
+assuming.
 
 If you are running low on context, stop early — but always complete STEP 4
 first. An unfinished item with a good journal entry is recoverable. A finished
@@ -102,3 +166,18 @@ item with no journal entry is not.
   than the reverse.
 - **The NEEDS-JEFF gate** exists because licensing and publishing are
   irreversible and not an agent's call.
+- **Claim before you work, and push the claim.** On 2026-08-06 the Linux and
+  macOS boxes both took S1 and both wrote a design note. The Fri/Sat/Sun stagger
+  in [agent-setup.md](agent-setup.md) exists to prevent exactly that, but all
+  three machines were *set up* that day so all three fired at once — the stagger
+  has no effect in week one, and none in any week where a machine was asleep and
+  runs late. A pushed DOING mark is the only thing that makes a claim visible
+  across machines that cannot talk to each other, and checking remote branches
+  costs one command.
+- **STEP 5's ALLOWED/GATED split** replaced a blanket "do not modify anything in
+  SE16 or SynthEditLib". The blanket version was too wide: S1a, S3, S4 and S5 all
+  edit `SE16/SynthEditSem/TideApp.cpp`, so as written **no agent could ever write
+  TIDE code — only design notes.** The 2026-08-06 macOS run hit this and filed it
+  as BACKLOG G2. The line now sits where the risk actually is: TIDE's own three
+  folders are TIDE's to change; `EditorLib`, `SynthEdit2` and `SynthEditLib` are
+  shared with the commercial product and stay behind the C0 gate.

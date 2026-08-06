@@ -176,11 +176,12 @@ Suggested staging — each stage leaves TIDE building:
 2. **Prove it.** Assert/log the size of `module_list` before and after, and confirm
    the module browser is populated and a module can be dropped into the view.
    (Needs P1/P2 — a machine that can run the prototype.)
-3. **Make the absence structural.** Introduce a `TIDE_NO_EXTERNAL_MODULES` (or
-   decouple `SE_EXTERNAL_SEM_SUPPORT` from `GMPI_IS_PLATFORM_JUCE` at
-   `xplatform.h:34`) so the scan/cache code is not merely un-called but not
-   compiled. Otherwise it remains reachable via any other entry point and S2's
-   audit can never come back clean. This touches shared code → carve-out order.
+3. **Make the absence structural.** *Required, not optional — see §7.1.* Introduce a
+   `TIDE_NO_EXTERNAL_MODULES` (or decouple `SE_EXTERNAL_SEM_SUPPORT` from
+   `GMPI_IS_PLATFORM_JUCE` at `xplatform.h:34`) so the scan/cache code is not merely
+   un-called but not compiled. Otherwise it remains reachable via any other entry
+   point and S2's audit can never come back clean. This touches shared code →
+   carve-out order. Backlog **S1b**.
 4. **Prefabs.** Embed the three TIDE prefabs, or ship them under
    `Contents/Resources/Prefabs/` and resolve `*P=` entries relative to
    `BundleInfo::getResourceFolder()` instead of the user's Documents folder.
@@ -197,10 +198,14 @@ either existing arm.
 
 ## 7. Open questions
 
-1. Does TIDE ever want third-party modules on desktop, or is a fixed module set the
-   product? Option A/C says fixed. **This is a product decision, not an agent's** —
-   flagging rather than assuming. Everything above works either way; only stage 3's
-   shape changes.
+1. ~~Does TIDE ever want third-party modules on desktop, or is a fixed module set
+   the product?~~ **Answered by Jeff, 2026-08-06: fixed module set, compiled in.
+   No third-party module loading on any platform.** This is now
+   [PLAN.md](../PLAN.md) constraint 7 — a non-negotiable, not a preference. Do not
+   re-open it. Consequences for this note: Option B (§5) is dead; stage 3 (§6) is
+   definite rather than optional — the scan and cache code must be compiled *out*,
+   not merely left un-called; and Option A's stated "against" (module set frozen at
+   build time) is now an accepted property rather than a cost.
 2. Which modules belong in TIDE's list? Neither existing arm is right (§6 trap).
    Depends on P2 (what the prototype actually shows) and constraint 2.
 
