@@ -22,6 +22,213 @@ Template:
 
 ---
 
+## 2026-08-06 — windows — P2
+
+**Did:** Loaded the P1 build of `TIDE_VST3.vst3` in REAPER 7.78 and watched it.
+Wrote [docs/state-of-the-prototype.md](docs/state-of-the-prototype.md) with two
+screenshots under `docs/images/`. Observation only — nothing under `SE16`,
+`SynthEditLib` or `C:\SE\build-tide-p1` was modified, and no bug was fixed.
+
+Branched from `tide/win/P1-verify-prototype-build`, not `main`: that PR (#2) is
+still open, P2 uses the build tree P1 produced, and both runs edit the same
+BACKLOG rows. Before claiming P2 I checked `git ls-remote --heads origin` and
+`gh pr list` — no branch or PR named it. (There *are* open PRs #1 and #3 from the
+Linux and macOS boxes, both for S1; they collided. #4 is the macOS run's fix to
+the run prompt, which is what told me to check remotes first. None are merged, so
+`main` still shows P1 as TODO.)
+
+**Result:** It loads and the editor opens — the prototype really is a working
+plugin in a real DAW. Four findings, in descending order of how much they hurt:
+
+1. **Resizing the editor window crashes the host.** 3/3 reproductions,
+   `0xc0000005` inside `TIDE_VST3.vst3`, Release fault RVA `0x44d8c`, Debug
+   `0x184ed9`, followed 3–5 s later by `0xc000041d` at the same offset (unhandled
+   exception in a user callback — so it is dying in a window proc, not on the
+   audio thread). Filed **P4**.
+2. **The plugin is not called TIDE anywhere the user can see it** — REAPER shows
+   `VST3i: SynthEdit (GMPI)`. Filed **P5**.
+3. **Zero host-automatable parameters.** REAPER reports 3 params and all three
+   are its own wrapper's (Bypass/Wet/Delta). That is the concrete state of V2.
+4. **The module browser is populated from `C:\ProgramData\SynthEdit\Plugin-Cache-16.xml`**,
+   written by the *installed SynthEdit app* at 11:30 that morning. TIDE works on
+   this machine only because SynthEdit is installed on it. Evidence for S1/S2.
+5. **No breadcrumb bar, no properties pane, canvas drawn ~440 px in from the
+   top-left.** Filed **U1**.
+
+**Learned:**
+
+1. **A portable REAPER is the right harness for this, and it takes one copy
+   command.** Copy `C:\Program Files\REAPER (x64)\*` and then `%APPDATA%\REAPER\*`
+   into one scratch directory (152 MB, ~30 s). Because `reaper.ini` now sits next
+   to `reaper.exe`, REAPER runs portable: its own config, its own plug-in scan
+   cache, its own `Scripts` folder, and the developer's REAPER is untouched. Set
+   `vstpath64` to just the build folder so the scan finds exactly one plug-in.
+   `-splashlog <file>` gives a timestamped startup trace.
+
+2. **Drive it from `Scripts/__startup.lua`, not from the mouse.** REAPER runs that
+   file automatically at startup, so `InsertTrackAtIndex` + `TrackFX_AddByName` +
+   `TrackFX_Show(tr, idx, 3)` instantiates the plugin and floats its editor with
+   no UI automation at all, and `TrackFX_GetNumParams`/`GetParamName` dump the
+   host-visible parameter list to a log file. This is how finding 3 was measured.
+   Two traps: `TrackFX_AddByName` needs `"TIDE_VST3.vst3"` (the *filename*) —
+   `"TIDE_VST3"` returns -1 because of finding 2. And the startup script does not
+   re-run if REAPER restores project tabs from a previous session; strip
+   `projecttab*` and `lastproject=` from the portable ini between runs or you will
+   test an empty REAPER and think the plugin is stable. I lost one run to exactly
+   that and briefly believed the crash was spontaneous.
+
+3. **Screenshots and window control need no MCP.** `Graphics.CopyFromScreen` from
+   PowerShell captures the virtual desktop; `EnumWindows` + `GetWindowRect`
+   locates the plugin's floating window by title. One gotcha: declare
+   `GetWindowTextW` with `CharSet=CharSet.Unicode`, otherwise StringBuilder
+   marshals as ANSI and every window title comes back as its first character.
+
+4. **How to prove a crash is caused by what you think it is.** Run 4 sat idle
+   2.5 minutes with the editor open, polled every 5 s, `Responding=True`
+   throughout, then died 1 second after the resize. An earlier
+   `SetForegroundWindow` + screenshot on the same window did not kill it. Without
+   that idle control I could not have ruled out a timer or idle callback.
+
+5. **`MoveWindow` on the plugin window does not resize it** — `GetWindowRect`
+   returns the same `1672x995` before and after — and it crashes anyway. So the
+   fault is in *handling* the size-change message, before any new size is adopted.
+   Useful narrowing for whoever takes P4.
+
+6. **The Release configuration produces no PDB.** `build-tide-p1/SynthEditSem/Release`
+   has the `.vst3` and nothing else, so the Release fault RVA cannot be
+   symbolised. Debug does have `TIDE_VST3.pdb` (57 MB). I tried to symbolise the
+   Debug RVA with `dbghelp.dll` from `C:\Program Files (x86)\Windows Kits\10\Debuggers\x64`
+   P/Invoked from PowerShell; `SymLoadModuleExW` succeeded but `SymFromAddrW`
+   returned `<no symbol>` and I did not chase it further. **There is no `cdb.exe`
+   on this machine** — that Debuggers folder holds only `dbghelp/dbgcore/srcsrv/symsrv`
+   DLLs. Installing the Debugging Tools for Windows feature, or opening the dump
+   in Visual Studio, is the shorter road.
+
+7. **Windows kept full minidumps** (`%LOCALAPPDATA%\CrashDumps\reaper.exe.<pid>.dmp`,
+   ~37 MB each) because LocalDumps is enabled on this box. The WER `ReportArchive`
+   copies, by contrast, contain only `Report.wer` — the `.tmp.dmp` files it
+   references are already deleted by the time you look. Go to `CrashDumps`, not
+   `ReportArchive`.
+
+8. **`GetHomeDir()` has no trailing separator.** It ends in
+   `std::filesystem::path::parent_path()` (`SynthEdit2/Application.cpp:203-234`),
+   so `TideApp.cpp:109`'s `GetHomeDir() + L"modules\\"` composes
+   `...\Releasemodules\`, not `...\Release\modules\`. Harmless here because
+   neither path exists, but `SynthEditAppBase.cpp:1108` concatenates the same way.
+   Not filed separately — it belongs with S1, which rewrites that line anyway.
+
+9. **The module cache filename does not distinguish TIDE from SynthEdit.**
+   `SemCacheName()` only adds a per-folder hash when `BundleInfo::isSemFolderOverridden`
+   is set (`ModuleFactory_Editor.cpp:175-191`), and `TideApp::InitInstance` assigns
+   `semFolder` directly rather than through the setter — so TIDE reads, and on a
+   cache miss would *rewrite*, `C:\ProgramData\SynthEdit\Plugin-Cache-16.xml`, the
+   installed app's own file. Whoever takes S2 should force the cache-miss path,
+   but do it on a machine without SynthEdit installed, or back that file up first.
+
+10. **Reordering note:** P4 is now the topmost Ready-now item, ahead of S1/S2/S3.
+    A crash that kills the host blocks V1 and makes every by-hand test impossible,
+    so it seemed to belong there. P5 and U1 went to the bottom of the table.
+
+**Next:** P4. It has a one-line repro, two minidumps and a narrowed message path,
+and nothing else that touches the editor by hand is testable until it is fixed.
+Add `/DEBUG` to the Release link while you are there, so the next crash report is
+symbolisable. Whoever takes it: the fix may sit in `SE16/SynthEdit2` (GATED under
+the run prompt's ALLOWED/GATED split) — do the TIDE-side part and file the rest.
+The portable-REAPER harness in §"How it was observed" is worth rebuilding rather
+than clicking; it took about 15 minutes.
+
+**Branch/PR:** `tide/win/P2-daw-load-observation`
+
+---
+
+## 2026-08-06 — windows — P1
+
+**Did:** Verified the prototype builds from a clean CMake configure, in a fresh
+build tree at `C:\SE\build-tide-p1` (deliberately *not* the developer's existing
+`C:\SE\SE16\build` — that tree is a decade of accumulated cache and would have
+hidden the finding below). Wrote `docs/building.md`. Nothing under `C:\SE\SE16`
+or `C:\SE\SynthEditLib` was modified; the only writes outside this repo were the
+build tree.
+
+**Result:** It builds. `cmake --build ... --target TIDE TIDE_VST3` exits 0 for
+both configs, zero compiler warnings at default verbosity:
+
+| Config | Artifacts in `<build>/SynthEditSem/<config>/` |
+|---|---|
+| Release | `TIDE.gmpi` 2,712,576 B · `TIDE_VST3.vst3` 2,969,600 B |
+| Debug | `TIDE.gmpi` 10,235,904 B · `TIDE_VST3.vst3` 11,616,768 B |
+
+Exact commands are in [docs/building.md](docs/building.md). Environment: CMake
+4.2.0, VS 18 Community, MSVC 14.51.36231, toolset v145, Windows SDK
+10.0.26100.0.
+
+**Learned:**
+
+1. **A clean configure does NOT work with default settings, and the error looks
+   like something else entirely.** First attempt failed with exactly two errors:
+
+   ```
+   C:\SE\SE16\SynthEdit2\CContainer.cpp(8,10): error C1083: Cannot open include file: 'afxres.h': No such file or directory [EditorLib.vcxproj]
+   C:\SE\SE16\SynthEdit2\MfcDocPresenter.cpp(4,10): error C1083: Cannot open include file: 'afxres.h': No such file or directory [EditorLib.vcxproj]
+   ```
+
+   Root cause: this machine has two VS 18 instances. `...\18\Community` has the
+   MFC component (`VC\Tools\MSVC\14.51.36231\atlmfc\include\afxres.h` exists);
+   `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools` has MSVC
+   14.51.36231 but **no `atlmfc` directory at all**. With no
+   `CMAKE_GENERATOR_INSTANCE` given, CMake picks BuildTools. Fix: pass
+   `-DCMAKE_GENERATOR_INSTANCE="C:/Program Files/Microsoft Visual Studio/18/Community"`.
+   `CMAKE_LINKER` in `CMakeCache.txt` is the quickest way to see which instance a
+   tree is actually using. The instance cannot be changed in place — delete the
+   build tree and reconfigure.
+
+   The developer's `C:\SE\SE16\build` was configured with
+   `CMAKE_GENERATOR_INSTANCE:UNINITIALIZED=C:/Program Files/Microsoft Visual Studio/18/Community`,
+   i.e. it was passed on the command line at some point. That is the whole reason
+   it has always worked and a fresh tree does not.
+
+2. **Do not debug this by building the failing `.vcxproj` directly — it lies.**
+   `MSBuild.exe EditorLib.vcxproj /t:...` succeeds on the *same* build tree that
+   `cmake --build` fails on, because MSBuild launched by hand resolves its own VS
+   instance (Community, MSBuild 18.8.2) while `cmake --build` uses the cached one
+   (BuildTools, MSBuild 18.7.8). I lost about half an hour to this: the two
+   `.vcxproj` files are byte-identical apart from paths and GUIDs, the
+   `IncludePath` property printed by `msbuild -getProperty:IncludePath` contains
+   `atlmfc\include`, and `cl.exe` invoked by hand with those include dirs
+   compiles `#include "afxres.h"` fine. All of that is true and all of it is
+   irrelevant. To get the truth, run `cmake --build ... -- /v:diag` and grep the
+   log for `EXTERNAL_INCLUDE=` — the VS install path in that string is the one
+   actually in use. It is also not shell-related; it reproduces identically from
+   Git Bash, PowerShell and a `.bat` wrapper.
+
+3. **Two files in the carve-out set require MFC on Windows.**
+   `SynthEdit2/CContainer.cpp:8` and `SynthEdit2/MfcDocPresenter.cpp:4` both do
+   `#include "afxres.h"` inside `#ifdef _WIN32`. Nothing in any CMakeLists
+   mentions MFC — it works only because `atlmfc\include` is on the default
+   include path when the component happens to be installed. Both files are
+   scheduled to move to public `SynthEditLib` (C3 and C4), which would make "you
+   must have Visual Studio's MFC component" a build requirement of the open-source
+   repo. Filed as **P3**. Not fixed here — out of scope for P1.
+
+4. Building `--target TIDE TIDE_VST3` pulls in only SynthEditLib, EditorLib and
+   HarfBuzz, not SynthEditCL or the test suite. Useful: it is a much shorter
+   build than the default all-targets one, ~6 min cold.
+
+5. Even with all four `*_FOLDER_OVERRIDE` variables pointed at local clones, a
+   fresh configure still hits the network for the VST3 SDK and HarfBuzz (CPM,
+   cached in `%USERPROFILE%\.cpm`) and for CLAP + clap-helpers (FetchContent,
+   into the build tree, so re-downloaded per build tree).
+
+**Next:** P2 — load TIDE in a DAW and record what happens, observing only. The
+build tree at `C:\SE\build-tide-p1` is current and correct as of today, so P2 can
+use `SynthEditSem/Debug/TIDE_VST3.vst3` from it without rebuilding. P3 is the
+useful item to pair with the carve-out when C0/L1 clear; it is worth doing
+*before* C3/C4 move those files, not after.
+
+**Branch/PR:** `tide/win/P1-verify-prototype-build`
+
+---
+
 ## 2026-08-06 — jeff — decision: fixed module set (manual, not a scheduled run)
 
 **Did:** Answered the open question raised by the same day's linux run (S1,
@@ -54,6 +261,131 @@ TIDE, and realistically P1/P2 first. S1b is queued behind it.
 
 **Branch/PR:** committed to the S1 branch so the ruling lands with the note that
 prompted it — `tide/linux/s1-module-enumeration-design`, PR #1.
+
+---
+
+## 2026-08-06 — macos — S1 (duplicate run — see "The collision" below)
+
+**Did:** Took S1, independently analysed it, then discovered the Linux run had
+taken the same item hours earlier and already had a PR open. Folded the macOS
+findings into the Linux note as **Addendum A1–A6** rather than landing a
+competing document at the same path. Filed G2 and S6. No code changed, no build
+run, nothing in `SynthEdit` or `SynthEditLib` modified.
+
+STEP 1 was clear — `gh issue list` on `JeffMcClintock/TideSynth` returns nothing
+at all, there are no issues yet of any label. P1 and P2 are `win`, so S1 was the
+topmost eligible item, exactly as it was for Linux.
+
+**Result:** Addendum delivered. Independent analysis reached the same
+recommendation as the Linux note (static registry, not scanning), by a different
+route, which is worth something as corroboration. Four findings are additive and
+one materially changes what the note's §9 verification will show.
+
+**The collision — read this before assuming the stagger works.** Both boxes ran
+on 2026-08-06. [agent-setup.md](docs/agent-setup.md) staggers Windows Fri /
+macOS Sat / Linux Sun precisely so two machines cannot take the same backlog
+item — but both were *set up* on the 6th, so both fired immediately and the
+stagger had not taken effect yet. The mechanism is fine; the first week is the
+hole. Nothing in the process caught it: I only noticed at `gh pr create` time,
+when the push succeeded and the PR failed. Two cheap fixes, neither of which is
+mine to make:
+
+1. Have STEP 2 check open PRs and remote branches for `<backlog-id>` before
+   marking an item DOING. `git ls-remote --heads origin` would have caught this
+   in one call, before any work.
+2. Mark DOING and **push that commit** before starting, not just commit it
+   locally. The DOING mark is only useful as a claim if other machines can see
+   it.
+
+Also note the remote default branch is **`main`**, but a fresh clone here left
+me on `master` — `gh pr create --base master` fails with a confusing "No commits
+between…" rather than "no such branch". Use `main`.
+
+**Learned — additive to the Linux entry, not repeating it:**
+
+- **The `INIT_STATIC_FILE` list is three regions, not two, and this changes the
+  §9 prediction.** The Linux note's §6 trap correctly spots that the JUCE arm
+  (`UgDatabase.cpp:1063`–1139, ~70 entries) and the `#else` arm (`:1140`–1155,
+  14) differ. But ~66 more entries sit *after* the `#endif` at `:1156` and are
+  **unconditional**. Verified placements: `ug_adsr` `:1168`, `ug_oscillator2`
+  `:1201`, `ug_vca` `:1215` are unconditional; `ug_filter_sv` `:1145` and
+  `ug_filter_biquad` `:1144` are `#else`-only; `ADSR` `:1064`, `Converters`
+  `:1070`, `OscillatorNaive` `:1082`, `Slider` `:1089` are JUCE-only.
+  **Consequence:** after stage 1 the module browser will be *populated but
+  wrong* — legacy `ug_*` modules present (enough for v0.1), modern SEM modules
+  absent, and `ug_soundcard_in/out` + `ug_midi_out` present in violation of
+  constraint 2. Whoever runs §9 must record *which* modules appear, not just
+  whether the list is non-empty, or they will misread the result in either
+  direction.
+
+- **The "third, explicit list" the Linux note asks for already has a hook.**
+  `SE_EXTRA_STATIC_FILE_CPP` at `UgDatabase.cpp:1239`, plus
+  `initialise_synthedit_extra_modules()` at `:1243` (editor implementation at
+  `ModuleFactory_Editor.cpp:170`). A TIDE module list can live in the TIDE
+  target with **no edit to the shared function** — which makes stage 3 smaller
+  than the note assumes. Four lines at the bottom of a 190-line function; easy
+  to miss, and I nearly did.
+
+- **The metadata half has a shipping mechanism too.**
+  `RegisterExternalPluginsXmlOnce` (`UgDatabase.cpp:526`) reads
+  `database.se.xml` from bundle resources (`:543`); the `imbeddedFilename`
+  attribute (`:587`) is the switch between compiled-in and `dlopen`. And every
+  module already ships its own descriptor beside its source (e.g.
+  `SynthEditLib/modules/OscillatorNaive/OscillatorNaive.xml`), so the database
+  can be **generated at build time by concatenation** with the attribute
+  omitted. That is how the modern SEM modules get their pin metadata in without
+  a scan. Blocker: `plugin_helper.cmake` emits `add_library(… MODULE)` at both
+  `:70` and `:186` — there is no static-library variant of either macro today.
+
+- **`-DSE_EXTERNAL_SEM_SUPPORT=0` will not work.** Both the Linux note's stage 3
+  and its §5 want that macro settable independently. `xplatform.h:34` defines it
+  unconditionally, so a CMake `-D` collides. `GMPI_IS_PLATFORM_JUCE` at `:25` is
+  wrapped in `#if !defined(…)` for exactly this reason — giving
+  `SE_EXTERNAL_SEM_SUPPORT` the same guard is a one-line change that alters no
+  existing target's value.
+
+- **`SE16/SE_IOS_APP/TIDE/Plugins/` is a decoy — do not try to make it load.**
+  Six checked-in `.sem` bundles that look like an iOS module story. `file` says
+  every binary is `Mach-O 64-bit bundle x86_64`; they are macOS bundle layout;
+  and the Run Script that installs them
+  (`SE_IOS_APP.xcodeproj/project.pbxproj:2064`) copies to
+  `${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/`, a macOS-only path.
+  Nothing there can load on arm64. Filed as **S6**. This is the one finding only
+  the Mac could have made, and it is a partial answer to the question the Linux
+  note explicitly addressed to the Mac in its §4 — the full answer still needs
+  M2 and a real device.
+
+- **One scan root that stage 1 will not remove.** `TideApp.cpp:109` overrides a
+  *good* default: `BundleInfo.cpp:699` already points `semFolder` inside the
+  bundle. But `BundleInfo.cpp:712` adds a dev-tree fallback that walks **parent
+  directories** hunting for a sibling `SynthEdit2/PlugIns`. It is not in
+  `TideApp`, so deleting line 109 leaves it. One for S2.
+
+- **Where the trees are on the Mac:** `~/Documents/GitHub/SynthEdit` (= `SE16`)
+  and `~/Documents/GitHub/SynthEditLib`, **siblings, not nested** — same shape
+  as the Linux box, different paths from PLAN.md's `C:\SE\…` table. `SynthEdit`
+  was at `e6b50de2b`. `build/modules/Debug/` has 54 built `.sem`/`.gmpi`
+  bundles, so the module set does build here.
+
+**The process problem — Jeff should read this one.** STEP 5 of the run prompt
+says agents must not modify `SE16` or `SynthEditLib` unless the item is an
+approved carve-out stage. But S1a, S3, S4 and S5 all edit
+`SE16/SynthEditSem/TideApp.cpp` or `SE16/SynthEdit2/`. As written, **no agent
+can ever write TIDE code — only design notes.** Both today's runs happened to
+draw design items so neither was blocked, but the next machine to pick up S1a
+will either stop or quietly break the rule. Filed as **G2** (NEEDS-JEFF). I did
+not downgrade S1a to BLOCKED: that is someone else's item and the reading is
+ambiguous enough that the call should be Jeff's, not mine.
+
+**Next:** G2 first — it gates everything with code in it, including S1a which is
+otherwise the obvious next step. Then P1/P2 on Windows, since §9's check and
+S1a both need a machine that can build and run TIDE. S6 is small and mac-owned
+but also gated by G2.
+
+**Branch/PR:** `tide/mac/s1-module-enumeration`, branched from
+`tide/linux/s1-module-enumeration-design` rather than `main` so it is a clean
+delta on PR #1 with no conflict. **If PR #1 is closed rather than merged, this
+work goes with it** — the addendum lives in the Linux note's file.
 
 ---
 
