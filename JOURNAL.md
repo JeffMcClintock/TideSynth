@@ -22,6 +22,41 @@ Template:
 
 ---
 
+## 2026-08-06 — jeff — decision: fixed module set (manual, not a scheduled run)
+
+**Did:** Answered the open question raised by the same day's linux run (S1,
+§7.1 of [docs/module-enumeration.md](docs/module-enumeration.md)):
+
+> **TIDE ships a fixed module set, compiled in. No third-party module loading on
+> any platform — not just iOS.**
+
+Recorded as [PLAN.md](PLAN.md) **constraint 7**, so it is checked against every
+future backlog item like the other six. Marked the question answered in the design
+note, made stage 3 of that note a requirement rather than an option, and filed
+stage 3 as BACKLOG **S1b**.
+
+**Why it went in PLAN.md rather than a PR comment:** the weekly prompt has each run
+read PLAN, BACKLOG, JOURNAL, carve-out, and open issues labelled for its own
+platform. **PR comments, PR descriptions and review threads are read by nobody.**
+An answer left on [PR #1](https://github.com/JeffMcClintock/TideSynth/pull/1) would
+have been invisible to every future run. A GitHub issue would have been read, but
+the prompt frames issues as broken builds, so a product decision filed as one gets
+picked up as if it were a compile failure. The same trap applies to any new doc:
+it only gets read if PLAN or BACKLOG links it, which is why
+`docs/module-enumeration.md` is now in PLAN's companion-documents list.
+
+**Learned:** the durable channels into a memoryless run are PLAN.md (rulings),
+BACKLOG.md (queue) and JOURNAL.md (reasoning). Everything else on GitHub is
+human-to-human only.
+
+**Next:** unchanged — S1a still wants the §9 verification on a machine that can run
+TIDE, and realistically P1/P2 first. S1b is queued behind it.
+
+**Branch/PR:** committed to the S1 branch so the ruling lands with the note that
+prompted it — `tide/linux/s1-module-enumeration-design`, PR #1.
+
+---
+
 ## 2026-08-06 — linux — S1
 
 **Did:** Wrote [docs/module-enumeration.md](docs/module-enumeration.md) — the design
