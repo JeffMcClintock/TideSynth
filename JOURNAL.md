@@ -155,6 +155,97 @@ of S1a rather than fixing twice.
 
 ---
 
+## 2026-08-07 — windows — P4a + P4b (same run, continued after Jeff lifted the scope block)
+
+**Did:** Jeff answered G3 mid-run — `gmpi_ui` and `GMPI_Wrappers` are ALLOWED —
+so I implemented both fixes instead of leaving them queued. Updated
+[docs/weekly-run-prompt.md](docs/weekly-run-prompt.md) to match, since that is
+the file each machine's task is reinstalled from.
+
+**Result — the honest headline: the fixes are landed and build clean, but they
+are NOT verified, because I could not reproduce the crash.**
+
+The fixes:
+
+- **P4a**, `gmpi_ui/backends/DrawingFrameWin.cpp`. `reSize` re-reads
+  `d2dDeviceContext` and `swapChain` *after* `SetWindowPos` returns rather than
+  trusting the check it made before, and rejects degenerate/over-limit extents
+  up front (`maxSwapChainDimension = 16384`). Also closes the second latent
+  deref — `swapChain` was never checked at all.
+- **P4b**, `GMPI_Wrappers/wrapper/VST3/SEVSTGUIEditorWin.cpp`.
+  `checkSizeConstraint` writes the nearest acceptable size back into the rect,
+  per the VST3 contract, instead of returning `kResultFalse` and leaving it
+  untouched.
+
+Builds: `TIDE` + `TIDE_VST3` Release **and** Debug, plus `SynthEditCL`, all exit
+0 with zero warnings.
+
+**The verification failure — read this before believing P4 is closed.** I
+rebuilt P2's portable-REAPER harness and ran a proper A/B. The crash never
+happened:
+
+| Build | Fixes | Resizes | Result |
+|---|---|---|---|
+| Release | both on | 7 | survived, resized correctly |
+| Release | gmpi_ui off | 1 | survived |
+| Release | **both off** | 1 | survived |
+| Debug | **both off** | 1 | survived |
+| Release | both on (final) | 5 | survived, 0 crash dumps |
+
+With both fixes disabled the code is behaviourally identical to what crashed 3/3
+in P2, so this is a **harness difference, not evidence the fix works**. I nearly
+reported the first green run as proof; the A/B is what stopped me, and it is the
+only reason I know the result is meaningless.
+
+**The lead for P4c.** P2 recorded that `MoveWindow` **did not** resize the
+window — `GetWindowRect` returned 1672×995 before and after — and that it
+crashed anyway. In my harness `MoveWindow` resizes correctly every single time
+(1672×995 → 1200×800 → …). So P2's plugin window was in some different state,
+and that state is very likely what produced the `{0,0,2178,32672}` rect. Things I
+did not try: the `%APPDATA%\REAPER` config as it stood on 2026-08-06 (I copied
+today's, which may have changed), five launches with screenshots and
+`SetForegroundWindow` interleaved as P2 did, a different monitor/DPI layout, or
+dragging the window edge instead of calling `MoveWindow`.
+
+**Learned:**
+
+1. **Do the A/B before claiming a fix works.** Seven clean resizes looked
+   conclusive and were not. Disabling the change and re-running is cheap — two
+   rebuilds — and it is the difference between "did not crash" and "this change
+   stopped it".
+2. **Disable the *whole* fix when you A/B.** My first A/B disabled only the
+   `gmpi_ui` half and left the wrapper change live, which would have let me
+   credit the wrong file. Both halves off is the only meaningful control.
+3. **PowerShell tool state does not persist between calls.** An `Add-Type`
+   class in one call is gone by the next; my first resize attempt silently did
+   nothing while printing six lines of reassuring "alive=True". Build the whole
+   experiment — type definition, window lookup, action, polling — into one call.
+4. **`reSize` is Windows-only.** X11 has its own `reSize(int,int)`
+   (`DrawingFrameX11.cpp:920`), macOS an `onResize()` (`DrawingFrameMac.mm:434`).
+   Neither was touched and neither was audited for the same
+   check-then-re-entrant-call pattern; worth a look from those machines.
+5. **`OnSize` still has the over-limit weakness** `reSize` had — an out-of-range
+   `WM_SIZE` from another route would fail `ResizeBuffers` and be misread as
+   device loss, tearing down a working device. It cannot *crash* (it checks both
+   pointers), and `reSize`'s clamp makes it unreachable from this path, so I left
+   it rather than widening a shared-code change. Noted in the doc, not filed.
+6. **Staging discipline in the shared repos.** Both had uncommitted Wayland work.
+   I staged only my own file in each (`git add <path>`, never `-A`) and committed
+   locally without pushing. `git diff --stat` on just that path is the quick check
+   that nothing else came along.
+
+**Next:** **P4c** — reproduce the crash, then re-run the A/B. Until that lands,
+P4 is fixed-by-reasoning, not fixed-by-test, and V1 should not be assumed
+unblocked. After that, S1a (still wants the §9 check first), then S1b/S4/S5.
+
+Also worth doing at some point: the fixes are committed but **not pushed** in
+`gmpi_ui` and `GMPI_Wrappers`, so they exist only on this machine. If the Mac or
+Linux box needs them they are not there yet.
+
+**Branch/PR:** `tide/win/P4-editor-resize-crash` (PR #8)
+
+---
+
 ## 2026-08-06 — jeff — decision: free, donation-supported (manual, not a scheduled run)
 
 **Did:** Recorded a product decision that had not been written down anywhere:

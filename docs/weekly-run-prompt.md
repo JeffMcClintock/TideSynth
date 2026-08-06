@@ -124,6 +124,16 @@ What you may edit outside this repo:
     - SE16/SynthEditSem/      the plugin shell and TideApp
     - SE16/TideModules/       demo patches and prefabs
     - SE16/SE_IOS_APP/TIDE/   the iOS TIDE folder
+    - the gmpi_ui repo        rendering/windowing backend
+    - the GMPI_Wrappers repo  the VST3/AU/CLAP plugin wrappers
+
+  gmpi_ui and GMPI_Wrappers were added 2026-08-07 by Jeff, after the P4 run found
+  that a host-killing crash lived entirely in those two repos and neither list
+  mentioned them (BACKLOG G3). They are shared with SynthEdit and every other
+  GMPI plugin, so treat them with the care that implies: keep changes tight,
+  comment the reasoning, rebuild SynthEditCL as well as TIDE, and never sweep up
+  unrelated modifications — both working copies are routinely dirty with
+  in-progress work on other platforms. Commit only the files you meant to change.
 
   GATED — shared and commercial code. Do NOT modify unless your item is an
   approved carve-out stage (C1-C7) and BACKLOG shows C0 as approved:
