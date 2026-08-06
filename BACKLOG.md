@@ -26,7 +26,7 @@ that in the journal.
 
 | ID | Status | Plat | Item |
 |---|---|---|---|
-| P1 | TODO | win | **Verify the prototype still builds.** Build `SE16/SynthEditSem` (TIDE, VST3 + GMPI) from a clean CMake configure. Record the exact commands that work in `docs/building.md`. Everything downstream assumes this baseline; nobody has confirmed it recently. |
+| P1 | DOING | win | **Verify the prototype still builds.** Build `SE16/SynthEditSem` (TIDE, VST3 + GMPI) from a clean CMake configure. Record the exact commands that work in `docs/building.md`. Everything downstream assumes this baseline; nobody has confirmed it recently. |
 | P2 | TODO | win | **Load TIDE in a DAW and record what actually happens.** Screenshot the structure view, note what is broken or missing versus [docs/design-notes.md](docs/design-notes.md). Write findings to `docs/state-of-the-prototype.md`. Do not fix anything in this item — observe only, then file follow-up items. |
 | S1 | TODO | any | **Design module enumeration without filesystem scanning.** `TideApp::InitInstance` calls `LoadOrScanModuleData()` and points `BundleInfo::semFolder` at `GetHomeDir() + "modules\\"` (`SE16/SynthEditSem/TideApp.cpp:109`). Neither works under an iOS AUv3 sandbox. Produce a design note first — do not implement yet. Options to weigh: compile-in a static module registry; enumerate from inside the plugin bundle; a hybrid. |
 | S2 | TODO | any | **Audit every filesystem and cache write** reachable from a TIDE build. Grep for `GetHomeDir`, `AppData`, `%TEMP%`, `~/Library`, `CreateFile`, `fopen`, registry access. Produce `docs/sandbox-audit.md` listing each hit as keep / stub / remove. Constraint 4 in [PLAN.md](PLAN.md) cannot be verified without this. |
