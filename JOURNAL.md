@@ -341,6 +341,117 @@ of S1a rather than fixing twice.
 
 ---
 
+## 2026-08-07 — windows — L1 + H1 resolved, C1 done (Jeff's decisions, executed same run)
+
+**Did:** Jeff made two rulings in quick succession and this run executed both.
+
+**L1 — licence: ISC**, the same licence as GMPI and gmpi_ui. One stumble worth
+recording: the instruction arrived as "MIT", an MIT LICENSE was pushed to
+`SynthEditLib`, and Jeff corrected to "same as gmpi_ui" — which is **ISC** —
+minutes later. Both commits are in that repo's history (`42ce33d` MIT,
+`a2143a4` ISC replacing it); no force-push, the correction is a plain follow-up
+commit. TideSynth got ISC directly (`a58a6f1`, copyright 2026 alone — nothing
+in this repo predates the project). GitHub now detects both repos as ISC. This
+also closes **C1** — the one carve-out stage that moves no code — and C2–C7 now
+wait on C0 alone.
+
+**H1 — hosting: GitHub Pages.** The deploy half is done:
+`.github/workflows/pages.yml` publishes `website/` on any push to `main`
+touching it. No build step — the artifact *is* the folder. The go-live half
+(enable Pages with Source "GitHub Actions", custom domain, four apex `A`
+records + `www` CNAME, Enforce HTTPS) needs repo settings and the registrar,
+so it stays NEEDS-JEFF with the exact checklist in
+[docs/hosting.md](docs/hosting.md).
+
+**The page now says "open source".** The Source section links the LICENSE and
+names ISC. Until today that phrase would have been false; the wording history
+is in `website/README.md`, along with the one distinction still worth keeping:
+open source (true — licence and repos) is not "buildable from public code
+alone" (false until C7 — `EditorLib` is still private).
+
+**Learned:**
+
+1. **"MIT" and "same as my other repos" are different answers; ask which one is
+   meant when they conflict.** The sibling repos use ISC. Functionally the two
+   licences are near-identical, which is exactly why the wrong one sails
+   through review — match on the *text*, not the vibe. Byte-identical to
+   gmpi_ui's LICENSE is the convention now, and the copyright range
+   (`2007-2026` for shared-lineage code, `2026` for TIDE) follows it.
+
+2. **GitHub's licence badge lags.** SynthEditLib showed "ISC License" within
+   seconds; TideSynth still showed nothing minutes after the push. Do not read
+   the API's `licenseInfo: null` as "file missing" right after a push.
+
+3. **PR #12 appeared mid-run from another machine, claiming S4.** The stagger
+   is working as designed — a different box, a different item, no collision.
+   S4's row here was deliberately left untouched so their PR can update it
+   without conflict. (S4 will also be subsumed if S1a lands first; whoever
+   merges should reconcile.)
+
+**Next:** the go-live checklist in H1 is the only thing between the page and
+`https://tidesynth.com`. After that the last placeholder is the donation URL.
+Engineering queue unchanged: P4c, then S1a.
+
+**Branch/PR:** licences went straight to `main` in both repos at Jeff's
+direction; the website/Pages work continues on
+`tide/win/W1-website-holding-page` (PR #13).
+
+---
+
+## 2026-08-07 — windows — W1 (same run, at Jeff's request)
+
+**Did:** Built the tidesynth.com holding page at `website/index.html`, wrote
+[docs/hosting.md](docs/hosting.md), and filed **H1**. Not deployed — W1 says
+deployment is Jeff's.
+
+**Result:** One self-contained file, 5,708 bytes. No build step, no
+dependencies, no JavaScript. **Zero external requests**, and that is verified
+rather than asserted: loaded it in a browser and the network log is empty, and a
+static grep finds no `<script>`, `<link>`, `@import`, `<img>` or `<iframe>`. The
+only URLs in the file are outbound `<a href>` links, which load nothing.
+
+**Learned:**
+
+1. **synthedit.com is not on Netlify, despite `netlify.toml` in its repo root.**
+   That file is vestigial and will mislead you. The real deploy is GitHub
+   Actions → **FTP** (`.github/workflows/deploy.yml`) to an Apache shared host:
+   `server-dir: /domains/synthedit.com/public_html/_site/`. The
+   `/domains/<domain>/public_html/` layout is the DirectAdmin convention, and
+   the useful part is that it is **already per-domain** — the account is
+   structured to hold more than one.
+
+2. **Do not put TIDE at `synthedit.com/tide/`.** That site's root `.htaccess`
+   (`server/root.htaccess` in the website repo) maps the Astro build onto the
+   domain root while falling through to the old SilverStripe CMS for
+   `/purchase/`, `/members/`, `/downloads/`. It is hand-maintained and
+   explicitly **not** deployed by CI, so it drifts silently. A subdirectory
+   would land inside those rules. Its own document root avoids all of it.
+
+3. **G1 resolved mid-item and changed the answer.** The repo was private when I
+   started, which meant the page had nothing to link *and* GitHub Pages was
+   unavailable (Pages from a private repo needs a paid plan). Jeff made it
+   public partway through, so Pages became the recommendation and the "Source"
+   section became real. Both were rewritten.
+
+4. **Public is not open source, and TIDE is now the second repo in that trap.**
+   PLAN.md criticises `SynthEditLib` for being public with no LICENSE — "default
+   copyright applies and nobody may legally use or redistribute it". As of today
+   `TideSynth` is in exactly that state too. Readable by anyone, legally usable
+   by no one. The page therefore says "developed in the open" and states plainly
+   that the licence is unsettled; it does **not** say "open source", and it must
+   not until **L1** lands. L1 just went from theoretical to urgent.
+
+**Next:** **H1** — pick the host and point the DNS. Then the donation platform,
+which is the last `TODO(jeff)` in the page. **L1** deserves to jump the queue now
+that two public repos carry no licence. On the code side nothing changed: **P4c**
+is still the top engineering item.
+
+**Branch/PR:** `tide/win/W1-website-holding-page`, branched from
+`docs/crlf-churn-correction` rather than `main` so the JOURNAL edits do not
+conflict with PR #11, which is still open. Same pattern P2 used over P1.
+
+---
+
 ## 2026-08-07 — windows — push + branch cleanup (same run, at Jeff's request)
 
 **Did:** Pushed the two shared-repo fixes, tidied branches, and corrected a
