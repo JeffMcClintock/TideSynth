@@ -112,13 +112,30 @@ Builds (gcc 13.3.0, RelWithDebInfo, existing `~/SE/build` tree):
    The rest is Linux X11/Wayland editor work and CLAP PIC.
 
 4. **`/usr/bin/cmake` on this box is 3.28.3 and cannot configure this tree**
-   (`cmake_minimum_required(VERSION 3.30)` at `SE16/CMakeLists.txt:1`). It fails
-   with a bare *"CMake 3.30 or higher is required"* that looks like a broken
-   checkout. The working one is
-   **`/home/jef/.cache/cmake-3.31.6-linux-x86_64/bin/cmake`** — use that, and
-   note `CMakeCache.txt` still records `CMAKE_COMMAND=/usr/bin/cmake`, so the
-   cache misleads you. Cost me one confused cycle; it should cost the next run
-   none.
+   (`cmake_minimum_required(VERSION 3.30)`, declared in ten CMakeLists across
+   `SE16` — the root, `EditorLib`, `se_vst3`, `se_au`, `SynthEditCL`,
+   `SynthEditWayland`, `SynthEditJuce`, `tests`, `EditorScreenshot`,
+   `SynthEditSem`). It fails with a bare *"CMake 3.30 or higher is required"*
+   that reads like a broken checkout. Ubuntu 24.04 is pinned at 3.28.3 for the
+   life of the LTS, so this does not resolve itself. **Do not lower
+   `cmake_minimum_required` to suit it** — most of those files are shared/GATED,
+   and the version also sets policy scope (CMP0168/CMP0169, the FetchContent
+   policies, landed in exactly 3.30 and this tree leans on FetchContent hard).
+   That would change Windows and macOS build semantics to accommodate one Linux
+   box.
+
+   The working cmake during this run was
+   `/home/jef/.cache/cmake-3.31.6-linux-x86_64/bin/cmake`. **Two traps around
+   it.** First, `CMakeCache.txt` recorded `CMAKE_COMMAND=/usr/bin/cmake` — the
+   3.28 one — which is misleading, because the tree plainly had been configured
+   by something newer. Second, and worse: reconfiguring with the `~/.cache`
+   binary *rewrites* `CMAKE_COMMAND` to point into `~/.cache`, and ninja invokes
+   that path whenever a `CMakeLists.txt` changes and the tree needs
+   regenerating. `~/.cache` is by contract a disposable directory. If anything
+   cleans it, `~/SE/build` breaks with an error that looks nothing like its
+   cause. The durable fix is a cmake ≥3.30 installed somewhere permanent
+   (Kitware's APT repo for noble) and one reconfigure to repoint the cache —
+   see the 2026-08-08 entry's tail.
 
 5. **A prebuilt Steinberg `validator` is on this box** at
    `/home/jef/SE/build-vst3sdk/bin/Release/validator`. The S4 run concluded the
