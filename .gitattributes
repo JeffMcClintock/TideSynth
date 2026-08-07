@@ -1,0 +1,18 @@
+# Line endings: LF everywhere, in the repository *and* in the working tree on
+# every platform.
+#
+# Why eol=lf rather than plain text=auto: PRs #19 and #20 were both cut on
+# machines that wrote CRLF into JOURNAL.md. main is LF, so not one line of a
+# ~3000-line file aligned and git reported the entire file as a single conflict
+# -- twice, on the same day, for changes that touched a few dozen lines each.
+#
+# text=auto alone normalises what gets *stored*. eol=lf also pins what gets
+# *checked out*, which is the half that stops a Windows box or a CRLF-configured
+# editor putting it straight back.
+#
+# This repo is documentation, one HTML page and two workflows. Nothing here
+# needs CRLF.
+* text=auto eol=lf
+
+# Binaries: never convert, never diff as text.
+*.png binary
