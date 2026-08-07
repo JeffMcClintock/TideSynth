@@ -121,6 +121,15 @@ configure it at all; it now picks targets per platform. Still off by default
 SDK sources — `ClassName_iid` is a header-only constant, so pluginterfaces
 headers plus `user32` is the entire dependency, one translation unit.
 
+**State I am leaving this machine in, deliberately:** `C:\SE\GMPI_Wrappers` is
+left **checked out on that branch** rather than back on `main`, so the test stays
+runnable here. That is safe — the only differences from `main` are the new test
+file and a CMake gate that is off by default, so nothing SynthEdit or any other
+GMPI plugin builds is affected. But it is a shared working copy, so if you are
+doing unrelated work in it, `git checkout main` first. The branch is pushed;
+nothing is lost either way. As S1a found with the stranded S4 branch, **a weekly
+run's shared-repo work does not merge itself** — this one needs merging too.
+
 **Builds** (Release, `C:\SE\build-tide-p1`, now configured with
 `GMPI_WRAPPERS_BUILD_TESTS=ON`):
 
