@@ -15,22 +15,26 @@ One placeholder is marked `TODO(jeff)` in the HTML — the donation URL. The
 platform has not been chosen, and it must stay a plain `<a href>`: hosted donate
 *widgets* ship third-party script and cookies, which W1 forbids.
 
-The repo went public on 2026-08-07, so the "Source" section now links it. That
-was the other placeholder.
+## The "open source" wording
 
-## What the page must not say
+The page says TIDE is open source under the ISC licence. That became true on
+2026-08-07, when the repo went public and **L1** was resolved (ISC, matching
+GMPI and gmpi_ui) with LICENSE files landed in both `TideSynth` and
+`SynthEditLib`. Before that day the phrase would have been false — public with
+no licence is all-rights-reserved — which is why the git history of this file
+is careful about it.
 
-**"Open source."** Public is not open source. Neither `TideSynth` nor
-`SynthEditLib` has a LICENSE file, so both are all-rights-reserved by default —
-readable by anyone, legally usable by no one. PLAN.md is explicit that TIDE
-cannot claim the phrase until **L1** picks a licence. The current wording says
-"developed in the open" and states plainly that the licence is unsettled, which
-is true today. If you edit that section, keep it true.
+One honest limit to keep in mind when editing: until the carve-out (C1–C7)
+completes, the full plugin cannot yet be *built* from public code alone —
+`EditorLib` is still private. The page claims open source, which is true of the
+licence and the repos; it deliberately does not claim "build it yourself
+today". Keep that distinction if you rewrite the section.
 
 ## Deploying
 
-Not from here — W1 leaves deployment to Jeff. See
-[../docs/hosting.md](../docs/hosting.md) for how synthedit.com is actually
-served (Astro → FTP → Apache, *not* Netlify despite appearances), why
-tidesynth.com wants its own document root rather than a subdirectory, and what
-the free-hosting options are.
+**GitHub Pages**, decided 2026-08-07. `.github/workflows/pages.yml` deploys
+`website/` on every push to `main` that touches it — one static file, no build
+step. The one-time enable-Pages and DNS steps are Jeff's; the checklist is in
+[../docs/hosting.md](../docs/hosting.md), which also records how synthedit.com
+is actually served (Astro → FTP → Apache, *not* Netlify despite appearances)
+and why the shared host remains the documented fallback.

@@ -28,14 +28,57 @@ the domain root but falls through to the old SilverStripe CMS for `/purchase/`,
 `/members/`, `/downloads/` and friends. It is hand-maintained and explicitly
 **not** deployed by CI, so it drifts silently.
 
-## Recommendation
+## Decision: GitHub Pages
 
-**Use GitHub Pages** now that the repo is public — it is free, the page already
-lives in this repo, and it keeps the site beside the source. The shared-host
-route below stays documented because it also works, costs nothing extra, and is
-the fallback if Pages ever proves limiting.
+Decided by Jeff, 2026-08-07. Free, custom domain, free TLS, and the page lives
+in this repo so there is no second copy to drift. The shared-host route further
+down stays documented as the fallback.
 
-The rest of this section describes that fallback.
+### What is already done
+
+`.github/workflows/pages.yml` is committed. On every push to `main` that touches
+`website/`, it uploads `website/` as the Pages artifact and deploys it — no
+build step, because the site is one static file. It can also be run by hand from
+the Actions tab (`workflow_dispatch`).
+
+Until Pages is enabled it fails at `configure-pages` with **"Get Pages site
+failed"**. That error means "Pages is not enabled yet", not that the workflow is
+broken.
+
+### Go-live checklist (Jeff — repo settings and registrar)
+
+1. **Enable Pages:** repo → Settings → Pages → Source: **GitHub Actions**.
+2. **Run the workflow once** (Actions → "Deploy website to GitHub Pages" → Run
+   workflow). The site is now at `jeffmcclintock.github.io/TideSynth/`.
+3. **Custom domain:** same Settings page → Custom domain: `tidesynth.com` →
+   Save.
+4. **DNS, at the registrar** — apex `A` records to GitHub Pages:
+
+   ```
+   tidesynth.com.      A     185.199.108.153
+   tidesynth.com.      A     185.199.109.153
+   tidesynth.com.      A     185.199.110.153
+   tidesynth.com.      A     185.199.111.153
+   www.tidesynth.com.  CNAME jeffmcclintock.github.io.
+   ```
+
+   (Optional IPv6: `AAAA` records `2606:50c0:8000::153` through
+   `2606:50c0:8003::153`.)
+5. **Enforce HTTPS:** back on the Pages settings page, tick **Enforce HTTPS**
+   once the certificate has been issued — it appears automatically after DNS
+   propagates, usually within the hour.
+6. **Verify the domain** (Settings → Pages → Verified domains, at the *account*
+   level: <https://github.com/settings/pages>). Optional but recommended — it
+   stops anyone else claiming `tidesynth.com` on Pages if the DNS ever points
+   away temporarily.
+
+After step 4 propagates, `https://tidesynth.com` serves `website/index.html`,
+and every merged change to `website/` is live within a minute.
+
+One consequence of the custom domain: the Pages URL space is the domain root, so
+absolute paths in the page (`/foo.png`) work as written. While it is still on
+the `github.io/TideSynth/` URL (between steps 2 and 4), absolute paths would
+break — the page currently has none, and keeping it that way avoids caring.
 
 ## Fallback: additional domain on the synthedit.com host
 

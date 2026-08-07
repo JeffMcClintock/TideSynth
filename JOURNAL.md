@@ -341,6 +341,63 @@ of S1a rather than fixing twice.
 
 ---
 
+## 2026-08-07 — windows — L1 + H1 resolved, C1 done (Jeff's decisions, executed same run)
+
+**Did:** Jeff made two rulings in quick succession and this run executed both.
+
+**L1 — licence: ISC**, the same licence as GMPI and gmpi_ui. One stumble worth
+recording: the instruction arrived as "MIT", an MIT LICENSE was pushed to
+`SynthEditLib`, and Jeff corrected to "same as gmpi_ui" — which is **ISC** —
+minutes later. Both commits are in that repo's history (`42ce33d` MIT,
+`a2143a4` ISC replacing it); no force-push, the correction is a plain follow-up
+commit. TideSynth got ISC directly (`a58a6f1`, copyright 2026 alone — nothing
+in this repo predates the project). GitHub now detects both repos as ISC. This
+also closes **C1** — the one carve-out stage that moves no code — and C2–C7 now
+wait on C0 alone.
+
+**H1 — hosting: GitHub Pages.** The deploy half is done:
+`.github/workflows/pages.yml` publishes `website/` on any push to `main`
+touching it. No build step — the artifact *is* the folder. The go-live half
+(enable Pages with Source "GitHub Actions", custom domain, four apex `A`
+records + `www` CNAME, Enforce HTTPS) needs repo settings and the registrar,
+so it stays NEEDS-JEFF with the exact checklist in
+[docs/hosting.md](docs/hosting.md).
+
+**The page now says "open source".** The Source section links the LICENSE and
+names ISC. Until today that phrase would have been false; the wording history
+is in `website/README.md`, along with the one distinction still worth keeping:
+open source (true — licence and repos) is not "buildable from public code
+alone" (false until C7 — `EditorLib` is still private).
+
+**Learned:**
+
+1. **"MIT" and "same as my other repos" are different answers; ask which one is
+   meant when they conflict.** The sibling repos use ISC. Functionally the two
+   licences are near-identical, which is exactly why the wrong one sails
+   through review — match on the *text*, not the vibe. Byte-identical to
+   gmpi_ui's LICENSE is the convention now, and the copyright range
+   (`2007-2026` for shared-lineage code, `2026` for TIDE) follows it.
+
+2. **GitHub's licence badge lags.** SynthEditLib showed "ISC License" within
+   seconds; TideSynth still showed nothing minutes after the push. Do not read
+   the API's `licenseInfo: null` as "file missing" right after a push.
+
+3. **PR #12 appeared mid-run from another machine, claiming S4.** The stagger
+   is working as designed — a different box, a different item, no collision.
+   S4's row here was deliberately left untouched so their PR can update it
+   without conflict. (S4 will also be subsumed if S1a lands first; whoever
+   merges should reconcile.)
+
+**Next:** the go-live checklist in H1 is the only thing between the page and
+`https://tidesynth.com`. After that the last placeholder is the donation URL.
+Engineering queue unchanged: P4c, then S1a.
+
+**Branch/PR:** licences went straight to `main` in both repos at Jeff's
+direction; the website/Pages work continues on
+`tide/win/W1-website-holding-page` (PR #13).
+
+---
+
 ## 2026-08-07 — windows — W1 (same run, at Jeff's request)
 
 **Did:** Built the tidesynth.com holding page at `website/index.html`, wrote
