@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TIDE — a modular synth inside your DAW</title>
+<meta name="description" content="TIDE is a modular synth that runs as a plugin inside your DAW. Patch it where you use it. Free.">
+
+<!--
+  Deliberately self-contained: no external requests of any kind. No fonts, no
+  CDN, no analytics, no cookies, no JavaScript. BACKLOG W1 says "no trackers",
+  and the cheapest way to keep that true is to have nothing to audit.
+
+  One placeholder remains, marked TODO(jeff): the donation URL. The platform has
+  not been chosen -- see PLAN.md "Price and funding". It must stay a plain
+  <a href>; hosted donate widgets ship third-party script and cookies.
+
+  Note what this page does NOT say: "open source". The repo is public as of
+  2026-08-07 but carries no LICENSE file, and neither does SynthEditLib, so both
+  are all-rights-reserved by default. Public is not open source and free is not
+  open source. Do not add the phrase until BACKLOG L1 lands.
+
+  See docs/hosting.md for where this is meant to be served from.
+-->
+
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg:     #fbfbfa;
+    --fg:     #16181d;
+    --muted:  #5c6370;
+    --rule:   #e3e3e0;
+    --accent: #1c6e8c;
+    --card:   #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:     #101216;
+      --fg:     #e8e9ec;
+      --muted:  #9aa1ad;
+      --rule:   #262a31;
+      --accent: #6ec2dc;
+      --card:   #171a1f;
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: clamp(1.5rem, 5vw, 4rem) 1.25rem;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  main { max-width: 34rem; margin: 0 auto; }
+
+  h1 {
+    font-size: clamp(2.75rem, 11vw, 4rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin: 0 0 .35em;
+    font-weight: 700;
+  }
+
+  .tagline {
+    font-size: clamp(1.125rem, 3.5vw, 1.375rem);
+    line-height: 1.35;
+    color: var(--fg);
+    margin: 0 0 2rem;
+    font-weight: 400;
+  }
+
+  h2 {
+    font-size: .8125rem;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--muted);
+    font-weight: 600;
+    margin: 2.5rem 0 .75rem;
+  }
+
+  p { margin: 0 0 1rem; }
+
+  .status {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: .5rem;
+    padding: 1rem 1.125rem;
+    margin: 0 0 1.5rem;
+  }
+  .status p { margin: 0; }
+  .status strong { font-weight: 600; }
+
+  a { color: var(--accent); }
+  a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  ul.plain { list-style: none; padding: 0; margin: 0; }
+  ul.plain li {
+    padding: .5rem 0;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem .75rem;
+    justify-content: space-between;
+  }
+  ul.plain li span:last-child { color: var(--muted); }
+
+  footer {
+    margin-top: 3.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    font-size: .875rem;
+    color: var(--muted);
+  }
+  footer p { margin: 0 0 .5rem; }
+</style>
+</head>
+
+<body>
+<main>
+
+  <h1>TIDE</h1>
+
+  <p class="tagline">A modular synth that lives inside your DAW.</p>
+
+  <p>
+    TIDE is a patching environment that runs as a plugin. You build the
+    instrument in the same window you play it in — there is no separate
+    application, nothing to export, and no build step between an idea and a
+    sound. Your DAW supplies the audio and the MIDI; you supply the patch.
+  </p>
+
+  <p>
+    It is a cut-down <a href="https://synthedit.com/">SynthEdit</a>: the same
+    structure view, the same modules, reduced to what makes sense inside a host.
+  </p>
+
+  <div class="status">
+    <p>
+      <strong>Status: in development.</strong> There is nothing to download
+      yet. The first release will do one thing — load in a DAW, let you wire an
+      oscillator and an envelope to an output, play it from your keyboard, and
+      still be there when you reopen the project.
+    </p>
+  </div>
+
+  <h2>Price</h2>
+
+  <p>
+    <strong>TIDE is free.</strong> Not free-for-now, not free-with-a-paid-tier:
+    no trial period, no licence key, no unlock, and no feature held back for a
+    version that costs money.
+  </p>
+
+  <p>
+    It is funded by donations. If TIDE turns out to be useful to you, there is a
+    link below — and that is the only place you will be asked. Nothing in the
+    plugin will interrupt you to bring it up.
+  </p>
+
+  <!-- TODO(jeff): platform not chosen. A plain link, never an embedded widget --
+       hosted donate buttons ship third-party script and cookies. -->
+  <p><a href="#donate-url-tbd">Support TIDE</a> — coming soon.</p>
+
+  <h2>Planned formats</h2>
+
+  <ul class="plain">
+    <li><span>Windows</span> <span>VST3</span></li>
+    <li><span>macOS</span> <span>AU, AUv3, VST3</span></li>
+    <li><span>iOS</span> <span>AUv3</span></li>
+    <li><span>Linux</span> <span>VST3, CLAP</span></li>
+  </ul>
+
+  <h2>Source</h2>
+
+  <!-- The repo went public 2026-08-07, so it can be linked. It still has NO
+       LICENSE file, so do NOT write "open source" here: with no licence,
+       default copyright applies and nobody may legally redistribute it. The
+       wording below is deliberately "developed in the open", which is true
+       today. Change it when BACKLOG L1 picks a licence, not before. -->
+  <p>
+    TIDE is developed in the open, on top of the SynthEdit core. You can read
+    the code, the plan and the working notes at
+    <a href="https://github.com/JeffMcClintock/TideSynth">github.com/JeffMcClintock/TideSynth</a>.
+  </p>
+
+  <p>
+    A licence has not been chosen yet, so the terms you may use it under are
+    still to be settled.
+  </p>
+
+  <footer>
+    <p>TIDE is a SynthEdit project.</p>
+    <p>
+      This page sets no cookies, loads nothing from anywhere else, and runs no
+      JavaScript.
+    </p>
+  </footer>
+
+</main>
+</body>
+</html>

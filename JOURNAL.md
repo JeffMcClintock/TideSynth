@@ -341,6 +341,60 @@ of S1a rather than fixing twice.
 
 ---
 
+## 2026-08-07 — windows — W1 (same run, at Jeff's request)
+
+**Did:** Built the tidesynth.com holding page at `website/index.html`, wrote
+[docs/hosting.md](docs/hosting.md), and filed **H1**. Not deployed — W1 says
+deployment is Jeff's.
+
+**Result:** One self-contained file, 5,708 bytes. No build step, no
+dependencies, no JavaScript. **Zero external requests**, and that is verified
+rather than asserted: loaded it in a browser and the network log is empty, and a
+static grep finds no `<script>`, `<link>`, `@import`, `<img>` or `<iframe>`. The
+only URLs in the file are outbound `<a href>` links, which load nothing.
+
+**Learned:**
+
+1. **synthedit.com is not on Netlify, despite `netlify.toml` in its repo root.**
+   That file is vestigial and will mislead you. The real deploy is GitHub
+   Actions → **FTP** (`.github/workflows/deploy.yml`) to an Apache shared host:
+   `server-dir: /domains/synthedit.com/public_html/_site/`. The
+   `/domains/<domain>/public_html/` layout is the DirectAdmin convention, and
+   the useful part is that it is **already per-domain** — the account is
+   structured to hold more than one.
+
+2. **Do not put TIDE at `synthedit.com/tide/`.** That site's root `.htaccess`
+   (`server/root.htaccess` in the website repo) maps the Astro build onto the
+   domain root while falling through to the old SilverStripe CMS for
+   `/purchase/`, `/members/`, `/downloads/`. It is hand-maintained and
+   explicitly **not** deployed by CI, so it drifts silently. A subdirectory
+   would land inside those rules. Its own document root avoids all of it.
+
+3. **G1 resolved mid-item and changed the answer.** The repo was private when I
+   started, which meant the page had nothing to link *and* GitHub Pages was
+   unavailable (Pages from a private repo needs a paid plan). Jeff made it
+   public partway through, so Pages became the recommendation and the "Source"
+   section became real. Both were rewritten.
+
+4. **Public is not open source, and TIDE is now the second repo in that trap.**
+   PLAN.md criticises `SynthEditLib` for being public with no LICENSE — "default
+   copyright applies and nobody may legally use or redistribute it". As of today
+   `TideSynth` is in exactly that state too. Readable by anyone, legally usable
+   by no one. The page therefore says "developed in the open" and states plainly
+   that the licence is unsettled; it does **not** say "open source", and it must
+   not until **L1** lands. L1 just went from theoretical to urgent.
+
+**Next:** **H1** — pick the host and point the DNS. Then the donation platform,
+which is the last `TODO(jeff)` in the page. **L1** deserves to jump the queue now
+that two public repos carry no licence. On the code side nothing changed: **P4c**
+is still the top engineering item.
+
+**Branch/PR:** `tide/win/W1-website-holding-page`, branched from
+`docs/crlf-churn-correction` rather than `main` so the JOURNAL edits do not
+conflict with PR #11, which is still open. Same pattern P2 used over P1.
+
+---
+
 ## 2026-08-07 — windows — push + branch cleanup (same run, at Jeff's request)
 
 **Did:** Pushed the two shared-repo fixes, tidied branches, and corrected a
