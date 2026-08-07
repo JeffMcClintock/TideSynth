@@ -22,6 +22,149 @@ Template:
 
 ---
 
+## 2026-08-08 — macos — S1b (partial: the ALLOWED part; the rest is gated)
+
+**Did:** Took S1b, did the whole of the part that is TIDE's to do, measured the
+part that is not, and put S1b back in the queue as BLOCKED on C0 rather than
+claiming it done. Landed `SE16` `40b6008ee` on branch
+`tide/mac/S1b-compile-out-scan`: TIDE's `SynthEditSem/CMakeLists.txt` no longer
+compiles `SynthEdit2/SynthEditApp.cpp`, and a new
+`SynthEditSem/TideAppStubs.cpp` supplies the three symbols that were the only
+reason it was there. Wrote addendum **B0–B5** to
+[docs/module-enumeration.md](docs/module-enumeration.md). Filed **S8** and
+**P6**.
+
+**Result — TIDE builds on macOS, and that had never been recorded.** `TIDE` and
+`TIDE_VST3`, Debug and Release, universal `x86_64;arm64`, Xcode generator,
+deployment target 13.3 — all four exit 0 with no warnings. BACKLOG **M1** is
+about the AU/AUv3 targets and is still blocked; the GMPI and VST3 plugins build
+here today. Nothing needed configuring — the checked-out `build/` tree already
+had `SynthEditSem` in it.
+
+**Result — the headline: §6 stage 3 was wrong, and I nearly implemented the
+wrong thing.** Stage 3 offers two routes, `TIDE_NO_EXTERNAL_MODULES` **or**
+decoupling `SE_EXTERNAL_SEM_SUPPORT` from `GMPI_IS_PLATFORM_JUCE`. The second
+is not an alternative. It removes nothing:
+
+- `SE_EXTERNAL_SEM_SUPPORT` appears in exactly **two** places in the whole
+  codebase outside comments — `SynthEditLib/UgDatabase.cpp:28` (an `#include`)
+  and `:595` (one `new Module_Info3(imbeddedFilename)` branch). `ScanFolder`,
+  `LoadOrScanModuleData`, `SemCacheName`, `LoadModuleData` and
+  `ClearModuleDataCache` have **no feature guard at all** — only `_WIN32` /
+  `__APPLE__`. Flipping the flag changes one object file.
+- `Module_Info3.cpp` is unconditional in `SynthEditLib/CMakeLists.txt:295` and
+  `Module_Info3` is constructed at `ModuleFactory_Editor.cpp:500` and `:1309`
+  and `dynamic_cast`ed in ~13 more places across `CUG.cpp`, `DocOb.cpp`,
+  `ExportAsPlugin.cpp`. So `dlopen` stays linked regardless.
+
+A4 is confirmed exactly, including that it fails *silently*:
+`-DSE_EXTERNAL_SEM_SUPPORT=0` gives
+`xplatform.h:35:10: warning: 'SE_EXTERNAL_SEM_SUPPORT' macro redefined
+[-Wmacro-redefined]` — a warning, not an error — and the value ends up **1**.
+
+**Result — what is actually in the shipping binary.** Release, `arm64` slice,
+`nm | c++filt`, built from `SE16` master `a6f6d82c9` (S1a's deletion already
+in). `ScanFolder`, `SemCacheName`, `LoadModuleData`, `ClearModuleDataCache`,
+`ApplicationBase::LoadOrScanModuleData`, `Module_Info3::LoadDllOnDemand` and
+`gmpi_dynamic_linking::MP_DllLoad` are all present, and `nm -u` shows `_dlopen`,
+`_dlsym`, `_dlclose` imported. **There is no dead-stripping** — the Release link
+passes no `-dead_strip`, so nothing falls out by itself. S1a removed the call;
+the code is all still there, which is exactly what S1b exists to fix and is what
+an AUv3 reviewer would see.
+
+**Result — the one piece that was TIDE-side, and it was worth having.** TIDE's
+own CMakeLists compiled the whole of `SynthEditApp.cpp` to satisfy three symbols
+EditorLib references. That put `SynthEditApp::InitInstance()` in the plugin —
+**a second `LoadOrScanModuleData()` call site** that S1a did not know about,
+plus a detached `MonitorFileSystem()` thread on the live-modules folder, the
+`SynthEdit16.settings.xml` read/write path, and `licenseIsTrial` /
+`startActivationPolling` / `checkActivationStatusNow` /
+`licenseStatusDescription`.
+
+Scoping it was one experiment: comment the file out, build, read the linker's
+complaint. Exactly three symbols — `theApp`, `SafeMessagebox`,
+`SynthEditApp::licenseIsActive()` and `::isMoonbaseEnabled()`. A 60-line
+`TideAppStubs.cpp` supplies them, and **behaviour is unchanged, not merely
+similar**: `SynthEditApp`'s constructor is what assigns `theApp`, and `TideApp`
+derives from `CSynthEditAppBase`, so `theApp` was always null in a TIDE process.
+`SafeMessagebox` was already a no-op on its own `if (theApp)` guard; the sole
+TIDE-reachable caller of the other two, `MfcDocPresenter.cpp:1244`, reads
+`theApp && theApp->isMoonbaseEnabled() && !theApp->licenseIsActive()` and was
+already dead on the first term; and both predicates are `return false` without
+`SE_MOONBASE_SUPPORT`, which TIDE never defines.
+
+| Release, arm64 | before | after |
+|---|---|---|
+| `SynthEditApp::` symbols | 48 | 2 (the stubs) |
+| `SynthEditApp::InitInstance` | present | gone |
+| the four licensing/activation symbols | present | gone |
+| binary | 8,627,808 B | 8,586,976 B |
+
+**Learned:**
+
+1. **`nm | c++filt` on the built plugin is the right verifier for this class of
+   item, and it is nearly free.** Every claim above is one command. It settled
+   in minutes questions the note had been reasoning about for two runs — and it
+   caught that stage 3's proposed route was a no-op *before* I spent a run
+   implementing it. S1a's screenshot-hash trick and this are the same idea:
+   measure the artifact, not the source.
+
+2. **"Do the TIDE-side part" is a real instruction, but you have to go looking
+   for the TIDE-side part.** My first read said S1b was 100% gated, same as P4.
+   It wasn't: TIDE's *own* CMakeLists was importing a gated file, and that is
+   TIDE's decision to unmake. Before concluding an item has no TIDE side, check
+   what `SE16/SynthEditSem/CMakeLists.txt` is pulling in from `../SynthEdit2/`.
+
+3. **A1's soundcard prediction is confirmed, and it is worse than predicted.**
+   The trio is not merely compiled in, it is *registered* — each has its
+   `se_static_library_init_*` and `__GLOBAL__sub_I_*`. `ug_soundcard_out.cpp:10`
+   registers "Sound Out" under Input-Output with help text about your speakers
+   and about non-registered SynthEdit being limited to 2 channels. Also
+   confirmed TIDE uses the **non-JUCE** arm (`ug_filter_sv`, `ug_test_tone`
+   present; `OscillatorNaive` zero symbols). Filed **S8** — no TIDE-side fix
+   exists, both arms are in `UgDatabase.cpp`.
+
+4. **`CSynthEditAppBase::MonitorFileSystem` survives my change** and is still in
+   the binary, with `UpdateLiveModules` and `getLiveModuleUpdateStagingFolder`.
+   Removing the `SynthEditApp` caller removed the only thing that *started* the
+   thread, not the thread function — it is a `CSynthEditAppBase` member and
+   `TideApp` derives from that. Don't read the shrunken symbol count as "the
+   watcher is gone".
+
+5. **SynthEditCL does not build on macOS**, and has nothing to do with TIDE. It
+   compiles and links, then `CodeSign` fails on
+   `Contents/MacOS/Resources/Prefabs/Controls/Button Small2.syntheditprefab` —
+   `stage_prefabs_SynthEditCL` puts data under `MacOS/`, where `codesign`
+   insists everything is code. Verified pre-existing by stashing my change and
+   rebuilding: identical failure. So this run **cannot** honour "leave
+   SynthEdit, SynthEditCL and TIDE all building" for SynthEditCL, and is saying
+   so rather than assuming. Filed **P6**. I did not fix it — it is SynthEdit's
+   own build config, not TIDE's and not on either list.
+
+6. **My working copy was 48 commits stale and sitting on an already-merged
+   branch** (`tide/mac/g2-run-prompt-permissions`, PR #4, merged 2026-08-06).
+   `git fetch` alone would not have shown it — I only caught it because
+   BACKLOG.md still listed items that PRs #5–#17 had closed. **Start every run
+   with `git checkout main && git reset --hard origin/main` in TideSynth and
+   `git merge --ff-only origin/master` in SE16**, then read BACKLOG. Reading a
+   stale BACKLOG is how two machines take the same item.
+
+**Next:** S1b's remainder is genuinely blocked on **C0** and should ride along
+with **C4** rather than be attempted standalone — (b) and (c) touch exactly the
+files C3 and C4 move, so doing them first means doing them twice. **S8** is the
+most valuable unblocked-by-nothing-but-C0 finding and pairs with it. For a
+macOS run with nothing gated available: **S6** (delete the dead iOS `.sem`
+artifact) is mac-platform, ALLOWED, and small; **D1** wants the
+"can an AUv3 open a URL" question answered, and the note says only a macOS box
+can answer it. **P6** is mac but is SynthEdit's, not TIDE's — ask Jeff first.
+
+**Branch/PR:** TideSynth `tide/mac/S1b-compile-out-scan`; code in `SE16`
+`40b6008ee` on the same branch name, **pushed but not merged** — per S1a's
+warning, a weekly run's SE16-side work does not land itself, so someone must
+merge `SE16` `tide/mac/S1b-compile-out-scan`.
+
+---
+
 ## 2026-08-07 — windows — distribution plan (at Jeff's request, interactive)
 
 **Did:** Wrote [docs/distribution.md](docs/distribution.md) — installers on all
