@@ -22,6 +22,184 @@ Template:
 
 ---
 
+## 2026-08-07 — linux — S4
+
+**Did:** Fixed S4 — one line in `SE16/SynthEditSem/TideApp.cpp` (ALLOWED), plus a
+comment explaining why it is there. `TideApp::InitInstance` now sets
+`BundleInfo::instance()->isSemFolderOverridden = true` immediately after the
+existing `semFolder` assignment. Nothing shared was touched. Spun off **X3**.
+
+STEP 1 clear: `gh issue list` returns nothing at all, no labels. STEP 2: `main`
+was the only remote branch and there were no open PRs, so nothing was claimed.
+P4c and S1a are `win`; S1b's own text blocks it behind S1a; **S4 was the topmost
+`any` item**. Claimed it, pushed the DOING mark, then started.
+
+**Read this first: my working copy of TideSynth was five merged PRs stale.**
+`git fetch` moved `main` from `a6f1e7f` to `6f3ca8f` — PRs #7 through #11, i.e.
+P1, P2, P4, P4a, P4b, the "free + donation-supported" PLAN section and the CRLF
+correction. Everything I had read up to that point (PLAN, BACKLOG, JOURNAL) was
+the pre-P1 version, and I re-read all of it after fetching. **Fetch before you
+read, not after** — the run prompt puts "read the four files" ahead of the
+`git fetch` in STEP 2, which is the wrong order on a box that has been idle a
+week.
+
+**Result — the fix, and it is verified rather than reasoned.**
+
+The chain, re-checked link by link rather than taken from S1's journal:
+
+| Step | File:line | What |
+|---|---|---|
+| TIDE sets its factory folder | `SynthEditSem/TideApp.cpp:109` | `semFolder = GetHomeDir() + L"modules\\"` |
+| …and leaves the flag false | `SynthEditLib/.../BundleInfo.h:63` | `isSemFolderOverridden = false` |
+| so the suffix is dropped | `SynthEdit2/ModuleFactory_Editor.cpp:188` | `if (bi.isSemFolderOverridden)` never taken |
+| desktop SynthEdit does the same | `SynthEdit2/SynthEditApp.cpp:133` | sets `semFolder`, never sets the flag |
+| both therefore name one file | `ModuleFactory_Editor.cpp:1168,1182,1135` | `<settings>/SynthEdit/Plugin-Cache-16.xml`, read **and** written |
+| and TIDE gets there at instantiation | `SynthEditSem/SynthEditController.cpp:63` | `IController::initialize` → `app->InitInstance()` → `LoadOrScanModuleData()` |
+
+That last row matters more than it looks: `InitInstance` runs from
+**`IController::initialize`**, so merely *instantiating* TIDE touches the cache.
+No editor, no GUI, no user action — a host's plugin scan is enough.
+
+`GetHomeDir()` (`SynthEdit2/Application.cpp:203`) is the directory of the loaded
+binary (`MP_GetDllFilename().parent_path()`), so TIDE's folder really is its own
+bundle and really is a different folder from the app's `<home>/PlugIns/` — a
+different folder writing the *same* cache file, which is exactly the hazard.
+
+**How I verified it, since "it builds" proves nothing here.** The Steinberg
+validator route died immediately (see X3 below), so instead I linked a 20-line
+probe against the **real** `SemCacheName()` in `build/EditorLib/libEditorLib.a`
+and called it with the flag both ways:
+
+```
+isSemFolderOverridden=false -> Plugin-Cache-16.xml
+isSemFolderOverridden=true  -> Plugin-Cache-16-override-14603581876e07dd.xml
+```
+
+`Plugin-Cache-16.xml` is not hypothetical — it is sitting in
+`~/.local/share/SynthEdit/`, 329,914 bytes, 491 `<Plugin>` entries and 35
+`<Prefab>`s, last written 09:28 the same morning by a real SynthEdit run. Four
+`-override-<hash>` siblings sit beside it from `SynthEditCL` runs, which is
+independent evidence that the suffix mechanism works in production.
+
+The probe is worth reproducing if you need to test anything in EditorLib without
+a host — it took about ten minutes:
+
+```
+g++ probe.o stubs.o -o probe -Wl,--start-group \
+    build/EditorLib/libEditorLib.a build/SynthEditLib/libSynthEditLib.a -Wl,--end-group
+```
+
+`--start-group` is the whole trick: EditorLib and SynthEditLib reference each
+other, so a single left-to-right pass leaves `new_InterfaceObjectA/B/C` undefined
+even though `platform_editor.cpp.o` is right there in the archive. I wasted a
+link cycle stubbing those out with `nullptr`-returning fakes, which linked fine
+and then **segfaulted in static init** — the ~157 self-registering modules build
+their pin lists at load time and dereference what those factories return. The
+only symbol that genuinely needs a stub is `SafeMessagebox`.
+
+**Builds** (gcc 13.3.0, RelWithDebInfo, existing `~/SE/build` tree):
+
+| Target | Exit | Notes |
+|---|---|---|
+| `TIDE` (GMPI) | 0 | zero warnings |
+| `TIDE_VST3` | 0 | zero warnings |
+| `SynthEditCL` | 0 | no recompile — confirms the change is TIDE-only |
+| `SynthEditWayland` | 0 | ditto |
+
+**Learned — things the next run should not have to rediscover:**
+
+1. **TIDE already builds on Linux, and X1 is stale in one direction.** X1 is
+   listed BLOCKED behind the carve-out, but `~/SE/build` is a configured tree
+   that builds `TIDE.gmpi` and `TIDE_VST3.so` from a warm cache in **12 seconds**
+   on gcc 13.3.0. Both bundle layouts exist
+   (`build/SynthEditSem/TIDE_VST3.vst3/Contents/x86_64-linux/`). What is *not*
+   done is CLAP — `SynthEditSem/CMakeLists.txt` has `set(FORMATS_LIST GMPI VST3)`
+   and no CLAP entry, so half of X1 is real work and half is already sitting on
+   disk. Also `~/SE/SE16` has recent Linux commits (`e8d190866` prefabs in the
+   module list, `cf2d6de52` thumbnails), so somebody is actively running TIDE
+   here.
+
+2. **X3: the Linux VST3 cannot be loaded by any host, and it is a stale
+   `FetchContent`, not a bug.** Steinberg's `validator` says *"The shared library
+   does not export the required 'ModuleEntry' function"*, and `nm -D` on
+   `TIDE_VST3.so` shows only `GetPluginFactory` and `InitDll` — the Windows pair.
+   `libSynthEdit_VST3.vst3` in the same build tree exports `ModuleEntry` and
+   `ModuleExit` as well. The reason: `SynthEditSem/CMakeLists.txt` leaves
+   `GMPI_WRAPPER_FOLDER_OVERRIDE` **blank**, so TIDE fetches GMPI_Wrappers from
+   GitHub instead of using `~/SE/GMPI_Wrappers`, and `build/_deps/gmpi_wrappers-src`
+   is pinned at `032b4d5` — older than `9a2341d fix(linux) : export
+   ModuleEntry/ModuleExit`, which is on that repo's `main`. `GIT_TAG origin/main`
+   does not re-fetch on a later configure. Note `GMPI_UI_FOLDER_OVERRIDE` *is*
+   set to the local `gmpi_ui` in the same cache, so the two sibling repos are
+   sourced differently — that asymmetry is what hides the problem. Filed as X3;
+   I did not fix it, because changing where TIDE gets its wrapper from is a
+   build-policy call and S4 is one line.
+
+3. **A negative result, so nobody chases it: TIDE does *not* scan the user's
+   Documents folder.** I thought it did. `RefreshModuleData`
+   (`Application.cpp:507`) calls `ScanFolder(getSettingString(L"ModulePath"))`,
+   and `ApplicationBase::getSettingString` (`Application.cpp:139`) is a `// TODO`
+   stub returning the user's documents folder — which would be a constraint 3
+   violation. But `CSynthEditAppBase::getSettingString`
+   (`SynthEditAppBase.cpp:1089`) **overrides** it and returns
+   `settings.ModulePath`, and `settings` is a plain `ApplicationSettings` member
+   (`SynthEditAppBase.h:118`) that is never loaded for TIDE, because
+   `CSynthEditAppBase::InitInstance` is never called — the same omission S5 is
+   about. So `ModulePath` is empty and the third-party scan is a no-op.
+   **S5's omission is currently masking a worse problem than the one S5
+   describes**: fix S5 by calling `InitInstance`, and TIDE starts scanning
+   whatever the desktop app's `ModulePath` points at. Whoever takes S5 should
+   read this paragraph first.
+
+4. **The cache is only *written* when it is missing or stale.**
+   `LoadOrScanModuleData` (`Application.cpp:469`) calls `RefreshModuleData` only
+   `if (!LoadModuleData())`. So the damage is asymmetric and easy to miss in
+   testing: on a machine that already has a cache, TIDE silently *reads* the
+   desktop app's module set (pulling third-party descriptions into TIDE, which
+   constraint 7 forbids); the clobbering write only happens after a version bump
+   or a cache delete. Either half alone justifies the fix.
+
+5. **`TideApp.cpp:109` still hard-codes `L"modules\\"` and I deliberately left
+   it.** S1's journal flagged the trailing backslash as cosmetic. It is not quite
+   cosmetic — but "fixing" it on Linux/macOS would turn a path that never exists
+   into one that does, and TIDE would start actually scanning it for `.sem`/`.gmpi`,
+   which is precisely what constraint 7 forbids. The right move is S1a's deletion,
+   not a separator fix. Do not tidy this line.
+
+6. **`isSemFolderOverridden` is named for its caller, not its effect.** Its
+   comment (`BundleInfo.h:57-62`) says "set by USER intent (test harness;
+   SynthEditCL's `-factorysemsfolder`)", which TIDE's case is not. But the flag's
+   only reader is `SemCacheName()` (grep gives four hits total: two setters, one
+   reader, one declaration), and what it actually selects is "give this factory
+   folder its own cache file". I set it and explained the mismatch in a comment on
+   the TIDE side rather than rewording the header, because `BundleInfo.h` is
+   GATED. If the carve-out ever renames it, `TideApp.cpp` is a caller.
+
+7. **This machine's installed task is still the pre-G3 prompt.** My STEP 5 has
+   G2's ALLOWED/GATED split but says nothing about `gmpi_ui` or `GMPI_Wrappers`,
+   which G3 resolved as ALLOWED on 2026-08-07. It did not affect S4 (nothing
+   outside `SE16/SynthEditSem/` was needed), but it would have blocked me on X3
+   had I tried to fix it. Linux still needs reinstalling from
+   [docs/weekly-run-prompt.md](docs/weekly-run-prompt.md); per G2's note, Windows
+   may too.
+
+**Next:** **X3** is the highest-value Linux item and it is probably small — set
+`GMPI_WRAPPER_FOLDER_OVERRIDE` or re-pin the fetch, rebuild, and confirm the
+validator loads the module. It unblocks every runtime question on this box:
+`GMPI_Wrappers/tests/x11_editor_host.cpp` is a real VST3 host that attaches the
+editor and dumps pixels, so once TIDE loads, U1's measurements, V1's
+save/reload and even P4c's resize path become testable on Linux instead of only
+on Windows. After that, X1's CLAP half is genuine unstarted work.
+
+S1a still wants its §9 check on a machine that can run TIDE — and after X3 that
+could be this one, not just the Windows box.
+
+**Branch/PR:** `tide/linux/S4-sem-cache-clobber` in this repo; the code change is
+`8f5650e94` on a branch of the same name in `JeffMcClintock/SynthEdit`, pushed as
+a branch, not to `master`.
+
+---
+
 ## 2026-08-07 — windows — P4
 
 **Did:** Diagnosed the host-killing resize crash down to file and line, from the
