@@ -1,0 +1,45 @@
+tidesynth.com — DNS zone backup
+Captured 2026-08-08 from Domainz Client Area DNS (clients.domainz.net.nz/~/dns)
+Reason: taken before repointing the website at GitHub Pages.
+NOTE: the portal's own "Export Zone" button returns 500 Internal Server Error,
+so this was transcribed from the zone table by hand. 9 records, all TTL 3600.
+
+Type   Host                    Value
+-----  ----------------------  --------------------------------------------------
+A      tidesynth.com           202.124.241.178
+CNAME  www.tidesynth.com       tidesynthstaticwebsite.z13.web.core.windows.net.
+CNAME  smtp.tidesynth.com      smtp.nsserver.net.nz.
+CNAME  pop.tidesynth.com       pop3.nsserver.net.nz.
+CNAME  pop3.tidesynth.com      pop3.nsserver.net.nz.
+CNAME  imap.tidesynth.com      imap.nsserver.net.nz.
+CNAME  webmail.tidesynth.com   webmail.nsserver.net.nz.
+MX     tidesynth.com           10 mx3.nsserver.net.nz.
+                               20 mx2.nsserver.net.nz.
+NS     tidesynth.com           ns1.nsserver.net.nz.
+                               ns2.nsserver.net.nz.
+                               ns3.nsserver.net.nz.
+
+Independently confirmed by dig against ns1.nsserver.net.nz on 2026-08-08:
+  tidesynth.com      A      202.124.241.178
+  www.tidesynth.com  CNAME  tidesynthstaticwebsite.z13.web.core.windows.net.
+
+Context at time of capture:
+- 202.124.241.178 reverse-resolves to redirector.servers.netregistry.net and
+  served an HTML frameset embedding the Azure endpoint below. Cosmetic
+  domain-masking, not real hosting.
+- tidesynthstaticwebsite.z13.web.core.windows.net no longer resolves (NXDOMAIN).
+  The Azure static website is gone, so the site was already broken.
+
+CHANGED (website only — mail untouched):
+  A      tidesynth.com  ->  185.199.108.153
+                           185.199.109.153
+                           185.199.110.153
+                           185.199.111.153   (GitHub Pages)
+  CNAME  www            ->  jeffmcclintock.github.io.
+
+PRESERVED — live email configuration, must not be removed:
+  MX, smtp, pop, pop3, imap, webmail  (all *.nsserver.net.nz)
+  NS delegation to ns1/ns2/ns3.nsserver.net.nz
+
+To roll back: restore the A record to 202.124.241.178 and the www CNAME to the
+Azure hostname. Note that rolling back restores a site that was already dead.
