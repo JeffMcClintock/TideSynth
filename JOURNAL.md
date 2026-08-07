@@ -22,6 +22,134 @@ Template:
 
 ---
 
+## 2026-08-08 — linux — X3
+
+**Did:** Fixed X3 — one line of substance in `SE16/SynthEditSem/CMakeLists.txt`
+(ALLOWED, TIDE's own file), plus a comment explaining the trap. The
+`FetchContent_Declare` for `gmpi_wrappers` now pins an explicit sha:
+
+```
+-  GIT_TAG origin/main
++  GIT_TAG e6a454156c3505483a9bd1dca4f74f0511e7efa5
+```
+
+`SE16` commit `23bee68ce` on branch `tide/linux/X3-vst3-moduleentry`, pushed,
+**not merged** — see the warning at the bottom.
+
+**Result: fixed and verified, both directions.**
+
+Before (baseline reproduced first, on the tree as it stood):
+
+```
+$ nm -D --defined-only TIDE_VST3.so | grep -E 'Module|Dll|Factory'
+00000000001c8650 T ExitDll
+00000000001c8620 T GetPluginFactory
+00000000001c8630 T InitDll
+```
+
+After:
+
+```
+00000000001fd910 T ExitDll
+00000000001fd8e0 T GetPluginFactory
+00000000001fd8f0 T InitDll
+00000000001fd930 T ModuleEntry
+00000000001fd940 T ModuleExit
+```
+
+And Steinberg's own validator — the tool that rejected the module outright with
+*"The shared library does not export the required 'ModuleEntry' function"* —
+now loads it and runs the suite:
+
+```
+$ /home/jef/SE/build-vst3sdk/bin/Release/validator TIDE_VST3.vst3
+Result: 47 tests passed, 0 tests failed
+```
+
+Builds (gcc 13.3.0, RelWithDebInfo, existing `~/SE/build` tree):
+
+| Target | Exit | Warnings |
+|---|---|---|
+| `TIDE_VST3` | 0 | 4, all in Steinberg's `fstring.cpp` — none in TIDE |
+| `TIDE` (GMPI) | 0 | 0 |
+| `SynthEditCL` | 0 | 0 |
+| `SynthEditWayland` | 0 | 0 |
+| `SynthEdit_VST3` | 0 | 2, both in Steinberg's `ustring.cpp` |
+
+**Learned:**
+
+1. **Why `GIT_TAG origin/main` freezes, precisely.** It is not that CMake
+   ignores updates — it is that `origin/main` is a *remote-tracking ref that
+   already resolves inside the cached clone*. CMake's git-update step asks
+   "does `origin/main` name a commit I already have, and is HEAD there?", gets
+   yes on both, and never runs `git fetch`. So the checkout pins itself to
+   whatever `main` pointed at on the **first** configure, permanently and
+   silently. An explicit sha does **not** have this problem: the sha is absent
+   from the cached clone, resolution fails, and CMake fetches. Verified —
+   `_deps/gmpi_wrappers-src` moved `032b4d5` → `e6a4541` on the first
+   reconfigure after the change. **The shared `SE16/CMakeLists.txt` has the
+   identical `GIT_TAG origin/main` in six places** — `SynthEditLib` (:120),
+   `GMPI` (:137), `gmpi_ui` (:154), `AudioUnitSDK` (:189), `clap` (:205),
+   `clap-helpers` (:214). All frozen the same way; the boxes just don't notice
+   for the first three because they set `*_FOLDER_OVERRIDE`, which is exactly
+   the mask that hid this one. The CLAP pair is the one to watch — nobody
+   overrides those, and X1 needs CLAP. That file is a shared build file
+   (GATED) — filed as **X4** rather than edited.
+
+2. **Chose the pin over the two alternatives, for a reason.** X3 offered pin /
+   force-refresh / `GMPI_WRAPPER_FOLDER_OVERRIDE`. The override is a
+   per-developer local path — it fixes this machine and leaves the default
+   build, and therefore CI, broken. Force-refresh (`GIT_TAG main`) restores the
+   *intent* but keeps the property that made this bug invisible: what you build
+   depends on when you configured. A sha is reproducible, is what B1 and C7
+   will need from public CI, and turns a silent staleness into a line of text
+   somebody can read.
+
+3. **The bump carries a Windows fix, not a Windows risk.** `032b4d5..e6a4541`
+   is 15 commits and touches `SEVSTGUIEditorWin.cpp` and `SEVSTGUIEditorMac.cpp`,
+   so I checked what. The Windows delta *is* **P4b** — the `checkSizeConstraint`
+   fix the Windows box wrote — plus the shared `measurePreferredSize` refactor.
+   The rest is Linux X11/Wayland editor work and CLAP PIC.
+
+4. **`/usr/bin/cmake` on this box is 3.28.3 and cannot configure this tree**
+   (`cmake_minimum_required(VERSION 3.30)` at `SE16/CMakeLists.txt:1`). It fails
+   with a bare *"CMake 3.30 or higher is required"* that looks like a broken
+   checkout. The working one is
+   **`/home/jef/.cache/cmake-3.31.6-linux-x86_64/bin/cmake`** — use that, and
+   note `CMakeCache.txt` still records `CMAKE_COMMAND=/usr/bin/cmake`, so the
+   cache misleads you. Cost me one confused cycle; it should cost the next run
+   none.
+
+5. **A prebuilt Steinberg `validator` is on this box** at
+   `/home/jef/SE/build-vst3sdk/bin/Release/validator`. The S4 run concluded the
+   validator route "died immediately" and fell back to a hand-linked probe —
+   the binary was there the whole time. It takes a `.vst3` bundle directory,
+   runs in seconds, and is the cheapest real-host check available on Linux.
+
+6. **P5 confirmed on Linux, in passing.** The validator prints
+   `name = SynthEdit` for both classes and `vendor = GMPI`. Same finding P2 made
+   in REAPER on Windows; it is not Windows-specific and not a host quirk.
+
+**Next:** **X1's empirical half is now unblocked** — the Linux VST3 loads, so
+someone can put TIDE in a Linux host for the first time. CLAP is still genuinely
+absent: `SynthEditSem/CMakeLists.txt:41` reads `set(FORMATS_LIST GMPI VST3)`
+with no CLAP entry, so that half of X1 is real work. Also **X4** (the same
+`origin/main` freeze in the shared `SE16/CMakeLists.txt`) is filed and wants a
+Windows or macOS box, since those are the ones that would notice a GMPI or
+gmpi_ui bump.
+
+**Merge warning — the same trap S1a hit.** This run's actual fix is in `SE16`,
+a *different repo* from this one. The TideSynth PR below contains only the
+journal and backlog; merging it does **not** land the code. `SE16` branch
+`tide/linux/X3-vst3-moduleentry` (`23bee68ce`) has to be merged into `SE16`
+master separately. S1a found the S4 branch stranded exactly this way a day
+later. **Check `SE16` for unmerged `tide/*` branches.**
+
+**Branch/PR:** TideSynth `tide/linux/X3-vst3-moduleentry`; code in `SE16`
+`23bee68ce` on the branch of the same name.
+
+---
+
 ## 2026-08-07 — windows — distribution plan (at Jeff's request, interactive)
 
 **Did:** Wrote [docs/distribution.md](docs/distribution.md) — installers on all
