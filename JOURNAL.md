@@ -22,6 +22,96 @@ Template:
 
 ---
 
+## 2026-08-08 — linux — H1 (interactive session with Jeff, not the scheduled run)
+
+**Did:** Took tidesynth.com live on GitHub Pages. Enabled Pages, deployed,
+repointed DNS at the registrar, set the custom domain, enabled Enforce HTTPS.
+Also merged PR #21 (`website/CNAME`) at Jeff's instruction. All of it driven
+from this session — the DNS half through Jeff's own logged-in Chrome, the
+GitHub half through `gh`.
+
+**Result — live and verified end to end:**
+
+```
+https://tidesynth.com/       200,  cert verifies clean
+https://www.tidesynth.com/   301 -> https://tidesynth.com/
+http://tidesynth.com/        301 -> https://tidesynth.com/   (all 4 edge IPs)
+cert: CN=tidesynth.com, SAN={tidesynth.com, www.tidesynth.com}
+      Let's Encrypt YR2, Aug 7 -> Nov 5 2026, auto-renews
+```
+
+**The old site was already dead before we touched anything.** The apex pointed
+at `202.124.241.178` = `redirector.servers.netregistry.net`, which served an
+HTML *frameset* embedding `tidesynthstaticwebsite.z13.web.core.windows.net`.
+That Azure endpoint is **NXDOMAIN** — gone. So tidesynth.com was serving a frame
+around nothing, and `www` did not resolve at all. This was a repair, not a
+migration, which is why there was no cutover window to protect.
+
+**Learned — things that will cost the next person an hour each:**
+
+1. **The Domainz DNS editor is at `/~/dns` and nothing links to it.** The
+   domain's own product page offers only Lock/Unlock, Update Nameservers,
+   Update Registrant and EPP code. Its Settings tab is labels and delegate
+   access. The separate "tidesynth.com (Domain Manager)" product — filed under
+   *Email & Office Tools*, of all places — is metadata only. I searched all
+   three and concluded the portal had no zone editor and that the records must
+   live in a legacy Netregistry console; I was about to recommend moving DNS to
+   Cloudflare. **Jeff produced the URL.** Corrected in
+   [docs/hosting.md](docs/hosting.md).
+
+2. **"Export Zone" is server-side broken — 500 every time.** There is no working
+   zone export, so the backup at
+   [docs/dns-zone-tidesynth.com.txt](docs/dns-zone-tidesynth.com.txt) was
+   transcribed by hand from the table and cross-checked with `dig`. Worse, a
+   failed Export leaves a dead modal behind so the *next* dialog you open also
+   renders as a 500 — which made DNS editing look broken when it is not. Reload
+   the page and the editor works. I lost time treating the second 500 as real.
+
+3. **The domain has live email, and that was the real risk.** MX plus
+   smtp/imap/pop/pop3/webmail CNAMEs on `nsserver.net.nz`. Six of the nine
+   records in the zone are mail. Nothing about pointing a website at Pages
+   touches them, but a careless "repoint the domain" would have taken them out.
+   Verified intact on all three nameservers after the change.
+
+4. **Their nameservers propagate inconsistently, and briefly lie.** After the
+   edit, `ns1` served the new records while `ns2`/`ns3` still served the old IP
+   — and twelve repeated queries to `ns1` alone came back **6 old / 6 new**, so
+   ns1 is several backends syncing independently. A single `dig` was worthless
+   here. Convergence took roughly 10 minutes; `www` propagated fully well before
+   the apex `A` did. **Any check on this registrar must poll all three
+   nameservers repeatedly before believing the answer.**
+
+5. **Local resolver cache made the finished site look broken.** After everything
+   was working I ran a plain `curl https://tidesynth.com/` and got *"Failed to
+   connect on port 443"*, plus `http://` returning `200`. Both were this
+   machine's resolver still holding the old IP and hitting the dead redirector.
+   Cloudflare's `1.1.1.1` was stale for ~30 min after Google and Quad9 had
+   updated. **Verify with `--resolve` against a known edge IP**, or you will
+   diagnose a phantom.
+
+6. **`https_enforced` gets set back to `false` when you save a custom domain,**
+   and the redirect then lags the setting. The API read `https_enforced: true`
+   while all four edge IPs still answered `200` instead of `301` for several
+   minutes. Not a misconfiguration — just edge propagation. The certificate
+   itself arrived in **4 minutes**, far quicker than the hour the doc budgeted.
+
+7. **The `website/CNAME` file is load-bearing, and now proven.** With the
+   *GitHub Actions* source the published artifact defines the served domain, so
+   without that file a later deploy can clear the custom domain silently — green
+   deploy, dead domain. PR #21 added it; merging it triggered a deploy, and
+   `cname`, `https_enforced` and the certificate all survived. That was the test.
+
+**Next:** H1 is done and marked RESOLVED. The remaining website item is **R6**
+(Downloads section), still blocked on there being something to download. Note
+`build.yml` fails on every PR — three platforms, all *"source directory does not
+appear to contain CMakeLists.txt"* — which is **B1**'s known pre-carve-out state,
+not a regression; it made PR #21 show as `UNSTABLE` and it is safe to merge past
+until C7.
+
+**Branch/PR:** `docs/h1-golive-writeup`; `website/CNAME` merged as PR #21.
+
+---
+
 ## 2026-08-08 — macos — S1b (partial: the ALLOWED part; the rest is gated)
 
 **Did:** Took S1b, did the whole of the part that is TIDE's to do, measured the

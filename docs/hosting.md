@@ -45,14 +45,53 @@ Until Pages is enabled it fails at `configure-pages` with **"Get Pages site
 failed"**. That error means "Pages is not enabled yet", not that the workflow is
 broken.
 
+### DONE — went live 2026-08-08
+
+`https://tidesynth.com` serves `website/index.html` over a Let's Encrypt
+certificate, `www` 301s to the apex, and HTTP 301s to HTTPS. The checklist below
+is kept as the record of what was done, with the two places it was **wrong**
+corrected inline. See the JOURNAL entry for 2026-08-08 for the full account.
+
+Two corrections worth reading before you touch DNS for any other domain here:
+
+1. **The Domainz DNS editor is at <https://clients.domainz.net.nz/~/dns>.** It is
+   *not* reachable from the domain's own product page, which offers only
+   Lock/Unlock, Update Nameservers, Update Registrant and EPP code. Its Settings
+   tab has labels and delegate access, and the separate "tidesynth.com (Domain
+   Manager)" product — filed under *Email & Office Tools* — is metadata only.
+   Nothing in that navigation leads to the zone. Go to `/~/dns` directly.
+2. **The portal's "Export Zone" button is broken** — it returns 500 Internal
+   Server Error every time. There is no working export, so a zone backup has to
+   be transcribed by hand. One is kept at
+   [dns-zone-tidesynth.com.txt](dns-zone-tidesynth.com.txt). A failed Export
+   also leaves a dead modal behind that makes the *next* dialog you open render
+   as a 500 — reload the page and the editor works fine. Do not conclude from
+   that second 500 that DNS editing is broken; it is not.
+
+Also worth knowing: the zone table and its dialogs do **not** appear in the
+accessibility tree, so this page cannot be driven by anything reading the DOM
+that way — it has to be done by eye.
+
 ### Go-live checklist (Jeff — repo settings and registrar)
 
 1. **Enable Pages:** repo → Settings → Pages → Source: **GitHub Actions**.
 2. **Run the workflow once** (Actions → "Deploy website to GitHub Pages" → Run
    workflow). The site is now at `jeffmcclintock.github.io/TideSynth/`.
 3. **Custom domain:** same Settings page → Custom domain: `tidesynth.com` →
-   Save.
-4. **DNS, at the registrar** — apex `A` records to GitHub Pages:
+   Save. **Do step 4 first.** GitHub verifies the domain against the
+   authoritative nameservers when you save, so setting it before DNS has
+   propagated can fail the check and need retrying. Also make sure
+   [website/CNAME](../website/CNAME) exists — with the *GitHub Actions* source
+   the published artifact defines the served domain, and without that file a
+   later deploy can silently clear what you set here.
+4. **DNS, at the registrar** — apex `A` records to GitHub Pages. The zone
+   editor is at `/~/dns`, not on the domain product page (see corrections
+   above). **Replace** the existing records rather than adding beside them: the
+   apex `A` pointed at `202.124.241.178`
+   (`redirector.servers.netregistry.net`) and `www` CNAMEd to a dead Azure
+   static-website endpoint. **Leave the MX and the smtp/imap/pop/pop3/webmail
+   CNAMEs alone — tidesynth.com has live email on `nsserver.net.nz`,** and
+   nothing about the website touches it.
 
    ```
    tidesynth.com.      A     185.199.108.153
@@ -66,7 +105,14 @@ broken.
    `2606:50c0:8003::153`.)
 5. **Enforce HTTPS:** back on the Pages settings page, tick **Enforce HTTPS**
    once the certificate has been issued — it appears automatically after DNS
-   propagates, usually within the hour.
+   propagates. In practice the certificate arrived **four minutes** after the
+   custom domain was saved, not the hour budgeted here. Note GitHub sets
+   `https_enforced` back to *false* when you save a new custom domain, so this
+   step is not optional tidying — without it the apex serves plain HTTP. The
+   redirect then takes a few more minutes to reach the edge: expect
+   `http://tidesynth.com` to keep answering `200` rather than `301` for a short
+   while after the setting reads as enabled. That lag is GitHub-side, not a
+   misconfiguration.
 6. **Verify the domain** (Settings → Pages → Verified domains, at the *account*
    level: <https://github.com/settings/pages>). Optional but recommended — it
    stops anyone else claiming `tidesynth.com` on Pages if the DNS ever points
