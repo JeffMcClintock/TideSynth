@@ -133,9 +133,22 @@ Builds (gcc 13.3.0, RelWithDebInfo, existing `~/SE/build` tree):
    that path whenever a `CMakeLists.txt` changes and the tree needs
    regenerating. `~/.cache` is by contract a disposable directory. If anything
    cleans it, `~/SE/build` breaks with an error that looks nothing like its
-   cause. The durable fix is a cmake ≥3.30 installed somewhere permanent
-   (Kitware's APT repo for noble) and one reconfigure to repoint the cache —
-   see the 2026-08-08 entry's tail.
+   cause.
+
+   **Resolved the same day.** Jeff installed Kitware's APT repo for noble, which
+   supplies **cmake 4.4.2** (`4.4.2-0kitware1ubuntu24.04.1`), replacing apt's
+   3.28.3 at `/usr/bin/cmake`. `~/.cache` is now out of the dependency path —
+   `CMAKE_COMMAND` reads `/usr/bin/cmake` again, and this time it means a cmake
+   that can configure the tree. **The 3.x → 4.x jump is the part to know about,
+   because it is a major version and CMake 4 drops compatibility with
+   `cmake_minimum_required(VERSION < 3.5)` — the usual way a fetched
+   third-party dependency breaks.** Nothing here does: configure is clean, and
+   `TIDE_VST3`, `TIDE`, `SynthEditCL`, `SynthEditWayland` and `SynthEdit_VST3`
+   all rebuild at exit 0 with no warnings. X3 re-verified on the new toolchain
+   from a real recompile of `wrapperVst3.cpp` — `ModuleEntry`/`ModuleExit` still
+   exported, validator still 47/47. The `GIT_TAG` pin survived the toolchain
+   change too (`_deps` still at `e6a4541`), which is the reproducibility the pin
+   was chosen for.
 
 5. **A prebuilt Steinberg `validator` is on this box** at
    `/home/jef/SE/build-vst3sdk/bin/Release/validator`. The S4 run concluded the
