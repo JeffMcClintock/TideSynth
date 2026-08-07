@@ -22,6 +22,132 @@ Template:
 
 ---
 
+## 2026-08-08 — windows — P4c
+
+**Did:** Reproduced the P4 resize crash on demand, A/B'd the fixes against it,
+and left the reproduction behind as a permanent test —
+`GMPI_Wrappers/tests/win_editor_resize_host.cpp`. The resize crash is now
+**fixed-by-test**. Filed **P6** (the X11/macOS resize paths, still unaudited).
+
+STEP 1 clear: `gh issue list` returns nothing, no labels. STEP 2: `git fetch`
+brought two new remote branches, `tide/linux/X3-vst3-moduleentry` (PR #19) and
+`tide/mac/S1b-compile-out-scan` (PR #18) — so X3 and S1b are taken, and P4c was
+both topmost and unclaimed. Claimed it, pushed the DOING mark, then started. My
+working copy was already at `origin/main` this time, so the four documents I read
+were current; the Linux run's "fetch before you read" warning still stands for a
+box that has been idle longer.
+
+**Result — the A/B, three runs of each configuration:**
+
+| `reSize` fix (P4a) | `checkSizeConstraint` fix (P4b) | `onSize(0,0,2178,32672)` |
+|---|---|---|
+| off | off | **`0xC0000005`, 3/3** |
+| **on** | off | survived, 3/3 |
+| **on** | **on** | survived, 3/3 |
+
+P2 saw the original 3/3. This reproduces it 3/3. Frames 0 and 1 match the
+minidump exactly — only the host frame differs:
+
+```
+TIDE_VST3_prefix!gmpi::hosting::DrawingFrame::reSize+0x7c
+00007ffe`4f7658ac 488b01        mov  rax,qword ptr [rcx]  ds:00000000`00000000
+00007ffe`4f7658af ff9050020000  call qword ptr [rax+250h]
+TIDE_VST3_prefix!wrapper::SEVSTGUIEditorWin::onSize+0x1e
+win_editor_resize_host!main
+```
+
+`ExceptionCode c0000005`, `Parameter[0] 0` (read), `Parameter[1] 0`. A vtable
+load off a null COM pointer then a virtual call through it — that is
+`d2dDeviceContext->SetTarget(nullptr)`, the first use after `SetWindowPos`, i.e.
+the "use" half of the time-of-check/time-of-use bug P4 described. Verification
+section added to [docs/p4-resize-crash.md](docs/p4-resize-crash.md).
+
+**Learned — five things, and the first two are the ones that matter:**
+
+1. **P4c asked the wrong question, and answering it as asked would have failed
+   again.** The item said: reproduce the *DAW's* state — try the old REAPER
+   config, a different DPI layout, dragging the window edge. But the DAW was
+   never the experiment. It is just a thing that once passed a bad rect, and the
+   minidump had already recorded *which* rect. So the answer was not to recreate
+   REAPER's state, it was to stop needing REAPER: load the plugin, attach the
+   editor to an `HWND`, call `onSize({0,0,2178,32672})` directly. That is ~330
+   lines and it crashed on the first run. **When a dump has captured the input,
+   replay the input, not the environment.** Every guess listed in P4c and in the
+   note's "untested guesses" was a dead end, and none of them was needed.
+
+2. **P2's `MoveWindow` lead was a red herring — and it nearly cost this run
+   too.** P2 recorded that `MoveWindow` "did not resize" the plugin window and
+   crashed anyway; P4 reasoned from that to some unusual window state, and P4c
+   inherited it as *the* lead. The truth: **`attached()` creates a child window
+   inside the HWND the host hands over, and `DrawingFrame::reSize` calls
+   `SetWindowPos` on that child.** The parent's client rect never moves. P2
+   measured the parent. There was no strange state and no mystery to hunt. Use
+   `GetWindow(hwnd, GW_CHILD)`. My first harness draft made the identical
+   mistake and reported `editor live: NO` against a build that was demonstrably
+   fine — which is the only reason I caught it.
+
+3. **A "did not crash" result needs a liveness proof, or it is worthless.** The
+   D2D device is created lazily on first paint. With no device, the *unfixed*
+   `reSize` returns at its own first test — which looks exactly like the fix
+   working. Any harness that skips this reports a false pass, and I think this is
+   a real candidate for what the earlier REAPER A/B was actually measuring. The
+   test therefore does a benign resize first and checks the child window
+   **adopted** it: a resize that took effect proves `reSize` got past
+   `if (d2dDeviceContext && ...)` and reached `SetWindowPos`, so the device is
+   live and the crash path is reachable. If not, it exits **3 INCONCLUSIVE**, not
+   0. This is the same discipline as S1a's screenshot hash — build the verifier
+   so it can *fail*, not just so it can pass.
+
+4. **The Release PDB from P4 paid for itself immediately.** The whole crash
+   symbolised out of a Release build; no Debug repro was needed. `cdb -g ... -c
+   ".symopt-0x100; g; .reload /f <module>; .lines -e; .ecxr; u . L3"` run
+   *live* on the harness is quicker than hunting a minidump — and note
+   `%LOCALAPPDATA%\CrashDumps` did **not** catch my exe (LocalDumps looks to be
+   configured for `reaper.exe`, not globally), so do not count on a dump
+   appearing.
+
+5. **A/B by reverting the file with git, not by editing the fix out.**
+   `git checkout <pre-fix-sha> -- <file>` → rebuild → test → `git checkout HEAD --
+   <file>`. Exact, reversible, and it cannot leave a hand-mangled fix behind.
+   Both shared repos were clean this time (no CRLF churn), and are clean again.
+
+**Where the code went.** `GMPI_Wrappers` branch
+`tide/win/P4c-resize-regression-test`, commit `fd38ee8`, pushed — **not merged**.
+Three files: the new test, plus a platform gate moved out of
+`wrapper/CMakeLists.txt` into `tests/CMakeLists.txt`. That directory was
+Linux-only and `pkg_check_modules`'d unconditionally, so Windows could not
+configure it at all; it now picks targets per platform. Still off by default
+(`-DGMPI_WRAPPERS_BUILD_TESTS=ON`), so no plugin build changes. The test needs no
+SDK sources — `ClassName_iid` is a header-only constant, so pluginterfaces
+headers plus `user32` is the entire dependency, one translation unit.
+
+**Builds** (Release, `C:\SE\build-tide-p1`, now configured with
+`GMPI_WRAPPERS_BUILD_TESTS=ON`):
+
+| Target | Exit | Warnings |
+|---|---|---|
+| `TIDE` | 0 | 0 |
+| `TIDE_VST3` | 0 | 0 |
+| `SynthEditCL` | 0 | 0 |
+| `win_editor_resize_host` | 0 | 0 |
+
+**Next:** **P6** — the X11 and macOS resize paths (`DrawingFrameX11.cpp:920`,
+`DrawingFrameMac.mm:434`) have never been audited for the same
+check-then-re-enter pattern, and nothing says they are clean. `x11_editor_host.cpp`
+already attaches an editor, so porting the probe is small; read the liveness trap
+in point 3 first or the Linux result will be a false pass.
+
+The remaining `win` engineering item is **P3** (the MFC/`afxres.h` dependency).
+S1b and X3 are in flight on the other two boxes. With the resize crash now
+genuinely fixed, **V1 is hand-testable on Windows** — the editor can be resized
+without killing the DAW, which was the blocker P4 left behind.
+
+**Branch/PR:** `tide/win/P4c-verify-resize-crash` in this repo; the test itself is
+`fd38ee8` on `tide/win/P4c-resize-regression-test` in `JeffMcClintock/GMPI_Wrappers`,
+pushed as a branch, not to `main`.
+
+---
+
 ## 2026-08-07 — windows — distribution plan (at Jeff's request, interactive)
 
 **Did:** Wrote [docs/distribution.md](docs/distribution.md) — installers on all
