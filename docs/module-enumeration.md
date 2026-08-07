@@ -406,3 +406,179 @@ exist, it walks **parent directories** looking for a sibling
 reach-outside-the-bundle behaviour that must not survive into a shipping AUv3.
 It is not in `TideApp`, so stage 1 will not remove it and it is easy to miss.
 One for S2's audit.
+
+---
+
+# Addendum — macOS run, 2026-08-08 (S1b)
+
+Written while doing S1b. **Stage 3 of §6 is wrong as written**, and the
+correction changes what S1b costs. Everything below is measured on a macOS
+build of `TIDE.gmpi` from `SE16` master at `a6f6d82c9` (i.e. with S1a's
+deletion already in), Release, `arm64` slice, `nm | c++filt`.
+
+## B0. TIDE builds on macOS — first time this is recorded
+
+`cmake --build build --target TIDE --config Release` (and `Debug`, and
+`TIDE_VST3` in both) exits 0 with no warnings, universal `x86_64;arm64`,
+Xcode generator, deployment target 13.3. M1 in BACKLOG is about the **AU and
+AUv3** targets and remains blocked; the GMPI and VST3 plugins build here today.
+No `docs/building.md` section existed for macOS — the commands are just the
+top-level `build/` tree that is already configured.
+
+Unrelated pre-existing break found in passing: **`SynthEditCL` does not build
+on macOS.** It compiles and links fine, then fails at `CodeSign`:
+
+```
+SynthEditCL.app: code object is not signed at all
+In subcomponent: .../SynthEditCL.app/Contents/MacOS/Resources/Prefabs/Controls/Button Small2.syntheditprefab
+```
+
+`stage_prefabs_SynthEditCL` stages prefab data under `Contents/MacOS/Resources/`
+instead of `Contents/Resources/`, and `codesign` treats anything under `MacOS/`
+as code. Verified pre-existing by stashing the S1b change and rebuilding — it
+fails identically. Filed as **P6**.
+
+## B1. The scan, the cache and the SEM loader are all in the shipping binary
+
+S1a removed the *call*. It did not remove the code. Present in Release:
+
+```
+T ScanFolder(const std::filesystem::path&, const std::string&, const std::wstring&, bool)
+T SemCacheName()
+T LoadModuleData()
+T ClearModuleDataCache()
+T ApplicationBase::LoadOrScanModuleData()
+T Module_Info3::LoadDllOnDemand()
+T gmpi_dynamic_linking::MP_DllLoad(long*, const wchar_t*)
+```
+
+and `nm -u` shows `_dlopen`, `_dlsym`, `_dlclose` imported. There is **no
+dead-stripping** — the Release link uses no `-dead_strip`, so nothing drops out
+on its own. So §7.1's "must be compiled out, not merely left un-called" is not
+a theoretical concern; it is the literal current state, and it is what an AUv3
+reviewer would see.
+
+## B2. `SE_EXTERNAL_SEM_SUPPORT` cannot deliver stage 3 — the "or" branch is dead
+
+§6 stage 3 offers two routes: introduce `TIDE_NO_EXTERNAL_MODULES`, **or**
+decouple `SE_EXTERNAL_SEM_SUPPORT` from `GMPI_IS_PLATFORM_JUCE`. The second is
+not an alternative to the first. It does not remove any of B1.
+
+A4 is confirmed exactly. Compiling with `-DSE_EXTERNAL_SEM_SUPPORT=0`:
+
+```
+xplatform.h:35:10: warning: 'SE_EXTERNAL_SEM_SUPPORT' macro redefined [-Wmacro-redefined]
+```
+
+and the value ends up **1**. A warning, not an error — it fails silently, which
+is the worst of the three possible outcomes.
+
+But suppose the `#if !defined(...)` guard A4 proposes were added. It still
+would not work, for two reasons that are visible by grep:
+
+1. **`SE_EXTERNAL_SEM_SUPPORT` guards nothing that matters.** It appears in
+   exactly two places in the entire codebase outside comments —
+   `SynthEditLib/UgDatabase.cpp:28` (an `#include`) and `:595` (one
+   `new Module_Info3(imbeddedFilename)` branch). `ScanFolder`,
+   `LoadOrScanModuleData`, `SemCacheName`, `LoadModuleData` and
+   `ClearModuleDataCache` carry **no feature guard at all** — only `_WIN32` /
+   `__APPLE__` platform guards. Flipping the flag changes one object file,
+   `UgDatabase.o`, and nothing else.
+
+2. **The loader is pulled in by EditorLib regardless.** `Module_Info3.cpp` is
+   in `SynthEditLib/CMakeLists.txt:295` unconditionally with no internal
+   `SE_EXTERNAL_SEM_SUPPORT` guard, and `Module_Info3` is constructed in
+   `SynthEdit2/ModuleFactory_Editor.cpp:500` and `:1309` and `dynamic_cast`ed
+   in `CUG.cpp:2993`, `DocOb.cpp:357`, `ExportAsPlugin.cpp:558`,
+   `ModuleFactory_Editor.cpp:216/332/452/1075/1096/2010`. Removing the one
+   `UgDatabase.cpp:597` construction leaves ~15 references, so `Module_Info3.o`
+   is linked and `dlopen` stays imported.
+
+**Consequence for §6's trap.** The trap warns that flipping a build flag
+silently changes which modules exist. That is true of `GMPI_IS_PLATFORM_JUCE`,
+but *not* of a decoupled `SE_EXTERNAL_SEM_SUPPORT` — decoupling leaves
+`GMPI_IS_PLATFORM_JUCE` at 0 and the module arm unchanged. The trap is real;
+it just does not apply to the route A4 proposes. The route is safe and useless.
+
+## B3. A1's soundcard prediction confirmed — TIDE ships modules constraint 2 forbids
+
+Measured from the binary, settling what S1a deferred:
+
+- TIDE compiles the **non-JUCE arm** of `initialise_synthedit_modules`.
+  `ug_filter_sv`, `ug_test_tone` and `ug_denormal_detect` are present;
+  `OscillatorNaive` has **zero** symbols, so the modern SEM modules are absent
+  as A1 predicted.
+- The forbidden trio is present *and registered* — not merely referenced:
+  `se_static_library_init_ug_soundcard_in`, `..._ug_soundcard_out`,
+  `..._ug_midi_out`, each with its `__GLOBAL__sub_I_*` static initialiser.
+- `ug_soundcard_out.cpp:10` registers it as
+  `REGISTER_MODULE_1(L"Sound Out", …, IDS_MG_INPUT_OUTPUT, …)` with the help
+  text *"Sends audio to your speakers. You are limited to one soundcard out
+  module. Non-registered SynthEdit limited to 2 output channels."*
+
+So TIDE's module browser offers the user a **Sound Out** module that opens the
+soundcard directly — PLAN constraint 2 says the DAW owns I/O — and shows
+SynthEdit licensing copy inside a plugin that is free and unlicensed. Both
+arms live in `SynthEditLib/UgDatabase.cpp`, so neither can be fixed TIDE-side.
+Filed as **S8**.
+
+## B4. What stage 3 actually costs, and the one part that was TIDE-side
+
+Rewrite stage 3 as three separate pieces, because they need three different
+mechanisms and two of them are GATED:
+
+| Piece | Where | Gate |
+|---|---|---|
+| a. Stop compiling `SynthEditApp.cpp` into TIDE | `SE16/SynthEditSem/` | **ALLOWED — done, see below** |
+| b. Compile out `ScanFolder` / `LoadOrScanModuleData` / the SEM cache | `SE16/SynthEdit2/ModuleFactory_Editor.cpp`, `Application.cpp` | EditorLib → C0 |
+| c. Compile out `Module_Info3` and the `dlopen` import | `SynthEditLib/Module_Info3.cpp` + its ~15 EditorLib references | C0 |
+
+**(a) is landed** — `SE16` branch `tide/mac/S1b-compile-out-scan`, commit
+`40b6008ee`. TIDE's own `CMakeLists.txt` was compiling the whole of
+`SynthEdit2/SynthEditApp.cpp` purely to satisfy three symbols EditorLib
+references. That put `SynthEditApp::InitInstance()` in the plugin — **another
+`LoadOrScanModuleData()` call site**, plus a detached `MonitorFileSystem()`
+watcher thread on the live-modules folder, the `SynthEdit16.settings.xml`
+read/write path, and the Moonbase licensing and activation-polling surface.
+
+The three symbols are `theApp`, `SafeMessagebox`, and
+`SynthEditApp::licenseIsActive()` / `isMoonbaseEnabled()`. A 60-line
+`SynthEditSem/TideAppStubs.cpp` supplies them. **Behaviour is unchanged, not
+merely similar:** `SynthEditApp`'s constructor is what assigns `theApp`, and
+`TideApp` derives from `CSynthEditAppBase`, so in a TIDE process `theApp` was
+always null — `SafeMessagebox` was already a no-op on its `if (theApp)` guard,
+and the only TIDE-reachable caller of the other two,
+`MfcDocPresenter.cpp:1244`, reads
+`theApp && theApp->isMoonbaseEnabled() && !theApp->licenseIsActive()` and was
+already dead on the first term. Both predicates are `return false` in any build
+without `SE_MOONBASE_SUPPORT`, which TIDE never defines.
+
+Measured effect on the Release `arm64` slice:
+
+| | before | after |
+|---|---|---|
+| `SynthEditApp::` symbols | 48 | 2 (the stubs) |
+| `SynthEditApp::InitInstance` | present | gone |
+| `licenseIsTrial`, `startActivationPolling`, `checkActivationStatusNow`, `licenseStatusDescription` | present | gone |
+| binary size | 8,627,808 B | 8,586,976 B |
+
+Everything in B1 is untouched by (a) — that is (b) and (c), and it is why S1b
+goes back to the queue rather than to Done.
+
+Note `CSynthEditAppBase::MonitorFileSystem`, `::UpdateLiveModules` and
+`::getLiveModuleUpdateStagingFolder` **remain** in the binary: they are
+`CSynthEditAppBase` members in EditorLib, which TIDE links wholesale, and
+`TideApp` derives from it. Removing the `SynthEditApp` caller removed the only
+thing that started the thread, not the thread function. One for (b) and S2.
+
+## B5. Advice for whoever takes (b) and (c)
+
+Do not try to do it with an existing flag. `SE_EXTERNAL_SEM_SUPPORT` is the
+wrong lever (B2) and `GMPI_IS_PLATFORM_JUCE` is a trap (§6). It wants a new
+`TIDE_NO_EXTERNAL_MODULES` threaded through `EditorLib/CMakeLists.txt`, and the
+honest scope is "make `ModuleFactory_Editor.cpp` compile without its scan half",
+which is a real refactor of a 2000-line file, not a `#ifdef` around a function.
+
+Sequencing: (b) and (c) touch exactly the files C3 and C4 move. Doing them
+before the carve-out means doing them twice. Recommend they wait on C0 and ride
+along with C4 rather than being attempted standalone.
