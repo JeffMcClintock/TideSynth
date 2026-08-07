@@ -77,6 +77,24 @@ building before the next starts. See [docs/carve-out.md](docs/carve-out.md).
 
 ---
 
+## Release & distribution — blocked on V1 (nothing to ship yet)
+
+The plan is [docs/distribution.md](docs/distribution.md). R1 is the only item
+with lead time and the only one Jeff can do now; the rest wait for a v0.1 that
+passes V1. CI automation additionally waits on C7 — the interim path (build on
+each box, `gh release upload`) is in the doc.
+
+| ID | Status | Plat | Item |
+|---|---|---|---|
+| R1 | NEEDS-JEFF | — | **Signing identities and accounts.** (a) May TIDE sign under the existing Azure Trusted Signing account (`SynthEditTrustedSigning`, profile `SynthEditCertificateProfile`, `SE16/SynthEdit_store_win.yml:205-207`)? The cert subject is the publisher name users see — decide if TIDE ships under it or gets its own profile. (b) Confirm the Apple Developer ID in `SynthEdit_cmake_mac.yml` may sign TIDE, and that notarization credentials can be issued for CI. (c) App Store listing for the iOS AUv3 (needed by M2, not v0.1). (d) When C7 lands, re-create these as GitHub Actions secrets in the public repo. |
+| R2 | BLOCKED | win | **Windows installer.** Inno Setup, modelled on `SE16/SynthEdit2/installer/SynthEdit2.iss`. Installs `TIDE_VST3.vst3` to `Common Files\VST3`; sign the .vst3 and the installer via Azure Trusted Signing. Also produce `TIDE-Windows.zip` for users who refuse installers. Constant asset names — the version lives in the tag and the version resource, per the doc. |
+| R3 | BLOCKED | mac | **macOS pkg.** AU → `Components`, VST3 → `VST3`; Developer ID sign, **notarize and staple** — model on `SE16/SynthEdit_cmake_mac.yml`. AUv3 is deliberately absent: it ships in the container app with M2. |
+| R4 | BLOCKED | linux | **Linux tarball.** `TIDE-Linux.tar.gz` with the VST3 and CLAP bundles and a short `install.sh` targeting `~/.vst3` / `~/.clap`. No signing. |
+| R5 | BLOCKED | any | **Release workflow.** Tag `v*` → build + sign every platform → one GitHub Release with constant-name assets + `SHA256SUMS.txt`. Runs on tag push only, never on PRs, so fork PRs never see signing secrets. Needs C7 for public CI builds; until then the same release page is fed by `gh release upload` from the platform boxes. |
+| R6 | BLOCKED | any | **Website Downloads section.** Replace the "nothing to download yet" card with static `releases/latest/download/<asset>` permalinks — no JS, no version maintenance, keeps the "no cookies, no scripts, no tracking" footer honest. iOS is a plain text App Store link (Apple's badge image would be the page's first external resource — do not use it). |
+
+---
+
 ## Done
 
 | ID | Done | Plat | Item |

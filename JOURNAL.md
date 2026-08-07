@@ -22,6 +22,63 @@ Template:
 
 ---
 
+## 2026-08-07 — windows — distribution plan (at Jeff's request, interactive)
+
+**Did:** Wrote [docs/distribution.md](docs/distribution.md) — installers on all
+four platforms plus website downloads — and filed BACKLOG **R1–R6** as a new
+"Release & distribution" section, all blocked on V1 except R1. Also, at Jeff's
+direction, removed every SynthEdit mention from the website's rendered text
+(commit `d0bf3ef`, straight to main after losing two merge races in a row —
+see below).
+
+**Result — the plan in four lines:**
+
+1. Tag `v*` → one GitHub Release per version, constant asset names
+   (`TIDE-Windows.exe`, `TIDE-macOS.pkg`, `TIDE-Linux.tar.gz`) + SHA256SUMS.
+2. The website links `releases/latest/download/<asset>` — static permalinks
+   that always point at the newest release, so the no-JS page never needs a
+   version bump.
+3. iOS is App Store only, arriving with M2; plain text link, no Apple badge
+   image (it would be the page's first external request).
+4. CI automation waits on C7 (public runners cannot link private EditorLib);
+   until then each box builds locally and `gh release upload`s — same release
+   page, same permalinks, working from the first v0.1 build.
+
+**Learned — SynthEdit's shipping infrastructure, located by reading `SE16`:**
+
+- **Windows signing is Azure Trusted Signing and already paid for** — account
+  `SynthEditTrustedSigning`, profile `SynthEditCertificateProfile`, endpoint
+  in `SE16/SynthEdit_store_win.yml:205-207`. The open question is naming, not
+  money: the cert subject is the publisher users see in UAC, so whether TIDE
+  ships under SynthEdit's publisher name is R1(a), Jeff's call.
+- **Apple identity + DMG/notarization pipeline exist** —
+  `SE16/SynthEdit_cmake_mac.yml:185-199`, `create_dmg.sh`,
+  `$(APPLE_CERTIFICATE_SIGNING_IDENTITY)`.
+- **Inno Setup is the Windows installer precedent** —
+  `SE16/SynthEdit2/installer/SynthEdit2.iss` and `SynthEditCL.iss`.
+- **All of it runs in Azure Pipelines in the private repo.** The recipes port
+  to GitHub Actions; the *secrets do not follow* — recreating them in the
+  public repo is R1(d), and signing must never run in PR workflows (tag-push
+  only) or fork PRs could reach the secrets.
+
+**Process note — three merge races in one afternoon.** Jeff merges PRs within
+seconds of their appearing. Twice, a follow-up commit pushed to an open PR's
+branch landed moments *after* the merge, silently recreating the just-deleted
+branch instead of joining the PR (git happily resurrects a deleted remote
+branch on push; nothing warns). Recovery both times: cherry-pick the stranded
+tip onto a fresh base, delete the stray branch. For the second one — a one-file
+website edit Jeff had directly ordered — it went straight to main instead, per
+his standing sole-developer preference. Rule of thumb for future runs: before
+pushing a follow-up to a PR branch, `gh pr view <n> --json state` first;
+scheduled runs should keep using PRs regardless.
+
+**Next:** R1 is the only distribution item that can move now and it is Jeff's.
+Engineering queue unchanged: P4c, then S1a (and S7 wants its runtime check).
+
+**Branch/PR:** `plan/distribution`
+
+---
+
 ## 2026-08-07 — jeff — decision: no user skins (interactive session, not a scheduled run)
 
 **Did:** Recorded a product ruling:
