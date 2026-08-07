@@ -50,6 +50,17 @@ These are the non-negotiables. Every backlog item is checked against them.
    from constraint 3; on desktop it is a deliberate product choice. Decided by
    Jeff, 2026-08-06. See [docs/module-enumeration.md](docs/module-enumeration.md).
 
+8. **No user skins.** TIDE ships its default appearance in the plugin's own
+   resources, and that is the whole story: no user-installable skins, no skin
+   folder, no scanning for one, and nothing skin-related written to the user's
+   disk. On iOS this follows from constraints 3 and 4; on desktop it is a
+   deliberate product choice, like constraint 7. Decided by Jeff, 2026-08-07.
+   Note this is stricter than the v0.1 list below, which merely *defers*
+   skinning — user skins are out of TIDE permanently. Enforcement is BACKLOG
+   **S7**: the shared `SkinMgr` copies skins into
+   `<CommonDocuments>\SynthEdit Projects\skins\` from its constructor, and a
+   TIDE build can reach it.
+
 ## Where the code currently lives
 
 TIDE is not starting from zero. A working prototype exists:

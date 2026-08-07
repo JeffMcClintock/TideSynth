@@ -22,6 +22,39 @@ Template:
 
 ---
 
+## 2026-08-07 — jeff — decision: no user skins (interactive session, not a scheduled run)
+
+**Did:** Recorded a product ruling:
+
+> **No user skins in TIDE. The default appearance ships in the plugin's
+> resources — nothing skin-related written to the user's disk.**
+
+Landed as [PLAN.md](PLAN.md) **constraint 8**, following the channel rule from
+the 2026-08-06 fixed-module-set entry: rulings go in PLAN, enforcement goes in
+BACKLOG. Filed **S7** for enforcement. Note the constraint is stricter than
+PLAN's v0.1 list, which merely *defers* skinning — user skins are now out
+permanently.
+
+**Learned — the ruling names a live behaviour, not a hypothetical.** Five
+minutes of grep while filing S7 found: `SkinMgr`'s constructor
+(`SE16/SynthEdit2/SkinMgr.cpp:27-30`) points at
+`<CommonDocuments>\SynthEdit Projects\skins\`, `setSkinFolder` (`:47+`)
+**recursively copies the built-in skins there on first use**, and
+`CContainer.cpp:97` reaches `SkinMgr::Instance()` — `CContainer` being squarely
+in TIDE's document path. So the first container a TIDE instance constructs
+probably writes the shared skin set onto the user's drive, in a DAW, on every
+machine. Unverified at runtime (S7's first job), but the static chain is
+direct. It is also another instance of the S4 pattern: TIDE silently sharing
+mutable on-disk state with the desktop SynthEdit app.
+
+**Next:** S7 wants the runtime check before any fix — same discipline as S1a's
+§9. The fix may split like S4 did: a TIDE-side part in ALLOWED code, and a
+gated `SkinMgr` part to file rather than reach for.
+
+**Branch/PR:** `plan/no-user-skins`
+
+---
+
 ## 2026-08-07 — linux — S4
 
 **Did:** Fixed S4 — one line in `SE16/SynthEditSem/TideApp.cpp` (ALLOWED), plus a
