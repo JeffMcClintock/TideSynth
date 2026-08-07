@@ -79,6 +79,87 @@ Engineering queue unchanged: P4c, then S1a (and S7 wants its runtime check).
 
 ---
 
+## 2026-08-07 — windows — S1a
+
+**Did:** Removed the module scan and cache from TIDE — the `semFolder`
+assignment, S4's `isSemFolderOverridden` flag, and `LoadOrScanModuleData()`
+are gone from `TideApp::InitInstance`. `SE16` commit `d67bdfbab`, pushed to
+master. Before starting, **merged the stranded S4 branch**: the Linux run's
+one-line fix sat unmerged on `SE16` branch `tide/linux/S4-sem-cache-clobber`
+while BACKLOG showed S4 done — the run obeyed "never push to main" and nobody
+merged the branch. Merged as `d28e02007`, branch deleted. **Check `SE16` for
+unmerged `tide/*` branches; a weekly run's SE16-side work does not land
+itself.**
+
+**Result — §9, adapted, passes.** The recipe says "point `ModulePath` at an
+empty directory", which is impossible in TIDE: `Application.cpp:139` returns
+the user Documents folder for *every* settings key. So the test became:
+build with the scan deleted, delete TIDE's own cache file, run in the portable
+REAPER harness, screenshot the module browser, and compare against the same
+screenshot from the scanning build taken minutes earlier. Verdict:
+
+- **Pixel-identical browsers** — the before/after PNGs have equal SHA-256
+  hashes. The scan contributed nothing the browser shows.
+- **Zero filesystem writes** — the baseline (scanning) run recreated TIDE's
+  override cache within seconds; the descanned run wrote nothing under
+  `ProgramData\SynthEdit` at all.
+- TIDE, TIDE_VST3, SynthEditCL all build, exit 0, no warnings.
+
+Category tree observed both times: All, Controls, Conversion, Diagnostic,
+Effects, Experimental, Filters, Flow Control, Input-Output, Logic, Math, MIDI,
+Modifiers, Old, Special, Waveform. **Not audited:** per-category contents —
+A1's prediction (soundcard trio present, modern SEM modules absent) needs the
+categories expanded one by one, and that inspection belongs with S1b's module
+curation anyway.
+
+**Learned:**
+
+1. **S4 verified at runtime on Windows, in passing.** The baseline run (scan
+   still in, S4 flag in) wrote `Plugin-Cache-16-override-a08c134c04a8099a.xml`
+   and left `Plugin-Cache-16.xml` untouched — the Linux fix does on Windows
+   exactly what its author proved by linking `SemCacheName()` on Linux.
+
+2. **S7's write confirmed at runtime, with a nuance.** The baseline run
+   touched `Public Documents\SynthEdit Projects\.resource_version` from inside
+   the DAW — the skins machinery does write outside the sandbox (constraint 4).
+   Nuance: the *second* run wrote nothing — the version file matched, so the
+   copy was skipped. S7's offender writes on version mismatch or first run,
+   not every launch. Removing the scan did **not** remove this; S7 stands.
+
+3. **`Plugin-Cache-16.xml` was rewritten today by another agent, mostly.**
+   It shrank from ~1 MB (P2's measurement) to 71,621 B at 11:22:04. A second
+   Claude session visible on this desktop ("JUCE Linux development environment
+   setup") says it *set the cache aside to force a rescan and kept a backup in
+   its scratchpad*. So the shrink is explained, and the original cache is
+   recoverable from that session — but note 71,621 B is byte-for-byte the size
+   TIDE's own cache came out at, so whatever rewrote the shared file was
+   running TIDE's module set. If the desktop app's browser looks thin, restore
+   from that session's backup.
+
+4. **`Set-Content -NoNewline` on a line array concatenates the lines.** A
+   quick sed-style status flip flattened BACKLOG.md to one line, and it was
+   committed and pushed before being caught. Use the Edit tool for file edits,
+   or `-replace` on the raw string from `Get-Content -Raw`. The claim commit
+   was amended; no history damage beyond a force-with-lease on the claim
+   branch.
+
+5. **Screenshot comparison is a strong, cheap verifier** — but only because
+   the harness pins everything else (same window size, same REAPER, same
+   track). Equal SHA-256 on two PNGs taken across a rebuild is much stronger
+   than "looks the same to me", and it costs one `Get-FileHash`.
+
+**Next:** **S1b** — now unblocked, and it inherits the per-category audit
+(expand Input-Output, confirm the soundcard trio, curate via
+`SE_EXTRA_STATIC_FILE_CPP` per A2). P4c remains the other open `win` item.
+S7's fix is now the only remaining known write (`.resource_version` / skins
+copy) from a TIDE instance.
+
+**Branch/PR:** `tide/win/S1a-stop-scanning`; code in `SE16` `d67bdfbab`
+(pushed to master at Jeff's standing direction for interactive sessions —
+scheduled runs should still branch).
+
+---
+
 ## 2026-08-07 — jeff — decision: no user skins (interactive session, not a scheduled run)
 
 **Did:** Recorded a product ruling:
