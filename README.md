@@ -1,8 +1,13 @@
-# TIDE Synth
+# TIDE Rack
 
 A modular synthesiser that lives inside your DAW.
 
-TIDE is a cut-down [SynthEdit](https://synthedit.com): one structure view, a
+**TIDE Rack is the product. TIDE Synth is the organisation that makes it**, and
+this repository keeps the organisation's name — as does the domain,
+[tidesynth.com](https://tidesynth.com). TIDE Rack is its first plugin, and
+currently its only one.
+
+TIDE Rack is a cut-down [SynthEdit](https://synthedit.com): one structure view, a
 breadcrumb bar, and nothing else. You patch modules together in the plugin
 window while the host feeds it audio and MIDI. There is no separate application
 and no export step — the patch *is* the plugin.
