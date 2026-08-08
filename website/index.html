@@ -166,16 +166,18 @@
     below; the plugin itself will not bring it up.
   </p>
 
-  <!-- TODO(jeff): THE DONATION LINK. The platform has not been chosen -- see
-       PLAN.md "Price and funding". Until it is, this is plain text with nothing
-       to click, and that is deliberate: it was once <a href="#donate-url-tbd">,
-       which rendered as a real link that went nowhere and read as a broken
-       page (453721e). Do not ship a stand-in href again.
+  <!-- TODO(jeff): THE DONATION LINK. Platform decided 2026-08-08: KO-FI.
+       What is still missing is the handle -- the Ko-fi account has not been
+       created, so ko-fi.com/<handle> does not resolve yet. Until it does this
+       stays plain text with nothing to click, and that is deliberate: it was
+       once <a href="#donate-url-tbd">, which rendered as a real link that went
+       nowhere and read as a broken page (453721e). Do not ship a stand-in href
+       again, and do not guess the handle -- claim it first, then paste it.
 
        GOING LIVE IS TWO EDITS, BOTH IN THIS BLOCK, NOTHING ELSE ON THE PAGE:
          1. Just above: "there will be a link below" -> "there is a link below".
          2. Just below: delete the "Not up yet" paragraph and uncomment the one
-            after it, replacing DONATE-URL-HERE with the real URL.
+            after it, replacing HANDLE with the Ko-fi handle.
 
        A plain <a href>, always. NEVER an embedded donate widget, a hosted
        button script, or a button image -- those load third-party script and
@@ -185,24 +187,29 @@
        page's business and does not change that; it is the same arrangement as
        the two github.com links further down. That is settled, not open.
 
-       Candidate URLs:
-         Ko-fi            https://ko-fi.com/HANDLE
-         GitHub Sponsors  https://github.com/sponsors/JeffMcClintock
-         Liberapay        https://liberapay.com/HANDLE/donate
-         PayPal           https://www.paypal.com/donate/?hosted_button_id=ID
-       PayPal's button tool hands you an HTML snippet with an image and a form
-       in it -- take the URL out of it and throw the rest away.
+       Ko-fi's own dashboard will offer you a widget or a button image. Do not
+       take it -- it is a script and an image. Copy the plain profile URL only.
 
-       Whichever is picked, add .github/FUNDING.yml at the same time. One line
-       ("ko_fi: HANDLE", "github: JeffMcClintock", "liberapay: HANDLE", or
-       'custom: ["https://..."]') puts a Sponsor button on the repo page: a
-       second free surface, and not part of this page. Add it only once the
-       account really exists -- a FUNDING.yml pointing at an unclaimed handle
-       is the same dead-link failure as above, moved to the repo page. -->
-  <p>Not up yet — a donation platform has not been picked.</p>
+       Add .github/FUNDING.yml at the same time. One line, "ko_fi: HANDLE",
+       puts a Sponsor button on the repo page: a second free surface, and not
+       part of this page. Add it only once the account really exists -- a
+       FUNDING.yml pointing at an unclaimed handle is the same dead-link
+       failure as above, moved to the repo page.
 
-  <!-- Go-live line. Uncomment it, drop the URL in, delete the paragraph above.
-       <p><a href="DONATE-URL-HERE">Donate to TIDE</a>.</p> -->
+       Why Ko-fi over the others, so it is not re-argued: the audience here is
+       DAW users, not developers, and GitHub Sponsors requires the DONOR to
+       have a GitHub account. Ko-fi's URL exists the moment the handle is
+       claimed, one-off tipping matches "if it turns out to be useful", and
+       ko_fi: in FUNDING.yml still gets the repo Sponsor button -- so both
+       surfaces, without GitHub Sponsors enrolment. Liberapay is recurring-
+       first, which is the wrong shape for a no-nag ask. PayPal is the fallback
+       if a new account is unwelcome. -->
+  <p>Not up yet.</p>
+
+  <!-- Go-live line. Uncomment it, replace HANDLE, delete the paragraph above.
+       Naming Ko-fi in the link text is deliberate: the reader should know
+       where a link is about to take them before they click it.
+       <p><a href="https://ko-fi.com/HANDLE">Donate to TIDE on Ko-fi</a>.</p> -->
 
   <h2>Planned formats</h2>
 

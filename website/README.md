@@ -11,14 +11,39 @@ To preview it, open `index.html` in a browser. There is nothing to install.
 
 ## The one remaining placeholder — the donation link
 
-The site is live (**H1**). This is the last `TODO(jeff)` left in the HTML. The
-donation platform has not been chosen, so the page carries plain text with
-nothing to click.
+The site is live (**H1**). This is the last `TODO(jeff)` left in the HTML.
 
-Going live is **two edits, both inside that one comment block** in `index.html`:
-put the sentence above it back to "there **is** a link below", and swap the
-placeholder paragraph for the commented-out `<a href>` beside it. Nothing else
-on the page moves.
+**Platform decided 2026-08-08: Ko-fi.** What is missing is the *handle* — the
+account does not exist yet, so `ko-fi.com/<handle>` does not resolve and the page
+carries plain text with nothing to click.
+
+Going live, in order:
+
+1. **Claim the Ko-fi handle** at <https://ko-fi.com> — this is the step that
+   makes the URL real, and it is the only part nobody else can do. Payout
+   (PayPal or Stripe) can be connected afterwards; the page URL works as soon as
+   the handle exists.
+2. **Two edits in `index.html`, both inside that one comment block:** put the
+   sentence above it back to "there **is** a link below", and swap the
+   placeholder paragraph for the commented-out `<a href>` beside it, replacing
+   `HANDLE`. Nothing else on the page moves.
+3. **Add `.github/FUNDING.yml`** with `ko_fi: HANDLE` — see below.
+
+**Do not guess the handle.** It cannot be verified from a sandboxed agent
+session (ko-fi.com is not reachable from one), so it has to be pasted in by
+whoever claims it.
+
+**Why Ko-fi**, recorded so it is not re-argued: this page's audience is DAW
+users, not developers, and GitHub Sponsors requires the *donor* to have a GitHub
+account. Ko-fi's URL exists the moment the handle is claimed; one-off tipping
+matches "if it turns out to be useful"; and `ko_fi:` in `FUNDING.yml` still earns
+the repo Sponsor button, so both surfaces come without GitHub Sponsors
+enrolment. Liberapay is recurring-first, the wrong shape for a no-nag ask.
+PayPal is the fallback if opening a new account is unwelcome — SynthEdit already
+has one.
+
+**Ko-fi will offer you a widget or a button image. Take neither** — copy the
+plain profile URL. See the first rule below.
 
 Three rules that do not bend:
 
@@ -34,12 +59,11 @@ Three rules that do not bend:
 - **No nagging.** [PLAN.md](../PLAN.md): a donation route the user has to go
   looking for is the intended outcome, not a failure of the design.
 
-Whichever platform is picked, `.github/FUNDING.yml` is worth adding at the same
-time — one line (`ko_fi: HANDLE`, `github: JeffMcClintock`, `liberapay: HANDLE`,
-or `custom: ["https://..."]`) puts a Sponsor button on the repo page. That is a
-second, free surface and it is not part of this page. Add it only once the
-account really exists: a `FUNDING.yml` pointing at an unclaimed handle is the
-same dead-link failure, relocated to the repo page.
+`.github/FUNDING.yml` does not exist yet, deliberately. One line — `ko_fi: HANDLE`
+— puts a Sponsor button on the repo page: a second, free surface, and not part of
+this page. Add it at step 3 above, **once the handle really exists**. A
+`FUNDING.yml` pointing at an unclaimed handle renders a button that 404s, which
+is the same dead-link failure as `#donate-url-tbd`, relocated to the repo page.
 
 The in-plugin side is **not** this — that is BACKLOG **D1**, design-note only.
 
