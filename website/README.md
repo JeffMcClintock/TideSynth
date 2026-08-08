@@ -9,6 +9,30 @@ keep it verifiable by reading one file.
 
 To preview it, open `index.html` in a browser. There is nothing to install.
 
+## Naming — read before editing copy
+
+Per [PLAN.md](../PLAN.md), decided 2026-08-08: the **product** is **TIDE Rack**;
+the **organisation** is **TIDE Synth**, which may ship more than one plugin.
+`tidesynth.com` is the organisation's address and is not changing.
+
+So the page **leads with the product** — that is what a visitor came for — and
+states the relationship exactly once, early: *"TIDE Rack is the first plugin
+from TIDE Synth — hence the address."* A reader who typed `tidesynth.com` and
+landed on something called TIDE Rack needs that resolved in the first screen,
+not in a footer.
+
+If a second plugin ever ships, this page becomes a list and the organisation
+moves to the top. It is not that yet, and restructuring early would make it a
+page about nothing.
+
+Two things not to "fix":
+
+- **The repo links say `TideSynth` and should.** The repository is the
+  organisation's and keeps its name — the same answer the carve-out gave for
+  `SynthEditLib`. See BACKLOG **N1**.
+- **There is no bare "TIDE" left in the visible copy**, deliberately. It is
+  ambiguous now that it prefixes both names. Write "TIDE Rack" or "TIDE Synth".
+
 ## The donation link — done
 
 **Live since 2026-08-08: <https://ko-fi.com/TideRack>**, a plain `<a href>` in
