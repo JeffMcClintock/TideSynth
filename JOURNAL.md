@@ -469,9 +469,13 @@ checking it found a hole in the plan.**
    question never listed. Struck through with a note saying so, because a reader
    would otherwise assume the original framing was weighed and rejected.
 
-**Still open:** repo naming. Once `SynthEditLib` holds the editor too the name is
-off. It blocks nothing — every stage works under the current name — but it wants
-deciding before C7 puts the name into public build instructions.
+**Repo naming — answered the same day: keep `SynthEditLib`.** No rename when the
+editor moves in, no redirect, no follow-up item. Write it as `SynthEditLib` in
+build instructions, CI and the README without hedging.
+
+**So every open question on the carve-out plan is now closed** — C0 approved,
+licence ISC, `SynthEditCL` private, name unchanged. Nothing on it is waiting on a
+decision; only on the work.
 
 **Next:** **C1b**, then C2. Both `win`. C1b is small and is the one stage that
 must not be skipped or reordered.

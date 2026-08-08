@@ -206,7 +206,11 @@ in CI with no access to the private repo — that is the real proof.
 - ~~**Does `SynthEditCL` need to stay private?**~~ **Answered 2026-08-08: yes,
   stays private**, as a consequence of the "keep export private as practical"
   direction. Reasoning above.
-- **Repo naming — still open.** Once `SynthEditLib` contains the editor too, the
-  name is a little off. Renaming is cheap now and expensive later. Not blocking:
-  every stage below works under the current name, and nothing else waits on it.
-  Worth deciding before C7 makes the name public-facing in build instructions.
+- ~~**Repo naming.**~~ **Answered 2026-08-08: keep `SynthEditLib`.** The name
+  stays as-is once the editor moves in. No rename, no redirect, no follow-up
+  item — write it as `SynthEditLib` in build instructions, CI and the README
+  without hedging.
+
+**That closes every open question on this plan.** C0 is approved, the licence is
+ISC, `SynthEditCL` stays private, the repo keeps its name. Nothing on the
+carve-out is waiting on a decision — only on the work.
