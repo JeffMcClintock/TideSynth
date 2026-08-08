@@ -20,21 +20,39 @@ private `SE16` repo (paths relative to `SE16/`):
 | Apple signing + DMG | `SynthEdit_cmake_mac.yml:185-199` — `create_dmg.sh`, `codesign --timestamp` with `$(APPLE_CERTIFICATE_SIGNING_IDENTITY)`, comment "required for notarization" | An Apple Developer identity and a notarization-shaped pipeline exist |
 | CI host | the `*.yml` files at the `SE16` root are **Azure Pipelines**, in the private repo | TIDE's release automation will be **GitHub Actions in the public repo** — the *secrets* (Azure signing creds, Apple cert, notary credentials) must be re-created as GitHub Actions secrets; the recipes port, the credentials do not follow automatically |
 
+## Naming — decided 2026-08-08, settle nothing else against it
+
+Two forms, and which one you use depends on whether a human or a script reads it:
+
+| | Form | Where |
+|---|---|---|
+| **Display name** | `TIDE Rack` (space) | the plug-in name a DAW shows, installer titles, the website, anything a person reads |
+| **File name** | `TIDE_Rack` (underscore) | binaries, bundles, release assets, CMake targets — anything a script, path or command line touches |
+
+The underscore is not cosmetic. `TrackFX_AddByName(tr, "TIDE_Rack_VST3.vst3")`
+needs no quoting gymnastics, `install.sh` globs cleanly, and a space in a
+`releases/latest/download/` URL would have to be `%20` forever. **A space in a
+shipped filename is a bug you cannot fix later** — see the permalink note below.
+
+The organisation is **TIDE Synth**; it does not appear in any artifact name.
+Repo, domain and GitHub org keep their existing names ([PLAN.md](../PLAN.md)
+naming section, BACKLOG **N1**).
+
 ## Per-platform artifacts
 
 | Platform | Artifact (constant name) | Contents & install destination | Signing |
 |---|---|---|---|
-| Windows | `TIDE-Windows.exe` (Inno Setup) + `TIDE-Windows.zip` | `TIDE_VST3.vst3` → `C:\Program Files\Common Files\VST3\` | Azure Trusted Signing (installer **and** the .vst3 inside it) |
-| macOS | `TIDE-macOS.pkg` | AU → `/Library/Audio/Plug-Ins/Components/`, VST3 → `/Library/Audio/Plug-Ins/VST3/` | Developer ID + **notarize + staple** — an unnotarized pkg is effectively unopenable on modern macOS |
+| Windows | `TIDE_Rack-Windows.exe` (Inno Setup) + `TIDE_Rack-Windows.zip` | `TIDE_Rack.vst3` → `C:\Program Files\Common Files\VST3\` | Azure Trusted Signing (installer **and** the .vst3 inside it) |
+| macOS | `TIDE_Rack-macOS.pkg` | AU → `/Library/Audio/Plug-Ins/Components/`, VST3 → `/Library/Audio/Plug-Ins/VST3/` | Developer ID + **notarize + staple** — an unnotarized pkg is effectively unopenable on modern macOS |
 | iOS | — none on the website — | AUv3 ships inside a container app, **App Store only**; the website links the App Store page as a plain text link | App Store pipeline (M2/M3 territory) |
-| Linux | `TIDE-Linux.tar.gz` | `TIDE_VST3.vst3/` → `~/.vst3/`, CLAP → `~/.clap/`, plus a short `install.sh` that copies them | none — no signing convention on Linux |
+| Linux | `TIDE_Rack-Linux.tar.gz` | `TIDE_Rack.vst3/` → `~/.vst3/`, CLAP → `~/.clap/`, plus a short `install.sh` that copies them | none — no signing convention on Linux |
 
 Notes:
 
 - **Asset names carry no version.** The version lives in the release tag and in
   each binary's own version resource. This is what lets a static, script-free
   website link "the latest installer" — see below.
-- **The `.gmpi` artifact is not shipped to end users** for now. `TIDE.gmpi` is
+- **The `.gmpi` artifact is not shipped to end users** for now. `TIDE_Rack.gmpi` is
   the GMPI-format build; until there is a host story for it, the VST3 (and AU
   on mac, CLAP on Linux) are the user-facing deliverables. Revisit when GMPI
   hosting matures — one line in the release workflow either way.
@@ -74,9 +92,9 @@ newest release's asset of that name. With constant asset names, the download
 links are **static `<a href>`s that never need updating**:
 
 ```html
-<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE-Windows.exe">Windows</a>
-<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE-macOS.pkg">macOS</a>
-<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE-Linux.tar.gz">Linux</a>
+<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE_Rack-Windows.exe">Windows</a>
+<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE_Rack-macOS.pkg">macOS</a>
+<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE_Rack-Linux.tar.gz">Linux</a>
 ```
 
 No JavaScript, no version-number maintenance, no third-party requests from the

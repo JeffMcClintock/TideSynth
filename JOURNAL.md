@@ -413,6 +413,76 @@ merge `SE16` `tide/mac/S1b-compile-out-scan`.
 
 ---
 
+## 2026-08-08 — jeff — decisions: queue order, artifact naming, X4 closed (interactive session, not a scheduled run)
+
+**Did:** Three rulings and the website copy, all straight to `main`.
+
+**1. The carve-out section now sits ABOVE "Ready now" in BACKLOG.md.** This is a
+behaviour change, not tidying. The run prompt says take *the topmost unblocked
+item matching your platform*, reading the file top to bottom — so with "Ready
+now" first, the next machine to wake would have taken **N1** (the rename, `any`)
+while **C1b** sat `win`-only below sixteen rows. The critical path is
+C1b→C2→…→C7→V1 and nothing else unblocks macOS, iOS, Linux and the acceptance
+test. **If you reorder sections in this file, you are reprioritising the whole
+fleet** — that is worth knowing before someone tidies it back.
+
+**2. Artifact naming, settled — and the underscore is load-bearing.**
+
+| | Form | Where |
+|---|---|---|
+| Display | `TIDE Rack` (space) | plug-in name in a DAW, installer titles, website |
+| File | `TIDE_Rack` (underscore) | binaries, bundles, release assets, CMake targets |
+
+So `TIDE_Rack-Windows.exe`, `TIDE_Rack-macOS.pkg`, `TIDE_Rack-Linux.tar.gz`,
+`TIDE_Rack.vst3`. Applied to [docs/distribution.md](docs/distribution.md) now
+rather than at R2 time, because **a space in a shipped filename cannot be fixed
+later**: R6's design is permanent `releases/latest/download/<asset>` permalinks,
+and a space would be `%20` in every one of them forever. Also fixes the P2
+annoyance where `TrackFX_AddByName` needed the exact filename.
+
+This closes N1(b). N1(a) — the CMake targets — now has its *form* settled
+(`TIDE_Rack` / `TIDE_Rack_VST3`) but is explicitly deferred to **after C7**:
+C2–C7 are already rewriting the same build files, and nothing has shipped under
+either name, so renaming mid-carve-out doubles the conflict surface for nothing.
+
+**3. X4 closed WONTFIX** — leave the six `GIT_TAG origin/main`s alone. Jeff's
+reasoning: CI builds from a fresh download, so `origin/main` resolves to real
+current `main` there; the freeze only bites a cached `_deps` tree, and pinning
+six shared dependencies is a bigger change than the problem. Added `WONTFIX` to
+the file's status legend, since this is the first one and a bare "closed" row
+invites re-filing.
+
+**Kept on the record rather than argued:** X3's actual failure was on a
+*developer box*, not CI — the Linux machine shipped a VST3 no host could load
+because its cached `_deps` was frozen at a pre-fix sha. So the residual risk is
+exactly the three weekly-run machines, which are the ones CI does not protect.
+The mitigation is diagnostic rather than structural, and it is written into the
+X4 row: **when a build behaves impossibly and the source looks right, run
+`git log -1` in `build/_deps/<dep>-src` before believing the tree.**
+
+**4. Website copy carries the rename.** Leads with TIDE Rack, states the
+relationship once and early — *"TIDE Rack is the first plugin from TIDE Synth —
+hence the address"* — because a reader who typed `tidesynth.com` and landed on
+something called TIDE Rack needs that resolved on the first screen. Not
+restructured into an org page with a product list: there is one product, and
+doing it now would make it a page about nothing. Deployed and verified live.
+
+**Learned:** **no bare "TIDE" is left in the visible copy, and that is a rule
+now, not a tidy-up.** "TIDE" alone is ambiguous once it prefixes both a product
+and an organisation. Checked by script (7 × "TIDE Rack", 2 × "TIDE Synth", zero
+bare) rather than by eye, and written into `website/README.md` so the next
+editor does not reintroduce it. The repo links still say `TideSynth` and should
+— that is the organisation's repo, the same answer the carve-out gave for
+`SynthEditLib` — and both the HTML comment and the README say so, because it
+looks exactly like an oversight someone would helpfully "fix".
+
+**Next:** **C1b**, `win`, and it is now genuinely the topmost item the Windows
+box will pick up.
+
+**Branch/PR:** straight to `main` at Jeff's direction.
+
+---
+
 ## 2026-08-08 — jeff — decision: the product is TIDE Rack; donation link live (interactive session, not a scheduled run)
 
 **Did:** Two things. Shipped the donation link — the last `TODO(jeff)` on the
