@@ -22,6 +22,69 @@ Template:
 
 ---
 
+## 2026-08-09 — windows — the prompt is fetched, not copied (interactive session with Jeff)
+
+**Did:** Removed the reason machines go stale, rather than adding more diligence
+to noticing it. Each machine's scheduled task becomes a **bootstrap** holding
+only its identity — machine name, platform role, repo path — plus a STEP 0 that
+fetches `docs/weekly-run-prompt.md` from `origin/main` and follows it. Editing
+that file and merging it now reaches every converted box on its next run.
+
+Windows is converted. Its task went from 180 lines of frozen instructions to
+~35 lines that can only go stale in ways that do not matter, since the three
+values it hard-codes never change.
+
+**Result:** Verified the mechanism before committing to it:
+
+```
+git show origin/main:docs/weekly-run-prompt.md          253 lines, reads fine
+git rev-parse --short origin/main:docs/…prompt.md       c6f9ae3
+  same command one commit back                          cae028b   (changes only
+                                                                   with the file)
+```
+
+**Learned:**
+
+- **Read the prompt from `origin/main`, never the working tree.** The tree can be
+  dirty or parked on a branch a previous run left behind — which is exactly the
+  state this box was in an hour ago — and a stale local `main` would hand a run
+  old instructions with nothing looking wrong. `git show origin/main:<path>`
+  touches no files and works from any branch.
+- **The blob sha is the version stamp.** `rev-parse --short
+  origin/main:docs/weekly-run-prompt.md` changes only when the prompt changes, so
+  STEP 4 now writes `**Prompt:** <sha>` into every entry. **A box on a frozen copy
+  has no STEP 0 and will silently omit that line** — absence is the tell, and it
+  is the evidence that was missing every previous time this went wrong.
+- **The trade is blast radius for visibility, and it is the right way round.** A
+  bad prompt edit now hits all three machines at once instead of one. But prompt
+  changes go through a PR that Jeff merges, whereas staleness went through
+  nothing and announced itself to nobody. Two of three boxes had been running
+  months-old rules with every journal entry reading as if all was well.
+- **A bootstrap cannot install itself.** A machine that reads nothing remote
+  cannot be told to start reading something remote, so macOS and Linux each need
+  one last manual install. There is no way around that, and it is worth saying
+  plainly rather than implying the fix is already universal.
+- The copy-and-remember discipline failed **twice in four days** — G2 reached
+  only macOS, G3 reached nobody — and the second failure happened while
+  `agent-setup.md` asserted Windows was current. That is what settled it: the
+  problem was never insufficient care.
+
+**Next:** **G4** (mac) and **G5** (linux) rewritten — they now install the
+bootstrap rather than a fresh copy of the full text, and each says explicitly to
+take the block under "The bootstrap", not the one under "The prompt". Both remain
+top of "Ready now": a box must fix its own instructions before doing work under
+wrong ones, and must then stop, since the new text only takes effect the
+following run.
+
+Once both land, `agent-setup.md`'s state table stops being something anyone has
+to maintain. Every version of it so far has been wrong within three days.
+
+**Prompt:** n/a — interactive session, not a scheduled run.
+
+**Branch/PR:** none — committed to main.
+
+---
+
 ## 2026-08-09 — windows — two end states, never a third (interactive session with Jeff)
 
 **Did:** Closed the hole C2 left, and made it a standing rule so it does not

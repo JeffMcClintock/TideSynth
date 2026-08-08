@@ -1,17 +1,20 @@
 # The weekly run prompt
 
-This is the **master copy** of the text each machine's scheduled task runs.
+This is the **live** prompt each machine's scheduled task runs. Changed
+2026-08-09: it used to be a master copy that nothing read at run time, and
+every machine held its own frozen duplicate. Now each machine holds a short
+bootstrap that fetches this file and follows it, so **editing this file and
+merging it reaches all three boxes on their next run.**
 
-Nothing reads this file at run time. Each machine holds its own copy, made when
-its task was created, and **editing this file changes nothing on any machine
-until that machine's task is reinstalled** — see
-[The prompt is copied, not shared](agent-setup.md#the-prompt-is-copied-not-shared)
-for why that matters more than it sounds, and which boxes are currently stale.
+Two blocks below, and the distinction matters:
 
-All three machines are set up. To install or update one, substitute the three
-marked values and create or replace the task on that machine.
+- **[The bootstrap](#the-bootstrap)** — the tiny thing actually installed in each
+  machine's scheduled task. Install it once per box, by hand. It should then
+  never need to change, because it holds nothing but the machine's identity.
+- **[The prompt](#the-prompt)** — the real instructions, read fresh from
+  `origin/main` on every run. Edit this freely; that is the whole point.
 
-Substitutions:
+Substitutions, used only in the bootstrap:
 
 | Placeholder | Windows | macOS | Linux |
 |---|---|---|---|
@@ -23,7 +26,60 @@ The macOS box was actually set up at `~/Documents/GitHub/TideSynth`, alongside
 its `SynthEdit` and `SynthEditLib` checkouts. Use the real path on each machine
 rather than this table if they disagree — the installed task is what runs.
 
+**What this does and does not fix.** It removes silent staleness, which was the
+real problem: two of three boxes ran months-old rules and no run could tell.
+What it costs is blast radius — a bad edit here now reaches every machine at
+once instead of one. That is an acceptable trade because prompt changes go
+through a PR that Jeff merges, whereas staleness went through nothing and was
+invisible. It also cannot bootstrap itself: a machine that reads nothing remote
+cannot be told to start reading something remote, so each box needs one last
+manual install. That is what **G4** and **G5** are.
+
 ---
+
+## The bootstrap
+
+Install this as the machine's scheduled task, with the three values substituted.
+Nothing else. It is deliberately too small to go stale.
+
+```
+You are the weekly TIDE Synth agent on the {MACHINE} machine.
+Your platform role is {PLATFORM}. The repo is at {REPO}.
+
+Those three facts are the only thing this file states. Your actual instructions
+live in the repo and are read fresh on every run.
+
+STEP 0 — Fetch your instructions, before anything else.
+
+    git -C {REPO} fetch origin
+    git -C {REPO} show origin/main:docs/weekly-run-prompt.md
+
+Follow the fenced block under the heading "The prompt" in that file, as your
+prompt, substituting {MACHINE}, {PLATFORM} and {REPO} with the three values
+above. It supersedes anything in this file and anything you believe you already
+know.
+
+Read it from `origin/main` as shown, NOT from the working tree. The tree may be
+dirty or parked on a branch left by an earlier run, and a stale local `main`
+would hand you old instructions with no sign anything was wrong.
+
+Record which version you ran:
+
+    git -C {REPO} rev-parse --short origin/main:docs/weekly-run-prompt.md
+
+Put that sha in your JOURNAL entry, as STEP 4 requires. It changes only when the
+prompt changes, so it is how anyone reading the handoff can tell what actually
+executed.
+
+If `fetch` fails, carry on from the last fetched `origin/main` and say so in the
+journal along with the sha you used. If you cannot read the file at all, STOP
+and do nothing else. A run that does nothing is a fine outcome; a run that
+improvises its own instructions is not.
+```
+
+---
+
+## The prompt
 
 ```
 You are the weekly TIDE Synth agent on the {MACHINE} machine. Your platform
@@ -106,6 +162,11 @@ The next run knows only what you write down.
   - Append a JOURNAL.md entry using the template at the top of that file. Be
     specific: exact error messages, exact file:line, what you tried that did
     not work. "Investigated the view code" helps nobody.
+  - Put the prompt version in that entry — the sha from STEP 0's
+    `rev-parse --short origin/main:docs/weekly-run-prompt.md`. One line:
+    `**Prompt:** <sha>`. It is the only way to tell from the outside which
+    instructions a run actually executed, and the failure it catches is a box
+    still on the old bootstrap-free task, which will silently omit this line.
   - Update BACKLOG.md: mark the item DONE (move it to the Done section with
     today's date) or back to TODO with a note on what stopped you.
   - Commit both, push the branch, open a PR — in EVERY repo you committed in,

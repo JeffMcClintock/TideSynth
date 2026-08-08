@@ -84,14 +84,41 @@ All three machines are now set up, so in practice this section is about
 *re*-installing — which is a routine need, not a one-off. Read the next section
 before assuming a prompt change has reached anywhere.
 
-## The prompt is copied, not shared
+## The prompt is fetched, not copied — since 2026-08-09
 
-This is the sharpest edge in the whole arrangement, and it is invisible from
-inside a run.
+This used to be the sharpest edge in the whole arrangement, and it was invisible
+from inside a run. It is fixed by indirection.
 
-[weekly-run-prompt.md](weekly-run-prompt.md) is the **master copy**, but nothing
-reads it at run time. Creating the scheduled task *copies* that text into the
-machine's own task definition:
+Each machine's scheduled task now holds a short **bootstrap** — machine name,
+platform role, repo path, and an instruction to fetch
+[weekly-run-prompt.md](weekly-run-prompt.md) from `origin/main` and follow it.
+The real instructions are read fresh every run, so **editing that file and
+merging it reaches all three machines on their next run**, with no reinstall.
+
+Two details that make it hold:
+
+- The run reads the prompt from `origin/main`, via
+  `git show origin/main:docs/weekly-run-prompt.md`, **not from the working
+  tree** — which may be dirty or parked on a branch an earlier run left behind.
+- STEP 4 records the prompt's blob sha
+  (`git rev-parse --short origin/main:docs/weekly-run-prompt.md`) in the journal
+  entry. It changes only when the prompt changes, so which rules actually ran is
+  now visible in the handoff instead of having to be remembered. A box still on
+  a frozen copy silently omits that line, which is the tell.
+
+The cost is blast radius: a bad edit now reaches every machine at once rather
+than one. That is the better trade, because prompt changes go through a PR that
+Jeff merges, while staleness went through nothing and announced itself to nobody.
+
+**The bootstrap cannot install itself.** A machine that reads nothing remote
+cannot be told to start reading something remote, so each box needs one last
+manual install — **G4** for macOS, **G5** for Linux. Until those land, the old
+model below is still what those two boxes do.
+
+### The old model, and why it had to go
+
+Creating a scheduled task *copies* the prompt text into the machine's own task
+definition:
 
 | Machine | Where its copy lives |
 |---|---|
@@ -104,40 +131,50 @@ not `tidesynth-` as this table said until 2026-08-09. Verify the real name with
 the scheduled-task list before a reinstall; naming a task that does not exist
 creates a second one and leaves the original firing.
 
-From then on the two are unrelated files. **Editing the master copy changes
-nothing on any machine.** A PR that fixes the prompt fixes a document; the
-machines keep running whatever text they were installed with, possibly for
-months.
+From then on the two were unrelated files, and **editing the prompt changed
+nothing on any machine.** A PR that fixed the prompt fixed a document; the
+machines kept running whatever text they were installed with, for months.
 
-The reason this bites harder here than it would elsewhere: a run has no memory
-and no way to notice. It cannot compare its own instructions against the repo —
-the instructions are all it has, and they look authoritative. So a stale machine
-does not fail loudly; it quietly follows old rules while the repo says otherwise,
-and the journal it writes gives no hint. Three machines can be running three
-different rulebooks and every entry will read as if everything is fine.
+The reason that bit harder here than it would elsewhere: a run has no memory and
+no way to notice. It cannot compare its own instructions against the repo — the
+instructions are all it has, and they look authoritative. So a stale machine did
+not fail loudly; it quietly followed old rules while the repo said otherwise, and
+the journal it wrote gave no hint. Three machines could be running three
+different rulebooks with every entry reading as if everything were fine, and for
+most of this project's life that is exactly what was happening.
 
-**So: any change to `weekly-run-prompt.md` is only half a change until every
-machine's task is reinstalled.** Treat the two as one job.
+Two rounds of hand-reinstalling proved the discipline does not hold. The rule was
+"treat a prompt change and three reinstalls as one job", and it failed twice
+inside four days — G2 reached only macOS, G3 reached nobody, and the state table
+in this document confidently said Windows was current while it was not. The fix
+had to remove the copying, not add more diligence to it.
 
-### Reinstalling a machine's prompt
+### Installing the bootstrap on a machine
 
 On that machine, in Claude Code:
 
-> Update my `tidesynth-weekly-<machine>` scheduled task to match
-> `docs/weekly-run-prompt.md` in the TideSynth repo, substituting `{MACHINE}`,
-> `{PLATFORM}` and `{REPO}` for this box. Leave the cron alone.
+> Replace my `tide-synth-weekly-<machine>` scheduled task with the block under
+> "The bootstrap" in `docs/weekly-run-prompt.md` in the TideSynth repo,
+> substituting `{MACHINE}`, `{PLATFORM}` and `{REPO}` for this box. Leave the
+> cron alone.
 
-Then diff the result against the master copy to confirm the only differences are
-the intended substitutions — the substitutions are easy to get right and the
-surrounding edits easy to drop.
+Check the task's real name first — Windows' is `tide-synth-weekly-windows`, with
+a hyphen, and naming one that does not exist creates a second task while leaving
+the original firing. Then read the result back and confirm it contains no
+numbered STEPs beyond STEP 0: if it does, the full prompt was installed instead
+of the bootstrap and the box is frozen again.
 
 ### Current state — 2026-08-09
 
-| Machine | Prompt version | Needs reinstall? |
+| Machine | Prompt version | Needs install? |
 |---|---|---|
-| Windows | reinstalled 2026-08-09 — current | no |
-| macOS | PR #4 text — predates G3 *and* the two-end-states rule | **yes** |
-| Linux | as originally installed | **yes** |
+| Windows | **bootstrap** — fetches the prompt every run | no, and never again |
+| macOS | frozen PR #4 copy — predates G3 *and* the two-end-states rule | **yes, G4** |
+| Linux | frozen as originally installed | **yes, G5** |
+
+Once G4 and G5 land, this table stops being a thing anyone has to maintain — which
+is the point, because every version of it so far has been wrong within three days
+of being written. Until then it is still load-bearing for two boxes.
 
 **macOS and Linux are both missing two rulings now.** They predate G3
 (2026-08-07), so neither knows `gmpi_ui` and `GMPI_Wrappers` are ALLOWED — and
@@ -163,14 +200,16 @@ second such gap: Windows had been stale on G3 since 2026-08-07 while this table
 said it was current, because the table is updated by hand and the person updating
 it is not the person the staleness affects.
 
-The reinstalled Windows copy now ends with the date it was installed and a line
-telling the run it cannot detect its own staleness. That is the cheap half of the
-refinement below; do the same on the other two boxes when they are reinstalled.
+That second gap is what settled the argument for fetching over copying: the
+copy-and-remember model had now failed twice, and the second failure happened
+while a table in this document asserted it had not.
 
-A refinement still worth doing: have STEP 4 echo that installed-on date into the
-journal entry. Staleness would then be visible in the handoff instead of having
-to be remembered — and every entry in this table so far has been wrong within
-three days of being written.
+The refinement this section used to file as "worth considering" is now done and
+cost nothing once the prompt was fetched rather than copied: **STEP 4 records the
+prompt's blob sha in every journal entry.** Which rules a run executed is visible
+in its handoff. A box still on a frozen copy has no STEP 0, so it omits that line
+entirely — absence is the signal, and it is the one piece of evidence that was
+missing every previous time this went wrong.
 
 ### Caveats worth knowing before relying on this
 
