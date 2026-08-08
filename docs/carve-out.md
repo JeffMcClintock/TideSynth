@@ -1,9 +1,18 @@
 # Carve-out: making the shared core public
 
-**Status: proposed, not started. Needs Jeff's approval before any file moves.**
+**Status: APPROVED by Jeff 2026-08-08 (BACKLOG C0). Stage 1 already done; work
+starts at stage 2.**
+
+Approved with one standing direction:
+
+> **Keep as much `ExportAsPlugin` code private as practical.**
+
+That is not a restatement of the existing boundary — it changes two things in
+this document. See [What the direction changes](#what-the-direction-changes).
 
 This is the migration that unblocks everything else. It touches a commercial
-product's repo layout, so a weekly agent must not begin it unprompted.
+product's repo layout, so a weekly agent must not begin it unprompted — but C0
+is now that prompt, and stages C2–C7 are TODO rather than BLOCKED.
 
 ## The problem in one paragraph
 
@@ -44,7 +53,8 @@ Its only callers are:
 | `SynthEditCL/main.cpp` | private (CLI) | stays private |
 | `SynthEdit2/CContainer.h` | **needs to be public** | see below |
 
-`CContainer.h` line 32 contains only a friend declaration:
+`CContainer.h` mentions it twice — a plain declaration at line 23 and a friend
+declaration at line 32 — and neither is a definition:
 
 ```cpp
 friend bool ::ExportAsPlugin(CSynthEditDocBase*, int, std::wstring);
@@ -74,6 +84,68 @@ plug machinery (`Plug4`, `PlugIO4`, decorators), `commandMgr`, `SkinMgr`,
 Moonbase licensing; `SynthEditCL`; the panel-view editor; anything else not on
 EditorLib's list.
 
+## What the direction changes
+
+"Keep as much `ExportAsPlugin` code private as practical" sounds like a
+restatement of the boundary above. It is not — checking it against the build
+found a contradiction this document had, and a fact worth writing down.
+
+### The plan as written would have published `ExportAsPlugin.cpp`
+
+The "Stays private" list says `ExportAsPlugin.{cpp,h}`. But the "Moves to public"
+list says *"the ~120 files in `EditorLib/CMakeLists.txt`"* — and those two files
+are on that list, unconditionally:
+
+```cmake
+# SE16/EditorLib/CMakeLists.txt:113-114
+${EDITOR_DIR}/ExportAsPlugin.cpp
+${EDITOR_DIR}/ExportAsPlugin.h
+```
+
+Stage 6 then moves `EditorLib/CMakeLists.txt` itself into the public repo, which
+would carry those entries with it. Followed literally, the staging publishes the
+2,470-line export implementation — the one thing the carve-out exists to keep
+back. Filed as **C1b**: strike them from that source list before stage 2 touches
+it.
+
+### The good news: TIDE does not ship the export code today
+
+Verified on the Windows box, 2026-08-08, against the Release build:
+
+```
+0:000> x TIDE_VST3!*ExportAsPlugin*
+          (nothing)
+0:000> x TIDE_VST3!*SkinMgr*getSkin*
+00000001`8017e5e0 TIDE_VST3!SkinMgr::getSkin
+00000001`8017f100 TIDE_VST3!SkinMgr::getSkin
+```
+
+The control query proves symbol lookup works, so the empty result is real. The
+object compiles (`ExportAsPlugin.obj`, 2,319,260 bytes in Release) and the symbol
+is `External` in `EditorLib.lib`, but **the linker never pulls it into the
+plugin**, because nothing in TIDE references it — the only public-side mentions
+are declarations, which generate no reference.
+
+So the commercial boundary already holds at link time, by accident rather than by
+design. C1b turns the accident into a guarantee, and costs TIDE nothing: a file
+that is not in the binary cannot be missed from the build.
+
+### `SynthEditCL` stays private
+
+That answers the second open question below. `SynthEditCL/main.cpp:1230` calls
+`ExportAsPlugin` directly, so a public CLI means either publishing the export
+code or splitting the tool in two. Both cut against the direction, and neither
+buys TIDE anything it needs — TIDE embeds patches rather than exporting them.
+Revisit only if contributors turn out to want the CLI badly enough to justify the
+split.
+
+### One correction while checking
+
+`CContainer.h` carries **two** mentions, not one: a plain declaration at line 23
+as well as the friend declaration at line 32. Both are declarations with no
+definition in the public build, so the conclusion is unchanged — the header still
+moves unaltered — but anyone grepping for a single line will be confused.
+
 ## Why this is low-risk for SynthEdit
 
 After the move, SynthEdit consumes the same files from the public repo instead
@@ -88,11 +160,21 @@ carve-out adds the editor layer.
 
 ## Proposed staging
 
-Each stage should build and pass tests before the next begins.
+Each stage should build and pass tests before the next begins. Stage *n* below is
+BACKLOG item **C*n***, except for the one precondition:
 
-1. **Licence first.** Add a LICENSE to `SynthEditLib` *before* moving anything
-   new into it. Moving code into an unlicensed public repo does not make it
-   open source. (BACKLOG L1 — Jeff's call, not an agent's.)
+> **Before stage 2 — BACKLOG C1b. Take the export code off `EditorLib`'s source
+> list:** `ExportAsPlugin.cpp` and `.h`, `EditorLib/CMakeLists.txt:113-114`. Do
+> it before stage 2 edits that file, and long before stage 6 moves it. Verified
+> harmless to TIDE — the symbol is absent from the built plugin, see
+> [What the direction changes](#what-the-direction-changes). SynthEdit and
+> SynthEditCL genuinely call it, so they must keep compiling it directly, the way
+> `SynthEditApp.cpp` already is. Confirm all three still build.
+
+1. **Licence first — DONE 2026-08-07.** Add a LICENSE to `SynthEditLib` *before*
+   moving anything new into it. Moving code into an unlicensed public repo does
+   not make it open source. Resolved as **ISC**, matching GMPI and gmpi_ui;
+   `SynthEditLib` `a2143a4`, TideSynth `a58a6f1`. (BACKLOG L1/C1.)
 2. **Leaf files.** Move the files with no dependencies on the rest of
    `SynthEdit2`: `FuzzyMatch.h`, `checkpoint`, `cpu_accumulator`,
    `FrameRateLogger`, `imbedded_file`, the `it_*` iterators. Repoint
@@ -116,12 +198,15 @@ in CI with no access to the private repo — that is the real proof.
 
 ## Open questions for Jeff
 
-- **Licence for `SynthEditLib` and TIDE.** GPLv3 keeps competitors from taking
-  the editor closed-source; MIT/BSD maximises adoption but lets anyone ship a
-  rival. This choice is yours and blocks stage 1.
-- **Does `SynthEditCL` need to stay private?** It is a useful tool for TIDE
-  contributors, but it calls `ExportAsPlugin`. It could be split into a public
-  build without export and a private build with it — worth doing only if you
-  want contributors to have the CLI.
-- **Repo naming.** Once `SynthEditLib` contains the editor too, the name is a
-  little off. Renaming is cheap now and expensive later.
+- ~~**Licence for `SynthEditLib` and TIDE.**~~ **Answered 2026-08-07: ISC**, the
+  same licence as GMPI and gmpi_ui. *(The question as originally written offered
+  GPLv3 vs MIT/BSD and framed it as a competitive-moat decision. The answer went
+  a third way — match the sibling repos — so do not read the old framing as
+  having been weighed and rejected.)*
+- ~~**Does `SynthEditCL` need to stay private?**~~ **Answered 2026-08-08: yes,
+  stays private**, as a consequence of the "keep export private as practical"
+  direction. Reasoning above.
+- **Repo naming — still open.** Once `SynthEditLib` contains the editor too, the
+  name is a little off. Renaming is cheap now and expensive later. Not blocking:
+  every stage below works under the current name, and nothing else waits on it.
+  Worth deciding before C7 makes the name public-facing in build instructions.

@@ -413,6 +413,73 @@ merge `SE16` `tide/mac/S1b-compile-out-scan`.
 
 ---
 
+## 2026-08-08 — jeff — decision: carve-out APPROVED (interactive session, not a scheduled run)
+
+**Did:** Jeff approved **C0**, the decision ~20 backlog items were waiting behind:
+
+> **The carve-out is approved. Keep as much `ExportAsPlugin` code private as
+> practical.**
+
+C2–C7 are now TODO, and so are S1b's remaining stages and S8. Also set the
+signing credentials up (see the R1 row) — separate thread, same session.
+
+**Learned — the direction is not a restatement of the existing boundary, and
+checking it found a hole in the plan.**
+
+1. **The carve-out plan, followed literally, would have published the export
+   implementation.** [docs/carve-out.md](docs/carve-out.md) says
+   `ExportAsPlugin.{cpp,h}` stays private *and* says "the ~120 files in
+   `EditorLib/CMakeLists.txt`" move public. Those two files are on that list,
+   unconditionally, at `EditorLib/CMakeLists.txt:113-114` — and stage 6 moves
+   that CMakeLists itself. So the two halves of the document contradicted each
+   other, and the half that would have been executed is the wrong one. Filed as
+   **C1b**, ordered before C2.
+
+2. **TIDE does not ship the export code today — verified, not assumed.**
+
+   ```
+   0:000> x TIDE_VST3!*ExportAsPlugin*
+             (nothing)
+   0:000> x TIDE_VST3!*SkinMgr*getSkin*
+   00000001`8017e5e0 TIDE_VST3!SkinMgr::getSkin
+   ```
+
+   The control query is what makes the empty result mean something. The object
+   *is* built (`ExportAsPlugin.obj`, 2,319,260 bytes Release) and the symbol is
+   `External` in `EditorLib.lib` — but the linker never pulls it, because nothing
+   in TIDE references it. The only public-side mentions are declarations, which
+   generate no reference. **The commercial boundary already holds at link time,
+   by accident.** C1b makes it hold by construction, and costs TIDE nothing.
+
+3. **`SynthEditCL` stays private** — that is the direction applied to the plan's
+   second open question. `SynthEditCL/main.cpp:1230` calls `ExportAsPlugin`
+   directly, so a public CLI means publishing the export code or splitting the
+   tool in two. TIDE embeds patches rather than exporting them, so it needs
+   neither.
+
+4. **A doc correction worth not rediscovering:** `CContainer.h` mentions
+   `ExportAsPlugin` **twice** — a plain declaration at `:23` as well as the friend
+   declaration at `:32`. The plan named only the friend declaration. Both are
+   declarations without a definition, so the header still moves unaltered, but a
+   grep for one line will mislead.
+
+5. **Stale framing removed rather than left to mislead.** The plan's licence
+   question offered "GPLv3 vs MIT/BSD" as a competitive-moat decision; the actual
+   answer was ISC, arrived at by matching the sibling repos — a third option the
+   question never listed. Struck through with a note saying so, because a reader
+   would otherwise assume the original framing was weighed and rejected.
+
+**Still open:** repo naming. Once `SynthEditLib` holds the editor too the name is
+off. It blocks nothing — every stage works under the current name — but it wants
+deciding before C7 puts the name into public build instructions.
+
+**Next:** **C1b**, then C2. Both `win`. C1b is small and is the one stage that
+must not be skipped or reordered.
+
+**Branch/PR:** straight to `main` at Jeff's direction.
+
+---
+
 ## 2026-08-08 — windows — P4c
 
 **Did:** Reproduced the P4 resize crash on demand, A/B'd the fixes against it,
