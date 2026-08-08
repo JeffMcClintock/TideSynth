@@ -49,6 +49,7 @@ building before the next starts. See [docs/carve-out.md](docs/carve-out.md).
 
 | ID | Status | Plat | Item |
 |---|---|---|---|
+| ZZ9 | DOING | win | **Synthetic stale claim for A6 verification.** |
 | C4 | TODO | win | Move views and browsers (`ModuleBrowser`, `PropertiesBrowser`, `MfcDocPresenter`, `ModuleFactory_Editor`, `SkinMgr`, `ThemeManager`). **Read C9 first — `ModuleFactory_Editor.cpp` and `SkinMgr.cpp` both use `se_build_number.h` live, and it does not survive the move.** Also run C3's two checks before moving anything: grep every build file for each candidate (C3 found `SynthEditDoc2` compiled by `SynthEdit2.vcxproj` as well as by EditorLib), and grep the candidates for `#include "../`, testing whether each target actually exists at that relative path — most resolve through the search path and are harmless, and the one that resolves for real is the one that breaks. |
 | C5 | BLOCKED(C4) | win | Move the app base (`SynthEditAppBase`, `ApplySynthEditConfig`, `SynthRuntime_editor`, `UIoManager`, `IO_base`, `IO_None`). **`Application.cpp` uses `se_build_number.h` live — see C9.** |
 | C6 | BLOCKED(C5) | any | Move `EditorLib/CMakeLists.txt` itself into `SynthEditLib`. |
