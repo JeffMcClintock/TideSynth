@@ -162,16 +162,47 @@
   </p>
 
   <p>
-    It runs on donations. If it turns out to be useful, there is a link below;
-    the plugin itself will not bring it up.
+    It runs on donations. If it turns out to be useful, there will be a link
+    below; the plugin itself will not bring it up.
   </p>
 
-  <!-- TODO(jeff): platform not chosen, so this is deliberately plain text with
-       nothing to click. It was an <a href="#donate-url-tbd">, which rendered as
-       a link that went nowhere and read as a broken page. When the platform is
-       picked, make it a plain <a href> -- never an embedded widget, since
-       hosted donate buttons ship third-party script and cookies. -->
-  <p>Support TIDE — coming soon.</p>
+  <!-- TODO(jeff): THE DONATION LINK. The platform has not been chosen -- see
+       PLAN.md "Price and funding". Until it is, this is plain text with nothing
+       to click, and that is deliberate: it was once <a href="#donate-url-tbd">,
+       which rendered as a real link that went nowhere and read as a broken
+       page (453721e). Do not ship a stand-in href again.
+
+       GOING LIVE IS TWO EDITS, BOTH IN THIS BLOCK, NOTHING ELSE ON THE PAGE:
+         1. Just above: "there will be a link below" -> "there is a link below".
+         2. Just below: delete the "Not up yet" paragraph and uncomment the one
+            after it, replacing DONATE-URL-HERE with the real URL.
+
+       A plain <a href>, always. NEVER an embedded donate widget, a hosted
+       button script, or a button image -- those load third-party script and
+       cookies, and the footer promises neither. An outbound href loads nothing
+       at all, so whichever platform wins, this page still makes zero external
+       requests. What the destination site does on its own pages is not this
+       page's business and does not change that; it is the same arrangement as
+       the two github.com links further down. That is settled, not open.
+
+       Candidate URLs:
+         Ko-fi            https://ko-fi.com/HANDLE
+         GitHub Sponsors  https://github.com/sponsors/JeffMcClintock
+         Liberapay        https://liberapay.com/HANDLE/donate
+         PayPal           https://www.paypal.com/donate/?hosted_button_id=ID
+       PayPal's button tool hands you an HTML snippet with an image and a form
+       in it -- take the URL out of it and throw the rest away.
+
+       Whichever is picked, add .github/FUNDING.yml at the same time. One line
+       ("ko_fi: HANDLE", "github: JeffMcClintock", "liberapay: HANDLE", or
+       'custom: ["https://..."]') puts a Sponsor button on the repo page: a
+       second free surface, and not part of this page. Add it only once the
+       account really exists -- a FUNDING.yml pointing at an unclaimed handle
+       is the same dead-link failure as above, moved to the repo page. -->
+  <p>Not up yet — a donation platform has not been picked.</p>
+
+  <!-- Go-live line. Uncomment it, drop the URL in, delete the paragraph above.
+       <p><a href="DONATE-URL-HERE">Donate to TIDE</a>.</p> -->
 
   <h2>Planned formats</h2>
 
