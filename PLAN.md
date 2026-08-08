@@ -49,7 +49,8 @@ not a second product.
 This closes a question that was open for two days. A separate repo,
 [`tide-rack`](https://github.com/JeffMcClintock/tide-rack), was scaffolded on
 2026-08-07 to build the Eurorack idea in parallel, with its own backlog, agent
-primer and CI. **That repo is superseded and no further work happens there.**
+primer and CI. **That repo is superseded, and was archived on 2026-08-09 — it is
+read-only and no further work happens there.**
 The prototype described below already does most of what it would have had to
 build from nothing: a plugin shell that hosts the structure view, the carve-out
 that makes it public, a build and release plan, and three machines coordinating

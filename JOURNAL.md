@@ -22,6 +22,40 @@ Template:
 
 ---
 
+## 2026-08-09 — windows — C2 landed, tide-rack archived (state update, interactive)
+
+**Did:** Nothing new; recording two state changes the next run needs.
+
+**C2 is merged in all three repos.** Jeff merged `SynthEditLib` #3 and `SE16` #9
+together. Both local checkouts fast-forwarded clean, so **C3 can start from a
+default branch that already has C2's moves** — check that before doing anything
+else, because C3 touches the same `EditorLib/CMakeLists.txt`. Note `SE16`'s C2
+commit came back with a different sha (`c3a4f9fac`, was `d933e5e03`): that PR was
+squash- or rebase-merged, so match on content, not sha, if you go looking.
+
+**`tide-rack` is archived and read-only**, and no box has a local copy. **E1 is
+now a one-way port** — clone it to read (`git clone
+https://github.com/JeffMcClintock/tide-rack.git`), take the harness and the
+reasoning, and do not try to commit anything back. Its two golden WAVs are still
+there and still unauditioned.
+
+**Result:** Docs only. All five repos on their default branch, clean, current.
+
+**Learned:** Leftover branches named `tide/win/C2-leaf-files` still exist locally
+in `SE16`, `SynthEditLib` and TideSynth, and on TideSynth's origin. GitHub
+auto-deleted the head branch for the two real PR merges but not for TideSynth,
+because PR #24 was closed by a direct push to main rather than merged through the
+UI — a merge and a push that lands the same commits look identical in the log and
+leave different residue. If you branch `tide/win/C3-...` you will be working
+beside a stale sibling; that is harmless but confusing, so check with
+`git branch` before assuming a `tide/win/...` branch is live work.
+
+**Prompt:** n/a — interactive session, not a scheduled run.
+
+**Branch/PR:** none — committed to main.
+
+---
+
 ## 2026-08-09 — windows — the prompt is fetched, not copied (interactive session with Jeff)
 
 **Did:** Removed the reason machines go stale, rather than adding more diligence
