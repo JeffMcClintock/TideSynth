@@ -24,11 +24,12 @@ built by anyone outside without that code becoming public.
 
 ## What EditorLib actually is
 
-`SE16/EditorLib/` contains only two files of its own: `CMakeLists.txt` and
-`FuzzyMatch.h`. The library is assembled from roughly 120 source files that
-live in `SE16/SynthEdit2/`, plus a handful already in `SynthEditLib`. So the
-carve-out is not "extract a library" — it is "move ~120 files from the private
-repo into the public one, and repoint the CMake paths".
+`SE16/EditorLib/` now contains exactly one file of its own: `CMakeLists.txt`.
+(It had two until C2 moved `FuzzyMatch.h` out.) The library is assembled from
+roughly 120 source files that live in `SE16/SynthEdit2/`, plus a growing number
+already in `SynthEditLib`. So the carve-out is not "extract a library" — it is
+"move ~120 files from the private repo into the public one, and repoint the
+CMake paths".
 
 That is mechanical, which is good news. It is also large, which means it should
 happen in reviewable stages, not one commit.
@@ -178,11 +179,29 @@ BACKLOG item **C*n***, except for the one precondition:
    moving anything new into it. Moving code into an unlicensed public repo does
    not make it open source. Resolved as **ISC**, matching GMPI and gmpi_ui;
    `SynthEditLib` `a2143a4`, TideSynth `a58a6f1`. (BACKLOG L1/C1.)
-2. **Leaf files.** Move the files with no dependencies on the rest of
-   `SynthEdit2`: `FuzzyMatch.h`, `checkpoint`, `cpu_accumulator`,
-   `FrameRateLogger`, `imbedded_file`, the `it_*` iterators. Repoint
-   `EditorLib/CMakeLists.txt` at the new locations. Confirm SynthEdit still
-   builds.
+2. **Leaf files — DONE 2026-08-08** (`SE16` `d933e5e03`, `SynthEditLib`
+   `6e49dbf`). `FuzzyMatch.h`, `checkpoint`, `cpu_accumulator`,
+   `FrameRateLogger`, `imbedded_file` and the `it_*` iterators are in the
+   **root** of `SynthEditLib`; `EditorLib/CMakeLists.txt` points at them there.
+   Two corrections to how this stage was described, both of which change what
+   stage 3 should do:
+
+   - **"Files with no dependencies on the rest of `SynthEdit2`" was not the
+     property that made them safe** — most of the `.cpp` include
+     `CContainer.h`, `Application.h` or `PlugIO4.h`, all of which are still
+     private until stages 3–5. What made them safe is that **nothing outside
+     `EditorLib`'s own source list compiles them**, and every `#include` of them
+     resolves through a search path rather than a relative path. Apply *that*
+     test to stage 3's candidates.
+   - **The destination was not specified, and root was chosen for a reason that
+     expires.** Root is already an include directory in all three build systems,
+     so 16 files moved with zero include-path edits. At 120 files a subdirectory
+     is likely worth its three edits — decide it at stage 3 rather than
+     inheriting root by default. Re-homing these 16 is a `git mv`.
+
+   See the JOURNAL entry for 2026-08-08 for the rest, including the relative
+   `#include` that had been resolving by luck, and the public file that was
+   including a private header.
 3. **Document model.** `DocOb`, `CContainer` (with its untouched friend
    declaration), `CUG`, `Plug*`, `SynthEditDocBase`, `SynthEditDoc2`. This is
    the biggest and riskiest stage; split it further if it resists.

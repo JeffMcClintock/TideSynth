@@ -22,6 +22,137 @@ Template:
 
 ---
 
+## 2026-08-08 — windows — C2
+
+**Did:** Carve-out stage 2. Sixteen leaf files left the private `SE16` repo for
+the **root of the public `SynthEditLib`**, and `EditorLib/CMakeLists.txt` now
+points at the new paths. Fifteen came from `SE16/SynthEdit2/` —
+`checkpoint.{cpp,h}`, `cpu_accumulator.{cpp,h}`, `FrameRateLogger.{cpp,h}`,
+`imbedded_file.{cpp,h}`, `it_doc_ob.{cpp,h}`, `it_doc_ob_recursive.{cpp,h}`,
+`it_empty.h`, `it_plug_destinations.{cpp,h}` — and `FuzzyMatch.h` from
+`SE16/EditorLib/`, which now holds nothing but its `CMakeLists.txt`.
+
+`SE16` `d933e5e03`, `SynthEditLib` `6e49dbf`, both on branch
+`tide/win/C2-leaf-files`, both pushed. **Merging the TideSynth PR does not land
+either** — same shape as X3.
+
+**Result — Windows, all green:**
+
+```
+cmake --build C:/SE/SE16/build --config Release      exit 0, no warnings
+  SynthEditLib, EditorLib, EditorScreenshot, SynthEditCL,
+  SynthEdit_GMPI, SynthEdit_VST3, TIDE, TIDE_VST3, all ~90 module .sem/.gmpi
+ctest -C Release                                     92/92 passed, 0 failed
+```
+
+The old copies are gone from disk — `find` over all of `SE16` returns no
+`checkpoint.h`, `FuzzyMatch.h` or `it_plug_destinations.h`, including under
+`build/`. So the build genuinely compiled the `SynthEditLib` copies; there was
+no stale header left behind to mask a bad path.
+
+**SynthEdit2 (WinUI3) reaches P8 and nothing else** — `MSBuild
+SynthEditStore.sln -t:SynthEdit2 -p:Configuration=Debug` produces exactly one
+error, the pre-existing one:
+
+```
+SynthEdit2\EditorWindowHelper.cpp(294,31): error C2664:
+  'gmpi::drawing::Bitmap se_cl::renderContainerThumbnail(gmpi::api::IUnknown*,CContainer*,int)':
+  cannot convert argument 1 from 'std::unique_ptr<UniversalFactory,...>' to 'gmpi::api::IUnknown*'
+```
+
+No C1083, so nothing lost a header. Better than that, it is positively proved
+rather than merely not-disproved: `SynthEdit2/x64/Debug/FindDialog.xaml.obj` was
+freshly produced by this build, and `FindDialog.xaml.cpp:12` is the TU that
+includes `"FuzzyMatch.h"` — so the WinUI3 app compiled it from its new
+`SynthEditLib` location. P8 still blocks the link stage, exactly as it blocked
+C1b's.
+
+**Destination: the repo root, and why it matters that C3 knows.** The plan
+never says *where* in `SynthEditLib` the files land, and C2 sets the precedent
+for the ~120 still to come. Root, because it is already an include directory in
+all **three** build systems — `${SYNTHEDITLIB_DIR}` in EditorLib's CMake,
+`$(SolutionDir)..\SyntheditLib` in `SynthEdit2.vcxproj`, and
+`$(SE_GITHUB_DIR)/SynthEditLib` in both mac xcconfigs — so the move needed *zero*
+include-path edits, and root already holds files EditorLib compiles
+(`CancellationAnalyse.cpp`, `SafeMessageBox.h`). **A subfolder would have been
+tidier and would have cost three include-path edits plus a mac box to verify
+them.** That is a fine trade for 16 files and a worse one for 120, so **C3
+should decide deliberately whether the bulk goes to root or to a subdirectory**
+rather than inheriting this by default. Re-homing these 16 later is a `git mv`.
+
+**"Leaf files" is not quite the right description, and the distinction matters
+for judging what is safe to move next.** Only `FuzzyMatch.h`, `it_empty.h` and
+`cpu_accumulator.h` are genuinely dependency-free. `checkpoint.cpp` includes
+`SynthEditDocBase.h`, `Application.h` and `CContainer.h`; `it_*.cpp` include
+`CContainer.h` and `PlugIO4.h`; `imbedded_file.cpp` includes `Application.h`.
+All of those still live in `SynthEdit2` and will not move until C3–C5. What
+actually makes this set safe is a different property: **nothing outside
+`EditorLib`'s own source list compiles these `.cpp`**, and every `#include` of
+them resolves through a search path rather than a relative path. That is the
+test to apply to C3's candidates, not "does it have dependencies".
+
+**Learned:**
+
+1. **One file did break on the move, and it was the one that looked cleanest.**
+   `checkpoint.h` carried `#include "../tinyXml2/tinyxml2.h"`. That never
+   resolved relative to the file — `SE16/tinyXml2/` **does not exist** — it was
+   quietly matching `<SynthEditLib>/modules/<any>/../tinyXml2/` through the
+   include search path, and so would have survived the move by luck rather than
+   by design. Rewritten as `"modules/tinyXml2/tinyxml2.h"`, which resolves
+   relative to the header's own location on every compiler. **Grep C3–C5's
+   candidates for `#include "../` before moving them** — a relative include that
+   is already resolving through the search path gives no warning either way.
+2. **The public repo already had a source dependency on a private header.**
+   `SynthEditLib/modules/se_sdk3_hosting/ModuleViewStruct.cpp:11` includes
+   `"cpu_accumulator.h"`, which until today lived in the private `SynthEdit2`
+   folder. It compiled only because that `.cpp` is on *EditorLib's* source list
+   (`EditorLib/CMakeLists.txt:16-17`), so it is built with `../SynthEdit2` on the
+   include path — a public file that cannot be compiled by its own repo. C2
+   closes this one by accident. **There may be more: worth a grep of
+   `SynthEditLib` for includes of `SynthEdit2` headers before C7 claims a
+   stranger can build TIDE**, because each one is a hole that only shows up in a
+   clean-clone build.
+3. **`file(GLOB)` was checked for, deliberately.** If any `CMakeLists.txt` in
+   `SynthEditLib` globbed its root, these 16 files would have silently joined
+   `SynthEditLib`'s own target *as well as* EditorLib's, and the failure would
+   have surfaced as duplicate symbols at link, far from the cause. There are no
+   globs anywhere in that repo. Re-check at C3 and C6.
+4. **`it_empty.h` has zero includers anywhere in the tree** — `SE16`,
+   `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers`. It is a dead template header that
+   the carve-out has now carried into the public repo. Not deleted here: C2 is a
+   move, and deleting on the way through would have made the diff a judgement
+   call instead of a relocation. Filed as **C8**.
+5. **C1b's "three build systems" lesson paid again, and cheaply.** Only
+   `FuzzyMatch.h` had references outside `EditorLib/CMakeLists.txt` — a
+   `ClInclude` in `SynthEdit2.vcxproj` and its `.filters`, and a
+   `PBXFileReference` in the SynthEditMac Xcode project — all three repointed.
+   None of the fifteen `SynthEdit2` files is compiled by a hand-maintained
+   project. The thing that could have broken the mac build is not the fileRef
+   (headers are not compiled from it) but `FindWindowController.mm:2`, which
+   includes `"FuzzyMatch.h"` by name and finds it through `HEADER_SEARCH_PATHS`
+   — and both `Config/Debug.xcconfig` and `Release.xcconfig` already list
+   `$(SE_GITHUB_DIR)/SynthEditLib`. So it resolves. **Edit-verified only; the mac
+   box should build SynthEdit to confirm**, as it should still do for C1b.
+6. **Do not build `SynthEdit2.vcxproj` standalone to test it.** Its
+   `AdditionalIncludeDirectories` are written in terms of `$(SolutionDir)`, which
+   MSBuild sets to the *project* directory when you pass it a `.vcxproj`
+   directly — so every SynthEditLib and gmpi_ui include fails with C1083 and the
+   output looks like catastrophic breakage that has nothing to do with your
+   change. Build `SynthEditStore.sln -t:SynthEdit2` instead. Cost me one wasted
+   build here.
+
+**Next:** **C3** — the document model, the largest and riskiest stage. Before
+starting it, settle the root-vs-subfolder question in learning point 1's
+paragraph above, and apply the two greps: `#include "../` in the candidates, and
+`SynthEditLib` sources including `SynthEdit2` headers. Also note
+`SynthEditLib/README.md` is still the SE2JUCE README and describes a fraction of
+what that repo now is; that belongs with C6/C7, not filed separately yet.
+
+**Branch/PR:** TideSynth `tide/win/C2-leaf-files` → PR below. Code in `SE16`
+`d933e5e03` and `SynthEditLib` `6e49dbf`, both on branches of the same name.
+
+---
+
 ## 2026-08-08 — linux — H1 (interactive session with Jeff, not the scheduled run)
 
 **Did:** Took tidesynth.com live on GitHub Pages. Enabled Pages, deployed,
