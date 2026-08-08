@@ -22,17 +22,39 @@ private `SE16` repo (paths relative to `SE16/`):
 
 ## Naming — decided 2026-08-08, settle nothing else against it
 
-Two forms, and which one you use depends on whether a human or a script reads it:
+Three forms. Which one you use depends on who reads it:
 
 | | Form | Where |
 |---|---|---|
-| **Display name** | `TIDE Rack` (space) | the plug-in name a DAW shows, installer titles, the website, anything a person reads |
-| **File name** | `TIDE_Rack` (underscore) | binaries, bundles, release assets, CMake targets — anything a script, path or command line touches |
+| **Display** | `TIDE Rack` (space) | the plug-in name a DAW shows, installer titles, the website — anything a person reads |
+| **Shipped files** | `TIDE-Rack` (dash) | binaries, bundles, release assets — anything with a path or a URL |
+| **CMake targets** | `TIDE_Rack` (underscore) | internal only, never shipped — see below |
 
-The underscore is not cosmetic. `TrackFX_AddByName(tr, "TIDE_Rack_VST3.vst3")`
-needs no quoting gymnastics, `install.sh` globs cleanly, and a space in a
-`releases/latest/download/` URL would have to be `%20` forever. **A space in a
-shipped filename is a bug you cannot fix later** — see the permalink note below.
+**No spaces in any filename, ever.** That is the rule the other two serve. A
+space becomes `%20` in every `releases/latest/download/` permalink, forever, and
+R6's whole design is that those permalinks never change — so **a space in a
+shipped filename is a bug you cannot fix later.** It also spares
+`TrackFX_AddByName(tr, "TIDE-Rack.vst3")` any quoting gymnastics and lets
+`install.sh` glob cleanly.
+
+**Dashes rather than underscores for shipped files**, decided 2026-08-08 after
+first choosing underscores. Both defend equally against spaces, so the choice is
+style — but these filenames become *visible link text* on a no-JS page (R6), and
+underscores get swallowed by link underlining in most browsers, where a dash
+never disappears. It is also the near-universal release-asset convention
+(`surge-xt-win64.exe`, `ardour-8.6.0.tar.gz`). **Do not mix the two:** the
+briefly-considered `TIDE_Rack-macOS.pkg` implies `_` means "inside the name" and
+`-` means "field boundary", a distinction nothing in the toolchain consumes.
+
+**CMake targets keep the underscore, and that is deliberate rather than an
+oversight.** `SE16/SynthEditSem/CMakeLists.txt:90` builds them as
+`${PROJECT_NAME}_${kind}`, so a dashed project name would produce
+`TIDE-Rack_VST3` — the mixed form again, in the one place you cannot avoid it.
+Targets are never shipped, so leave them `TIDE_Rack` / `TIDE_Rack_VST3` and set
+`OUTPUT_NAME` to the dashed form. Note `:45` also passes `PROJECT_NAME` into
+`gmpi_plugin.cmake`, which likely feeds the bundle name and possibly an
+Info.plist identifier — check where that lands before assuming `OUTPUT_NAME`
+alone is enough (BACKLOG **N1**(a)).
 
 The organisation is **TIDE Synth**; it does not appear in any artifact name.
 Repo, domain and GitHub org keep their existing names ([PLAN.md](../PLAN.md)
@@ -42,17 +64,17 @@ naming section, BACKLOG **N1**).
 
 | Platform | Artifact (constant name) | Contents & install destination | Signing |
 |---|---|---|---|
-| Windows | `TIDE_Rack-Windows.exe` (Inno Setup) + `TIDE_Rack-Windows.zip` | `TIDE_Rack.vst3` → `C:\Program Files\Common Files\VST3\` | Azure Trusted Signing (installer **and** the .vst3 inside it) |
-| macOS | `TIDE_Rack-macOS.pkg` | AU → `/Library/Audio/Plug-Ins/Components/`, VST3 → `/Library/Audio/Plug-Ins/VST3/` | Developer ID + **notarize + staple** — an unnotarized pkg is effectively unopenable on modern macOS |
+| Windows | `TIDE-Rack-Windows.exe` (Inno Setup) + `TIDE-Rack-Windows.zip` | `TIDE-Rack.vst3` → `C:\Program Files\Common Files\VST3\` | Azure Trusted Signing (installer **and** the .vst3 inside it) |
+| macOS | `TIDE-Rack-macOS.pkg` | AU → `/Library/Audio/Plug-Ins/Components/`, VST3 → `/Library/Audio/Plug-Ins/VST3/` | Developer ID + **notarize + staple** — an unnotarized pkg is effectively unopenable on modern macOS |
 | iOS | — none on the website — | AUv3 ships inside a container app, **App Store only**; the website links the App Store page as a plain text link | App Store pipeline (M2/M3 territory) |
-| Linux | `TIDE_Rack-Linux.tar.gz` | `TIDE_Rack.vst3/` → `~/.vst3/`, CLAP → `~/.clap/`, plus a short `install.sh` that copies them | none — no signing convention on Linux |
+| Linux | `TIDE-Rack-Linux.tar.gz` | `TIDE-Rack.vst3/` → `~/.vst3/`, CLAP → `~/.clap/`, plus a short `install.sh` that copies them | none — no signing convention on Linux |
 
 Notes:
 
 - **Asset names carry no version.** The version lives in the release tag and in
   each binary's own version resource. This is what lets a static, script-free
   website link "the latest installer" — see below.
-- **The `.gmpi` artifact is not shipped to end users** for now. `TIDE_Rack.gmpi` is
+- **The `.gmpi` artifact is not shipped to end users** for now. `TIDE-Rack.gmpi` is
   the GMPI-format build; until there is a host story for it, the VST3 (and AU
   on mac, CLAP on Linux) are the user-facing deliverables. Revisit when GMPI
   hosting matures — one line in the release workflow either way.
@@ -92,9 +114,9 @@ newest release's asset of that name. With constant asset names, the download
 links are **static `<a href>`s that never need updating**:
 
 ```html
-<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE_Rack-Windows.exe">Windows</a>
-<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE_Rack-macOS.pkg">macOS</a>
-<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE_Rack-Linux.tar.gz">Linux</a>
+<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE-Rack-Windows.exe">Windows</a>
+<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE-Rack-macOS.pkg">macOS</a>
+<a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE-Rack-Linux.tar.gz">Linux</a>
 ```
 
 No JavaScript, no version-number maintenance, no third-party requests from the

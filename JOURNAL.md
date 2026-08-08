@@ -426,24 +426,48 @@ C1b→C2→…→C7→V1 and nothing else unblocks macOS, iOS, Linux and the acc
 test. **If you reorder sections in this file, you are reprioritising the whole
 fleet** — that is worth knowing before someone tidies it back.
 
-**2. Artifact naming, settled — and the underscore is load-bearing.**
+**2. Artifact naming, settled in two passes the same day. The final answer is
+three forms, not two** — the first version of this entry said two, and said the
+underscore was load-bearing. It was not; see below.
 
 | | Form | Where |
 |---|---|---|
 | Display | `TIDE Rack` (space) | plug-in name in a DAW, installer titles, website |
-| File | `TIDE_Rack` (underscore) | binaries, bundles, release assets, CMake targets |
+| Shipped files | `TIDE-Rack` (dash) | binaries, bundles, release assets |
+| CMake targets | `TIDE_Rack` (underscore) | internal only, never shipped |
 
-So `TIDE_Rack-Windows.exe`, `TIDE_Rack-macOS.pkg`, `TIDE_Rack-Linux.tar.gz`,
-`TIDE_Rack.vst3`. Applied to [docs/distribution.md](docs/distribution.md) now
+So `TIDE-Rack-Windows.exe`, `TIDE-Rack-macOS.pkg`, `TIDE-Rack-Linux.tar.gz`,
+`TIDE-Rack.vst3`. Applied to [docs/distribution.md](docs/distribution.md) now
 rather than at R2 time, because **a space in a shipped filename cannot be fixed
 later**: R6's design is permanent `releases/latest/download/<asset>` permalinks,
 and a space would be `%20` in every one of them forever. Also fixes the P2
 annoyance where `TrackFX_AddByName` needed the exact filename.
 
-This closes N1(b). N1(a) — the CMake targets — now has its *form* settled
-(`TIDE_Rack` / `TIDE_Rack_VST3`) but is explicitly deferred to **after C7**:
-C2–C7 are already rewriting the same build files, and nothing has shipped under
-either name, so renaming mid-carve-out doubles the conflict surface for nothing.
+**Why it changed within the hour, because the reasoning generalises.** The first
+pass chose `TIDE_Rack` and justified it as "less brittle for scripting". Jeff
+asked whether all-dashes was cleaner, and it is: **the underscore was defending
+against *spaces*, and a dash defends identically.** Once spaces are out, `_` vs
+`-` is pure style — and the mixed form `TIDE_Rack-macOS.pkg` is the one genuinely
+bad option, because it implies `_` means "inside the name" and `-` means "field
+boundary", a distinction nothing in the toolchain consumes. Two things then
+decide it: these filenames become **visible link text** on the no-JS page (R6)
+and underscores get swallowed by link underlining where dashes never do, and
+all-dash is the near-universal release-asset convention
+(`surge-xt-win64.exe`). The generalisable bit: **when a constraint is satisfied
+by two options, stop calling one of them load-bearing.**
+
+**CMake targets are the exception, and it is a real one rather than a
+compromise.** `SynthEditSem/CMakeLists.txt:90` builds them as
+`${PROJECT_NAME}_${kind}`, so a dashed project name produces `TIDE-Rack_VST3` —
+the mixed form, in the one place you cannot avoid it. Targets are never shipped,
+so they stay `TIDE_Rack` / `TIDE_Rack_VST3` and `OUTPUT_NAME` carries the dashed
+artifact name. Loose end for whoever does N1(a): `:45` also passes
+`PROJECT_NAME` into `gmpi_plugin.cmake`, which probably feeds the bundle name
+and possibly an Info.plist identifier, so `OUTPUT_NAME` alone may not cover it.
+
+This closes N1(b). N1(a) is explicitly deferred to **after C7**: C2–C7 are
+already rewriting the same build files, and nothing has shipped under either
+name, so renaming mid-carve-out doubles the conflict surface for nothing.
 
 **3. X4 closed WONTFIX** — leave the six `GIT_TAG origin/main`s alone. Jeff's
 reasoning: CI builds from a fresh download, so `origin/main` resolves to real
