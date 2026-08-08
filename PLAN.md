@@ -39,6 +39,53 @@ Two consequences worth naming up front, because they change existing items:
   scanned one. Nothing in the constraints needs rewriting today, but do not read
   them as describing a single perpetual binary.
 
+## The Eurorack rack — decided 2026-08-09 by Jeff
+
+**TIDE Rack's module story is a set of Eurorack-style modules, each built as a
+SynthEdit Container**, so a curious user can open one up, edit it and extend it.
+That is the product's point of difference — and it is a *feature of TIDE Rack*,
+not a second product.
+
+This closes a question that was open for two days. A separate repo,
+[`tide-rack`](https://github.com/JeffMcClintock/tide-rack), was scaffolded on
+2026-08-07 to build the Eurorack idea in parallel, with its own backlog, agent
+primer and CI. **That repo is superseded and no further work happens there.**
+The prototype described below already does most of what it would have had to
+build from nothing: a plugin shell that hosts the structure view, the carve-out
+that makes it public, a build and release plan, and three machines coordinating
+through this backlog. A second product beside it would have duplicated all of
+that in order to add one layer.
+
+The one thing that repo built and this one lacks is a working **audio
+verification harness** — render a Container headlessly to a WAV, null-test it
+against a checked-in golden reference. That is worth having whichever repo the
+product lives in, and is filed as **E1**.
+
+What the Eurorack framing commits to, taken from Reaktor Blocks and VCV Rack:
+
+- **Curation is a deliverable.** Polished, ready-to-play preset racks ship with
+  the product. They *are* the friendly surface, not an afterthought. Blocks'
+  best trait.
+- **The whole patch is visible**, and any output patches to any input. VCV's
+  layout, not Blocks' cramped navigation.
+- **QWERTY-as-MIDI-input**, so someone with no hardware makes sound in seconds.
+  Stolen from VCV.
+- **Opening a Container is optional.** The closed surface must be complete and
+  satisfying on its own — a delight for the curious, never a requirement for
+  value.
+
+Being a plugin already buys Blocks' other good trait for free: no standalone-app
+audio routing for the user to solve. That is constraint 2, and it was there
+first.
+
+**None of this is v0.1.** The acceptance test at the bottom of this document is
+unchanged; the modules are **E2** and **E3**, blocked on **V1**. Constraint 7
+governs how they reach the factory: statically registered at link time, no
+scanning. A Container-based module set is compatible with that — a Container is
+composed of other modules rather than being a scanned binary of its own — but
+the primitives it is built from have to be in the compiled-in set, which is what
+**S8** is about.
+
 ## What TIDE Rack is
 
 An open-source modular synth plugin: a cut-down SynthEdit that lives *inside*

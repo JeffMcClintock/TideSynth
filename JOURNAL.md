@@ -22,6 +22,60 @@ Template:
 
 ---
 
+## 2026-08-09 — windows — Eurorack ruling (interactive session with Jeff, not a scheduled run)
+
+**Did:** Recorded a product ruling and retired a repo. **The Eurorack rack is a
+feature of TIDE Rack, not a second product.** Modules are SynthEdit Containers
+the user can open up; that ships as a layer on this prototype rather than as a
+parallel build.
+
+The separate `tide-rack` repo (<https://github.com/JeffMcClintock/tide-rack>,
+scaffolded 2026-08-07) is **superseded**. Jeff's reasoning: the prototype here
+already does ~90% of what that repo would have had to build from nothing — the
+plugin shell, the carve-out, the build and release plan, the three-machine
+coordination — so a second product beside it duplicates all of that to add one
+layer.
+
+Changed: a new "The Eurorack rack" section in [PLAN.md](PLAN.md) carrying the
+ruling and the four design commitments taken from Reaktor Blocks and VCV Rack;
+**E1**, **E2**, **E3** filed in [BACKLOG.md](BACKLOG.md); superseded banners on
+the four `tide-rack` docs (`README`, `CLAUDE.md`, `PROGRESS`, `BACKLOG`) so an
+unattended session that lands there stops instead of working.
+
+**Result:** Docs only. No code, no build, nothing in `SE16` touched.
+
+**Learned:**
+
+- **Do not re-file `tide-rack`'s backlog.** Its EP-001 is done and salvaged as
+  **E1**; EP-002 and EP-003 are now **E2** and **E3**. The repo keeps its
+  history and its two golden WAVs; it does not keep its queue.
+- **The salvage is the harness, and it is worth taking seriously.** It is the
+  only working audio verification this project has: headless render → WAV →
+  null-test against a golden reference, gated three ways. E1 carries the three
+  findings that cost a day each — the absolute-path trap that renders silence
+  while reporting `"ok":true`, why the null test needs a peak gate as well as an
+  RMS one, and the bit-exactness result that says references survive a compiler
+  change. Port the reasoning, not just the files.
+- **That repo's own "Awaiting Jeff" had already asked this question** — "is
+  Tidesynth the starting codebase for the Eurorack product's app shell, or is
+  the product a fresh gmpi app reusing syntheditlib/Tidesynth pieces?" It sat
+  open for two days while a second scaffold was built against the unanswered
+  version of it. The general shape: an open question about *what we are
+  building* outranks any amount of infrastructure built underneath it.
+- Minor, but it will confuse a grep: the repo slug `tide-rack` and the product
+  name `TIDE Rack` are now different things. The slug is dead; the name is the
+  product. N1 is the rename item and is unaffected by this.
+
+**Next:** Nothing here changes the carve-out, which is still the critical path —
+C3 is the next `win` item. **E1** is the cheapest of the new items and needs no
+plugin, so it is takeable by any box at any time; E2 and E3 are blocked on V1
+and should stay blocked. Also unaffected: v0.1's acceptance test, which is still
+patch-survives-save-and-reload and nothing else.
+
+**Branch/PR:** none yet — docs committed from the interactive session.
+
+---
+
 ## 2026-08-08 — windows — C2
 
 **Did:** Carve-out stage 2. Sixteen leaf files left the private `SE16` repo for
