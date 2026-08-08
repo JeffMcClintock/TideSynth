@@ -413,6 +413,69 @@ merge `SE16` `tide/mac/S1b-compile-out-scan`.
 
 ---
 
+## 2026-08-08 — jeff — decision: the product is TIDE Rack; donation link live (interactive session, not a scheduled run)
+
+**Did:** Two things. Shipped the donation link — the last `TODO(jeff)` on the
+website — and recorded a product naming ruling:
+
+> **The product is TIDE Rack**, named in the vein of VCV Rack. **TIDE Synth is
+> the organisation**, which may release more than one plugin; TIDE Rack is the
+> first. **The domain stays `tidesynth.com`** — already paid for, and it now
+> reads as the organisation's site, which is consistent.
+
+Landed in [PLAN.md](PLAN.md) as a "Naming" section ahead of "What TIDE Rack is",
+following the channel rule the fixed-module-set and no-user-skins entries set:
+rulings go in PLAN, enforcement goes in BACKLOG. Enforcement is **N1**.
+
+**Donation link, done properly this time.** `https://ko-fi.com/TideRack`, a plain
+`<a href>`, plus `.github/FUNDING.yml` (`ko_fi: TideRack`) for the repo Sponsor
+button. Ko-fi was chosen over GitHub Sponsors because this page's audience is DAW
+users, not developers, and **GitHub Sponsors requires the donor to have a GitHub
+account**; `ko_fi:` in FUNDING.yml still earns the repo button, so both surfaces
+came without GitHub Sponsors enrolment.
+
+**Learned:**
+
+1. **Verify the handle resolves before committing the href — every time.** This
+   link failed twice before on exactly that: `<a href="#donate-url-tbd">` shipped
+   as a real link that went nowhere (`453721e`), and the platform-choice commit
+   had to keep the page as plain text because the account did not exist yet.
+   Third time it was fetched first: HTTP 200, landed on `/TideRack` rather than
+   redirecting to `/`. **The redirect *is* the test** — Ko-fi bounces unclaimed
+   handles to its homepage, so `landedOn === "/"` means free. Confirmed against
+   two known-existing creators as a control, the same discipline P4c's liveness
+   probe used: an availability check that cannot fail proves nothing.
+
+2. **The Ko-fi page title is "Support Jef", not TIDE Rack.** The signup display
+   name is separate from the page URL slug, and only the slug was set. A donor
+   clicking "Donate to TIDE on Ko-fi" currently lands on a page with no mention
+   of TIDE. Jeff's to fix in Ko-fi settings; nothing in this repo can.
+
+3. **`.github/FUNDING.yml` was deliberately withheld until the handle existed.**
+   A FUNDING.yml naming an unclaimed handle renders a Sponsor button that 404s —
+   the same dead-link failure, relocated from the website to the repo page.
+
+4. **The rename is not a search-and-replace, and N1 says so in bold.** "TIDE"
+   is currently a product name, an organisation name, two CMake targets, a
+   **fixed four-character** vendor code (`TideApp::getVendor4charCode()`), and a
+   filename prefix. They do not all move together, and one of them cannot grow.
+
+5. **Settle the release asset names before R2–R6 ship anything.** R6's whole
+   design is static `releases/latest/download/<asset>` permalinks, which is what
+   lets the no-JS page avoid a version bump. Renaming a published asset breaks
+   that permalink. The rename is free today and expensive after the first
+   release — the same shape of argument as the repo-naming question, which went
+   the other way.
+
+**Next:** N1 wants costing and probably splitting; its cheap half (docs, README,
+website copy) is genuinely cheap, its expensive half (targets, artifacts, asset
+names) each needs a decision first. P5 is now a subset of it. Engineering queue
+is otherwise unchanged: C1b then C2, both `win`.
+
+**Branch/PR:** straight to `main` at Jeff's direction.
+
+---
+
 ## 2026-08-08 — jeff — decision: carve-out APPROVED (interactive session, not a scheduled run)
 
 **Did:** Jeff approved **C0**, the decision ~20 backlog items were waiting behind:

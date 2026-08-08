@@ -12,7 +12,34 @@ Companion documents:
 - [docs/module-enumeration.md](docs/module-enumeration.md) — how modules get into
   the factory without a filesystem scan. Basis for constraint 7.
 
-## What TIDE Synth is
+## Naming — decided 2026-08-08 by Jeff
+
+**The product is TIDE Rack.** Named in the same vein as VCV Rack. **TIDE Synth
+is the organisation**, which may release more than one plugin; TIDE Rack is the
+first.
+
+**The domain stays `tidesynth.com`** — it is already paid for, and it now reads
+as the organisation's site rather than the product's, which is consistent.
+
+This renames the thing this document has called "TIDE Synth" throughout.
+Everything below still describes the product, which is now TIDE Rack. Enforcement
+— the rename across docs, binaries, targets and release assets — is BACKLOG
+**N1**; it is not done, so expect both names in the tree until it is.
+
+Two consequences worth naming up front, because they change existing items:
+
+- **P5 changes meaning, not just its target string.** It was "the plugin does
+  not call itself TIDE"; the host-visible name is now TIDE Rack, and the vendor
+  string is arguably TIDE Synth — those are two different fields and the
+  organisation/product split is exactly the distinction VST3 draws between
+  vendor and plug-in name.
+- **An organisation that ships more than one plugin changes what some
+  constraints mean.** Constraint 7's "fixed module set, compiled in" is a
+  per-plugin statement; a second TIDE plugin gets its own set, not a shared
+  scanned one. Nothing in the constraints needs rewriting today, but do not read
+  them as describing a single perpetual binary.
+
+## What TIDE Rack is
 
 An open-source modular synth plugin: a cut-down SynthEdit that lives *inside*
 the DAW as a plugin, rather than being a standalone application that exports

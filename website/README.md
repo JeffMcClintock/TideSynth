@@ -9,29 +9,12 @@ keep it verifiable by reading one file.
 
 To preview it, open `index.html` in a browser. There is nothing to install.
 
-## The one remaining placeholder — the donation link
+## The donation link — done
 
-The site is live (**H1**). This is the last `TODO(jeff)` left in the HTML.
-
-**Platform decided 2026-08-08: Ko-fi.** What is missing is the *handle* — the
-account does not exist yet, so `ko-fi.com/<handle>` does not resolve and the page
-carries plain text with nothing to click.
-
-Going live, in order:
-
-1. **Claim the Ko-fi handle** at <https://ko-fi.com> — this is the step that
-   makes the URL real, and it is the only part nobody else can do. Payout
-   (PayPal or Stripe) can be connected afterwards; the page URL works as soon as
-   the handle exists.
-2. **Two edits in `index.html`, both inside that one comment block:** put the
-   sentence above it back to "there **is** a link below", and swap the
-   placeholder paragraph for the commented-out `<a href>` beside it, replacing
-   `HANDLE`. Nothing else on the page moves.
-3. **Add `.github/FUNDING.yml`** with `ko_fi: HANDLE` — see below.
-
-**Do not guess the handle.** It cannot be verified from a sandboxed agent
-session (ko-fi.com is not reachable from one), so it has to be pasted in by
-whoever claims it.
+**Live since 2026-08-08: <https://ko-fi.com/TideRack>**, a plain `<a href>` in
+the "It runs on donations" paragraph, plus `.github/FUNDING.yml` (`ko_fi: TideRack`)
+for the repo Sponsor button. That was the last `TODO(jeff)` on the page; there
+are no placeholders left in the HTML.
 
 **Why Ko-fi**, recorded so it is not re-argued: this page's audience is DAW
 users, not developers, and GitHub Sponsors requires the *donor* to have a GitHub
@@ -42,8 +25,14 @@ enrolment. Liberapay is recurring-first, the wrong shape for a no-nag ask.
 PayPal is the fallback if opening a new account is unwelcome — SynthEdit already
 has one.
 
-**Ko-fi will offer you a widget or a button image. Take neither** — copy the
-plain profile URL. See the first rule below.
+**Ko-fi offers a widget and a button image. Neither is used, and neither may
+be** — only the plain profile URL. See the first rule below.
+
+If the link ever changes, confirm the new URL resolves *before* committing it.
+This one was checked against the live site first, after two earlier rounds where
+it could not be: `<a href="#donate-url-tbd">` shipped as a link that went
+nowhere (`453721e`), and the handle did not exist yet at the time of the commit
+that chose the platform.
 
 Three rules that do not bend:
 
@@ -59,11 +48,11 @@ Three rules that do not bend:
 - **No nagging.** [PLAN.md](../PLAN.md): a donation route the user has to go
   looking for is the intended outcome, not a failure of the design.
 
-`.github/FUNDING.yml` does not exist yet, deliberately. One line — `ko_fi: HANDLE`
-— puts a Sponsor button on the repo page: a second, free surface, and not part of
-this page. Add it at step 3 above, **once the handle really exists**. A
-`FUNDING.yml` pointing at an unclaimed handle renders a button that 404s, which
-is the same dead-link failure as `#donate-url-tbd`, relocated to the repo page.
+`.github/FUNDING.yml` carries the same handle and puts a Sponsor button on the
+repo page — a second, free surface, and not part of this page. It was added only
+after `ko-fi.com/TideRack` was confirmed to resolve: a `FUNDING.yml` naming an
+unclaimed handle renders a button that 404s, the same dead-link failure as
+`#donate-url-tbd`, relocated to the repo page.
 
 The in-plugin side is **not** this — that is BACKLOG **D1**, design-note only.
 

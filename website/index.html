@@ -162,22 +162,19 @@
   </p>
 
   <p>
-    It runs on donations. If it turns out to be useful, there will be a link
-    below; the plugin itself will not bring it up.
+    It runs on donations. If it turns out to be useful, there is a link below;
+    the plugin itself will not bring it up.
   </p>
 
-  <!-- TODO(jeff): THE DONATION LINK. Platform decided 2026-08-08: KO-FI.
-       What is still missing is the handle -- the Ko-fi account has not been
-       created, so ko-fi.com/<handle> does not resolve yet. Until it does this
-       stays plain text with nothing to click, and that is deliberate: it was
-       once <a href="#donate-url-tbd">, which rendered as a real link that went
-       nowhere and read as a broken page (453721e). Do not ship a stand-in href
-       again, and do not guess the handle -- claim it first, then paste it.
+  <!-- THE DONATION LINK -- live since 2026-08-08. This was the last TODO(jeff)
+       on the page. Platform is Ko-fi; the handle is TideRack, verified to
+       resolve before the link shipped.
 
-       GOING LIVE IS TWO EDITS, BOTH IN THIS BLOCK, NOTHING ELSE ON THE PAGE:
-         1. Just above: "there will be a link below" -> "there is a link below".
-         2. Just below: delete the "Not up yet" paragraph and uncomment the one
-            after it, replacing HANDLE with the Ko-fi handle.
+       If it ever needs changing, the rules below still hold. In particular the
+       history: this was once <a href="#donate-url-tbd">, which rendered as a
+       real link that went nowhere and read as a broken page (453721e), and
+       then plain text while the account did not yet exist. Never ship an href
+       to a handle you have not confirmed resolves.
 
        A plain <a href>, always. NEVER an embedded donate widget, a hosted
        button script, or a button image -- those load third-party script and
@@ -204,12 +201,9 @@
        surfaces, without GitHub Sponsors enrolment. Liberapay is recurring-
        first, which is the wrong shape for a no-nag ask. PayPal is the fallback
        if a new account is unwelcome. -->
-  <p>Not up yet.</p>
-
-  <!-- Go-live line. Uncomment it, replace HANDLE, delete the paragraph above.
-       Naming Ko-fi in the link text is deliberate: the reader should know
-       where a link is about to take them before they click it.
-       <p><a href="https://ko-fi.com/HANDLE">Donate to TIDE on Ko-fi</a>.</p> -->
+  <!-- Naming Ko-fi in the link text is deliberate: the reader should know where
+       a link is about to take them before they click it. -->
+  <p><a href="https://ko-fi.com/TideRack">Donate to TIDE on Ko-fi</a>.</p>
 
   <h2>Planned formats</h2>
 

@@ -1,0 +1,9 @@
+# Puts a Sponsor button on the repo page. A second, free surface alongside the
+# link on tidesynth.com -- and, like that one, a route the user has to go
+# looking for rather than one that interrupts them (PLAN.md, "Price and
+# funding").
+#
+# Added only once ko-fi.com/TideRack was confirmed to resolve: a FUNDING.yml
+# naming an unclaimed handle renders a button that 404s, which is the same
+# dead-link failure the website spent three commits avoiding.
+ko_fi: TideRack
