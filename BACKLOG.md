@@ -34,7 +34,7 @@ building before the next starts. See [docs/carve-out.md](docs/carve-out.md).
 
 | ID | Status | Plat | Item |
 |---|---|---|---|
-| C2 | TODO | win | Move leaf files (`FuzzyMatch.h`, `checkpoint`, `cpu_accumulator`, `FrameRateLogger`, `imbedded_file`, `it_*`) to `SynthEditLib`; repoint `EditorLib/CMakeLists.txt`. |
+| C2 | DOING | win | Move leaf files (`FuzzyMatch.h`, `checkpoint`, `cpu_accumulator`, `FrameRateLogger`, `imbedded_file`, `it_*`) to `SynthEditLib`; repoint `EditorLib/CMakeLists.txt`. |
 | C3 | TODO | win | Move the document model (`DocOb`, `CContainer`, `CUG`, `Plug*`, `SynthEditDocBase`, `SynthEditDoc2`). Largest and riskiest stage — split it if it resists. `CContainer.h`'s `friend ExportAsPlugin` declaration moves unchanged. |
 | C4 | TODO | win | Move views and browsers (`ModuleBrowser`, `PropertiesBrowser`, `MfcDocPresenter`, `ModuleFactory_Editor`, `SkinMgr`, `ThemeManager`). |
 | C5 | TODO | win | Move the app base (`SynthEditAppBase`, `ApplySynthEditConfig`, `SynthRuntime_editor`, `UIoManager`, `IO_base`, `IO_None`). |
