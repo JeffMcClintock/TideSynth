@@ -163,13 +163,16 @@ carve-out adds the editor layer.
 Each stage should build and pass tests before the next begins. Stage *n* below is
 BACKLOG item **C*n***, except for the one precondition:
 
-> **Before stage 2 — BACKLOG C1b. Take the export code off `EditorLib`'s source
-> list:** `ExportAsPlugin.cpp` and `.h`, `EditorLib/CMakeLists.txt:113-114`. Do
-> it before stage 2 edits that file, and long before stage 6 moves it. Verified
-> harmless to TIDE — the symbol is absent from the built plugin, see
-> [What the direction changes](#what-the-direction-changes). SynthEdit and
-> SynthEditCL genuinely call it, so they must keep compiling it directly, the way
-> `SynthEditApp.cpp` already is. Confirm all three still build.
+> **Before stage 2 — BACKLOG C1b: DONE 2026-08-08** (`SE16` `f313fe37e`). The
+> export entries are gone from `EditorLib/CMakeLists.txt` (an explanatory
+> comment stands where they were), and each of the four calling apps compiles
+> the `.cpp` itself per the `SynthEditApp.cpp` precedent — including the
+> SynthEditMac Xcode project and `SynthEdit2.vcxproj`, which consume EditorLib
+> as a prebuilt library and so needed their own source-list entries. Verified by
+> rebuild + `dumpbin` on Windows (no `?ExportAsPlugin@@` symbol left in
+> `EditorLib.lib`); mac is edit-verified only. See the C1b row in BACKLOG for
+> the full verification record, including the stale mac VST3-SDK pin the
+> pre-landing review caught.
 
 1. **Licence first — DONE 2026-08-07.** Add a LICENSE to `SynthEditLib` *before*
    moving anything new into it. Moving code into an unlicensed public repo does

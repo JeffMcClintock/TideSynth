@@ -413,6 +413,88 @@ merge `SE16` `tide/mac/S1b-compile-out-scan`.
 
 ---
 
+## 2026-08-08 — windows — C1b (interactive session, Jeff directing)
+
+**Did:** C1b — `ExportAsPlugin.{cpp,h}` are off `EditorLib`'s source list, and
+every app that calls `ExportAsPlugin` now compiles the `.cpp` itself, per the
+`SynthEditApp.cpp` precedent. `SE16` `f313fe37e`, pushed to master. Also dropped
+`gmpi_ui`'s empty autostash (re-verified 0 lines under `--ignore-all-space`
+first) and filed **P8**.
+
+**How the work was shaped — recon first, adversarial review before landing,
+and both paid.** A four-agent read-only recon mapped every consumer of
+EditorLib before any edit. That map changed the plan materially from what the
+C1b row assumed:
+
+1. **"SynthEdit and SynthEditCL call it" was an undercount — it is four apps,
+   on three different build systems.** `SynthEdit2.vcxproj` and the
+   `SynthEditMac` Xcode project consume EditorLib as a *prebuilt* `.lib`/`.a`,
+   so EditorLib's PUBLIC CMake includes/defines do not reach them; each needed
+   its own source-list entry (a ClCompile block; a four-coordinate pbxproj
+   addition cloning the `SynthEditApp.cpp` quartet — fileRef `D5CA0203…A2`,
+   buildFile `D5CA0204…A3`). `SynthEditJuce` also calls it but is **orphaned**
+   — no `add_subdirectory` reaches it, superseded by Wayland — entry added
+   anyway so it is honest if revived.
+2. **Non-callers proved clean:** TIDE, EditorScreenshot, SynthEditWayland and
+   the tests reference only the two declarations in `CContainer.h`. Exactly one
+   compiled copy of the TU existed in the whole tree, so per-consumer
+   compilation cannot create duplicates — provided the `.cpp` only ever goes in
+   executables, which the new EditorLib comment states.
+
+**The review refuted the change as first written, and the catch was real.**
+Three adversarial lenses ran against the diff before commit. Two independently
+found the same break: **both mac xcconfigs pinned `VST3_SDK` to the January
+3.7.14 CPM hash (`452951e4…`), stale since the 2026-08-06 bump to 3.8.0 — and
+inert precisely because no Xcode TU included a VST3 header. `ExportAsPlugin.cpp`
+is the first that does** (`funknown.h:21`), so landing C1b without the bump
+breaks any mac whose CPM cache lacks the January entry, and silently compiles
+the export TU against 3.7.14 headers on macs that have it. Both xcconfigs
+bumped to `2df5ae7c…` in the same commit, with a tracking comment. The same gap
+hit Windows first at build time — the vcxproj had no VST3 include path — fixed
+with the same hash, mac-xcconfig style.
+
+**Learned:**
+
+1. **"Who consumes this library" has three answers in SE16, not one.** CMake
+   targets (propagation works), MSBuild-by-hand (`SynthEdit2.vcxproj`), and
+   Xcode-by-hand (SynthEditMac). Anything the carve-out removes from EditorLib
+   must be re-plumbed *three ways*. C2–C5 move ~120 files; most are not
+   compiled by the hand-maintained projects, but every stage should grep both
+   hand-maintained projects before assuming CMake is the whole story.
+2. **A dependency path can be stale-but-inert until your change makes it
+   load-bearing.** The mac `VST3_SDK` pin sat wrong for two days harming
+   nothing. The lesson generalises past this repo: when adding a TU to a
+   target, check not just that its includes resolve somewhere, but that the
+   *specific paths that target uses* are current. This is also now the sixth
+   hand-maintained copy of a CPM hash in the tree (4× vcxproj, 2× xcconfig) —
+   they all rot on the next SDK bump; a configure-generated property sheet
+   would kill the class. Noted, not filed — Jeff's call whether it is worth it.
+3. **P8, found in passing and A/B-confirmed pre-existing:** the WinUI3 app does
+   not compile from clean — `EditorWindowHelper.cpp(294)` vs
+   `renderContainerThumbnail`'s new signature. Identical failure with the C1b
+   change reverted. Consequence for C1b's honesty: **SynthEdit2's link stage is
+   unverified** (its `ExportAsPlugin.obj` compiles; the app cannot reach link).
+   The mac side is edit-verified only.
+4. **The claim-first discipline held even interactively:** C1b was marked DOING
+   and pushed before recon started, so a cron-fired weekly run could not take
+   it mid-session.
+
+**Verification record (Windows):** EditorLib, SynthEditCL, TIDE, TIDE_VST3 all
+exit 0, zero warnings. `dumpbin`: no `?ExportAsPlugin@@` in `EditorLib.lib`,
+control (SkinMgr, 224 symbols) positive. SynthEditCL carries its own
+`ExportAsPlugin.obj` (2,319,264 B) and links. TIDE_VST3 still export-free
+(`cdb x`, control positive). `SynthEdit2/x64/Debug/ExportAsPlugin.obj` produced
+by the vcxproj entry.
+
+**Next:** **C2** (leaf files) is unblocked and is the next `win` item. The mac
+box should build SynthEdit before trusting the pbxproj/xcconfig edits — that
+verification rides on whatever its next run is.
+
+**Branch/PR:** straight to `SE16` master (`f313fe37e`) and TideSynth main at
+Jeff's direction, per the interactive-session convention.
+
+---
+
 ## 2026-08-08 — jeff — decisions: queue order, artifact naming, X4 closed (interactive session, not a scheduled run)
 
 **Did:** Three rulings and the website copy, all straight to `main`.
