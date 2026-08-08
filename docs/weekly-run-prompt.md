@@ -108,14 +108,45 @@ The next run knows only what you write down.
     not work. "Investigated the view code" helps nobody.
   - Update BACKLOG.md: mark the item DONE (move it to the Done section with
     today's date) or back to TODO with a note on what stopped you.
-  - Commit both, push the branch, open a PR. The repo's default branch is
-    `main` — a fresh clone may leave you on `master`, and
-    `gh pr create --base master` then fails with a misleading
-    "No commits between…" rather than "no such branch".
+  - Commit both, push the branch, open a PR — in EVERY repo you committed in,
+    not just this one. TideSynth's default branch is `main`; a fresh clone may
+    leave you on `master`, and `gh pr create --base master` then fails with a
+    misleading "No commits between…" rather than "no such branch".
 
-STEP 5 — Stop.
+STEP 5 — Stop, and leave the machine clean.
 Do NOT merge the PR. Do NOT push to main. Do NOT create public repositories.
 Do NOT deploy the website.
+
+Before you finish, every repo you committed in must be in one of exactly two
+states. There is no acceptable third state:
+
+  1. your work is on that repo's default branch, or
+  2. your work is on a pushed branch with an OPEN PR against that branch.
+
+**A pushed branch with no PR is the failure this rule exists to stop.** It looks
+finished from inside the run and is invisible from outside — nobody is asked to
+review it, and no later run has any reason to look. On 2026-08-08 the C2 run
+pushed branches in `SE16` and `SynthEditLib`, opened a PR in neither, and marked
+the item DONE. The backlog then said the work had landed while the code sat
+unreviewed in two repos.
+
+So raise a PR in every repo you committed in. When a change spans repos,
+cross-link them in the bodies and say plainly that merging one without the
+others breaks the build, because it does.
+
+Then put every working copy back on its default branch:
+
+    git -C <repo> checkout <default>
+
+**The default branch is not the same everywhere.** `SE16` is `master`;
+TideSynth, `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` are `main`. Check with
+`git symbolic-ref --short refs/remotes/origin/HEAD` rather than assuming.
+
+Leaving a checkout parked on your branch strands the developer's machine in your
+half-finished state: whoever opens that tree next builds something they did not
+choose, and the next scheduled run on this box starts from it. Do not leave
+uncommitted changes behind either — commit them, or revert them if they are
+line-ending churn (see below). Do not leave them for someone else to work out.
 
 What you may edit outside this repo:
 
@@ -166,9 +197,10 @@ Whatever you touch, leave SynthEdit, SynthEditCL and TIDE all building. If you
 cannot verify that on your platform, say so in the journal rather than
 assuming.
 
-If you are running low on context, stop early — but always complete STEP 4
-first. An unfinished item with a good journal entry is recoverable. A finished
-item with no journal entry is not.
+If you are running low on context, stop early — but always complete STEP 4 and
+STEP 5's cleanup first. An unfinished item with a good journal entry and an open
+PR is recoverable. A finished item with no journal entry is not, and neither is
+a branch left parked on the developer's machine.
 ```
 
 ---
@@ -202,6 +234,16 @@ item with no journal entry is not.
   runs late. A pushed DOING mark is the only thing that makes a claim visible
   across machines that cannot talk to each other, and checking remote branches
   costs one command.
+- **Two end states, never a third.** Added 2026-08-09 by Jeff, after C2 left two
+  repos parked on a pushed branch with no PR and a third saying the item was
+  DONE. The rule is not bureaucracy: a run has no memory, so anything it does
+  not either land or *ask* to land is simply lost track of. Both acceptable end
+  states are visible from outside the machine — a default branch anyone can
+  pull, or a PR sitting in someone's queue. A branch on disk is neither. The
+  return-to-default-branch half matters for a reason that is easy to miss: these
+  are not throwaway CI checkouts, they are the developer's working tree, and a
+  run that walks away from it leaves Jeff building someone else's half-finished
+  state without knowing it.
 - **STEP 5's ALLOWED/GATED split** replaced a blanket "do not modify anything in
   SE16 or SynthEditLib". The blanket version was too wide: S1a, S3, S4 and S5 all
   edit `SE16/SynthEditSem/TideApp.cpp`, so as written **no agent could ever write

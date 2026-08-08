@@ -22,6 +22,76 @@ Template:
 
 ---
 
+## 2026-08-09 — windows — two end states, never a third (interactive session with Jeff)
+
+**Did:** Closed the hole C2 left, and made it a standing rule so it does not
+recur. **Every repo a run commits in must end either on its default branch, or
+on a pushed branch with an open PR. Nothing else is acceptable, and no working
+copy is left parked on a run's branch.** Jeff's wording: don't leave half-done
+work on the developer's machine.
+
+The state that prompted it, found by audit:
+
+| Repo | Was on | Pushed | PR |
+|---|---|---|---|
+| `SE16` | `tide/win/C2-leaf-files` | yes | **none** |
+| `SynthEditLib` | `tide/win/C2-leaf-files` | yes | **none** |
+| TideSynth | `main` | yes | #24, merged |
+
+So the backlog said C2 was DONE while the code sat unreviewed on branches in two
+repos, and both working copies were parked on them. Nothing was lost — every
+branch was pushed and both trees were clean — but nobody had been asked to look
+at any of it, and the next run on this box would have started from that state.
+
+Fixed: opened the two missing PRs — `SynthEditLib`
+[#3](https://github.com/JeffMcClintock/SynthEditLib/pull/3) and `SE16`
+[#9](https://github.com/JeffMcClintock/SynthEdit/pull/9), cross-linked, both
+saying that merging one without the other breaks the build — then restored
+`SynthEditLib` to `main` and `SE16` to `master`. All five TIDE-related repos
+(TideSynth, `SE16`, `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers`) are now on their
+default branch with a clean tree.
+
+**Result:** Docs and process only. No code touched, nothing built.
+
+**Learned:**
+
+- **`SE16`'s default branch is `master`. The other four are `main`.** The prompt
+  has warned about the reverse case for weeks — `gh pr create --base master`
+  failing with a misleading "No commits between…" — but never said which repo is
+  which. It does now.
+- **The gap was in the prompt, not in the run that hit it.** STEP 4 said "push
+  the branch, open a PR" in a document whose subject is the TideSynth repo, so a
+  run that also commits in `SE16` and `SynthEditLib` reads it as satisfied. It
+  now says "in EVERY repo you committed in", and STEP 5 became "Stop, and leave
+  the machine clean" with the two end states spelled out. STEP 5 keeps its
+  number so the ALLOWED/GATED references in BACKLOG and agent-setup still
+  resolve.
+- **Windows was stale on G3 and the table said it was current.**
+  `docs/agent-setup.md`'s state table claimed Windows was up to date since
+  2026-08-06; G3 landed 2026-08-07 and added `gmpi_ui` and `GMPI_Wrappers` to
+  ALLOWED, and the installed task never got it. The table is maintained by hand
+  by whoever changes the prompt, and that is never the machine the staleness
+  affects. Reinstalled the Windows task from the master; it now ends with its
+  install date and a line saying a run cannot detect its own staleness.
+- **The task is named `tide-synth-weekly-windows`, with a hyphen.**
+  agent-setup.md said `tidesynth-weekly-windows`. Following that would have
+  created a *second* task and left the original firing.
+
+**Next:** **G4** and **G5** are filed at the top of "Ready now" — macOS and Linux
+must each reinstall their own task before taking any other item. Both boxes are
+missing G3 and this rule; Linux additionally still has the pre-PR-#4 blanket ban
+that stops it writing TIDE code at all. Neither can detect this from inside a
+run, which is why it is a backlog row rather than a note in the prompt they
+cannot see. The reinstall takes effect the *following* week, so those runs should
+do that one item and stop.
+
+Also open, and not an agent's call: `SynthEditLib` #3 and `SE16` #9 are waiting
+on Jeff. They must merge together.
+
+**Branch/PR:** none — committed to main from the interactive session.
+
+---
+
 ## 2026-08-09 — windows — Eurorack ruling (interactive session with Jeff, not a scheduled run)
 
 **Did:** Recorded a product ruling and retired a repo. **The Eurorack rack is a
