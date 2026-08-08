@@ -87,12 +87,32 @@ each box, `gh release upload`) is in the doc.
 
 | ID | Status | Plat | Item |
 |---|---|---|---|
-| R1 | NEEDS-JEFF | — | **Signing identities and accounts.** (a) May TIDE sign under the existing Azure Trusted Signing account (`SynthEditTrustedSigning`, profile `SynthEditCertificateProfile`, `SE16/SynthEdit_store_win.yml:205-207`)? The cert subject is the publisher name users see — decide if TIDE ships under it or gets its own profile. (b) Confirm the Apple Developer ID in `SynthEdit_cmake_mac.yml` may sign TIDE, and that notarization credentials can be issued for CI. (c) App Store listing for the iOS AUv3 (needed by M2, not v0.1). (d) When C7 lands, re-create these as GitHub Actions secrets in the public repo. |
+| R1 | NEEDS-JEFF | — | **Signing identities and accounts.** **Mostly answered 2026-08-08 by Jeff — (b) and (d) are done, (a) is answered-by-default and wants a deliberate yes, (c) is untouched.** (a) May TIDE sign under the existing Azure Trusted Signing account (`SynthEditTrustedSigning`, profile `SynthEditCertificateProfile`, `SE16/SynthEdit_store_win.yml:199-210`)? **Still open, but currently answered by default: the credentials as configured ship TIDE under the SynthEdit identity on both platforms** — see the branding note below. A second Azure certificate profile is cheap if the answer changes. (b) **Confirmed** — Apple Developer ID is `Developer ID Application: SynthEdit Limited (36SNPLRFK3)`, and notarization runs on the app-specific-password route (`APPLE_ID` / `APPLE_ID_PASSWORD` / `APPLE_TEAM_ID`), matching `SynthEdit_cmake_mac.yml:223-244` so the recipe ports without rewriting `notarytool`. An App Store Connect API key would be scoped and revocable where the app-specific password is tied to Jeff's Apple ID and grants far more than notarization — worth switching before anything consumes it, not urgent while nothing does. (c) App Store listing for the iOS AUv3 (needed by M2, not v0.1) — **not started.** (d) **Done early, ahead of C7** — 8 Actions secrets and 4 variables now exist on the public repo: secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_ID`, `APPLE_ID_PASSWORD`, `APPLE_TEAM_ID`; variables `AZURE_CODESIGN_ENDPOINT`, `AZURE_CODESIGN_ACCOUNT`, `AZURE_CODESIGN_PROFILE`, `APPLE_SIGNING_IDENTITY`. The non-secret half is deliberately in *variables* — those values are on every binary TIDE ships, and hiding them only makes failures harder to read. Nothing consumes any of them yet. **Two follow-ups, filed as R7.** |
+| R7 | TODO | any | **Harden the signing credentials now that they exist (follow-up to R1(d)).** Two things, neither urgent while no workflow consumes them. **(1) The exposure is same-repo branches, not fork PRs.** GitHub withholds secrets from fork-triggered `pull_request` runs, so `build.yml`'s bare `pull_request:` trigger is safe. But it also runs on `push: branches: ["main", "tide/**"]`, and same-repo runs get full secret access — and pushing `tide/**` branches is exactly what the weekly agents do. So today a workflow edit on any agent branch would execute with read access to all 8 credentials, ungated. Fix: create a `release` environment with Jeff as a required reviewer, move the secrets into it (`gh secret set <NAME> --env release`), delete the repo-level copies. Only a job declaring `environment: release` can then reach them, and it pauses for approval. **(2) Drop the two long-lived credentials.** `AZURE_CLIENT_SECRET` → OIDC federated credentials scoped to `repo:JeffMcClintock/TideSynth:ref:refs/tags/*`, which removes the stored secret entirely *and* means even an approved non-tag run cannot sign; `azure/trusted-signing-action@v0` takes the same inputs as the `ArtifactSigning@1` task either way. `APPLE_ID_PASSWORD` → App Store Connect API key (`.p8` base64 + key id + issuer id). Do this before **R5** wires anything up, or R5 will have to be rewritten. |
 | R2 | BLOCKED | win | **Windows installer.** Inno Setup, modelled on `SE16/SynthEdit2/installer/SynthEdit2.iss`. Installs `TIDE_VST3.vst3` to `Common Files\VST3`; sign the .vst3 and the installer via Azure Trusted Signing. Also produce `TIDE-Windows.zip` for users who refuse installers. Constant asset names — the version lives in the tag and the version resource, per the doc. |
 | R3 | BLOCKED | mac | **macOS pkg.** AU → `Components`, VST3 → `VST3`; Developer ID sign, **notarize and staple** — model on `SE16/SynthEdit_cmake_mac.yml`. AUv3 is deliberately absent: it ships in the container app with M2. |
 | R4 | BLOCKED | linux | **Linux tarball.** `TIDE-Linux.tar.gz` with the VST3 and CLAP bundles and a short `install.sh` targeting `~/.vst3` / `~/.clap`. No signing. |
 | R5 | BLOCKED | any | **Release workflow.** Tag `v*` → build + sign every platform → one GitHub Release with constant-name assets + `SHA256SUMS.txt`. Runs on tag push only, never on PRs, so fork PRs never see signing secrets. Needs C7 for public CI builds; until then the same release page is fed by `gh release upload` from the platform boxes. |
 | R6 | BLOCKED | any | **Website Downloads section.** Replace the "nothing to download yet" card with static `releases/latest/download/<asset>` permalinks — no JS, no version maintenance, keeps the "no cookies, no scripts, no tracking" footer honest. iOS is a plain text App Store link (Apple's badge image would be the page's first external resource — do not use it). |
+**The publisher name TIDE ships under is SynthEdit Limited, and that was
+inherited rather than chosen — R1(a).** `APPLE_SIGNING_IDENTITY` is
+`Developer ID Application: SynthEdit Limited (36SNPLRFK3)`, and
+`SynthEditCertificateProfile` almost certainly carries the same subject on
+Windows. So a user installing TIDE sees *SynthEdit Limited* in the macOS
+Gatekeeper prompt and the Windows UAC dialog.
+
+That may be the right answer — a real company behind a free plugin reads as more
+trustworthy than an unknown name, and a second Azure certificate profile costs
+admin effort. But it sits against a decision already made in the other
+direction: PR #14 stripped every SynthEdit mention from the website so TIDE
+stands on its own. The installer reintroduces the name at the one moment the
+user is deciding whether to trust the download. Worth a deliberate yes.
+
+Changing it is cheap while nothing consumes the credentials: one variable on the
+Apple side, one variable plus a new profile in the Azure portal on the Windows
+side. It stops being cheap once **R5** exists and **R2**/**R3** have shipped an
+installer under one name.
+
 
 ---
 
