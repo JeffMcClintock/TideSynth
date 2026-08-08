@@ -2,12 +2,16 @@
 
 BACKLOG **P4**. Root cause found, from the minidumps P2 left behind.
 
-**Update, same day:** Jeff lifted the scope block (G3), so the fixes were
-written and landed — see [The fixes](#the-fixes). **They are not verified against
-the original failure**: the crash could not be reproduced in a fresh harness,
-even with both fixes disabled. Read
-[What could not be reproduced](#what-could-not-be-reproduced) before trusting
-this as closed.
+**Update, 2026-08-07:** Jeff lifted the scope block (G3), so the fixes were
+written and landed — see [The fixes](#the-fixes).
+
+**Update, 2026-08-08 (P4c): verified.** The crash is reproduced on demand and the
+fixes are proven to stop it — not by driving a DAW, but by applying the input the
+dump recorded straight to `IPlugView::onSize`. Crashes 3/3 with the fixes
+reverted, survives 3/3 with them in. See
+[Verification](#verification-p4c) — it supersedes
+[What could not be reproduced](#what-could-not-be-reproduced), which is kept
+because its dead end is worth not repeating.
 
 Everything in "The chain" was read out of the crash dump or the source. The one
 inference is marked so.
@@ -216,6 +220,8 @@ by whoever owns those platforms.
 which is what the VST3 contract asks for, instead of returning `kResultFalse`
 with the rect untouched.
 
+**Verified 2026-08-08** — see [Verification](#verification-p4c).
+
 **Not changed, deliberately:** `OnSize` has the same over-limit weakness as
 `reSize` did — an out-of-range `WM_SIZE` arriving by some other route would still
 fail `ResizeBuffers` and be misread as device loss, tearing down a working
@@ -255,6 +261,107 @@ So the fixes rest on the crash dump rather than on a before/after. That evidence
 is strong — the stack proves the null dereference happened at that line, and the
 re-entrancy is plain in the source — but it is not the same thing as watching the
 crash stop.
+
+> **Resolved by P4c, 2026-08-08 — and none of those guesses was the answer.**
+> Chasing REAPER's state was the wrong problem. The dump already recorded the
+> input; what was missing was a way to *apply* it. See below.
+
+## Verification (P4c)
+
+**The crash reproduces on demand, and the fixes stop it.**
+
+The mistake in the paragraph above was treating the DAW as the experiment. It is
+not — it is just a thing that once passed a bad rect. The dump already told us
+exactly which rect, so the experiment is to pass that rect ourselves.
+
+`GMPI_Wrappers/tests/win_editor_resize_host.cpp` is a ~330-line Win32 VST3 host:
+load the plugin, create the editor, attach it to a real `HWND`, call
+`IPlugView::onSize({0, 0, 2178, 32672})`. No REAPER, no config, no window state
+to reproduce. Build it with `-DGMPI_WRAPPERS_BUILD_TESTS=ON`.
+
+### The A/B, three runs of each
+
+| `reSize` fix (P4a) | `checkSizeConstraint` fix (P4b) | `onSize(0,0,2178,32672)` |
+|---|---|---|
+| off | off | **`0xC0000005`, 3/3** |
+| **on** | off | survived, 3/3 |
+| **on** | **on** | survived, 3/3 |
+
+P2 saw the original crash 3 out of 3 times. This reproduces it 3 out of 3 times.
+
+**It is the same crash.** Frames 0 and 1 are identical to the minidump — only the
+host frame differs, REAPER there and the harness here:
+
+```
+TIDE_VST3_prefix!gmpi::hosting::DrawingFrame::reSize+0x7c
+00007ffe`4f7658ac 488b01          mov  rax,qword ptr [rcx]  ds:00000000`00000000
+00007ffe`4f7658af ff9050020000    call qword ptr [rax+250h]
+TIDE_VST3_prefix!wrapper::SEVSTGUIEditorWin::onSize+0x1e
+win_editor_resize_host!main
+```
+
+`ExceptionCode: c0000005`, `Parameter[0]: 0` (read), `Parameter[1]: 0` (address).
+A vtable load off a null COM pointer followed immediately by a virtual call —
+`d2dDeviceContext->SetTarget(nullptr)`, the first use after `SetWindowPos`, which
+is the "use" half of the time-of-check/time-of-use bug. The next instruction
+loads the following member, `swapChain`, which is the second latent deref P4a
+also closed.
+
+*(This symbolised straight out of a **Release** build, using the PDB P4 added to
+`SE16/SynthEditSem/CMakeLists.txt`. That change paid for itself here.)*
+
+### The trap this test had to avoid
+
+**A survival result is worthless unless the crash path was reachable.** The
+editor's Direct2D device is created lazily on first paint; with no device the
+unfixed `reSize` returns at its own first test, which looks exactly like the fix
+working. Any harness that does not rule this out reports a false pass.
+
+So the test performs a *benign* resize first and checks the window adopted it. A
+resize that took effect proves `reSize` got past `if (d2dDeviceContext && ...)`
+and reached `SetWindowPos` — the device is live and the crash path is genuinely
+reachable. If it did not, the test exits **3, INCONCLUSIVE**, not 0.
+
+This is not hypothetical: the first version of the harness measured the wrong
+window and reported `editor live: NO`. Which brings us to —
+
+### P2's `MoveWindow` lead was a red herring, and here is why
+
+P2 recorded that `MoveWindow` "did not resize" the plugin window, and P4 built on
+that, reasoning the window must have been in some unusual state. It was not.
+
+**`attached()` creates a child window inside the HWND the host hands over, and
+`DrawingFrame::reSize` calls `SetWindowPos` on that child.** The parent's client
+rect never moves. P2 measured the parent. So did the first draft of this harness,
+which is how the mistake was caught — the liveness probe failed on a build that
+was demonstrably working.
+
+Measure `GetWindow(hwnd, GW_CHILD)`. Nothing was ever in a strange state, and
+there is no mystery DAW condition left to hunt.
+
+### What is verified, and what is not
+
+- **P4a is verified.** Reverting it alone brings the crash back, 3/3. It is the
+  fix that stops the process dying.
+- **P4b is verified as a contract fix, not as a crash fix**, because the crash
+  path bypasses it — a host that ignores `checkSizeConstraint` (as the crashing
+  one did) never calls it. Probed directly, the difference is plain:
+
+  | | `checkSizeConstraint(0,0,2178,32672)` |
+  |---|---|
+  | before | `kResultFalse`, rect left at 2178 × 32672 — the host learns nothing |
+  | after | `kResultTrue`, rect rewritten to 2178 × 600 — a size it can use |
+
+  So P4b stops a polite host from ever reaching the crash input; P4a stops an
+  impolite one from killing the process. Both were needed, as P4 argued.
+- **Legitimate resizing still works** — the benign probe resizes the editor in
+  every run, so the 16384 clamp did not turn resize into a no-op.
+- Degenerate and over-limit rects (`0 × 0`, `1 × 1`, `16385 × 600`,
+  `2178 × 16385`) are all refused without a crash.
+- **Not covered:** the X11 and macOS resize paths (`DrawingFrameX11.cpp:920`,
+  `DrawingFrameMac.mm:434`), which were never audited for the same pattern. The
+  harness is Windows-only; `x11_editor_host` in the same directory is the obvious
+  place to add the equivalent probe.
 
 ## Where the fix had to go
 
