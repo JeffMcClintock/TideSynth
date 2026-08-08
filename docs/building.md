@@ -16,8 +16,12 @@ and build two targets out of it. That changes at carve-out stage C7.
 | Windows SDK | 10.0.26100.0 | |
 | Git | any | FetchContent/CPM clone several SDKs. |
 
-Dependencies are fetched automatically unless you point CMake at local clones.
-On this machine they are all local:
+## The four overrides are the normal path, not an optimisation
+
+**Always pass all four.** These are not third-party libraries that occasionally
+need a version bump — they implement a large part of the application's own
+functionality and change daily, so the intended workflow is to build against
+working copies you can edit, push and pull as you go. On this machine they are:
 
 | Variable | Local path |
 |---|---|
@@ -26,10 +30,39 @@ On this machine they are all local:
 | `GMPI_UI_FOLDER_OVERRIDE` | `C:/SE/gmpi_ui` |
 | `GMPI_WRAPPER_FOLDER_OVERRIDE` | `C:/SE/GMPI_Wrappers` |
 
-Still fetched from the network even with all four set: the VST3 SDK
-(v3.7.14_build_55, via CPM into `%USERPROFILE%\.cpm`), HarfBuzz 14.2.1 (CPM),
-CLAP and clap-helpers (FetchContent, into the build tree). A first configure in
-a fresh build directory therefore needs internet and takes about a minute.
+**Omit one and it fails silently and permanently.** That dependency falls back to
+`FetchContent` with `GIT_TAG origin/main`, which is a remote-tracking ref that
+already resolves inside the cached clone — so CMake's update step sees "up to
+date" and **never fetches again**. The checkout freezes at whatever `main` looked
+like the first time you configured that tree, for the life of the tree.
+
+That is not hypothetical: it is exactly how **X3** happened. `gmpi_ui` was
+overridden and `GMPI_Wrappers` was not, so one sibling came from disk and the
+other from a months-old clone, and the Linux box built and shipped a VST3 that no
+host could load. Whether to pin the tags was considered and declined — see
+BACKLOG **X4** — precisely because the override *is* the answer.
+
+**Read the configure banner. It tells you which path every dependency took:**
+
+```
+-- Using local SynthEditLib folder
+-- Using local GMPI folder
+-- Using local GMPI-UI folder
+-- Using local GMPI WRAPPERS folder
+-- Fetching CLAP SDK from github
+```
+
+An unexpected `Fetching` on any of those four means you forgot a `-D` and are
+building against stale code. If a build behaves impossibly and your source looks
+right, confirm with `git log -1` in `build/_deps/<dep>-src` before trusting the
+tree.
+
+Genuinely fetched every time, and fine to leave alone: the VST3 SDK (via CPM
+into `%USERPROFILE%\.cpm`), HarfBuzz (CPM), AudioUnitSDK, CLAP and clap-helpers
+(FetchContent, into the build tree). These are stable third-party SDKs with no
+override option, which is why a frozen checkout of them is harmless. A first
+configure in a fresh build directory therefore needs internet and takes about a
+minute.
 
 ## The MFC trap — read this before you file a build bug
 

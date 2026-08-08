@@ -452,13 +452,43 @@ six shared dependencies is a bigger change than the problem. Added `WONTFIX` to
 the file's status legend, since this is the first one and a bare "closed" row
 invites re-filing.
 
-**Kept on the record rather than argued:** X3's actual failure was on a
-*developer box*, not CI — the Linux machine shipped a VST3 no host could load
-because its cached `_deps` was frozen at a pre-fix sha. So the residual risk is
-exactly the three weekly-run machines, which are the ones CI does not protect.
-The mitigation is diagnostic rather than structural, and it is written into the
-X4 row: **when a build behaves impossibly and the source looks right, run
-`git log -1` in `build/_deps/<dep>-src` before believing the tree.**
+**I had this wrong, and the correction is worth more than the original
+finding.** I argued the residual risk was the developer boxes, since X3's
+failure happened on one. Jeff's reasoning, added the same day: **`FetchContent`
+is not how these dependencies are meant to be developed against at all.** The
+SynthEdit-family repos are not third-party libraries needing occasional version
+bumps — they implement a large part of the application's own functionality and
+change daily, so the intended local workflow is to bypass `FetchContent`
+entirely and point CMake at working copies you can edit, push and pull as you
+go. The `*_FOLDER_OVERRIDE` variables are **the normal path on a dev box, not an
+optimisation**.
+
+Checking that against `SE16/CMakeLists.txt` makes it airtight — the
+dependencies split exactly along that line:
+
+| | Override? | Changes |
+|---|---|---|
+| `SynthEditLib`, `GMPI`, `gmpi_ui`, `GMPI_Wrappers` | **yes** | daily |
+| `AudioUnitSDK` (`:184`), `clap` (`:200`), `clap-helpers` | **no** | rarely |
+
+Everything that changes often has an escape hatch; everything without one is a
+stable third-party SDK where a frozen checkout is harmless. So there is no gap
+worth pinning six shared dependencies to close.
+
+**Which means X3 was not a freeze bug — it was a missing override.**
+`SynthEditSem/CMakeLists.txt` had `GMPI_UI_FOLDER_OVERRIDE` pointed at the local
+repo while `GMPI_WRAPPER_FOLDER_OVERRIDE` was blank, so one sibling came from
+disk and the other from a stale clone. The asymmetry was the defect; the freeze
+just made it permanent.
+
+**And the detection already exists — nobody was reading it.** Every one of these
+prints `Using local <X> folder` or `Fetching <X> from github` at configure time.
+An unexpected `Fetching` on a SynthEdit-family repo means a `-D` was forgotten
+and the build is against stale code. Written into
+[docs/building.md](docs/building.md), which is where someone actually configures
+a tree, rather than left in a closed backlog row nobody will read. Fallback if
+it still looks impossible: `git log -1` in `build/_deps/<dep>-src` before
+believing your own source tree.
 
 **4. Website copy carries the rename.** Leads with TIDE Rack, states the
 relationship once and early — *"TIDE Rack is the first plugin from TIDE Synth —
