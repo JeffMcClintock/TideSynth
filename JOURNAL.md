@@ -22,6 +22,73 @@ Template:
 
 ---
 
+## 2026-08-09 — windows — A1 done, A2 mostly done (interactive session with Jeff)
+
+**Did:** Jeff executed **A1** (the 8 signing secrets moved into a `release`
+environment with required review) and revoked the leaked `cowork-linux-build-test`
+PAT. Then most of **A2**: bot account `tide-rack-bot` created, accepted as
+collaborator on all five repos, token minted, and "Agent PRs only" rulesets
+created on the four public repos.
+
+**Result — rulesets, verified via API rather than by reading the UI back:**
+
+```
+TideSynth      [public]  Agent PRs only (active)
+SynthEditLib   [public]  Agent PRs only (active)
+gmpi_ui        [public]  Agent PRs only (active)
+GMPI_Wrappers  [public]  Agent PRs only (active)
+SynthEdit      [private] 403 — "Upgrade to GitHub Pro..."
+
+rules:  deletion, non_fast_forward, pull_request(0 approvals)
+target: ~DEFAULT_BRANCH        bypass: RepositoryRole:5 always
+```
+
+The first ruleset was built through the UI, then read back through the API to
+capture its exact shape; the remaining three were POSTed from that captured
+payload. Worth repeating as a technique — it removes the guesswork about
+`actor_id` and rule parameter names without having to trust a click.
+
+**Learned — two GitHub platform limits that A2 as written did not know about,
+both permanent:**
+
+- **A fine-grained PAT cannot serve a collaborator on repos they do not own.**
+  The form only offers "Public repositories" (read-only) and "All repositories"
+  (the bot's own, of which there are none); there is no third option, and
+  accepting the invitations does not produce one. GitHub documents this
+  explicitly. **A classic `repo`-scope token is the only thing that works.**
+  Its scoping is a property of the bot's collaborator list, not the token, so
+  adding the bot anywhere else silently widens it.
+- **`workflow` scope was withheld on purpose**, which puts the run prompt's
+  no-workflow-edits rule into the credential layer instead of into prose. The
+  price is immediate: **A3 and A5 both edit `.github/workflows/`**, and A3 is
+  the current NEXT `any` item, so the very next `any` run hits this.
+- **Private repos cannot have rulesets without GitHub Pro.** So `SynthEdit` —
+  the commercial repo the entire ALLOWED/GATED boundary exists to protect — is
+  the one repo where "agents never push to the default branch" remains prose.
+  That is the exact inversion of where protection is most wanted.
+- **`~DEFAULT_BRANCH` is the right targeting primitive**, not a literal branch
+  name: one identical payload covers SE16's `master` and everyone else's `main`,
+  and it stays correct if a default branch is ever renamed.
+- **Required approvals is 0 by choice.** Self-approval is forbidden, so
+  requiring 1 would make Jeff's own PRs unmergeable except by bypass — ceremony,
+  not safety, at solo scale. Same reasoning that killed the CODEOWNERS half of
+  this recommendation during review.
+
+**Next:** **A2 step 5 — per-box credential wiring — is the only thing left, and
+until it lands the whole item is inert.** The bot exists and the rulesets are
+live, but the scheduled runs still authenticate as Jeff, so they still bypass
+every rule via the admin exemption. Nothing has actually changed for the agents
+yet. After that, **moving the five repos under an organization** is now a
+recommendation rather than an option: it is the only clean fix for both limits
+above, and it forces no rename.
+
+**Prompt:** n/a — interactive session, not a scheduled run.
+
+**Branch/PR:** committed to main (which also served as the live test that the
+Repository-admin bypass works — this push would have been rejected otherwise).
+
+---
+
 ## 2026-08-09 — windows — process review adopted (interactive session with Jeff)
 
 **Did:** Ran a seven-agent review of the development process itself (three

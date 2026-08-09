@@ -174,24 +174,82 @@ lost, regenerate it at its source rather than hunting for it.
 5. Done. When R2/R3 release workflows are written, their signing job declares
    `environment: release` — and every run of it then waits for your click.
 
-### A2 — machine account, ~20 minutes
+### A2 — machine account
 
-1. Create a GitHub account for the bot (e.g. `tide-rack-bot`; a plus-address
-   like `mcclintock.jeff+bot@gmail.com` works for the email).
-2. From each of the five repos (TideSynth, SynthEdit, SynthEditLib, gmpi_ui,
-   GMPI_Wrappers): Settings → Collaborators → invite the bot with **Write**.
-   Accept the invitations as the bot.
-3. As the bot: Settings → Developer settings → Fine-grained personal access
-   tokens → new token scoped to exactly those five repos, permissions:
-   Contents read/write, Pull requests read/write, Issues read/write. 90-day
-   expiry. Store it in your password manager — it goes to the boxes next, never
-   into a repo or a transcript.
-4. On each repo: Settings → Rules → Rulesets → new **branch ruleset** targeting
-   the default branch: require a pull request before merging, block force
-   pushes; **Bypass list: Repository admin**. You keep your direct-push
-   interactive habit; the bot does not have it.
-5. Per-box wiring (pointing the scheduled runs' `gh`/git at the bot token) is
-   an interactive session on each box — ask the agent there to do it with you.
+**Status 2026-08-09: steps 1, 2 and 4 done. Step 3 done in a corrected form.
+Step 5 outstanding.** Two of the original steps were wrong as written; both
+corrections are recorded below because each is a GitHub platform constraint
+that will not change by trying harder.
+
+1. ✅ Bot account created: **`tide-rack-bot`** ("Tide Funkster",
+   `mcclintock.jeff+bot@gmail.com`).
+2. ✅ Invited as collaborator on all five repos and accepted. Note personal
+   repos have no role picker on the invite dialog — collaborators land at Write
+   by default, which is what this wanted.
+3. ⚠️ **A fine-grained PAT cannot do this job, and no amount of configuring
+   fixes it.** Fine-grained tokens are "limited to access resources owned by a
+   single user or organization", and GitHub documents the gap explicitly:
+   *"Using fine-grained personal access token to contribute to repositories
+   where the user is an outside or repository collaborator."* The bot owns none
+   of the five repos — Jeff does — so the token form offers only "Public
+   repositories" (read-only) and "All repositories" (meaning the bot's own, of
+   which there are none). There is no third option to reveal, and accepting the
+   invitations does not produce one.
+
+   **What was created instead: a classic PAT with the `repo` scope only**,
+   90-day expiry (expires **2026-11-07**), named `tide-fleet-actor`. Classic
+   tokens are the only kind that work for a collaborator on someone else's
+   repository.
+
+   **Two consequences to hold onto.** First, `repo` is all-or-nothing across
+   every repository the bot can reach: the scoping is a property of the bot's
+   collaborator list, not of the token, so adding the bot to a sixth repo
+   silently widens it. Second, **`workflow` scope was deliberately NOT granted**,
+   which means the bot cannot modify `.github/workflows/**` — that enforces one
+   of the run prompt's no-exception rules at the credential layer rather than by
+   asking agents nicely. **A3 and A5 both edit workflow files**, so those two
+   items need Jeff to run them or a temporary scope bump; A3 is the current NEXT
+   `any` item, so this will come up immediately.
+
+4. ✅ **Branch rulesets created on the four public repos** — TideSynth,
+   SynthEditLib, gmpi_ui, GMPI_Wrappers. Each is named "Agent PRs only",
+   enforcement `active`, targeting `~DEFAULT_BRANCH` (which resolves per repo,
+   so SE16's `master` and everyone else's `main` are both handled by the same
+   config), with rules `pull_request` (0 required approvals),
+   `non_fast_forward` (block force pushes) and `deletion`, and
+   `RepositoryRole:5` (Repository admin) on the bypass list in `always` mode.
+
+   **Required approvals is deliberately 0.** The gate is "must go through a
+   PR", not "must be formally approved" — GitHub forbids self-approval, so
+   requiring 1 would make Jeff's own PRs unmergeable except by bypass, which is
+   ceremony rather than safety at solo scale. This is the same reasoning that
+   killed the CODEOWNERS half of this recommendation in review.
+
+   ⚠️ **`SynthEdit` (SE16) could not be protected: rulesets on private
+   repositories require GitHub Pro.** The API returns 403 *"Upgrade to GitHub
+   Pro or make this repository public to enable this feature."* This is the
+   sharpest gap in the whole A2 item, because SE16 is the commercial repo the
+   ALLOWED/GATED boundary exists to protect — the one place where "agents never
+   push to the default branch" most needs to be a mechanism rather than prose,
+   is the one place it currently cannot be. Options, none of them free: pay for
+   Pro; move the repos under an organization (see below); or accept that SE16's
+   protection stays prose-only and rely on the bot's separate identity plus the
+   run prompt.
+
+5. ⬜ **Outstanding — per-box wiring.** Point each machine's scheduled runs at
+   the bot's token instead of Jeff's credential, on all three boxes. **Until
+   this lands the whole item is inert**: the bot exists, is a collaborator, and
+   has a token, but the agents still authenticate as Jeff and therefore still
+   bypass every ruleset above via the admin exemption. Do it as an interactive
+   session on each machine.
+
+**The organization route is now the recommended follow-up rather than a
+theoretical alternative.** Moving the five repos under a GitHub org fixes both
+problems found here at once: fine-grained tokens work properly for org members
+(restoring true per-repo scoping, including `workflow` separation), and org
+plans include rulesets for private repos, which is the only clean way to
+protect SE16. It does not force any rename — org ownership is orthogonal to the
+settled "keep the `TideSynth` name" ruling.
 
 ### One-time toggles and cleanups
 
