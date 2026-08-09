@@ -9,6 +9,11 @@
 #
 # BACKLOG B1: get this failing for exactly that one honest reason, rather than
 # for toolchain or syntax errors.
+#
+# BACKLOG A5 (2026-08-09) fixed the issue-filing step below, which had never
+# executed once. Note what is still NOT fixed: `continue-on-error` at job level
+# means every run reports success, so "green" here still means nothing. That is
+# B1's job, and until it lands nothing should treat this workflow as a gate.
 
 name: build
 
@@ -23,6 +28,15 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     continue-on-error: true # remove once C7 lands and green is achievable
+
+    # Scoped to this job on purpose. The repo-wide default is `read`, which is
+    # why the issue step below silently 403'd for its entire existence, and the
+    # tempting one-line fix — flipping the repository default to `write` — would
+    # hand write access to every workflow in the repo. That directly undercuts
+    # BACKLOG A1, which just finished pulling credentials out of casual reach.
+    permissions:
+      contents: read
+      issues: write
     strategy:
       fail-fast: false
       matrix:
@@ -59,18 +73,72 @@ jobs:
         run: cmake --build build --config Release --parallel
 
       # A failing build on mac or linux is only useful if the machine that owns
-      # that platform finds out about it. See docs/agent-setup.md.
+      # that platform finds out about it. See docs/agent-setup.md, which calls
+      # this "the mechanism the whole arrangement exists for".
+      #
+      # It had never once executed. From the day it was written until
+      # 2026-08-09 the job's GITHUB_TOKEN was read-only, so `gh issue create`
+      # returned 403; the job-level continue-on-error swallowed that, the run
+      # reported success, and zero issues were ever filed — while every weekly
+      # run's STEP 1 dutifully polled a feed that could not fill. Verified
+      # before fixing: `gh issue list --state all` was empty and the workflow
+      # permission was `read`. Assert on the signal, not the exit code.
       - name: File a platform issue on failure
         if: failure() && matrix.platform != 'win' && github.event_name == 'push'
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+          PLATFORM: ${{ matrix.platform }}
+          PLATFORM_NAME: ${{ matrix.name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh issue create \
-            --title "Build failure on ${{ matrix.name }} — ${{ github.ref_name }}" \
-            --label "platform:${{ matrix.platform }}" \
-            --body "Branch: \`${{ github.ref_name }}\`
-          Commit: ${{ github.sha }}
-          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          set -euo pipefail
 
-          The ${{ matrix.name }} machine's next weekly run should pick this up
-          before taking a backlog item. Full compiler output is in the run log."
+          # Pre-C7 this repo has no root CMakeLists.txt, so every run fails at
+          # configure for that one known reason (see the header). Filing it
+          # would bury real failures and re-file on every push.
+          #
+          # The check is the file itself rather than a log string: when C7 adds
+          # a root CMakeLists.txt the suppression lifts by itself, with nobody
+          # having to remember to remove it. A grep for the cmake error message
+          # would need maintaining and would break on a cmake wording change.
+          if [ ! -f CMakeLists.txt ]; then
+            echo "::notice::No root CMakeLists.txt — this is the known pre-C7 failure (BACKLOG C7), not filing an issue."
+            exit 0
+          fi
+
+          TITLE="Build failure on ${PLATFORM_NAME} — ${BRANCH}"
+
+          # One issue per branch+platform. Without this, every push to a branch
+          # that is still broken files another duplicate, and STEP 1's feed
+          # becomes noise the owning machine learns to skim past.
+          EXISTING=$(gh issue list \
+            --state open \
+            --label "platform:${PLATFORM}" \
+            --limit 100 \
+            --json number,title \
+            | jq -r --arg t "$TITLE" '[.[] | select(.title == $t)] | .[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "Open issue #${EXISTING} already covers this branch+platform — commenting instead of duplicating."
+            gh issue comment "$EXISTING" --body "$(printf '%s\n' \
+              "Still failing as of \`${GITHUB_SHA}\`." \
+              "" \
+              "Run: ${RUN_URL}")"
+          else
+            gh issue create \
+              --title "$TITLE" \
+              --label "platform:${PLATFORM}" \
+              --body "$(printf '%s\n' \
+                "Branch: \`${BRANCH}\`" \
+                "Commit: \`${GITHUB_SHA}\`" \
+                "Run: ${RUN_URL}" \
+                "" \
+                "The ${PLATFORM_NAME} machine's next weekly run should pick this up" \
+                "before taking a backlog item (STEP 1). Full compiler output is in" \
+                "the run log." \
+                "" \
+                "Close this only after verifying the fix by building on that" \
+                "platform; otherwise leave it open and say what remains.")"
+          fi
