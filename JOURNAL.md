@@ -22,6 +22,86 @@ Template:
 
 ---
 
+## 2026-08-09 — windows — P8 (interactive session, Jeff directing)
+
+**Did:** Fixed **P8** and pushed it straight to `SE16` master (`4baddfbb4`) at
+Jeff's direction. One line at `SynthEdit2/EditorWindowHelper.cpp:294`:
+
+```cpp
+- se_cl::renderContainerThumbnail(currentContainerView.universalFactory, c, vf)
++ se_cl::renderContainerThumbnail(currentContainerView.universalFactory.get(), c, vf)
+```
+
+**Result:** `MSBuild SynthEditStore.sln -t:SynthEdit2 -p:Configuration=Release
+-p:Platform=x64` links, producing `x64\Release\SynthEdit2\SynthEdit2.exe`. That
+is the first time the WinUI3 app has reached its link stage in this sequence of
+runs, so it **also closes the verification gap C1b and C2 each had to leave
+open** — both could compile their new TU but neither could get the app to link.
+
+**How it started:** Jeff pasted the URL of a failed Actions run. Worth recording
+what that turned out to be, because the row understated it.
+
+1. **P8 was not "the WinUI3 app does not compile from clean" — it was
+   failing SynthEdit's Store release pipeline.** Run
+   [31297103293](https://github.com/JeffMcClintock/SynthEdit/actions/runs/31297103293)
+   died on `master` at "Build SynthEditStore (Release x64)" with exactly this
+   error, so Generate Changelog, MSIX signing, the setup bootstrapper, FTP
+   upload and the Discord post were all skipped. **Nothing shipped, and had not
+   since P8 was introduced.** A row that reads like a developer-convenience
+   annoyance was actually a release blocker; the CI link is the thing that made
+   the difference, so it is on the row now.
+2. **My first attempt to check it was wrong, and produced spectacular noise.**
+   Building `SynthEdit2.vcxproj` directly gives MSBuild a `$(SolutionDir)` of the
+   *project* directory, so every `SynthEditLib` and `gmpi_ui` include failed
+   C1083 — 14 errors that looked like the tree was broken and had nothing to do
+   with anything. Build `SynthEditStore.sln -t:SynthEdit2`. (This is the same
+   trap C2's entry recorded a day earlier; recording it twice is deliberate.)
+3. **Debug fails for an unrelated reason.** With the fix in,
+   `-p:Configuration=Debug` dies on `x64\Debug\pch.pch: Invalid argument` —
+   a compiler-intermediate error, not a code error. Release is what CI builds
+   and Release is what was verified. Not investigated; if someone needs a Debug
+   WinUI3 build, start there and do not assume it is P8's ghost.
+
+**Why `.get()` is the right fix rather than a papering-over:**
+`renderContainerThumbnail` takes `gmpi::api::IUnknown* destDrawingFactory` and
+**borrows** it — `ContainerThumbnail.h`'s own comment says callers pass what
+`HostedView::universalFactory` and `IDrawingHost::getDrawingFactory` "hand out".
+`universalFactory` is a `std::unique_ptr<UniversalFactory>`
+(`SynthEditLib/Shared/DrawingFrame2_win.h:153`), and `UniversalFactory` derives
+from `gmpi::api::IUnknown` (`DrawingFrame2_cpu.h:19`). The other three call sites
+— Wayland, the mac bridge, `tests/layouttests.cpp:833` — all pass a raw pointer
+already, and `DrawingFrame2_win.h:270` does `*returnFactory = universalFactory.get()`
+for the same purpose. So this caller was the only one that never caught up. No
+ownership changes hands.
+
+**Learned — the environment moved under this session, and the reflog is how you
+find out.** Between the C2 run and this one, C2 was landed on `SE16` master as
+`c3a4f9fac` (a rebased copy of my `d933e5e03`, authored by Jeff), SynthEditLib
+PR #3 and TideSynth PR #24 were merged, master gained two more commits, and both
+local checkouts were switched off my branch — which is why `git log` on a branch
+I "was on" reported `unknown revision`. **`git reflog` reconstructed the whole
+sequence in one command.** Two consequences worth carrying:
+
+- **A pushed branch is not the same commit as what lands.** `git merge-base
+  --is-ancestor origin/tide/win/C2-leaf-files master` says **NO** even though the
+  work is fully in master, because a rebase gives it a new sha. Do not conclude
+  from that answer that work was lost — compare content, or read the reflog.
+- **`origin/tide/win/C2-leaf-files` is now a stale branch in `SE16` with no PR**,
+  which the new STEP 5 rule reads as a failure state. It is redundant, not
+  unlanded. Safe to delete; left alone here because deleting someone else's
+  remote branch is not this session's call to make unasked.
+
+**Next:** Watch for a green Store run. P8 is marked **DONE-PENDING-CI**, not
+DONE: the local Release link proves the compile error is gone, but the CI job
+continues into signing and upload and nobody has seen it finish. First run to go
+green flips the row.
+
+**Branch/PR:** `SE16` master `4baddfbb4` directly, per the interactive-session
+convention and logged in [docs/decisions.md](docs/decisions.md). **A scheduled
+run still must not push to main** — that rule is unchanged.
+
+---
+
 ## 2026-08-09 — windows — A1 done, A2 mostly done (interactive session with Jeff)
 
 **Did:** Jeff executed **A1** (the 8 signing secrets moved into a `release`
