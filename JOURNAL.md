@@ -22,6 +22,74 @@ Template:
 
 ---
 
+## 2026-08-09 — windows — process review adopted (interactive session with Jeff)
+
+**Did:** Ran a seven-agent review of the development process itself (three
+lenses over the process docs, three web researchers, one adversarial critique)
+and adopted what survived. Everything landed on branch
+`process/2026-08-09-review` as one PR — the batch touches the run prompt, which
+steers the fleet, so it takes the human-review path on purpose.
+
+Changed in this batch:
+
+- **[docs/process-review-2026-08-09.md](docs/process-review-2026-08-09.md)** —
+  the condensed review: verdict, the three broken mechanisms, the sequenced
+  plan, what the red team rejected (do not re-file those), and what all seven
+  reviewers missed.
+- **[docs/decisions.md](docs/decisions.md)** — new single decision log, seeded
+  with every ruling to date, plus the PROPOSED mechanism: an agent hitting a
+  design fork opens a PR adding a PROPOSED entry; Jeff's merge IS the decision.
+- **BACKLOG** — new A-series (A1–A9, sequenced process hardening), NEXT block,
+  IN-REVIEW status, BLOCKED(<id>) notation, C4–C7 explicitly chained.
+- **Run prompt** — the spec-gap batch: STEP 0.5 (FLEET-PAUSED check, 14-day
+  staleness bound, provenance capture), STEP 1 issue-authenticity rule and
+  inlined fix protocol, STEP 1.5 (own-platform PR triage before new work),
+  resume semantics (own-platform open PR = continue it, not "taken" — the old
+  wording deadlocked any multi-session item, and C3 is one), claim liveness
+  (24h rule), skip-and-flag for under-specified items, decision-latency rule,
+  conditional build-health reporting, IN-REVIEW/DONE split, verification-
+  artifact requirement, the three-kinds dirt rule (the old text ordered runs to
+  commit or revert Jeff's own WIP), default-GATED for unlisted paths, and the
+  two no-exception rules (no workflow edits unless the item says so; no
+  credential values in any text).
+
+**Result:** Docs only; no mechanism built yet. The mechanisms are the A-rows,
+deliberately: building them is agent work under the new rules.
+
+**Learned:**
+
+- The review's three sharpest facts, each verified against the live repos: the
+  CI→platform-issue loop has never once executed (read-only token, 403 under
+  continue-on-error, zero issues ever); "green CI" is currently meaningless
+  (continue-on-error at job level); and the 8 signing secrets are reachable
+  from any workflow edit on any `tide/**` branch — but no workflow references
+  them yet, so A1 is free to do now.
+- **The stated human/AI split is implemented inverted**: all 25 TideSynth PRs
+  are coordination churn Jeff merges in seconds, while the shared-lib gate is
+  prose. The habituation literature says this fails slowly, then all at once.
+- The red team killed four plausible recommendations (cloud/Actions as agent
+  hosts, merge queues, dependency-bot policy, encrypted-secrets-in-repo).
+  They are recorded in the review doc so no future run re-derives them.
+- **Both G4 and G5 landed while this review was being written, and both PRs
+  reached `main` before this one did — from two different bases, since G4 and
+  G5 were claimed from the same pre-review commit.** G5 (#25) merged first;
+  when G4 (#26) was then merged it collided with G5's changes to the same
+  three coordination files, including a genuine finding of G5's (the old state
+  table had Linux backwards — it claimed Linux predated PR #4 and could not
+  write TIDE code, when in fact it could). Resolved by hand rather than by
+  picking a side, preserving both journal entries and G5's correction; see the
+  merge commit on this branch. This branch was then rebased onto the result,
+  which is why the NEXT block below now sends `mac` to **P7** instead of the
+  now-done **G4**, and why the `mac` checklist item below is gone. Left as a
+  concrete example of what **A5**'s conflict-shaped territory looks like
+  before any lint or auto-merge tier exists to catch it early.
+
+**Next:** Jeff's manual checklist (A1 secrets, A2 account, merge #27) — in the
+review doc and delivered in-session. Then A3 is the NEXT `any` item.
+
+**Prompt:** n/a — interactive session, not a scheduled run.
+
+**Branch/PR:** `process/2026-08-09-review`.
 ## 2026-08-09 — macos — G4
 
 **Did:** Replaced this box's scheduled task with the bootstrap from
