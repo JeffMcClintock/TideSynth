@@ -108,6 +108,20 @@ prompt.
    Windows), one line, `chmod 600` on mac and linux. It must not be inside any
    repository.
 
+**Verified working on the Windows box, 2026-08-09** — each of these was run,
+not assumed:
+
+| Check | Result |
+|---|---|
+| `gh api user --jq .login` with the token | `tide-rack-bot` |
+| token scopes | `repo` — and **no `workflow`**, as intended |
+| bot reads the private `SynthEdit` repo | yes |
+| bot pushes a branch | succeeds |
+| bot pushes to `main` | **rejected** — `GH013: Repository rule violations` |
+
+That last row is the one that proves the whole arrangement: the rulesets are
+live, and the bot is genuinely outside them.
+
 **Why not the obvious alternatives:** `gh auth switch` is global state, so it
 would change Jeff's interactive sessions too and a crashed run would strand him
 logged in as the bot; an `env` block in `settings.json` applies to every Claude
@@ -164,7 +178,20 @@ STEP 0.5 — Pause and staleness checks.
 STEP 0.7 — Become the agent. Do this before any command that touches GitHub.
 
     export GH_TOKEN="$(cat ~/.tide/agent-token)"
+    export GIT_AUTHOR_NAME="tide-rack-bot"
+    export GIT_AUTHOR_EMAIL="314850083+tide-rack-bot@users.noreply.github.com"
+    export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+    export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
     gh api user --jq .login
+
+The four `GIT_*` variables matter as much as the token. Authentication and
+authorship are separate things: without them a run pushes *as* the bot but
+every commit is still stamped with Jeff's name and address from the box's git
+config, so `git log` cannot tell agent work from his. Measured on the Windows
+box before this rule existed — a bot-pushed test commit came back from the API
+as `author: JeffMcClintock, committer: JeffMcClintock`. Setting them per-run in
+the environment leaves the box's own git config untouched, so Jeff's
+interactive commits stay his.
 
 **That second command MUST print `tide-rack-bot`. If it prints anything else —
 including `JeffMcClintock` — STOP.** Write a journal entry saying the identity
