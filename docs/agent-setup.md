@@ -112,8 +112,8 @@ Jeff merges, while staleness went through nothing and announced itself to nobody
 
 **The bootstrap cannot install itself.** A machine that reads nothing remote
 cannot be told to start reading something remote, so each box needs one last
-manual install — **G4** for macOS, **G5** for Linux. Until those land, the old
-model below is still what those two boxes do.
+manual install — **G4** for macOS, **G5** for Linux. G5 landed 2026-08-09;
+until G4 lands, the old model below is still what the macOS box does.
 
 ### The old model, and why it had to go
 
@@ -160,9 +160,21 @@ On that machine, in Claude Code:
 
 Check the task's real name first — Windows' is `tide-synth-weekly-windows`, with
 a hyphen, and naming one that does not exist creates a second task while leaving
-the original firing. Then read the result back and confirm it contains no
-numbered STEPs beyond STEP 0: if it does, the full prompt was installed instead
-of the bootstrap and the box is frozen again.
+the original firing. Then read the result back and check three things:
+
+- **No numbered STEPs beyond STEP 0.** If there are, the full prompt was
+  installed instead of the bootstrap and the box is frozen again. Read, do not
+  grep: the bootstrap mentions "STEP 4" in prose ("Put that sha in your JOURNAL
+  entry, as STEP 4 requires"), so `grep 'STEP 4'` matches a *correct* install.
+  What disqualifies it is a **heading** — `STEP 1 —`, `STEP 2 —` and so on.
+- **The three values are substituted** everywhere except the one sentence that
+  tells the run to substitute them into the *fetched* prompt. That sentence
+  keeps its literal `{MACHINE}`, `{PLATFORM}`, `{REPO}`; a check that demands
+  zero placeholders will wrongly fail.
+- **STEP 0's commands run verbatim.** Paste all three into a shell from an
+  unrelated working directory. That is the only part that can actually be wrong
+  on a given box — a bad repo path, or `~` not expanding — and it costs seconds
+  to prove rather than discovering it at 02:00 next Sunday.
 
 ### Current state — 2026-08-09
 
@@ -170,27 +182,50 @@ of the bootstrap and the box is frozen again.
 |---|---|---|
 | Windows | **bootstrap** — fetches the prompt every run | no, and never again |
 | macOS | frozen PR #4 copy — predates G3 *and* the two-end-states rule | **yes, G4** |
-| Linux | frozen as originally installed | **yes, G5** |
+| Linux | **bootstrap** — converted 2026-08-09 by the G5 run | no, and never again |
 
-Once G4 and G5 land, this table stops being a thing anyone has to maintain — which
-is the point, because every version of it so far has been wrong within three days
-of being written. Until then it is still load-bearing for two boxes.
+The Linux task is `tidesynth-weekly-linux` — no hyphen after `tide`, unlike
+Windows — and its file is `~/.claude/scheduled-tasks/tidesynth-weekly-linux/SKILL.md`.
+Confirmed against the live task list during G5; this table's name for it was
+already right.
 
-**macOS and Linux are both missing two rulings now.** They predate G3
-(2026-08-07), so neither knows `gmpi_ui` and `GMPI_Wrappers` are ALLOWED — and
-since P4's host-killing crash lived entirely in those two repos, a run picking up
-P7-shaped work would refuse its own item. They also predate the two-end-states
-rule (2026-08-09), so they will do what C2 did: push a branch in a second repo,
-open no PR there, and walk away leaving the checkout parked on it.
+Once G4 lands, this table stops being a thing anyone has to maintain — which is
+the point, because every version of it so far has been wrong within three days
+of being written. Until then it is still load-bearing for one box.
 
-Linux additionally predates PR #4, so on that box agents refuse to edit
-`SE16/SynthEditSem/` (STEP 5's old blanket ban) and claim backlog items without
-pushing the DOING mark — which is what let Linux and macOS both take S1 on
-2026-08-06.
+**macOS is missing two rulings.** It predates G3 (2026-08-07), so it does not
+know `gmpi_ui` and `GMPI_Wrappers` are ALLOWED — and since P4's host-killing
+crash lived entirely in those two repos, a run picking up P7-shaped work would
+refuse its own item. It also predates the two-end-states rule (2026-08-09), so
+it will do what C2 did: push a branch in a second repo, open no PR there, and
+walk away leaving the checkout parked on it.
 
 macOS has the PR #4 text but was installed before the "six constraints" wording
-was removed, so its agent is told to check against six of PLAN.md's eight. Less
-dangerous than Linux's copy, still wrong.
+was removed, so its agent is told to check against six of PLAN.md's eight.
+
+**This table was wrong about Linux, and in the direction nobody checks for.** It
+said "frozen as originally installed" and that Linux "additionally predates PR
+#4", so agents there could not edit TIDE's own code and claimed items without
+pushing the DOING mark. The G5 run read its own installed text and none of that
+was true: the Linux copy had the full ALLOWED/GATED split, the shared-build-file
+note, and the push-the-claim-first procedure with its collision check. Dated
+from the evidence, it is the **2026-08-06 17:55** generation — one commit shy of
+`2701fb8` (17:54:54, "Stop counting PLAN.md's constraints"), which it is missing
+and which is why it still said *six*. So it was the same generation as macOS's,
+not the original 13:38 install, and it had been reinstalled that evening with no
+record anywhere that it had.
+
+What Linux's copy was actually missing, measured against `f0f60a8`: G3
+(`gmpi_ui` and `GMPI_Wrappers` in ALLOWED), the CRLF-churn guidance, STEP 4's
+"in EVERY repo you committed in" and its prompt-sha line, all of STEP 5's
+two-end-states rule including which repo's default branch is `master`, and the
+constraint-counting fix.
+
+The lesson is not "the Linux row was stale". It is that a hand-maintained table
+can be wrong in *either* direction, and an overstatement is the worse one: it
+tells a run its own instructions forbid work they in fact permit, and a run has
+no way to check a claim about itself except by reading the text it was handed.
+The bootstrap ends this for the boxes that have it — one more to go.
 
 Windows was previously reinstalled by hand after the P2 run. Note what that cost:
 the P2 run itself executed under the old blanket ban. It was an observe-only item
