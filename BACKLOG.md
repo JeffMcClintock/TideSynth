@@ -1,15 +1,44 @@
 # TIDE Synth — Backlog
 
-Ordered. A weekly agent takes the **topmost item that is not blocked and matches
-its machine's platform role**, does that one item, and stops.
+Ordered. A weekly agent obeys the **NEXT block below first**; only when its
+platform's NEXT item is ineligible does it fall back to the topmost item that
+is not blocked and matches its machine's platform role. One item, then stop.
 
-Status: `TODO` · `DOING` · `DONE` · `BLOCKED` · `NEEDS-JEFF` · `WONTFIX`
-(`WONTFIX` = considered and declined, with the reasoning in the row. Do not re-file it.)
+## NEXT — per-platform priority, obeyed before file order
+
+| Platform | Take | Why |
+|---|---|---|
+| win | C3 | Carve-out critical path; C2 landed, base is current |
+| mac | P7 | G4 landed 2026-08-09 — first genuinely takeable `mac` item now that `gmpi_ui`/`GMPI_Wrappers` are known ALLOWED |
+| linux | E1 | Verification harness port — highest-value `any` item |
+| any | A3 | Lint checks; prerequisite for the auto-merge tier |
+
+Status: `TODO` · `DOING` · `IN-REVIEW` · `DONE` · `BLOCKED` / `BLOCKED(<id>)` ·
+`NEEDS-JEFF` · `WONTFIX`
+
+- `IN-REVIEW` = work complete, PRs open (linked in the row). A run never sets
+  `DONE` on its own fresh work; `DONE` is set when every linked PR has merged,
+  by Jeff or by a later run that observes it.
+- `BLOCKED(<id>)` = blocked until `<id>` is DONE. **Eligibility lives in this
+  column alone** — section prose never overrides it.
+- `NEEDS-JEFF` rows should carry a `Default in effect:` and a `Decide-by:` line
+  (template in [docs/decisions.md](docs/decisions.md)), so an unanswered
+  question cannot silently become the answer.
+- `WONTFIX` = considered and declined, with the reasoning in the row. Do not
+  re-file it.
+
 Platform: `any` · `win` · `mac` · `linux`
+
+New items state three things, tersely: **Scope** (files/dirs), **Accept** (a
+command or observable that proves it done), **Size** (fits one session, or
+names its stages). Anything longer than a few lines lives in `docs/<id>.md`
+with the row pointing at it. An agent that cannot state an item's acceptance
+check before starting must skip it and mark it `NEEDS-SPEC` rather than guess.
 
 Update this file at the end of every run. An item left in `DOING` with no
 matching JOURNAL entry means a previous run died — reset it to `TODO` and note
-that in the journal.
+that in the journal (claims younger than 24h are presumed live; see the run
+prompt).
 
 ---
 
@@ -35,11 +64,32 @@ building before the next starts. See [docs/carve-out.md](docs/carve-out.md).
 | ID | Status | Plat | Item |
 |---|---|---|---|
 | C3 | TODO | win | Move the document model (`DocOb`, `CContainer`, `CUG`, `Plug*`, `SynthEditDocBase`, `SynthEditDoc2`). Largest and riskiest stage — split it if it resists. `CContainer.h`'s `friend ExportAsPlugin` declaration moves unchanged. **Three things C2 learned that apply here, from the JOURNAL entry for 2026-08-08:** **(a) decide root-vs-subfolder deliberately.** C2 put its 16 files in `SynthEditLib`'s *root* because root is already an include dir in all three build systems, so the move cost zero include-path edits — a good trade for 16 files and a worse one for 120. Re-homing C2's files later is a `git mv`, so this is still open. **(b) grep the candidates for `#include "../`** before moving them. `checkpoint.h`'s `"../tinyXml2/tinyxml2.h"` never resolved relative to the file at all (`SE16/tinyXml2/` does not exist) — it was matching through the search path, so it gave no warning in either direction. **(c) re-check for `file(GLOB)`** in `SynthEditLib` (there was none at C2). A glob over the destination would put the moved files in `SynthEditLib`'s own target *as well as* EditorLib's, and that surfaces as duplicate symbols at link, far from the cause. |
-| C4 | TODO | win | Move views and browsers (`ModuleBrowser`, `PropertiesBrowser`, `MfcDocPresenter`, `ModuleFactory_Editor`, `SkinMgr`, `ThemeManager`). |
-| C5 | TODO | win | Move the app base (`SynthEditAppBase`, `ApplySynthEditConfig`, `SynthRuntime_editor`, `UIoManager`, `IO_base`, `IO_None`). |
-| C6 | TODO | any | Move `EditorLib/CMakeLists.txt` itself into `SynthEditLib`. |
-| C7 | TODO | any | Repoint TIDE at public `SynthEditLib` only. Prove it with a clean-clone CI build that has no access to the private repo. **Before claiming a stranger can build TIDE, grep `SynthEditLib` for `#include`s of headers that live in `SE16/SynthEdit2/`.** C2 found one — `SynthEditLib/modules/se_sdk3_hosting/ModuleViewStruct.cpp:11` included `"cpu_accumulator.h"` while that header was still private, and it compiled only because that `.cpp` is on *EditorLib's* source list and so gets `../SynthEdit2` on its include path. A public file that its own repo cannot compile. C2 closed that one by accident; each remaining one is invisible until a clean-clone build. |
+| C4 | BLOCKED(C3) | win | Move views and browsers (`ModuleBrowser`, `PropertiesBrowser`, `MfcDocPresenter`, `ModuleFactory_Editor`, `SkinMgr`, `ThemeManager`). |
+| C5 | BLOCKED(C4) | win | Move the app base (`SynthEditAppBase`, `ApplySynthEditConfig`, `SynthRuntime_editor`, `UIoManager`, `IO_base`, `IO_None`). |
+| C6 | BLOCKED(C5) | any | Move `EditorLib/CMakeLists.txt` itself into `SynthEditLib`. |
+| C7 | BLOCKED(C6) | any | Repoint TIDE at public `SynthEditLib` only. Prove it with a clean-clone CI build that has no access to the private repo. **Before claiming a stranger can build TIDE, grep `SynthEditLib` for `#include`s of headers that live in `SE16/SynthEdit2/`.** C2 found one — `SynthEditLib/modules/se_sdk3_hosting/ModuleViewStruct.cpp:11` included `"cpu_accumulator.h"` while that header was still private, and it compiled only because that `.cpp` is on *EditorLib's* source list and so gets `../SynthEdit2` on its include path. A public file that its own repo cannot compile. C2 closed that one by accident; each remaining one is invisible until a clean-clone build. |
 | C8 | TODO | any | **Delete `SynthEditLib/it_empty.h`, or find out why it exists.** Zero includers anywhere — `SE16`, `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers` — verified during C2. A dead template header (`EmptyIterator`) that the carve-out has now carried into the public repo. C2 deliberately left it: that stage was a move, and deleting on the way through would have turned a relocation into a judgement call. Trivial, but it is public API surface now, so it should be a deliberate keep or a deliberate delete. |
+
+---
+
+## Process hardening — from the process review, 2026-08-09
+
+The findings, red-team verdicts, and the reasoning behind the ordering are in
+[docs/process-review-2026-08-09.md](docs/process-review-2026-08-09.md). The
+sequence is the decision: A1 gates everything, and cadence (A7) comes last.
+Rejected recommendations are listed in that doc — do not re-file them.
+
+| ID | Status | Plat | Item |
+|---|---|---|---|
+| A1 | NEEDS-JEFF | — | **Move the 8 signing secrets into a `release` environment with required review.** Jeff-side, minutes; step-by-step checklist in the review doc. No workflow references them yet, so the move is free. Every other row in this section widens the exposure window until this closes. Default in effect: secrets stay repo-level, reachable by any workflow edit on any `tide/**` branch. Decide-by: before A7 raises cadence or A4 enables any auto-merge. |
+| A2 | NEEDS-JEFF | — | **Actor separation: machine account + branch rulesets, one inseparable item.** Create a bot GitHub account, grant it Write on the five repos, mint a fine-grained PAT; ruleset on each repo requiring PRs into the default branch with bypass for repo admins (Jeff keeps his direct-push interactive habit; the bot does not), plus a ruleset restricting the bot to `tide/**` branch creation. Branch protection alone is theater while agents run as Jeff — the identity half is what makes it real. Per-box credential wiring is a follow-up interactive session on each machine. Sequenced after A1. |
+| A3 | TODO | any | **Always-green lint checks — the future auto-merge gate.** Scope: `.github/workflows/` (this row explicitly authorizes the workflow edit) plus small scripts. Four checks: JOURNAL diff is pure prepend-after-header; BACKLOG diff touches only status/date cells or adds rows; markdown links and BACKLOG/journal ID cross-references resolve; scheduled-run journal entries carry the `**Prompt:**` provenance line. Accept: all four pass on a clean PR and each fails on a deliberately malformed one (prove the negative, per the harness precedent). Size: one session. These are informational until A4 makes them required. |
+| A4 | BLOCKED(A3) | any | **Auto-merge tier for coordination PRs.** A path-allowlisted action auto-merges PRs touching only `JOURNAL.md`, `BACKLOG.md`, and `docs/**` — excluding `docs/weekly-run-prompt.md` and `PLAN.md` (they steer the fleet) and never `website/**` (a merge there IS a production deploy, see the pages.yml audit) — once the A3 lints pass. Also requires A1 done (secrets out of casual reach). Fixes the memory-propagation latency (Sat/Sun boxes currently see Friday's learnings only if Jeff merged in time) and stops training the rubber-stamp reflex on trivia. Human merge remains for the prompt, PLAN, workflows, website, and all code repos. |
+| A5 | TODO | any | **Make the CI→platform-issue loop actually work — it has never executed.** Rides with B1 (same file). Scope: `.github/workflows/build.yml` (explicitly authorized). The job's token is read-only so `gh issue create` 403s invisibly under `continue-on-error`; zero issues have ever been filed. Add `permissions: issues: write`; search for an existing open issue for branch+platform and comment instead of duplicating; suppress filing while the failure matches the known pre-C7 signature (missing CMakeLists.txt) so the feed stays honest. Accept: one deliberate breakage files exactly one issue, a second run comments on it rather than duplicating, and STEP 1 on the owning platform picks it up. |
+| A6 | TODO | any | **Watchdog: a GitHub-cron weekly digest, flag-only.** Runs on GitHub infra so no box needs to be awake. One digest issue per week, refreshed in place, containing: boxes whose run window passed with no journal entry or branch push; DOING rows older than 72h with no open PR (recommend the reset — never commit it; agents-write-main stays an invariant); `tide/**` branches across the five repos with no open or merged PR; IN-REVIEW rows whose PRs all merged; open NEEDS-JEFF/PROPOSED questions with ages; open PRs by age. This digest is also the single "awaiting Jeff" surface — generated, never hand-maintained (the hand-maintained state table was wrong within three days, twice). Scope: one workflow + script (explicitly authorized). |
+| A7 | BLOCKED(A6) | — | **Raise cadence to 2 staggered runs per box per week.** Also requires A1 and A4 (the red team's ordering: cadence multiplies journal growth, PR volume, and the secret-exposure window linearly, so the drains come first — this row's blocker chain encodes A6, and A1/A4 are NEEDS-JEFF/BLOCKED upstream of it). The stagger is no longer load-bearing — the pushed-DOING claim protocol is what prevents collisions — so weekly is a historical artifact. The task-cron edits are per-box manual steps (Jeff or an interactive session on each box). Start at 2×, review after a month against the A6 digests. |
+| A8 | TODO | any | **Journal rotation and backlog grooming.** Monthly rotation to `JOURNAL-YYYY-MM.md` with the live file holding the template + current month (runs read "the last four entries", which must keep working); move RESOLVED/DONE rows to an archive section or file; distill any row over ~10 lines into `docs/<id>.md` with the row pointing at it. The journal grew 143KB in four days at 1× cadence; A7 doubles the rate. Accept: JOURNAL.md under 30KB after rotation, no broken links (A3's checker is the proof). May later become a cloud Routine (Jeff's call — public repo only, GitHub-proxy credentials, SE16 never in cloud). |
+| A9 | BLOCKED(A6) | any | **Community research routine — PROPOSED-only output.** Design in the review doc. Sources with structured access: VCV Community Discourse JSON, the VCV Library manifest repo, Cardinal + Surge XT issue trackers; Audiobus/Loopy Pro forums are a quarterly human skim (iOS AUv3 audience lives there, no API); Reddit/KVR demoted (ToS-hostile to bulk fetch). Guardrails are hard rules: read-only, courtesy rates, never post/vote/DM, dedup against existing backlog AND a rejection memory, provenance links on every item. Output: PROPOSED rows for Jeff's triage — the routine never decides product direction. Prerequisite worth doing first (NEEDS-JEFF, five minutes): write TIDE's product philosophy in 2–3 sentences as the auto-reject filter, Cardinal-style. Standing hypothesis to track: **no open-source modular exists on iOS AUv3** — Cardinal ships every format but iOS, miRack is closed-source; watch for anyone moving into the gap. |
 
 ---
 
