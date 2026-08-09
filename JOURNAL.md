@@ -137,6 +137,109 @@ records the instructions I *followed*, not the ones I was *given*. From the next
 run on, on all three boxes, those are the same thing.
 
 **Branch/PR:** `tide/mac/G4-bootstrap-task` → PR against `main`.
+## 2026-08-09 — linux — G5
+
+**Did:** Replaced this box's scheduled task with the bootstrap from
+[docs/weekly-run-prompt.md](docs/weekly-run-prompt.md), substituting
+`{MACHINE}`=`linux`, `{PLATFORM}`=`linux`, `{REPO}`=`~/TideSynth`. The task is
+`tidesynth-weekly-linux` — **no hyphen after `tide`, unlike Windows'
+`tide-synth-weekly-windows`** — and `list_scheduled_tasks` showed exactly one
+task on this box, so there was no risk of the duplicate G4 warns about. Its file
+is `~/.claude/scheduled-tasks/tidesynth-weekly-linux/SKILL.md`; it went from the
+180-line as-originally-installed prompt to 36 lines. Cron left alone at
+`0 2 * * 0` (Sun 02:00, +406s jitter). Also updated `docs/agent-setup.md`: Linux
+moved to **bootstrap** in the state table, the paragraphs about what Linux was
+missing rewritten in the past tense, and three verification traps added to the
+install recipe (below).
+
+Nothing else was touched. No code, no build, no other repo.
+
+**Result:** Verified rather than assumed. All three of STEP 0's commands, pasted
+verbatim from `/` — an unrelated cwd — while the working tree was parked on
+`tide/linux/G5-bootstrap-task`, i.e. the exact condition STEP 0 warns about:
+
+```
+git -C ~/TideSynth fetch origin                                   exit 0
+git -C ~/TideSynth show origin/main:docs/weekly-run-prompt.md     314 lines
+git -C ~/TideSynth rev-parse --short origin/…prompt.md            f0f60a8
+```
+
+Read the installed file back: one numbered heading, `STEP 0`, and nothing beyond
+it.
+
+**Learned:**
+
+- **The staleness was not theoretical, and this run walked into it.** The frozen
+  copy's STEP 2 would have sent me at **X4** — it is the topmost `TODO`/`any`
+  row in the frozen queue's ordering, and Jeff closed it **WONTFIX** on
+  2026-08-08 with "do not re-file this". A frozen prompt cannot know the queue
+  moved underneath it. I only avoided that because `git fetch` in the collision
+  check pulled 19 commits onto `main`, including C0 approved, C2 landed, X4
+  closed and the bootstrap itself. **The collision check is what saved this
+  run** — the one rule that forces a run to look outside its own head before
+  acting. It is worth keeping for that reason and not only for collisions.
+- **`agent-setup.md` was wrong about this box, and overstated the damage.** It
+  said Linux was "frozen as originally installed" and "predates PR #4", so
+  agents here refused to edit `SE16/SynthEditSem/` and claimed items without
+  pushing the DOING mark. I read the text I was actually handed and none of that
+  held: it had the full ALLOWED/GATED split, the shared-build-file note, and the
+  claim-then-push procedure. Dated from the evidence it is the **2026-08-06
+  17:55** generation (`SKILL.md` mtime; and it still says *six* constraints, so
+  it is one commit shy of `2701fb8` at 17:54:54) — the same generation as
+  macOS's, not the 13:38 original. It had been reinstalled that evening and
+  nothing recorded that.
+  **What it was really missing**, against `f0f60a8`: G3 (`gmpi_ui` and
+  `GMPI_Wrappers` ALLOWED), the CRLF-churn guidance, STEP 4's "in EVERY repo you
+  committed in" and its prompt-sha line, the whole of STEP 5's two-end-states
+  rule including `SE16` being `master`, and the constraint count.
+  **An overstated staleness claim is worse than an understated one**: it tells a
+  run its own instructions forbid work they actually permit, and the run cannot
+  check a claim about itself except by reading the text it was handed — which is
+  exactly what nobody had done. Corrected in `agent-setup.md`.
+- **The install looks wrong twice when it is right.** Two false alarms, both
+  cheap to hit: the bootstrap says "as STEP 4 requires" in prose, so
+  `grep 'STEP 4'` matches a *correct* install — the disqualifying thing is a
+  STEP *heading*, not the string; and it deliberately keeps literal
+  `{MACHINE}`/`{PLATFORM}`/`{REPO}` in the one sentence telling the run to
+  substitute them into the **fetched** prompt, so "zero placeholders remain" is
+  the wrong check. Both are now written into `agent-setup.md` for G4.
+- **Paste STEP 0's commands into a shell before believing them.** The repo path
+  is the only part of the bootstrap that differs per box and the only part that
+  can actually be wrong; `~` expansion inside `git -C` is the specific thing
+  worth proving. It costs seconds now versus a silent no-op at 02:00 next
+  Sunday, which is a failure mode with a week-long feedback loop.
+- **`git show origin/main:<path>` genuinely works from a parked branch**, which
+  is the whole reason the bootstrap reads from `origin/main`. Demonstrated above
+  rather than reasoned about — this tree was on the G5 branch the entire time.
+- **The prompt version stamp works as designed.** `f0f60a8` is the blob sha of
+  the prompt, not a commit, so it changes only when the prompt text changes.
+  Every entry from this box will now carry it. **Its absence is the tell for a
+  box still frozen** — and note this very entry has one only because I noticed
+  the new prompt by hand; next week it will be automatic.
+
+**Next:** **G4** is the last frozen box, and it is now the *only* thing keeping
+`agent-setup.md`'s state table alive. macOS should do that and stop, as this run
+did.
+
+For the next Linux run: nothing is in flight here and the tree is clean.
+`tide/win/C2-leaf-files` still exists on this box's `origin` as the stale
+leftover the C2 entry describes — it is not live work. The eligible `linux`/`any`
+queue below G4/G5 is thinner than it looks: **C6/C7** are sequential behind
+`win`-owned C3–C5, **C8** is a delete inside the GATED `SynthEditLib` repo and is
+not one of C1–C7, and **S1b**/**S8** both carry a standing recommendation to ride
+along with C4 rather than be done twice. **E1** is the genuinely takeable one —
+it needs no plugin, no gated path and no other machine, and it is the only
+working audio verification this project has. **P7's X11 half** is also open to
+this box now that G3 makes `gmpi_ui` ALLOWED; the row says so explicitly.
+
+**Prompt:** `f0f60a8` — but read the caveat: this run **executed under the frozen
+copy**, which has no STEP 0. I fetched and followed
+`origin/main:docs/weekly-run-prompt.md` by hand after noticing the repo had
+moved. So the sha records the instructions I *followed*, and this is the one
+entry where that is not the same as the instructions I was *given*. From the
+next run on, it will be.
+
+**Branch/PR:** `tide/linux/G5-bootstrap-task` → PR against `main`.
 
 ---
 

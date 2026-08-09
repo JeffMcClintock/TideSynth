@@ -186,7 +186,6 @@ caught nothing on either box, which is the outcome you want from it.
 
 | Machine | Prompt version | Needs install? |
 |---|---|---|
-| Windows | **bootstrap** — fetches the prompt every run | no, and never again |
 | macOS | **bootstrap** — converted 2026-08-09 by the G4 run | no, and never again |
 | Linux | **bootstrap** — converted 2026-08-09 by the G5 run | no, and never again |
 
@@ -211,9 +210,31 @@ would have refused its own item, P7 being a `mac` row whose fix lives entirely i
 those two repos. It was also missing the CRLF-churn guidance, STEP 4's "in EVERY
 repo you committed in" and its prompt-sha line, all of STEP 5's two-end-states
 rule including which repo is `master`, and it still said "six constraints"
-against PLAN's eight. **Linux** was the same generation and missing the same
-things — see the G5 entry, which corrected an earlier claim here that it also
-predated PR #4. It did not.
+against PLAN's eight.
+
+**Linux is the more interesting case, because this table was wrong about it —
+and in the direction nobody checks for.** Before G5 ran, this table said Linux
+was "frozen as originally installed" and "additionally predates PR #4", meaning
+agents there supposedly could not edit TIDE's own code at all and claimed items
+without pushing the DOING mark. The G5 run read its own installed text and none
+of that was true: the Linux copy had the full ALLOWED/GATED split, the
+shared-build-file note, and the push-the-claim-first procedure with its
+collision check. Dated from the evidence, it was the **2026-08-06 17:55**
+generation — one commit shy of `2701fb8` (17:54:54, "Stop counting PLAN.md's
+constraints"), which it was missing and which is why it still said *six*. So it
+was the same generation as macOS's, not the original 13:38 install, and it had
+been reinstalled that evening with no record anywhere that it had. What it was
+actually missing, measured against `f0f60a8`: G3, the CRLF-churn guidance,
+STEP 4's "in EVERY repo you committed in" and its prompt-sha line, all of
+STEP 5's two-end-states rule including which repo's default branch is `master`,
+and the constraint-counting fix.
+
+The lesson is not "the Linux row was stale" — every row here was that, by
+design, until the bootstrap. It is that a hand-maintained table can be wrong in
+*either* direction, and an overstatement is the worse one: it tells a run its
+own instructions forbid work they in fact permit, and a run has no way to check
+a claim about itself except by reading the text it was handed. The bootstrap
+ends this for all three boxes now.
 
 Windows was previously reinstalled by hand after the P2 run. Note what that cost:
 the P2 run itself executed under the old blanket ban. It was an observe-only item
