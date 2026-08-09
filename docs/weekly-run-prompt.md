@@ -79,6 +79,64 @@ improvises its own instructions is not.
 
 ---
 
+## Becoming the agent
+
+Every run authenticates as **`tide-rack-bot`**, never as Jeff. This is BACKLOG
+**A2**, and it is the whole reason the branch rulesets mean anything: Jeff's
+account is on every ruleset's bypass list, so a run acting as Jeff can push
+straight to a default branch and nothing stops it.
+
+The prompt below does this in STEP 0.7. It is documented separately here
+because the *setup* is per-box and manual, while the *use* is in the shared
+prompt.
+
+**Per-box setup, once:**
+
+1. Point git at `gh` for GitHub credentials:
+
+   ```bash
+   git config --global credential.https://github.com.helper ""
+   git config --global --add credential.https://github.com.helper "!gh auth git-credential"
+   ```
+
+   Safe for both identities, which is the point — `gh` resolves `GH_TOKEN`
+   first and falls back to its keyring, so with the variable set you are the
+   bot and without it you are Jeff. One setting, correct in both directions,
+   nothing to toggle and nothing to restore if a run dies.
+
+2. Put the bot's token in `~/.tide/agent-token` (`C:\Users\jef\.tide\` on
+   Windows), one line, `chmod 600` on mac and linux. It must not be inside any
+   repository.
+
+**Verified working on the Windows box, 2026-08-09** — each of these was run,
+not assumed:
+
+| Check | Result |
+|---|---|
+| `gh api user --jq .login` with the token | `tide-rack-bot` |
+| token scopes | `repo` — and **no `workflow`**, as intended |
+| bot reads the private `SynthEdit` repo | yes |
+| bot pushes a branch | succeeds |
+| bot pushes to `main` | **rejected** — `GH013: Repository rule violations` |
+
+That last row is the one that proves the whole arrangement: the rulesets are
+live, and the bot is genuinely outside them.
+
+**Why not the obvious alternatives:** `gh auth switch` is global state, so it
+would change Jeff's interactive sessions too and a crashed run would strand him
+logged in as the bot; an `env` block in `settings.json` applies to every Claude
+Code session on the box, with the same problem; a token embedded in a remote URL
+lands in `.git/config` in plaintext and leaks into transcripts.
+
+**What this costs, stated plainly:** a standing write credential now sits in a
+plaintext file on three machines, where previously no standing credential
+existed by design. What bounds it: the token is `repo` scope only with **no
+`workflow` scope** — so a run cannot edit `.github/workflows/**` even if it
+tries, which is the same rule STEP 5 states in prose, now enforced by the
+credential itself — and it expires **2026-11-07**.
+
+---
+
 ## The prompt
 
 ```
@@ -113,8 +171,53 @@ STEP 0.5 — Pause and staleness checks.
     more than 14 days old, stop. Instructions that stale are not safe to act
     on; a run that does nothing is a fine outcome.
   - Record for STEP 4: the prompt sha from STEP 0, plus the model and Claude
-    app version you are running under. Three boxes can diverge on any of the
-    three, and the journal line is the only place that divergence is visible.
+    app version you are running under, and the identity STEP 0.7 asserted.
+    Three boxes can diverge on any of these, and the journal line is the only
+    place that divergence is visible.
+
+STEP 0.7 — Become the agent. Do this before any command that touches GitHub.
+
+    export GH_TOKEN="$(cat ~/.tide/agent-token)"
+    export GIT_AUTHOR_NAME="tide-rack-bot"
+    export GIT_AUTHOR_EMAIL="314850083+tide-rack-bot@users.noreply.github.com"
+    export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+    export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+    gh api user --jq .login
+
+The four `GIT_*` variables matter as much as the token. Authentication and
+authorship are separate things: without them a run pushes *as* the bot but
+every commit is still stamped with Jeff's name and address from the box's git
+config, so `git log` cannot tell agent work from his. Measured on the Windows
+box before this rule existed — a bot-pushed test commit came back from the API
+as `author: JeffMcClintock, committer: JeffMcClintock`. Setting them per-run in
+the environment leaves the box's own git config untouched, so Jeff's
+interactive commits stay his.
+
+**That second command MUST print `tide-rack-bot`. If it prints anything else —
+including `JeffMcClintock` — STOP.** Write a journal entry saying the identity
+check failed and what it printed, and do nothing else. Do not continue, and do
+not "fix" it by carrying on as whoever you are.
+
+This is not a formality. Jeff's account sits on every branch ruleset's bypass
+list, so a run that silently falls back to his credential can push straight to a
+default branch, and every log, exit code and journal entry will look completely
+normal. A missing or unreadable token file produces exactly that fallback. The
+assertion is the only thing standing between "the rulesets protect us" and "the
+rulesets are decorative", and this project has already shipped three separate
+failures whose whole character was looking fine while doing nothing.
+
+Keep `GH_TOKEN` exported for the rest of the run so `git` and `gh` agree about
+who you are. Never echo it, and never write its value into a journal entry, PR,
+issue, or commit — name the credential, never its value.
+
+Two consequences you should expect rather than treat as breakage:
+
+  - **You cannot push to a default branch.** The bot has Write, not Admin, so
+    it is not on any bypass list. A push to `main`/`master` will be rejected —
+    that is the rule working. Push your branch and open a PR, per STEP 5.
+  - **You cannot edit `.github/workflows/**`.** The token deliberately lacks
+    `workflow` scope. If an item needs a workflow change, say so in the journal
+    and leave it for Jeff rather than trying to work around it.
 
 STEP 1 — Broken builds first.
 Check for open GitHub issues labelled `platform:{PLATFORM}`. A broken build on
@@ -232,7 +335,7 @@ The next run knows only what you write down.
     specific: exact error messages, exact file:line, what you tried that did
     not work. "Investigated the view code" helps nobody.
   - Put the run's provenance in that entry, one line:
-    `**Prompt:** <sha> · <model> · app <version>` — the sha from STEP 0's
+    `**Prompt:** <sha> · <model> · app <version> · as <login>` — the sha from STEP 0's
     `rev-parse --short origin/main:docs/weekly-run-prompt.md`, plus the model
     and Claude app version from STEP 0.5. It is the only way to tell from the
     outside which instructions, model, and app actually executed; a box still
