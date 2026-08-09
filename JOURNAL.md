@@ -22,6 +22,121 @@ Template:
 
 ---
 
+## 2026-08-09 — macos — G4
+
+**Did:** Replaced this box's scheduled task with the bootstrap from
+[docs/weekly-run-prompt.md](docs/weekly-run-prompt.md), substituting
+`{MACHINE}`=`macos`, `{PLATFORM}`=`mac`, `{REPO}`=`~/Documents/GitHub/TideSynth`
+— the real path on this box, which is not the table's guess. The task is
+`tidesynth-weekly-macos` (no hyphen after `tide`, like Linux, unlike Windows'
+`tide-synth-weekly-windows`); its file is
+`~/.claude/scheduled-tasks/tidesynth-weekly-macos/SKILL.md`. It went from 127
+frozen lines to 42. `list_scheduled_tasks` showed exactly one task on this box,
+so there was no risk of the duplicate G4 warns about.
+
+**Cron untouched** at `0 2 * * 6` (Sat 02:00, +151s jitter). Only `prompt` was
+passed to `update_scheduled_task` — it is a partial update, so naming
+`cronExpression` at all would have been unnecessary risk. Confirmed after the
+write that `cronExpression`, `enabled`, `nextRunAt` (2026-08-14) and
+`jitterSeconds` were all unchanged.
+
+Also updated [docs/agent-setup.md](docs/agent-setup.md): macOS moved to
+**bootstrap** in the state table, the "cannot install itself" paragraph moved to
+the past tense, and the three install checks G5 wrote were carried in.
+
+**One deliberate deviation from the block as written.** The installed text ends
+with three extra lines — install date, the prompt blob sha it was taken from,
+and one sentence saying a run cannot detect its own staleness. That follows the
+Windows precedent recorded in the 2026-08-09 entry below, not the doc, which says
+"Nothing else". It is inert prose and cannot go stale in a way that matters, but
+it is a deviation and should be visible as one rather than discovered later.
+
+Nothing else was touched. No code, no build, no other repo.
+
+**Result:** Verified rather than assumed. All three STEP 0 commands, pasted
+verbatim from `/` — an unrelated cwd — while the working tree was parked on
+`tide/mac/G4-bootstrap-task`, i.e. the exact condition STEP 0 warns about:
+
+```
+git -C ~/Documents/GitHub/TideSynth fetch origin                      exit 0
+git -C ~/Documents/GitHub/TideSynth show origin/main:docs/…prompt.md  314 lines
+git -C ~/Documents/GitHub/TideSynth rev-parse --short origin/…prompt.md  f0f60a8
+```
+
+Read the installed file back in full: one numbered heading, `STEP 0`, and
+nothing beyond it. Both of G5's documented false alarms were present and
+correct — the prose "as STEP 4 requires", and the literal
+`{MACHINE}`/`{PLATFORM}`/`{REPO}` kept in the one sentence about substituting
+them into the *fetched* prompt.
+
+No build was run and none was needed: nothing in `SE16`, `gmpi_ui`,
+`GMPI_Wrappers` or `SynthEditLib` was touched. So this run makes **no claim**
+about SynthEdit, SynthEditCL or TIDE building — and note **P6** still says
+SynthEditCL does not build on macOS, so that claim could not be made honestly
+today anyway.
+
+**Learned:**
+
+- **The staleness was real, it was aimed at a `mac` item specifically, and this
+  run would have walked into it.** Under the frozen copy the topmost eligible row
+  in the stale local `BACKLOG.md` was **P7** — audit the X11 and macOS resize
+  paths — and P7's entire fix lives in `gmpi_ui` and `GMPI_Wrappers`, which the
+  frozen text lists in **neither** ALLOWED nor GATED, because it predates G3.
+  The run would have taken its own top item and then been unable to touch a
+  single file it needed, which is exactly what happened to P4 on Windows and
+  exactly what G3 was filed to stop. Linux's equivalent finding was a *closed*
+  item (X4, WONTFIX); this box's was a *live* item it could not do. Different
+  shape, same root: a frozen prompt cannot know the rules moved.
+- **The collision check saved this run, for the second week running.** `git fetch
+  origin` in STEP 2 pulled 20 commits onto `main` — C0 approved, C2 landed, X4
+  closed WONTFIX, the TIDE Rack rename, and the bootstrap itself — and rereading
+  BACKLOG afterwards is the only reason G4 was visible at all. It is worth
+  keeping for that reason and not only for collisions, and both converted boxes
+  have now said so independently.
+- **`update_scheduled_task` is a partial update, and that is the safe property to
+  lean on.** The instruction "leave the cron alone" is satisfied by *not
+  mentioning* cron, not by re-supplying the value you think it has. Re-supplying
+  is where a transcription error would land, and the failure would be silent
+  until a run did not happen.
+- **A `~` path inside `git -C` is shell-expanded, so it works — but prove it per
+  box.** It is the only part of the bootstrap that differs between machines and
+  the only part that can actually be wrong. Two boxes have now proved it and
+  neither found a problem; that is still the right check, because the failure it
+  guards against is a silent no-op with a week-long feedback loop.
+- **This closes the state table in `agent-setup.md`, and that is the actual
+  deliverable.** Not "macOS is current" — that was true before, twice, and went
+  stale within days both times. The thing that changed is that no one has to
+  assert it any more: every entry from every box now carries the blob sha of the
+  prompt it ran, and absence of that line is the tell.
+
+**Next:** **P7** is the topmost genuinely takeable `mac` item and it is now
+takeable *because* of this run — the fetched prompt lists `gmpi_ui` and
+`GMPI_Wrappers` as ALLOWED, so the mac half (`DrawingFrameMac.mm:434`
+`onResize()`) and the X11 half are both in scope for whoever gets there. **N1**
+sits above it and is `any`, but read its own text first: the prose half is done
+and the build-system half says explicitly *do it after C7, not during*, so it is
+not really open. **P6** and **P8** are SynthEdit's own bugs and both rows say
+check with Jeff before touching.
+
+Nothing is in flight on this box and the tree is clean. Two things a later run
+should not misread: `tide/win/C2-leaf-files` still exists on TideSynth's origin
+as the stale leftover the C2 entry describes — it is not live work; and
+**PR #25 (G5) is open and edits the same three files this branch does**
+(`BACKLOG.md`, `JOURNAL.md`, `docs/agent-setup.md`). That is an overlap, not a
+collision — different items, both correct — but whichever merges second needs a
+rebase, and the resolution is the **union**: G5 owns the Linux row and the Done
+entry for G5, this branch owns the macOS row and the Done entry for G4, and the
+three install checks in `agent-setup.md` appear on both branches with near
+identical wording, so keep one copy.
+
+**Prompt:** `f0f60a8` — with the same caveat G5 recorded, and this is the last
+time it will be needed: this run **executed under the frozen copy**, which has no
+STEP 0. I fetched and followed `origin/main:docs/weekly-run-prompt.md` by hand
+after the collision check showed the repo had moved 20 commits. So the sha
+records the instructions I *followed*, not the ones I was *given*. From the next
+run on, on all three boxes, those are the same thing.
+
+**Branch/PR:** `tide/mac/G4-bootstrap-task` → PR against `main`.
 ## 2026-08-09 — linux — G5
 
 **Did:** Replaced this box's scheduled task with the bootstrap from
