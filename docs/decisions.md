@@ -31,43 +31,11 @@ defaults are not.
 
 ---
 
-## Open
-
-```
-PROPOSED: Does an agent taking C8 have authority to delete SynthEditLib/it_empty.h,
-          or is C8 a Jeff decision because both files it touches are GATED?
-  Options: (a) C8 authorizes it — the row is TODO/any, so the fleet already meant
-               an agent to do it, and the audit removes the judgement it needed
-           (b) Jeff deletes it, or says "go" on this PR and a later run does
-           (c) Widen the STEP 5 exception from "C1-C7" to "any C-series item"
-  Recommended default: (b) — narrowest, and it is what the C8 row already asks
-               for by calling for "a deliberate keep or a deliberate delete";
-               (c) is rejected as a recommendation, see below
-  Default in effect meanwhile: it_empty.h stays in the public repo, dead. Costs
-               nothing functionally; every reader of the newly-public
-               SynthEditLib meets a misleading 2002 orphan
-  May proceed meanwhile: nothing further — the audit
-               ([c8-it-empty-header.md](c8-it-empty-header.md)) is the whole of
-               the work that is identical under every option, and it is done
-  Decide-by: before C6 moves EditorLib/CMakeLists.txt into SynthEditLib. After
-               that the file is on the public repo's own source list and
-               deleting it stops being a two-repo change
-```
-
-**Why (c) is not recommended even though it is the tidiest.** Widening the gate
-is a change to the rule that protects the commercial repo, made by the run that
-happens to be inconvenienced by it — which is the shape of exactly the mistake
-the gate exists to prevent. G3 is the precedent in the other direction: the P4
-crash fix sat entirely in two unlisted repos, the run filed the scope question
-instead of reaching, and Jeff answered in a day. If (c) is right it should be
-decided on its own merits, not as a side effect of a 30-line header.
-
----
-
 ## Decisions
 
 | Date | Decision | Notes |
 |---|---|---|
+| 2026-08-11 | **C8 is Jeff's call, not the taking agent's — option (b).** `SynthEditLib/it_empty.h` is deleted; the STEP 5 GATED exception stays at "C1-C7" and was **not** widened | Answered by merging the `PROPOSED:` entry unedited ([#32](https://github.com/JeffMcClintock/TideSynth/pull/32)), then "go" in session. Option (c) — widen the exception to any C-series item — was considered and **not** taken: the gate protects the commercial repo and should not move as a side effect of a 30-line header. So a future non-C1-C7 item needing a GATED edit escalates the same way; C8 is not a precedent for reaching. Execution: [SynthEditLib#4](https://github.com/JeffMcClintock/SynthEditLib/pull/4) + [SynthEdit#10](https://github.com/JeffMcClintock/SynthEdit/pull/10), which must merge together. Evidence: [c8-it-empty-header.md](c8-it-empty-header.md) |
 | 2026-08-09 | **P8 fixed directly on `SE16` master**, not on a branch — Jeff's call, in session, clearing the "check with Jeff before touching" gate that row carried | The bug was failing the SynthEdit **Store release pipeline** on master, not just local clean builds, so a branch awaiting review would have left shipping blocked for the wait. `SE16` has no branch protection (private repos need GitHub Pro), so master was reachable. This is the interactive-session convention C1b used, not a weekly run deciding for itself: **a scheduled run still must not push to main** |
 | 2026-08-09 | Agent identity switches on `GH_TOKEN` presence, with git using `gh` as its credential helper; STEP 0.7 asserts `tide-rack-bot` or stops | One global setting, correct for both identities, nothing to toggle or restore if a run dies. Rejected: `gh auth switch` (global, strands Jeff as the bot on a crash), `settings.json` env (hits interactive sessions), token in remote URL (plaintext in `.git/config`) |
 | 2026-08-09 | Agent identity uses a **classic** `repo`-scope PAT, not fine-grained; `workflow` scope withheld | Fine-grained tokens cannot serve a collaborator on repos they don't own (GitHub platform limit). Withholding `workflow` enforces the no-workflow-edits rule at the credential layer — A3/A5 need Jeff or a scope bump |
