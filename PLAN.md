@@ -7,7 +7,8 @@ Companion documents:
 - [BACKLOG.md](BACKLOG.md) — ordered work items. Changes every run.
 - [JOURNAL.md](JOURNAL.md) — append-only log of what each run did. Changes every run.
 - [docs/carve-out.md](docs/carve-out.md) — the code-sharing migration plan.
-- [docs/design-notes.md](docs/design-notes.md) — UX model, RNBO as reference.
+- [docs/design-notes.md](docs/design-notes.md) — UX model, RNBO and Cardinal as
+  reference.
 - [docs/agent-setup.md](docs/agent-setup.md) — how the three machines coordinate.
 - [docs/module-enumeration.md](docs/module-enumeration.md) — how modules get into
   the factory without a filesystem scan. Basis for constraint 7.
@@ -61,6 +62,15 @@ The one thing that repo built and this one lacks is a working **audio
 verification harness** — render a Container headlessly to a WAV, null-test it
 against a checked-in golden reference. That is worth having whichever repo the
 product lives in, and is filed as **E1**.
+
+A close precedent already exists: [Cardinal](https://cardinal.kx.studio/) is a
+self-contained plugin build of VCV Rack — same rack UI, but packaged as an
+ordinary AU/CLAP/LV2/VST plugin with every module compiled in and none loaded
+externally, rather than a standalone app scanning third-party modules. That is
+constraint 7 and constraint 2, both reached independently, at real scale
+(~1,400 modules). See [docs/design-notes.md](docs/design-notes.md) for what
+TIDE takes from it and what it deliberately does not (Cardinal's code and
+module ecosystem, which are GPL-licensed and not TIDE's lineage).
 
 What the Eurorack framing commits to, taken from Reaktor Blocks and VCV Rack:
 

@@ -46,6 +46,48 @@ same: a patch's parameters should appear as host-automatable parameters without
 the user building a panel first. This matters more in TIDE than in SynthEdit,
 because TIDE has no panel view where a user could wire up controls manually.
 
+## Cardinal as reference — the fixed-module-set precedent
+
+[Cardinal](https://cardinal.kx.studio/) is a self-contained plugin build of
+[VCV Rack](https://vcvrack.com/) — the same patcher, repackaged as ordinary
+plugin software (AU, CLAP, LV2, VST2, VST3, plus a standalone and a web build)
+instead of a standalone app that hosts scanned third-party modules.
+
+It matters here for one specific reason: **Cardinal already made TIDE's
+constraint 7 decision, independently, for the same underlying reason.** Its own
+description is direct about it — *"Cardinal does not load any external modules,
+everything is built-in."* All ~1,400 modules from ~84 authors are compiled into
+one binary. No module folder, no scanning, no runtime loading of anyone else's
+code. That is not a limitation Cardinal apologises for; it is the design,
+because a plugin that scans and loads arbitrary third-party binaries is not
+something every host and OS will accept — precisely the AUv3-sandbox argument
+constraint 7 makes in [PLAN.md](../PLAN.md).
+
+**What to take:**
+
+1. **Proof the model works at scale.** Cardinal is not a toy demonstration of
+   "fixed module set" — it ships ~1,400 modules this way and is in real use.
+   TIDE's module count will be far smaller, but the architecture question ("can
+   a compiled-in registry feel as open as a scanned folder?") already has a
+   working answer to point at.
+2. **The rack *is* the interface, and everything is visible at once.** Cardinal
+   inherits VCV's layout rather than a paged or tabbed one — the same "whole
+   patch visible, any output patches to any input" property PLAN.md's Eurorack
+   section already takes from VCV Rack directly (see there for the full list;
+   Cardinal is the proof that this layout survives being embedded in a plugin
+   rather than staying a standalone app).
+3. **"Plugin, not app" was the whole point of the exercise.** Cardinal exists
+   because VCV Rack itself is a standalone application with its own audio/MIDI
+   I/O, and Cardinal's contribution was removing exactly that — turning a rack
+   into something a DAW can host and own I/O for. That is constraint 2, reached
+   by the same route.
+
+**What not to take:** Cardinal is a derivative of VCV Rack's GPL-licensed code
+and module ecosystem. TIDE borrows the *architecture decision*, not any of
+Cardinal's code or modules — see [carve-out.md](carve-out.md) and the licence
+section of [PLAN.md](../PLAN.md) for why TIDE's own licensing stays independent
+of that lineage.
+
 ## The one-view UX
 
 The whole interface is the structure view plus a breadcrumb bar.
@@ -102,3 +144,5 @@ speculation.
 - [RNBO — Cycling '74](https://rnbo.cycling74.com/)
 - [RNBO Architecture](https://rnbo.cycling74.com/learn/architecture)
 - [Exporting to the Audio Plugin Target](https://rnbo.cycling74.com/learn/audio-plugin-target-export-overview)
+- [Cardinal](https://cardinal.kx.studio/)
+- [VCV Rack](https://vcvrack.com/)
