@@ -22,6 +22,74 @@ Template:
 
 ---
 
+## 2026-08-11 — macos — C8 executed (interactive session, Jeff directing)
+
+**Did:** Jeff merged [#31](https://github.com/JeffMcClintock/TideSynth/pull/31)
+and [#32](https://github.com/JeffMcClintock/TideSynth/pull/32) and asked whether
+that counted as a go-ahead. It counts for the *ruling*; the entry as written then
+needed one more word, and he gave it. Deleted the header and recorded the
+decision.
+
+**Result:** the `PROPOSED:` entry merged **unedited**, which under the Proposed
+mechanism selects the recommended default — **option (b), C8 is Jeff's call**.
+Worth being precise about, because (b) is the one option that does not
+self-execute: it reads *"Jeff deletes it, or says 'go' on this PR and a later run
+does"*. So the merge settled **what** was decided but not **who acts**, and
+answering "yes, merging is enough" without that distinction would have been wrong
+in a way that only shows up the next time an agent reads this file for precedent.
+
+Three PRs, all open, none merged by me:
+
+| Repo | PR | Change |
+|---|---|---|
+| `SynthEditLib` | [#4](https://github.com/JeffMcClintock/SynthEditLib/pull/4) | delete `it_empty.h` |
+| `SynthEdit` (SE16) | [#10](https://github.com/JeffMcClintock/SynthEdit/pull/10) | drop `EditorLib/CMakeLists.txt:74` |
+| `TideSynth` | this branch | ruling into `decisions.md`, C8 → IN-REVIEW |
+
+**They must merge together.** Either alone leaves a source list naming a file
+that does not exist — and because CMake tolerates that for *headers*, it fails
+silently rather than loudly. That is the same mechanism that let this orphan
+survive three dead-code passes, so landing half of C8 would recreate C8.
+
+**Learned:**
+
+- **The gate was deliberately not widened.** Option (c) — relax STEP 5's
+  exception from `C1-C7` to any C-series item — was the tidiest fix and was
+  rejected on the merits, not forgotten. It is recorded as rejected in
+  `decisions.md` so a later run does not re-derive it and read C8 as licence to
+  reach. **C8 is a precedent for escalating, not for reaching.**
+- **`gh pr edit` does not work as the bot.** It goes through GraphQL, which wants
+  `read:org`; the classic token has `repo` only. Same for `gh pr view --comments`.
+  **Use the REST API** — `gh api -X PATCH repos/<o>/<r>/pulls/<n> --input <json>`
+  and `gh api …/pulls/<n>/reviews|comments` — which the `repo` scope does cover.
+  This will bite every run that tries to amend its own PR body.
+- **The #31/#32 `JOURNAL.md` conflict predicted in #32 was real and Jeff resolved
+  it cleanly** — both entries are present and in date order on `main`. The
+  mitigation that worked was keeping the *BACKLOG* edits disjoint (#31 took the
+  NEXT block and the P7 rows, #32 took only the C8 row), so only the journal
+  needed hand-merging. Worth repeating whenever two PRs are open at once; **A4**
+  is the row that would automate it away.
+
+**Still open, and not mine to close:**
+[GMPI_Wrappers#1](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/1) — P7's
+regression test. TideSynth #31 merged but this did not, so **P7 correctly stays
+IN-REVIEW**; do not flip it to DONE until that one lands. It is additive and
+changes no shipped code.
+
+**Build health:** nothing built; the only code change is a one-line CMake source-
+list deletion and the removal of a header with zero includers. No claim beyond
+that.
+
+**Next:** merge #4 and #10 **together**, then flip C8 to DONE and move the row to
+the Done section. Then `mac` is on **P7a**, per the NEXT block #31 set.
+
+**Prompt:** n/a — interactive session, not a scheduled run. Acted as
+`tide-rack-bot`, so every change went via a PR rather than to a default branch.
+
+**Branch/PR:** `tide/mac/C8-ruling-recorded` (TideSynth), plus the two above.
+
+---
+
 ## 2026-08-11 — macos — C8
 
 **Did:** Took **C8** (`SynthEditLib/it_empty.h` — delete it, or find out why it
