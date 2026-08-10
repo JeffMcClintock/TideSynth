@@ -40,7 +40,11 @@ and a stale count is worse than no count.
 Inspired in spirit by [RNBO](https://rnbo.cycling74.com/) — a deliberately
 reduced patcher whose subset is chosen so that everything in it runs everywhere.
 TIDE's architecture is different (it interprets rather than compiles); the
-discipline is the same. See [docs/design-notes.md](docs/design-notes.md).
+discipline is the same. Inspired just as directly by
+[Cardinal](https://cardinal.kx.studio/) — a self-contained plugin build of VCV
+Rack with a fixed, built-in module set and no external scanning, which is
+constraint 7 arrived at independently. See
+[docs/design-notes.md](docs/design-notes.md).
 
 ## Licence
 
