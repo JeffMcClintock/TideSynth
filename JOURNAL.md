@@ -22,6 +22,167 @@ Template:
 
 ---
 
+## 2026-08-10 — macos — P7
+
+**Did:** Audited the macOS and X11 resize paths for the P4
+time-of-check/time-of-use crash, and ported the Windows regression test to Cocoa.
+Findings in [docs/p7-resize-audit-mac-x11.md](docs/p7-resize-audit-mac-x11.md);
+the test is `GMPI_Wrappers/tests/mac_editor_resize_host.mm`. **No behavioural
+change was made to `gmpi_ui` or `SEVSTGUIEditorMac.cpp`** — reasons below, they
+are deliberate and they are the main judgement call in this run.
+
+**Result — the crash does not exist on macOS, and cannot by that mechanism.**
+Not "was not observed": the structure rules it out. On Windows the device is
+rebuilt *inside* the resize, so a checked pointer can be invalidated before it is
+used. On macOS the resize only tears down:
+
+```
+SEVSTGUIEditorMac::onSize  ->  resizeNativeView  ->  [NSView setFrame:]
+    ->  DrawingFrameCocoa::onResize()  ->  CGContextRelease(backBuffer); backBuffer = nullptr;
+```
+
+`onResize` ([DrawingFrameMac.mm:434](#)) is three lines and uses nothing
+afterwards. Reallocation is lazy, in `onRender`, where the `if(!backBuffer)` test
+and the use are adjacent. `onSize` uses nothing after `resizeNativeView`. There is
+no window for staleness. X11's `reSize` ([DrawingFrameX11.cpp:932](#)) is safe for
+a different reason: it writes its fields and calls `XResizeWindow` *last*, and X
+requests queue rather than dispatch synchronously, so there is no re-entrancy to
+survive.
+
+**Verification artifact.** `mac_editor_resize_host` built universal (x86_64 +
+arm64), AppleClang 21, macOS 26.3.1:
+
+| Plugin | runs | oversized resize+paint pairs | result |
+|---|---|---|---|
+| `GainGui_VST3`, built from local `gmpi_ui` + `GMPI_Wrappers` | 3 | 6 per run | **exit 0, survived 3/3** |
+| `TIDE_VST3` Release, the existing bundle | 1 | 6 | **exit 0, survived** |
+
+Both were provably live *before* the oversized rects (liveness A and B, 19–65
+distinct colours) and still drawing *after* recovering to their original size, so
+"survived because it never ran" and "survived because resize became a no-op" are
+both excluded. Rects exercised each pass: `2178 x 32672` (the rect from the
+Windows dump), `0 x 0`, `1 x 1`, `16385 x 600`, `600 x 16385`, then recovery.
+
+**What is actually wrong on macOS, since it is not a crash:**
+
+- **No upper bound on extent, anywhere** — not in `onSize`, not in
+  `resizeNativeView` ([:788](#)), not in `initBackingBitmap` ([:406](#)).
+- **And — measured, not assumed — there is no NULL to fall back on.** I expected
+  `CGBitmapContextCreate` to refuse these sizes and `onRender`'s `:113` guard to
+  catch it. It does not refuse them. Probed directly with the exact format
+  `initBackingBitmap` asks for: `2178 x 32672` **ok**, `16384 x 16384` **ok**,
+  `65536 x 600` **ok**; binary search puts the square limit at **131071** and one
+  axis at **4194303**. CoreGraphics reserves lazily. The only extent it refuses is
+  `0 x 0`. So the whole `if(!backBuffer) return;` safety story applies at exactly
+  one size.
+- **The consequence is memory.** Resident size climbs into the hundreds of MiB and
+  one measured paint at `16385 x 600` cost **+253 MiB**. Numbers are noisy — they
+  include the harness's own bitmaps — but the order of magnitude is the finding.
+- **`checkSizeConstraint` never writes the rect back** ([SEVSTGUIEditorMac.cpp:79](#)),
+  the pre-P4b shape. Both branches observed: GainGui (resizable) returns
+  **`kResultTrue`** and TIDE returns `kResultFalse`, and *neither* touches the
+  rect. The resizable case is the sharp one — the wrapper **affirmatively
+  approves** `2178 x 32672`, with no clamp behind the answer.
+- **Two latent TOCTOUs, neither demonstrated.** `onRender` re-checks `backBuffer`
+  after `arrange` at `:113` — correct — and then does *not* re-check it after
+  `drawingClient->render()` at `:207` before using it at `:212`/`:215` (**P7b**).
+  X11 `present()` is worse-shaped: `pw`/`ph` are cached at `:1262`, checked via
+  `ensureImage` at `:1267`, and used at `:1319` after `measure`/`arrange`/`render`
+  all re-enter client code — `d.image` is re-read but its *extents* are not, so a
+  nested `present()` at a smaller size would overflow the heap rather than
+  dereference null (**P7c**).
+
+**Why I changed no shared code, since that is the arguable part.** Three reasons,
+weightiest first. (1) P7 asks two questions and asks for the test ported; the
+answer is "no crash", so nothing here justifies editing the backend every GMPI
+plugin and SynthEdit itself depend on. (2) A clamp needs a defensible number and
+there is not one — Windows' 16384 is a hard D3D11 limit, CoreGraphics accepts
+131071², so a macOS bound is a product decision about how much memory an editor
+may reserve. Picking one silently inside shared code is the guess the run prompt
+warns about. (3) The standing direction for these repos is to rebuild SynthEditCL
+as well as TIDE, and **P6** says SynthEditCL does not build on macOS — so a
+behavioural change to shared rendering code cannot be validated against its other
+consumer on this box today. Filed as **P7a** with all the measurements, so
+whoever takes it chooses a number with evidence instead of copying 16384.
+
+**Learned:**
+
+- **The port's danger was not the crash, it was the liveness probe.** The Windows
+  harness proves the renderer is live by making a benign resize and checking the
+  window adopted it. That is sound *there* because adoption proves `reSize` got
+  past its device check. On macOS `resizeNativeView` calls `setFrame:` with **no
+  device check at all**, so adoption holds with no renderer whatsoever. A literal
+  port reports a confident false PASS. Liveness here had to become two facts: the
+  view adopted the size, **and** a forced paint produced real drawing.
+- **And the resize allocates nothing, so `onSize` alone tests nothing.** Windows
+  gets the reallocation free from `SetWindowPos` sending `WM_SIZE`. On macOS it
+  happens in the next `drawRect:`, so every resize in the harness is followed by a
+  forced synchronous paint. Without that the test would have "passed" while
+  exercising only `CGContextRelease`.
+- **I produced a tidy wrong finding and caught it; the catch is the lesson.**
+  First version sampled one 200x200 tile at the view's origin, got one distinct
+  colour at `2178 x 32672`, and I wrote down "the editor goes blank". It does not.
+  The view is far larger than its 200x200 window so most of it is clipped and never
+  rendered, and AppKit's unflipped origin is the **bottom**-left, which after that
+  resize sits far below the window — the tile was in a region that legitimately
+  never drew. Exactly P2's error of measuring the parent `HWND`, in Cocoa dress.
+  Fixed by sampling corners and centre of `[v visibleRect]`. **Then it was still
+  wrong to gate on**: at `16385 x 600` GainGui's tiles are uniform while TIDE's
+  return 65 distinct colours, because whether a sampled region has content depends
+  on where the client puts it. Distinct-colour counts at absurd extents are now
+  diagnostics only. Two plugins is what made this visible — one would have left me
+  with a plausible false claim in the doc.
+- **`cacheDisplayInRect:toBitmap:` does not exist.** It compiles as an unknown
+  selector returning `id` and throws at run time. `...toBitmapImageRep:` is the
+  real one. The compiler warned and the warning was the only thing standing
+  between this and a runtime exception mid-probe.
+- **This box's SynthEdit build tree has the X3 trap live in it.**
+  `~/Documents/GitHub/SynthEdit/build/CMakeCache.txt` has
+  `GMPI_WRAPPER_FOLDER_OVERRIDE:PATH=` **empty**, so it links a `GMPI_Wrappers`
+  frozen at `1a68601`, 2026-05-14, out of `build/_deps/gmpi_wrappers-src` — while
+  `gmpi_ui`, `GMPI` and `SynthEditLib` are all correctly overridden. Exactly the
+  half-overridden state that made a Linux VST3 unloadable in X3. It is Jeff's tree
+  and I did not touch it, but any run that "tests a GMPI_Wrappers change" by
+  building TIDE from that directory is testing May's code. I built into a fresh
+  scratch directory instead and read the configure banner to confirm all three
+  local paths were taken.
+- **`GMPI-plugins` cannot link a GUI plugin on macOS at all** — `_OBJC_CLASS_$_UTType`
+  undefined, because `gmpi_ui/backends/MacFileDialog.h:8` uses `UTType` and that
+  repo's link line never adds the framework, while
+  `SynthEdit/EditorLib/CMakeLists.txt:166` does. Pre-existing, invisible until
+  someone built a GUI plugin outside SynthEdit. `GMPI-plugins` is on neither the
+  ALLOWED nor the GATED list, so it is GATED by default; worked around at configure
+  time with `-DCMAKE_MODULE_LINKER_FLAGS="-framework UniformTypeIdentifiers"`,
+  touching no file, and filed as **P7d** with the scope question named — the
+  requirement plausibly belongs in `gmpi_ui`, which is ALLOWED.
+
+**Build health:** no claim about SynthEdit or SynthEditCL — neither was built, and
+P6 says SynthEditCL does not build on macOS anyway. TIDE's existing Release bundle
+loads, instantiates, opens its editor and renders under this harness, which is a
+narrower claim than "TIDE builds" and is the one I can actually support. `gmpi_ui`
+was not modified, so nothing that consumes it is at risk from this run.
+
+**Next:** **P7a** — the one real macOS defect this found, and the audit already did
+the measuring a clamp needs; read the doc before reaching for Windows' 16384,
+because it does not apply. **P7b** is minutes if someone is in that file anyway.
+**P7c** is the X11 half and is `linux` by necessity — this box cannot build or run
+X11, and the first thing to establish there is whether a nested `present()` is
+reachable at all. **P7d** needs a one-line ruling from Jeff before it is one line of
+CMake.
+
+Nothing is in flight on this box. All working copies were clean before this run and
+are back on their default branches after it; the only repos committed in are
+TideSynth and GMPI_Wrappers, each with an open PR.
+
+**Prompt:** `e09e766` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Branch/PR:** `tide/mac/P7-resize-audit` in both repos —
+[GMPI_Wrappers#1](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/1) (test +
+CMake, additive) and TideSynth (audit doc, backlog, this entry). Independent:
+the wrappers PR changes no shipped code, so merging either alone cannot break a
+build.
+---
+
 ## 2026-08-09 — windows — P8 (interactive session, Jeff directing)
 
 **Did:** Fixed **P8** and pushed it straight to `SE16` master (`4baddfbb4`) at
