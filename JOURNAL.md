@@ -22,6 +22,142 @@ Template:
 
 ---
 
+## 2026-08-11 — macos — C8
+
+**Did:** Took **C8** (`SynthEditLib/it_empty.h` — delete it, or find out why it
+exists) and did the finding-out half in full. Audit in
+[docs/c8-it-empty-header.md](docs/c8-it-empty-header.md). **I did not delete the
+file**, and that is the judgement call of this run — reasons under *Learned*.
+Also filed the blocking question as a `PROPOSED:` entry in
+[docs/decisions.md](docs/decisions.md) and rewrote the C8 row to NEEDS-JEFF with
+`Default in effect` / `Decide-by`.
+
+**Result — the file is dead by every measure, and I can date its death.**
+Recommendation is **delete**. Reconstructed with `git log -S` over `SE16`:
+
+| When | Commit | What went |
+|---|---|---|
+| 2022-03-03 | `27f28b54e` | the last live instantiation, `it_visual_ob_list_empty : EmptyIterator<CVisualOb, it_visual_ob>` |
+| 2025-01-24 | `176c6c26f` | the archived V1 copies under `OtherProjects/SynthEdit_1.0/` |
+| 2026-04-13 | `671457fc5` | `SynthEdit2/it_empty.cpp` — **the header's last includer anywhere** |
+| 2026-08-08 | C2 | moved the orphan into the public repo |
+
+The 2026-04-13 step is the punchline: that `.cpp` had its entire body commented
+out, so its only live line was `#include "it_empty.h"`. For its last four months
+the header's sole reason to exist was a file that existed only to include it.
+
+**Verification artifact — six checks, all run this session, none carried over
+from C2's claim:**
+
+| Check | Result |
+|---|---|
+| `git grep -nIE 'it_empty\|EmptyIterator'` over 8 repos (`SynthEdit`, `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers`, `GMPI`, `GMPI-plugins`, `GMPI_Adaptors`, `TideSynth`) | **zero `#include`**; only the file itself, `EditorLib/CMakeLists.txt:74`, and TideSynth prose |
+| same as a filesystem grep incl. build dirs | same, plus one pre-C2 copy in an abandoned `.claude/worktrees/` scratch tree — not a reference |
+| `file(GLOB)` / `GLOB_RECURSE` anywhere in `SynthEditLib` | **none** — nothing can sweep it in |
+| `install()` / `export()` / `PUBLIC_HEADER` / `FILE_SET` in `SynthEditLib` | **none at all** |
+| `it_empty` in any `.vcxproj` / `.filters` / `.pbxproj` / `.xcconfig` / `.yml` | **none** (unlike `FuzzyMatch.h`, which C2 had to repoint in three) |
+| creation date | **2002-01-10 18:50:19 UTC**, decoded from the v1 UUID in its own ClassWizard guard `AFX_IT_EMPTY_H__E50CDB53_05FA_11D6_…` |
+
+**No build was run, deliberately.** A header that appears in zero `#include`
+directives cannot affect any translation unit — that is a proof, and a build
+could only fail to contradict it. Building `SE16` here also has known live traps
+(P6; and the half-overridden `GMPI_WRAPPER_FOLDER_OVERRIDE` the P7 entry found in
+Jeff's tree). Saying "verified by build" would have been weaker evidence dressed
+as stronger.
+
+**Learned:**
+
+- **`SynthEditLib` does not build any of C2's 16 files.** Its own
+  `CMakeLists.txt` lists none of `it_doc_ob.cpp`, `imbedded_file.cpp`,
+  `checkpoint.cpp`, `it_plug_destinations.cpp` — they sit in the public repo but
+  are still compiled only by `EditorLib`, reaching across via
+  `${SYNTHEDITLIB_DIR}`. Correct and expected until **C6** moves the list, but it
+  means **"it's in SynthEditLib" does not yet imply "SynthEditLib builds it"**, and
+  a run reasoning about the public repo's surface should not assume otherwise.
+- **So the C8 row's "public API surface" overstates the case.** Nothing in
+  `SynthEditLib` is exported or installed — there are no such rules in the repo.
+  The file is *visible*, which is a real cost for a repo whose point is to be
+  read, but no consumer can depend on it. That distinction is what makes the
+  deletion risk-free rather than merely low-risk.
+- **A CMake source list is an inventory, not a dependency graph.** This is how
+  the file survived: it was on `EditorLib/CMakeLists.txt:74`, C2 moved everything
+  on that list, and listing a header contributes nothing to compilation so nothing
+  ever complains. Any future carve-out stage should expect the same — **C3 moves
+  ~120 files off that list and the list is not evidence any of them are live.**
+- **Why I stopped short of deleting, since it is the arguable part.** Both files
+  the change needs — `SynthEditLib/it_empty.h` and `SE16/EditorLib/CMakeLists.txt`
+  — are on STEP 5's **GATED** list, whose single exception is "an approved
+  carve-out stage (C1-C7)". C8 is numbered outside that range and is a cleanup,
+  not a stage. The prompt's remedy for a GATED fix is "do the TIDE-side part, then
+  file the gated part as its own BACKLOG item naming the exact file" — but that is
+  already spent: **C8 *is* that item**, filed by C2, naming the exact file, and
+  there is no TIDE-side part. So the remedy terminates in a question, not an
+  action. Widening the exception myself would be a run rewriting the rule that
+  protects the commercial repo because the rule inconvenienced it, which is the
+  shape of the mistake the gate exists to prevent; **G3 is the precedent for
+  asking, and Jeff answered that one in a day.** The C8 row also asks for "a
+  deliberate keep or a deliberate delete" — C2 span it off precisely so the call
+  would not be a side effect of a file move, and deciding it unilaterally makes it
+  a side effect again, one layer up.
+- **Eligibility and authority are different questions, and the prompt is
+  consistent about it.** STEP 2 says eligibility lives in the Status column
+  alone — C8 is `TODO`/`any`, so taking it was correct. STEP 5 then constrains
+  *how* it may be executed. A run that conflates the two would either refuse an
+  eligible item or reach across a gate; the right answer is take it, do
+  everything in bounds, escalate the one act that is not.
+
+**Build health:** nothing was built and no code changed, in any repo. This run
+touched only TideSynth (docs + backlog + journal), so nothing that consumes
+`gmpi_ui`, `GMPI_Wrappers`, `SynthEditLib` or `SE16` is affected. All five
+working copies were clean before this run and were left on their default
+branches.
+
+**STEP 1 / 1.5 — what I found before picking an item, since it changes what the
+next run should expect:**
+
+- **No `platform:mac` issues** — none open in TideSynth at all. `gmpi_ui#1`
+  ("Linux support?", 2024) is unlabelled and not from the CI bot; noted, not acted
+  on.
+- **P7's PRs are open and their checks are red, and it is not P7's fault.**
+  TideSynth [#31](https://github.com/JeffMcClintock/TideSynth/pull/31) shows
+  `windows`, `macos` and `linux` all FAILURE — but **`main`'s own latest run
+  (`31352435423`) fails identically on all three**, with
+  `CMake Error: The source directory … does not appear to contain CMakeLists.txt`.
+  That is the documented pre-C7 failure the workflow header calls "the point"
+  (`build.yml`: *EXPECTED TO FAIL until BACKLOG C7*). So it is branch-independent
+  and **not** "changes requested handed back to my platform"; I left both PRs
+  alone per STEP 1.5. No reviews and no comments on either.
+- **Worth flagging plainly: STEP 1.5's "failing checks" trigger is currently
+  unusable on this project.** Every PR and every branch has three red checks and
+  will until C7 lands, so "does my platform's PR have failing checks" is always
+  yes and carries no signal. A run that took the rule literally would spend every
+  session re-investigating a known-expected failure instead of taking backlog
+  work. I resolved it by comparing against `main`'s own run, which is the check
+  that actually discriminates — **recommend that comparison become the rule**, and
+  note **B1** is the row that fixes the underlying problem.
+- Run-level conclusion says `success` while every job says `failure`, because of
+  the job-level `continue-on-error`. `gh run list` is therefore actively
+  misleading here; read `…/actions/runs/<id>/jobs`, not the run.
+
+**Next:** **C8 needs one line from Jeff** — merge the PROPOSED entry to answer
+it. Under option (b) the execution is one commit in each of two repos and the
+audit already contains both exact edits. Otherwise the mac NEXT pointer is
+**P7a** once [#31](https://github.com/JeffMcClintock/TideSynth/pull/31) merges
+(that PR moves it), and P7a is well-specified with its measurements already
+taken. Independently: **B1** is now doing more damage than its row suggests —
+see the STEP 1.5 note above.
+
+**Prompt:** `e09e766` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Branch/PR:** `tide/mac/C8-it-empty-header`, TideSynth only — no other repo was
+committed in. **Expect a JOURNAL.md conflict with [#31](https://github.com/JeffMcClintock/TideSynth/pull/31)**:
+both insert at the top of the file, and both are open at once. BACKLOG.md should
+merge cleanly — #31 edits the NEXT block and the P7 row region, this edits the C8
+row only, and I deliberately left the NEXT block untouched because #31 already
+moves `mac` to P7a.
+
+---
+
 ## 2026-08-10 — macos — P7
 
 **Did:** Audited the macOS and X11 resize paths for the P4
@@ -181,6 +317,7 @@ TideSynth and GMPI_Wrappers, each with an open PR.
 CMake, additive) and TideSynth (audit doc, backlog, this entry). Independent:
 the wrappers PR changes no shipped code, so merging either alone cannot break a
 build.
+
 ---
 
 ## 2026-08-09 — windows — P8 (interactive session, Jeff directing)
