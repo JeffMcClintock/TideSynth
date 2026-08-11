@@ -60,8 +60,13 @@ experimental Eurorack `rackMode` across `SynthEdit2/MfcDocPresenter.{cpp,h}`,
 **`SynthEditDocBase.h` is one of the six files C3 must `git mv`**, and a move
 either commits his uncommitted line or destroys it — STEP 5's third dirt
 category forbids both. Full detail is now a **precondition on the C3 row**, and
-on C4 by implication, since the `MfcDocPresenter` pair is C4's scope. Transient:
-re-check, do not assume.
+on C4 by implication, since the `MfcDocPresenter` pair is C4's scope.
+
+**It was transient, and it cleared during this run.** Jeff committed the work at
+10:51 — SE16 `a056d3f5b`, SynthEditLib `5c6bc1b` — so by the end of the run both
+trees were clean and **C3 is unblocked again**. I did not switch to it: A8 was
+already claimed, built and in review, and STEP 2 says one item. Re-check rather
+than trusting either state; this is a working machine and it moves under you.
 
 **A3, the row above A8, was equally unavailable** — as are A5 and A6. All three
 edit `.github/workflows/` and the bot's token deliberately lacks `workflow`
@@ -96,10 +101,9 @@ New: `JOURNAL-2026-08.md` (34 entries), `BACKLOG-DONE.md` (24 rows),
 
 - **Lifting a row from a root-level file into `docs/` silently breaks its
   relative links.** Three of the five (`A2`, `N1`, `S1b`) carried `](docs/…)`
-  links, correct in `BACKLOG.md` and wrong one directory down. The text is
-  verbatim and still broken — **verbatim is faithful, not safe.** That is the
-  whole argument for the checker; it caught all three, plus a pre-existing break
-  in `docs/distribution.md:6` (`PLAN.md` → `../PLAN.md`).
+  links, correct in `BACKLOG.md` and wrong one directory down — **verbatim is
+  faithful, not safe.** That is the whole argument for the checker; it caught all
+  three, plus a pre-existing break in `docs/distribution.md:6`.
 - **The rotation rule needs a floor, and the floor has to win.** "Under 30 KB"
   and "the last four entries must be readable" genuinely conflict here: three of
   the four retained entries are 3.7–10.3 KB, so this file lands **just under
@@ -108,37 +112,33 @@ New: `JOURNAL-2026-08.md` (34 entries), `BACKLOG-DONE.md` (24 rows),
   large file. That precedence is now written into the rule above.
 - **A grooming item conflicts with every open PR by construction**, so the only
   mitigation is choosing what *not* to touch. #34 edits `E1` and #35 edits
-  `P7a`/`P6`, so I distilled neither — I had lifted `E1` and reverted it on
-  finding #34 also adds a near-identically-named `docs/e1-verification-harness.md`.
-  **Merge #34 and #35 first**; this PR then rebases, and the journal hunk
-  resolves as: my header, their entries, my kept entries.
+  `P7a`/`P6`, so I distilled neither (I had lifted `E1` and reverted it —
+  #34 adds a near-identically-named `docs/e1-verification-harness.md`).
+  **Merge #34 and #35 first**; the journal hunk then resolves as: my header,
+  their entries, my kept entries.
 - **The `## Blocked on Jeff` section held nothing blocked on Jeff** — all six
   rows were `RESOLVED`. A section titled "agents must not start these" holding
   only settled history is a small trap; archived.
 - **STEP 0.5 requires an app version this box does not expose.** No
-  `AppData\Local\AnthropicClaude`; the only version string under
-  `AppData\Local\Claude\Logs` is the Chrome native host's. The provenance line
-  says "undetermined" rather than copying the last entry's number — but someone
-  should settle where a run is meant to read it.
+  `AppData\Local\AnthropicClaude`, and the only version string under
+  `AppData\Local\Claude\Logs` is the Chrome native host's. The line below says
+  "undetermined" rather than copying the last entry's number.
 
 **Build health:** nothing built, no code changed — this run touched **TideSynth
-only** (docs, backlog, journal, one script). `gmpi_ui` and `GMPI_Wrappers` were
-clean and untouched; **SE16 and SynthEditLib were left exactly as found, dirty
-with Jeff's `rackMode` work in six files** — not committed, reverted or stashed.
-All five checkouts are on their default branches. TideSynth's `README.md` showed
-a real 17-line diff at the start of this run and was clean minutes later,
-consistent with Jeff editing live.
+only**. **SE16 and SynthEditLib were left exactly as found** (dirty when I read
+them, then committed by Jeff, not by me); `gmpi_ui` and `GMPI_Wrappers` were
+clean and untouched. All five checkouts end on their default branches.
 
 **STEP 1 / 1.5:** no open issues in TideSynth at all, so no `platform:win`
 issue, and no open `tide/win/**` PR. #34 (linux/E1) and #35 (mac/P7a) are not mine. Per
 the C8 entry, CI red is uninformative here until C7.
 
-**Next:** merge **#34** and **#35**, then this PR after a rebase. Then win is on
-**C3** — *check SE16 is clean first*. If `rackMode` is still in flight, C3 and C4
-are both unavailable; the next win-eligible items are **S1b** (which recommends
-riding along with C4 anyway) and **P3** — but P3's scope includes
-`MfcDocPresenter.cpp`, so it carries the same precondition. **A3/A5/A6 need a
-`workflow`-scoped credential or Jeff.**
+**Next:** merge **#34** and **#35**, then this PR after a rebase. Then win takes
+**C3**, which is clean and unblocked as of 10:51 — but check the tree again, and
+expect `rackMode` to keep moving in the files C3 and C4 must relocate. If it is
+dirty again, the fallbacks are **S1b** and **P3**, and P3 has the same
+precondition (`MfcDocPresenter.cpp`). **A3/A5/A6 need a `workflow`-scoped
+credential or Jeff.**
 
 **Prompt:** `e09e766` · claude-opus-5[1m] · app version undetermined on this box
 · as `tide-rack-bot`
