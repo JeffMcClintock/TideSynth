@@ -22,6 +22,12 @@ with the plugin. Decided 2026-08-09; see [PLAN.md](PLAN.md).
 yet buildable outside the author's machine. The Eurorack module set is not in
 v0.1. See [BACKLOG.md](BACKLOG.md).
 
+Builds will appear on the
+[releases page](https://github.com/JeffMcClintock/TideSynth/releases). It is
+empty today and stays empty until there is a v0.1 worth downloading — see
+[docs/distribution.md](docs/distribution.md) for what will land there and under
+what names.
+
 ## The design, in short
 
 - One view — structure only. No panels, no tabs.
