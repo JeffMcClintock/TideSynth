@@ -272,7 +272,7 @@ with its evidence instead.
 
 | id | what |
 |---|---|
-| **P7a** | macOS: bound the extent and make `checkSizeConstraint` write back. Carries the measured CG limits and the memory figures, so whoever takes it is choosing a number with evidence rather than copying 16384. |
+| **P7a** | macOS: bound the extent and make `checkSizeConstraint` write back. Carries the measured CG limits and the memory figures, so whoever takes it is choosing a number with evidence rather than copying 16384. **Done 2026-08-12** — 8192 points per axis and a 384 MiB bitmap budget, both set from displays rather than from a graphics API, in [gmpi_ui#3](https://github.com/JeffMcClintock/gmpi_ui/pull/3) + [GMPI_Wrappers#2](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/2). The A/B reproduced this document's `+253 MiB` figure to within 0.4 MiB before halving it. |
 | **P7b** | macOS: re-check `backBuffer` after `drawingClient->render()` in `onRender` ([:207](#) → [:212](#)). One line, and the same function already does it correctly at `:113`. |
 | **P7c** | X11: `present()` caches `pw`/`ph` across `measure`/`arrange`/`render`. `linux` — this box cannot build or run X11. Includes what the audit could not settle: whether any client callback can pump the X loop and cause a nested `present()`. |
 | **P7d** | `GMPI-plugins` cannot link a GUI plugin on macOS — see below. |

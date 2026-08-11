@@ -22,6 +22,162 @@ Template:
 
 ---
 
+## 2026-08-12 — macos — P7a
+
+**Did:** Took **P7a** and did both halves. Bounded the macOS editor extent in
+`gmpi_ui/backends/DrawingFrameMac.mm`, and made `checkSizeConstraint` in
+`GMPI_Wrappers/wrapper/VST3/SEVSTGUIEditorMac.cpp` write the accepted size back.
+Both files were on STEP 5's ALLOWED list, so nothing needed escalating this time.
+
+**The numbers, since choosing them was the judgement call.** P7 filed this row
+precisely because it would not pick one: CoreGraphics has no wall to copy, so any
+bound is a product decision about how much an editor may reserve. I picked from
+**displays**, not from a graphics API:
+
+| constant | value | why |
+|---|---|---|
+| `maxEditorDimensionPoints` | **8192** points/axis | the widest single Mac display in logical points is a 6K Pro Display XDR in "more space" at **3840**, so this is a bit over twice the largest real case |
+| `maxBackingBitmapBytes` | **384 MiB** | the bitmap is 8 bytes/px at *backing* resolution, so a full-screen editor on that same display at 2x reserves **~265 MiB**; 384 clears it with headroom and still bites on every rect P7 exercised |
+
+Aspect ratio is preserved when the area budget bites. **Both numbers are Jeff's
+to overrule** — they live in one place with the reasoning beside them for exactly
+that reason, and the PR body says so.
+
+Why not one bound instead of two: a per-axis limit alone does not bound memory
+(8192² points at 2x is 8.6 TB of reservation), and an area budget alone lets an
+absurdly-shaped 16385 x 600 through. Each catches what the other misses. And
+Windows' 16384 was rejected on the merits — at that per-axis limit the audit's own
+`16385 x 600` case still costs +315 MiB, so copying it would have "fixed" the row
+while leaving the measured defect standing.
+
+**Clamped in two places on purpose.** `resizeNativeView` is the wrapper's path.
+`initBackingBitmap` is where the memory is actually reserved and is reachable
+*without* the wrapper — a host can set the view's frame directly, and
+`createNativeView`'s own comment says JUCE does exactly that. If the second site
+bites, the bitmap is smaller than the view and the blit at the end of `onRender`
+stretches it: a blurry editor at an absurd extent, which is the intended trade and
+is commented as such.
+
+**Result — verified A/B, same plugin, both Debug, same machine.** "Before" is
+`GainGui_VST3` built from a throwaway worktree at unmodified `gmpi_ui` +
+`GMPI_Wrappers`, so the only difference between the columns is this change.
+
+| host asked | before: view adopted | after: view adopted |
+|---|---|---|
+| `2178 x 32672` | `2178 x 32672` | **`1829 x 6879`** |
+| `0 x 0` | `0 x 0` | **`1 x 1`** |
+| `16385 x 600` | `16385 x 600` | **`8192 x 600`** |
+| `600 x 16385` | `600 x 16385` | **`600 x 8192`** |
+| recover `200 x 200` | `200 x 200`, 48 colours | `200 x 200`, 48 colours |
+
+| paint | before | after |
+|---|---|---|
+| `16385 x 600` | **+253.4 MiB** | **+128.3 MiB** |
+| `2178 x 32672` | +36.6 MiB | +31.3 MiB |
+| peak resident | 612.8 MiB | 362.5 MiB |
+
+**The before column reproduced P7's `+253 MiB` figure to within 0.4 MiB.** That is
+the positive control, and it is worth more than the after column: it says the
+harness and this machine still measure what they measured two days ago, so the
+delta is the change and not the weather.
+
+`checkSizeConstraint(0, 0, 2178, 32672)`, the row's stated acceptance observable:
+
+| plugin | before | after |
+|---|---|---|
+| `GainGui_VST3` (resizable) | `kResultTrue`, **UNCHANGED** | `kResultTrue`, **`1829 x 6879`** |
+| `TIDE_VST3` (fixed size) | `kResultFalse`, **UNCHANGED** | `kResultTrue`, **`1829 x 600`** |
+
+`mac_editor_resize_host` exits **0, 3/3** on GainGui and 1/1 on a TIDE_VST3 built
+against the change, live before (liveness A+B, 19–65 distinct colours) and still
+drawing after recovery — so "passed because the clamp made resize a no-op" is
+excluded. **Negative control:** `checkSizeConstraint(0, 0, 640, 480)` still comes
+back `kResultTrue` with the rect *unchanged*, so an in-bounds size is accepted
+as-is rather than spuriously adjusted. I added that control because every rect the
+harness tests by default is an absurd one, and a clamp that mangled legitimate
+sizes would have passed the whole suite.
+
+**Build health — better than the standing rule expects, and this is the run's
+second finding.** Configured a fresh Ninja build of `SynthEdit` with **all four**
+local overrides (banner confirmed) and ran `ninja` with no target: **RC=0**.
+`SynthEdit_VST3`, `SynthEdit_GMPI`, `TIDE`, `TIDE_VST3`, **`SynthEditCL`** and the
+test targets all build. So a macOS run *can* honour "leave SynthEdit, SynthEditCL
+and TIDE all building" — P7 and C8 both had to decline to claim that.
+
+**But P6 is not thereby disproved, and I did not close it.** P6's failure is a
+`CodeSign` step, and **the Ninja generator emits none** — the app came out
+`not signed at all`, so my build cannot reproduce the failure in either
+direction. What has changed is the source: `SynthEditCL/CMakeLists.txt:187` now
+branches on `APPLE` to `$<TARGET_BUNDLE_CONTENT_DIR>` (`Contents/`) with a comment
+quoting P6's exact error string, and prefabs landed in `Contents/Resources/` here.
+Two commits did that — `691270c5d` (2026-08-08) and `4792f4bf2` (2026-08-11,
+current `master` tip). Confirming it needs an **Xcode**-generator build, which is
+what Jeff's own tree uses. Noted on the row, left TODO.
+
+**Learned:**
+
+- **"Copy the Windows clamp" was the trap the row warned about, and it is worse
+  than the row says.** The row explains that 16384 has no technical meaning here.
+  What it does not say is that adopting it would leave the *measured* defect in
+  place: `16385 x 600` clamped to `16384 x 600` still reserves ~315 MiB at 2x. A
+  bound that admits the exact case you measured is decoration.
+- **The backing scale is the whole reason a points-based bound needs a byte
+  budget.** Everything the host says is in points; everything that costs memory is
+  in backing pixels, and Retina squares the discrepancy. `checkSizeConstraint` has
+  it worst — the view may not be on a screen yet, so the real scale is unknowable
+  and the only safe guess is the pessimistic 2x. Hence
+  `gmpi_clampEditorSize` working in points at an assumed 2x while
+  `initBackingBitmap` clamps in real backing pixels: the wrapper's answer is then
+  never *larger* than what the backend will honour, which is the direction that
+  matters.
+- **The X3 trap is still live in `~/Documents/GitHub/SynthEdit/build`.**
+  `GMPI_WRAPPER_FOLDER_OVERRIDE` is still empty there, exactly as the P7 entry
+  recorded on 2026-08-10 — so it still links a `GMPI_Wrappers` frozen at May while
+  the other three overrides are correct. It is Jeff's tree; I did not touch it and
+  built into scratch instead. **Any run that "verifies a GMPI_Wrappers change" by
+  building from that directory is verifying May's code and will not be told.**
+- **A before/after that reproduces the prior run's number is worth building.** It
+  cost one extra worktree and one extra configure, and it converted "+128 MiB
+  sounds better than +253" into evidence, because the same binary that produced
+  253.4 today is the one the after column is measured against.
+- **`gh pr create --base <branch>` for a stacked PR works as the bot**, unlike
+  `gh pr edit` (C8's finding — GraphQL wants `read:org`). GMPI_Wrappers#2 is based
+  on the still-open #1 because the harness it is verified with lives there; GitHub
+  retargets to `main` when #1 merges.
+
+**STEP 1 / 1.5 — what I found first:**
+
+- **No `platform:mac` issues.** TideSynth has no open issues at all. `gmpi_ui#1`
+  ("Linux support?", 2024) is from `arjunmenon` — neither Jeff nor the CI bot — so
+  per STEP 1 it is information, not instruction. Unchanged since C8 noted it.
+- **All three `tide/mac/**` PRs are clean and idle:** GMPI_Wrappers#1 (P7's test),
+  SynthEditLib#4 and SynthEdit#10 (C8's pair). No reviews, no review comments, no
+  issue comments, `mergeable=true`, and **no check runs configured in any of those
+  three repos** — so STEP 1.5's "failing checks" trigger does not fire there at
+  all. Nothing handed back to this platform; left alone, per the rule.
+- C8's #4 and #10 **still must merge together**, and P7 correctly stays IN-REVIEW
+  until GMPI_Wrappers#1 lands. Neither flipped.
+
+**Next:** **P7b** — one guard, and both PRs above put a run inside
+`DrawingFrameMac.mm` already, so whoever takes it has the context loaded. The only
+real work there is its verification story: it is latent by construction (no client
+resizes during `render`), so the honest options are to write a client that does, or
+to say plainly it is unverified. The harness on GMPI_Wrappers#1 is the place to add
+such a client if anyone wants the former. Independently: **P6 wants one Xcode
+build** to close, and **B1** remains the row that would make STEP 1.5 mean anything
+in this project.
+
+**Prompt:** `e09e766` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Branch/PR:** `tide/mac/P7a-editor-extent-bound` in three repos —
+[gmpi_ui#3](https://github.com/JeffMcClintock/gmpi_ui/pull/3),
+[GMPI_Wrappers#2](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/2) and this
+repo's PR. **Merge gmpi_ui#3 first**: the wrapper calls `gmpi_clampEditorSize`,
+which that PR introduces, so the other order is a link error. All five working
+copies were clean before this run and are back on their default branches after it.
+
+---
+
 ## 2026-08-11 — macos — C8 executed (interactive session, Jeff directing)
 
 **Did:** Jeff merged [#31](https://github.com/JeffMcClintock/TideSynth/pull/31)
