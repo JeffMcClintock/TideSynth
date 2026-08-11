@@ -77,15 +77,15 @@ scope. The credential is enforcing the rule as designed, but it means **the
 | broken links | 4 | **0** of 164 relative links |
 
 New: `JOURNAL-2026-08.md` (34 entries), `BACKLOG-DONE.md` (24 rows),
-`scripts/check-links.py`, and five `docs/<id>.md` files.
+`scripts/check-links.py`, 5 `docs/<id>.md`.
 
-**Verification artifacts — all run this session:**
+**Verification artifacts, this session:**
 
-- **Rotation is lossless.** Re-parsed both journal files, concatenated live +
-  archive, compared to the pre-rotation file: **37 entries before, 37 after,
-  headings and order identical, every body byte-identical** by SHA-256.
-- **The five lifted rows are verbatim** — whitespace-normalised comparison of
-  each row against its new `docs/` file. Only line breaks are new.
+- **Rotation is lossless.** Re-parsed both files, concatenated live + archive,
+  compared to the pre-rotation file: **37 entries before, 37 after, order and
+  headings identical, every body byte-identical** by SHA-256.
+- **The five lifted rows are verbatim** — whitespace-normalised comparison
+  against each new `docs/` file. Only line breaks are new.
 - **`scripts/check-links.py`, with a positive control.** Clean: 164 links, 0
   broken, exit 0. One bad link appended: exit 1, naming `BACKLOG.md:174`.
 - **C8 flipped to DONE on evidence:** `SynthEditLib#4` merged
@@ -102,10 +102,10 @@ New: `JOURNAL-2026-08.md` (34 entries), `BACKLOG-DONE.md` (24 rows),
   in `docs/distribution.md:6` (`PLAN.md` → `../PLAN.md`).
 - **The rotation rule needs a floor, and the floor has to win.** "Under 30 KB"
   and "the last four entries must be readable" genuinely conflict here: three of
-  the four retained entries are 3.7–10.3 KB. **This file lands at 30,715 bytes —
-  under 30 KiB, but above a decimal 30,000.** I kept the floor rather than
-  archive a fourth entry: a size rule that starves the handoff is worse than a
-  marginally large file. That precedence is now written into the rule above.
+  the four retained entries are 3.7–10.3 KB, so this file lands **just under
+  30 KiB, above a decimal 30,000**. I kept the floor rather than archive a
+  fourth entry: a size rule that starves the handoff is worse than a marginally
+  large file. That precedence is now written into the rule above.
 - **A grooming item conflicts with every open PR by construction**, so the only
   mitigation is choosing what *not* to touch. #34 edits `E1` and #35 edits
   `P7a`/`P6`, so I distilled neither — I had lifted `E1` and reverted it on
@@ -129,8 +129,8 @@ All five checkouts are on their default branches. TideSynth's `README.md` showed
 a real 17-line diff at the start of this run and was clean minutes later,
 consistent with Jeff editing live.
 
-**STEP 1 / 1.5:** no open issues in TideSynth at all, so no `platform:win` issue,
-and no open `tide/win/**` PR. #34 (linux/E1) and #35 (mac/P7a) are not mine. Per
+**STEP 1 / 1.5:** no open issues in TideSynth at all, so no `platform:win`
+issue, and no open `tide/win/**` PR. #34 (linux/E1) and #35 (mac/P7a) are not mine. Per
 the C8 entry, CI red is uninformative here until C7.
 
 **Next:** merge **#34** and **#35**, then this PR after a rebase. Then win is on
@@ -143,8 +143,8 @@ riding along with C4 anyway) and **P3** — but P3's scope includes
 **Prompt:** `e09e766` · claude-opus-5[1m] · app version undetermined on this box
 · as `tide-rack-bot`
 
-**Branch/PR:** `tide/win/A8-journal-rotation`, TideSynth only — no other repo was
-committed in.
+**Branch/PR:** [#36](https://github.com/JeffMcClintock/TideSynth/pull/36) on
+`tide/win/A8-journal-rotation` — TideSynth only, no other repo committed in.
 
 ---
 
