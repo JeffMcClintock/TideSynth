@@ -151,6 +151,15 @@ not acted on, per the issue-authenticity rule. No `tide/linux/**` PR was open, s
 nothing was handed back to this platform. The three open PRs are all `tide/mac/**`
 and none are mine to touch.
 
+**Jeff's tree, per the three-kinds dirt rule:** `SE16` is on `master` with four
+dirty files — `SynthEditWayland/Wayland{MainWindow,MenuBar}.{cpp,h}`. These are
+**category 3**: real content changes (102/12/16/15 lines surviving
+`git diff --ignore-all-space`, so not CRLF churn), mtimes 2026-08-10 13:23–13:24,
+which **predates this run**. Jeff's work in progress on Wayland. Not committed,
+not reverted, not stashed. I confined this run to TideSynth, whose tree was clean
+before and after; every other repo on this box was clean and on its default
+branch throughout and I modified none of them.
+
 **Side effects on this box, stated because they are real:** the engine wrote three
 `Plugin-Cache-16-override-*.xml` files into `~/.local/share/SynthEdit/` during my
 probes (13:54–13:55). I **left them**. They are the engine's own regenerable state,
