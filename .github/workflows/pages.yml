@@ -1,10 +1,12 @@
 # Deploys website/ to GitHub Pages (tidesynth.com).
 #
-# This workflow does nothing until Pages is enabled for the repo:
-#   Settings -> Pages -> Source: "GitHub Actions"   (a Jeff step -- see
-#   docs/hosting.md for the full go-live checklist, including DNS).
-# Until then, configure-pages fails with "Get Pages site failed" -- that error
-# means "Pages not enabled yet", not that this file is broken.
+# LIVE since 2026-08-08. Pages is enabled with Source "GitHub Actions" and the
+# custom domain set in repo settings; every run since has deployed. The header
+# used to say this workflow "does nothing until Pages is enabled" and read the
+# early "Get Pages site failed" runs as that precondition — both were true when
+# written and neither is now. A merge that touches website/ IS a production
+# deploy (see docs/process-review-2026-08-09.md), which is what the
+# cancel-in-progress note below is about.
 #
 # The site is one static file with no build step, so this is upload + deploy
 # and nothing else. If website/ ever grows a build step, it goes between
@@ -23,9 +25,16 @@ permissions:
   pages: write
   id-token: write
 
+# `cancel-in-progress: false`, unlike almost everywhere else. This job is not a
+# check that a newer commit makes redundant — it is the production deploy of
+# tidesynth.com. Cancelling one aborts it somewhere between "artifact uploaded"
+# and "site switched over", and what the domain serves afterwards is whatever
+# state it stopped in. Two pushes in quick succession are the ordinary way that
+# happens: the first deploy is live-but-unfinished and the second cancels it.
+# Queueing instead costs ~20s and always ends on the newer commit.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -34,13 +43,19 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
-      - uses: actions/upload-pages-artifact@v3
+      # upload-pages-artifact v4 stopped including dotfiles in the artifact.
+      # Checked before bumping: `website/` has none (CNAME, README.md,
+      # index.html), so nothing silently drops out of the deploy. If a dotfile
+      # is ever added there — `.well-known/` for domain verification is the
+      # likely one — it needs `include-hidden-files: true`, added in v5, or it
+      # will 404 in production while this workflow reports success.
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: website/
 
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

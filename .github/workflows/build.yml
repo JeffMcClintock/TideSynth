@@ -23,6 +23,22 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A push to a `tide/**` branch with an open PR fires this twice, and both runs
+# are load-bearing: the `pull_request` run is the check a PR shows (and what
+# A4's auto-merge tier will gate on), while only the `push` run can file a
+# platform issue — the step below is gated on `github.event_name == 'push'`.
+# So the duplication stays; this only drops runs that a newer push has already
+# superseded.
+#
+# `github.event_name` is in the key on purpose. Without it, push and PR share a
+# group and the PR run cancels the push run — a cancelled run reports
+# `cancelled`, not `failure`, so `failure()` is false and the issue never gets
+# filed. That would silently kill the mechanism A5 exists to provide, and it
+# would look exactly like the 403 did: nothing in the feed, nothing to see.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: ${{ matrix.name }}
@@ -52,7 +68,13 @@ jobs:
             platform: linux
 
     steps:
-      - uses: actions/checkout@v4
+      # v4 targets Node 20, which the runners now force onto Node 24 anyway
+      # while printing a deprecation warning on every job. v5 is the Node 24
+      # rebuild; v6 writes the token to a separate credential file; v7 blocks
+      # checking out a fork PR head under `pull_request_target`/`workflow_run`,
+      # neither of which this workflow uses. Nothing here reads the persisted
+      # credential or checks out a fork head, so the jump is behaviour-neutral.
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
