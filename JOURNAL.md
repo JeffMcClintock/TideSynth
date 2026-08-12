@@ -148,6 +148,349 @@ credential or Jeff.**
 
 ---
 
+## 2026-08-12 — macos — P7a
+
+**Did:** Took **P7a** and did both halves. Bounded the macOS editor extent in
+`gmpi_ui/backends/DrawingFrameMac.mm`, and made `checkSizeConstraint` in
+`GMPI_Wrappers/wrapper/VST3/SEVSTGUIEditorMac.cpp` write the accepted size back.
+Both files were on STEP 5's ALLOWED list, so nothing needed escalating this time.
+
+**The numbers, since choosing them was the judgement call.** P7 filed this row
+precisely because it would not pick one: CoreGraphics has no wall to copy, so any
+bound is a product decision about how much an editor may reserve. I picked from
+**displays**, not from a graphics API:
+
+| constant | value | why |
+|---|---|---|
+| `maxEditorDimensionPoints` | **8192** points/axis | the widest single Mac display in logical points is a 6K Pro Display XDR in "more space" at **3840**, so this is a bit over twice the largest real case |
+| `maxBackingBitmapBytes` | **384 MiB** | the bitmap is 8 bytes/px at *backing* resolution, so a full-screen editor on that same display at 2x reserves **~265 MiB**; 384 clears it with headroom and still bites on every rect P7 exercised |
+
+Aspect ratio is preserved when the area budget bites. **Both numbers are Jeff's
+to overrule** — they live in one place with the reasoning beside them for exactly
+that reason, and the PR body says so.
+
+Why not one bound instead of two: a per-axis limit alone does not bound memory
+(8192² points at 2x is 8.6 TB of reservation), and an area budget alone lets an
+absurdly-shaped 16385 x 600 through. Each catches what the other misses. And
+Windows' 16384 was rejected on the merits — at that per-axis limit the audit's own
+`16385 x 600` case still costs +315 MiB, so copying it would have "fixed" the row
+while leaving the measured defect standing.
+
+**Clamped in two places on purpose.** `resizeNativeView` is the wrapper's path.
+`initBackingBitmap` is where the memory is actually reserved and is reachable
+*without* the wrapper — a host can set the view's frame directly, and
+`createNativeView`'s own comment says JUCE does exactly that. If the second site
+bites, the bitmap is smaller than the view and the blit at the end of `onRender`
+stretches it: a blurry editor at an absurd extent, which is the intended trade and
+is commented as such.
+
+**Result — verified A/B, same plugin, both Debug, same machine.** "Before" is
+`GainGui_VST3` built from a throwaway worktree at unmodified `gmpi_ui` +
+`GMPI_Wrappers`, so the only difference between the columns is this change.
+
+| host asked | before: view adopted | after: view adopted |
+|---|---|---|
+| `2178 x 32672` | `2178 x 32672` | **`1829 x 6879`** |
+| `0 x 0` | `0 x 0` | **`1 x 1`** |
+| `16385 x 600` | `16385 x 600` | **`8192 x 600`** |
+| `600 x 16385` | `600 x 16385` | **`600 x 8192`** |
+| recover `200 x 200` | `200 x 200`, 48 colours | `200 x 200`, 48 colours |
+
+| paint | before | after |
+|---|---|---|
+| `16385 x 600` | **+253.4 MiB** | **+128.3 MiB** |
+| `2178 x 32672` | +36.6 MiB | +31.3 MiB |
+| peak resident | 612.8 MiB | 362.5 MiB |
+
+**The before column reproduced P7's `+253 MiB` figure to within 0.4 MiB.** That is
+the positive control, and it is worth more than the after column: it says the
+harness and this machine still measure what they measured two days ago, so the
+delta is the change and not the weather.
+
+`checkSizeConstraint(0, 0, 2178, 32672)`, the row's stated acceptance observable:
+
+| plugin | before | after |
+|---|---|---|
+| `GainGui_VST3` (resizable) | `kResultTrue`, **UNCHANGED** | `kResultTrue`, **`1829 x 6879`** |
+| `TIDE_VST3` (fixed size) | `kResultFalse`, **UNCHANGED** | `kResultTrue`, **`1829 x 600`** |
+
+`mac_editor_resize_host` exits **0, 3/3** on GainGui and 1/1 on a TIDE_VST3 built
+against the change, live before (liveness A+B, 19–65 distinct colours) and still
+drawing after recovery — so "passed because the clamp made resize a no-op" is
+excluded. **Negative control:** `checkSizeConstraint(0, 0, 640, 480)` still comes
+back `kResultTrue` with the rect *unchanged*, so an in-bounds size is accepted
+as-is rather than spuriously adjusted. I added that control because every rect the
+harness tests by default is an absurd one, and a clamp that mangled legitimate
+sizes would have passed the whole suite.
+
+**Build health — better than the standing rule expects, and this is the run's
+second finding.** Configured a fresh Ninja build of `SynthEdit` with **all four**
+local overrides (banner confirmed) and ran `ninja` with no target: **RC=0**.
+`SynthEdit_VST3`, `SynthEdit_GMPI`, `TIDE`, `TIDE_VST3`, **`SynthEditCL`** and the
+test targets all build. So a macOS run *can* honour "leave SynthEdit, SynthEditCL
+and TIDE all building" — P7 and C8 both had to decline to claim that.
+
+**But P6 is not thereby disproved, and I did not close it.** P6's failure is a
+`CodeSign` step, and **the Ninja generator emits none** — the app came out
+`not signed at all`, so my build cannot reproduce the failure in either
+direction. What has changed is the source: `SynthEditCL/CMakeLists.txt:187` now
+branches on `APPLE` to `$<TARGET_BUNDLE_CONTENT_DIR>` (`Contents/`) with a comment
+quoting P6's exact error string, and prefabs landed in `Contents/Resources/` here.
+Two commits did that — `691270c5d` (2026-08-08) and `4792f4bf2` (2026-08-11,
+current `master` tip). Confirming it needs an **Xcode**-generator build, which is
+what Jeff's own tree uses. Noted on the row, left TODO.
+
+**Learned:**
+
+- **"Copy the Windows clamp" was the trap the row warned about, and it is worse
+  than the row says.** The row explains that 16384 has no technical meaning here.
+  What it does not say is that adopting it would leave the *measured* defect in
+  place: `16385 x 600` clamped to `16384 x 600` still reserves ~315 MiB at 2x. A
+  bound that admits the exact case you measured is decoration.
+- **The backing scale is the whole reason a points-based bound needs a byte
+  budget.** Everything the host says is in points; everything that costs memory is
+  in backing pixels, and Retina squares the discrepancy. `checkSizeConstraint` has
+  it worst — the view may not be on a screen yet, so the real scale is unknowable
+  and the only safe guess is the pessimistic 2x. Hence
+  `gmpi_clampEditorSize` working in points at an assumed 2x while
+  `initBackingBitmap` clamps in real backing pixels: the wrapper's answer is then
+  never *larger* than what the backend will honour, which is the direction that
+  matters.
+- **The X3 trap is still live in `~/Documents/GitHub/SynthEdit/build`.**
+  `GMPI_WRAPPER_FOLDER_OVERRIDE` is still empty there, exactly as the P7 entry
+  recorded on 2026-08-10 — so it still links a `GMPI_Wrappers` frozen at May while
+  the other three overrides are correct. It is Jeff's tree; I did not touch it and
+  built into scratch instead. **Any run that "verifies a GMPI_Wrappers change" by
+  building from that directory is verifying May's code and will not be told.**
+- **A before/after that reproduces the prior run's number is worth building.** It
+  cost one extra worktree and one extra configure, and it converted "+128 MiB
+  sounds better than +253" into evidence, because the same binary that produced
+  253.4 today is the one the after column is measured against.
+- **`gh pr create --base <branch>` for a stacked PR works as the bot**, unlike
+  `gh pr edit` (C8's finding — GraphQL wants `read:org`). GMPI_Wrappers#2 is based
+  on the still-open #1 because the harness it is verified with lives there; GitHub
+  retargets to `main` when #1 merges.
+
+**STEP 1 / 1.5 — what I found first:**
+
+- **No `platform:mac` issues.** TideSynth has no open issues at all. `gmpi_ui#1`
+  ("Linux support?", 2024) is from `arjunmenon` — neither Jeff nor the CI bot — so
+  per STEP 1 it is information, not instruction. Unchanged since C8 noted it.
+- **All three `tide/mac/**` PRs are clean and idle:** GMPI_Wrappers#1 (P7's test),
+  SynthEditLib#4 and SynthEdit#10 (C8's pair). No reviews, no review comments, no
+  issue comments, `mergeable=true`, and **no check runs configured in any of those
+  three repos** — so STEP 1.5's "failing checks" trigger does not fire there at
+  all. Nothing handed back to this platform; left alone, per the rule.
+- C8's #4 and #10 **still must merge together**, and P7 correctly stays IN-REVIEW
+  until GMPI_Wrappers#1 lands. Neither flipped.
+
+**Next:** **P7b** — one guard, and both PRs above put a run inside
+`DrawingFrameMac.mm` already, so whoever takes it has the context loaded. The only
+real work there is its verification story: it is latent by construction (no client
+resizes during `render`), so the honest options are to write a client that does, or
+to say plainly it is unverified. The harness on GMPI_Wrappers#1 is the place to add
+such a client if anyone wants the former. Independently: **P6 wants one Xcode
+build** to close, and **B1** remains the row that would make STEP 1.5 mean anything
+in this project.
+
+**Prompt:** `e09e766` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Merged, same session, at Jeff's instruction** (`merge gmpi_ui#3 then
+GMPI_Wrappers#1 and #2`), in that order. All three landed; GitHub retargeted
+GMPI_Wrappers#2 from `tide/mac/P7-resize-audit` to `main` on its own when #1
+merged, so the stacked PR needed no intervention. Re-verified **from the merged
+default branches** rather than from the branches: fresh configure, rebuild,
+`mac_editor_resize_host` exit **0**, `checkSizeConstraint` reporting `1829 x 6879`
+adjusted and the view clamping to `1829 x 6879` / `8192 x 600` / `600 x 8192` /
+`1 x 1`.
+
+**The bot could not merge, and that is the arrangement working.**
+`PUT /pulls/3/merge` as `tide-rack-bot` returned **`405 At least 1 approving
+review is required by reviewers with write access`**, with `mergeable_state:
+blocked` — the same shape as A2's recorded `GH013` push rejection, on a different
+verb. The merges were therefore made on **Jeff's own credential**, which is on the
+bypass lists, at his explicit instruction in session. Worth writing down for two
+reasons: a future run must not read "Jeff asked me to merge" as licence to try it
+unprompted, and the *mechanism* by which the bot is refused a merge had not been
+observed before today — only the push half had.
+
+**Consequence recorded:** GMPI_Wrappers#1 was P7's last open PR, so **P7 is now
+DONE** and its row moved to the Done section as part of this PR. **P7a stays
+IN-REVIEW** — its two code PRs are merged but this repo's PR, which carries the
+row, the journal and the audit-doc note, is still open.
+
+**Branch/PR:** `tide/mac/P7a-editor-extent-bound` in three repos —
+[gmpi_ui#3](https://github.com/JeffMcClintock/gmpi_ui/pull/3),
+[GMPI_Wrappers#2](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/2) and this
+repo's PR. **Merge gmpi_ui#3 first**: the wrapper calls `gmpi_clampEditorSize`,
+which that PR introduces, so the other order is a link error. All five working
+copies were clean before this run and are back on their default branches after it.
+
+---
+
+## 2026-08-11 — linux — E1
+
+**Did:** Ported the audio verification harness out of the archived `tide-rack`
+repo (`30d3e5e`, cloned read-only) into this one, ran it, and positive-controlled
+every gate. Landed as `tools/render_harness.py` + `tests/cases/` +
+`tests/references/` + [tests/README.md](tests/README.md), with the reasoning in
+[docs/e1-verification-harness.md](docs/e1-verification-harness.md). **The port
+found two things the source repo did not know**, one of which changes how much a
+local green run is worth.
+
+**Where it landed, since E1 asked for that decision first.** This repo, not
+`SE16/tests/`. Two reasons and the second is the deciding one: `SE16/tests/` is a
+gtest suite compiled into the SynthEdit build and this is an end-to-end Python
+test driving a *published binary*; and `SE16/tests/` is on neither STEP 5 list,
+so it is GATED by default and landing there would have cost a ruling for nothing.
+The references are TIDE's claims about how TIDE should sound, so they belong
+beside TIDE's backlog.
+
+**Result — 2/2 cases pass, byte-identical to the goldens.**
+
+```
+engine: SynthEditCL V1.6.178
+PASS  osc_naive_sine  peak=-6.0dBFS null=-infdBFS peakdiff=-infdBFS
+PASS  voice_midi_note peak=-6.6dBFS null=-infdBFS peakdiff=-infdBFS
+2/2 passed.
+```
+
+`null=-inf` is exact equality. Confirmed twice over — matching SHA-256 in the
+report (`7ade35f2…`, `2a765de1…`) and `cmp` clean against both checked-in
+references.
+
+**Verification artifact — the gates were driven red as well as green.** A green
+gate that was never shown to fail proves nothing:
+
+| Control | Result |
+|---|---|
+| identity (file vs itself) | pass, rms/peak `-inf` |
+| **3-LSB nudge across 200 of 96,000 samples** | RMS **−107.6 dBFS → passes**; peak **−80.8 dBFS → FAILS**. Finding (b) reproduced *to the decimal* |
+| same nudge installed as the golden, through a **real render** | `FAIL … peak sample diff -80.8 dBFS > -86.0 dBFS`, **exit 1** |
+| −0.5 dB whole-file level change | FAIL, rms −35.8 dBFS |
+| digital silence | peak `-inf` ≤ −90 floor → **caught** |
+| missing reference | FAIL, exit 1 |
+
+The middle row is the important one: the peak gate is load-bearing, and it fails
+through the whole harness, not just through `null_test()` in isolation.
+
+**Learned — (d), and it is the significant one: `--modules` is not authoritative
+on a developer box.** Finding (a)'s relative-`-factorysemsfolder` trap
+**cannot be reproduced here**, and I nearly wrote that up as "the engine fixed
+it". It is not fixed; this box masks it.
+
+| What I passed | What happened |
+|---|---|
+| `-factorysemsfolder ./mods` (relative) | full signal, **byte-identical to golden** |
+| `-factorysemsfolder /nonexistent/path` | full signal, **byte-identical to golden** |
+| `-factorysemsfolder /tmp` | full signal, 116 modules resolved |
+| …plus `XDG_DATA_HOME` redirected | still passed |
+| …plus `HOME` isolated to an empty dir | still passed |
+
+Two persistent side channels in the engine's own state dir, neither controlled by
+`--modules`:
+
+- `~/.local/share/SynthEdit/SynthEdit16.settings.xml` carries
+  `ModulePath="/home/jef/.local/share/SynthEdit/modules"` — **absolute**, which is
+  why redirecting `XDG_DATA_HOME` did nothing. That folder holds a full duplicate
+  of all 41 factory modules (the `Module FOUND TWICE!` spam on every run is this).
+- `Plugin-Cache-16-override-<hash>.xml`, one per override path. A cache written
+  under a **freshly isolated `HOME`** was observed listing 359 modules from
+  `ctl/mods` — a folder named only in an *earlier* run, under a different HOME. The
+  cache carries a previously scanned folder forward.
+
+**CI is sound and local reproduction is not**, which is the asymmetry worth
+remembering: a clean `ubuntu-24.04` runner has none of this state, which is
+exactly why (a) was findable in CI and is invisible here. The failure mode is
+someone reproducing a CI failure locally, getting a confident green from a module
+set they never named, and closing it as a fluke. I taught the harness to record
+the folders the engine *said* it scanned (`module_sources` /
+`foreign_module_sources`, report schema `/1` → `/2`) and warn — **not fail**,
+because on a dev box the extra source is normal and a hard failure would break
+the harness exactly where a human is debugging. It fires correctly here and names
+`/home/jef/.local/share/SynthEdit/modules`.
+
+**Learned — (e): the two null tolerances contradict each other.** The source
+comment justifies the peak threshold as tolerating the ~1 LSB (−90.3 dBFS at
+16-bit) of legitimate cross-platform float rounding. That is true of the peak gate
+and **false of the RMS gate two lines above it**: 1 LSB on *every* sample measures
+RMS −90.3 dBFS, which fails the −100 dBFS gate. Solving `rms = sqrt(fraction)`,
+the RMS gate tolerates 1-LSB error on at most **~10.7% of samples**. Only the
+Linux lane has ever run, so this is the most likely cause of a spurious failure
+the first time mac or Windows renders — and it will look like a real regression. I
+did **not** widen it: choosing that number with zero cross-platform measurements is
+guessing at the definition of "regression". Filed as **E1a** with the arithmetic.
+
+**Learned — finding (c) is stronger than it was.** It said references survive
+compiler and build-config changes (Release g++-14 vs Debug g++-13.3, same engine
+version). The references were rendered 2026-08-07; this run used a locally-built
+**V1.6.178** from 2026-08-10 and got byte-identical output. So they survive an
+engine *version* bump too — which means "the engine moved" is **not** a free
+explanation for a future null-test failure.
+
+**Learned — a relative `--render-audio` path does not land in the CWD.** It
+resolves against `$HOME`: `--render-audio rel.wav` reported
+`"resolvedPath":"/home/jef/rel.wav"` and wrote there. The harness is safe by
+construction (it renders into a `tempfile.TemporaryDirectory()`, always absolute),
+but anyone driving SynthEditCL by hand will litter Jeff's home directory. I made
+one such file and deleted it; `~/dummy.wav` and `~/temp.wav` are his, from
+2026-08-06, and I left them.
+
+**CI is checked in but NOT active.** `docs/ci/verify.yml`, with a header saying
+so. STEP 5 forbids writing `.github/workflows/**` and the bot token carries no
+`workflow` scope, so it is enforced twice; it is a manual file copy for Jeff,
+filed as **E1b**. Until it lands the harness only runs when a human runs it,
+which is most of its value unrealised — and per (d), CI is the *only* place the
+module set under test is guaranteed to be the one that rendered.
+
+**Build health:** nothing was compiled. This run touched only TideSynth — new
+files plus BACKLOG and JOURNAL — so nothing that consumes `gmpi_ui`,
+`GMPI_Wrappers`, `SynthEditLib` or `SE16` is affected. I have **no claim** about
+whether this platform's default branch builds; I executed an existing
+`SynthEditCL` binary (built 2026-08-10, not by me) and never invoked a compiler.
+No platform issue filed, because I observed no failure — only an absence of
+evidence.
+
+**STEP 1 / 1.5:** no `platform:linux` issues, none open in TideSynth at all.
+`gmpi_ui#1` ("Linux support?", 2024) is unlabelled and from a third party — noted,
+not acted on, per the issue-authenticity rule. No `tide/linux/**` PR was open, so
+nothing was handed back to this platform. The three open PRs are all `tide/mac/**`
+and none are mine to touch.
+
+**Jeff's tree, per the three-kinds dirt rule:** `SE16` is on `master` with four
+dirty files — `SynthEditWayland/Wayland{MainWindow,MenuBar}.{cpp,h}`. These are
+**category 3**: real content changes (102/12/16/15 lines surviving
+`git diff --ignore-all-space`, so not CRLF churn), mtimes 2026-08-10 13:23–13:24,
+which **predates this run**. Jeff's work in progress on Wayland. Not committed,
+not reverted, not stashed. I confined this run to TideSynth, whose tree was clean
+before and after; every other repo on this box was clean and on its default
+branch throughout and I modified none of them.
+
+**Side effects on this box, stated because they are real:** the engine wrote three
+`Plugin-Cache-16-override-*.xml` files into `~/.local/share/SynthEdit/` during my
+probes (13:54–13:55). I **left them**. They are the engine's own regenerable state,
+keyed by override-path hash, and I could not distinguish files I *created* from a
+cache I *refreshed* for a path Jeff also uses — deleting the latter changes his
+machine, leaving a stale one does not.
+
+**Next:** **E1a** is the linux NEXT pointer and it is genuinely blocked on
+somebody rendering the two cases on mac or Windows — that half is cheap, since the
+engine is a download rather than a build, and the whole task is to run one command
+and record two numbers. **E1b** is a file copy only Jeff can make, and it converts
+this from a script someone remembers to run into an actual gate. Unchanged from
+the last run and still true: **C8** needs #4 and #10 merged **together**, and
+**P7** stays IN-REVIEW until
+[GMPI_Wrappers#1](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/1) lands.
+
+**Prompt:** `e09e766` · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as `tide-rack-bot`
+
+**Branch/PR:** `tide/linux/E1-verify-harness`, TideSynth only — no other repo was
+committed in, and no repo outside this one was modified at all. Should merge
+cleanly: all but two files are new, and the BACKLOG edits are confined to the
+`linux` NEXT row and the E1/E1a/E1b rows.
+
+---
+
 ## 2026-08-11 — macos — C8 executed (interactive session, Jeff directing)
 
 **Did:** Jeff merged [#31](https://github.com/JeffMcClintock/TideSynth/pull/31)
