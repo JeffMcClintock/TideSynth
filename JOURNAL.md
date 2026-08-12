@@ -22,6 +22,169 @@ Template:
 
 ---
 
+## 2026-08-11 — linux — E1
+
+**Did:** Ported the audio verification harness out of the archived `tide-rack`
+repo (`30d3e5e`, cloned read-only) into this one, ran it, and positive-controlled
+every gate. Landed as `tools/render_harness.py` + `tests/cases/` +
+`tests/references/` + [tests/README.md](tests/README.md), with the reasoning in
+[docs/e1-verification-harness.md](docs/e1-verification-harness.md). **The port
+found two things the source repo did not know**, one of which changes how much a
+local green run is worth.
+
+**Where it landed, since E1 asked for that decision first.** This repo, not
+`SE16/tests/`. Two reasons and the second is the deciding one: `SE16/tests/` is a
+gtest suite compiled into the SynthEdit build and this is an end-to-end Python
+test driving a *published binary*; and `SE16/tests/` is on neither STEP 5 list,
+so it is GATED by default and landing there would have cost a ruling for nothing.
+The references are TIDE's claims about how TIDE should sound, so they belong
+beside TIDE's backlog.
+
+**Result — 2/2 cases pass, byte-identical to the goldens.**
+
+```
+engine: SynthEditCL V1.6.178
+PASS  osc_naive_sine  peak=-6.0dBFS null=-infdBFS peakdiff=-infdBFS
+PASS  voice_midi_note peak=-6.6dBFS null=-infdBFS peakdiff=-infdBFS
+2/2 passed.
+```
+
+`null=-inf` is exact equality. Confirmed twice over — matching SHA-256 in the
+report (`7ade35f2…`, `2a765de1…`) and `cmp` clean against both checked-in
+references.
+
+**Verification artifact — the gates were driven red as well as green.** A green
+gate that was never shown to fail proves nothing:
+
+| Control | Result |
+|---|---|
+| identity (file vs itself) | pass, rms/peak `-inf` |
+| **3-LSB nudge across 200 of 96,000 samples** | RMS **−107.6 dBFS → passes**; peak **−80.8 dBFS → FAILS**. Finding (b) reproduced *to the decimal* |
+| same nudge installed as the golden, through a **real render** | `FAIL … peak sample diff -80.8 dBFS > -86.0 dBFS`, **exit 1** |
+| −0.5 dB whole-file level change | FAIL, rms −35.8 dBFS |
+| digital silence | peak `-inf` ≤ −90 floor → **caught** |
+| missing reference | FAIL, exit 1 |
+
+The middle row is the important one: the peak gate is load-bearing, and it fails
+through the whole harness, not just through `null_test()` in isolation.
+
+**Learned — (d), and it is the significant one: `--modules` is not authoritative
+on a developer box.** Finding (a)'s relative-`-factorysemsfolder` trap
+**cannot be reproduced here**, and I nearly wrote that up as "the engine fixed
+it". It is not fixed; this box masks it.
+
+| What I passed | What happened |
+|---|---|
+| `-factorysemsfolder ./mods` (relative) | full signal, **byte-identical to golden** |
+| `-factorysemsfolder /nonexistent/path` | full signal, **byte-identical to golden** |
+| `-factorysemsfolder /tmp` | full signal, 116 modules resolved |
+| …plus `XDG_DATA_HOME` redirected | still passed |
+| …plus `HOME` isolated to an empty dir | still passed |
+
+Two persistent side channels in the engine's own state dir, neither controlled by
+`--modules`:
+
+- `~/.local/share/SynthEdit/SynthEdit16.settings.xml` carries
+  `ModulePath="/home/jef/.local/share/SynthEdit/modules"` — **absolute**, which is
+  why redirecting `XDG_DATA_HOME` did nothing. That folder holds a full duplicate
+  of all 41 factory modules (the `Module FOUND TWICE!` spam on every run is this).
+- `Plugin-Cache-16-override-<hash>.xml`, one per override path. A cache written
+  under a **freshly isolated `HOME`** was observed listing 359 modules from
+  `ctl/mods` — a folder named only in an *earlier* run, under a different HOME. The
+  cache carries a previously scanned folder forward.
+
+**CI is sound and local reproduction is not**, which is the asymmetry worth
+remembering: a clean `ubuntu-24.04` runner has none of this state, which is
+exactly why (a) was findable in CI and is invisible here. The failure mode is
+someone reproducing a CI failure locally, getting a confident green from a module
+set they never named, and closing it as a fluke. I taught the harness to record
+the folders the engine *said* it scanned (`module_sources` /
+`foreign_module_sources`, report schema `/1` → `/2`) and warn — **not fail**,
+because on a dev box the extra source is normal and a hard failure would break
+the harness exactly where a human is debugging. It fires correctly here and names
+`/home/jef/.local/share/SynthEdit/modules`.
+
+**Learned — (e): the two null tolerances contradict each other.** The source
+comment justifies the peak threshold as tolerating the ~1 LSB (−90.3 dBFS at
+16-bit) of legitimate cross-platform float rounding. That is true of the peak gate
+and **false of the RMS gate two lines above it**: 1 LSB on *every* sample measures
+RMS −90.3 dBFS, which fails the −100 dBFS gate. Solving `rms = sqrt(fraction)`,
+the RMS gate tolerates 1-LSB error on at most **~10.7% of samples**. Only the
+Linux lane has ever run, so this is the most likely cause of a spurious failure
+the first time mac or Windows renders — and it will look like a real regression. I
+did **not** widen it: choosing that number with zero cross-platform measurements is
+guessing at the definition of "regression". Filed as **E1a** with the arithmetic.
+
+**Learned — finding (c) is stronger than it was.** It said references survive
+compiler and build-config changes (Release g++-14 vs Debug g++-13.3, same engine
+version). The references were rendered 2026-08-07; this run used a locally-built
+**V1.6.178** from 2026-08-10 and got byte-identical output. So they survive an
+engine *version* bump too — which means "the engine moved" is **not** a free
+explanation for a future null-test failure.
+
+**Learned — a relative `--render-audio` path does not land in the CWD.** It
+resolves against `$HOME`: `--render-audio rel.wav` reported
+`"resolvedPath":"/home/jef/rel.wav"` and wrote there. The harness is safe by
+construction (it renders into a `tempfile.TemporaryDirectory()`, always absolute),
+but anyone driving SynthEditCL by hand will litter Jeff's home directory. I made
+one such file and deleted it; `~/dummy.wav` and `~/temp.wav` are his, from
+2026-08-06, and I left them.
+
+**CI is checked in but NOT active.** `docs/ci/verify.yml`, with a header saying
+so. STEP 5 forbids writing `.github/workflows/**` and the bot token carries no
+`workflow` scope, so it is enforced twice; it is a manual file copy for Jeff,
+filed as **E1b**. Until it lands the harness only runs when a human runs it,
+which is most of its value unrealised — and per (d), CI is the *only* place the
+module set under test is guaranteed to be the one that rendered.
+
+**Build health:** nothing was compiled. This run touched only TideSynth — new
+files plus BACKLOG and JOURNAL — so nothing that consumes `gmpi_ui`,
+`GMPI_Wrappers`, `SynthEditLib` or `SE16` is affected. I have **no claim** about
+whether this platform's default branch builds; I executed an existing
+`SynthEditCL` binary (built 2026-08-10, not by me) and never invoked a compiler.
+No platform issue filed, because I observed no failure — only an absence of
+evidence.
+
+**STEP 1 / 1.5:** no `platform:linux` issues, none open in TideSynth at all.
+`gmpi_ui#1` ("Linux support?", 2024) is unlabelled and from a third party — noted,
+not acted on, per the issue-authenticity rule. No `tide/linux/**` PR was open, so
+nothing was handed back to this platform. The three open PRs are all `tide/mac/**`
+and none are mine to touch.
+
+**Jeff's tree, per the three-kinds dirt rule:** `SE16` is on `master` with four
+dirty files — `SynthEditWayland/Wayland{MainWindow,MenuBar}.{cpp,h}`. These are
+**category 3**: real content changes (102/12/16/15 lines surviving
+`git diff --ignore-all-space`, so not CRLF churn), mtimes 2026-08-10 13:23–13:24,
+which **predates this run**. Jeff's work in progress on Wayland. Not committed,
+not reverted, not stashed. I confined this run to TideSynth, whose tree was clean
+before and after; every other repo on this box was clean and on its default
+branch throughout and I modified none of them.
+
+**Side effects on this box, stated because they are real:** the engine wrote three
+`Plugin-Cache-16-override-*.xml` files into `~/.local/share/SynthEdit/` during my
+probes (13:54–13:55). I **left them**. They are the engine's own regenerable state,
+keyed by override-path hash, and I could not distinguish files I *created* from a
+cache I *refreshed* for a path Jeff also uses — deleting the latter changes his
+machine, leaving a stale one does not.
+
+**Next:** **E1a** is the linux NEXT pointer and it is genuinely blocked on
+somebody rendering the two cases on mac or Windows — that half is cheap, since the
+engine is a download rather than a build, and the whole task is to run one command
+and record two numbers. **E1b** is a file copy only Jeff can make, and it converts
+this from a script someone remembers to run into an actual gate. Unchanged from
+the last run and still true: **C8** needs #4 and #10 merged **together**, and
+**P7** stays IN-REVIEW until
+[GMPI_Wrappers#1](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/1) lands.
+
+**Prompt:** `e09e766` · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as `tide-rack-bot`
+
+**Branch/PR:** `tide/linux/E1-verify-harness`, TideSynth only — no other repo was
+committed in, and no repo outside this one was modified at all. Should merge
+cleanly: all but two files are new, and the BACKLOG edits are confined to the
+`linux` NEXT row and the E1/E1a/E1b rows.
+
+---
+
 ## 2026-08-11 — macos — C8 executed (interactive session, Jeff directing)
 
 **Did:** Jeff merged [#31](https://github.com/JeffMcClintock/TideSynth/pull/31)

@@ -1,0 +1,10 @@
+{
+  "description": "Baseline smoke case: naive oscillator at its default pitch, sine waveform. Proves the whole chain -- module factory, DSP graph construction, audio engine, WAV writer -- is alive. If this fails, no other audio result is trustworthy.",
+  "script": [
+    "--new",
+    "--add-module \"SE Oscillator (naive)\" 100,100 --as osc"
+  ],
+  "source": "$osc:5",
+  "duration": 2.0,
+  "rate": 48000
+}
