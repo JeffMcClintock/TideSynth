@@ -46,6 +46,147 @@ Template:
 
 ---
 
+## 2026-08-13 — windows — C3
+
+**Prompt:** `e09e766` · claude-opus-5[1m] · app Claude Code (Agent SDK harness) · as `tide-rack-bot`
+
+**Did:** Moved the document model into the public repo — carve-out stage C3.
+27 files leave `SE16/SynthEdit2/` for the **root** of `SynthEditLib`: `DocOb`,
+`CContainer`, `CUG`(+`_with_patches`), `Plug`, `Plug4`, `PlugIO4`,
+`PlugDescriptionDecorator`, `Plug_decorator_{autoduplicate,namable,sdk2,vst}`,
+`SynthEditDocBase`, `SynthEditDoc2`. `EditorLib/CMakeLists.txt` repointed
+(27 entries, `${EDITOR_DIR}`/`${EDITOR2_DIR}` → `${SYNTHEDITLIB_DIR}`);
+`SynthEdit2.vcxproj` + `.filters` repointed for `SynthEditDoc2`.
+PRs: [SynthEditLib#5](https://github.com/JeffMcClintock/SynthEditLib/pull/5),
+[SynthEdit#11](https://github.com/JeffMcClintock/SynthEdit/pull/11) — **they must
+merge together.** Also flipped **P7 → DONE** (both its PRs merged) and filed
+**C9** and **C10**.
+
+**Result:** Release x64 on this box — `EditorLib.lib`, `SynthEditCL.exe`,
+`TIDE_VST3.vst3` and `SynthEdit2.exe` all build; `ctest -C Release` **92/92
+passed, 0 failed**. `SynthEdit2` built via P8's recipe
+(`MSBuild SynthEditStore.sln -t:SynthEdit2 -p:Configuration=Release -p:Platform=x64`),
+which is what exercises the `.vcxproj` edit. **Positive control**, because
+"it still builds" after a move proves nothing on its own: renaming
+`C:\SE\SynthEditLib\DocOb.cpp` aside makes the build fail with
+`error C1083: Cannot open source file: 'C:\SE\SynthEditLib\DocOb.cpp'`, and
+restoring it builds clean — so the build genuinely reads the new location.
+**26 of 27 files byte-identical** to the originals (SHA-256 per file, line
+endings normalised). mac / iOS / linux **unverified** — not buildable here.
+
+**Default branch:** SE16 master was also built standalone after restoring the
+checkout, not merely inferred from the branch build — EditorLib.lib and
+SynthEdit2.exe both build clean at 7cb95f33b. So this stage did not break a
+working master, and master was not already broken before it. No
+platform-labelled issue was needed.
+
+**Learned:**
+
+- **C2's "nothing outside EditorLib compiles it" test caught exactly one file,
+  and it was not obvious.** `SynthEditDoc2.cpp` is compiled by
+  `SynthEdit2.vcxproj` as well as by EditorLib — by a path relative to
+  `SynthEdit2/`, so the move would have broken the WinUI3 app while EditorLib
+  and TIDE carried on building fine. The grep that finds this is over
+  `*.vcxproj`/`*.filters`/`*.pbxproj`/`CMakeLists.txt`/`*.cmake`/`*.yml` for each
+  candidate basename. **Run it at C4 and C5.** (Fix: the entries now read
+  `..\..\SynthEditLib\`, matching how that project already references
+  `..\..\SynthEditLib\modules\se_sdk3_hosting\BundleInfo.cpp`.)
+- **The `#include "../` check needs a second step C2's note did not state.**
+  Grepping is not enough — you have to test whether each target *exists* at that
+  relative path. Eight hits across the moved set; seven
+  (`../tinyXml2/tinyxml2.h`, `../se_sdk3_hosting/GmpiResourceManager.h`) point at
+  directories that **do not exist** under `SE16/`, so they were always resolving
+  through the search path and move harmlessly, exactly as C2 found for
+  `checkpoint.h`. The eighth, `../se_build_number.h`, **does** exist — and that
+  is the only one that matters. So: `test -e` each one; the harmless majority is
+  noise and the single real hit is the whole finding.
+- **`se_build_number.h` blocks C4 and C5 — filed as C9.** It is SynthEdit's
+  product version, at the private repo's root, bumped by `[Build-Machine]`, and
+  read by three release workflows at that path. C3 escaped by luck: its one
+  includer, `SynthEditDocBase.cpp`, **never used the macros** (zero occurrences
+  of `SE_MAJOR_VERSION`/`SE_MINOR_VERSION`/`SE_BUILD_NUMBER`), so the fix was
+  deleting a dead line — that is the 27th file, the sole content change in the
+  whole stage. The other four includers are live uses:
+  `ModuleFactory_Editor.cpp` and `SkinMgr.cpp` (**C4**), `Application.cpp`
+  (**C5**), `ExportAsPlugin.cpp` (stays private, fine). Moving the header needs
+  a `.github/workflows/**` edit, which a scheduled run **cannot** do — the bot
+  token deliberately lacks `workflow` scope. **This needs a decision before C4
+  starts, or C4 decides it by accident.**
+- **Root vs subfolder: chose root, deliberately, and filed the re-home as C10
+  blocked on C6.** Root is already an include dir in all three build systems, so
+  the move cost zero include-path edits — which is what keeps breakage on the
+  riskiest stage unambiguously about the move. A subfolder now would smear one
+  include-path change across C3/C4/C5 and several build systems, including the
+  macOS/iOS ones this box cannot verify. After C6 the same change is **one line**
+  in an `EditorLib/CMakeLists.txt` that by then lives in `SynthEditLib`.
+- **The two repos normalise line endings differently, so blob comparison across
+  them is worthless.** `SE16` has `.gitattributes` `* text=auto` (LF in the
+  blob); `SynthEditLib` has no `.gitattributes` and `core.autocrlf=false`, so it
+  stores **CRLF** — and C2's `checkpoint.cpp` is CRLF there too, so the new files
+  match precedent. Compare with `tr -d '\r'` or every file reads as 100% changed.
+  Related: `sed -i` on a CRLF file silently rewrites the whole file to LF; the
+  tell is `diff` reporting `1,197c1,197`.
+- **P3 partly moved out from under itself.** `CContainer.cpp` carried its
+  `#include "afxres.h"` unaltered into the public repo, so the MFC requirement is
+  public the moment SynthEditLib#5 merges. Row updated with the new path.
+
+**Jeff was working in `SE16` throughout this run, and the two of us collided on
+the index. Nothing was lost, and he resolved his half himself.** Worth reading
+in full, because the failure mode is not obvious and it will recur.
+
+`SE16` was clean at claim time. Partway through, `d4d0acac5 se_screenshot:
+report contentRect, and optionally crop to it` (Jeff McClintock, 08:39 +1200)
+appeared **on `tide/win/C3-document-model`** — his tooling committed to whatever
+branch was checked out, which was this run's — and it swept **this run's 27
+staged deletions** in from the index alongside its own 3 `SynthEditMcp` files.
+This run did not revert or rewrite it: it preserved that commit on a local
+branch, then `git reset --mixed origin/master` unwound the **index only**,
+leaving every file on disk byte-for-byte (the three `SynthEditMcp` files were
+SHA-256'd before and after, unchanged), which put his work back to uncommitted
+changes exactly as the tree was found. Only this run's own 30 paths were then
+staged, by name.
+
+**He then sorted it out himself, while this run was writing PRs:** he created
+**`jeff/mcp-screenshot-contentrect`** and committed his work cleanly there as
+`d1b403000` — 3 files, no C3 deletions. Verified byte-identical (blob hashes) to
+what the safety branch held, so that safety branch was pure redundancy and was
+deleted; his own branch is the live copy. **His `png.ts` work is committed and
+safe, and is *not* on `master`.**
+
+**One thing he should know: `jeff/mcp-screenshot-contentrect` is based on
+`ae4b434df`, this run's C3 commit — not on `master`.** So merging that branch as
+it stands would drag C3 in with it. His commit is cleanly separable (a
+cherry-pick onto `master` touches only the 3 `SynthEditMcp` files). He also
+pushed `97497580a` and `e4216d0d9` to `master` during the run, so `origin/master`
+moved twice more; local `master` is left 3 behind, as found — not fast-forwarded,
+since that is his call.
+
+**The transferable lesson:** a run whose staged index sits idle through a long
+build can have that index harvested by someone else's commit. The deletions were
+staged, then four target builds and a 92-test ctest ran — a wide window.
+**Stage late, and re-check `git status` immediately before `git commit`**; that
+check is the only reason this was caught rather than shipped inside someone
+else's commit.
+
+**Next:**
+
+1. **Merge SynthEditLib#5 and SynthEdit#11 together.** Either alone breaks the
+   build. Then flip C3 to DONE and C4 unblocks.
+2. **Answer C9 before C4 starts.** Recommended option (c): give `SynthEditLib`
+   its own version header, or pass the version in as a compile definition, and
+   leave `se_build_number.h` where SynthEdit's workflows expect it. Option (b)
+   (add SE16's root to the include path) fails at C7 by construction.
+3. NEXT for win moved C3 → **P3**, since C4 is `BLOCKED(C3)` until the merge.
+4. Still true from the 2026-08-12 windows run: `A3`/`A5`/`A6` can never be done
+   by a scheduled run — all three edit `.github/workflows/`.
+
+**Branch/PR:** `tide/win/C3-document-model` in all three repos —
+[TideSynth PR](https://github.com/JeffMcClintock/TideSynth/pull/38),
+[SynthEditLib#5](https://github.com/JeffMcClintock/SynthEditLib/pull/5),
+[SynthEdit#11](https://github.com/JeffMcClintock/SynthEdit/pull/11).
+
+---
+
 ## 2026-08-13 — macos — P7b
 
 **Did:** Fixed **P7b** — `DrawingFrameCocoa::onRender` using `backBuffer` after
