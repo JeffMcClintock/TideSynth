@@ -46,6 +46,168 @@ Template:
 
 ---
 
+## 2026-08-13 — macos — P7b
+
+**Did:** Fixed **P7b** — `DrawingFrameCocoa::onRender` using `backBuffer` after
+the re-entrant `drawingClient->render()` call without re-checking it. One guard
+in `gmpi_ui/backends/DrawingFrameMac.mm`, plus a regression test that reproduces
+the defect first: `gmpi_ui/tests/mac_render_reentrant_resize.mm`, built and run
+by `tests/run_mac_render_test.sh`.
+
+**Result — it is a real use-after-free, not a latent one, and the row named the
+wrong line.**
+
+P7 filed this as "latent, not demonstrated: it needs a client that resizes
+during render and none currently does". Both halves were right, and neither
+prevents a test: no *shipping* client does it, but a synthetic `IDrawingClient`
+does it in five lines. Unfixed sources die on the first such paint.
+
+The correction that matters, because it moves the fix:
+
+| | the row said | measured |
+|---|---|---|
+| faulting call | `CGContextRestoreGState(backBuffer)` / `CGBitmapContextCreateImage(backBuffer)`, *after* the block | `context.popAxisAlignedClip()`, **inside** the block |
+| why | both use `backBuffer` after `render()` | both read the **member**, which `onResize` sets to `nullptr` — they pass CoreGraphics a NULL, which is untidy, not a fault |
+| the real one | — | `gmpi::cocoa::GraphicsContext` keeps its **own** copy in `cgContext_` from `setCGContext` time, and nothing nulls that copy |
+
+So the guard has to sit immediately after `render()` returns, not after the
+scope closes. A one-line fix placed where the row pointed would have changed
+nothing and looked correct.
+
+**Verification artifact — A/B, 3 runs each, same binary, same machine:**
+
+| sources | result |
+|---|---|
+| unfixed (`git stash` of the guard only) | **SIGSEGV 3/3**, exit 139 |
+| fixed | **exit 0, PASS 3/3** |
+
+The unfixed crash report backtrace, which is what makes it the *right* crash and
+not just a crash:
+
+```
+CGContextRestoreGState                                   (CoreGraphics)
+gmpi::cocoa::GraphicsContext::popAxisAlignedClip()
+DrawingFrameCocoa::onRender(NSView*, gmpi::drawing::Rect*)
+-[GMPI_VIEW_VERSION_03 drawRect:]
+```
+
+`EXC_BAD_ACCESS (SIGSEGV)`, `KERN_INVALID_ADDRESS`. Liveness, copied from the
+P7 harness's discipline rather than assumed: the renderer drew 2 distinct
+colours *before* the re-entrant resize and 3 *after* it, so "survived" cannot
+mean "never ran", and the frame provably recovers at the new size.
+
+**And the existing harness still passes, which is the other half of the claim.**
+A new test proving the new guard works says nothing about whether ordinary
+painting still does. P7's `mac_editor_resize_host`, built standalone against the
+VST3 SDK and run on the `TIDE_VST3` this build produced: **exit 0, 3/3**, editor
+live, survived every oversized resize+paint, still drawing at the end. Visible
+in its output as a by-product: P7a's clamp is live in this binary —
+`onSize(0, 0, 16385, 600)` lands the child at **8192 x 600**.
+
+**Learned:**
+
+- **AddressSanitizer cannot see this, and an ASan-only run is a confident false
+  PASS.** The freed read happens inside CoreGraphics; ASan checks loads the
+  compiler instrumented plus the functions it intercepts, and a system framework
+  is neither. I found this the honest way — my first harness was ASan-only and
+  reported PASS on the unfixed sources. The positive control is what settled it:
+  the same ASan binary flags a *hand-written* read of the same freed pointer
+  immediately (`heap-use-after-free ... freed by _CFRelease`), so ASan was
+  tracking the allocation and simply never sees the read. **Guard Malloc**
+  (`DYLD_INSERT_LIBRARIES=/usr/lib/libgmalloc.dylib`) is the detector that
+  works: the page is unmapped, so whoever touches it faults. The test script
+  defaults to it and says all this at the top.
+- **The measurement bug from the P7 entry recurred, in the same shape.** First
+  version of the client drew one rect near the drawing origin and the liveness
+  probe reported 1 distinct colour — because `onRender` flips to top-down while
+  AppKit's `visibleRect` origin is the bottom-left, so the sampled tile landed
+  where the rect was not. Fixed by drawing stripes over the whole arranged rect
+  rather than moving the probe: the count then does not depend on where either
+  the client or the sampler happens to look. **Anyone porting a paint probe to
+  Cocoa should expect to hit this once.**
+- **The whole test needs no CMake, no VST3 and no plugin.** `DrawingFrameMac.mm`
+  plus `DrawingFrameCommon.cpp` compile and link standalone in one `clang++`
+  line (`-fno-objc-arc`; the backend's Objective-C is manually reference
+  counted, `MacColorDialog.h` calls `-retain`). That is a much cheaper harness
+  than P7's, and the right shape whenever the defect is inside `gmpi_ui` itself.
+  It follows the convention `gmpi_ui/tests/` already uses — a shell script that
+  invokes the compiler, not a build system.
+- **`GraphicsContext` caching `cgContext_` is a general hazard, not a P7b
+  detail.** Any backend that hands a client a context object holding a raw
+  device pointer has the same shape. I did not widen the fix to make
+  `setCGContext(nullptr)` reachable from `onResize` — that touches the
+  cross-platform class every GMPI plugin uses, and the item is one guard. Worth
+  a row if anyone finds a second instance.
+
+**Build health — verified, not assumed.** Fresh Ninja configure of `SynthEdit`
+with all four local overrides into a scratch build dir (the tree itself was not
+touched), `ninja` with no target: **RC=0** across `SynthEdit_VST3`,
+`SynthEdit_GMPI`, `TIDE`, `TIDE_VST3` and `SynthEditCL`. So the standing
+direction — leave SynthEdit, SynthEditCL and TIDE all building — is honoured and
+checked. This corroborates the P7a run's finding that SynthEditCL *does* build on
+macOS with the Ninja generator; **P6 is still not closed by that**, for P7a's
+reason: P6's failure is a `CodeSign` step the Ninja generator never emits.
+
+**STEP 1 / 1.5 — what I found before picking an item:**
+
+- **No `platform:mac` issues; no open issues at all** in TideSynth.
+- **P7a is complete and not mine to redo.** The NEXT block on `main` still points
+  `mac` at P7a, but its two code PRs — [gmpi_ui#3](https://github.com/JeffMcClintock/gmpi_ui/pull/3)
+  and [GMPI_Wrappers#2](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/2) —
+  **merged on 2026-08-12**, and only its docs PR [#35](https://github.com/JeffMcClintock/TideSynth/pull/35)
+  is open, with no reviews and no comments. That PR itself moves the pointer to
+  P7b. Under STEP 1.5 a PR with nothing unresolved is waiting for merge, not for
+  me, so I left it alone and took P7b — the item #35 nominates.
+- **The red-checks rule is still unusable, exactly as the C8 entry reported.**
+  #35's head and `main` fail identically on all three platforms; that is the
+  documented pre-C7 failure, not a signal. **B1** remains the row that fixes it.
+- **P7 is now flippable and I flipped it**, in place: both its linked PRs have
+  merged ([GMPI_Wrappers#1](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/1)
+  2026-08-12, [#31](https://github.com/JeffMcClintock/TideSynth/pull/31) 2026-08-10).
+  I did **not** move the row to the Done section: [#36](https://github.com/JeffMcClintock/TideSynth/pull/36)
+  is rotating landed rows into `BACKLOG-DONE.md` and a move here would collide
+  with it for no gain.
+- **The `docs/p7-resize-audit-mac-x11.md` correction is appended at the end of
+  the file, not written into the follow-ups table**, deliberately: #35 is editing
+  that table right now. Appending keeps both merges clean; the table's P7b line
+  stays wrong until someone rebases, and the postscript says so in as many words.
+
+**Expect conflicts, and here is how they resolve.** Three PRs are open against
+`main` and all three edit `JOURNAL.md` and `BACKLOG.md`:
+
+| PR | BACKLOG rows it touches | overlap with this one |
+|---|---|---|
+| [#34](https://github.com/JeffMcClintock/TideSynth/pull/34) E1 | E1 | none |
+| [#35](https://github.com/JeffMcClintock/TideSynth/pull/35) P7a | NEXT block, P7a, P6 | **adjacent** — P7a is the line between my P7 and P7b edits |
+| [#36](https://github.com/JeffMcClintock/TideSynth/pull/36) A8 | rotates 24 landed rows out | P7 flip may need re-applying after its rotation |
+
+`JOURNAL.md` conflicts by construction — every entry inserts at the top. The
+resolution is the one Jeff already used for #31/#32: keep both entries, newest
+first. For BACKLOG, my three edits (P7 status, P7b row, nothing else) are
+disjoint from every other PR's *content*; only their line adjacency conflicts.
+**I did not touch the NEXT block** — #35 already moves `mac` to P7b, and once
+both land P7b reads IN-REVIEW, which STEP 2 treats as ineligible and falls
+through cleanly.
+
+**Next:** `mac` has no obvious next row once P7b lands — P7c is `linux`, P7d is
+`any` but is a scope question for Jeff (`GMPI-plugins` is GATED by default), and
+the NEXT block will be pointing at an IN-REVIEW item. **Recommend Jeff sets the
+`mac` pointer explicitly**, or answers P7d, which would make it takeable in
+minutes. Independently: **B1** keeps costing every run real time, and **A6**'s
+digest would have told me in one line what I spent this run's first twenty
+minutes deriving from the API.
+
+**Prompt:** `e09e766` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Branch/PR:** `tide/mac/P7b-render-backbuffer-guard` in both repos —
+[gmpi_ui#4](https://github.com/JeffMcClintock/gmpi_ui/pull/4) (guard + test) and
+[#37](https://github.com/JeffMcClintock/TideSynth/pull/37) (docs). **They must merge together in the sense that matters:** the gmpi_ui PR
+carries the fix and the test, this one carries only docs, so either order builds
+— but merging the docs alone would leave the backlog saying a fix landed that
+did not.
+
+---
+
 ## 2026-08-12 — windows — A8 (C3 not taken — see below)
 
 **Did:** Rotated the journal, archived the landed backlog rows, distilled the
