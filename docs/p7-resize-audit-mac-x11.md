@@ -272,7 +272,7 @@ with its evidence instead.
 
 | id | what |
 |---|---|
-| **P7a** | macOS: bound the extent and make `checkSizeConstraint` write back. Carries the measured CG limits and the memory figures, so whoever takes it is choosing a number with evidence rather than copying 16384. |
+| **P7a** | macOS: bound the extent and make `checkSizeConstraint` write back. Carries the measured CG limits and the memory figures, so whoever takes it is choosing a number with evidence rather than copying 16384. **Done 2026-08-12** — 8192 points per axis and a 384 MiB bitmap budget, both set from displays rather than from a graphics API, in [gmpi_ui#3](https://github.com/JeffMcClintock/gmpi_ui/pull/3) + [GMPI_Wrappers#2](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/2). The A/B reproduced this document's `+253 MiB` figure to within 0.4 MiB before halving it. |
 | **P7b** | macOS: re-check `backBuffer` after `drawingClient->render()` in `onRender` ([:207](#) → [:212](#)). One line, and the same function already does it correctly at `:113`. |
 | **P7c** | X11: `present()` caches `pw`/`ph` across `measure`/`arrange`/`render`. `linux` — this box cannot build or run X11. Includes what the audit could not settle: whether any client callback can pump the X loop and cause a nested `present()`. |
 | **P7d** | `GMPI-plugins` cannot link a GUI plugin on macOS — see below. |
@@ -326,3 +326,57 @@ ninja -C build-p7 mac_editor_resize_host GainGui_VST3
 local GMPI-UI folder" and "Using local GMPI WRAPPERS folder" must appear. An
 override that is silently absent is [building.md](building.md)'s X3 trap, and it
 bit this audit — see the journal entry for 2026-08-10.
+
+---
+
+## Postscript — P7b done, 2026-08-13, and one correction to the table above
+
+P7b is fixed and, unlike when this document filed it, **demonstrated**. Two
+things above are wrong and are corrected here rather than in place, because the
+follow-ups table is being edited by the P7a PR at the same time.
+
+**1. The line this audit named is not the line that faults.** The P7b row above
+says "re-check `backBuffer` after `drawingClient->render()` (`:207` → `:212`)",
+meaning the fault would land on `CGContextRestoreGState(backBuffer)` or
+`CGBitmapContextCreateImage(backBuffer)`. It does not. Both of those read the
+*member*, and `onResize` sets the member to `nullptr` — so they hand
+CoreGraphics a NULL, which is untidy but not a use-after-free.
+
+The line that actually faults is one earlier: `context.popAxisAlignedClip()`.
+`gmpi::cocoa::GraphicsContext` keeps its **own** copy of the pointer in
+`cgContext_`, taken at `setCGContext` time, and nothing nulls that copy. So it
+calls `CGContextRestoreGState` on freed memory. Measured backtrace, from the
+crash report of the unfixed build:
+
+```
+CGContextRestoreGState                                   (CoreGraphics)
+gmpi::cocoa::GraphicsContext::popAxisAlignedClip()
+DrawingFrameCocoa::onRender(NSView*, gmpi::drawing::Rect*)
+-[GMPI_VIEW_VERSION_03 drawRect:]
+```
+
+`EXC_BAD_ACCESS (SIGSEGV)`, `KERN_INVALID_ADDRESS`. The consequence for the fix
+is concrete: the guard has to go **inside** the braces, immediately after
+`render()` returns. A guard placed after the block closes — the obvious reading
+of "`:207` → `:212`" — would sit one line too late and fix nothing.
+
+**2. "Latent, not demonstrated" no longer holds.** It was true that no shipping
+client resizes itself during render, and that is still true — but a synthetic
+one reaches the path in a few lines, and this is now a regression test:
+`gmpi_ui/tests/mac_render_reentrant_resize.mm`, driven by
+`tests/run_mac_render_test.sh`. Unfixed sources die 3/3; fixed sources pass 3/3.
+
+**AddressSanitizer cannot see this class of defect, which is worth knowing
+before the next audit reaches for it.** The freed read happens *inside*
+CoreGraphics, and ASan only checks loads the compiler instrumented plus the
+functions it intercepts — a system framework is neither. Measured, with a
+positive control: an ASan build of the test reports a clean PASS on the unfixed
+sources, while the same binary flags a hand-written read of the same freed
+pointer instantly. **Guard Malloc** (`DYLD_INSERT_LIBRARIES=/usr/lib/libgmalloc.dylib`)
+is the detector that works, because it unmaps the page and the fault is taken
+by whoever touches it, instrumented or not.
+
+**P7c inherits the correction.** The X11 row's reasoning is about stale
+extents, not a stale pointer, so it stands as written — but the general lesson
+does transfer: when auditing one of these, check what the *callee* cached, not
+only what the caller re-reads.
