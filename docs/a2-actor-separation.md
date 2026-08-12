@@ -1,5 +1,37 @@
 # A2 — actor separation: what is done and what each box still needs
 
+> **Correction, 2026-08-13 (later the same day, linux box, interactive session
+> with Jeff).** The setup is **three steps, not two** — see **A11**. Steps 1–2
+> are inert on any repo whose remote is `git@github.com:`, because a credential
+> helper keyed to `credential.https://github.com.helper` is never consulted for
+> an SSH URL. Such a push authenticates with **Jeff's key**, through his admin
+> bypass, and nothing below detects it.
+>
+> **This includes the PR-authorship check that this file's own header rests on.**
+> Commit author and committer come from the four `GIT_*` exports in STEP 0.7,
+> which are set unconditionally; they say nothing about which credential moved
+> the bytes. A push made over SSH as Jeff still arrives stamped
+> `tide-rack-bot`, and `gh api user` still answers `tide-rack-bot`, because
+> `gh`'s API path *does* read `GH_TOKEN`. Authorship proves authorship. It is
+> not independent verification of authentication, and no evidence cited below
+> is.
+>
+> Measured on the **linux** box: eight of nine repos were SSH
+> (`SynthEditLib`, `SE16`, `gmpi_ui`, `GMPI_Wrappers`, `GMPI`, `GMPI_Adaptors`,
+> `GMPI-plugins`, `gimpi_ui_tests`); only `TideSynth` was HTTPS. Linux therefore
+> looked correct for one accidental reason — [TideSynth#34](https://github.com/JeffMcClintock/TideSynth/pull/34),
+> the single PR cited for it below, is in the single repo the mechanism covered.
+> Fixed on that box with a global
+> `url."https://github.com/".insteadOf "git@github.com:"`.
+>
+> **macOS and Windows remotes have never been inspected**, and the macOS
+> evidence below — `gmpi_ui#3`/`#4`, `GMPI_Wrappers#1`/`#2` — is drawn entirely
+> from repos that were SSH on linux. Until someone runs
+> `git -C <repo> ls-remote --get-url origin` on those boxes, **read every
+> "verified" in this file as "authorship verified, authentication unknown"**,
+> for macOS and Windows both. STEP 0.7 now carries a second assertion that
+> catches this; it did not exist when the claims below were made.
+
 Status **DONE**, all three boxes, verified 2026-08-13. Originally lifted
 verbatim out of the [BACKLOG.md](../BACKLOG.md) row by **A8**, 2026-08-12 —
 that lift preserved the row's 2026-08-09 claim that macOS and Linux still had

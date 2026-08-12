@@ -46,6 +46,84 @@ Template:
 
 ---
 
+## 2026-08-13 — linux — A11 (new; A2 follow-up, interactive session, Jeff directing)
+
+**Did:** Jeff asked for help finishing **A2** on this box. A2 had been flipped
+**DONE** on all three boxes earlier the same day, but the row I started from was
+the pre-flip one — my local `main` was 30+ commits stale, which is how I came at
+it fresh. Steps 1–2 were already in place here since 2026-08-09 and I re-verified
+rather than assumed them. Then checked the remotes, which nobody had, and found
+the mechanism does not reach most of them. Fixed this box, corrected
+[docs/a2-actor-separation.md](docs/a2-actor-separation.md), added setup **step 3**
+and a second STEP 0.7 assertion to
+[docs/weekly-run-prompt.md](docs/weekly-run-prompt.md), filed **A11** for the
+remaining boxes.
+
+**Result:** every command run, none assumed.
+
+| Check | Result |
+|---|---|
+| `gh api user --jq .login` with `~/.tide/agent-token` | `tide-rack-bot` |
+| token scopes | `repo` — no `workflow`, as intended |
+| bot reads private `SynthEdit` | yes |
+| `credential.https://github.com.helper` | both lines present |
+| remotes on this box | **8 of 9 SSH**, only `TideSynth` HTTPS |
+| `ssh -T git@github.com` | `Hi JeffMcClintock!` |
+
+**Learned — three things, and the second is the one that matters.**
+
+**1. A credential helper keyed to `credential.https://github.com.helper` is never
+consulted for a `git@github.com:` URL.** So on any repo with an SSH remote, a run
+authenticates with Jeff's key and pushes through his admin bypass. Fixed with a
+global `url."https://github.com/".insteadOf "git@github.com:"`, not per-repo
+`remote set-url`: a fresh clone defaults back to SSH and re-opens the hole with
+no signal. Proved read-only in both directions, no push — against the private
+`SynthEdit` over HTTPS, a bogus `GH_TOKEN` **fails** auth (that failure is the
+proof git consults `gh` at all, rather than the SSH key or the keyring), the real
+token succeeds, no token succeeds as Jeff. Cheaper than the Windows method, which
+needed a real push to `main` to see `GH013`.
+
+**2. Both guards A2 rests on are blind to it, including the one used to close
+it.** STEP 0.7's `gh api user` answers `tide-rack-bot` because `gh`'s API path
+reads `GH_TOKEN` and never touches git's transport. And the PR-authorship check
+A2 was flipped DONE on answers `tide-rack-bot` because author and committer come
+from the four `GIT_*` exports, which STEP 0.7 sets unconditionally. **Authorship
+proves authorship, not authentication.** A push made as Jeff over SSH arrives
+stamped bot, past an assertion that passes, into a log that reads correctly.
+Linux looked clean for one accidental reason: `TideSynth` was the only repo its
+runs touched and the only repo that was HTTPS. **The macOS evidence A2 cited —
+`gmpi_ui#3`/`#4`, `GMPI_Wrappers#1`/`#2` — is drawn entirely from repos that were
+SSH on this box**, and no one has looked at mac's or win's remotes. That is A11.
+
+**3. A stale local `main` makes the bot's first push fail with an error about a
+file you did not touch.** My first push was rejected with *"refusing to allow a
+Personal Access Token to create or update workflow `.github/workflows/build.yml`
+without `workflow` scope"* on a commit touching three `.md` files. Cause: the
+branch was cut from a `main` 30+ commits behind, and `1157be3` had since changed
+`build.yml`, so relative to `origin/main` the branch *reverted* two workflow files
+— which needs the scope the bot deliberately does not have and never will.
+**Diagnose with `git diff origin/main HEAD -- .github/`, not by reading your own
+commit**, which shows nothing. `git fetch` + rebase clears it. This will recur on
+any box whose `main` has drifted, and the message points at the wrong thing every
+time.
+
+**Next:** **A11 on mac and win** — one `git config` line each, then the two
+assertions. Until then their A2 "verified" means *authorship verified,
+authentication unknown*. Jeff needs `gh auth refresh -h github.com -s workflow`
+once for his own interactive pushes, now that they resolve through `gh`'s keyring
+token: `SE16` has nine workflow files. Note this is the same scope wall **C9(a)**
+hit from the other direction.
+
+**Prompt:** n/a — interactive session, not a scheduled run. Steps 1–2 were already
+in place, so the work itself ran as Jeff until step 3 landed; the commit and push
+below are the first exercise of the fixed path on this box.
+
+**Branch/PR:** `tide/linux/A2-ssh-remote-gap` — TideSynth only. No other repo was
+committed in; the box-level `git config` is not a repo change and lives nowhere
+but this machine, which is exactly why A11 has to be done per box.
+
+---
+
 ## 2026-08-13 — jeff — decision: rack mode is TIDE's default view (interactive session, not a scheduled run)
 
 **Did:** Jeff described SynthEdit's new "rack mode" — the top-level Panel View
