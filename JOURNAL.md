@@ -169,6 +169,30 @@ in this project.
 
 **Prompt:** `e09e766` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
 
+**Merged, same session, at Jeff's instruction** (`merge gmpi_ui#3 then
+GMPI_Wrappers#1 and #2`), in that order. All three landed; GitHub retargeted
+GMPI_Wrappers#2 from `tide/mac/P7-resize-audit` to `main` on its own when #1
+merged, so the stacked PR needed no intervention. Re-verified **from the merged
+default branches** rather than from the branches: fresh configure, rebuild,
+`mac_editor_resize_host` exit **0**, `checkSizeConstraint` reporting `1829 x 6879`
+adjusted and the view clamping to `1829 x 6879` / `8192 x 600` / `600 x 8192` /
+`1 x 1`.
+
+**The bot could not merge, and that is the arrangement working.**
+`PUT /pulls/3/merge` as `tide-rack-bot` returned **`405 At least 1 approving
+review is required by reviewers with write access`**, with `mergeable_state:
+blocked` — the same shape as A2's recorded `GH013` push rejection, on a different
+verb. The merges were therefore made on **Jeff's own credential**, which is on the
+bypass lists, at his explicit instruction in session. Worth writing down for two
+reasons: a future run must not read "Jeff asked me to merge" as licence to try it
+unprompted, and the *mechanism* by which the bot is refused a merge had not been
+observed before today — only the push half had.
+
+**Consequence recorded:** GMPI_Wrappers#1 was P7's last open PR, so **P7 is now
+DONE** and its row moved to the Done section as part of this PR. **P7a stays
+IN-REVIEW** — its two code PRs are merged but this repo's PR, which carries the
+row, the journal and the audit-doc note, is still open.
+
 **Branch/PR:** `tide/mac/P7a-editor-extent-bound` in three repos —
 [gmpi_ui#3](https://github.com/JeffMcClintock/gmpi_ui/pull/3),
 [GMPI_Wrappers#2](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/2) and this
