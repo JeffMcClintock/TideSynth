@@ -1,0 +1,86 @@
+# NOT ACTIVE. Copy this to .github/workflows/verify.yml to enable it.
+#
+# It lives here because a scheduled agent may not write .github/workflows/** --
+# a workflow file executes with repository-secret access on the branch that
+# pushes it, so an edit there is a credential-scope change rather than a code
+# change. The agent token carries no `workflow` scope either, so the rule is
+# enforced twice over. Installing this is a manual step for Jeff (BACKLOG E1b).
+#
+# See docs/e1-verification-harness.md for what the harness checks and why.
+
+name: verify
+
+# Audio verification for TIDE Rack containers.
+#
+# Downloads a published SynthEditCL rather than building the engine. The
+# engine's own pipelines (SynthEdit_cmake_{linux,mac,win}.yml) build it and
+# publish to synthedit.com/release_1_6/, so building it again here would cost
+# ~45 minutes to reproduce an artifact that already exists.
+#
+# No repository secrets required: the release artifacts are public downloads.
+#
+# Verified 2026-08-07: the published Linux Release binary (g++-14) renders
+# BIT-EXACTLY the same audio as a local Debug build (g++-13.3). Golden
+# references are therefore portable across build config and compiler version.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+  # Re-verify when a new engine ships, so an engine regression surfaces here
+  # rather than silently invalidating every reference.
+  schedule:
+    - cron: '0 3 * * 1'
+
+env:
+  ENGINE_BASE: https://www.synthedit.com/release_1_6
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SynthEdit engine package
+        run: |
+          set -euo pipefail
+          curl -fL "${ENGINE_BASE}/SynthEdit-linux-x64.tar.gz" -o engine.tar.gz
+          mkdir -p engine
+          tar -xzf engine.tar.gz -C engine
+
+      # The package's own build step copies SynthEditCL with `|| true`, so a
+      # build where the CLI failed to compile still publishes a tarball
+      # without it. Fail loudly and early here rather than emitting a
+      # confusing error five steps later.
+      - name: Verify engine package contents
+        run: |
+          set -euo pipefail
+          CLI=engine/SynthEdit/SynthEditCL
+          MODULES=engine/SynthEdit/PlugIns
+          test -x "$CLI"     || { echo "::error::SynthEditCL missing from engine package"; exit 1; }
+          test -d "$MODULES" || { echo "::error::PlugIns folder missing from engine package"; exit 1; }
+          count=$(find "$MODULES" -name '*.sem' | wc -l)
+          echo "SynthEditCL present; $count .sem modules"
+          test "$count" -gt 0 || { echo "::error::no .sem modules in package"; exit 1; }
+          "$CLI" --version 2>&1 | head -2 || true
+
+      - name: Run audio verification
+        run: |
+          python3 tools/render_harness.py \
+            --cli engine/SynthEdit/SynthEditCL \
+            --modules engine/SynthEdit/PlugIns \
+            --artifacts artifacts \
+            --out artifacts/report.json
+
+      # Uploaded on failure too: the rendered WAVs are how you diagnose a
+      # null-test failure without reproducing anything locally.
+      - name: Upload report and rendered audio
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-verify-linux
+          path: artifacts/
+          retention-days: 14

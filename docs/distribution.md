@@ -3,7 +3,7 @@
 The plan for getting TIDE from a build tree onto a user's machine, on every
 platform, and for making the downloads reachable from tidesynth.com. Written
 2026-08-07, at Jeff's direction, well before there is anything to ship — v0.1
-([PLAN.md](PLAN.md)) is the gate, and every R-item in BACKLOG is blocked on
+([PLAN.md](../PLAN.md)) is the gate, and every R-item in BACKLOG is blocked on
 **V1** for exactly that reason. The point of writing it now is that the plan
 changes *how the release CI is shaped*, and that the accounts and identities it
 needs (R1) have lead time.

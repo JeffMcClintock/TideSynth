@@ -1,0 +1,25 @@
+{
+  "description": "The complete minimum voice: MIDI note -> Keyboard2 (MIDI-to-CV) -> ADSR envelope + naive oscillator -> VCA. Guards the whole signal chain the product is built on, not just one module. If this passes, a user can press a key and hear a note.",
+  "script": [
+    "--new",
+
+    "--add-module \"SE MidiMessage\" 0,0 --as src",
+    "--set-pin $src:0 \"90 40 64\"",
+    "--set-pin $src:1 1",
+
+    "--add-module \"SE Keyboard2\" 150,0 --as kbd",
+    "--add-module \"SynthEdit ADSR\" 300,0 --as env",
+    "--add-module \"SE Oscillator (naive)\" 300,200 --as osc",
+    "--add-module \"VCA\" 500,100 --as vca",
+
+    "--connect $src:2 $kbd:21",
+    "--connect $kbd:12 $osc:0",
+    "--connect $kbd:13 $env:0",
+    "--connect $kbd:14 $env:1",
+    "--connect $osc:5 $vca:0",
+    "--connect $env:7 $vca:1"
+  ],
+  "source": "$vca:2",
+  "duration": 2.0,
+  "rate": 48000
+}
