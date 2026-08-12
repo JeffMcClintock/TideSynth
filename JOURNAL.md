@@ -100,23 +100,43 @@ endings normalised). mac / iOS / linux **unverified** — not buildable here.
   `#include "afxres.h"` unaltered into the public repo, so the MFC requirement is
   public the moment SynthEditLib#5 merges. Row updated with the new path.
 
-**Jeff committed onto this run's branch, mid-run — worth knowing it can happen.**
-`SE16` was clean at claim time. Partway through, `d4d0acac5 se_screenshot: report
-contentRect, and optionally crop to it` (Jeff McClintock, 08:39 +1200) appeared
-**on `tide/win/C3-document-model`**, not on `master`, and it had swept this run's
-27 staged deletions in from the index alongside its own 3 `SynthEditMcp` files.
-His work existed **only** on that branch. Nothing was reverted or rewritten:
-the commit was preserved verbatim on a local branch
-**`jeff/mcp-screenshot-wip-2026-08-13`** (not pushed — his WIP is not the
-agent's to publish), then `git reset --mixed origin/master` unwound the index
-only, leaving every file on disk byte-for-byte — the three `SynthEditMcp` files
-were SHA-256'd before and after and are unchanged — so his work is once again
-uncommitted working-tree changes, exactly as this run found the tree. Only this
-run's own 30 paths were then staged, by name. **Two things follow:** his
-`SynthEditMcp` work still needs his own commit and is not on `master`; and a run
-whose staged index sits around for a long build can have that index harvested by
-someone else's commit, so **stage late, or verify the index right before
-committing** — `git status` immediately before `git commit` is what caught this.
+**Jeff was working in `SE16` throughout this run, and the two of us collided on
+the index. Nothing was lost, and he resolved his half himself.** Worth reading
+in full, because the failure mode is not obvious and it will recur.
+
+`SE16` was clean at claim time. Partway through, `d4d0acac5 se_screenshot:
+report contentRect, and optionally crop to it` (Jeff McClintock, 08:39 +1200)
+appeared **on `tide/win/C3-document-model`** — his tooling committed to whatever
+branch was checked out, which was this run's — and it swept **this run's 27
+staged deletions** in from the index alongside its own 3 `SynthEditMcp` files.
+This run did not revert or rewrite it: it preserved that commit on a local
+branch, then `git reset --mixed origin/master` unwound the **index only**,
+leaving every file on disk byte-for-byte (the three `SynthEditMcp` files were
+SHA-256'd before and after, unchanged), which put his work back to uncommitted
+changes exactly as the tree was found. Only this run's own 30 paths were then
+staged, by name.
+
+**He then sorted it out himself, while this run was writing PRs:** he created
+**`jeff/mcp-screenshot-contentrect`** and committed his work cleanly there as
+`d1b403000` — 3 files, no C3 deletions. Verified byte-identical (blob hashes) to
+what the safety branch held, so that safety branch was pure redundancy and was
+deleted; his own branch is the live copy. **His `png.ts` work is committed and
+safe, and is *not* on `master`.**
+
+**One thing he should know: `jeff/mcp-screenshot-contentrect` is based on
+`ae4b434df`, this run's C3 commit — not on `master`.** So merging that branch as
+it stands would drag C3 in with it. His commit is cleanly separable (a
+cherry-pick onto `master` touches only the 3 `SynthEditMcp` files). He also
+pushed `97497580a` and `e4216d0d9` to `master` during the run, so `origin/master`
+moved twice more; local `master` is left 3 behind, as found — not fast-forwarded,
+since that is his call.
+
+**The transferable lesson:** a run whose staged index sits idle through a long
+build can have that index harvested by someone else's commit. The deletions were
+staged, then four target builds and a 92-test ctest ran — a wide window.
+**Stage late, and re-check `git status` immediately before `git commit`**; that
+check is the only reason this was caught rather than shipped inside someone
+else's commit.
 
 **Next:**
 
