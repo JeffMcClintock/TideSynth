@@ -50,6 +50,12 @@ restoring it builds clean — so the build genuinely reads the new location.
 **26 of 27 files byte-identical** to the originals (SHA-256 per file, line
 endings normalised). mac / iOS / linux **unverified** — not buildable here.
 
+**Default branch:** SE16 master was also built standalone after restoring the
+checkout, not merely inferred from the branch build — EditorLib.lib and
+SynthEdit2.exe both build clean at 7cb95f33b. So this stage did not break a
+working master, and master was not already broken before it. No
+platform-labelled issue was needed.
+
 **Learned:**
 
 - **C2's "nothing outside EditorLib compiles it" test caught exactly one file,
