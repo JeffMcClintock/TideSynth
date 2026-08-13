@@ -108,6 +108,32 @@ prompt.
    Windows), one line, `chmod 600` on mac and linux. It must not be inside any
    repository.
 
+3. Force GitHub SSH remotes through HTTPS, so step 1 actually governs them:
+
+   ```bash
+   git config --global url."https://github.com/".insteadOf "git@github.com:"
+   ```
+
+   **Steps 1 and 2 are inert on any repo with a `git@github.com:` remote.**
+   A credential helper keyed to `credential.https://github.com.helper` is
+   never consulted for an SSH URL — git authenticates with Jeff's key, so the
+   push lands with his admin bypass while `gh api user` still answers
+   `tide-rack-bot`, because `gh`'s API path does use `GH_TOKEN`. The four
+   `GIT_*` exports then stamp the commits as the bot, so `git log` reads
+   correctly for a push that bypassed every ruleset. Found on the Linux box
+   2026-08-13, where eight of nine repos were SSH and only `TideSynth` was not.
+
+   A global rewrite rather than per-repo `remote set-url` because a fresh
+   clone otherwise re-opens the hole silently — this way the rule is
+   structural, not something to remember.
+
+   **One consequence for Jeff, not for runs:** his interactive pushes now use
+   `gh`'s keyring token, which carries no `workflow` scope, so a commit
+   touching `.github/workflows/**` is rejected until he runs
+   `gh auth refresh -h github.com -s workflow` once. `SE16` has nine workflow
+   files and is where this will bite. The bot's token is separate and still
+   deliberately without the scope.
+
 **Verified working on the Windows box, 2026-08-09** — each of these was run,
 not assumed:
 
@@ -183,6 +209,19 @@ STEP 0.7 — Become the agent. Do this before any command that touches GitHub.
     export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
     export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
     gh api user --jq .login
+    git config --global --get url."https://github.com/".insteadOf
+
+**Both commands assert, and both must pass.** The first MUST print
+`tide-rack-bot`; the second MUST print `git@github.com:`. If the second prints
+nothing, this box is missing setup step 3 and any repo with an SSH remote will
+push as Jeff — and the first assertion will pass anyway, because it only
+exercises `gh`'s API path and never git's. Treat a silent second command
+exactly like a wrong first one: STOP, journal what it printed, do nothing else.
+
+Before the first push in any repo, spot-check that repo too — one command,
+and it must answer `https://...`:
+
+    git -C <repo> ls-remote --get-url origin
 
 The four `GIT_*` variables matter as much as the token. Authentication and
 authorship are separate things: without them a run pushes *as* the bot but
