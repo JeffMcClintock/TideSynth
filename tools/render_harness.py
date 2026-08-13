@@ -67,6 +67,56 @@ SILENCE_FLOOR_DBFS = -90.0
 #
 # Peak tolerance is set just above the ~1 LSB (-90.3 dBFS at 16-bit) that
 # cross-platform float rounding can legitimately produce.
+#
+# BOTH DEFAULTS CONFIRMED BY MEASUREMENT, 2026-08-14 (TIDE E1a), on the first
+# cross-platform render the harness has ever done: macOS against the Linux
+# goldens, three independent engines (local Release V1.6.175, local Debug
+# V1.6.182, published V1.6.183), all agreeing.
+#
+# voice_midi_note -- the case whose residual is PURE ROUNDING -- came back at
+# RMS -123.1 dBFS and peak -90.3 dBFS, i.e. exactly 1 LSB on 51 of 95,999
+# samples (0.053%). So:
+#
+#   * The RMS gate keeps 22.9 dB of headroom. E1 finding (e) feared the
+#     opposite: worst-case arithmetic (1 LSB on EVERY sample = -90.3 dBFS RMS)
+#     says this gate tolerates 1-LSB error on only ~10.7% of samples, and
+#     warned the first cross-platform render would fail spuriously. It did not.
+#     Real cross-platform rounding touched 0.053% of samples -- 200x inside
+#     that budget -- because the two builds agree on almost every sample and
+#     disagree only where a value sits on a quantisation boundary. The gate was
+#     NOT widened: the number was never the problem, the missing measurement
+#     was. Finding (e) is closed, not deferred.
+#   * The peak gate keeps 4.3 dB of headroom, and that is structurally safe
+#     rather than lucky: 1 LSB is a HARD per-sample ceiling for rounding-class
+#     drift. Two builds that agree on the underlying float value can only
+#     disagree about which way it rounds. Drift of this class can affect more
+#     samples; it cannot make any one sample wrong by more than 1 LSB.
+#
+# WHAT DOES NOT FIT THIS MODEL, and why per-case overrides now exist.
+#
+# osc_naive_sine failed, at RMS -73.5 dBFS / peak -68.7 dBFS (12 LSB) -- five
+# orders of magnitude outside the rounding budget, and identical on all three
+# macOS engines, so not an engine-version or build-config artifact. Analysed:
+# the residual GROWS MONOTONICALLY through the render (-96 dBFS in the first
+# 0.1 s block, -69 dBFS in the last) with zero best-fit time lag. That is not
+# rounding, it is a frequency offset integrating into phase error: fitting
+# dphi = k*t gives 0.15 ppm, i.e. ~2.5 ULP at SINGLE precision (2^-24).
+#
+# The pitch table and the phase increment are both double, but the path from
+# pitch to increment is not: OscillatorNaive.h:66 computes the table index as
+# a float from a float pitch, so the interpolation carries single-precision
+# resolution. A few ULP there is the right order for what was measured. (Named
+# as the plausible locus, not proven -- the measured quantity is the 2.5 ULP.)
+#
+# The structural consequence is what matters here: a free-running oscillator's
+# residual is UNBOUNDED IN RENDER DURATION. It grows linearly with time, so no
+# fixed dBFS number is a duration-independent statement about it. Widening the
+# global gates to pass a 2 s sine would have to reach -67 dBFS, which sails
+# straight past finding (b)'s reference defect (a 3-LSB nudge over 200 samples,
+# caught at peak -80.8 dBFS) -- and would fail again the moment a case renders
+# for 4 s. So the global gates stay where they are, and a case that legitimately
+# accumulates drift declares its own budget with a written reason. See
+# tests/cases/osc_naive_sine.json.
 NULL_TOLERANCE_DBFS = -100.0
 PEAK_DIFF_TOLERANCE_DBFS = -86.0
 
@@ -140,12 +190,19 @@ def read_wav(path: Path) -> Audio:
         return Audio(w.getframerate(), w.getnchannels(), width, samples, raw)
 
 
-def null_test(a: Audio, b: Audio) -> tuple[bool, float, float, str | None]:
+def null_test(a: Audio, b: Audio,
+              rms_tolerance: float = NULL_TOLERANCE_DBFS,
+              peak_tolerance: float = PEAK_DIFF_TOLERANCE_DBFS,
+              ) -> tuple[bool, float, float, str | None]:
     """Subtract b from a.
 
     Returns (within_tolerance, rms_dBFS, peak_diff_dBFS, reason).
     Both metrics must pass: RMS catches broad regressions, peak catches
     localized ones that RMS averages away.
+
+    The tolerances default to the module-level rounding-class budget; a case
+    may widen them for a residual that is a different class of thing (see the
+    NULL_TOLERANCE_DBFS comment block).
     """
     if (a.rate, a.channels, a.width) != (b.rate, b.channels, b.width):
         return False, math.inf, math.inf, (
@@ -164,7 +221,7 @@ def null_test(a: Audio, b: Audio) -> tuple[bool, float, float, str | None]:
     rms_db = _dbfs(rms, a.full_scale)
     peak_db = _dbfs(max(abs(d) for d in diffs), a.full_scale)
 
-    ok = rms_db <= NULL_TOLERANCE_DBFS and peak_db <= PEAK_DIFF_TOLERANCE_DBFS
+    ok = rms_db <= rms_tolerance and peak_db <= peak_tolerance
     return ok, rms_db, peak_db, None
 
 
@@ -182,6 +239,31 @@ class Case:
     rate: int = DEFAULT_RATE
     source_right: str | None = None
     description: str = ""
+
+    # Per-case null-test budget. Omitted means the module-level default, which
+    # is the rounding-class budget every case should be held to. Set these ONLY
+    # for a case whose residual is a different class of thing -- E1a's
+    # oscillator phase drift is the founding example -- and say why in
+    # tolerance_reason, which the harness prints and puts in the report so a
+    # widened gate can never be invisible.
+    null_tolerance_dbfs: float | None = None
+    peak_diff_tolerance_dbfs: float | None = None
+    tolerance_reason: str = ""
+
+    @property
+    def null_tolerance(self) -> float:
+        return (NULL_TOLERANCE_DBFS if self.null_tolerance_dbfs is None
+                else self.null_tolerance_dbfs)
+
+    @property
+    def peak_tolerance(self) -> float:
+        return (PEAK_DIFF_TOLERANCE_DBFS if self.peak_diff_tolerance_dbfs is None
+                else self.peak_diff_tolerance_dbfs)
+
+    @property
+    def overridden(self) -> bool:
+        return (self.null_tolerance_dbfs is not None
+                or self.peak_diff_tolerance_dbfs is not None)
 
     @staticmethod
     def load(path: Path) -> "Case":
@@ -208,6 +290,13 @@ class Result:
     cli_commands: list = field(default_factory=list)
     module_sources: list = field(default_factory=list)
     foreign_module_sources: list = field(default_factory=list)
+    # The tolerances this case was actually judged against, and why they are
+    # not the defaults. Recorded per case, not just globally, so a report can
+    # never look stricter than the run that produced it.
+    null_tolerance_dbfs: float = NULL_TOLERANCE_DBFS
+    peak_diff_tolerance_dbfs: float = PEAK_DIFF_TOLERANCE_DBFS
+    tolerance_overridden: bool = False
+    tolerance_reason: str = ""
 
 
 # --------------------------------------------------------------------------
@@ -338,7 +427,11 @@ def run_case(cli: Path, modules: Path, case: Case, refs: Path,
         wav = Path(tmp) / f"{case.name}.wav"
         ok, reason, commands, scanned = render(cli, modules, case, wav)
         foreign = foreign_sources(scanned, modules)
-        prov = dict(module_sources=scanned, foreign_module_sources=foreign)
+        prov = dict(module_sources=scanned, foreign_module_sources=foreign,
+                    null_tolerance_dbfs=case.null_tolerance,
+                    peak_diff_tolerance_dbfs=case.peak_tolerance,
+                    tolerance_overridden=case.overridden,
+                    tolerance_reason=case.tolerance_reason)
         if not ok:
             return Result(case.name, False, reason, cli_commands=commands, **prov)
 
@@ -380,7 +473,8 @@ def run_case(cli: Path, modules: Path, case: Case, refs: Path,
 
         # Gate 2: null-test against the golden reference.
         reference = read_wav(ref_path)
-        within, rms_db, peak_db, why = null_test(rendered, reference)
+        within, rms_db, peak_db, why = null_test(
+            rendered, reference, case.null_tolerance, case.peak_tolerance)
 
         if within:
             reason = ""
@@ -388,13 +482,13 @@ def run_case(cli: Path, modules: Path, case: Case, refs: Path,
             reason = why
         else:
             breached = []
-            if rms_db > NULL_TOLERANCE_DBFS:
+            if rms_db > case.null_tolerance:
                 breached.append(
-                    f"RMS residual {rms_db:.1f} dBFS > {NULL_TOLERANCE_DBFS} dBFS")
-            if peak_db > PEAK_DIFF_TOLERANCE_DBFS:
+                    f"RMS residual {rms_db:.1f} dBFS > {case.null_tolerance} dBFS")
+            if peak_db > case.peak_tolerance:
                 breached.append(
                     f"peak sample diff {peak_db:.1f} dBFS > "
-                    f"{PEAK_DIFF_TOLERANCE_DBFS} dBFS (localized glitch)")
+                    f"{case.peak_tolerance} dBFS (localized glitch)")
             reason = "; ".join(breached)
 
         return Result(
@@ -409,14 +503,97 @@ def run_case(cli: Path, modules: Path, case: Case, refs: Path,
 
 
 # --------------------------------------------------------------------------
+# Self-test. Added 2026-08-14 (E1a) alongside the per-case tolerance override.
+#
+# Two things it makes permanent. First, the override plumbing: a widened gate
+# is exactly the kind of mechanism that quietly becomes a blanket pass, so the
+# check that it does NOT leak to other cases has to outlive the run that added
+# it. Second, the dBFS arithmetic that E1's findings (b) and (e) are argued
+# from -- those numbers are quoted as settled fact in three documents, and
+# nothing executed them until now.
+#
+# Synthesises its audio in memory: no fixture WAVs, no engine, runs anywhere.
+# --------------------------------------------------------------------------
+
+
+def _synth(samples: list) -> Audio:
+    raw = struct.pack(f"<{len(samples)}h", *samples)
+    return Audio(48000, 1, 2, tuple(samples), raw)
+
+
+def selftest() -> int:
+    failures = []
+
+    def check(label, got, want, tol=0.05):
+        ok = (abs(got - want) <= tol) if isinstance(want, float) else (got == want)
+        print(f"  {'ok ' if ok else 'XX '}{label}: got {got}, want {want}")
+        if not ok:
+            failures.append(label)
+
+    n = 96000
+    base = [int(16000 * math.sin(2 * math.pi * 440 * i / 48000)) for i in range(n)]
+    ref = _synth(base)
+
+    # E1 finding (e)'s premise: 1 LSB on EVERY sample is -90.3 dBFS RMS, and
+    # that is also the per-sample ceiling for rounding-class drift.
+    _, rms, peak, _ = null_test(_synth([s + 1 for s in base]), ref)
+    check("1 LSB on every sample, RMS dBFS", round(rms, 1), -90.3)
+    check("1 LSB on every sample, peak dBFS", round(peak, 1), -90.3)
+
+    # E1 finding (b)'s reference defect: 3 LSB across 200 of 96,000 samples.
+    # RMS is nearly blind to it; the peak gate is what catches it.
+    glitched = list(base)
+    for i in range(40000, 40200):
+        glitched[i] += 3
+    ok, rms, peak, _ = null_test(_synth(glitched), ref)
+    check("finding (b) defect, RMS dBFS", round(rms, 1), -107.6)
+    check("finding (b) defect, peak dBFS", round(peak, 1), -80.8)
+    check("finding (b) defect is caught at the default gates", ok, False)
+
+    # The RMS gate's actual budget, which finding (e) computed as ~10.7% of
+    # samples carrying 1 LSB. Straddle it: 10% must pass, 12% must fail.
+    for pct, want_pass in ((10, True), (12, False)):
+        nudged = [s + (1 if i % 100 < pct else 0) for i, s in enumerate(base)]
+        ok, rms, _, _ = null_test(_synth(nudged), ref)
+        check(f"1 LSB on {pct}% of samples passes RMS gate ({rms:.1f} dBFS)",
+              ok or rms <= NULL_TOLERANCE_DBFS, want_pass)
+
+    # Per-case override plumbing.
+    plain = Case(name="plain", script=[], source="$x:0")
+    wide = Case(name="wide", script=[], source="$x:0",
+                null_tolerance_dbfs=-67.0, peak_diff_tolerance_dbfs=-62.0)
+    check("a case with no override uses the default RMS gate",
+          plain.null_tolerance, NULL_TOLERANCE_DBFS)
+    check("a case with no override uses the default peak gate",
+          plain.peak_tolerance, PEAK_DIFF_TOLERANCE_DBFS)
+    check("a case with no override reports overridden=False", plain.overridden, False)
+    check("an overriding case reports overridden=True", wide.overridden, True)
+    check("an override does not mutate the module defaults",
+          (NULL_TOLERANCE_DBFS, PEAK_DIFF_TOLERANCE_DBFS), (-100.0, -86.0))
+
+    # A residual that the wide gates admit must still be rejected by the
+    # defaults -- i.e. widening is per-case, not global.
+    loud = [int(s * 1.0002) for s in base]
+    ok_wide, rms, _, _ = null_test(_synth(loud), ref, wide.null_tolerance, wide.peak_tolerance)
+    ok_default, _, _, _ = null_test(_synth(loud), ref, plain.null_tolerance, plain.peak_tolerance)
+    check(f"wide gates admit a {rms:.1f} dBFS residual", ok_wide, True)
+    check("default gates reject the same residual", ok_default, False)
+
+    print(f"\nselftest: {'PASSED' if not failures else str(len(failures)) + ' FAILED'}")
+    return 1 if failures else 0
+
+
+# --------------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------------
 
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="TIDE Rack audio verification harness")
-    p.add_argument("--cli", required=True, type=Path, help="path to SynthEditCL")
-    p.add_argument("--modules", required=True, type=Path, help="factory .sem folder")
+    p.add_argument("--selftest", action="store_true",
+                   help="check the gate arithmetic and tolerance plumbing; no engine needed")
+    p.add_argument("--cli", type=Path, help="path to SynthEditCL")
+    p.add_argument("--modules", type=Path, help="factory .sem folder")
     p.add_argument("--cases", type=Path, default=Path("tests/cases"))
     p.add_argument("--refs", type=Path, default=Path("tests/references"))
     p.add_argument("--out", type=Path, default=Path("report.json"))
@@ -427,6 +604,12 @@ def main(argv=None) -> int:
     p.add_argument("--filter", default=None, help="only run cases whose name contains this")
     args = p.parse_args(argv)
 
+    if args.selftest:
+        return selftest()
+
+    if args.cli is None or args.modules is None:
+        print("error: --cli and --modules are required (or use --selftest)", file=sys.stderr)
+        return 2
     if not args.cli.exists():
         print(f"error: SynthEditCL not found at {args.cli}", file=sys.stderr)
         return 2
@@ -458,7 +641,11 @@ def main(argv=None) -> int:
     failed = [r for r in results if not r.passed]
 
     report = {
-        "schema": "tide-rack.audio-verify/2",
+        # /3 adds the per-case tolerance fields (E1a, 2026-08-14). The two
+        # numbers under "config" are the DEFAULTS; a case that overrode them
+        # says so in its own entry, so read the case, not the config, when
+        # asking what a given result was actually judged against.
+        "schema": "tide-rack.audio-verify/3",
         # Engine deps are unpinned pre-1.0 by design. If a case starts failing,
         # diff this against the last green report before assuming TIDE Rack
         # broke -- the engine may simply have moved.
@@ -492,6 +679,14 @@ def main(argv=None) -> int:
         if r.peak_diff_dbfs is not None:
             detail += f" peakdiff={r.peak_diff_dbfs:.1f}dBFS"
         print(f"{mark}  {r.name}{detail}" + (f"  -- {r.reason}" if r.reason else ""))
+        # A widened gate must never be invisible in the output that a human
+        # actually reads -- that is the whole risk of allowing overrides.
+        if r.tolerance_overridden:
+            print(f"      relaxed gates: rms<={r.null_tolerance_dbfs} dBFS "
+                  f"peak<={r.peak_diff_tolerance_dbfs} dBFS "
+                  f"(defaults {NULL_TOLERANCE_DBFS}/{PEAK_DIFF_TOLERANCE_DBFS})")
+            if r.tolerance_reason:
+                print(f"      reason: {r.tolerance_reason}")
 
     foreign = sorted({s for r in results for s in r.foreign_module_sources})
     if foreign:

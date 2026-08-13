@@ -4713,3 +4713,201 @@ the closing section of `docs/p7-resize-audit-mac-x11.md`). No other repo was
 committed in or modified.
 
 ---
+
+## 2026-08-13 — windows — C4
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
+
+**Did:** Carve-out stage **C4**. Moved the twelve view/browser files out of the
+private repo into public `SynthEditLib`, implemented **C9** with them (Jeff's
+option (c)), and rebuilt everything including the SynthEdit2 link step no
+previous carve-out stage had been able to reach. Also measured what the move
+costs C7, which is the part worth reading.
+
+**Result — all three products build, all tests pass, and C9 is proven rather
+than asserted.**
+
+| check | result |
+|---|---|
+| fresh scratch Ninja tree of `SE16`, Release | **905/905, RC=0** — `SynthEdit_VST3`, `SynthEdit_GMPI`, `SynthEditCL`, `TIDE.gmpi`, `TIDE_VST3` |
+| the six moved TUs really compiled from their new home | log shows `EditorLib.dir\C_\SE\SynthEditLib\<name>.cpp.obj` for all six |
+| `dsp_tests` / `synth_ui_tests` / `ui_tests` | 58/58, 24/24, 10/10 — all RC=0 |
+| **SynthEdit2 (WinUI3)**, MSBuild Release x64 | **RC=0**, `x64\Release\SynthEdit2\SynthEdit2.exe` |
+| no line-ending churn | `core.autocrlf=false` in both repos; all twelve files `cmp`-identical to their originals |
+
+The SynthEdit2 row matters beyond "it builds": **C1b and C2 both had to leave
+link-stage verification of SynthEdit2 open**, because P8 blocked it. P8 is fixed,
+so this is the first carve-out stage whose WinUI3 link step was actually reached.
+
+**C9 — implemented as ruled, and the value is injected rather than owned.**
+
+New `SynthEditLib/se_version.h` defaults `SE_APP_BUILD_NUMBER` to 0;
+`EditorLib/CMakeLists.txt` injects SynthEdit's real value with a `file(READ)` +
+`string(REGEX MATCH)` on `se_build_number.h`, which **stays exactly where
+`SynthEdit_cmake_mac.yml:153`, `SynthEdit_cmake_win.yml:206` and
+`SynthEdit_store_win.yml:266` grep for it.** No workflow file touched, and none
+needed to be — the bot token's missing `workflow` scope never came into it.
+
+I did not give the library its own constant, and the reason is worth recording
+because "SynthEditLib gets its own version header" reads like it means that.
+**Both uses are cache invalidation, and both track the *application*, not the
+library:** `SkinMgr` re-copies skins out of the *application's* own `Resources`
+folder, and `ModuleFactory_Editor` caches the modules the *application* links. A
+constant `SynthEditLib` owned would never move on a SynthEdit release, so
+SynthEdit would silently stop invalidating both caches on upgrade — a behaviour
+regression wearing a decoupling's clothes. Injection keeps SynthEdit's behaviour
+bit-identical and still leaves the public repo able to compile with no private
+header.
+
+Proof, not assertion:
+
+| | |
+|---|---|
+| `se_build_number.h` today | `SE_BUILD_NUMBER 183` |
+| `build.ninja` | `SE_APP_BUILD_NUMBER=183` |
+| probe TU, no injection | prints **0** (what a clean clone gets, i.e. TIDE from C7) |
+| probe TU, with injection | prints **183** |
+| scope | the define appears on **57 build statements, every one of them EditorLib** — `PRIVATE` holds, nothing leaks to TIDE, SynthEditCL or SynthEditLib's own targets |
+
+**Learned — C3's second check has a false-alarm case and a real one, and telling
+them apart took a filesystem test, not a grep.** Two of the twelve files use
+`#include "../"`:
+
+| include | resolves relative to the file? |
+|---|---|
+| `ThemeManager.cpp` → `"../tinyxml2/tinyxml2.h"` | **no.** `SE16/tinyxml2/` **does not exist.** It already resolves through a search path — `SynthEditLib/modules/se_sdk3_hosting/../tinyXml2/tinyxml2.h` — so the file's own directory is irrelevant and a move cannot affect it |
+| `ModuleFactory_Editor.cpp`, `SkinMgr.cpp` → `"../se_build_number.h"` | **yes.** `SE16/se_build_number.h` exists. This is the one that breaks |
+
+That is exactly the shape C4's row predicted ("most resolve through the search
+path and are harmless, and the one that resolves for real is the one that
+breaks") — recording it because the `tinyxml2` line *looks* identical to the
+`se_build_number` line and would have been "fixed" by anyone pattern-matching on
+the `../`. Note also the case difference: the file says `tinyxml2/`, the
+directory on disk is `tinyXml2/`. Harmless on Windows and on the search-path
+route; worth knowing before anyone moves that directory.
+
+**Learned — the big one. C4 makes the public repo's private-include problem
+worse, not better, and I measured it instead of assuming either way.**
+
+I expected the opposite. `SkinMgr.h`, `ModuleFactory_Editor.h` and
+`MfcDocPresenter.h` were being included by 11 files already public — the exact
+"a public file its own repo cannot compile" shape C2 hit with
+`cpu_accumulator.h`. C4 closes all 11. But the six moved `.cpp` bring their own
+private-header dependencies with them:
+
+| | dangling private includes in `SynthEditLib` |
+|---|---|
+| before C4 (`SE16 origin/master` / `SynthEditLib origin/main`) | **47** |
+| after C4 | **56** |
+| closed by C4 | 11 |
+| opened by C4 | 20 |
+
+**Read both sides from git refs, not working trees.** My first attempt computed
+"before" with the private-header list taken from the already-modified `SE16`
+working tree, so the eleven closures were invisible and the number was wrong in
+a direction that flattered the change. The script that does it properly is
+`dangling2.py` in the run scratchpad; it is 60 lines and worth re-creating for
+C5, which will move the single most-included name on the list (`Application.h`).
+
+18 of the 20 name headers already on `EditorLib/CMakeLists.txt`'s source list, so
+C5 and later stages close them by construction. **Two are on no stage's list at
+all, and both are reached from `MfcDocPresenter.cpp`:**
+
+- **`SynthEditApp.h`.** Deliberately excluded from EditorLib so each app picks
+  its own `SE_MOONBASE_SUPPORT` without ODR conflicts — the CMakeLists says so
+  in a comment. `MfcDocPresenter.cpp:1258-1261` declares
+  `extern SynthEditApp* theApp` and calls `theApp->isMoonbaseEnabled()` and
+  `theApp->licenseIsActive()` to gray out "Selection to Prefab". **So a
+  licence-gate call site is now in the public repo.** No Moonbase implementation
+  is published — two method names and the existence of the gate are. This is the
+  first time the carve-out has put licensing-adjacent code on the public side,
+  and the standing direction is to keep commercial code private as practical.
+- **`ModulePicker.h`.** 19 KB, header-only, no `.cpp`, on no stage's list.
+  `MfcDocPresenter.cpp:536` does `return new ModulePicker(pparent)`.
+
+**Filed as C11, and deliberately not acted on.** C4's file list is Jeff's and
+`MfcDocPresenter` is on it; reshaping an approved stage because one of its files
+turned out to be awkward is not a scheduled run's call. It is flagged at the top
+of both code PR bodies so it cannot be merged without being seen. Neither breaks
+anything today — both resolve through EditorLib's `../SynthEdit2` include path —
+they break at **C7**, whose whole test is a clean clone with no access to SE16.
+
+**Learned — `MSBuild SynthEditStore.sln` now needs the VS 2026 (v145) toolset,
+and P8's recorded command no longer works on this box.** Under VS 2022 it dies at
+`build\ZERO_CHECK.vcxproj` with `MSB8020: The build tools for v145
+(Platform Toolset = 'v145') cannot be found`, **before reaching `SynthEdit2` at
+all** — so it reads like a project failure and is not one. The solution
+references two projects inside `SE16\build`, Jeff's CMake-generated VS tree,
+which is now generated for VS 2026. Building through
+`Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat` succeeds. Both VS
+2022 Community and VS 18 Community are installed here; Ninja + `cl` from either
+is fine for the CMake side, it is only the `.sln` that is pinned.
+
+**Also done as STEP 4 chores:** **P7c** flipped IN-REVIEW → DONE and moved
+verbatim to `BACKLOG-DONE.md` — [gmpi_ui#5](https://github.com/JeffMcClintock/gmpi_ui/pull/5)
+and [#48](https://github.com/JeffMcClintock/TideSynth/pull/48) both merged
+2026-08-13. **C9's row grew** to record that its mechanism now exists and is
+proven, so C5 reuses it with one `#include` swap and one macro rename rather than
+building anything; it stays TODO because `Application.cpp` has not been done.
+**The `win` NEXT row** now points at C5-if-merged, else E1a — the linux run
+recommended exactly that E1a move on 2026-08-13 and could not make it from its
+own row.
+
+**STEP 1 / 1.5:** no `platform:win` issues; no `platform:*` labelled issues at
+all across the five repos. The only open issues anywhere are TideSynth
+[#44](https://github.com/JeffMcClintock/TideSynth/issues/44) (the A6 watchdog
+digest, `github-actions`, informational) and `gmpi_ui#1` ("Linux support?", 2024,
+third-party and unlabelled) — noted, not acted on, per the issue-authenticity
+rule. **Zero open PRs in all five repos** at claim time, so nothing was handed
+back to this platform and nothing was in flight to collide with.
+
+**Jeff's trees, per the three-kinds dirt rule:** `TideSynth`, `SE16`,
+`SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were **all clean and on their
+default branches** at claim time. Nothing of his was committed, reverted or
+stashed. Note `SE16` local `master` was two commits behind `origin/master`; I
+branched from `origin/master`, as the prompt requires, so the `[Build-Machine]`
+bump to build 183 is included — which is why C9's injected value reads 183 and
+not the 182 in the stale local tree.
+
+**A11 still holds:** all five repos answer `https://` to
+`ls-remote --get-url origin`, and STEP 0.7's second assertion printed
+`git@github.com:`.
+
+**Side effects on this box:** a scratch Ninja tree and a probe binary under the
+session scratchpad, both outside every repo — Jeff's own `SE16\build` was not
+configured or built into. The MSBuild run **did** write into `SE16\x64\Release\`,
+which is `.gitignore`d (`.gitignore:13`) and is where that build has always put
+its output; `git status` in `SE16` is clean apart from my own commit. No engine
+state was written: `SynthEditCL.exe` was built but never executed, so no module
+cache or skin folder was created or invalidated on this machine.
+
+**Next:**
+
+1. **Merge all three C4 PRs together** —
+   [SynthEdit#15](https://github.com/JeffMcClintock/SynthEdit/pull/15),
+   [SynthEditLib#6](https://github.com/JeffMcClintock/SynthEditLib/pull/6),
+   [#49](https://github.com/JeffMcClintock/TideSynth/pull/49). Unlike P7c's
+   independent pair, **merging any one alone breaks the build**: the files exist
+   in exactly one repo at a time and `EditorLib/CMakeLists.txt` points at the new
+   location.
+2. **Rule C11 before C7, and it needs Jeff.** The `SynthEditApp.h` half is a
+   boundary decision, not work — the call is two bools behind a pointer, so a
+   small interface hook would do it, but whether licensing-adjacent code may sit
+   in the public repo at all is not an agent's call. `ModulePicker.h` is the easy
+   half and probably just joins a stage's list.
+3. **C5 is cheap now.** C9's mechanism shipped with C4, so `Application.cpp` is
+   one `#include` swap and one macro rename. It is `win`, and it is the
+   carve-out's critical path the moment C4 lands.
+4. **A13 is still open and still red on `main`.** I did not hit it as a blocker
+   this run, but the link checker's em-dash slug bug is unchanged and every
+   heading in this file has em-dashes.
+
+**Branch/PR:** `tide/win/C4-move-views-browsers` in three repos —
+[SynthEdit#15](https://github.com/JeffMcClintock/SynthEdit/pull/15) (deletions,
+`EditorLib/CMakeLists.txt`, vcxproj),
+[SynthEditLib#6](https://github.com/JeffMcClintock/SynthEditLib/pull/6) (the
+twelve files + `se_version.h`),
+[#49](https://github.com/JeffMcClintock/TideSynth/pull/49) (BACKLOG, JOURNAL,
+`docs/carve-out.md`). No other repo was committed in or modified.
+
+---

@@ -66,7 +66,11 @@ references also survive an engine *version* bump, at least across these two.
 That is better than the harness's own docstring assumes, and it means an
 engine-version change is not a free explanation for a future null-test failure.
 
-Cross-platform drift remains **untested** — only the Linux lane has ever run.
+~~Cross-platform drift remains **untested** — only the Linux lane has ever run.~~
+**Tested 2026-08-14 on macOS — see findings (f) and (g).** Both halves of the
+original claim survive with one retraction: Release-to-Release is bit-exact
+across engine versions *and* build machines, but the macOS **Debug** build is
+not bit-exact with the macOS Release builds.
 
 ### (d) `--modules` is not authoritative on a developer box — NEW
 
@@ -133,6 +137,130 @@ real regression.
 cross-platform measurement would be guessing at exactly the number that decides
 what counts as a regression. Filed as **E1a** with the arithmetic above, to be
 settled with data from the first mac or Windows render.
+
+> **RESOLVED 2026-08-14 by E1a — and the answer was "do not widen it".** The
+> feared spurious failure did not happen, and the reason is that the worst case
+> above is not what cross-platform drift looks like. See finding (f).
+
+### (f) The first cross-platform render — E1a, macOS, 2026-08-14
+
+The harness's second lane finally ran: macOS against the Linux goldens. Three
+independent engines, so an engine-version or build-config difference could not
+be mistaken for a platform one:
+
+| Engine | Origin |
+|---|---|
+| `SynthEditCL V1.6.175` | local Release build, 2026-08-08 |
+| `SynthEditCL V1.6.182` | local **Debug** build, 2026-08-13 |
+| `SynthEditCL V1.6.183` | **published** `SynthEditCL_mac.zip`, Azure CI build, signed |
+
+Results, both cases, all three engines:
+
+| Case | RMS residual | Peak residual | Verdict |
+|---|---|---|---|
+| `voice_midi_note` | −123.1 dBFS | −90.3 dBFS (**exactly 1 LSB**, 51 of 95,999 samples = 0.053%) | pure rounding |
+| `osc_naive_sine` | −73.5 dBFS | −68.7 dBFS (12 LSB) | **not rounding — see (g)** |
+
+**The RMS gate was not widened, because the measurement says it does not need
+to be.** Finding (e)'s arithmetic is correct but its premise is not: it assumed
+the worst case, 1 LSB on *every* sample. Real cross-platform drift touched
+**0.053%** of samples against the ~10.7% the gate allows — a 200× margin, and
+22.9 dB of headroom on the number itself. Two builds agree on almost every
+sample and disagree only where a value lands on a quantisation boundary. The
+number was never the problem; the missing measurement was.
+
+**The peak gate's 4.3 dB of headroom is structural, not luck.** 1 LSB is a hard
+per-sample ceiling for rounding-class drift: two builds that agree on the
+underlying float value can only disagree about which way it rounds. Drift of
+this class can affect *more samples*; it cannot make any one sample wrong by
+more than 1 LSB. So −86 dBFS sits above a ceiling, not above a sample.
+
+**Finding (c) extends and slightly retracts.** Extends: the published Azure-CI
+Release build and the local Release build are **byte-identical** on both cases,
+so same-platform bit-exactness now spans build machines as well as compilers
+and engine versions. Retracts: the mac **Debug** build differs from the mac
+Release builds by 1 LSB on 40 of 95,999 samples in `voice_midi_note`. Finding
+(c) claimed Release-vs-Debug bit-exactness from a Linux measurement; it does not
+hold on macOS. Same-platform renders are **run-to-run** bit-exact (checked), and
+Release-to-Release bit-exact — not Debug-to-Release.
+
+### (g) An oscillator's residual is unbounded in render duration — NEW
+
+`osc_naive_sine` failed by five orders of magnitude, identically on all three
+macOS engines. It is not rounding, and treating it as a bigger version of
+rounding would have produced the wrong fix.
+
+The residual **grows monotonically through the render** — −96 dBFS in the first
+0.1 s block, −69 dBFS in the last — with a best-fit time lag of zero, so it is
+not a delay either. Fitting the implied phase error `dphi = k·t` gives a
+frequency offset of **0.15 ppm, ≈2.5 ULP at single precision** (2⁻²⁴ = 5.96e-8).
+The reference tone is A440; the offset is 6.6e-5 Hz.
+
+`OscillatorNaive`'s pitch table and phase increment are both `double`, but the
+path between them is not: `OscillatorNaive.h:66` derives the table index as a
+`float` from a `float` pitch, so the interpolation carries single-precision
+resolution. A few ULP there is the right order for what was measured. Named as
+the plausible locus, **not proven** — the measured quantity is the 2.5 ULP.
+
+**Why this changes the shape of the fix and not just the number.** A frequency
+offset integrates. The residual is proportional to elapsed time, so:
+
+| Render duration | Peak residual | RMS residual |
+|---|---|---|
+| 0.5 s | −79.6 dBFS | −87.4 dBFS |
+| **2.0 s** (this case) | **−67.6 dBFS** | **−75.4 dBFS** |
+| 8 s | −55.6 dBFS | −63.3 dBFS |
+| 60 s | −38.1 dBFS | −45.8 dBFS |
+
+(Modelled from the fitted drift rate; the 2 s row matches the measured −68.7 /
+−73.5 dBFS to within 1–2 dB.)
+
+So **no fixed dBFS number is a duration-independent statement about a
+free-running oscillator.** Widening the global gates to admit this case would
+have to reach −67 dBFS — which sails straight past finding (b)'s reference
+defect (3 LSB over 200 samples, caught at peak −80.8 dBFS) — and would fail
+again the moment a case renders for 4 s.
+
+**What was done instead.** The global gates stay at −100/−86 as the
+rounding-class budget every case is held to by default, and a case whose
+residual is a *different class of thing* declares its own budget with a written
+reason (`null_tolerance_dbfs`, `peak_diff_tolerance_dbfs`, `tolerance_reason`).
+The harness prints the relaxed gates and the reason on every run and records
+them per case in the report, so a widened gate cannot be invisible. Report
+schema `/2` → `/3`.
+
+`osc_naive_sine` is set to **−67.0 dBFS RMS / −62.0 dBFS peak**: 6 dB above the
+measurement, i.e. sized for a drift rate twice the observed one (~5 ULP), on
+the grounds that there is no reason to think mac-vs-linux is the widest pair.
+If Windows exceeds that, the case fails and someone re-measures — which is the
+correct outcome, not a defect.
+
+**The cost, stated rather than buried.** That case keeps full sensitivity to
+level, waveform and tuning regressions — 0.3 ppm of detuning still fails it —
+and loses sensitivity to localized damage below ~12 LSB. `voice_midi_note`
+still covers the same oscillator at the −86 dBFS default in a fuller chain, so
+the coverage is not lost, only moved.
+
+**Verification artifact.** Five controls, run through the harness's own
+`null_test` and `Case` loader rather than a re-implementation:
+
+```
+  C0a osc_naive_sine unmodified                   rms= -73.5 peak= -68.7  gates -67/-62   -> PASS
+  C0b voice_midi_note unmodified                  rms=-123.1 peak= -90.3  gates -100/-86  -> PASS
+  C1  osc_naive_sine, same drift 4x larger        rms= -61.5 peak= -56.7  gates -67/-62   -> FAIL
+  C2  osc_naive_sine, finding-(b) glitch          rms= -73.5 peak= -68.7  gates -67/-62   -> PASS
+  C2  voice_midi_note, finding-(b) glitch         rms=-107.5 peak= -80.8  gates -100/-86  -> FAIL
+```
+
+C1 is the one that matters: a widened gate is still a gate. C2 on
+`voice_midi_note` reproduces finding (b)'s numbers (−107.6 / −80.8 dBFS)
+independently on a second platform; C2 on `osc_naive_sine` is the accepted
+sensitivity cost, demonstrated rather than asserted.
+
+`render_harness.py --selftest` makes the arithmetic permanent — it synthesises
+its audio in memory, needs no engine, and bakes in findings (b) and (e)'s
+numbers plus the override plumbing. Confirmed discriminating: reverting
+`null_test` to ignore its tolerance arguments fails it (RC=1).
 
 ## Open ends carried over
 
