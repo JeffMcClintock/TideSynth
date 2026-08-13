@@ -226,6 +226,17 @@ and S8 are GATED-in-full and should not read as `TODO`** to a scheduled run, and
 **A2's sandbox-escape question has to be answered before S7 can be done
 properly**.
 
+**Machine state, for the record:** all nine local repos were clean and on their
+default branches at the start and are again at the end; **only `TideSynth` was
+committed in**, so STEP 5's two-end-states rule has exactly one repo to satisfy.
+Four repos were **fast-forwarded** to `origin` before measuring — `SE16` (7
+commits behind), `SynthEditLib` (2), `gmpi_ui` (3), `GMPI_Wrappers` (1) — because
+an audit of stale source would have been wrong about what TIDE compiles. All four
+were clean beforehand, so these were true fast-forwards on the default branch with
+nothing to stash; noted because it is a change to Jeff's trees, small and
+reversible though it is. **Pulling `GMPI_Wrappers` is also what surfaced #53** —
+its 1 commit was `e707482`, the one that breaks the configure.
+
 **Branch/PR:** `tide/linux/S2-sandbox-audit` →
 [#54](https://github.com/JeffMcClintock/TideSynth/pull/54)
 
