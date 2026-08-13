@@ -1,0 +1,89 @@
+name: lint
+
+# BACKLOG A3 (2026-08-13). Four checks on JOURNAL.md/BACKLOG.md/link hygiene,
+# informational only until A4 makes them a required check for the auto-merge
+# tier. Each check is a standalone script under scripts/ with no dependencies
+# on this workflow -- a scheduled agent may propose a change to any of them
+# freely, since none of that is under .github/workflows/**.
+#
+# Every check runs even if an earlier one fails (continue-on-error per step),
+# so a PR gets the full picture in one run rather than one failure at a time.
+# The final step is what actually fails the job.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: the checks diff this PR's JOURNAL.md/BACKLOG.md against
+      # the base branch's version, via `git show`.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Extract base versions and changed-file list
+        id: base
+        run: |
+          set -euo pipefail
+          BASE="origin/${{ github.base_ref }}"
+          mkdir -p /tmp/base
+          git show "$BASE:JOURNAL.md" > /tmp/base/JOURNAL.md 2>/dev/null || : > /tmp/base/JOURNAL.md
+          git show "$BASE:BACKLOG.md" > /tmp/base/BACKLOG.md 2>/dev/null || : > /tmp/base/BACKLOG.md
+
+          # The archive-move checks need to know which OTHER files this PR
+          # touched, so a rotated/archived row or entry can only be credited
+          # against a file that is actually part of this diff -- not any
+          # markdown file in the repo that happens to contain matching text.
+          git diff --name-only "$BASE"...HEAD -- '*.md' > /tmp/base/changed-files.txt
+
+      - name: Links
+        id: links
+        continue-on-error: true
+        run: python3 scripts/check-links.py
+
+      - name: JOURNAL prepend-only
+        id: journal
+        continue-on-error: true
+        run: |
+          args=()
+          while IFS= read -r f; do args+=(--changed-file "$f"); done < /tmp/base/changed-files.txt
+          python3 scripts/check-journal-prepend.py /tmp/base/JOURNAL.md JOURNAL.md --repo-root . "${args[@]}"
+
+      - name: BACKLOG status/date-only diff
+        id: backlog
+        continue-on-error: true
+        run: |
+          args=()
+          while IFS= read -r f; do args+=(--changed-file "$f"); done < /tmp/base/changed-files.txt
+          python3 scripts/check-backlog-diff.py /tmp/base/BACKLOG.md BACKLOG.md --repo-root . "${args[@]}"
+
+      - name: Prompt provenance on new scheduled-run entries
+        id: provenance
+        continue-on-error: true
+        run: python3 scripts/check-prompt-provenance.py /tmp/base/JOURNAL.md JOURNAL.md
+
+      - name: Summary
+        if: always()
+        env:
+          LINKS: ${{ steps.links.outcome }}
+          JOURNAL: ${{ steps.journal.outcome }}
+          BACKLOG: ${{ steps.backlog.outcome }}
+          PROVENANCE: ${{ steps.provenance.outcome }}
+        run: |
+          echo "links:      $LINKS"
+          echo "journal:    $JOURNAL"
+          echo "backlog:    $BACKLOG"
+          echo "provenance: $PROVENANCE"
+          fail=0
+          for outcome in "$LINKS" "$JOURNAL" "$BACKLOG" "$PROVENANCE"; do
+            if [ "$outcome" != "success" ]; then
+              fail=1
+            fi
+          done
+          if [ "$fail" -eq 1 ]; then
+            echo "::error::one or more lint checks failed -- see the step above for detail"
+            exit 1
+          fi
