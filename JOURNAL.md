@@ -46,6 +46,110 @@ Template:
 
 ---
 
+## 2026-08-13 — macos — S6 (part 2 of 2)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Part 1** of this run is the A11 entry (halt at STEP 0.7, cleared by Jeff
+mid-session) on branch `tide/mac/A11-step07-halt`, [#46](https://github.com/JeffMcClintock/TideSynth/pull/46).
+This is the item the run went on to take once the assertions passed.
+
+**Did:** Deleted `SE16/SE_IOS_APP/TIDE/Plugins/` — six `.sem` bundles, **26
+tracked files, 4.4 MB**. Chose *remove* over the row's "or add a README"
+alternative: constraint 7 rules out separately-loadable module bundles
+entirely, so a README would preserve 4.4 MB of a contradiction and explain it
+rather than fix it.
+
+**Result — the deletion is right, and two of the row's premises were wrong.**
+
+What the files are, measured: all six binaries `Mach-O 64-bit bundle x86_64`,
+`platform 1` (macOS) or `LC_VERSION_MIN_MACOSX`, in macOS bundle layout
+(`Contents/MacOS/`, `Contents/_CodeSignature/`). Added 2021-02-24→2021-03-03,
+**untouched since**. Nothing there can load on arm64 iOS. That much the row had
+right.
+
+| the row said | measured |
+|---|---|
+| "dead **iOS** module artifact", installed by a Run Script to a macOS-only destination | consumer is **`SeAudioUnitMacOS`** — a **macOS** AUv3 app-extension. **No iOS target references the folder at all.** It was never wired into an iOS build; the destination is not a mistake, it is correct for that target |
+| the Run Script is the wiring; deleting the folder is safe | the Run Script is only *half*. **Individual files inside the bundles are entries in that target's Resources build phase** — real `CpResource` inputs |
+
+The 2021 commit messages agree with the correction: *"chore(ios) : macOS AUV3
+runnning (fixed signing by signing TIDE sems)"*. This is macOS AUv3 scaffolding
+that happens to live under an iOS-named folder, which is exactly why it reads as
+an iOS module story.
+
+**Verification artifact — and the A/B is not clean, so I am not calling it
+clean.**
+
+| `SeAudioUnit macOS`, same machine, same command | before | after |
+|---|---|---|
+| result | **BUILD FAILED**, RC=65 | **BUILD FAILED**, RC=65 |
+| errors | 6 × missing `SE_DSP_CORE/*.cpp` compile inputs | 7 × `CpResource` "couldn't be opened" |
+
+Nothing went from working to broken. But the **failure mode changed**, and the
+compile errors stop surfacing afterwards only because `xcodebuild` stops
+scheduling once the resource phase fails — they are still there underneath. My
+first reading of the pbxproj said the bundles were in no build phase at all;
+that was wrong, and the A/B is what caught it. Tracing the six `.sem` *folder*
+ids was not enough — they are group entries whose *children* are the build
+inputs.
+
+**The standing rule is honoured, and structurally rather than by luck.** Fresh
+Ninja configure into a scratch dir (this tree untouched), all four local
+overrides, full build: **RC=0, 936/936**, producing `SynthEdit_VST3.vst3`,
+`SynthEdit_GMPI.gmpi`, `SynthEditCL.app`, `TIDE.gmpi`, `TIDE_VST3.vst3`. And
+**no `CMakeLists.txt` or `.cmake` in `SE16` references `SE_IOS_APP`**, so the
+CMake build and that Xcode project are fully decoupled — the deletion could not
+have reached them.
+
+**Learned — the big one, and it is much larger than S6:**
+
+**`SE_IOS_APP.xcodeproj` is dead, and it bears on M2.** All four targets fail,
+each RC=65, on **28 references to `SE_DSP_CORE/`** — the pre-split name of the
+DSP core directory, which no longer exists (it became `SynthEditLib`). The
+pbxproj was last touched **2022-12-15**. PLAN calls iOS AUv3 "the constraint
+that validates the whole design", and **M2 is written as though a working iOS
+project exists to build on. It does not.** M2 is really "author an iOS target",
+not "get the existing one green" — worth knowing before anyone estimates it.
+Filed as **S10**, with the revive-or-retire decision named as Jeff's.
+
+Two smaller ones:
+
+- **`database.se.xml` is the same architecture constraint 7 forbids.**
+  `SE_IOS_APP/TIDE/Resources/database.se.xml` is a 31-entry module database
+  naming the six now-deleted bundles by `imbeddedFilename`, and it *is* wired
+  into two Resources build phases. Left alone deliberately — outside S6's scope
+  — but it should not be revived as-is. Folded into S10.
+- **`gh pr edit` fails with the bot's token; `gh api ... -X PATCH` does not.**
+  `gh pr edit` issues a GraphQL query touching `login`/`name`/`slug`, which
+  needs `read:org`; the bot has `repo` only, by design. The REST route has no
+  such requirement. This will bite any run that tries to amend a PR body —
+  including a run following STEP 1.5's "push fixes to the SAME branch".
+
+**Next:**
+
+1. **Merge [SynthEdit#13](https://github.com/JeffMcClintock/SynthEdit/pull/13)
+   and [#47](https://github.com/JeffMcClintock/TideSynth/pull/47).** Order does
+   not matter for the build — #13 is the only code change and it cannot break
+   anything the CMake build touches — but merging the docs alone would say a
+   deletion landed that did not.
+2. **Answer S10 before S9.** If the project is retired, S9 is moot and the right
+   move is deleting the whole `.xcodeproj`.
+3. **`mac` NEXT moved S6 → P6**, and P6 is genuinely this box's to close: it
+   needs an **Xcode**-generator build to reproduce the `CodeSign` failure, which
+   Ninja never emits. `SynthEditCL` builds clean under Ninja here (re-confirmed
+   RC=0 during this run), so the codesign step is the whole remaining question.
+
+**Tree hygiene:** `SE16` was clean at claim time and only the 26 deletions were
+staged — re-checked with `git status` immediately before commit, per the C3
+run's lesson about an idle index being harvested. No work of Jeff's was touched.
+
+**Branch/PR:** `tide/mac/S6-dead-ios-modules` in both repos —
+[SynthEdit#13](https://github.com/JeffMcClintock/SynthEdit/pull/13) (the
+deletion) and [#47](https://github.com/JeffMcClintock/TideSynth/pull/47) (docs).
+
+---
+
 ## 2026-08-13 — macos — A11, mac half — halted at STEP 0.7, then resolved in session (part 1 of 2)
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
