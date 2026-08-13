@@ -240,9 +240,19 @@ anywhere.
 
 ## What "done" looks like for v0.1
 
-A plugin that loads in a DAW, shows a structure view, lets the user drop in an
-oscillator and an envelope, wire them to an output, play it from the DAW's MIDI,
-and have the patch survive save-and-reload of the host project. Nothing more.
+**Amended 2026-08-13 for the rack-mode pivot (constraint 1).** A plugin that
+loads in a DAW, shows the rack, lets the user drop in an oscillator and an
+envelope — each a rack module: a prefab Container with the actual DSP module
+inside and its patch points exposed on the panel — cable them to an output,
+play it from the DAW's MIDI, and have the patch survive save-and-reload of
+the host project. Nothing more.
 
 Explicitly *not* in v0.1: presets browser, skinning, custom panels, undo,
 plugin export, module authoring.
+
+**This creates a dependency this document had backwards, and it is not yet
+resolved — see the note on E2/V1 in BACKLOG.md.** The acceptance test now
+requires at least an oscillator, envelope and output *prefab* to exist, which
+is E2's job ("the first Eurorack modules, as SynthEdit Containers") — but E2
+is currently `BLOCKED` on V1 ("no point authoring modules for a plugin that
+cannot yet keep its patch across a host save"). Both cannot be true at once.
