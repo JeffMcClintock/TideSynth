@@ -5035,3 +5035,144 @@ output went to a scratch tree under the session's temp dir; Jeff's own
 one repo to satisfy.
 
 ---
+
+## 2026-08-14 — windows — A13 (C4 not re-taken, A4 not takeable — see below)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code Desktop, app version not
+discoverable on this box (see **Learned**) · as `tide-rack-bot`
+
+**Did:** Fixed `scripts/check-links.py`'s slug function, which disagreed with
+GitHub's on every em-dash heading, and fixed a second defect of the same
+character sitting a few lines below it. Verified both against GitHub's own
+renderer rather than against my reading of the algorithm.
+
+**Neither NEXT pointer was takeable, and one of them is a standing trap.**
+
+- **`win` → C4 is already done.** The 2026-08-13 windows run completed it; it is
+  IN-REVIEW across three PRs ([#49](https://github.com/JeffMcClintock/TideSynth/pull/49),
+  [SynthEdit#15](https://github.com/JeffMcClintock/SynthEdit/pull/15),
+  [SynthEditLib#6](https://github.com/JeffMcClintock/SynthEditLib/pull/6)). The
+  resume rule makes an open PR from my own platform mine to *continue*, but
+  there is nothing to continue — the work is complete and waiting on Jeff.
+  I checked both red PRs before leaving them alone, and **neither red is a
+  defect in the C4 work**: #49's `lint` is red only on `links`, which is this
+  very row and is red on `origin/main` too; SynthEdit#15's `WASDK build check`
+  dies at `CMake Error at EditorLib/CMakeLists.txt:10 (add_library): Cannot
+  find source file`, which is the cross-repo condition the PR body already
+  states — CI fetches `SynthEditLib` from `origin/main`, where the twelve moved
+  files do not exist until SynthEditLib#6 merges. C2 and C3 failed that same
+  check for that same reason, and C3 merged anyway. Structural; not fixable
+  from a branch.
+- **`any` → A4 cannot be done by a scheduled run at all, and its row does not
+  say so.** A4 is an auto-merge *action*, i.e. a file under
+  `.github/workflows/**`, and the bot token is deliberately `repo` scope with
+  no `workflow` — measured this run, not assumed: `X-OAuth-Scopes: repo` from
+  the API response headers. The push is rejected however correct the work is.
+  **A10 and A12 hit the identical wall** (both name `.github/workflows/` in
+  their own scope lines), and **A9 has an open NEEDS-JEFF prerequisite** —
+  TIDE's product philosophy as the auto-reject filter — which would change what
+  gets built, so STEP 2 rules it out. That leaves **A13** as the topmost `any`
+  item a scheduled run can actually finish, and A13's own row had already
+  argued it should precede A4 anyway ("a noisy lint erodes trust in the other
+  three checks fast"). Updated the `any` NEXT row to record all of this.
+
+**Result:** Both bugs reproduced, fixed, and verified.
+
+*The bug, exactly.* `slugify()` did `re.sub(r'\s+', '-', s)` — one hyphen per
+*run* of whitespace. GitHub emits one per *space*. The line above had already
+deleted the em-dash, leaving the two spaces that surrounded it, so
+`## 2026-08-13 — macos — S6 (part 2 of 2)` produced
+`2026-08-13-macos-s6-part-2-of-2` here and `2026-08-13--macos--s6-part-2-of-2`
+on GitHub. The fix is `s.replace(' ', '-')`, plus deleting tabs and other
+non-space whitespace outright, which is what GitHub does with them.
+
+*The second defect, which was not in the row.* `anchors_of()` never tracked
+code fences — `main()` did, but `anchors_of()` did not — so **nine fenced lines
+across four files were registered as real anchors**, among them `JOURNAL.md`'s
+own entry template `## YYYY-MM-DD — <machine> — <BACKLOG id>`,
+`#include "it_empty.h"` in `docs/c8-it-empty-header.md`, and three `#0`/`#1`/`#2`
+gdb backtrace frames. That is a false *negative* — a link to
+`#include-it_emptyh` passed the check. Same both-directions character as the
+slug bug, same function, so fixed in the same pass.
+
+*The verification artifact — an A/B against GitHub's own renderer.* Fetch each
+file through the contents API with `Accept: application/vnd.github.html`, which
+returns it rendered by GitHub's real markdown pipeline with anchors intact
+(`<a id="user-content-…" class="anchor">`), and compare every anchor to what
+this script generates for the same bytes:
+
+```
+files 28 | headings compared 254 | mismatching files 0
+```
+
+**254 of 254, zero mismatches.** Two negative controls, so the A/B is not
+passing vacuously:
+
+```
+CONTROL 1  old slugify (collapsing run)        headings wrong: 111   files affected: 23
+CONTROL 2  new slugify, fences NOT skipped     headings wrong:  34   files affected:  4
+FIXED      new slugify, fences skipped         headings wrong:   0   files affected:  0
+```
+
+*Deliberate breaks, all three as specified in the row's Accept clause:* a
+nonexistent anchor fails (RC=1); a link written in the **old collapsed form**
+now fails (RC=1) — that is the false negative closing, and it is the half that
+matters; the correct GitHub form passes (RC=0).
+
+*Tree state:* 186 relative links, **0 broken**. The one previously-flagged line
+(`JOURNAL.md:376`) was read and is exactly the false positive A13 predicted —
+the first intra-journal anchor anyone wrote.
+
+*Added `--selftest`* to the same script: six golden slugs **read off GitHub's
+renderer**, plus a duplicate/fence case, baked in and offline so the regression
+is permanent rather than something a future run must remember to re-measure.
+Confirmed discriminating — reverting `slugify` to the old algorithm fails 5 of
+its 6 cases, RC=1. Also implemented GitHub's duplicate-heading suffixes
+(`-1`, `-2`), which no heading in the tree exercises today but `anchors_of()`
+was silently collapsing into one.
+
+**Learned:**
+
+- **`/markdown` is not an oracle.** The obvious endpoint for "what would GitHub
+  render this as" emits headings with **no `id` attribute at all**, so the
+  first A/B came back 0-for-254 and looked like a catastrophic failure of the
+  fix rather than of the measurement. The endpoint that works is
+  `GET /repos/{owner}/{repo}/contents/{path}` with
+  `Accept: application/vnd.github.html`. Anyone verifying anchor behaviour
+  again should start there and skip the hour.
+- **The em-dash convention and the checker were on a collision course from the
+  start.** Every journal entry heading in this repo uses em-dashes, so the
+  moment anyone wrote the first intra-journal anchor link the check went red —
+  which is exactly what happened, and A3 could honestly claim zero false
+  positives when it landed only because nobody had written one yet.
+- **The app version STEP 0.5 asks for is not discoverable on this box.** `claude`
+  is not on `PATH` under the desktop app, and there is no `app-*` directory or
+  `package.json` under `%LOCALAPPDATA%\Claude` carrying a version. The linux and
+  mac entries record `Claude Code CLI 2.1.220` because those boxes run the CLI.
+  So the provenance line's `app <version>` field is silently unfillable on
+  Windows-under-desktop, and `check-prompt-provenance.py` cannot catch that —
+  it only looks for the literal `**Prompt:**` marker, not for the fields after
+  it. Recording it in prose here rather than inventing a number.
+- **Two lint scripts cannot be fed a process substitution on this box.**
+  `python scripts/check-backlog-diff.py <(git show origin/main:BACKLOG.md) …`
+  fails with `FileNotFoundError: '/proc/1398/fd/63'` — Git Bash creates the fd,
+  Windows Python cannot open it. Write the base version to a real temp file.
+
+**Next:** A13's PR is [#51](https://github.com/JeffMcClintock/TideSynth/pull/51)
+and should merge **after** [#49](https://github.com/JeffMcClintock/TideSynth/pull/49)
+— both prepend to `JOURNAL.md` and both rotate `JOURNAL-2026-08.md`, so
+whichever lands second needs a rebase, and #49 is the older and larger of the
+two. `BACKLOG.md` does not collide: #49 touches the `win` NEXT row and the
+C4/C9/C11/P7c rows, this one touches the `any` NEXT row and A13.
+
+The `any` lane needs a decision, not a run: **A4, A10 and A12 are all
+`.github/workflows/**` work that the bot token structurally cannot push**, and
+all three sit in the queue marked TODO as though a scheduled run could take
+them. Each will burn a session on discovery until someone re-marks them.
+That is the same shape as **A12's own finding** — a box that cannot proceed and
+nothing escalating it — one level up, applied to the queue instead of to a box.
+
+**Branch/PR:** `tide/win/A13-check-links-slugger` →
+[#51](https://github.com/JeffMcClintock/TideSynth/pull/51)
+
+---
