@@ -46,6 +46,191 @@ Template:
 
 ---
 
+## 2026-08-14 — linux — S2 (plus a platform:linux build break found and filed)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as `tide-rack-bot`
+
+**Did:** Produced [docs/sandbox-audit.md](docs/sandbox-audit.md) — the audit
+PLAN constraint 4 cannot be verified without. **The answer is that constraint 4
+is violated, and it is not a code-reading inference: the files are on disk on
+this machine.** Also found, while establishing TIDE's source set, that **SE16
+does not configure on linux at all any more** — filed as
+[#53](https://github.com/JeffMcClintock/TideSynth/issues/53) rather than fixed,
+per STEP 3.
+
+**Neither of this box's usual entry points was takeable, and the NEXT row said so
+itself.** No open `platform:linux` issue at STEP 1; no open PRs in any of the
+five fleet repos and only `main` on TideSynth's remote, so nothing to resume at
+STEP 1.5. The `linux` NEXT row was the stale P7c pointer, explicitly left as a
+question by the 2026-08-14 windows interactive session — *"picking the wrong
+replacement here is worse than an honest gap"*. So this run did the screening it
+asked for, took the item that survived it, and re-pointed the row. That screening
+is the second most useful thing here after the audit itself, because **the queue
+is systematically misleading about what a scheduled run can take:**
+
+- **The GATED wall is nowhere recorded in the rows it applies to.** `S1b`, `S5`,
+  `S7` and `S8` are all `TODO`/`any`/unblocked and read as available. All four
+  are **entirely** work in `SE16/EditorLib/`, `SE16/SynthEdit2/` or the
+  `SynthEditLib` repo — GATED to C1-C7 only, per the 2026-08-11 C8 ruling that
+  deliberately declined to widen the exception. S8's row actively misleads:
+  *"~~GATED on C0~~ unblocked 2026-08-08, C0 approved"* reads as permission, but
+  C0 gates the carve-out **stages**, not any item that wants to touch a shared
+  file. Each of these will burn a session on discovery exactly as A4 did last run.
+- **The workflow wall** (A4, A10, A12, and **B1**, which nobody had named
+  before — it is `.github/workflows/build.yml`).
+- Screened out for their own reasons: **C9** (its remaining work *is* C5, a `win`
+  row — `Application.cpp`), **C11** (needs Jeff's ruling on the `SynthEditApp.h`
+  licence gate), **A9** (open NEEDS-JEFF prerequisite), **N1** ("do it after
+  C7"), **P7d** (scope question for Jeff, and macOS-only to verify), **D1/D2**
+  (mac-shaped), **U1** (needs a fresh post-pivot audit first).
+
+That left **S2**, which is `any`, needs no GATED edit (it *reads* gated code and
+writes only `docs/` in this repo), and has no open question that would change
+what gets written.
+
+**Result — the audit, and why its file set is trustworthy.**
+
+A grep of SE16 returns hundreds of hits in code TIDE never compiles, which
+buries the real ones. The row says *"reachable from a TIDE build"*, so the file
+set is derived:
+
+| Step | Result |
+|---|---|
+| link closure from `build.ninja` | `VST3_Wrapper` + `SynthEditLib` + `EditorLib` — and **no** `.sem` module libraries |
+| TUs from `compile_commands.json` | **264** |
+| first-party after dropping VST3 SDK + generated Wayland C | **230**, **zero unresolved** |
+| categorised hits | **202 across 46 files** |
+| DWARF compile-unit list from the unstripped `.so` | **235 CUs linked**; of the 46 hit files, **37 are in the binary, 9 are not** |
+
+That last row is the one that makes the audit worth reading: a static archive
+contributes an object only when something references it, so "compiled" and
+"linked" are different questions and only the second one matters. Re-runnable
+with `python3 tools/sandbox_audit.py --build <tree>`.
+
+**The violation, measured on disk rather than argued from source — ~12.8 MB
+across 139 files:**
+
+| Location | Size | Files |
+|---|---|---|
+| `~/SynthEdit Projects/skins/` | 724 KB | 74 |
+| `~/SynthEdit Projects/Prefabs/` | 1.1 MB | 35 |
+| `~/.local/share/SynthEdit/` | 11 MB | 30 (six ~330 KB `Plugin-Cache-16-override-*.xml`) |
+
+**Rulings: 7 remove, 4 stub, rest keep.** Full reasoning per finding in the doc.
+
+**Most of it attaches to rows that already exist rather than creating new ones** —
+which is the point, and is why no new BACKLOG items came out of it:
+
+- **S7** gets its gated remainder named to the line: `SynthEditLib/SkinMgr.cpp:28-32`
+  (the *constructor* calls `setSkinFolder`) and `:48-100` (the recursive copy).
+  Confirmed by measurement, not just the static chain S7 asserted — **27 `SkinMgr`
+  symbols defined in `TIDE_VST3.so`**, and the literal `SynthEdit Projects` is
+  **in the TIDE binary** (`default3` 4×).
+- **S1b (b)/(c) reproduced on a second platform** (S1b measured macOS):
+  `ScanFolder`, `LoadModuleData`, `LoadOrScanModuleData`, `RegisterExternalPluginsXml`
+  all defined, `Module_Info3` 65 symbols, and `dlopen`/`dlsym`/`dlclose` genuinely
+  imported per `nm -D --undefined-only`.
+- **S1b (a) confirmed genuinely done** by the same measurement: `FileWatcher` has
+  **zero** symbols and `FileWatcher.cpp` is **not** a linked CU. Replacing
+  `SynthEditApp.cpp` with `TideAppStubs.cpp` did remove the watcher thread.
+- **S8 reproduced on Linux** — `ug_soundcard_in` 28, `ug_soundcard_out` 33,
+  `ug_midi_out` 24, **`OscillatorNaive` 0**. That last one independently confirms
+  the blocker **E2a**'s row warns about, now on both measured platforms: there is
+  no modern oscillator primitive registered. S8 also gains a fourth module —
+  `ug_wave_recorder.cpp:216` `fopen(…,"wb")` writes a WAV to an arbitrary path.
+- **S3 gains its evidence.** Its `assert(false)` stubs have live write sites
+  behind them (`CUG.cpp:2833-2968` — `create_directory` ×2, `copy_file`,
+  `fopen(…,"w")`), so "silently falls through in release" is measured now.
+- **C5** inherits three findings (`Application.cpp` prefab copy,
+  `SynthEditAppBase.cpp` module staging, `UG2.cpp`'s write-to-`%TEMP%`-and-
+  `LoadLibrary`).
+
+**One genuinely new finding, and it is a ruling rather than a bug.**
+`SynthEditLib/modules/se_sdk3_hosting/BundleInfo.cpp:343-352` prefers
+`getpwuid(getuid())` over `getenv("HOME")`, and the comment says why in as many
+words: *"getpwuid returns the real home directory even when sandboxed, whereas
+getenv("HOME") returns the container path in a sandbox."* **A deliberate
+sandbox escape** — correct for SynthEdit, which is a desktop app, and directly
+contrary to constraint 3 for TIDE. It sits **upstream** of both folder-copy
+findings, because `getCommonDocumentFolder` falls through to it on every
+non-Windows platform, so **S7 cannot be fixed properly without ruling on it**.
+GATED (`SynthEditLib`), so flagged, not touched.
+
+**Learned:**
+
+- **The GATED wall is the `any` lane's real filter, and it is invisible in the
+  rows.** Last run found the workflow wall and re-marked A4/A10/A12 for it; this
+  is the same shape one level over, and it disqualifies four more rows that all
+  read as available. Worth a Status-cell pass by Jeff, the same way A4 needs one
+  — S1b/S5/S7/S8 are not `TODO` for a scheduled run in any useful sense.
+- **A build tree you did not make is a first-class measuring instrument.** The
+  whole audit rests on reading `build.ninja`, `compile_commands.json` and the
+  DWARF out of `/home/jef/SE/build` — Jeff's own tree, read-only, never
+  reconfigured or built into. It answered "what does TIDE actually compile and
+  link" exactly, which no amount of CMake-reading would have.
+- **`readelf --debug-dump=info --dwarf-depth=1` is the cheap way to get the
+  linked compile-unit list** from an unstripped `.so`. `--dwarf-depth=1` is what
+  makes it tractable on a 91 MB binary; without it the dump is unusable.
+- **The skin-version stamp becomes a thrash bug at C7, and does not look like
+  one today.** `SkinMgr` invalidates on `SE_APP_BUILD_NUMBER`, which
+  `EditorLib/CMakeLists.txt` injects (`183` today) and `se_version.h` defaults to
+  `0`. TIDE links that same EditorLib, so **today TIDE and SynthEdit agree and
+  nothing thrashes.** From C7 — clean clone, no private repo — TIDE takes `0`
+  while SynthEdit keeps `183`, so each would re-copy 724 KB of skins over the
+  other on **every** launch. Argues for removing the mechanism from TIDE *before*
+  C7, not after.
+- **`std::remove` and `Processor::open(phost)` are the two false positives any
+  filesystem grep of this codebase will hit** — the `<algorithm>` overload and
+  the GMPI lifecycle call. Both are listed in the doc's "keep" section so the
+  next audit does not re-flag them.
+
+**The build break, filed not fixed** ([#53](https://github.com/JeffMcClintock/TideSynth/issues/53),
+`platform:linux`): `GMPI_Wrappers` `e707482` (*"feat(standalone): Linux/Wayland
+standalone host"*, Jeff, 2026-08-13, current tip of `origin/main`) added
+`pkg_check_modules(PIPEWIRE REQUIRED libpipewire-0.3)` at
+`wrapper/Standalone/CMakeLists.txt:32`. `wrapper/CMakeLists.txt:14` adds that
+subdirectory unconditionally, and the file's own early-out is
+`if(NOT UNIX OR APPLE) return()` — **so Windows and macOS skip it and only linux
+takes the hard dependency**, which is why it can sit on `main` looking green.
+`libpipewire-0.3-dev` is not installed here. Reproduced both with a local
+`GMPI_WRAPPER_FOLDER_OVERRIDE` and with it blank so CPM fetches `origin/main`.
+Net effect: **the linux box cannot configure, so it cannot build or verify
+anything in SE16, TIDE included.** `GMPI_Wrappers` is an ALLOWED path, so it is
+ordinary takeable work once someone picks between "make Standalone opt-in" and
+"probe without `REQUIRED` and skip".
+
+Because of it, the audit is measured from the pre-existing `/home/jef/SE/build`
+tree (configured 2026-08-10). **Drift was measured, not hoped for:**
+`SynthEditLib`'s CMake source list is **unchanged** since then (267 entries, none
+added, none removed), and `EditorLib`'s differs by exactly `browseto.mm` and
+`openurl.mm`, both `if(APPLE)` and not compiled on linux. C4 changed those files'
+**paths**, not the set of code compiled, so the audit is current in content; the
+doc states this as a limitation rather than burying it.
+
+**STEP 4 chores done as part of this run:** **E1a** flipped `IN-REVIEW` → `DONE`
+([#52](https://github.com/JeffMcClintock/TideSynth/pull/52) confirmed merged
+2026-08-13) and moved verbatim to `BACKLOG-DONE.md`; **A11** moved likewise (it
+was already `DONE` and marked *"ready to rotate"*). Also re-verified A11's own
+fix still holds on this box: all nine local repos are `https://`, and STEP 0.7's
+second assertion prints `git@github.com:`.
+
+**Next:** **[#53](https://github.com/JeffMcClintock/TideSynth/issues/53) is
+STEP 1 work for the next linux run** and outranks the backlog — nothing else on
+this box can be built or verified until it lands. **Then S3**, which is the one
+remaining `any` row a linux box can genuinely do: its target
+`SE16/SynthEditSem/TideApp.cpp` is **ALLOWED**, and S2 just supplied its
+evidence. The `linux` NEXT row now says both, with the screening written out.
+
+For Jeff, two Status-cell judgements that are his and not a run's: **S1b, S5, S7
+and S8 are GATED-in-full and should not read as `TODO`** to a scheduled run, and
+**A2's sandbox-escape question has to be answered before S7 can be done
+properly**.
+
+**Branch/PR:** `tide/linux/S2-sandbox-audit` →
+[#54](https://github.com/JeffMcClintock/TideSynth/pull/54)
+
+---
+
 ## 2026-08-14 — macos — E1a
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Desktop 1.26832.0 · as `tide-rack-bot`
@@ -437,126 +622,3 @@ nothing escalating it — one level up, applied to the queue instead of to a box
 
 ---
 
-## 2026-08-14 — macos — P6
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
-
-**Did:** Closed P6 by measurement, not by edit. Built `SynthEditCL` on this box
-with the **Xcode** generator — the one thing the P7a and P7b runs could not do,
-and the whole reason the row stayed open — and confirmed the `CodeSign` failure
-is gone. **Changed no source file:** `SE16/SynthEditCL/CMakeLists.txt` is on
-neither the ALLOWED nor the GATED list, so it is GATED by default, and the fix
-had already landed in SynthEdit's own commits. The work was verification.
-
-**Result — fixed, and proven on the generator that actually signs.**
-
-| | |
-|---|---|
-| source | `SE16` `b3c1efb07` — `git diff HEAD origin/master -- SynthEditCL/ SynthEditLib/ CMakeLists.txt` is **empty**, so this is current `master`'s content for everything in scope |
-| configure | `cmake -G Xcode`, fresh scratch tree outside both repos, `x86_64;arm64`, deployment 13.3, three local overrides matching Jeff's own `build/CMakeCache.txt` |
-| `cmake --build --config Debug --target SynthEditCL` | **RC=0** |
-| `codesign --verify --deep --strict --verbose=2` | *"valid on disk"*, *"satisfies its Designated Requirement"* |
-| sealed | 336 files, 98 signed `.sem` under `Contents/PlugIns` |
-| smoke | the signed binary runs: `SynthEditCL V1.6.182` |
-
-**The Xcode generator does emit the step, and the log proves it** —
-`CodeSign …/SynthEditCL.app (in target 'SynthEditCL')`, `Signing Identity:
-"Sign to Run Locally"`, `/usr/bin/codesign --force --sign - --entitlements … `.
-That is the asymmetry this row was stuck on: **Ninja emits no `codesign`
-invocation at all**, so an RC=0 Ninja build is not evidence either way.
-
-**Layout, which is the actual fix (`691270c5d`):** `Contents/MacOS` holds
-**only** the executable. `Prefabs`, `fonts`, `skins` and `templates` are all
-under `Contents/Resources`, and the exact file the row named is now
-`Contents/Resources/Prefabs/Controls/Button Small2.syntheditprefab`.
-
-**Verification artifact — A/B positive control on the same signed binary, no
-source edit and no rebuild.** Copied the built bundle, moved the four staged
-directories back under `Contents/MacOS/Resources` to recreate the pre-fix
-layout, and re-ran the *same* `codesign` command Xcode ran:
-
-| bundle layout, same binary, same codesign command | RC | output |
-|---|---|---|
-| pre-fix (`Contents/MacOS/Resources/…`) | **1** | `SynthEditCL.app: code object is not signed at all` / `In subcomponent: …/Contents/MacOS/Resources/Prefabs/Controls/Button Small2.syntheditprefab` |
-| current (`Contents/Resources/…`) | **0** | — |
-
-That reproduces P6's error string **verbatim, down to the same subcomponent
-file**, and shows the staging path is what closes it — not a toolchain or Xcode
-version difference, and not luck.
-
-**The second commit (`4792f4bf2`, Finder detritus) also holds:** the built
-bundle contains **0** `.DS_Store` and no extended attributes.
-
-**Standing rule — all five products build under the Xcode generator, each
-RC=0, each verifying:**
-
-| target | build | `codesign --verify --deep --strict` |
-|---|---|---|
-| `SynthEditCL` | RC=0 | RC=0 |
-| `SynthEdit_VST3` | RC=0 | RC=0 |
-| `SynthEdit_GMPI` | RC=0 | RC=0 |
-| `TIDE` | RC=0 | RC=0 |
-| `TIDE_VST3` | RC=0 | RC=0 |
-
-So SynthEdit, SynthEditCL and TIDE all build on macOS on `master` today, under
-the generator Jeff's own tree uses — which is a stronger statement than the
-Ninja RC=0 the last three mac runs could make.
-
-**Learned:**
-
-- **Any signing-shaped question on mac must be answered with `-G Xcode`.** Ninja
-  never emits `codesign`, so a Ninja build cannot confirm *or* deny a codesign
-  bug. P6 sat open for six days because two runs reported RC=0 from a generator
-  that structurally could not see the failure. Worth treating as a fleet rule,
-  not a P6 detail.
-- **A bundle-level A/B is enough to prove a staging-path fix, and it needs no
-  source edit.** That matters when the file lives on a GATED-by-default path:
-  the positive control was `cp -R` + `mv` + re-run `codesign`, and it produced
-  the row's exact error text. No branch in `SE16`, nothing to review there.
-- **`GMPI_WRAPPER_FOLDER_OVERRIDE` is empty in Jeff's `build/CMakeCache.txt`**,
-  so `GMPI WRAPPERS` is fetched from github rather than taken from the local
-  clone — the configure output says `Fetching GMPI WRAPPERS from github` while
-  `SynthEditLib`, `GMPI` and `GMPI-UI` all say `Using local … folder`. This is
-  exactly the asymmetry **X4** says to watch for; I matched Jeff's cache rather
-  than "fixing" it, so this run's result reflects his tree, but anyone debugging
-  a wrapper-side problem on this box should know the wrapper is not local.
-- **The `any` NEXT pointer is A4, and a scheduled run cannot do it.** A4 is a
-  path-allowlisted auto-merge *action* — i.e. a file under
-  `.github/workflows/**`, which the bot token deliberately cannot write. Noted,
-  not acted on: it is not this run's item, and A12 already covers the general
-  shape of "the fleet points a box at work it structurally cannot do". Flagging
-  it so the next `any`-eligible run does not burn its session discovering it.
-- **My PR's lint will be red, pre-existing.** `check-links.py`'s slugger bug is
-  **A13**, found by the P7c run; it is already red on `main`. Nothing here
-  caused it and fixing it would be a second item.
-
-**Next:**
-
-1. **Merge [#50](https://github.com/JeffMcClintock/TideSynth/pull/50)** (this
-   run — docs only, no code in any repo). P6 then flips IN-REVIEW → DONE.
-2. **`mac` NEXT moved P6 → E1a**, taking the P7c run's correction at its word:
-   E1a's Accept clause is *"one render of both cases on a second platform"*,
-   second to linux, so it is mac-or-win work and the linux box can never satisfy
-   it. This box can: the render half is a download and two numbers, and it is
-   the topmost item that is genuinely mac's rather than anyone's. S9 and S10,
-   the only other `mac` rows, both still need Jeff.
-3. **A13 is the fallback** if a mac run finds E1a blocked — it is small, it is on
-   `scripts/` (a scheduled run may edit it), and it gates A4's usefulness as a
-   merge check.
-4. **P6's own text should not be re-filed.** It is closed on evidence, and the
-   evidence is a positive control rather than an absence of failure.
-
-**Tree hygiene:** nothing was written into either working copy's source. `SE16`
-and `TideSynth` were both clean at claim time (`SE16` 5 commits behind
-`origin/master`, `TideSynth` 3 behind `origin/main`) and I left `SE16` untouched
-and un-updated — no fetch-into-tree, no checkout, no build inside it. All build
-output went to a scratch tree under the session's temp dir; Jeff's own
-`SynthEdit/build` Xcode tree was not read from, written to, or invalidated.
-`git status` in `SE16` is unchanged from how I found it.
-
-**Branch/PR:** `tide/mac/P6-cl-codesign-xcode` —
-[#50](https://github.com/JeffMcClintock/TideSynth/pull/50), TideSynth only.
-**No code repo was committed in**, so STEP 5's two-end-states rule has exactly
-one repo to satisfy.
-
----
