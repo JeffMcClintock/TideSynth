@@ -380,3 +380,50 @@ by whoever touches it, instrumented or not.
 extents, not a stale pointer, so it stands as written — but the general lesson
 does transfer: when auditing one of these, check what the *callee* cached, not
 only what the caller re-reads.
+
+---
+
+## P7c closed, 2026-08-13 (linux box)
+
+**The audit's X11 reading was right in every particular**, including the
+prediction that it would be a heap overflow rather than a null dereference and
+therefore worse-shaped than P4. Reproduced, guarded, and tested:
+[gmpi_ui#5](https://github.com/JeffMcClintock/gmpi_ui/pull/5).
+
+Reproduction, on the unfixed backend — SIGSEGV 3/3, in `encodeDirtyRect`
+(`CpuEncode.h:269`) called from `present()` (`:1332`), with locals
+`right = 800, bottom = 600` against a 64×48 image. It faulted at row **68**, so
+rows 48–67 were written outside the surface before the process reached an
+unmapped page. Guarded: exit 0, 3/3, same harness binary.
+
+**The open question this row carried is answered: no.** *"Whether any client
+callback can pump the X event loop and actually cause a nested `present()`"* —
+it cannot, and by construction rather than by luck. `ensureImage()` has one
+caller (`present()`); `present()` has two (`processEvents()`, `onTimer()`, both
+host-driven); the backend contains exactly **one** `XNextEvent` and no nested or
+modal loop — menus, stock dialogs, the colour dialog, the text edit and the
+tooltip all share that single pump, and the portal file chooser is async over
+D-Bus; and `IDrawingHost`/`IInputHost`/`IDialogHost` expose no way to pump the
+loop, resize, or reach the `Display*`. `DrawingFrameX11.h`'s rule 1 — *"NO EVENT
+LOOP OF OUR OWN"* — turns out to be load-bearing, not just a design note.
+
+**So it was guarded anyway, and the reason is the residual.** A client may call
+back into the *host* during `measure`/`arrange`/`render`; if that host re-enters
+its own run loop it reaches `processEvents()`. gmpi_ui can neither prevent nor
+detect that, and cannot prove no host does it. A heap overflow whose only
+defence is an audit of code we do not own is a bad trade against three lines —
+and "unreachable today" is a property that a future backend change can revoke
+silently, whereas a guard cannot.
+
+**One thing the audit did not anticipate, worth carrying forward: the detector.**
+On a local display the X11 image is MIT-SHM, so `image->data` is a `shmat()`
+mapping and the overflow runs off its end into unmapped space — a plain SIGSEGV,
+no sanitizer needed. **AddressSanitizer does not instrument a shm segment**, so
+an ASan-only run of that path is a false negative. That is the *second* time in
+P7 that ASan was the wrong tool for the crash it looks built for, for an
+entirely different reason each time (CoreGraphics on mac, shared memory here).
+The rule that generalises: on these backends, work out who owns the memory
+before choosing the detector.
+
+Full X11 write-up, kept beside the code it describes:
+[`gmpi_ui/docs/x11-present-extents.md`](https://github.com/JeffMcClintock/gmpi_ui/blob/main/docs/x11-present-extents.md).
