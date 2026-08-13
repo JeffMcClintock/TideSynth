@@ -4223,3 +4223,174 @@ first thing an agent can do unaided, and everything else depends on knowing
 that baseline.
 
 **Branch/PR:** none — scaffolding committed directly.
+
+## 2026-08-13 — macos — A11, mac half — halted at STEP 0.7, then resolved in session (part 1 of 2)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Outcome, up front: A11 is DONE on all three boxes.** This run halted on STEP
+0.7's second assertion; Jeff applied the missing `git config` line while the
+session was still live; the assertion and the full acceptance test then passed
+and the run continued to S6. **The resolution is at the bottom of this entry;
+S6 is [part 2](#2026-08-13--macos--s6-part-2-of-2), its own entry.** The halt
+record below is kept unedited, because the deadlock it documents is real and
+survives the fix.
+
+**Did:** Nothing. This run stopped at STEP 0.7's second assertion, as the prompt
+requires, before selecting or claiming any backlog item. **S6 was not started**
+and remains `TODO`. What follows is the halt record plus the read-only
+diagnostics needed to make it actionable.
+
+**Result — assertion 1 passed, assertion 2 printed nothing:**
+
+| STEP 0.7 command | required | actual |
+|---|---|---|
+| `gh api user --jq .login` | `tide-rack-bot` | `tide-rack-bot` ✅ |
+| `git config --global --get url."https://github.com/".insteadOf` | `git@github.com:` | **empty, exit 1** ❌ |
+
+That is the A11 gap the linux run found on 2026-08-13, in the one box A11 still
+lists as outstanding. `git config --global --get-regexp 'url\.'` returns nothing
+at all — setup step 3 has never been applied here. Setup steps 1–2 *are* in
+place: `credential.https://github.com.helper` is
+`!/opt/homebrew/bin/gh auth git-credential` (Homebrew path, not `gh`).
+
+**The exposure on this box is nil today — and that is a measurement, not an
+assumption.** Exhaustive sweep, `find ~ -maxdepth 5 -name .git` (excluding
+`Library/`, `node_modules/`, `build/`, `_deps/`, `.Trash/`), **28 repos**:
+
+- **Zero SSH GitHub remotes.** Every GitHub repo is `https://` — including all
+  nine fleet repos (`TideSynth`, `SynthEdit`, `SynthEditLib`, `gmpi_ui`,
+  `GMPI_Wrappers`, `GMPI`, `GMPI_Adaptors`, `GMPI-plugins`, `gimpi_ui_tests`)
+  and the eight `VST_SDK` submodules.
+- Non-GitHub and therefore out of scope: `~/SynthEdit` (Azure DevOps),
+  `~/Plugins` + four `~/myagent/_work/*/s` build-agent checkouts (Azure DevOps,
+  remote named `SSG` not `origin`), `~/MacSIMD` (**no remotes at all**).
+
+So this box matches Windows (22/22 already HTTPS), not linux (8 of 9 SSH). **The
+macOS A2 evidence A11 called "void until checked" is not void** — `gmpi_ui#3`/`#4`
+and `GMPI_Wrappers#1`/`#2` were pushed from HTTPS remotes here, so those pushes
+did authenticate as the bot, not as Jeff via SSH.
+
+**A11's read-only three-way proof, run in full** against the private
+`https://github.com/JeffMcClintock/SynthEdit.git`. No push, no write:
+
+| GH_TOKEN | `git ls-remote` | `gh api user` |
+|---|---|---|
+| bogus | **`fatal: Authentication failed`** — `remote: Invalid username or token.` | — |
+| real bot token | succeeds (`b3c1efb07…` HEAD) | `tide-rack-bot` |
+| unset | succeeds | `JeffMcClintock` |
+
+Leg 1 is the load-bearing one: git genuinely consults `gh` for HTTPS GitHub URLs
+on this box rather than a keychain entry or an SSH key. **So for every remote
+that actually exists here, the credential wiring is correct and now proven.**
+
+**What is missing is only the structural safeguard**, which is exactly what A11
+says it is for: a future `git clone git@github.com:…` would silently re-open the
+hole with no signal, because nothing rewrites it.
+
+**Learned — the finding that matters, and it is new:**
+
+**This box cannot heal itself, and every future scheduled mac run will halt
+here.** STEP 0.7 fires before STEP 1 and STEP 2, so a run can never reach the
+point of claiming A11 — the assertion that detects the problem also forbids
+fixing it ("do not 'fix' it by carrying on as whoever you are"). A11's mac half
+is therefore **not takeable by a scheduled run at all**; it needs Jeff or an
+interactive session on this machine. Until then the macOS box is a no-op in the
+fleet: it will burn a run every week producing this same entry. Linux and
+Windows are unaffected — both applied step 3 on 2026-08-13.
+
+That deadlock is not a flaw in the halt rule, which did its job. It is a gap in
+A11's framing: the row is written as ordinary backlog work with plat `any`, and
+one third of it structurally cannot be done that way.
+
+**Second, smaller:** `ls-remote --get-url origin` echoes the literal string
+`origin` when no such remote exists, rather than erroring. A sweep that greps for
+`git@` will read those as clean; they need checking with `git remote -v` before
+being called clean. Two repos here hit that, both benign.
+
+**I deliberately did NOT apply the one-line fix**, though it is the whole
+remedy and I had the evidence for its acceptance test in hand. STEP 0.7 says
+stop and do nothing else, and a run that reasons its way past its own failed
+safety assertion is the precise failure mode the rule exists to prevent. It is
+Jeff's to run, on this box:
+
+```
+git config --global url."https://github.com/".insteadOf "git@github.com:"
+```
+
+Acceptance is already half-established above: after that command, assertion 2
+prints `git@github.com:`, all 28 remotes still read `https://`, and the
+three-way proof is recorded here. **A11 can then be flipped DONE across all
+three boxes.**
+
+**Also checked, and clear:** no `platform:mac` issues; the only open issue is
+[#44 "Fleet watchdog digest"](https://github.com/JeffMcClintock/TideSynth/issues/44)
+(author `app/github-actions`, unlabelled — A6's digest, informational). No open
+PRs at all in TideSynth, so STEP 1.5 had nothing either. Tree was clean and on
+`main`, in sync with `origin/main`; no dirt of Jeff's was touched.
+
+**Journal rotation was skipped on purpose.** `JOURNAL.md` is 78 KB / 11 entries
+and is over the 30 KB target, but rotation is STEP 4 work and this run never
+reached STEP 4. The next win or linux run should do it.
+
+**One caveat for Jeff before he runs the command**, carried over from the linux
+entry: his interactive pushes then resolve through `gh`'s keyring token. If that
+token lacks `workflow` scope, a commit touching `.github/workflows/**` is
+rejected until `gh auth refresh -h github.com -s workflow` is run once. This did
+not bite on Windows (its token already had the scope); **unverified here** — I
+did not inspect Jeff's keyring scopes, since doing so is outside a halted run.
+
+**Next:**
+
+1. **Jeff: run the one `git config` line above on this box.** Until then macOS
+   contributes nothing and S6 stays untouched.
+2. **Rewrite A11's mac line** to say it needs an interactive session, not a
+   scheduled run, and record the deadlock above so the next person does not
+   re-file it as agent work. Consider whether STEP 0.7 should let a run apply
+   *this specific* config repair — I think not, but it should be a decision
+   rather than an accident.
+3. **`mac`'s NEXT stays S6**, untouched and still eligible, for the first mac
+   run after the fix lands.
+
+### Resolution — same session, Jeff applied the fix
+
+Jeff ran the one line on this box while the session was still open. Everything
+above stands as written; this is what changed after it.
+
+**STEP 0.7 re-run, both assertions:**
+
+| command | required | actual |
+|---|---|---|
+| `gh api user --jq .login` | `tide-rack-bot` | `tide-rack-bot` ✅ |
+| `git config --global --get url."https://github.com/".insteadOf` | `git@github.com:` | `git@github.com:` ✅ |
+
+**A11's acceptance test, in full, on mac:**
+
+- All **nine fleet repos** still resolve `https://` (`ls-remote --get-url origin`
+  — note this applies `insteadOf` rewriting, so it is testing the post-fix path).
+- **The safeguard itself demonstrably works**, which is the part the sweep alone
+  cannot show: feeding git an explicit `git@github.com:JeffMcClintock/TideSynth.git`
+  now resolves to `https://github.com/JeffMcClintock/TideSynth.git`. That is the
+  future-SSH-clone hole closed, not merely absent.
+- **Three-way proof re-run post-fix, unchanged:** bogus token → auth fails; real
+  bot token → succeeds as `tide-rack-bot`; no token → succeeds as
+  `JeffMcClintock`.
+
+**So A11 is DONE — linux 2026-08-13, win 2026-08-13, mac 2026-08-13.** Row
+flipped in this PR.
+
+**The deadlock finding is not retired by this.** It was resolved by a human
+happening to be at the keyboard, which is exactly the circumstance a *scheduled*
+run does not have. Had this fired unattended at 03:00, the box would have sat
+halted for a week and every subsequent mac run would have halted identically.
+The general shape is worth keeping in view: **STEP 0.7 can put a box into a
+state that only an interactive session can clear, and nothing in the fleet
+notices or escalates.** A6's watchdog digest is the natural place to surface a
+box that halted, and does not do so today. Filed as **A12**.
+
+**Branch/PR:** `tide/mac/A11-step07-halt` — TideSynth only, docs only, no code.
+The branch is named for the halt that produced it; **S6, the item this run went
+on to take, is on its own branch** (see part 2). A later mac run should not treat
+this branch as work-in-progress to resume.
+
+---
