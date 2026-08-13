@@ -201,6 +201,16 @@ the drift rate rather than to widen again. Nothing here needs Windows to
 proceed. `E1b` (installing `docs/ci/verify.yml`) is still Jeff-only and still
 the thing that would make any of this run automatically.
 
+**On the PR's three red checks — checked before leaving them alone, not
+assumed.** `windows`/`macos`/`linux` are red on #52, and they are red on #49,
+#50 and #51 too, for the same pre-existing reason: `build.yml` configures CMake
+at the repo root and **TideSynth has no root `CMakeLists.txt`** (`CMake Error:
+The source directory ... does not appear to contain CMakeLists.txt`). That is
+**B1** verbatim — the skeleton CI "expected to fail until C7". Job-level
+`continue-on-error: true` is why the same workflow reports *success* on `main`
+while the individual checks read fail on a PR; do not read that difference as a
+regression. `lint` **passes** on this PR, which #49 and #50 could not say.
+
 **Branch/PR:** `tide/mac/E1a-null-tolerances` →
 [#52](https://github.com/JeffMcClintock/TideSynth/pull/52)
 
