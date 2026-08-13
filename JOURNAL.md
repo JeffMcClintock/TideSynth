@@ -318,6 +318,7 @@ box that halted, and does not do so today. Filed as **A12**.
 The branch is named for the halt that produced it; **S6, the item this run went
 on to take, is on its own branch** (see part 2). A later mac run should not treat
 this branch as work-in-progress to resume.
+
 ---
 
 ## 2026-08-13 — windows — A11, win half (interactive session, Jeff directing)
