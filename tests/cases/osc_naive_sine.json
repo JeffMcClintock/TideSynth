@@ -6,5 +6,9 @@
   ],
   "source": "$osc:5",
   "duration": 2.0,
-  "rate": 48000
+  "rate": 48000,
+
+  "null_tolerance_dbfs": -67.0,
+  "peak_diff_tolerance_dbfs": -62.0,
+  "tolerance_reason": "Free-running oscillator: a cross-platform difference in the phase increment integrates into phase error, so the residual grows linearly with render time instead of staying inside a per-sample rounding budget. Measured 2026-08-14 (E1a), macOS vs the Linux goldens, identical on three independent engines (local Release V1.6.175, local Debug V1.6.182, published V1.6.183): RMS -73.5 dBFS, peak -68.7 dBFS (12 LSB) at duration 2.0s, from a frequency offset of 0.15 ppm = ~2.5 ULP at single precision. Gates set 6 dB above that, i.e. sized for a drift rate twice the one observed (~5 ULP), since there is no reason to think mac-vs-linux is the widest pair. THESE NUMBERS ARE BOUND TO duration: 2.0 -- the residual scales linearly with it, so changing the duration invalidates them by 20*log10(new/old) dB. The cost is real and is accepted deliberately: this case keeps full sensitivity to level, waveform and tuning regressions (0.3 ppm of detuning still fails it) but loses it for localized damage below ~12 LSB, which voice_midi_note still covers at the -86 dBFS default over the same oscillator in a fuller chain."
 }
