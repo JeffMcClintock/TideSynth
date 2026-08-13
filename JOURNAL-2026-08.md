@@ -4498,3 +4498,218 @@ run's lesson about an idle index being harvested. No work of Jeff's was touched.
 deletion) and [#47](https://github.com/JeffMcClintock/TideSynth/pull/47) (docs).
 
 ---
+
+## 2026-08-13 — linux — P7c (E1a not taken — see below)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as `tide-rack-bot`
+
+**Did:** Closed the X11 half of P7. Reproduced the stale-extent heap overflow in
+`X11DrawingFrame::Impl::present()`, guarded it, and wrote the regression test and
+the audit. Also settled the reachability question the row was filed with, and
+corrected the `linux` NEXT pointer, which named an item no linux box can do.
+
+**E1a was the NEXT pointer and I did not take it. It is not a linux item.** Its
+Accept clause is *"one render of both cases **on a second platform**"* — second
+to linux, the only lane that has ever run. So this box is the one machine
+definitionally unable to satisfy it, and the NEXT row's reasoning ("this is the
+box that can actually test cross-platform") was backwards. Checked before
+falling through rather than assuming: no wine, no container runtime, no macOS
+emulation on this box. **And Wine would have been worse than nothing** — its
+`msvcrt` routes `sin`/`cos`/`exp` to glibc's libm, i.e. the exact implementation
+the linux golden was rendered with, so a Wine render would report near-zero
+drift and license an RMS tolerance a real Windows box then fails. That is the
+specific trap E1 refused to walk into by guessing; guessing with a
+plausible-looking measurement attached would have been worse than guessing
+openly. Put the constraint in the row's own Item text (the Plat column stays
+`any` — see the lint finding below), and recommended (not imposed) that E1a
+become the mac or win NEXT rather than this one's.
+
+Fell through in file order to **P7c** — TODO, `linux`, ALLOWED path, and the row
+always said a Linux run could take it alone. What I skipped on the way, so the
+next run need not re-derive it: **C9** (its remaining work is GATED
+`SynthEditLib`, and it is not a C1-C7 stage), **A4/A10/A12** (all need
+`.github/workflows/**`, which the bot token cannot push), **A9** (its stated
+prerequisite is NEEDS-JEFF and would change what gets built), **N1** (the row
+itself says "do it after C7, not during", and calls its own remainder decisions
+rather than edits), **P7d** (GATED-by-default, explicitly waiting on Jeff's
+scope ruling).
+
+**Result — the audit was right in every particular, and the bug is real.**
+
+A/B on the same harness binary, only the backend source differing:
+
+| backend | result |
+|---|---|
+| `origin/main` as it stood | **SIGSEGV, exit 139, 3/3** |
+| with the guard | **exit 0, PASS, 3/3** |
+
+Under gdb, unfixed:
+
+```
+Program received signal SIGSEGV
+#0  gmpi::cpugfx::encodeDirtyRect (...) at backends/CpuEncode.h:269
+#1  X11DrawingFrame::Impl::present (...) at backends/DrawingFrameX11.cpp:1332
+#2  X11DrawingFrame::onTimer (...) at backends/DrawingFrameX11.cpp:1220
+locals: right = 800, bottom = 600, y = 68
+```
+
+`right`/`bottom` are the stale `pw`/`ph` against a 64×48 image — `encodeDirtyRect`
+clips to `dst.width`/`dst.height`, so **the clip clips to the lie** and protects
+nothing. It faulted at row **68**: rows 48–67 were written outside the surface
+first. That number is the whole difference between this and P4 — it corrupts
+before it crashes, and on a smaller mismatch it would not crash at all.
+
+**Learned — the reachability question the row asked is answerable, and the
+answer is no.** *"Whether any client callback can pump the X event loop and
+actually cause a nested `present()`."* It cannot, and by construction rather than
+by luck:
+
+| Check | Result |
+|---|---|
+| `ensureImage()` call sites | **one** — `present()` |
+| `Impl::present()` call sites | **two** — `processEvents()`, `onTimer()`, both host-driven |
+| `XNextEvent`/`XMaskEvent`/`XIfEvent`/`XPeekEvent` in the backend | **one** `XNextEvent`, in `processEvents()`. No nested or modal loop anywhere — menus, stock dialogs, the colour dialog, the text edit and the tooltip all share that one pump, and the portal file chooser is async over D-Bus |
+| what a client can reach | `IDrawingHost`, `IInputHost`, `IDialogHost`. **None expose `processEvents`, `onTimer`, `reSize`, or the `Display*`** — they are non-virtual members of the concrete frame, and a client only ever holds an interface pointer |
+
+`DrawingFrameX11.h`'s rule 1 — *"NO EVENT LOOP OF OUR OWN. The host owns the
+loop"* — turns out to be load-bearing rather than a design note. Also worth
+recording because it is the near-miss: **`reSize()` alone cannot cause this.** It
+moves `d.width`/`d.height` and reallocates nothing, so the image still matches
+`pw`/`ph`. The overflow needs the *allocation* to change, and only `present()`
+changes it.
+
+**So why guard it at all?** The residual the audit cannot close: during
+`measure`/`arrange`/`render` the client may call back into the **host**, and a
+host that re-enters its own run loop from there reaches `processEvents()`.
+gmpi_ui can neither prevent nor detect that, and cannot prove no host does it. A
+heap overflow whose only defence is an audit of code we do not own is a bad trade
+against three lines — and "unreachable today" is a property a future backend
+change revokes silently, where a guard cannot. I would have recorded
+unreachable-by-construction and stopped, as the row permits, if the residual were
+empty. It is not.
+
+**Learned — AddressSanitizer is a false-negative machine on this path, for a
+brand-new reason.** On a local display (including Xvfb) the image is MIT-SHM, so
+`image->data` is a `shmat()` mapping of its own and the overflow walks off its
+end into unmapped space: a plain SIGSEGV, no sanitizer needed. **ASan does not
+instrument a shm segment.** The `XCreateImage` fallback (remote display) is
+`malloc`'d and ASan does cover it, so the script offers `ASAN=1` for that path
+only, with the warning in its header. This is the **second** time in P7 that ASan
+was blind to the crash it looks purpose-built for, and the reasons are unrelated
+— CoreGraphics on mac (P7b), shared memory here. The rule that generalises, and
+the one I would want the next audit to have: **work out who owns the memory
+before choosing the detector.**
+
+**Learned — two of this row's premises were wrong, and one changed the approach.**
+
+| the row said | what is actually there |
+|---|---|
+| "`tests/x11_editor_host.cpp` already attaches an editor and is the place for the probe" | that file is **not in `gmpi_ui`** — it is in **`GMPI_Wrappers`**, and it is a full VST3 host. Wrong tool regardless of repo: a real plugin client *cannot reach the nesting at all*, so a test driven through one could only ever exercise the safe path |
+| (implicitly) copy the liveness discipline from `mac_editor_resize_host.mm` | the right precedent is **P7b's** `mac_render_reentrant_resize.mm` — a synthetic client driving the backend directly, no CMake, no VST3. That is what reaches this |
+
+So the test hands its synthetic client a pointer to the *concrete* frame, which
+a real client never has. That is deliberate and stated at the top of the file:
+it is a **positive control for the guard**, not a reproduction of host behaviour.
+**Two assertions stop it passing vacuously** — it checks the nested present
+actually ran and that the frame really shrank to 64×48. Without those, a guard
+that prevented the scenario instead of surviving it would look identical to one
+that worked.
+
+**Build health: this platform's default branch builds, and I verified it rather
+than assuming.** Fresh Ninja configure into a scratch dir (Jeff's `~/SE/build`
+untouched) with `GMPI_UI_FOLDER_OVERRIDE` pointing at this branch: **885/885,
+RC=0**, producing `SynthEdit_VST3`, `SynthEdit_GMPI`, `SynthEditCL`, `TIDE.gmpi`
+and `TIDE_VST3.so`. The log confirms `DrawingFrameX11.cpp` was compiled into it,
+so the build is evidence about *this change* and not about some cached object.
+Configure reported `Using local` for SynthEditLib, GMPI and GMPI-UI — per X4, the
+thing to watch for is an unexpected `Fetching` on a family repo, and there was
+none. **No regression to ordinary painting either:** `tests/x11_menu_test.sh`
+passes in full with the guard in — menu, stock dialog, text edit, key listener,
+colour picker, tooltip, file dialog, and *"pixels changed by the editor: 18495"*,
+which is the line that proves the guard is **not** firing on normal paints.
+
+**Learned — A3's link check is red on `main` right now, and it is the checker
+that is wrong, not the link. Filed as A13.** I hit it as a pre-existing failure
+(confirmed by stashing my changes and re-running: same single break, same line).
+`scripts/check-links.py:44` collapses a **run** of whitespace to one hyphen;
+GitHub emits one hyphen **per space**. Line 43 has already deleted the em-dash,
+so a heading like `## 2026-08-13 — macos — S6 (part 2 of 2)` leaves two spaces
+behind and the script computes `2026-08-13-macos-s6-part-2-of-2` where GitHub
+computes `2026-08-13--macos--s6-part-2-of-2`. **Every entry heading in this
+journal uses em-dashes.** The reason A3 could honestly claim zero false positives
+when it landed is that nobody had yet written an intra-journal anchor link; the
+S6 run wrote the first one, and it has been red since. **It is wrong in both
+directions**, which is the part worth fixing before A4 makes anything a gate: a
+correct link reads BROKEN, and a link written in the script's own form would pass
+the check and be broken on GitHub. A scheduled run *can* fix this one — it is a
+script, not a workflow.
+
+**Learned — the Platform vocabulary cannot express "any box except linux", and
+the backlog lint is right to stop you inventing one.** I first set E1a's Plat to
+`mac/win` and `check-backlog-diff.py` rejected it: only the Status cell may
+change on an existing row, and that value is outside the documented set
+(`any`/`win`/`mac`/`linux`) anyway. Reverted to `any` and put the constraint in
+the Item text where a reader hits it. Recording the mechanism because the next
+run to find a mis-scoped row will reach for the same edit: **the correction goes
+in prose; the column is Jeff's to change.**
+
+**Also done as STEP 4 chores:** **S6** flipped IN-REVIEW → DONE and moved
+verbatim to BACKLOG-DONE.md — [SynthEdit#13](https://github.com/JeffMcClintock/SynthEdit/pull/13)
+and [#47](https://github.com/JeffMcClintock/TideSynth/pull/47) both merged
+2026-08-13. **There are now zero open PRs in all five repos** other than my own
+two.
+
+**STEP 1 / 1.5:** no `platform:linux` issues; no `platform:*` labelled issues at
+all. Open issues are TideSynth [#44](https://github.com/JeffMcClintock/TideSynth/issues/44)
+(the A6 watchdog digest, `github-actions` — informational, not a build failure)
+and `gmpi_ui#1` ("Linux support?", 2024, third-party and unlabelled) — noted, not
+acted on, per the issue-authenticity rule. No `tide/linux/**` PR was open, so
+nothing was handed back to this platform.
+
+**Jeff's trees, per the three-kinds dirt rule:** all nine repos on this box were
+**clean and on their default branches** at claim time — including `SE16`, whose
+four dirty Wayland files from the E1 run (2026-08-10) are gone. Nothing of his
+was committed, reverted or stashed. `TideSynth` was parked on
+`tide/linux/A2-ssh-remote-gap` (left by the 2026-08-13 interactive A11 session,
+PR #45 merged); I branched from `origin/main` rather than from it, and restored
+the checkout in STEP 5. **A11 still holds:** all nine repos are `https://`, and
+STEP 0.7's second assertion printed `git@github.com:`.
+
+**Side effects on this box — all cleaned up, and checked rather than assumed:**
+a 1.8 GB scratch build tree under the session scratchpad (outside every repo,
+deliberately *not* Jeff's `~/SE/build`, so his tree keeps its own artifacts) and
+`gmpi_ui/tests/build-x11/`, both **deleted**; four throwaway Xvfb displays
+(`:70`–`:73`), all killed. The commit still adds `tests/build-x11/` to
+`.gitignore`, alongside the `tests/build-mac/` line P7b added for the same
+reason, so the next person to run the script does not have to remember.
+**Unlike the E1 run, this one left no engine state**: every file in
+`~/.local/share/SynthEdit/` still predates it (newest 2026-08-11 14:00), because
+I built `SynthEditCL` but never executed it.
+
+**Next:**
+
+1. **Merge [gmpi_ui#5](https://github.com/JeffMcClintock/gmpi_ui/pull/5) and
+   [#48](https://github.com/JeffMcClintock/TideSynth/pull/48).** Independent —
+   unlike C8's pair, merging either alone breaks nothing. #5 is the code.
+2. **E1a needs a mac or win run.** The render half is genuinely cheap — download
+   the engine, run `tools/render_harness.py`, record two numbers. The judgement
+   half is setting the RMS gate from that data, and it cannot start until the
+   numbers exist.
+3. **A13 is small, real, and this box could have done it** — a script fix, no
+   workflow edit, so it is not blocked on Jeff like A4/A10/A12 are. Good
+   candidate for the next linux run given how thin the rest of the queue is.
+4. **P7 is now fully closed** across all three backends — P4 (win), P7b (mac),
+   P7c (X11) — and P7a bounded the editor extents. The remaining P7 offcut is
+   **P7d**, which is a scope ruling for Jeff, not work.
+5. This box's next linux-eligible item in file order is **P7c's neighbour, N1**,
+   which its own row defers behind C7 — so realistically the linux queue is thin
+   until C7 lands or E1a moves. Worth Jeff's eye when he next sets NEXT.
+
+**Branch/PR:** `tide/linux/P7c-x11-present-extents` in two repos —
+[gmpi_ui#5](https://github.com/JeffMcClintock/gmpi_ui/pull/5) (the guard, the
+test, `docs/x11-present-extents.md`) and
+[#48](https://github.com/JeffMcClintock/TideSynth/pull/48) (BACKLOG, JOURNAL, and
+the closing section of `docs/p7-resize-audit-mac-x11.md`). No other repo was
+committed in or modified.
+
+---
