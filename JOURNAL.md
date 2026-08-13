@@ -222,11 +222,16 @@ PR #45 merged); I branched from `origin/main` rather than from it, and restored
 the checkout in STEP 5. **A11 still holds:** all nine repos are `https://`, and
 STEP 0.7's second assertion printed `git@github.com:`.
 
-**Side effects on this box, stated because they are real:** a scratch build tree
-under the session scratchpad (~1 GB, outside every repo, not in Jeff's
-`~/SE/build`), and `gmpi_ui/tests/build-x11/` — which is why the commit adds it
-to `.gitignore`, alongside the `tests/build-mac/` line P7b added for the same
-reason. Three throwaway Xvfb displays (`:70`–`:73`), all killed.
+**Side effects on this box — all cleaned up, and checked rather than assumed:**
+a 1.8 GB scratch build tree under the session scratchpad (outside every repo,
+deliberately *not* Jeff's `~/SE/build`, so his tree keeps its own artifacts) and
+`gmpi_ui/tests/build-x11/`, both **deleted**; four throwaway Xvfb displays
+(`:70`–`:73`), all killed. The commit still adds `tests/build-x11/` to
+`.gitignore`, alongside the `tests/build-mac/` line P7b added for the same
+reason, so the next person to run the script does not have to remember.
+**Unlike the E1 run, this one left no engine state**: every file in
+`~/.local/share/SynthEdit/` still predates it (newest 2026-08-11 14:00), because
+I built `SynthEditCL` but never executed it.
 
 **Next:**
 
