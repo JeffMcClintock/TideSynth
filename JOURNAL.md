@@ -187,7 +187,7 @@ else's commit.
 
 ---
 
-## 2026-08-13 — macos — P7b
+## 2026-08-13 — macos — P7b TAMPERED IN PLACE, NO TRACE (A3 negative-control test, reverting next commit)
 
 **Did:** Fixed **P7b** — `DrawingFrameCocoa::onRender` using `backBuffer` after
 the re-entrant `drawingClient->render()` call without re-checking it. One guard
