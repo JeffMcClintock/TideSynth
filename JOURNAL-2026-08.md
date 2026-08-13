@@ -10,6 +10,46 @@ August 2026 is split between two files: the most recent entries stay in
 the entries it still holds.
 
 ---
+## 2026-08-13 — windows — A11, win half (interactive session, Jeff directing)
+
+**Did:** Checked this box against the SSH-remote gap the linux run found in
+A2/A11: swept every local git repo under `C:\SE` (`find C:\SE -maxdepth 2
+-name .git`, 22 repos — not just the fleet's usual 5) for its remote
+protocol, then applied the global `url."https://github.com/".insteadOf
+"git@github.com:"` rewrite and proved it against the private `SynthEdit`
+repo the way A11's acceptance test specifies.
+
+**Result:** All 22 repos on Windows were already HTTPS — nothing here was
+ever actually exposed, unlike linux's 8-of-9. Applied the rewrite anyway,
+since the acceptance test wants it as a structural safeguard, not just a
+reaction to today's state. Three-part proof, all against
+`https://github.com/JeffMcClintock/SynthEdit.git` (private): bogus
+`GH_TOKEN` → `fatal: Authentication failed for
+'https://github.com/JeffMcClintock/SynthEdit.git/'` (exit 128); real bot
+token (from `~/.tide/agent-token`) → `git ls-remote` succeeds, `gh api user`
+confirms `tide-rack-bot`; no `GH_TOKEN` → succeeds, confirms `JeffMcClintock`.
+Also checked the caveat the linux fix flagged for Jeff's own workflow-file
+access (`gh auth refresh -s workflow` needed once the rewrite lands) — did
+not apply here, this box's `gh auth status` already shows `workflow` in
+scope.
+
+**Learned:** The fleet's "5 repos" framing (used everywhere A2 discusses
+scope) undercounts what's actually on disk — Windows alone has 22 local git
+repos under `C:\SE`, most unrelated to TIDE (SE15, SSG, Waves, and other
+dormant product repos). The SSH-remote risk is about *any* repo the box's
+git config touches, not just the ones the bot has a token for, so the sweep
+has to be exhaustive (`find`, not "check the 5 I know about") the way linux's
+was.
+
+**Next:** mac remains outstanding — its A2 evidence is still authorship-only,
+not authentication-verified. A11 stays TODO until mac's sweep and proof are
+done too.
+
+**Branch/PR:** none — committed directly to `main`, interactive session.
+
+---
+
+---
 ## 2026-08-13 — linux — A11 (new; A2 follow-up, interactive session, Jeff directing)
 
 **Did:** Jeff asked for help finishing **A2** on this box. A2 had been flipped

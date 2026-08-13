@@ -46,6 +46,130 @@ Template:
 
 ---
 
+## 2026-08-14 — macos — P6
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Did:** Closed P6 by measurement, not by edit. Built `SynthEditCL` on this box
+with the **Xcode** generator — the one thing the P7a and P7b runs could not do,
+and the whole reason the row stayed open — and confirmed the `CodeSign` failure
+is gone. **Changed no source file:** `SE16/SynthEditCL/CMakeLists.txt` is on
+neither the ALLOWED nor the GATED list, so it is GATED by default, and the fix
+had already landed in SynthEdit's own commits. The work was verification.
+
+**Result — fixed, and proven on the generator that actually signs.**
+
+| | |
+|---|---|
+| source | `SE16` `b3c1efb07` — `git diff HEAD origin/master -- SynthEditCL/ SynthEditLib/ CMakeLists.txt` is **empty**, so this is current `master`'s content for everything in scope |
+| configure | `cmake -G Xcode`, fresh scratch tree outside both repos, `x86_64;arm64`, deployment 13.3, three local overrides matching Jeff's own `build/CMakeCache.txt` |
+| `cmake --build --config Debug --target SynthEditCL` | **RC=0** |
+| `codesign --verify --deep --strict --verbose=2` | *"valid on disk"*, *"satisfies its Designated Requirement"* |
+| sealed | 336 files, 98 signed `.sem` under `Contents/PlugIns` |
+| smoke | the signed binary runs: `SynthEditCL V1.6.182` |
+
+**The Xcode generator does emit the step, and the log proves it** —
+`CodeSign …/SynthEditCL.app (in target 'SynthEditCL')`, `Signing Identity:
+"Sign to Run Locally"`, `/usr/bin/codesign --force --sign - --entitlements … `.
+That is the asymmetry this row was stuck on: **Ninja emits no `codesign`
+invocation at all**, so an RC=0 Ninja build is not evidence either way.
+
+**Layout, which is the actual fix (`691270c5d`):** `Contents/MacOS` holds
+**only** the executable. `Prefabs`, `fonts`, `skins` and `templates` are all
+under `Contents/Resources`, and the exact file the row named is now
+`Contents/Resources/Prefabs/Controls/Button Small2.syntheditprefab`.
+
+**Verification artifact — A/B positive control on the same signed binary, no
+source edit and no rebuild.** Copied the built bundle, moved the four staged
+directories back under `Contents/MacOS/Resources` to recreate the pre-fix
+layout, and re-ran the *same* `codesign` command Xcode ran:
+
+| bundle layout, same binary, same codesign command | RC | output |
+|---|---|---|
+| pre-fix (`Contents/MacOS/Resources/…`) | **1** | `SynthEditCL.app: code object is not signed at all` / `In subcomponent: …/Contents/MacOS/Resources/Prefabs/Controls/Button Small2.syntheditprefab` |
+| current (`Contents/Resources/…`) | **0** | — |
+
+That reproduces P6's error string **verbatim, down to the same subcomponent
+file**, and shows the staging path is what closes it — not a toolchain or Xcode
+version difference, and not luck.
+
+**The second commit (`4792f4bf2`, Finder detritus) also holds:** the built
+bundle contains **0** `.DS_Store` and no extended attributes.
+
+**Standing rule — all five products build under the Xcode generator, each
+RC=0, each verifying:**
+
+| target | build | `codesign --verify --deep --strict` |
+|---|---|---|
+| `SynthEditCL` | RC=0 | RC=0 |
+| `SynthEdit_VST3` | RC=0 | RC=0 |
+| `SynthEdit_GMPI` | RC=0 | RC=0 |
+| `TIDE` | RC=0 | RC=0 |
+| `TIDE_VST3` | RC=0 | RC=0 |
+
+So SynthEdit, SynthEditCL and TIDE all build on macOS on `master` today, under
+the generator Jeff's own tree uses — which is a stronger statement than the
+Ninja RC=0 the last three mac runs could make.
+
+**Learned:**
+
+- **Any signing-shaped question on mac must be answered with `-G Xcode`.** Ninja
+  never emits `codesign`, so a Ninja build cannot confirm *or* deny a codesign
+  bug. P6 sat open for six days because two runs reported RC=0 from a generator
+  that structurally could not see the failure. Worth treating as a fleet rule,
+  not a P6 detail.
+- **A bundle-level A/B is enough to prove a staging-path fix, and it needs no
+  source edit.** That matters when the file lives on a GATED-by-default path:
+  the positive control was `cp -R` + `mv` + re-run `codesign`, and it produced
+  the row's exact error text. No branch in `SE16`, nothing to review there.
+- **`GMPI_WRAPPER_FOLDER_OVERRIDE` is empty in Jeff's `build/CMakeCache.txt`**,
+  so `GMPI WRAPPERS` is fetched from github rather than taken from the local
+  clone — the configure output says `Fetching GMPI WRAPPERS from github` while
+  `SynthEditLib`, `GMPI` and `GMPI-UI` all say `Using local … folder`. This is
+  exactly the asymmetry **X4** says to watch for; I matched Jeff's cache rather
+  than "fixing" it, so this run's result reflects his tree, but anyone debugging
+  a wrapper-side problem on this box should know the wrapper is not local.
+- **The `any` NEXT pointer is A4, and a scheduled run cannot do it.** A4 is a
+  path-allowlisted auto-merge *action* — i.e. a file under
+  `.github/workflows/**`, which the bot token deliberately cannot write. Noted,
+  not acted on: it is not this run's item, and A12 already covers the general
+  shape of "the fleet points a box at work it structurally cannot do". Flagging
+  it so the next `any`-eligible run does not burn its session discovering it.
+- **My PR's lint will be red, pre-existing.** `check-links.py`'s slugger bug is
+  **A13**, found by the P7c run; it is already red on `main`. Nothing here
+  caused it and fixing it would be a second item.
+
+**Next:**
+
+1. **Merge [#50](https://github.com/JeffMcClintock/TideSynth/pull/50)** (this
+   run — docs only, no code in any repo). P6 then flips IN-REVIEW → DONE.
+2. **`mac` NEXT moved P6 → E1a**, taking the P7c run's correction at its word:
+   E1a's Accept clause is *"one render of both cases on a second platform"*,
+   second to linux, so it is mac-or-win work and the linux box can never satisfy
+   it. This box can: the render half is a download and two numbers, and it is
+   the topmost item that is genuinely mac's rather than anyone's. S9 and S10,
+   the only other `mac` rows, both still need Jeff.
+3. **A13 is the fallback** if a mac run finds E1a blocked — it is small, it is on
+   `scripts/` (a scheduled run may edit it), and it gates A4's usefulness as a
+   merge check.
+4. **P6's own text should not be re-filed.** It is closed on evidence, and the
+   evidence is a positive control rather than an absence of failure.
+
+**Tree hygiene:** nothing was written into either working copy's source. `SE16`
+and `TideSynth` were both clean at claim time (`SE16` 5 commits behind
+`origin/master`, `TideSynth` 3 behind `origin/main`) and I left `SE16` untouched
+and un-updated — no fetch-into-tree, no checkout, no build inside it. All build
+output went to a scratch tree under the session's temp dir; Jeff's own
+`SynthEdit/build` Xcode tree was not read from, written to, or invalidated.
+`git status` in `SE16` is unchanged from how I found it.
+
+**Branch/PR:** `tide/mac/P6-cl-codesign-xcode` —
+[#50](https://github.com/JeffMcClintock/TideSynth/pull/50), TideSynth only.
+**No code repo was committed in**, so STEP 5's two-end-states rule has exactly
+one repo to satisfy.
+
+---
+
 ## 2026-08-13 — linux — P7c (E1a not taken — see below)
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as `tide-rack-bot`
@@ -535,43 +659,3 @@ on to take, is on its own branch** (see part 2). A later mac run should not trea
 this branch as work-in-progress to resume.
 
 ---
-
-## 2026-08-13 — windows — A11, win half (interactive session, Jeff directing)
-
-**Did:** Checked this box against the SSH-remote gap the linux run found in
-A2/A11: swept every local git repo under `C:\SE` (`find C:\SE -maxdepth 2
--name .git`, 22 repos — not just the fleet's usual 5) for its remote
-protocol, then applied the global `url."https://github.com/".insteadOf
-"git@github.com:"` rewrite and proved it against the private `SynthEdit`
-repo the way A11's acceptance test specifies.
-
-**Result:** All 22 repos on Windows were already HTTPS — nothing here was
-ever actually exposed, unlike linux's 8-of-9. Applied the rewrite anyway,
-since the acceptance test wants it as a structural safeguard, not just a
-reaction to today's state. Three-part proof, all against
-`https://github.com/JeffMcClintock/SynthEdit.git` (private): bogus
-`GH_TOKEN` → `fatal: Authentication failed for
-'https://github.com/JeffMcClintock/SynthEdit.git/'` (exit 128); real bot
-token (from `~/.tide/agent-token`) → `git ls-remote` succeeds, `gh api user`
-confirms `tide-rack-bot`; no `GH_TOKEN` → succeeds, confirms `JeffMcClintock`.
-Also checked the caveat the linux fix flagged for Jeff's own workflow-file
-access (`gh auth refresh -s workflow` needed once the rewrite lands) — did
-not apply here, this box's `gh auth status` already shows `workflow` in
-scope.
-
-**Learned:** The fleet's "5 repos" framing (used everywhere A2 discusses
-scope) undercounts what's actually on disk — Windows alone has 22 local git
-repos under `C:\SE`, most unrelated to TIDE (SE15, SSG, Waves, and other
-dormant product repos). The SSH-remote risk is about *any* repo the box's
-git config touches, not just the ones the bot has a token for, so the sweep
-has to be exhaustive (`find`, not "check the 5 I know about") the way linux's
-was.
-
-**Next:** mac remains outstanding — its A2 evidence is still authorship-only,
-not authentication-verified. A11 stays TODO until mac's sweep and proof are
-done too.
-
-**Branch/PR:** none — committed directly to `main`, interactive session.
-
----
-
