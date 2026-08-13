@@ -226,6 +226,19 @@ and S8 are GATED-in-full and should not read as `TODO`** to a scheduled run, and
 **A2's sandbox-escape question has to be answered before S7 can be done
 properly**.
 
+- **`gh pr checks` reports the `build` workflow red on every PR, and `gh run
+  list` reports the same runs green — both are correct, and the discrepancy will
+  waste someone's time.** `build.yml` sets `continue-on-error` at **job** level,
+  so the *run* concludes `success` while all three *jobs* conclude `failure`.
+  `gh pr checks` surfaces the jobs; `gh run list` surfaces the run. Checked
+  against `main` before assuming this PR caused it: run `31749003642` on
+  `3ff987b5` has `failure` for linux, macos and windows too, with the identical
+  `CMake Error: The source directory … does not appear to contain CMakeLists.txt`
+  — TideSynth has no root `CMakeLists.txt`, on `main` or anywhere. That is the
+  C7 failure `build.yml`'s own header says is the point, and **B1 is the row for
+  it** (its comment already says "green here still means nothing"). **`lint` is
+  the only check that currently gates anything, and it passes.**
+
 **Machine state, for the record:** all nine local repos were clean and on their
 default branches at the start and are again at the end; **only `TideSynth` was
 committed in**, so STEP 5's two-end-states rule has exactly one repo to satisfy.
