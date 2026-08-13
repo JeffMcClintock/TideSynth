@@ -205,8 +205,33 @@ BACKLOG item **C*n***, except for the one precondition:
 3. **Document model.** `DocOb`, `CContainer` (with its untouched friend
    declaration), `CUG`, `Plug*`, `SynthEditDocBase`, `SynthEditDoc2`. This is
    the biggest and riskiest stage; split it further if it resists.
-4. **Views and browsers.** `ModuleBrowser`, `PropertiesBrowser`,
-   `MfcDocPresenter`, `ModuleFactory_Editor`, `SkinMgr`, `ThemeManager`.
+4. **Views and browsers — IN-REVIEW 2026-08-13.** `ModuleBrowser`,
+   `PropertiesBrowser`, `MfcDocPresenter`, `ModuleFactory_Editor`, `SkinMgr`,
+   `ThemeManager` — twelve files, in `SynthEditLib`'s root like C2 and C3.
+   PRs: [SynthEdit#15](https://github.com/JeffMcClintock/SynthEdit/pull/15),
+   [SynthEditLib#6](https://github.com/JeffMcClintock/SynthEditLib/pull/6),
+   [#49](https://github.com/JeffMcClintock/TideSynth/pull/49) — all three merge
+   together. Verified: Ninja 905/905 RC=0 with five products, 92 tests across
+   three suites all RC=0, and **SynthEdit2 (WinUI3) links** — the first stage to
+   reach that step, which C1b and C2 both had to leave open behind P8.
+
+   Two things this stage established that stage 5 should inherit:
+
+   - **C9's mechanism now exists.** `SynthEditLib/se_version.h` defaults
+     `SE_APP_BUILD_NUMBER` to 0 and `EditorLib/CMakeLists.txt` injects
+     SynthEdit's real value from `se_build_number.h`, which stays where its
+     three release workflows grep for it. `Application.cpp` — stage 5's own
+     `se_build_number.h` user — needs one `#include` swap and one macro rename,
+     not new machinery. The injection block reads a private-repo path, so **it
+     cannot travel with `EditorLib/CMakeLists.txt` when stage 6 moves that
+     file**; the block carries a comment saying so.
+   - **Measure the dangling-private-include count on both sides, from git
+     refs.** C4 closed 11 and opened 20 — net 47 → 56 — because the moved `.cpp`
+     carry their own private dependencies in with them. Expect stage 5 to close
+     far more than it opens (`Application.h` is the most-included name on the
+     list), but measure rather than assume: computing "before" from a working
+     tree the run has already edited hides the closures and flatters the change.
+     Two of C4's twenty are on no stage's list at all and are filed as **C11**.
 5. **App base.** `SynthEditAppBase`, `ApplySynthEditConfig`,
    `SynthRuntime_editor`, `UIoManager`, `IO_base`, `IO_None`.
 6. **Move `EditorLib/CMakeLists.txt` itself** into `SynthEditLib`, so the public
