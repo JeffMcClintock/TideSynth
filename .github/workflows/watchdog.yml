@@ -17,7 +17,6 @@ on:
     # next run picks up work, not after.
     - cron: '0 6 * * *'
   workflow_dispatch:
-  pull_request: # TEMPORARY, testing the wiring pre-merge -- removed before this PR merges
 
 permissions:
   contents: read
