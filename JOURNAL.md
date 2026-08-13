@@ -46,6 +46,147 @@ Template:
 
 ---
 
+## 2026-08-14 — windows — A13 (C4 not re-taken, A4 not takeable — see below)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code Desktop, app version not
+discoverable on this box (see **Learned**) · as `tide-rack-bot`
+
+**Did:** Fixed `scripts/check-links.py`'s slug function, which disagreed with
+GitHub's on every em-dash heading, and fixed a second defect of the same
+character sitting a few lines below it. Verified both against GitHub's own
+renderer rather than against my reading of the algorithm.
+
+**Neither NEXT pointer was takeable, and one of them is a standing trap.**
+
+- **`win` → C4 is already done.** The 2026-08-13 windows run completed it; it is
+  IN-REVIEW across three PRs ([#49](https://github.com/JeffMcClintock/TideSynth/pull/49),
+  [SynthEdit#15](https://github.com/JeffMcClintock/SynthEdit/pull/15),
+  [SynthEditLib#6](https://github.com/JeffMcClintock/SynthEditLib/pull/6)). The
+  resume rule makes an open PR from my own platform mine to *continue*, but
+  there is nothing to continue — the work is complete and waiting on Jeff.
+  I checked both red PRs before leaving them alone, and **neither red is a
+  defect in the C4 work**: #49's `lint` is red only on `links`, which is this
+  very row and is red on `origin/main` too; SynthEdit#15's `WASDK build check`
+  dies at `CMake Error at EditorLib/CMakeLists.txt:10 (add_library): Cannot
+  find source file`, which is the cross-repo condition the PR body already
+  states — CI fetches `SynthEditLib` from `origin/main`, where the twelve moved
+  files do not exist until SynthEditLib#6 merges. C2 and C3 failed that same
+  check for that same reason, and C3 merged anyway. Structural; not fixable
+  from a branch.
+- **`any` → A4 cannot be done by a scheduled run at all, and its row does not
+  say so.** A4 is an auto-merge *action*, i.e. a file under
+  `.github/workflows/**`, and the bot token is deliberately `repo` scope with
+  no `workflow` — measured this run, not assumed: `X-OAuth-Scopes: repo` from
+  the API response headers. The push is rejected however correct the work is.
+  **A10 and A12 hit the identical wall** (both name `.github/workflows/` in
+  their own scope lines), and **A9 has an open NEEDS-JEFF prerequisite** —
+  TIDE's product philosophy as the auto-reject filter — which would change what
+  gets built, so STEP 2 rules it out. That leaves **A13** as the topmost `any`
+  item a scheduled run can actually finish, and A13's own row had already
+  argued it should precede A4 anyway ("a noisy lint erodes trust in the other
+  three checks fast"). Updated the `any` NEXT row to record all of this.
+
+**Result:** Both bugs reproduced, fixed, and verified.
+
+*The bug, exactly.* `slugify()` did `re.sub(r'\s+', '-', s)` — one hyphen per
+*run* of whitespace. GitHub emits one per *space*. The line above had already
+deleted the em-dash, leaving the two spaces that surrounded it, so
+`## 2026-08-13 — macos — S6 (part 2 of 2)` produced
+`2026-08-13-macos-s6-part-2-of-2` here and `2026-08-13--macos--s6-part-2-of-2`
+on GitHub. The fix is `s.replace(' ', '-')`, plus deleting tabs and other
+non-space whitespace outright, which is what GitHub does with them.
+
+*The second defect, which was not in the row.* `anchors_of()` never tracked
+code fences — `main()` did, but `anchors_of()` did not — so **nine fenced lines
+across four files were registered as real anchors**, among them `JOURNAL.md`'s
+own entry template `## YYYY-MM-DD — <machine> — <BACKLOG id>`,
+`#include "it_empty.h"` in `docs/c8-it-empty-header.md`, and three `#0`/`#1`/`#2`
+gdb backtrace frames. That is a false *negative* — a link to
+`#include-it_emptyh` passed the check. Same both-directions character as the
+slug bug, same function, so fixed in the same pass.
+
+*The verification artifact — an A/B against GitHub's own renderer.* Fetch each
+file through the contents API with `Accept: application/vnd.github.html`, which
+returns it rendered by GitHub's real markdown pipeline with anchors intact
+(`<a id="user-content-…" class="anchor">`), and compare every anchor to what
+this script generates for the same bytes:
+
+```
+files 28 | headings compared 254 | mismatching files 0
+```
+
+**254 of 254, zero mismatches.** Two negative controls, so the A/B is not
+passing vacuously:
+
+```
+CONTROL 1  old slugify (collapsing run)        headings wrong: 111   files affected: 23
+CONTROL 2  new slugify, fences NOT skipped     headings wrong:  34   files affected:  4
+FIXED      new slugify, fences skipped         headings wrong:   0   files affected:  0
+```
+
+*Deliberate breaks, all three as specified in the row's Accept clause:* a
+nonexistent anchor fails (RC=1); a link written in the **old collapsed form**
+now fails (RC=1) — that is the false negative closing, and it is the half that
+matters; the correct GitHub form passes (RC=0).
+
+*Tree state:* 186 relative links, **0 broken**. The one previously-flagged line
+(`JOURNAL.md:376`) was read and is exactly the false positive A13 predicted —
+the first intra-journal anchor anyone wrote.
+
+*Added `--selftest`* to the same script: six golden slugs **read off GitHub's
+renderer**, plus a duplicate/fence case, baked in and offline so the regression
+is permanent rather than something a future run must remember to re-measure.
+Confirmed discriminating — reverting `slugify` to the old algorithm fails 5 of
+its 6 cases, RC=1. Also implemented GitHub's duplicate-heading suffixes
+(`-1`, `-2`), which no heading in the tree exercises today but `anchors_of()`
+was silently collapsing into one.
+
+**Learned:**
+
+- **`/markdown` is not an oracle.** The obvious endpoint for "what would GitHub
+  render this as" emits headings with **no `id` attribute at all**, so the
+  first A/B came back 0-for-254 and looked like a catastrophic failure of the
+  fix rather than of the measurement. The endpoint that works is
+  `GET /repos/{owner}/{repo}/contents/{path}` with
+  `Accept: application/vnd.github.html`. Anyone verifying anchor behaviour
+  again should start there and skip the hour.
+- **The em-dash convention and the checker were on a collision course from the
+  start.** Every journal entry heading in this repo uses em-dashes, so the
+  moment anyone wrote the first intra-journal anchor link the check went red —
+  which is exactly what happened, and A3 could honestly claim zero false
+  positives when it landed only because nobody had written one yet.
+- **The app version STEP 0.5 asks for is not discoverable on this box.** `claude`
+  is not on `PATH` under the desktop app, and there is no `app-*` directory or
+  `package.json` under `%LOCALAPPDATA%\Claude` carrying a version. The linux and
+  mac entries record `Claude Code CLI 2.1.220` because those boxes run the CLI.
+  So the provenance line's `app <version>` field is silently unfillable on
+  Windows-under-desktop, and `check-prompt-provenance.py` cannot catch that —
+  it only looks for the literal `**Prompt:**` marker, not for the fields after
+  it. Recording it in prose here rather than inventing a number.
+- **Two lint scripts cannot be fed a process substitution on this box.**
+  `python scripts/check-backlog-diff.py <(git show origin/main:BACKLOG.md) …`
+  fails with `FileNotFoundError: '/proc/1398/fd/63'` — Git Bash creates the fd,
+  Windows Python cannot open it. Write the base version to a real temp file.
+
+**Next:** A13's PR is [#51](https://github.com/JeffMcClintock/TideSynth/pull/51)
+and should merge **after** [#49](https://github.com/JeffMcClintock/TideSynth/pull/49)
+— both prepend to `JOURNAL.md` and both rotate `JOURNAL-2026-08.md`, so
+whichever lands second needs a rebase, and #49 is the older and larger of the
+two. `BACKLOG.md` does not collide: #49 touches the `win` NEXT row and the
+C4/C9/C11/P7c rows, this one touches the `any` NEXT row and A13.
+
+The `any` lane needs a decision, not a run: **A4, A10 and A12 are all
+`.github/workflows/**` work that the bot token structurally cannot push**, and
+all three sit in the queue marked TODO as though a scheduled run could take
+them. Each will burn a session on discovery until someone re-marks them.
+That is the same shape as **A12's own finding** — a box that cannot proceed and
+nothing escalating it — one level up, applied to the queue instead of to a box.
+
+**Branch/PR:** `tide/win/A13-check-links-slugger` →
+[#51](https://github.com/JeffMcClintock/TideSynth/pull/51)
+
+---
+
 ## 2026-08-14 — macos — P6
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
@@ -580,109 +721,5 @@ test, `docs/x11-present-extents.md`) and
 [#48](https://github.com/JeffMcClintock/TideSynth/pull/48) (BACKLOG, JOURNAL, and
 the closing section of `docs/p7-resize-audit-mac-x11.md`). No other repo was
 committed in or modified.
-
----
-
-## 2026-08-13 — macos — S6 (part 2 of 2)
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
-
-**Part 1** of this run is the A11 entry (halt at STEP 0.7, cleared by Jeff
-mid-session) on branch `tide/mac/A11-step07-halt`, [#46](https://github.com/JeffMcClintock/TideSynth/pull/46).
-This is the item the run went on to take once the assertions passed.
-
-**Did:** Deleted `SE16/SE_IOS_APP/TIDE/Plugins/` — six `.sem` bundles, **26
-tracked files, 4.4 MB**. Chose *remove* over the row's "or add a README"
-alternative: constraint 7 rules out separately-loadable module bundles
-entirely, so a README would preserve 4.4 MB of a contradiction and explain it
-rather than fix it.
-
-**Result — the deletion is right, and two of the row's premises were wrong.**
-
-What the files are, measured: all six binaries `Mach-O 64-bit bundle x86_64`,
-`platform 1` (macOS) or `LC_VERSION_MIN_MACOSX`, in macOS bundle layout
-(`Contents/MacOS/`, `Contents/_CodeSignature/`). Added 2021-02-24→2021-03-03,
-**untouched since**. Nothing there can load on arm64 iOS. That much the row had
-right.
-
-| the row said | measured |
-|---|---|
-| "dead **iOS** module artifact", installed by a Run Script to a macOS-only destination | consumer is **`SeAudioUnitMacOS`** — a **macOS** AUv3 app-extension. **No iOS target references the folder at all.** It was never wired into an iOS build; the destination is not a mistake, it is correct for that target |
-| the Run Script is the wiring; deleting the folder is safe | the Run Script is only *half*. **Individual files inside the bundles are entries in that target's Resources build phase** — real `CpResource` inputs |
-
-The 2021 commit messages agree with the correction: *"chore(ios) : macOS AUV3
-runnning (fixed signing by signing TIDE sems)"*. This is macOS AUv3 scaffolding
-that happens to live under an iOS-named folder, which is exactly why it reads as
-an iOS module story.
-
-**Verification artifact — and the A/B is not clean, so I am not calling it
-clean.**
-
-| `SeAudioUnit macOS`, same machine, same command | before | after |
-|---|---|---|
-| result | **BUILD FAILED**, RC=65 | **BUILD FAILED**, RC=65 |
-| errors | 6 × missing `SE_DSP_CORE/*.cpp` compile inputs | 7 × `CpResource` "couldn't be opened" |
-
-Nothing went from working to broken. But the **failure mode changed**, and the
-compile errors stop surfacing afterwards only because `xcodebuild` stops
-scheduling once the resource phase fails — they are still there underneath. My
-first reading of the pbxproj said the bundles were in no build phase at all;
-that was wrong, and the A/B is what caught it. Tracing the six `.sem` *folder*
-ids was not enough — they are group entries whose *children* are the build
-inputs.
-
-**The standing rule is honoured, and structurally rather than by luck.** Fresh
-Ninja configure into a scratch dir (this tree untouched), all four local
-overrides, full build: **RC=0, 936/936**, producing `SynthEdit_VST3.vst3`,
-`SynthEdit_GMPI.gmpi`, `SynthEditCL.app`, `TIDE.gmpi`, `TIDE_VST3.vst3`. And
-**no `CMakeLists.txt` or `.cmake` in `SE16` references `SE_IOS_APP`**, so the
-CMake build and that Xcode project are fully decoupled — the deletion could not
-have reached them.
-
-**Learned — the big one, and it is much larger than S6:**
-
-**`SE_IOS_APP.xcodeproj` is dead, and it bears on M2.** All four targets fail,
-each RC=65, on **28 references to `SE_DSP_CORE/`** — the pre-split name of the
-DSP core directory, which no longer exists (it became `SynthEditLib`). The
-pbxproj was last touched **2022-12-15**. PLAN calls iOS AUv3 "the constraint
-that validates the whole design", and **M2 is written as though a working iOS
-project exists to build on. It does not.** M2 is really "author an iOS target",
-not "get the existing one green" — worth knowing before anyone estimates it.
-Filed as **S10**, with the revive-or-retire decision named as Jeff's.
-
-Two smaller ones:
-
-- **`database.se.xml` is the same architecture constraint 7 forbids.**
-  `SE_IOS_APP/TIDE/Resources/database.se.xml` is a 31-entry module database
-  naming the six now-deleted bundles by `imbeddedFilename`, and it *is* wired
-  into two Resources build phases. Left alone deliberately — outside S6's scope
-  — but it should not be revived as-is. Folded into S10.
-- **`gh pr edit` fails with the bot's token; `gh api ... -X PATCH` does not.**
-  `gh pr edit` issues a GraphQL query touching `login`/`name`/`slug`, which
-  needs `read:org`; the bot has `repo` only, by design. The REST route has no
-  such requirement. This will bite any run that tries to amend a PR body —
-  including a run following STEP 1.5's "push fixes to the SAME branch".
-
-**Next:**
-
-1. **Merge [SynthEdit#13](https://github.com/JeffMcClintock/SynthEdit/pull/13)
-   and [#47](https://github.com/JeffMcClintock/TideSynth/pull/47).** Order does
-   not matter for the build — #13 is the only code change and it cannot break
-   anything the CMake build touches — but merging the docs alone would say a
-   deletion landed that did not.
-2. **Answer S10 before S9.** If the project is retired, S9 is moot and the right
-   move is deleting the whole `.xcodeproj`.
-3. **`mac` NEXT moved S6 → P6**, and P6 is genuinely this box's to close: it
-   needs an **Xcode**-generator build to reproduce the `CodeSign` failure, which
-   Ninja never emits. `SynthEditCL` builds clean under Ninja here (re-confirmed
-   RC=0 during this run), so the codesign step is the whole remaining question.
-
-**Tree hygiene:** `SE16` was clean at claim time and only the 26 deletions were
-staged — re-checked with `git status` immediately before commit, per the C3
-run's lesson about an idle index being harvested. No work of Jeff's was touched.
-
-**Branch/PR:** `tide/mac/S6-dead-ios-modules` in both repos —
-[SynthEdit#13](https://github.com/JeffMcClintock/SynthEdit/pull/13) (the
-deletion) and [#47](https://github.com/JeffMcClintock/TideSynth/pull/47) (docs).
 
 ---
