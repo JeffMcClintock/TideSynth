@@ -46,9 +46,17 @@ Template:
 
 ---
 
-## 2026-08-13 — macos — HALTED at STEP 0.7 (no item taken; A11's mac half is the cause)
+## 2026-08-13 — macos — A11, mac half — halted at STEP 0.7, then resolved in session (part 1 of 2)
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Outcome, up front: A11 is DONE on all three boxes.** This run halted on STEP
+0.7's second assertion; Jeff applied the missing `git config` line while the
+session was still live; the assertion and the full acceptance test then passed
+and the run continued to S6. **The resolution is at the bottom of this entry;
+S6 is [part 2](#2026-08-13--macos--s6-part-2-of-2), its own entry.** The halt
+record below is kept unedited, because the deadlock it documents is real and
+survives the fix.
 
 **Did:** Nothing. This run stopped at STEP 0.7's second assertion, as the prompt
 requires, before selecting or claiming any backlog item. **S6 was not started**
@@ -166,10 +174,46 @@ did not inspect Jeff's keyring scopes, since doing so is outside a halted run.
 3. **`mac`'s NEXT stays S6**, untouched and still eligible, for the first mac
    run after the fix lands.
 
+### Resolution — same session, Jeff applied the fix
+
+Jeff ran the one line on this box while the session was still open. Everything
+above stands as written; this is what changed after it.
+
+**STEP 0.7 re-run, both assertions:**
+
+| command | required | actual |
+|---|---|---|
+| `gh api user --jq .login` | `tide-rack-bot` | `tide-rack-bot` ✅ |
+| `git config --global --get url."https://github.com/".insteadOf` | `git@github.com:` | `git@github.com:` ✅ |
+
+**A11's acceptance test, in full, on mac:**
+
+- All **nine fleet repos** still resolve `https://` (`ls-remote --get-url origin`
+  — note this applies `insteadOf` rewriting, so it is testing the post-fix path).
+- **The safeguard itself demonstrably works**, which is the part the sweep alone
+  cannot show: feeding git an explicit `git@github.com:JeffMcClintock/TideSynth.git`
+  now resolves to `https://github.com/JeffMcClintock/TideSynth.git`. That is the
+  future-SSH-clone hole closed, not merely absent.
+- **Three-way proof re-run post-fix, unchanged:** bogus token → auth fails; real
+  bot token → succeeds as `tide-rack-bot`; no token → succeeds as
+  `JeffMcClintock`.
+
+**So A11 is DONE — linux 2026-08-13, win 2026-08-13, mac 2026-08-13.** Row
+flipped in this PR.
+
+**The deadlock finding is not retired by this.** It was resolved by a human
+happening to be at the keyboard, which is exactly the circumstance a *scheduled*
+run does not have. Had this fired unattended at 03:00, the box would have sat
+halted for a week and every subsequent mac run would have halted identically.
+The general shape is worth keeping in view: **STEP 0.7 can put a box into a
+state that only an interactive session can clear, and nothing in the fleet
+notices or escalates.** A6's watchdog digest is the natural place to surface a
+box that halted, and does not do so today. Filed as **A12**.
+
 **Branch/PR:** `tide/mac/A11-step07-halt` — TideSynth only, docs only, no code.
-**This branch is a halt record, not a claim on A11.** It is named for the item
-that caused the halt; a later mac run should not treat it as work-in-progress to
-resume — it will halt at STEP 0.7 before reaching STEP 2 regardless.
+The branch is named for the halt that produced it; **S6, the item this run went
+on to take, is on its own branch** (see part 2). A later mac run should not treat
+this branch as work-in-progress to resume.
 
 ---
 
