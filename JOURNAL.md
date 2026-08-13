@@ -46,6 +46,123 @@ Template:
 
 ---
 
+## 2026-08-14 — linux — A4 built (interactive session, Jeff directing)
+
+**Did:** Built the auto-merge tier for coordination PRs, after Jeff asked why
+BACKLOG/JOURNAL bookkeeping needs a human at all. It does not; A4 has been the
+answer since 2026-08-09 and could not be built by the fleet itself. **Two
+defects in its specification were found first, and the second is the serious
+one.**
+
+**Why no scheduled run could ever have done this.** A4 is a
+`.github/workflows/**` file and the bot token is `repo` scope with no
+`workflow` — measured this session, `x-oauth-scopes: repo`. That is the
+credential-layer enforcement of the no-workflow-edits rule working exactly as
+designed, and its consequence is that **the one item that would free scheduled
+runs is the one item scheduled runs are structurally forbidden from building.**
+Jeff's own token on this box already carries `workflow`, so no `gh auth refresh`
+was needed here; the commit is his.
+
+**Defect 1 — the allowlist would have fired close to never.** A4 says
+"PRs touching only `JOURNAL.md`, `BACKLOG.md`, and `docs/**`". Checked against
+the file lists of the last seven merged PRs, that scores **0 of 7**:
+
+| Blocker | PRs |
+|---|---|
+| `JOURNAL-2026-08.md` | 7 of 7 |
+| `BACKLOG-DONE.md` | #55, #54, #48 |
+
+**A8 created both files on 2026-08-12 — three days after A4's allowlist was
+written — and nobody updated the allowlist.** STEP 4 *mandates* rotating into
+exactly those two files every run, so the tier would have shipped, looked
+correct, and merged almost nothing. With them added the same seven score
+**3 of 7**: #48, #50 and #55 auto-merge; #51, #52 and #54 correctly wait on
+`scripts/`, `tests/` and `tools/`; #41 on `.github/`.
+
+**Defect 2 — `docs/**` was too wide, and the miss was `docs/decisions.md`.**
+A4 excluded `docs/weekly-run-prompt.md` and `PLAN.md` because "they steer the
+fleet". `docs/decisions.md` steers it harder: that file *is* the PROPOSED
+mechanism, and its own text says **"Jeff's merge of that PR is the decision."**
+Auto-merging it would let a run answer its own escalation — the single file in
+`docs/**` where merging is an act of authority rather than bookkeeping. Now
+denied by name, and the selftest tries it both alone and smuggled in beside a
+legitimate journal entry.
+
+**Result — design, and the option deliberately not taken.**
+
+The trigger is `workflow_run` on `lint`, not `pull_request`:
+
+- A `workflow_run` job always runs the **default branch's** copy of the
+  workflow, never the PR's. So a PR cannot edit the rules that judge it. The
+  allowlist denies `.github/**` anyway; this is the second lock.
+- It gates on lint having actually concluded green.
+
+**`gh pr merge --auto` was rejected, and the reason is measurable rather than
+stylistic.** It delegates the waiting to GitHub, which only works when a
+ruleset marks lint a *required* check. This repo has `allow_auto_merge:false`,
+and ruleset `20600401` ("Agent PRs only") carries **only** `deletion`,
+`non_fast_forward` and `pull_request` — **no required-status-checks rule at
+all.** With neither, `--auto` merges immediately and the lint gate is
+decorative. Anyone reaching for `--auto` here should check those two settings
+first; the failure is silent and looks like success.
+
+Making lint a required check repo-wide was the other route and was **not**
+taken: it changes the merge rules for every PR including code, which is wider
+than A4's own "Human merge remains for … all code repos". Keeping the tier
+inside one workflow plus one script means no repository setting can drift out
+of sync with it.
+
+**Guards beyond the allowlist**, because a path allowlist alone is not an
+authorisation model: author must be `tide-rack-bot`, not a draft, open, and
+based on the default branch. Without the author check, a docs-only PR from
+anyone able to open one is an unauthenticated write path into `main`. The
+workflow never checks out or executes PR code — it reads the changed-file list
+from the API and runs the allowlist script from `main`, which is what makes
+`contents: write` safe to grant.
+
+**Verification artifact:** the eligibility decision is a script, not YAML, so
+it is testable without GitHub. `scripts/automerge_eligible.py --selftest` —
+**19 cases, 0 failed.** Seven are the real file lists of merged PRs, so those
+expectations are measurements. The rest are edges: both carve-outs alone and
+beside a legitimate journal edit, `PLAN.md`, `website/`, the auto-merge
+workflow itself, the script itself, an empty list, an unrecognised new
+top-level file, and a near-miss on the archive regex (`JOURNAL-2026-8.md`).
+
+**The selftest earned its keep before it ever ran in CI:** `docs/../PLAN.md`
+passed the first draft, because it starts with `docs/` and the prefix test was
+happy. `git diff --name-only` normalises paths so it is not reachable in
+practice — which is precisely why it deserved a guard rather than an
+assumption about an upstream tool's output. Now rejected along with absolute
+paths and backslashes.
+
+**Learned:**
+
+- **A path allowlist ages badly and silently.** A4's went stale three days
+  after it was written, because a *different* item (A8) added two files, and
+  nothing connected them. The lesson is not "update the allowlist" but
+  "an allowlist needs a test that runs against real recent PRs" — which is why
+  the selftest carries seven of them, and why a future run adding a new
+  coordination file should add a case there in the same change.
+- **Strict inclusion, never exclusion.** The failure mode of an exclusion list
+  is that tomorrow's file merges by default. Everything unrecognised fails
+  closed, which is why `tools/` and `tests/` blocked correctly without ever
+  having been thought about when the list was written.
+- **`--auto` is not "merge when checks pass" unless a ruleset says which
+  checks.** With no required-status-checks rule it is just "merge now".
+
+**Next:** **not verified live, and it cannot be** — a `workflow_run` workflow
+only fires once it is on the default branch, so the first real firing can only
+be watched after this merges. Flip A4 to `DONE` only after seeing it **merge
+one PR and leave another alone**; the negative control matters more than the
+positive one, since an auto-merge action that is wrong about its allowlist is
+a worse problem than merging by hand. The next scheduled run's own
+BACKLOG/JOURNAL PR is the natural first test.
+
+**Branch/PR:** `tide/linux/A4-auto-merge-tier`. Committed as Jeff, not as
+`tide-rack-bot` — the bot token deliberately cannot push `.github/workflows/**`.
+
+---
+
 ## 2026-08-14 — linux — #53 fixed; S2 landed (interactive session, Jeff directing)
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as `tide-rack-bot`
@@ -523,86 +640,6 @@ regression. `lint` **passes** on this PR, which #49 and #50 could not say.
 
 **Branch/PR:** `tide/mac/E1a-null-tolerances` →
 [#52](https://github.com/JeffMcClintock/TideSynth/pull/52)
-
----
-
-## 2026-08-14 — windows — merge cleanup for A13/P6/C4 (interactive session, Jeff directing)
-
-**Did:** After the scheduled A13 run finished, Jeff took over interactively
-and asked to fix merge conflicts and merge the queue's open PRs oldest first.
-Four PRs were outstanding across three repos, all touching the same shared
-docs (`BACKLOG.md`, `JOURNAL.md`, `JOURNAL-2026-08.md`), so #49 merging first
-put #50 and #51 into real conflict. Resolved both, then merged all four in
-creation order: [SynthEditLib#6](https://github.com/JeffMcClintock/SynthEditLib/pull/6)
-(07:24) → [SynthEdit#15](https://github.com/JeffMcClintock/SynthEdit/pull/15)
-(07:24) → [#50](https://github.com/JeffMcClintock/TideSynth/pull/50) (18:14,
-P6) → [#51](https://github.com/JeffMcClintock/TideSynth/pull/51) (20:48, A13).
-
-**Result:**
-
-- **SynthEdit#15 needed a CI re-run, not a fix.** It was failing on
-  `CMake Error: Cannot find source file` because it pulls `SynthEditLib` from
-  `origin/main`, where the twelve C4 files didn't exist yet. Merged
-  `SynthEditLib#6` first, then `gh run rerun --failed` on the same run —
-  both `windows-latest` and `windows-2025-vs2026` jobs went from fail to pass
-  with no code change, confirming the dependency was exactly what the PR body
-  said it was.
-- **#50 and #51 both had real git conflicts** in `BACKLOG.md`/`JOURNAL.md`/
-  `JOURNAL-2026-08.md`, all from independent same-day rotations racing against
-  each other rather than genuine content disagreement. Each resolved the same
-  way: whichever side's rotation work was **already accepted on `origin/main`**
-  won; a branch's own independent rotation of an entry `origin/main` had
-  already archived was dropped as a duplicate rather than merged in twice.
-  Confirmed no duplication by grepping each archive for the entry heading
-  before and after.
-- **The A13 conflict resolution accidentally became A13's own best test.**
-  `docs/carve-out.md`, `JOURNAL.md` and `JOURNAL-2026-08.md` all use em-dash
-  headings, and the S6 part-1/part-2 cross-reference — the link A13's own row
-  was written about — ended up with both halves landing in
-  `JOURNAL-2026-08.md` together as a direct result of this session's
-  rotations. `check-links.py` (with A13's fix) reports 0 broken on the
-  resulting tree; the pre-fix slugger would have flagged that exact link.
-- **STEP 4 chore, done live rather than left for a later run:** C4, P6 and
-  A13 were all `IN-REVIEW` with every linked PR now observed merged in this
-  same session, so flipped all three to `DONE` and moved the rows verbatim
-  into `BACKLOG-DONE.md`, newest first. Also fixed a stray blank line left
-  inside the carve-out table by the row removal.
-- **Found, not fixed: the `linux` NEXT row was already stale on `origin/main`
-  before this session started.** It still pointed at P7c, which C4's own PR
-  (#49) had already flipped to `DONE` and archived — the PR that archived it
-  never updated the pointer that named it. Every other `linux`-platform row
-  (X1, X2, R4) is `BLOCKED`, so a scheduled linux run today falls through to
-  the `any` fallback, and nobody has run that fallback through the same
-  NEEDS-JEFF/workflow-wall screening the `any` row itself just needed for A4.
-  Flagged in the row rather than guessed at — the queue already has one
-  instance this session of a wrong guess (the original E1a/linux pointer)
-  costing a run its whole session on discovery, and a second wrong guess here
-  would cost another.
-
-**Learned:**
-
-- **A same-day multi-branch queue racing the same rotation files will always
-  produce this shape of conflict**, and it resolves the same way every time:
-  trust whichever side is already on `origin/main`, treat the other branch's
-  independent rotation of the same entry as a duplicate, and grep the archive
-  before/after to prove no entry was dropped or doubled. Doing this by hand
-  three times in one session is exactly the kind of load A4 (the auto-merge
-  tier) was filed to remove — its row is more urgent than its own text says.
-- **`gh run rerun --failed` is the right tool when a cross-repo CI failure's
-  cause has already been fixed by merging the other repo** — cheaper and more
-  informative than pushing an empty commit to retrigger, since the log shows
-  the exact same job going from fail to pass with nothing else different.
-
-**Next:** the `linux` NEXT row genuinely needs someone to work out what a
-linux-eligible scheduled run should take, not just notice it's wrong — left
-as a flagged question rather than a guess, on purpose. `E1a` still needs a mac
-or win run to do its render half.
-
-**Branch/PR:** none — merge-conflict fixes were pushed to the branches being
-merged (`tide/mac/P6-cl-codesign-xcode`, `tide/win/A13-check-links-slugger`),
-which then merged into `main` via their own PRs. This entry and the
-DONE-row/NEXT-row cleanup are committed directly to `main`, interactive
-session.
 
 ---
 

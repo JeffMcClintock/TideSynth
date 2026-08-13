@@ -1,0 +1,142 @@
+name: auto-merge
+
+# BACKLOG A4. Auto-merges coordination-only PRs from the fleet once the A3
+# lints pass, so JOURNAL/BACKLOG bookkeeping stops waiting on a human. Human
+# merge remains for the run prompt, PLAN, decisions, workflows, website, and
+# every code change -- see scripts/automerge_eligible.py for the allowlist and
+# the reasoning behind each carve-out.
+#
+# WHY workflow_run AND NOT pull_request:
+#
+#   1. A workflow_run job always runs the copy of this file on the DEFAULT
+#      BRANCH, never the PR's copy. So a PR cannot edit the rules that judge
+#      it. With a pull_request trigger it would run the PR's own version.
+#      (The allowlist denies .github/** anyway; this is the second lock.)
+#   2. It gates on the lint workflow having actually CONCLUDED successfully.
+#      The obvious alternative -- `gh pr merge --auto` -- delegates the waiting
+#      to GitHub, but that only works when a ruleset marks lint a REQUIRED
+#      check, and this repo's ruleset has no required-status-checks rule and
+#      the repo has allow_auto_merge=false. With neither, `--auto` merges
+#      immediately and the lint gate is decorative.
+#
+# Making lint a required check repo-wide was the other option and was NOT
+# taken: it would change the merge rules for every PR including code, which is
+# broader than A4 ("Human merge remains for ... all code repos"). This keeps
+# the whole tier inside one file plus one script, with no repository settings
+# to drift out of sync.
+#
+# This workflow NEVER checks out or executes any code from the PR. It reads the
+# changed-file list from the API and runs the allowlist script from the default
+# branch. That is what makes the elevated permissions below safe.
+
+on:
+  workflow_run:
+    workflows: ["lint"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  # One decision per head SHA. A rapid second push supersedes the first.
+  group: auto-merge-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    # Only consider a lint run that PASSED and that came from a pull request.
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
+
+    steps:
+      # Default branch, NOT the PR head -- this is the allowlist we trust.
+      - uses: actions/checkout@v7
+
+      - name: Identify the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          # Look the PR up by head SHA rather than trusting
+          # workflow_run.pull_requests, which is empty for some event shapes.
+          number=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls" \
+            --jq '[.[] | select(.state=="open")][0].number // empty')
+          if [ -z "$number" ]; then
+            echo "No open PR for ${HEAD_SHA} -- nothing to do."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "Pull request #$number"
+
+      - name: Check author, state and base
+        id: guards
+        if: steps.pr.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          set -euo pipefail
+          read -r author is_draft base state <<<"$(gh pr view "$NUMBER" \
+            --json author,isDraft,baseRefName,state \
+            --jq '"\(.author.login) \(.isDraft) \(.baseRefName) \(.state)"')"
+          default=$(gh api "repos/${GITHUB_REPOSITORY}" --jq .default_branch)
+
+          echo "author=$author draft=$is_draft base=$base state=$state default=$default"
+
+          # The tier is for the fleet's own coordination PRs. A docs-only PR
+          # from anyone else is not a bookkeeping chore -- it is a contribution,
+          # and it gets read by a human. Without this the allowlist would be an
+          # unauthenticated write path into the repo for anyone who can open a
+          # PR touching only JOURNAL.md.
+          ok=true
+          [ "$author"   = "tide-rack-bot" ] || { echo "::notice::author $author is not the fleet agent"; ok=false; }
+          [ "$is_draft" = "false" ]         || { echo "::notice::PR is a draft"; ok=false; }
+          [ "$state"    = "OPEN" ]          || { echo "::notice::PR is $state"; ok=false; }
+          [ "$base"     = "$default" ]      || { echo "::notice::base $base is not $default"; ok=false; }
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+
+      - name: Check the changed files against the allowlist
+        id: allowlist
+        if: steps.pr.outputs.found == 'true' && steps.guards.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          set -euo pipefail
+          # --paginate: a PR with more than 100 files would otherwise be judged
+          # on its first page alone, i.e. a large PR could look eligible.
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${NUMBER}/files" \
+            --jq '.[].filename' > /tmp/changed.txt
+          echo "Changed files:"; sed 's/^/  /' /tmp/changed.txt
+
+          if python3 scripts/automerge_eligible.py /tmp/changed.txt; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge
+        if: steps.allowlist.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          set -euo pipefail
+          gh pr merge "$NUMBER" --squash --delete-branch \
+            --subject "$(gh pr view "$NUMBER" --json title --jq .title) (#$NUMBER)" \
+            --body "Auto-merged by the A4 coordination tier: lint passed and every changed file is on the allowlist (scripts/automerge_eligible.py)."
+          echo "::notice::Auto-merged #$NUMBER"
+
+      - name: Explain a no-merge
+        if: >
+          steps.pr.outputs.found == 'true' &&
+          (steps.guards.outputs.ok != 'true' || steps.allowlist.outputs.eligible != 'true')
+        run: |
+          echo "::notice::#${{ steps.pr.outputs.number }} left for a human -- see the steps above for which gate it did not pass."
