@@ -1,0 +1,39 @@
+name: watchdog
+
+# BACKLOG A6 (2026-08-13). One refreshed-in-place digest issue, generated
+# fresh every run -- see scripts/watchdog-digest.py for the reasoning and
+# what each check does. Runs on GitHub infra so no box needs to be awake.
+#
+# Cross-repo scope, decided 2026-08-13: this uses the workflow's default
+# GITHUB_TOKEN, scoped to TideSynth only. Checks that need another repo
+# (gmpi_ui, GMPI_Wrappers, SynthEditLib, the private SynthEdit repo) report
+# "cross-repo unavailable" inline rather than silently omitting that row --
+# see the script's own header for why, and what widening this would need.
+
+on:
+  schedule:
+    # Daily, 06:00 UTC -- ahead of the weekly agent runs on all three boxes,
+    # so a stale claim or a mergeable IN-REVIEW row is visible before the
+    # next run picks up work, not after.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: the script uses `git log -S` (pickaxe) to find when a
+      # BACKLOG.md row most recently took on its current status, for age.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Generate and publish the digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/watchdog-digest.py --repo-root .
