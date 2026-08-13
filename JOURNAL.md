@@ -46,6 +46,39 @@ Template:
 
 ---
 
+## 2026-08-13 — jeff — decision: rack mode is TIDE's default view (interactive session, not a scheduled run)
+
+**Did:** Jeff described SynthEdit's new "rack mode" — the top-level Panel View
+renders as a Eurorack case, modules and Containers drag-and-snap into rack
+slots — and ruled that in TIDE this becomes the *only* top-level option, not
+one of two. Unlocking a module/Container opens its own structure view to
+rewire signal flow. Rewrote PLAN.md constraint 1 to match (was: structure
+view only, "No panel view"; now: rack is default, structure view is the
+unlock drill-down) and recorded the ruling in docs/decisions.md.
+
+**Result:** PLAN.md constraint 1 and its "One sentence" summary rewritten;
+decisions.md carries the ruling and its reasoning (closer to Cardinal, with
+per-module signal-flow editing added on top). Not yet touched, and flagged
+as open follow-ups rather than silently assumed: whether the v0.1 acceptance
+test should now be rack-first (currently still says "shows a structure
+view..."), and whether BACKLOG U1 needs rescoping around the rack as default.
+
+**Learned:** The underlying SynthEdit feature already exists — `SE16`
+`a056d3f5b chore(se) : experimental eurorack 'rack mode' for the panel
+view`, from earlier this same day — so this ruling is catching up to code
+already landing, not speculating ahead of it. Also: the 2026-08-09 Eurorack
+section of PLAN.md already stated "opening a Container is optional" as the
+product's differentiator; today's ruling is the concrete mechanism that
+fulfils that, and constraint 1's literal wording ("No panel view") was the
+one place still contradicting it.
+
+**Next:** Decide the v0.1 acceptance-test wording and U1's scope before
+either becomes stale in the same way constraint 1 just was.
+
+**Branch/PR:** none — committed directly to `main`, interactive session.
+
+---
+
 ## 2026-08-13 — windows — C3
 
 **Prompt:** `e09e766` · claude-opus-5[1m] · app Claude Code (Agent SDK harness) · as `tide-rack-bot`

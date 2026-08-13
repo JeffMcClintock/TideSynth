@@ -105,15 +105,33 @@ plugins.
 
 Website: tidesynth.com. Source: GitHub (see "Open-source status" below).
 
-**One sentence:** SynthEdit's structure view, embedded in a plugin, with the
-host supplying audio and MIDI.
+**One sentence:** A Eurorack-style rack, built from SynthEdit modules and
+Containers, with the host supplying audio and MIDI — unlock any module to
+rewire it in SynthEdit's structure view.
 
 ## Design constraints
 
 These are the non-negotiables. Every backlog item is checked against them.
 
-1. **One view.** The structure view, and the breadcrumb bar for navigating in
-   and out of containers. No panel view. No tabs. No dockable windows.
+1. **One view, two depths — amended 2026-08-13 by Jeff's rack-mode pivot.**
+   The default, top-level view is the **rack**: SynthEdit's Panel View
+   rendered as a Eurorack case, with every module and Container appearing as
+   a rack-mounted panel. Modules and Containers can be dragged around as in
+   any SynthEdit panel view, but they snap to fit neatly into the rack —
+   there is no free-floating panel layout at the top level, only the rack.
+   The user can **unlock** (edit) any module or Container, which takes them
+   into *that* Container's own structure view to rewire its signal flow;
+   unlocking is still navigation via the breadcrumb, in and out of
+   Containers, exactly as before — only the *default* rendering at each
+   level has changed, from structure view to rack view. No tabs, no
+   dockable windows, no separate editor window alongside the rack.
+   **This reverses the original constraint's "no panel view" exclusion** —
+   panel view (rack-rendered) is now the default, and structure view is the
+   drill-down, not the other way around. Ruling and reasoning:
+   [docs/decisions.md](docs/decisions.md). The original wording, for the
+   record: *"One view. The structure view, and the breadcrumb bar for
+   navigating in and out of containers. No panel view. No tabs. No
+   dockable windows."*
 2. **The DAW owns I/O.** No audio device selection, no MIDI device selection,
    no ASIO, no driver settings. Audio and MIDI arrive from the host.
 3. **Sandbox-safe.** Must run under iOS AUv3 sandbox rules. No arbitrary
@@ -123,9 +141,9 @@ These are the non-negotiables. Every backlog item is checked against them.
 4. **Self-contained.** No scattered caches, no writes outside the plugin's own
    sandboxed container. State lives in the plugin's saved state, not in
    `%APPDATA%`, `~/Library`, or a scanned modules folder.
-5. **Minimal dialogs.** Properties and module browsing are panes in the one
-   view, not modal dialogs. If something needs a dialog, question whether it
-   needs to exist.
+5. **Minimal dialogs.** Properties and module browsing are panes in whichever
+   view is showing — rack or structure — not modal dialogs. If something
+   needs a dialog, question whether it needs to exist.
 6. **Share code with SynthEdit.** TIDE is a second consumer of the same core,
    not a fork. A fix in the shared core benefits both. See
    [docs/carve-out.md](docs/carve-out.md).
