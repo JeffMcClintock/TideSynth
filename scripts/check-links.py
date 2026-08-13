@@ -9,12 +9,13 @@ A3 is the row that turns checks like this into CI. This is deliberately a
 standalone script with no dependencies so A3 can adopt or replace it freely —
 it does not touch .github/workflows/, which agents may not edit.
 
-    python scripts/check-links.py          # exit 1 if anything is broken
-    python scripts/check-links.py --list   # also print every link checked
+    python scripts/check-links.py            # exit 1 if anything is broken
+    python scripts/check-links.py --list     # also print every link checked
+    python scripts/check-links.py --selftest # check slugify() against GitHub
 
 Only *relative* links are checked. http(s) links are counted and skipped: this
 must run offline and must never be the thing that fails a run because a website
-was down.
+was down. --selftest is offline too — its expectations are baked in, not fetched.
 """
 import os
 import re
@@ -38,25 +39,119 @@ def md_files():
 
 
 def slugify(heading):
-    """GitHub's anchor rule, near enough: lowercase, drop punctuation, spaces to dashes."""
+    """GitHub's anchor rule, as `github-slugger` implements it.
+
+    "Near enough" was not near enough (A13). The rule is:
+
+      1. lowercase;
+      2. delete punctuation and control characters — every ASCII punctuation
+         mark goes, except `-` and `_`, and so does non-ASCII punctuation such
+         as the em-dashes this repo's headings are full of;
+      3. replace each remaining space with ONE hyphen — one per *space*, not
+         one per *run*.
+
+    Step 3 is the bug this replaced. `re.sub(r'\\s+', '-', s)` collapsed a run,
+    so `## 2026-08-13 — macos — S6` — where step 2 leaves two spaces behind
+    each deleted em-dash — produced `2026-08-13-macos-s6` while GitHub produces
+    `2026-08-13--macos--s6`. Wrong in both directions: correct links were
+    reported broken, and a link written in the collapsed form passed here and
+    404'd on GitHub.
+    """
     s = heading.strip().lower()
-    s = re.sub(r'[^\w\s-]', '', s)
-    return re.sub(r'\s+', '-', s)
+    s = re.sub(r'[^\w\s-]', '', s)   # punctuation, em-dashes included
+    s = re.sub(r'[^\S ]', '', s)     # tabs and friends: GitHub deletes, never hyphenates
+    return s.replace(' ', '-')
 
 
 def anchors_of(path):
-    out = set()
+    """Every anchor GitHub emits for this file, duplicate suffixes included.
+
+    Two things beyond slugify(): a repeated heading gets `-1`, `-2`, … in
+    document order, and fenced code is skipped — `#include "it_empty.h"` inside
+    a ``` block is not a heading, and registering it as one made a link to a
+    nonexistent anchor pass.
+    """
+    out, seen, in_fence = set(), {}, False
     try:
         with open(path, encoding='utf-8') as fh:
             for line in fh:
-                if line.startswith('#'):
-                    out.add(slugify(line.lstrip('#')))
+                if line.lstrip().startswith('```'):
+                    in_fence = not in_fence
+                    continue
+                if in_fence or not line.startswith('#'):
+                    continue
+                base = slugify(line.lstrip('#'))
+                n = seen.get(base, 0)
+                seen[base] = n + 1
+                out.add(base if n == 0 else '%s-%d' % (base, n))
     except OSError:
         pass
     return out
 
 
+# Golden cases for --selftest. Every expectation here was READ OFF GitHub's own
+# renderer, not derived from the code below — fetched via the contents API with
+# `Accept: application/vnd.github.html`, which returns the file rendered by
+# GitHub's real markdown pipeline with its anchors intact
+# (`<a id="user-content-…" class="anchor">`). Do not "correct" one of these to
+# match the code; re-run that fetch and correct the code.
+#
+# Note for anyone repeating the measurement: the /markdown API is NOT an oracle
+# — it renders headings with no ids at all.
+SLUG_CASES = [
+    # em-dash between spaces: step 2 deletes the dash and leaves BOTH spaces,
+    # and GitHub then emits one hyphen for each. This is the A13 bug.
+    ('2026-08-13 — macos — S6 (part 2 of 2)', '2026-08-13--macos--s6-part-2-of-2'),
+    ('Rotation — do this as part of STEP 4, every run',
+     'rotation--do-this-as-part-of-step-4-every-run'),
+    # '&' is deleted like any other punctuation, again leaving two spaces
+    ('Release & distribution — blocked on V1 (nothing to ship yet)',
+     'release--distribution--blocked-on-v1-nothing-to-ship-yet'),
+    # punctuation glued to a word leaves no space, so a single hyphen is right
+    ('What "done" looks like for v0.1', 'what-done-looks-like-for-v01'),
+    # '_' and '-' survive; '/', '.' and backticks do not
+    ('C8 — `SynthEditLib/it_empty.h`: why it exists',
+     'c8--syntheditlibit_emptyh-why-it-exists'),
+    ('STEP 0.7 — Become the agent', 'step-07--become-the-agent'),
+]
+
+
+def selftest():
+    """Prove slugify() still agrees with GitHub, and that duplicates suffix."""
+    bad = 0
+    for heading, expect in SLUG_CASES:
+        got = slugify(heading)
+        flag = 'ok  ' if got == expect else 'FAIL'
+        if got != expect:
+            bad += 1
+        print('  %s %-52s -> %s' % (flag, heading[:52], got))
+        if got != expect:
+            print('       expected %r' % expect)
+
+    # Repeated headings, and headings inside fenced code, both via anchors_of().
+    import tempfile
+    doc = ('# Dup\n\n```\n# not a heading\n```\n\n# Dup\n\n# Dup\n')
+    fd, tmp = tempfile.mkstemp(suffix='.md')
+    with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+        fh.write(doc)
+    try:
+        got = anchors_of(tmp)
+    finally:
+        os.unlink(tmp)
+    expect = {'dup', 'dup-1', 'dup-2'}
+    if got != expect:
+        bad += 1
+        print('  FAIL duplicate/fence handling: %r != %r' % (sorted(got), sorted(expect)))
+    else:
+        print('  ok   duplicates suffix -1/-2, fenced "# not a heading" ignored')
+
+    print('selftest: %d failed' % bad)
+    return 1 if bad else 0
+
+
 def main():
+    if '--selftest' in sys.argv:
+        return selftest()
     show = '--list' in sys.argv
     broken, checked, external = [], 0, 0
 
