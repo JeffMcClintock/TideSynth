@@ -10,6 +10,44 @@ August 2026 is split between two files: the most recent entries stay in
 the entries it still holds.
 
 ---
+## 2026-08-13 — windows — A11, win half (interactive session, Jeff directing)
+
+**Did:** Checked this box against the SSH-remote gap the linux run found in
+A2/A11: swept every local git repo under `C:\SE` (`find C:\SE -maxdepth 2
+-name .git`, 22 repos — not just the fleet's usual 5) for its remote
+protocol, then applied the global `url."https://github.com/".insteadOf
+"git@github.com:"` rewrite and proved it against the private `SynthEdit`
+repo the way A11's acceptance test specifies.
+
+**Result:** All 22 repos on Windows were already HTTPS — nothing here was
+ever actually exposed, unlike linux's 8-of-9. Applied the rewrite anyway,
+since the acceptance test wants it as a structural safeguard, not just a
+reaction to today's state. Three-part proof, all against
+`https://github.com/JeffMcClintock/SynthEdit.git` (private): bogus
+`GH_TOKEN` → `fatal: Authentication failed for
+'https://github.com/JeffMcClintock/SynthEdit.git/'` (exit 128); real bot
+token (from `~/.tide/agent-token`) → `git ls-remote` succeeds, `gh api user`
+confirms `tide-rack-bot`; no `GH_TOKEN` → succeeds, confirms `JeffMcClintock`.
+Also checked the caveat the linux fix flagged for Jeff's own workflow-file
+access (`gh auth refresh -s workflow` needed once the rewrite lands) — did
+not apply here, this box's `gh auth status` already shows `workflow` in
+scope.
+
+**Learned:** The fleet's "5 repos" framing (used everywhere A2 discusses
+scope) undercounts what's actually on disk — Windows alone has 22 local git
+repos under `C:\SE`, most unrelated to TIDE (SE15, SSG, Waves, and other
+dormant product repos). The SSH-remote risk is about *any* repo the box's
+git config touches, not just the ones the bot has a token for, so the sweep
+has to be exhaustive (`find`, not "check the 5 I know about") the way linux's
+was.
+
+**Next:** mac remains outstanding — its A2 evidence is still authorship-only,
+not authentication-verified. A11 stays TODO until mac's sweep and proof are
+done too.
+
+**Branch/PR:** none — committed directly to `main`, interactive session.
+
+---
 ## 2026-08-13 — linux — A11 (new; A2 follow-up, interactive session, Jeff directing)
 
 **Did:** Jeff asked for help finishing **A2** on this box. A2 had been flipped
@@ -4186,41 +4224,277 @@ that baseline.
 
 **Branch/PR:** none — scaffolding committed directly.
 
-## 2026-08-13 — windows — A11, win half (interactive session, Jeff directing)
+## 2026-08-13 — macos — A11, mac half — halted at STEP 0.7, then resolved in session (part 1 of 2)
 
-**Did:** Checked this box against the SSH-remote gap the linux run found in
-A2/A11: swept every local git repo under `C:\SE` (`find C:\SE -maxdepth 2
--name .git`, 22 repos — not just the fleet's usual 5) for its remote
-protocol, then applied the global `url."https://github.com/".insteadOf
-"git@github.com:"` rewrite and proved it against the private `SynthEdit`
-repo the way A11's acceptance test specifies.
+**Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
 
-**Result:** All 22 repos on Windows were already HTTPS — nothing here was
-ever actually exposed, unlike linux's 8-of-9. Applied the rewrite anyway,
-since the acceptance test wants it as a structural safeguard, not just a
-reaction to today's state. Three-part proof, all against
-`https://github.com/JeffMcClintock/SynthEdit.git` (private): bogus
-`GH_TOKEN` → `fatal: Authentication failed for
-'https://github.com/JeffMcClintock/SynthEdit.git/'` (exit 128); real bot
-token (from `~/.tide/agent-token`) → `git ls-remote` succeeds, `gh api user`
-confirms `tide-rack-bot`; no `GH_TOKEN` → succeeds, confirms `JeffMcClintock`.
-Also checked the caveat the linux fix flagged for Jeff's own workflow-file
-access (`gh auth refresh -s workflow` needed once the rewrite lands) — did
-not apply here, this box's `gh auth status` already shows `workflow` in
-scope.
+**Outcome, up front: A11 is DONE on all three boxes.** This run halted on STEP
+0.7's second assertion; Jeff applied the missing `git config` line while the
+session was still live; the assertion and the full acceptance test then passed
+and the run continued to S6. **The resolution is at the bottom of this entry;
+S6 is [part 2](#2026-08-13--macos--s6-part-2-of-2), its own entry.** The halt
+record below is kept unedited, because the deadlock it documents is real and
+survives the fix.
 
-**Learned:** The fleet's "5 repos" framing (used everywhere A2 discusses
-scope) undercounts what's actually on disk — Windows alone has 22 local git
-repos under `C:\SE`, most unrelated to TIDE (SE15, SSG, Waves, and other
-dormant product repos). The SSH-remote risk is about *any* repo the box's
-git config touches, not just the ones the bot has a token for, so the sweep
-has to be exhaustive (`find`, not "check the 5 I know about") the way linux's
-was.
+**Did:** Nothing. This run stopped at STEP 0.7's second assertion, as the prompt
+requires, before selecting or claiming any backlog item. **S6 was not started**
+and remains `TODO`. What follows is the halt record plus the read-only
+diagnostics needed to make it actionable.
 
-**Next:** mac remains outstanding — its A2 evidence is still authorship-only,
-not authentication-verified. A11 stays TODO until mac's sweep and proof are
-done too.
+**Result — assertion 1 passed, assertion 2 printed nothing:**
 
-**Branch/PR:** none — committed directly to `main`, interactive session.
+| STEP 0.7 command | required | actual |
+|---|---|---|
+| `gh api user --jq .login` | `tide-rack-bot` | `tide-rack-bot` ✅ |
+| `git config --global --get url."https://github.com/".insteadOf` | `git@github.com:` | **empty, exit 1** ❌ |
+
+That is the A11 gap the linux run found on 2026-08-13, in the one box A11 still
+lists as outstanding. `git config --global --get-regexp 'url\.'` returns nothing
+at all — setup step 3 has never been applied here. Setup steps 1–2 *are* in
+place: `credential.https://github.com.helper` is
+`!/opt/homebrew/bin/gh auth git-credential` (Homebrew path, not `gh`).
+
+**The exposure on this box is nil today — and that is a measurement, not an
+assumption.** Exhaustive sweep, `find ~ -maxdepth 5 -name .git` (excluding
+`Library/`, `node_modules/`, `build/`, `_deps/`, `.Trash/`), **28 repos**:
+
+- **Zero SSH GitHub remotes.** Every GitHub repo is `https://` — including all
+  nine fleet repos (`TideSynth`, `SynthEdit`, `SynthEditLib`, `gmpi_ui`,
+  `GMPI_Wrappers`, `GMPI`, `GMPI_Adaptors`, `GMPI-plugins`, `gimpi_ui_tests`)
+  and the eight `VST_SDK` submodules.
+- Non-GitHub and therefore out of scope: `~/SynthEdit` (Azure DevOps),
+  `~/Plugins` + four `~/myagent/_work/*/s` build-agent checkouts (Azure DevOps,
+  remote named `SSG` not `origin`), `~/MacSIMD` (**no remotes at all**).
+
+So this box matches Windows (22/22 already HTTPS), not linux (8 of 9 SSH). **The
+macOS A2 evidence A11 called "void until checked" is not void** — `gmpi_ui#3`/`#4`
+and `GMPI_Wrappers#1`/`#2` were pushed from HTTPS remotes here, so those pushes
+did authenticate as the bot, not as Jeff via SSH.
+
+**A11's read-only three-way proof, run in full** against the private
+`https://github.com/JeffMcClintock/SynthEdit.git`. No push, no write:
+
+| GH_TOKEN | `git ls-remote` | `gh api user` |
+|---|---|---|
+| bogus | **`fatal: Authentication failed`** — `remote: Invalid username or token.` | — |
+| real bot token | succeeds (`b3c1efb07…` HEAD) | `tide-rack-bot` |
+| unset | succeeds | `JeffMcClintock` |
+
+Leg 1 is the load-bearing one: git genuinely consults `gh` for HTTPS GitHub URLs
+on this box rather than a keychain entry or an SSH key. **So for every remote
+that actually exists here, the credential wiring is correct and now proven.**
+
+**What is missing is only the structural safeguard**, which is exactly what A11
+says it is for: a future `git clone git@github.com:…` would silently re-open the
+hole with no signal, because nothing rewrites it.
+
+**Learned — the finding that matters, and it is new:**
+
+**This box cannot heal itself, and every future scheduled mac run will halt
+here.** STEP 0.7 fires before STEP 1 and STEP 2, so a run can never reach the
+point of claiming A11 — the assertion that detects the problem also forbids
+fixing it ("do not 'fix' it by carrying on as whoever you are"). A11's mac half
+is therefore **not takeable by a scheduled run at all**; it needs Jeff or an
+interactive session on this machine. Until then the macOS box is a no-op in the
+fleet: it will burn a run every week producing this same entry. Linux and
+Windows are unaffected — both applied step 3 on 2026-08-13.
+
+That deadlock is not a flaw in the halt rule, which did its job. It is a gap in
+A11's framing: the row is written as ordinary backlog work with plat `any`, and
+one third of it structurally cannot be done that way.
+
+**Second, smaller:** `ls-remote --get-url origin` echoes the literal string
+`origin` when no such remote exists, rather than erroring. A sweep that greps for
+`git@` will read those as clean; they need checking with `git remote -v` before
+being called clean. Two repos here hit that, both benign.
+
+**I deliberately did NOT apply the one-line fix**, though it is the whole
+remedy and I had the evidence for its acceptance test in hand. STEP 0.7 says
+stop and do nothing else, and a run that reasons its way past its own failed
+safety assertion is the precise failure mode the rule exists to prevent. It is
+Jeff's to run, on this box:
+
+```
+git config --global url."https://github.com/".insteadOf "git@github.com:"
+```
+
+Acceptance is already half-established above: after that command, assertion 2
+prints `git@github.com:`, all 28 remotes still read `https://`, and the
+three-way proof is recorded here. **A11 can then be flipped DONE across all
+three boxes.**
+
+**Also checked, and clear:** no `platform:mac` issues; the only open issue is
+[#44 "Fleet watchdog digest"](https://github.com/JeffMcClintock/TideSynth/issues/44)
+(author `app/github-actions`, unlabelled — A6's digest, informational). No open
+PRs at all in TideSynth, so STEP 1.5 had nothing either. Tree was clean and on
+`main`, in sync with `origin/main`; no dirt of Jeff's was touched.
+
+**Journal rotation was skipped on purpose.** `JOURNAL.md` is 78 KB / 11 entries
+and is over the 30 KB target, but rotation is STEP 4 work and this run never
+reached STEP 4. The next win or linux run should do it.
+
+**One caveat for Jeff before he runs the command**, carried over from the linux
+entry: his interactive pushes then resolve through `gh`'s keyring token. If that
+token lacks `workflow` scope, a commit touching `.github/workflows/**` is
+rejected until `gh auth refresh -h github.com -s workflow` is run once. This did
+not bite on Windows (its token already had the scope); **unverified here** — I
+did not inspect Jeff's keyring scopes, since doing so is outside a halted run.
+
+**Next:**
+
+1. **Jeff: run the one `git config` line above on this box.** Until then macOS
+   contributes nothing and S6 stays untouched.
+2. **Rewrite A11's mac line** to say it needs an interactive session, not a
+   scheduled run, and record the deadlock above so the next person does not
+   re-file it as agent work. Consider whether STEP 0.7 should let a run apply
+   *this specific* config repair — I think not, but it should be a decision
+   rather than an accident.
+3. **`mac`'s NEXT stays S6**, untouched and still eligible, for the first mac
+   run after the fix lands.
+
+### Resolution — same session, Jeff applied the fix
+
+Jeff ran the one line on this box while the session was still open. Everything
+above stands as written; this is what changed after it.
+
+**STEP 0.7 re-run, both assertions:**
+
+| command | required | actual |
+|---|---|---|
+| `gh api user --jq .login` | `tide-rack-bot` | `tide-rack-bot` ✅ |
+| `git config --global --get url."https://github.com/".insteadOf` | `git@github.com:` | `git@github.com:` ✅ |
+
+**A11's acceptance test, in full, on mac:**
+
+- All **nine fleet repos** still resolve `https://` (`ls-remote --get-url origin`
+  — note this applies `insteadOf` rewriting, so it is testing the post-fix path).
+- **The safeguard itself demonstrably works**, which is the part the sweep alone
+  cannot show: feeding git an explicit `git@github.com:JeffMcClintock/TideSynth.git`
+  now resolves to `https://github.com/JeffMcClintock/TideSynth.git`. That is the
+  future-SSH-clone hole closed, not merely absent.
+- **Three-way proof re-run post-fix, unchanged:** bogus token → auth fails; real
+  bot token → succeeds as `tide-rack-bot`; no token → succeeds as
+  `JeffMcClintock`.
+
+**So A11 is DONE — linux 2026-08-13, win 2026-08-13, mac 2026-08-13.** Row
+flipped in this PR.
+
+**The deadlock finding is not retired by this.** It was resolved by a human
+happening to be at the keyboard, which is exactly the circumstance a *scheduled*
+run does not have. Had this fired unattended at 03:00, the box would have sat
+halted for a week and every subsequent mac run would have halted identically.
+The general shape is worth keeping in view: **STEP 0.7 can put a box into a
+state that only an interactive session can clear, and nothing in the fleet
+notices or escalates.** A6's watchdog digest is the natural place to surface a
+box that halted, and does not do so today. Filed as **A12**.
+
+**Branch/PR:** `tide/mac/A11-step07-halt` — TideSynth only, docs only, no code.
+The branch is named for the halt that produced it; **S6, the item this run went
+on to take, is on its own branch** (see part 2). A later mac run should not treat
+this branch as work-in-progress to resume.
+
+---
+
+## 2026-08-13 — macos — S6 (part 2 of 2)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Part 1** of this run is the A11 entry (halt at STEP 0.7, cleared by Jeff
+mid-session) on branch `tide/mac/A11-step07-halt`, [#46](https://github.com/JeffMcClintock/TideSynth/pull/46).
+This is the item the run went on to take once the assertions passed.
+
+**Did:** Deleted `SE16/SE_IOS_APP/TIDE/Plugins/` — six `.sem` bundles, **26
+tracked files, 4.4 MB**. Chose *remove* over the row's "or add a README"
+alternative: constraint 7 rules out separately-loadable module bundles
+entirely, so a README would preserve 4.4 MB of a contradiction and explain it
+rather than fix it.
+
+**Result — the deletion is right, and two of the row's premises were wrong.**
+
+What the files are, measured: all six binaries `Mach-O 64-bit bundle x86_64`,
+`platform 1` (macOS) or `LC_VERSION_MIN_MACOSX`, in macOS bundle layout
+(`Contents/MacOS/`, `Contents/_CodeSignature/`). Added 2021-02-24→2021-03-03,
+**untouched since**. Nothing there can load on arm64 iOS. That much the row had
+right.
+
+| the row said | measured |
+|---|---|
+| "dead **iOS** module artifact", installed by a Run Script to a macOS-only destination | consumer is **`SeAudioUnitMacOS`** — a **macOS** AUv3 app-extension. **No iOS target references the folder at all.** It was never wired into an iOS build; the destination is not a mistake, it is correct for that target |
+| the Run Script is the wiring; deleting the folder is safe | the Run Script is only *half*. **Individual files inside the bundles are entries in that target's Resources build phase** — real `CpResource` inputs |
+
+The 2021 commit messages agree with the correction: *"chore(ios) : macOS AUV3
+runnning (fixed signing by signing TIDE sems)"*. This is macOS AUv3 scaffolding
+that happens to live under an iOS-named folder, which is exactly why it reads as
+an iOS module story.
+
+**Verification artifact — and the A/B is not clean, so I am not calling it
+clean.**
+
+| `SeAudioUnit macOS`, same machine, same command | before | after |
+|---|---|---|
+| result | **BUILD FAILED**, RC=65 | **BUILD FAILED**, RC=65 |
+| errors | 6 × missing `SE_DSP_CORE/*.cpp` compile inputs | 7 × `CpResource` "couldn't be opened" |
+
+Nothing went from working to broken. But the **failure mode changed**, and the
+compile errors stop surfacing afterwards only because `xcodebuild` stops
+scheduling once the resource phase fails — they are still there underneath. My
+first reading of the pbxproj said the bundles were in no build phase at all;
+that was wrong, and the A/B is what caught it. Tracing the six `.sem` *folder*
+ids was not enough — they are group entries whose *children* are the build
+inputs.
+
+**The standing rule is honoured, and structurally rather than by luck.** Fresh
+Ninja configure into a scratch dir (this tree untouched), all four local
+overrides, full build: **RC=0, 936/936**, producing `SynthEdit_VST3.vst3`,
+`SynthEdit_GMPI.gmpi`, `SynthEditCL.app`, `TIDE.gmpi`, `TIDE_VST3.vst3`. And
+**no `CMakeLists.txt` or `.cmake` in `SE16` references `SE_IOS_APP`**, so the
+CMake build and that Xcode project are fully decoupled — the deletion could not
+have reached them.
+
+**Learned — the big one, and it is much larger than S6:**
+
+**`SE_IOS_APP.xcodeproj` is dead, and it bears on M2.** All four targets fail,
+each RC=65, on **28 references to `SE_DSP_CORE/`** — the pre-split name of the
+DSP core directory, which no longer exists (it became `SynthEditLib`). The
+pbxproj was last touched **2022-12-15**. PLAN calls iOS AUv3 "the constraint
+that validates the whole design", and **M2 is written as though a working iOS
+project exists to build on. It does not.** M2 is really "author an iOS target",
+not "get the existing one green" — worth knowing before anyone estimates it.
+Filed as **S10**, with the revive-or-retire decision named as Jeff's.
+
+Two smaller ones:
+
+- **`database.se.xml` is the same architecture constraint 7 forbids.**
+  `SE_IOS_APP/TIDE/Resources/database.se.xml` is a 31-entry module database
+  naming the six now-deleted bundles by `imbeddedFilename`, and it *is* wired
+  into two Resources build phases. Left alone deliberately — outside S6's scope
+  — but it should not be revived as-is. Folded into S10.
+- **`gh pr edit` fails with the bot's token; `gh api ... -X PATCH` does not.**
+  `gh pr edit` issues a GraphQL query touching `login`/`name`/`slug`, which
+  needs `read:org`; the bot has `repo` only, by design. The REST route has no
+  such requirement. This will bite any run that tries to amend a PR body —
+  including a run following STEP 1.5's "push fixes to the SAME branch".
+
+**Next:**
+
+1. **Merge [SynthEdit#13](https://github.com/JeffMcClintock/SynthEdit/pull/13)
+   and [#47](https://github.com/JeffMcClintock/TideSynth/pull/47).** Order does
+   not matter for the build — #13 is the only code change and it cannot break
+   anything the CMake build touches — but merging the docs alone would say a
+   deletion landed that did not.
+2. **Answer S10 before S9.** If the project is retired, S9 is moot and the right
+   move is deleting the whole `.xcodeproj`.
+3. **`mac` NEXT moved S6 → P6**, and P6 is genuinely this box's to close: it
+   needs an **Xcode**-generator build to reproduce the `CodeSign` failure, which
+   Ninja never emits. `SynthEditCL` builds clean under Ninja here (re-confirmed
+   RC=0 during this run), so the codesign step is the whole remaining question.
+
+**Tree hygiene:** `SE16` was clean at claim time and only the 26 deletions were
+staged — re-checked with `git status` immediately before commit, per the C3
+run's lesson about an idle index being harvested. No work of Jeff's was touched.
+
+**Branch/PR:** `tide/mac/S6-dead-ios-modules` in both repos —
+[SynthEdit#13](https://github.com/JeffMcClintock/SynthEdit/pull/13) (the
+deletion) and [#47](https://github.com/JeffMcClintock/TideSynth/pull/47) (docs).
 
 ---

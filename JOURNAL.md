@@ -187,6 +187,328 @@ nothing escalating it — one level up, applied to the queue instead of to a box
 
 ---
 
+## 2026-08-14 — macos — P6
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
+
+**Did:** Closed P6 by measurement, not by edit. Built `SynthEditCL` on this box
+with the **Xcode** generator — the one thing the P7a and P7b runs could not do,
+and the whole reason the row stayed open — and confirmed the `CodeSign` failure
+is gone. **Changed no source file:** `SE16/SynthEditCL/CMakeLists.txt` is on
+neither the ALLOWED nor the GATED list, so it is GATED by default, and the fix
+had already landed in SynthEdit's own commits. The work was verification.
+
+**Result — fixed, and proven on the generator that actually signs.**
+
+| | |
+|---|---|
+| source | `SE16` `b3c1efb07` — `git diff HEAD origin/master -- SynthEditCL/ SynthEditLib/ CMakeLists.txt` is **empty**, so this is current `master`'s content for everything in scope |
+| configure | `cmake -G Xcode`, fresh scratch tree outside both repos, `x86_64;arm64`, deployment 13.3, three local overrides matching Jeff's own `build/CMakeCache.txt` |
+| `cmake --build --config Debug --target SynthEditCL` | **RC=0** |
+| `codesign --verify --deep --strict --verbose=2` | *"valid on disk"*, *"satisfies its Designated Requirement"* |
+| sealed | 336 files, 98 signed `.sem` under `Contents/PlugIns` |
+| smoke | the signed binary runs: `SynthEditCL V1.6.182` |
+
+**The Xcode generator does emit the step, and the log proves it** —
+`CodeSign …/SynthEditCL.app (in target 'SynthEditCL')`, `Signing Identity:
+"Sign to Run Locally"`, `/usr/bin/codesign --force --sign - --entitlements … `.
+That is the asymmetry this row was stuck on: **Ninja emits no `codesign`
+invocation at all**, so an RC=0 Ninja build is not evidence either way.
+
+**Layout, which is the actual fix (`691270c5d`):** `Contents/MacOS` holds
+**only** the executable. `Prefabs`, `fonts`, `skins` and `templates` are all
+under `Contents/Resources`, and the exact file the row named is now
+`Contents/Resources/Prefabs/Controls/Button Small2.syntheditprefab`.
+
+**Verification artifact — A/B positive control on the same signed binary, no
+source edit and no rebuild.** Copied the built bundle, moved the four staged
+directories back under `Contents/MacOS/Resources` to recreate the pre-fix
+layout, and re-ran the *same* `codesign` command Xcode ran:
+
+| bundle layout, same binary, same codesign command | RC | output |
+|---|---|---|
+| pre-fix (`Contents/MacOS/Resources/…`) | **1** | `SynthEditCL.app: code object is not signed at all` / `In subcomponent: …/Contents/MacOS/Resources/Prefabs/Controls/Button Small2.syntheditprefab` |
+| current (`Contents/Resources/…`) | **0** | — |
+
+That reproduces P6's error string **verbatim, down to the same subcomponent
+file**, and shows the staging path is what closes it — not a toolchain or Xcode
+version difference, and not luck.
+
+**The second commit (`4792f4bf2`, Finder detritus) also holds:** the built
+bundle contains **0** `.DS_Store` and no extended attributes.
+
+**Standing rule — all five products build under the Xcode generator, each
+RC=0, each verifying:**
+
+| target | build | `codesign --verify --deep --strict` |
+|---|---|---|
+| `SynthEditCL` | RC=0 | RC=0 |
+| `SynthEdit_VST3` | RC=0 | RC=0 |
+| `SynthEdit_GMPI` | RC=0 | RC=0 |
+| `TIDE` | RC=0 | RC=0 |
+| `TIDE_VST3` | RC=0 | RC=0 |
+
+So SynthEdit, SynthEditCL and TIDE all build on macOS on `master` today, under
+the generator Jeff's own tree uses — which is a stronger statement than the
+Ninja RC=0 the last three mac runs could make.
+
+**Learned:**
+
+- **Any signing-shaped question on mac must be answered with `-G Xcode`.** Ninja
+  never emits `codesign`, so a Ninja build cannot confirm *or* deny a codesign
+  bug. P6 sat open for six days because two runs reported RC=0 from a generator
+  that structurally could not see the failure. Worth treating as a fleet rule,
+  not a P6 detail.
+- **A bundle-level A/B is enough to prove a staging-path fix, and it needs no
+  source edit.** That matters when the file lives on a GATED-by-default path:
+  the positive control was `cp -R` + `mv` + re-run `codesign`, and it produced
+  the row's exact error text. No branch in `SE16`, nothing to review there.
+- **`GMPI_WRAPPER_FOLDER_OVERRIDE` is empty in Jeff's `build/CMakeCache.txt`**,
+  so `GMPI WRAPPERS` is fetched from github rather than taken from the local
+  clone — the configure output says `Fetching GMPI WRAPPERS from github` while
+  `SynthEditLib`, `GMPI` and `GMPI-UI` all say `Using local … folder`. This is
+  exactly the asymmetry **X4** says to watch for; I matched Jeff's cache rather
+  than "fixing" it, so this run's result reflects his tree, but anyone debugging
+  a wrapper-side problem on this box should know the wrapper is not local.
+- **The `any` NEXT pointer is A4, and a scheduled run cannot do it.** A4 is a
+  path-allowlisted auto-merge *action* — i.e. a file under
+  `.github/workflows/**`, which the bot token deliberately cannot write. Noted,
+  not acted on: it is not this run's item, and A12 already covers the general
+  shape of "the fleet points a box at work it structurally cannot do". Flagging
+  it so the next `any`-eligible run does not burn its session discovering it.
+- **My PR's lint will be red, pre-existing.** `check-links.py`'s slugger bug is
+  **A13**, found by the P7c run; it is already red on `main`. Nothing here
+  caused it and fixing it would be a second item.
+
+**Next:**
+
+1. **Merge [#50](https://github.com/JeffMcClintock/TideSynth/pull/50)** (this
+   run — docs only, no code in any repo). P6 then flips IN-REVIEW → DONE.
+2. **`mac` NEXT moved P6 → E1a**, taking the P7c run's correction at its word:
+   E1a's Accept clause is *"one render of both cases on a second platform"*,
+   second to linux, so it is mac-or-win work and the linux box can never satisfy
+   it. This box can: the render half is a download and two numbers, and it is
+   the topmost item that is genuinely mac's rather than anyone's. S9 and S10,
+   the only other `mac` rows, both still need Jeff.
+3. **A13 is the fallback** if a mac run finds E1a blocked — it is small, it is on
+   `scripts/` (a scheduled run may edit it), and it gates A4's usefulness as a
+   merge check.
+4. **P6's own text should not be re-filed.** It is closed on evidence, and the
+   evidence is a positive control rather than an absence of failure.
+
+**Tree hygiene:** nothing was written into either working copy's source. `SE16`
+and `TideSynth` were both clean at claim time (`SE16` 5 commits behind
+`origin/master`, `TideSynth` 3 behind `origin/main`) and I left `SE16` untouched
+and un-updated — no fetch-into-tree, no checkout, no build inside it. All build
+output went to a scratch tree under the session's temp dir; Jeff's own
+`SynthEdit/build` Xcode tree was not read from, written to, or invalidated.
+`git status` in `SE16` is unchanged from how I found it.
+
+**Branch/PR:** `tide/mac/P6-cl-codesign-xcode` —
+[#50](https://github.com/JeffMcClintock/TideSynth/pull/50), TideSynth only.
+**No code repo was committed in**, so STEP 5's two-end-states rule has exactly
+one repo to satisfy.
+
+---
+
+## 2026-08-13 — windows — C4
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
+
+**Did:** Carve-out stage **C4**. Moved the twelve view/browser files out of the
+private repo into public `SynthEditLib`, implemented **C9** with them (Jeff's
+option (c)), and rebuilt everything including the SynthEdit2 link step no
+previous carve-out stage had been able to reach. Also measured what the move
+costs C7, which is the part worth reading.
+
+**Result — all three products build, all tests pass, and C9 is proven rather
+than asserted.**
+
+| check | result |
+|---|---|
+| fresh scratch Ninja tree of `SE16`, Release | **905/905, RC=0** — `SynthEdit_VST3`, `SynthEdit_GMPI`, `SynthEditCL`, `TIDE.gmpi`, `TIDE_VST3` |
+| the six moved TUs really compiled from their new home | log shows `EditorLib.dir\C_\SE\SynthEditLib\<name>.cpp.obj` for all six |
+| `dsp_tests` / `synth_ui_tests` / `ui_tests` | 58/58, 24/24, 10/10 — all RC=0 |
+| **SynthEdit2 (WinUI3)**, MSBuild Release x64 | **RC=0**, `x64\Release\SynthEdit2\SynthEdit2.exe` |
+| no line-ending churn | `core.autocrlf=false` in both repos; all twelve files `cmp`-identical to their originals |
+
+The SynthEdit2 row matters beyond "it builds": **C1b and C2 both had to leave
+link-stage verification of SynthEdit2 open**, because P8 blocked it. P8 is fixed,
+so this is the first carve-out stage whose WinUI3 link step was actually reached.
+
+**C9 — implemented as ruled, and the value is injected rather than owned.**
+
+New `SynthEditLib/se_version.h` defaults `SE_APP_BUILD_NUMBER` to 0;
+`EditorLib/CMakeLists.txt` injects SynthEdit's real value with a `file(READ)` +
+`string(REGEX MATCH)` on `se_build_number.h`, which **stays exactly where
+`SynthEdit_cmake_mac.yml:153`, `SynthEdit_cmake_win.yml:206` and
+`SynthEdit_store_win.yml:266` grep for it.** No workflow file touched, and none
+needed to be — the bot token's missing `workflow` scope never came into it.
+
+I did not give the library its own constant, and the reason is worth recording
+because "SynthEditLib gets its own version header" reads like it means that.
+**Both uses are cache invalidation, and both track the *application*, not the
+library:** `SkinMgr` re-copies skins out of the *application's* own `Resources`
+folder, and `ModuleFactory_Editor` caches the modules the *application* links. A
+constant `SynthEditLib` owned would never move on a SynthEdit release, so
+SynthEdit would silently stop invalidating both caches on upgrade — a behaviour
+regression wearing a decoupling's clothes. Injection keeps SynthEdit's behaviour
+bit-identical and still leaves the public repo able to compile with no private
+header.
+
+Proof, not assertion:
+
+| | |
+|---|---|
+| `se_build_number.h` today | `SE_BUILD_NUMBER 183` |
+| `build.ninja` | `SE_APP_BUILD_NUMBER=183` |
+| probe TU, no injection | prints **0** (what a clean clone gets, i.e. TIDE from C7) |
+| probe TU, with injection | prints **183** |
+| scope | the define appears on **57 build statements, every one of them EditorLib** — `PRIVATE` holds, nothing leaks to TIDE, SynthEditCL or SynthEditLib's own targets |
+
+**Learned — C3's second check has a false-alarm case and a real one, and telling
+them apart took a filesystem test, not a grep.** Two of the twelve files use
+`#include "../"`:
+
+| include | resolves relative to the file? |
+|---|---|
+| `ThemeManager.cpp` → `"../tinyxml2/tinyxml2.h"` | **no.** `SE16/tinyxml2/` **does not exist.** It already resolves through a search path — `SynthEditLib/modules/se_sdk3_hosting/../tinyXml2/tinyxml2.h` — so the file's own directory is irrelevant and a move cannot affect it |
+| `ModuleFactory_Editor.cpp`, `SkinMgr.cpp` → `"../se_build_number.h"` | **yes.** `SE16/se_build_number.h` exists. This is the one that breaks |
+
+That is exactly the shape C4's row predicted ("most resolve through the search
+path and are harmless, and the one that resolves for real is the one that
+breaks") — recording it because the `tinyxml2` line *looks* identical to the
+`se_build_number` line and would have been "fixed" by anyone pattern-matching on
+the `../`. Note also the case difference: the file says `tinyxml2/`, the
+directory on disk is `tinyXml2/`. Harmless on Windows and on the search-path
+route; worth knowing before anyone moves that directory.
+
+**Learned — the big one. C4 makes the public repo's private-include problem
+worse, not better, and I measured it instead of assuming either way.**
+
+I expected the opposite. `SkinMgr.h`, `ModuleFactory_Editor.h` and
+`MfcDocPresenter.h` were being included by 11 files already public — the exact
+"a public file its own repo cannot compile" shape C2 hit with
+`cpu_accumulator.h`. C4 closes all 11. But the six moved `.cpp` bring their own
+private-header dependencies with them:
+
+| | dangling private includes in `SynthEditLib` |
+|---|---|
+| before C4 (`SE16 origin/master` / `SynthEditLib origin/main`) | **47** |
+| after C4 | **56** |
+| closed by C4 | 11 |
+| opened by C4 | 20 |
+
+**Read both sides from git refs, not working trees.** My first attempt computed
+"before" with the private-header list taken from the already-modified `SE16`
+working tree, so the eleven closures were invisible and the number was wrong in
+a direction that flattered the change. The script that does it properly is
+`dangling2.py` in the run scratchpad; it is 60 lines and worth re-creating for
+C5, which will move the single most-included name on the list (`Application.h`).
+
+18 of the 20 name headers already on `EditorLib/CMakeLists.txt`'s source list, so
+C5 and later stages close them by construction. **Two are on no stage's list at
+all, and both are reached from `MfcDocPresenter.cpp`:**
+
+- **`SynthEditApp.h`.** Deliberately excluded from EditorLib so each app picks
+  its own `SE_MOONBASE_SUPPORT` without ODR conflicts — the CMakeLists says so
+  in a comment. `MfcDocPresenter.cpp:1258-1261` declares
+  `extern SynthEditApp* theApp` and calls `theApp->isMoonbaseEnabled()` and
+  `theApp->licenseIsActive()` to gray out "Selection to Prefab". **So a
+  licence-gate call site is now in the public repo.** No Moonbase implementation
+  is published — two method names and the existence of the gate are. This is the
+  first time the carve-out has put licensing-adjacent code on the public side,
+  and the standing direction is to keep commercial code private as practical.
+- **`ModulePicker.h`.** 19 KB, header-only, no `.cpp`, on no stage's list.
+  `MfcDocPresenter.cpp:536` does `return new ModulePicker(pparent)`.
+
+**Filed as C11, and deliberately not acted on.** C4's file list is Jeff's and
+`MfcDocPresenter` is on it; reshaping an approved stage because one of its files
+turned out to be awkward is not a scheduled run's call. It is flagged at the top
+of both code PR bodies so it cannot be merged without being seen. Neither breaks
+anything today — both resolve through EditorLib's `../SynthEdit2` include path —
+they break at **C7**, whose whole test is a clean clone with no access to SE16.
+
+**Learned — `MSBuild SynthEditStore.sln` now needs the VS 2026 (v145) toolset,
+and P8's recorded command no longer works on this box.** Under VS 2022 it dies at
+`build\ZERO_CHECK.vcxproj` with `MSB8020: The build tools for v145
+(Platform Toolset = 'v145') cannot be found`, **before reaching `SynthEdit2` at
+all** — so it reads like a project failure and is not one. The solution
+references two projects inside `SE16\build`, Jeff's CMake-generated VS tree,
+which is now generated for VS 2026. Building through
+`Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat` succeeds. Both VS
+2022 Community and VS 18 Community are installed here; Ninja + `cl` from either
+is fine for the CMake side, it is only the `.sln` that is pinned.
+
+**Also done as STEP 4 chores:** **P7c** flipped IN-REVIEW → DONE and moved
+verbatim to `BACKLOG-DONE.md` — [gmpi_ui#5](https://github.com/JeffMcClintock/gmpi_ui/pull/5)
+and [#48](https://github.com/JeffMcClintock/TideSynth/pull/48) both merged
+2026-08-13. **C9's row grew** to record that its mechanism now exists and is
+proven, so C5 reuses it with one `#include` swap and one macro rename rather than
+building anything; it stays TODO because `Application.cpp` has not been done.
+**The `win` NEXT row** now points at C5-if-merged, else E1a — the linux run
+recommended exactly that E1a move on 2026-08-13 and could not make it from its
+own row.
+
+**STEP 1 / 1.5:** no `platform:win` issues; no `platform:*` labelled issues at
+all across the five repos. The only open issues anywhere are TideSynth
+[#44](https://github.com/JeffMcClintock/TideSynth/issues/44) (the A6 watchdog
+digest, `github-actions`, informational) and `gmpi_ui#1` ("Linux support?", 2024,
+third-party and unlabelled) — noted, not acted on, per the issue-authenticity
+rule. **Zero open PRs in all five repos** at claim time, so nothing was handed
+back to this platform and nothing was in flight to collide with.
+
+**Jeff's trees, per the three-kinds dirt rule:** `TideSynth`, `SE16`,
+`SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were **all clean and on their
+default branches** at claim time. Nothing of his was committed, reverted or
+stashed. Note `SE16` local `master` was two commits behind `origin/master`; I
+branched from `origin/master`, as the prompt requires, so the `[Build-Machine]`
+bump to build 183 is included — which is why C9's injected value reads 183 and
+not the 182 in the stale local tree.
+
+**A11 still holds:** all five repos answer `https://` to
+`ls-remote --get-url origin`, and STEP 0.7's second assertion printed
+`git@github.com:`.
+
+**Side effects on this box:** a scratch Ninja tree and a probe binary under the
+session scratchpad, both outside every repo — Jeff's own `SE16\build` was not
+configured or built into. The MSBuild run **did** write into `SE16\x64\Release\`,
+which is `.gitignore`d (`.gitignore:13`) and is where that build has always put
+its output; `git status` in `SE16` is clean apart from my own commit. No engine
+state was written: `SynthEditCL.exe` was built but never executed, so no module
+cache or skin folder was created or invalidated on this machine.
+
+**Next:**
+
+1. **Merge all three C4 PRs together** —
+   [SynthEdit#15](https://github.com/JeffMcClintock/SynthEdit/pull/15),
+   [SynthEditLib#6](https://github.com/JeffMcClintock/SynthEditLib/pull/6),
+   [#49](https://github.com/JeffMcClintock/TideSynth/pull/49). Unlike P7c's
+   independent pair, **merging any one alone breaks the build**: the files exist
+   in exactly one repo at a time and `EditorLib/CMakeLists.txt` points at the new
+   location.
+2. **Rule C11 before C7, and it needs Jeff.** The `SynthEditApp.h` half is a
+   boundary decision, not work — the call is two bools behind a pointer, so a
+   small interface hook would do it, but whether licensing-adjacent code may sit
+   in the public repo at all is not an agent's call. `ModulePicker.h` is the easy
+   half and probably just joins a stage's list.
+3. **C5 is cheap now.** C9's mechanism shipped with C4, so `Application.cpp` is
+   one `#include` swap and one macro rename. It is `win`, and it is the
+   carve-out's critical path the moment C4 lands.
+4. **A13 is still open and still red on `main`.** I did not hit it as a blocker
+   this run, but the link checker's em-dash slug bug is unchanged and every
+   heading in this file has em-dashes.
+
+**Branch/PR:** `tide/win/C4-move-views-browsers` in three repos —
+[SynthEdit#15](https://github.com/JeffMcClintock/SynthEdit/pull/15) (deletions,
+`EditorLib/CMakeLists.txt`, vcxproj),
+[SynthEditLib#6](https://github.com/JeffMcClintock/SynthEditLib/pull/6) (the
+twelve files + `se_version.h`),
+[#49](https://github.com/JeffMcClintock/TideSynth/pull/49) (BACKLOG, JOURNAL,
+`docs/carve-out.md`). No other repo was committed in or modified.
+
+---
+
 ## 2026-08-13 — linux — P7c (E1a not taken — see below)
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as `tide-rack-bot`
@@ -399,280 +721,5 @@ test, `docs/x11-present-extents.md`) and
 [#48](https://github.com/JeffMcClintock/TideSynth/pull/48) (BACKLOG, JOURNAL, and
 the closing section of `docs/p7-resize-audit-mac-x11.md`). No other repo was
 committed in or modified.
-
----
-
-## 2026-08-13 — macos — S6 (part 2 of 2)
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
-
-**Part 1** of this run is the A11 entry (halt at STEP 0.7, cleared by Jeff
-mid-session) on branch `tide/mac/A11-step07-halt`, [#46](https://github.com/JeffMcClintock/TideSynth/pull/46).
-This is the item the run went on to take once the assertions passed.
-
-**Did:** Deleted `SE16/SE_IOS_APP/TIDE/Plugins/` — six `.sem` bundles, **26
-tracked files, 4.4 MB**. Chose *remove* over the row's "or add a README"
-alternative: constraint 7 rules out separately-loadable module bundles
-entirely, so a README would preserve 4.4 MB of a contradiction and explain it
-rather than fix it.
-
-**Result — the deletion is right, and two of the row's premises were wrong.**
-
-What the files are, measured: all six binaries `Mach-O 64-bit bundle x86_64`,
-`platform 1` (macOS) or `LC_VERSION_MIN_MACOSX`, in macOS bundle layout
-(`Contents/MacOS/`, `Contents/_CodeSignature/`). Added 2021-02-24→2021-03-03,
-**untouched since**. Nothing there can load on arm64 iOS. That much the row had
-right.
-
-| the row said | measured |
-|---|---|
-| "dead **iOS** module artifact", installed by a Run Script to a macOS-only destination | consumer is **`SeAudioUnitMacOS`** — a **macOS** AUv3 app-extension. **No iOS target references the folder at all.** It was never wired into an iOS build; the destination is not a mistake, it is correct for that target |
-| the Run Script is the wiring; deleting the folder is safe | the Run Script is only *half*. **Individual files inside the bundles are entries in that target's Resources build phase** — real `CpResource` inputs |
-
-The 2021 commit messages agree with the correction: *"chore(ios) : macOS AUV3
-runnning (fixed signing by signing TIDE sems)"*. This is macOS AUv3 scaffolding
-that happens to live under an iOS-named folder, which is exactly why it reads as
-an iOS module story.
-
-**Verification artifact — and the A/B is not clean, so I am not calling it
-clean.**
-
-| `SeAudioUnit macOS`, same machine, same command | before | after |
-|---|---|---|
-| result | **BUILD FAILED**, RC=65 | **BUILD FAILED**, RC=65 |
-| errors | 6 × missing `SE_DSP_CORE/*.cpp` compile inputs | 7 × `CpResource` "couldn't be opened" |
-
-Nothing went from working to broken. But the **failure mode changed**, and the
-compile errors stop surfacing afterwards only because `xcodebuild` stops
-scheduling once the resource phase fails — they are still there underneath. My
-first reading of the pbxproj said the bundles were in no build phase at all;
-that was wrong, and the A/B is what caught it. Tracing the six `.sem` *folder*
-ids was not enough — they are group entries whose *children* are the build
-inputs.
-
-**The standing rule is honoured, and structurally rather than by luck.** Fresh
-Ninja configure into a scratch dir (this tree untouched), all four local
-overrides, full build: **RC=0, 936/936**, producing `SynthEdit_VST3.vst3`,
-`SynthEdit_GMPI.gmpi`, `SynthEditCL.app`, `TIDE.gmpi`, `TIDE_VST3.vst3`. And
-**no `CMakeLists.txt` or `.cmake` in `SE16` references `SE_IOS_APP`**, so the
-CMake build and that Xcode project are fully decoupled — the deletion could not
-have reached them.
-
-**Learned — the big one, and it is much larger than S6:**
-
-**`SE_IOS_APP.xcodeproj` is dead, and it bears on M2.** All four targets fail,
-each RC=65, on **28 references to `SE_DSP_CORE/`** — the pre-split name of the
-DSP core directory, which no longer exists (it became `SynthEditLib`). The
-pbxproj was last touched **2022-12-15**. PLAN calls iOS AUv3 "the constraint
-that validates the whole design", and **M2 is written as though a working iOS
-project exists to build on. It does not.** M2 is really "author an iOS target",
-not "get the existing one green" — worth knowing before anyone estimates it.
-Filed as **S10**, with the revive-or-retire decision named as Jeff's.
-
-Two smaller ones:
-
-- **`database.se.xml` is the same architecture constraint 7 forbids.**
-  `SE_IOS_APP/TIDE/Resources/database.se.xml` is a 31-entry module database
-  naming the six now-deleted bundles by `imbeddedFilename`, and it *is* wired
-  into two Resources build phases. Left alone deliberately — outside S6's scope
-  — but it should not be revived as-is. Folded into S10.
-- **`gh pr edit` fails with the bot's token; `gh api ... -X PATCH` does not.**
-  `gh pr edit` issues a GraphQL query touching `login`/`name`/`slug`, which
-  needs `read:org`; the bot has `repo` only, by design. The REST route has no
-  such requirement. This will bite any run that tries to amend a PR body —
-  including a run following STEP 1.5's "push fixes to the SAME branch".
-
-**Next:**
-
-1. **Merge [SynthEdit#13](https://github.com/JeffMcClintock/SynthEdit/pull/13)
-   and [#47](https://github.com/JeffMcClintock/TideSynth/pull/47).** Order does
-   not matter for the build — #13 is the only code change and it cannot break
-   anything the CMake build touches — but merging the docs alone would say a
-   deletion landed that did not.
-2. **Answer S10 before S9.** If the project is retired, S9 is moot and the right
-   move is deleting the whole `.xcodeproj`.
-3. **`mac` NEXT moved S6 → P6**, and P6 is genuinely this box's to close: it
-   needs an **Xcode**-generator build to reproduce the `CodeSign` failure, which
-   Ninja never emits. `SynthEditCL` builds clean under Ninja here (re-confirmed
-   RC=0 during this run), so the codesign step is the whole remaining question.
-
-**Tree hygiene:** `SE16` was clean at claim time and only the 26 deletions were
-staged — re-checked with `git status` immediately before commit, per the C3
-run's lesson about an idle index being harvested. No work of Jeff's was touched.
-
-**Branch/PR:** `tide/mac/S6-dead-ios-modules` in both repos —
-[SynthEdit#13](https://github.com/JeffMcClintock/SynthEdit/pull/13) (the
-deletion) and [#47](https://github.com/JeffMcClintock/TideSynth/pull/47) (docs).
-
----
-
-## 2026-08-13 — macos — A11, mac half — halted at STEP 0.7, then resolved in session (part 1 of 2)
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
-
-**Outcome, up front: A11 is DONE on all three boxes.** This run halted on STEP
-0.7's second assertion; Jeff applied the missing `git config` line while the
-session was still live; the assertion and the full acceptance test then passed
-and the run continued to S6. **The resolution is at the bottom of this entry;
-S6 is [part 2](#2026-08-13--macos--s6-part-2-of-2), its own entry.** The halt
-record below is kept unedited, because the deadlock it documents is real and
-survives the fix.
-
-**Did:** Nothing. This run stopped at STEP 0.7's second assertion, as the prompt
-requires, before selecting or claiming any backlog item. **S6 was not started**
-and remains `TODO`. What follows is the halt record plus the read-only
-diagnostics needed to make it actionable.
-
-**Result — assertion 1 passed, assertion 2 printed nothing:**
-
-| STEP 0.7 command | required | actual |
-|---|---|---|
-| `gh api user --jq .login` | `tide-rack-bot` | `tide-rack-bot` ✅ |
-| `git config --global --get url."https://github.com/".insteadOf` | `git@github.com:` | **empty, exit 1** ❌ |
-
-That is the A11 gap the linux run found on 2026-08-13, in the one box A11 still
-lists as outstanding. `git config --global --get-regexp 'url\.'` returns nothing
-at all — setup step 3 has never been applied here. Setup steps 1–2 *are* in
-place: `credential.https://github.com.helper` is
-`!/opt/homebrew/bin/gh auth git-credential` (Homebrew path, not `gh`).
-
-**The exposure on this box is nil today — and that is a measurement, not an
-assumption.** Exhaustive sweep, `find ~ -maxdepth 5 -name .git` (excluding
-`Library/`, `node_modules/`, `build/`, `_deps/`, `.Trash/`), **28 repos**:
-
-- **Zero SSH GitHub remotes.** Every GitHub repo is `https://` — including all
-  nine fleet repos (`TideSynth`, `SynthEdit`, `SynthEditLib`, `gmpi_ui`,
-  `GMPI_Wrappers`, `GMPI`, `GMPI_Adaptors`, `GMPI-plugins`, `gimpi_ui_tests`)
-  and the eight `VST_SDK` submodules.
-- Non-GitHub and therefore out of scope: `~/SynthEdit` (Azure DevOps),
-  `~/Plugins` + four `~/myagent/_work/*/s` build-agent checkouts (Azure DevOps,
-  remote named `SSG` not `origin`), `~/MacSIMD` (**no remotes at all**).
-
-So this box matches Windows (22/22 already HTTPS), not linux (8 of 9 SSH). **The
-macOS A2 evidence A11 called "void until checked" is not void** — `gmpi_ui#3`/`#4`
-and `GMPI_Wrappers#1`/`#2` were pushed from HTTPS remotes here, so those pushes
-did authenticate as the bot, not as Jeff via SSH.
-
-**A11's read-only three-way proof, run in full** against the private
-`https://github.com/JeffMcClintock/SynthEdit.git`. No push, no write:
-
-| GH_TOKEN | `git ls-remote` | `gh api user` |
-|---|---|---|
-| bogus | **`fatal: Authentication failed`** — `remote: Invalid username or token.` | — |
-| real bot token | succeeds (`b3c1efb07…` HEAD) | `tide-rack-bot` |
-| unset | succeeds | `JeffMcClintock` |
-
-Leg 1 is the load-bearing one: git genuinely consults `gh` for HTTPS GitHub URLs
-on this box rather than a keychain entry or an SSH key. **So for every remote
-that actually exists here, the credential wiring is correct and now proven.**
-
-**What is missing is only the structural safeguard**, which is exactly what A11
-says it is for: a future `git clone git@github.com:…` would silently re-open the
-hole with no signal, because nothing rewrites it.
-
-**Learned — the finding that matters, and it is new:**
-
-**This box cannot heal itself, and every future scheduled mac run will halt
-here.** STEP 0.7 fires before STEP 1 and STEP 2, so a run can never reach the
-point of claiming A11 — the assertion that detects the problem also forbids
-fixing it ("do not 'fix' it by carrying on as whoever you are"). A11's mac half
-is therefore **not takeable by a scheduled run at all**; it needs Jeff or an
-interactive session on this machine. Until then the macOS box is a no-op in the
-fleet: it will burn a run every week producing this same entry. Linux and
-Windows are unaffected — both applied step 3 on 2026-08-13.
-
-That deadlock is not a flaw in the halt rule, which did its job. It is a gap in
-A11's framing: the row is written as ordinary backlog work with plat `any`, and
-one third of it structurally cannot be done that way.
-
-**Second, smaller:** `ls-remote --get-url origin` echoes the literal string
-`origin` when no such remote exists, rather than erroring. A sweep that greps for
-`git@` will read those as clean; they need checking with `git remote -v` before
-being called clean. Two repos here hit that, both benign.
-
-**I deliberately did NOT apply the one-line fix**, though it is the whole
-remedy and I had the evidence for its acceptance test in hand. STEP 0.7 says
-stop and do nothing else, and a run that reasons its way past its own failed
-safety assertion is the precise failure mode the rule exists to prevent. It is
-Jeff's to run, on this box:
-
-```
-git config --global url."https://github.com/".insteadOf "git@github.com:"
-```
-
-Acceptance is already half-established above: after that command, assertion 2
-prints `git@github.com:`, all 28 remotes still read `https://`, and the
-three-way proof is recorded here. **A11 can then be flipped DONE across all
-three boxes.**
-
-**Also checked, and clear:** no `platform:mac` issues; the only open issue is
-[#44 "Fleet watchdog digest"](https://github.com/JeffMcClintock/TideSynth/issues/44)
-(author `app/github-actions`, unlabelled — A6's digest, informational). No open
-PRs at all in TideSynth, so STEP 1.5 had nothing either. Tree was clean and on
-`main`, in sync with `origin/main`; no dirt of Jeff's was touched.
-
-**Journal rotation was skipped on purpose.** `JOURNAL.md` is 78 KB / 11 entries
-and is over the 30 KB target, but rotation is STEP 4 work and this run never
-reached STEP 4. The next win or linux run should do it.
-
-**One caveat for Jeff before he runs the command**, carried over from the linux
-entry: his interactive pushes then resolve through `gh`'s keyring token. If that
-token lacks `workflow` scope, a commit touching `.github/workflows/**` is
-rejected until `gh auth refresh -h github.com -s workflow` is run once. This did
-not bite on Windows (its token already had the scope); **unverified here** — I
-did not inspect Jeff's keyring scopes, since doing so is outside a halted run.
-
-**Next:**
-
-1. **Jeff: run the one `git config` line above on this box.** Until then macOS
-   contributes nothing and S6 stays untouched.
-2. **Rewrite A11's mac line** to say it needs an interactive session, not a
-   scheduled run, and record the deadlock above so the next person does not
-   re-file it as agent work. Consider whether STEP 0.7 should let a run apply
-   *this specific* config repair — I think not, but it should be a decision
-   rather than an accident.
-3. **`mac`'s NEXT stays S6**, untouched and still eligible, for the first mac
-   run after the fix lands.
-
-### Resolution — same session, Jeff applied the fix
-
-Jeff ran the one line on this box while the session was still open. Everything
-above stands as written; this is what changed after it.
-
-**STEP 0.7 re-run, both assertions:**
-
-| command | required | actual |
-|---|---|---|
-| `gh api user --jq .login` | `tide-rack-bot` | `tide-rack-bot` ✅ |
-| `git config --global --get url."https://github.com/".insteadOf` | `git@github.com:` | `git@github.com:` ✅ |
-
-**A11's acceptance test, in full, on mac:**
-
-- All **nine fleet repos** still resolve `https://` (`ls-remote --get-url origin`
-  — note this applies `insteadOf` rewriting, so it is testing the post-fix path).
-- **The safeguard itself demonstrably works**, which is the part the sweep alone
-  cannot show: feeding git an explicit `git@github.com:JeffMcClintock/TideSynth.git`
-  now resolves to `https://github.com/JeffMcClintock/TideSynth.git`. That is the
-  future-SSH-clone hole closed, not merely absent.
-- **Three-way proof re-run post-fix, unchanged:** bogus token → auth fails; real
-  bot token → succeeds as `tide-rack-bot`; no token → succeeds as
-  `JeffMcClintock`.
-
-**So A11 is DONE — linux 2026-08-13, win 2026-08-13, mac 2026-08-13.** Row
-flipped in this PR.
-
-**The deadlock finding is not retired by this.** It was resolved by a human
-happening to be at the keyboard, which is exactly the circumstance a *scheduled*
-run does not have. Had this fired unattended at 03:00, the box would have sat
-halted for a week and every subsequent mac run would have halted identically.
-The general shape is worth keeping in view: **STEP 0.7 can put a box into a
-state that only an interactive session can clear, and nothing in the fleet
-notices or escalates.** A6's watchdog digest is the natural place to surface a
-box that halted, and does not do so today. Filed as **A12**.
-
-**Branch/PR:** `tide/mac/A11-step07-halt` — TideSynth only, docs only, no code.
-The branch is named for the halt that produced it; **S6, the item this run went
-on to take, is on its own branch** (see part 2). A later mac run should not treat
-this branch as work-in-progress to resume.
 
 ---
