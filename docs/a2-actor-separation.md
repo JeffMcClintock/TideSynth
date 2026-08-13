@@ -24,12 +24,23 @@
 > Fixed on that box with a global
 > `url."https://github.com/".insteadOf "git@github.com:"`.
 >
-> **macOS and Windows remotes have never been inspected**, and the macOS
-> evidence below — `gmpi_ui#3`/`#4`, `GMPI_Wrappers#1`/`#2` — is drawn entirely
-> from repos that were SSH on linux. Until someone runs
-> `git -C <repo> ls-remote --get-url origin` on those boxes, **read every
-> "verified" in this file as "authorship verified, authentication unknown"**,
-> for macOS and Windows both. STEP 0.7 now carries a second assertion that
+> **Windows checked 2026-08-13, same session: clean, and now hardened too.**
+> All 22 local repos under `C:\SE` — not just the fleet's usual 5 — already
+> used HTTPS; nothing on that box was ever actually exposed. Applied the
+> global rewrite anyway (belt and braces against a future SSH clone), then
+> proved the wiring in both directions against the private `SynthEdit` over
+> HTTPS: a bogus `GH_TOKEN` fails auth (exit 128 — the proof `gh` is
+> genuinely consulted, not bypassed), the real bot token succeeds as
+> `tide-rack-bot`, no token succeeds as `JeffMcClintock`. So for Windows,
+> every "verified" below can now be read as authentication-verified, not
+> just authorship-verified — see **A11**.
+>
+> **macOS remotes have still never been inspected**, and the macOS evidence
+> below — `gmpi_ui#3`/`#4`, `GMPI_Wrappers#1`/`#2` — is drawn entirely from
+> repos that were SSH on linux. Until someone runs
+> `git -C <repo> ls-remote --get-url origin` on that box, **read every
+> "verified" in this file as "authorship verified, authentication unknown"
+> for macOS specifically.** STEP 0.7 now carries a second assertion that
 > catches this; it did not exist when the claims below were made.
 
 Status **DONE**, all three boxes, verified 2026-08-13. Originally lifted
