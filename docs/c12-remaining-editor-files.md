@@ -181,9 +181,19 @@ subfolder is **C10** and stays blocked on C6.
 Update the stage comment at `:31-38` to point here.
 
 **Accept** 41 → 37 `${EDITOR_DIR}` entries; a fresh Ninja tree still builds
-905/905 RC=0 with the three test suites green. `Module_Info_Plugin.cpp` leaving
-the list removes a TU from `EditorLib`, so this is a real (if small) link-surface
-change and needs the build, not just a configure.
+~~905/905~~ **904/904** RC=0 with the three test suites green.
+`Module_Info_Plugin.cpp` leaving the list removes a TU from `EditorLib`, so this
+is a real (if small) link-surface change and needs the build, not just a
+configure.
+
+**Corrected 2026-08-15 by the run that executed C12a.** "905/905" and "removes a
+TU" cannot both be true — a ninja edge count falls by one when a TU leaves. The
+measured result was **904/904 RC=0, ctest 92/92**, which is the 905 baseline
+minus exactly `Module_Info_Plugin.cpp.obj`. Left as a strikethrough rather than
+a silent fix because the contradiction was written into an *acceptance check*,
+where a later run reading it literally would have called a correct build a
+failure. **The post-C12a baseline is 904/904 and 92/92**; every later sub-stage
+is a header/`.cpp` move rather than a delist, so those should hold the count.
 
 **Size** Minutes. Do it first — it makes every later stage's counting simpler,
 and it is the only stage that cannot break anything.
@@ -355,6 +365,12 @@ the largest item in the stage. Any re-implementation should check its
 RC=0. That is the starting state every sub-stage above is measured against, and
 it is the same 905 targets and the same 92 tests C5 reported — so nothing has
 regressed on `master` in the meantime.
+
+**Superseded for anything measured after C12a lands, 2026-08-15:** C12a removed
+`Module_Info_Plugin.cpp` from `EditorLib`'s source list, so the edge count is now
+**904/904**, verified on this box. The 92 tests are unchanged. Compare against
+904 rather than 905 from C12b onward; a stage that reports 905 has probably
+measured a tree without C12a in it.
 
 One incidental confirmation from that configure: it printed
 `EditorLib: SE_APP_BUILD_NUMBER=185 (from se_build_number.h)`. C5 measured 183,
