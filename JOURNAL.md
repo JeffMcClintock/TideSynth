@@ -253,7 +253,7 @@ or prefab folder was created or invalidated on this machine.
 `EditorLib/CMakeLists.txt`, two comment fixes),
 [SynthEditLib#7](https://github.com/JeffMcClintock/SynthEditLib/pull/7) (the
 fourteen files + `se_version.h`),
-[#56](https://github.com/JeffMcClintock/TideSynth/pull/56) (BACKLOG, JOURNAL,
+[#58](https://github.com/JeffMcClintock/TideSynth/pull/58) (BACKLOG, JOURNAL,
 `docs/carve-out.md`). No other repo was committed in or modified.
 
 ---
