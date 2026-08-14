@@ -46,6 +46,218 @@ Template:
 
 ---
 
+## 2026-08-14 — windows — C5
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
+
+**Did:** Carve-out stage **C5**, the app base. Moved fourteen files out of the
+private repo into public `SynthEditLib` and finished **C9** with them. The row
+promised "one `#include` swap and one macro rename, no new machinery" and that
+was accurate — the work took minutes. **The two things worth reading are that
+C5 is the first stage to reduce the public repo's private-include debt rather
+than grow it, and that the stage list does not cover the files it claims to,
+which is filed as C12.**
+
+**Result — all three products build, all tests pass, C9 proven by a control.**
+
+| check | result |
+|---|---|
+| fresh scratch Ninja tree of `SE16`, Release | **905/905, RC=0** — `SynthEdit_VST3`, `SynthEdit_GMPI`, `SynthEditCL`, `TIDE.gmpi`, `TIDE_VST3` |
+| the seven moved TUs really compiled from their new home | log shows `EditorLib.dir\C_\SE\SynthEditLib\<name>.cpp.obj` for all seven |
+| `dsp_tests` / `synth_ui_tests` / `ui_tests` | 58/58, 24/24, 10/10 — all RC=0 |
+| **SynthEdit2 (WinUI3)**, MSBuild Release x64 | **RC=0**, 0 errors, `x64\Release\SynthEdit2\SynthEdit2.exe` |
+| no line-ending churn | `core.autocrlf=false` in both repos; all fourteen `cmp`-identical to their originals before the one C9 edit |
+
+The two MSBuild warnings are `C4834` in `SynthEditApp.cpp:421,437`, a file this
+stage does not touch and does not move — pre-existing, not caused here.
+
+**C9's third and last user, with a control rather than an assertion.**
+
+`Application.cpp:22` included `"../se_build_number.h"` and `:97` read
+`SE_BUILD_NUMBER` to decide whether `CopyInitialPrefabs` re-seeds the user's
+`SynthEdit Projects/Prefabs`. That is the same cache-invalidation shape as
+`SkinMgr` and `ModuleFactory_Editor`, so it took the same treatment: include
+`se_version.h`, read `SE_APP_BUILD_NUMBER`.
+
+| | |
+|---|---|
+| `se_build_number.h` today | `SE_BUILD_NUMBER 183` |
+| configure output | `EditorLib: SE_APP_BUILD_NUMBER=183 (from se_build_number.h)` |
+| `build.ninja` statements carrying the define | **57, every one of them EditorLib**, one distinct value — and `Application.cpp.obj` is among them |
+| probe TU, **no** injection | prints **0** — what a clean clone gets, i.e. TIDE from C7 |
+| probe TU, **with** injection | prints **183** |
+
+The probe is the part that matters: `se_version.h` defaults the macro to 0, so
+a lost injection **fails silently** — nothing would fail to compile and the
+prefab copy would just quietly stop invalidating. An absence of build errors is
+not evidence here, which is why there is a positive control. Note the count is
+still 57, unchanged from C4: `Application.cpp` was already an EditorLib TU, so
+C5 changed which directory it compiles from, not which target owns it.
+
+**Learned — C5 is the first stage to pay debt down, and both halves were
+measured from git refs.** C4 went 47 → 56 and warned that C5 would move
+`Application.h`, the most-included name on the list. It did:
+
+| | dangling private includes in `SynthEditLib` |
+|---|---|
+| before C5 (`SE16 origin/master` / `SynthEditLib origin/main`) | **59** |
+| after C5 | **54** |
+| closed by C5 | **15** |
+| opened by C5 | **10** |
+
+**These are not comparable to C4's 47/56 as absolute numbers** — the C4 script
+lived in that run's scratchpad and is gone, so this is a re-implementation with
+slightly different normalisation (it counts `./CLine2.h` and `CLine2.h`
+separately, and includes SE16's vendored `soundpipe.h`). The delta is the honest
+figure, and both sides were read from git refs with the same script, which is
+the thing C4's entry said to get right. Script re-created as `dangling.py` in
+this run's scratchpad; it is ~70 lines and the next stage should re-create it
+again rather than trust a number.
+
+The 15 closed are all `Application.h` (11) and `SynthEditAppBase.h` (4), from
+`CContainer.cpp`, `CUG.cpp`, `CUG_with_patches.cpp`, `DocOb.cpp`, `plug4.cpp`,
+`checkpoint.cpp`, `imbedded_file.cpp`, `SynthEditDoc2.cpp`,
+`SynthEditDocBase.cpp`, `MfcDocPresenter.cpp`, `SkinMgr.cpp`, `ModuleBrowser.cpp`,
+`PropertiesBrowser.cpp`, `CancellationAnalyse.cpp` and `CpuMeterGui.cpp`.
+
+**Of the 10 opened, 6 are closed by construction later and 4 are not:**
+
+| header | on a stage's list? |
+|---|---|
+| `commandMgr.h` (×2), `PatchParameter.h`, `SuspendDSP.h`, `ui_msg_target.h` | yes — on `EditorLib/CMakeLists.txt`'s list, so C12 closes them |
+| `IMidiDriver.h` (×2), `ParseSynthEditArgs.h`, `ISEAppManaged.h` | **no stage's list** |
+| **`SynthEditApp.h`** | **no stage's list — and it is C11(a)** |
+
+**`SynthEditApp.h` is the one to look at, because C5 has just given C11 a second
+call site and C11 is still unruled.** C4 found `MfcDocPresenter.cpp` reaching
+`theApp->isMoonbaseEnabled()`; now `ApplySynthEditConfig.cpp` includes the same
+deliberately-excluded header from the public repo. That header is excluded *by
+design* so each app picks its own `SE_MOONBASE_SUPPORT` without ODR conflicts,
+so it cannot simply join a stage's list the way `ModulePicker.h` can — C11's
+question got wider, not just longer. `ISEAppManaged.h` was already dangling
+before C5 (`CUG.cpp`); C5 adds a second includer. `IMidiDriver.h` and
+`ParseSynthEditArgs.h` are new and on nobody's list.
+
+**Learned — the big one. The carve-out's stage list does not cover the files it
+says it does, and C7 cannot pass until something does.** `docs/carve-out.md`
+stages C3, C4 and C5 as "the rest", and `EditorLib/CMakeLists.txt`'s own comment
+said "C3-C5 convert the rest, and C6 moves this file itself". After C5 there are
+still **41 `${EDITOR_DIR}` entries** — roughly 21 units: `CLine2`, `commandMgr`,
+`Control`, `CPlugin`, the four `Ctl_*` controls, `Dialogs_editor`, `GuiPin`,
+`IGuiHost`, `InterfaceObject_editor`, `legacyExternalApp`,
+`ModuleDragAndDropManager`, `Module_Info_Plugin`, `PatchManager`,
+`PatchParameter`, `PatchParameter_host_generated`, `platform_editor`,
+`resource.h`, `SuspendDSP`, `UG2`, `ui_msg_target`. **C7's whole test is a clean
+clone with no access to SE16**, and every one of these is on EditorLib's source
+list, so C6 would move a `CMakeLists.txt` that points at 41 files a stranger
+cannot see. Filed as **C12**; the CMakeLists comment now says so rather than
+claiming the conversion is finished, so the next reader is not misled the way
+this run was.
+
+I did not widen C5 to absorb them. C5's file list is Jeff's, the extra 41 are
+about three times C5's own size, and reshaping an approved stage from inside it
+is not a scheduled run's call — the same reasoning C4 used for C11.
+
+**Learned — `cmd.exe /c` is unusable from the Bash tool on this box, and it
+fails by hanging rather than erroring.** MSYS path conversion rewrites the `/c`
+switch to `C:/`, so `cmd.exe` starts *interactively*, prints its banner, and
+blocks on stdin until the tool times out. It looks exactly like a slow CMake
+configure. Ten minutes were lost to it before the banner in the log gave it
+away. Either use the PowerShell tool for anything that needs `vcvars64.bat`
+(what this run did), or set `MSYS_NO_PATHCONV=1`. Note the failure is silent in
+the other direction too: the wrapper's own `echo RC=$?` reported **0** for a
+command that never ran.
+
+**Learned — the C7 cache-thrash problem S2 found for skins now has a third
+instance, and it is the same mechanism.** S2 predicted that from C7 TIDE takes
+`SE_APP_BUILD_NUMBER=0` while SynthEdit keeps 183, so each would re-copy 724 KB
+of skins over the other on every launch. `CopyInitialPrefabs` is keyed on
+exactly the same macro and writes to `SynthEdit Projects/Prefabs` (1.1 MB, 35
+files per S2's own measurement), so it thrashes identically — as does the module
+cache XML. Today nothing thrashes, because TIDE links the one EditorLib that
+carries the injection and so sees 183 too; the divergence begins at C7. This
+strengthens S2's argument that the mechanism should be removed from TIDE
+*before* C7 rather than after, and it is now three caches, not one.
+
+**Learned — no `.vcxproj` or Xcode edit was needed, unlike C3 and C4, and that
+is worth checking rather than assuming.** Neither `SynthEdit2.vcxproj` nor
+`SynthEditMac/SynthEdit.xcodeproj` mentions any of the fourteen files: the
+`.cpp` had already moved to EditorLib (the vcxproj carries only comments saying
+so) and the headers were never listed. `$(SolutionDir)..\SyntheditLib` is
+already on the vcxproj's `AdditionalIncludeDirectories`, so every consumer's
+`#include "Application.h"` keeps resolving through a search path — just to a
+different directory. Two stale path comments in `SynthEditCL/CMakeLists.txt` and
+`SynthEditWayland/CMakeLists.txt` did name `SynthEdit2/Application.cpp` and were
+updated.
+
+**STEP 1 / 1.5:** no `platform:win` issues; the only open issue anywhere in the
+five repos is TideSynth [#44](https://github.com/JeffMcClintock/TideSynth/issues/44)
+(the A6 watchdog digest, `github-actions`, informational) — noted, not acted on.
+**Zero open PRs in all five repos** at claim time, and no `tide/**` branch on any
+remote, so nothing was handed back to this platform and nothing was in flight to
+collide with. `SynthEdit` carries an unrelated `claude/audio-sample-rate-persist-795c69`
+branch, not a fleet branch; left alone.
+
+**A4's first live test is available now.** The A4 run said to flip it to `DONE`
+only after watching it merge one PR and leave another alone, and that the next
+scheduled run's own PRs are the natural first test. This run supplies both
+controls at once: the TideSynth PR is `BACKLOG.md` + `JOURNAL*.md` only and
+should auto-merge, while the two code PRs are in other repos entirely and the
+tier must not touch them. A4 is left `IN-REVIEW` — this run did not observe the
+firing, and observing it is the whole condition.
+
+**Jeff's trees, per the three-kinds dirt rule:** `TideSynth`, `SE16`,
+`SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were **all clean and on their
+default branches** at claim time. Nothing of his was committed, reverted or
+stashed. All five were **fast-forwarded** to `origin` before starting —
+`TideSynth` 4 commits behind, `SE16` 3, `SynthEditLib` 2, `gmpi_ui` 1,
+`GMPI_Wrappers` 2 — true fast-forwards with nothing to stash, noted because it is
+a change to his trees. `SE16/SynthEdit2/.claude/worktrees/` holds two stray
+agent worktrees (`audio-sample-rate-persist-795c69`, `blank-project-app-load-d27d84`);
+they are ignored, they are not mine, and they were not touched — but note they
+make a naive `grep -rn` over `SE16` return every hit three times.
+
+**A11 still holds:** all five repos answer `https://` to
+`ls-remote --get-url origin`, and STEP 0.7's second assertion printed
+`git@github.com:`.
+
+**Side effects on this box:** a scratch Ninja tree and two probe binaries under
+the session scratchpad, all outside every repo — Jeff's own `SE16\build` was not
+configured or built into. The MSBuild run **did** write into `SE16\x64\Release\`,
+which is `.gitignore`d and is where that build has always put its output.
+`SynthEditCL.exe` was built but never executed, so no module cache, skin folder
+or prefab folder was created or invalidated on this machine.
+
+**Next:**
+
+1. **Merge both code PRs together** —
+   [SynthEdit#16](https://github.com/JeffMcClintock/SynthEdit/pull/16) and
+   [SynthEditLib#7](https://github.com/JeffMcClintock/SynthEditLib/pull/7).
+   Merging either alone breaks the build: the files exist in exactly one repo at
+   a time and `EditorLib/CMakeLists.txt` points at the new location.
+2. **C12 before C6, not after.** C6 moves `EditorLib/CMakeLists.txt` into the
+   public repo; doing that while it still points at 41 private files puts a
+   source list a stranger cannot satisfy into the public repo, which is the
+   `cpu_accumulator.h` shape C2 hit, at 41× the size. C12 is `win`-shaped only in
+   that this box has all three build systems to verify against; the row is `any`.
+3. **C11 needs Jeff and now has two call sites, not one.** `SynthEditApp.h` is
+   reached from `MfcDocPresenter.cpp` (C4) and `ApplySynthEditConfig.cpp` (C5).
+   It cannot join a stage's list the way `ModulePicker.h` can, because its
+   exclusion is deliberate and about `SE_MOONBASE_SUPPORT` ODR.
+4. **`IMidiDriver.h`, `ParseSynthEditArgs.h` and `ISEAppManaged.h` are on no
+   stage's list either** — smaller and probably uncontroversial, but they are
+   real C7 blockers and C12 should absorb them explicitly.
+
+**Branch/PR:** `tide/win/C5-move-app-base` in three repos —
+[SynthEdit#16](https://github.com/JeffMcClintock/SynthEdit/pull/16) (deletions,
+`EditorLib/CMakeLists.txt`, two comment fixes),
+[SynthEditLib#7](https://github.com/JeffMcClintock/SynthEditLib/pull/7) (the
+fourteen files + `se_version.h`),
+[#58](https://github.com/JeffMcClintock/TideSynth/pull/58) (BACKLOG, JOURNAL,
+`docs/carve-out.md`). No other repo was committed in or modified.
+
+---
+
 ## 2026-08-14 — linux — A4 built (interactive session, Jeff directing)
 
 **Did:** Built the auto-merge tier for coordination PRs, after Jeff asked why
@@ -472,174 +684,3 @@ its 1 commit was `e707482`, the one that breaks the configure.
 [#54](https://github.com/JeffMcClintock/TideSynth/pull/54)
 
 ---
-
-## 2026-08-14 — macos — E1a
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Desktop 1.26832.0 · as `tide-rack-bot`
-
-**Did:** Ran the audio harness on a second platform for the first time in its
-life — macOS against the Linux goldens — and set the null-test tolerances from
-what came back. **The headline is that finding (e) was closed by measurement
-rather than by widening anything**, and that a *different* class of residual,
-which nobody had modelled, is what actually needed a fix.
-
-**Result:** both cases render on macOS; 2/2 pass after the change; every number
-below is measured, not modelled unless said so.
-
-*Three engines, so the platform axis is isolated rather than assumed.* An
-engine-version or build-config difference would otherwise be indistinguishable
-from a platform one:
-
-| Engine | Origin |
-|---|---|
-| `SynthEditCL V1.6.175` | local Release build, 2026-08-08 |
-| `SynthEditCL V1.6.182` | local **Debug** build, 2026-08-13 |
-| `SynthEditCL V1.6.183` | published `SynthEditCL_mac.zip`, Azure CI, signed |
-
-*The measurements, identical on all three:*
-
-| Case | RMS residual | Peak residual | Class |
-|---|---|---|---|
-| `voice_midi_note` | −123.1 dBFS | −90.3 dBFS = **exactly 1 LSB**, 51/95,999 samples (0.053%) | pure rounding |
-| `osc_naive_sine` | −73.5 dBFS | −68.7 dBFS = 12 LSB | **not rounding** |
-
-**(1) The RMS gate did not need widening, and the reasoning that said it might
-was resting on a premise the data does not support.** E1a's arithmetic was
-right — the −100 dBFS gate tolerates 1-LSB error on at most ~10.7% of samples —
-but it assumed the worst case, 1 LSB on *every* sample. Real cross-platform
-rounding touched **0.053%** of samples: a 200× margin, 22.9 dB of headroom.
-Two builds agree on nearly every sample and disagree only where a value sits on
-a quantisation boundary. Gates stay at −100/−86.
-
-The peak gate's 4.3 dB is structural rather than lucky: **1 LSB is a hard
-per-sample ceiling** for this class. Two builds that agree on the underlying
-float can only disagree about which way it rounds — drift of this class can
-affect more samples, never make one sample wrong by more than 1 LSB.
-
-**(2) `osc_naive_sine` fails for a reason no fixed dBFS number can express.**
-The residual **grows monotonically through the render** — −96 dBFS in the first
-0.1 s block, −69 dBFS in the last — with a best-fit time lag of exactly zero,
-so it is neither rounding nor a delay. Fitting `dphi = k·t` gives a **frequency
-offset of 0.15 ppm ≈ 2.5 ULP at single precision** (2⁻²⁴ = 5.96e-8) on a
-440 Hz tone. `OscillatorNaive`'s table and increment are both `double`, but
-`OscillatorNaive.h:66` derives the table index as a **`float` from a `float`
-pitch**, so the pitch→increment path carries single-precision resolution — the
-right order for what was measured. Named as the plausible locus, **not proven**;
-the measured quantity is the 2.5 ULP.
-
-A frequency offset *integrates*, so the residual is proportional to elapsed
-time. Modelled from the fitted rate (the 2 s row matches measurement to 1–2 dB):
-
-| Duration | Peak | RMS |
-|---|---|---|
-| 0.5 s | −79.6 | −87.4 |
-| **2.0 s** (this case) | **−67.6** | **−75.4** |
-| 8 s | −55.6 | −63.3 |
-| 60 s | −38.1 | −45.8 |
-
-So widening the global gates to admit it would have to reach −67 dBFS — past
-finding (b)'s reference defect (3 LSB × 200 samples, caught at peak −80.8 dBFS)
-— **and would fail again the moment a case renders for 4 s.** Instead: the
-globals stay as the rounding-class budget, and a case whose residual is a
-different class declares its own with `null_tolerance_dbfs`,
-`peak_diff_tolerance_dbfs` and a mandatory `tolerance_reason` that the harness
-**prints on every run** and records per case in the report (schema `/2` → `/3`).
-`osc_naive_sine` is set to **−67.0 / −62.0 dBFS**: 6 dB above measurement, i.e.
-sized for twice the observed drift (~5 ULP), on the grounds that there is no
-reason to think mac-vs-linux is the widest pair. If Windows exceeds that, the
-case fails and someone re-measures — the correct outcome, not a defect.
-
-*The cost, stated rather than buried:* that case keeps full sensitivity to
-level, waveform and tuning (0.3 ppm of detuning still fails it) and loses it for
-localized damage below ~12 LSB. `voice_midi_note` still covers the same
-oscillator at the −86 dBFS default in a fuller chain.
-
-**Verification artifact — five controls through the harness's own `null_test`
-and `Case` loader, not a re-implementation:**
-
-```
-  C0a osc_naive_sine unmodified              rms= -73.5 peak= -68.7  gates -67/-62   -> PASS
-  C0b voice_midi_note unmodified             rms=-123.1 peak= -90.3  gates -100/-86  -> PASS
-  C1  osc_naive_sine, same drift 4x larger   rms= -61.5 peak= -56.7  gates -67/-62   -> FAIL
-  C2  osc_naive_sine, finding-(b) glitch     rms= -73.5 peak= -68.7  gates -67/-62   -> PASS
-  C2  voice_midi_note, finding-(b) glitch    rms=-107.5 peak= -80.8  gates -100/-86  -> FAIL
-```
-
-C1 is the one that matters — **a widened gate is still a gate**. C2 on
-`voice_midi_note` independently reproduces finding (b)'s numbers (−107.6 /
-−80.8 dBFS) on a second platform. C2 on `osc_naive_sine` is the accepted
-sensitivity cost, demonstrated rather than asserted. Also asserted and checked:
-the override does **not** leak to `voice_midi_note`.
-
-Added `render_harness.py --selftest` — synthesises its audio in memory, needs
-no engine or fixtures, and bakes in findings (b) and (e)'s numbers plus the
-override plumbing. **Confirmed discriminating**: reverting `null_test` to ignore
-its tolerance arguments fails it (RC=1), and the 10.7% boundary is straddled
-(1 LSB on 10% of samples passes at −100.3 dBFS, on 12% fails at −99.5 dBFS).
-
-**Learned:**
-
-- **`SynthEditCL_mac.zip` at `https://www.synthedit.com/release_1_6/` is a
-  working download for this harness**, and the E1a row's "the engine is a
-  download, not a build" is true on mac. It is an `.app`; strip the quarantine
-  xattr, then `Contents/MacOS/SynthEditCL` and `Contents/PlugIns` are the
-  `--cli`/`--modules` pair. That is the closest thing to what CI would run.
-- **Finding (c) extends and slightly retracts.** Extends: the published Azure-CI
-  Release build and the local Release build are **byte-identical** on both
-  cases, so same-platform bit-exactness spans build *machines* too. Retracts:
-  the mac **Debug** build differs from mac Release by 1 LSB on 40/95,999
-  samples in `voice_midi_note`. Finding (c) claimed Release-vs-Debug
-  bit-exactness from a *Linux* measurement; it does not hold on macOS. Renders
-  are still run-to-run bit-exact (checked explicitly).
-- **A residual that grows through the render is diagnostic on its own.** Two
-  cheap measurements separate the three plausible causes before any theorising:
-  per-block RMS (flat = rounding, rising = integrating error) and a small
-  lag sweep (a minimum away from zero = a delay). Both were computed here in
-  about a minute and turned "the sine case fails" into "the phase increment
-  differs by 2.5 ULP", which is what made the fix a mechanism change instead of
-  a bigger number.
-- **The app version STEP 0.5 asks for IS discoverable on the mac desktop app**,
-  unlike Windows (see the 2026-08-14 win entry):
-  `/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Applications/Claude.app/Contents/Info.plist`
-  → `1.26832.0`. `claude` is not on `PATH` here either, so the CLI-version
-  route the older mac entries used no longer applies on this box.
-
-**Queue hygiene done in passing, both status-cell-only:**
-
-- **C5 flipped `BLOCKED(C4)` → `TODO`.** C4's three PRs all merged 2026-08-14,
-  which is the condition its own blocker names. The `win` NEXT row already said
-  "C5, if C4's three PRs have merged"; that "if" has resolved, so the row now
-  names C5 outright instead of leaving the next win run to re-derive it.
-- **The `mac` NEXT row is re-pointed at D1**, since both it and its stated
-  fallback (A13) are now done. D1 by the same argument that made E1a a mac
-  item — its own row says whether an AUv3 can open a URL at all "is a factual
-  question the macOS box can answer and the other two cannot". Design note
-  only, no GATED path, no `.github/workflows/**`, and PLAN's "Price and
-  funding" already settles the policy it designs against. Fallback named as S2.
-
-**Not done, deliberately:** the `linux` NEXT row is still the flagged question
-the 2026-08-14 win entry left. Nothing measured here bears on it, and guessing
-at another platform's lane is the mistake that row exists to avoid.
-
-**Next:** the tolerances are now set from *one* cross-platform pair. Windows is
-the third lane and has still never rendered — if it lands inside −67/−62 the
-6 dB margin was right, and if it does not, the right response is to re-measure
-the drift rate rather than to widen again. Nothing here needs Windows to
-proceed. `E1b` (installing `docs/ci/verify.yml`) is still Jeff-only and still
-the thing that would make any of this run automatically.
-
-**On the PR's three red checks — checked before leaving them alone, not
-assumed.** `windows`/`macos`/`linux` are red on #52, and they are red on #49,
-#50 and #51 too, for the same pre-existing reason: `build.yml` configures CMake
-at the repo root and **TideSynth has no root `CMakeLists.txt`** (`CMake Error:
-The source directory ... does not appear to contain CMakeLists.txt`). That is
-**B1** verbatim — the skeleton CI "expected to fail until C7". Job-level
-`continue-on-error: true` is why the same workflow reports *success* on `main`
-while the individual checks read fail on a PR; do not read that difference as a
-regression. `lint` **passes** on this PR, which #49 and #50 could not say.
-
-**Branch/PR:** `tide/mac/E1a-null-tolerances` →
-[#52](https://github.com/JeffMcClintock/TideSynth/pull/52)
-
----
-

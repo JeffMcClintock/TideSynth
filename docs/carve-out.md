@@ -232,10 +232,38 @@ BACKLOG item **C*n***, except for the one precondition:
      list), but measure rather than assume: computing "before" from a working
      tree the run has already edited hides the closures and flatters the change.
      Two of C4's twenty are on no stage's list at all and are filed as **C11**.
-5. **App base.** `SynthEditAppBase`, `ApplySynthEditConfig`,
-   `SynthRuntime_editor`, `UIoManager`, `IO_base`, `IO_None`.
+5. **App base — IN-REVIEW 2026-08-14.** `SynthEditAppBase`,
+   `ApplySynthEditConfig`, `SynthRuntime_editor`, `UIoManager`, `IO_base`,
+   `IO_None` — plus `Application`, which this list never named but which C9
+   always assigned here. Fourteen files, in `SynthEditLib`'s root like C2, C3
+   and C4. PRs: [SynthEdit#16](https://github.com/JeffMcClintock/SynthEdit/pull/16),
+   [SynthEditLib#7](https://github.com/JeffMcClintock/SynthEditLib/pull/7) —
+   both merge together. Verified: Ninja 905/905 RC=0 with five products, 92
+   tests across three suites all RC=0, and SynthEdit2 (WinUI3) links.
+
+   **C9 is now finished.** `Application.cpp` was its third and last live user;
+   it takes `se_version.h` and `SE_APP_BUILD_NUMBER` exactly as C4's two did.
+   Proven with a positive control rather than an absent error, which matters
+   because `se_version.h` defaults the macro to 0 — a lost injection compiles
+   fine and silently stops invalidating. Probe TU: **0** without the injection,
+   **183** with.
+
+   Two things stage 6 must inherit:
+
+   - **This staging does not cover every file, and stage 6 is where that
+     becomes a problem.** 41 `${EDITOR_DIR}` entries remain on EditorLib's
+     source list after stage 5 and no stage owns them, so **stage 7's
+     clean-clone test cannot pass** and stage 6 would move a `CMakeLists.txt`
+     pointing at 41 files a stranger cannot see. Filed as BACKLOG **C12**, to
+     be done *before* stage 6. The phrase "C3-C5 convert the rest", in this
+     document and in the CMakeLists comment, was simply wrong.
+   - **The private-include count fell for the first time: 59 → 54** (closed 15,
+     opened 10), both sides read from git refs. Of the 10 opened, 6 are on a
+     stage's list; four are not, and one is `SynthEditApp.h` — so **C11 now has
+     two public-side call sites**, `MfcDocPresenter.cpp` from C4 and
+     `ApplySynthEditConfig.cpp` from C5. It still needs Jeff.
 6. **Move `EditorLib/CMakeLists.txt` itself** into `SynthEditLib`, so the public
-   repo can build the editor library standalone.
+   repo can build the editor library standalone. **Do C12 first** — see stage 5.
 7. **Point TIDE at it.** TIDE's CMake consumes public `SynthEditLib` only, with
    no reference to `C:\SE\SE16`. At this point a stranger can build TIDE.
 
