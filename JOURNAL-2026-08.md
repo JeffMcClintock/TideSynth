@@ -5634,3 +5634,104 @@ its 1 commit was `e707482`, the one that breaks the configure.
 [#54](https://github.com/JeffMcClintock/TideSynth/pull/54)
 
 ---
+
+## 2026-08-14 — linux — #53 fixed; S2 landed (interactive session, Jeff directing)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as `tide-rack-bot`
+
+**Did:** Fixed the platform:linux configure break this box filed earlier the same
+day, at Jeff's direction, and did the STEP 4 chores that S2's merge unblocked.
+**The linux box builds again**, verified from merged `main`.
+
+**Result — the break was wider than the issue said, and the fix is one gate.**
+
+[#53](https://github.com/JeffMcClintock/TideSynth/issues/53) named the pipewire
+probe. Reading the file properly found **three** hard-failure sites, any one of
+which kills the whole SE16 configure:
+
+1. nine `pkg_check_modules(... REQUIRED ...)`
+2. `find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)`
+3. `message(FATAL_ERROR)` when a wayland protocol XML is absent
+
+Two facts decided the shape of the fix, and both were checked rather than assumed:
+
+- **Nothing links `Standalone_Wrapper`.** `grep -rn 'Standalone_Wrapper'` across
+  `GMPI_Wrappers`, `SE16`, `GMPI`, `gmpi_ui` and `GMPI-plugins` finds no consumer.
+  So skipping the target costs nothing today.
+- **The parent already documented the contract that was broken.**
+  `wrapper/CMakeLists.txt:12-14` says of this very `add_subdirectory`: *"Returns
+  immediately on platforms whose shell is not written yet, so this is safe to add
+  unconditionally."* The `REQUIRED` probes made that false. The fix restores the
+  stated contract rather than inventing a policy.
+
+So: probe everything, collect what is missing, one gate — skip with a message
+naming the missing packages and the `apt` line, or fail hard under the new
+`GMPI_STANDALONE_STRICT` (default OFF). **That option is the mitigation for the
+fix's own downside** — a silent skip on a machine that meant to build the
+standalone host — so the change does not trade one invisible failure for another.
+
+Two things kept deliberately, both of which a naive "just drop REQUIRED" would
+have lost: the per-module `Found X, version Y` output, which is how you tell
+*absent* from *present but too old*; and naming missing protocol XMLs
+individually, because the usual cause is a distro too old for the staging
+protocols (Ubuntu 22.04 ships wayland-protocols 1.25 and has neither
+`fractional-scale-v1` nor `cursor-shape-v1`) and `GMPI_WAYLAND_PROTOCOLS_DIR`
+fixes that without touching system packages.
+
+**Verification artifact — built, not just configured:**
+
+| Check | Before | After |
+|---|---|---|
+| `cmake -S SE16 -B <fresh> -G Ninja` | RC=1 | **RC=0** |
+| `cmake --build . --target TIDE_VST3` | could not configure | **298/298**, links `TIDE_VST3.so`, assembles the `.vst3` |
+
+The artifact is real: 91 MB ELF exporting `GetPluginFactory` and `ModuleEntry`.
+Two controls so the gate is not passing vacuously — `GMPI_STANDALONE_STRICT=ON`
+gives RC=1 naming `libpipewire-0.3`, and the build graph contains **zero**
+`Standalone_Wrapper` targets while `VST3_Wrapper`, `CLAP_Wrapper`,
+`SynthEditLib`, `EditorLib`, `TIDE_VST3` and `TIDE.gmpi` are all present. (17
+`standalone` strings remain in the graph; all are CMake's per-directory
+`install`/`test`/`edit_cache` boilerplate, emitted for any added subdirectory
+even when it returns early.)
+
+**Re-verified after the merge, which is the check that actually matters:**
+configure of merged `main` with `GMPI_Wrappers` **fetched from GitHub rather than
+a local override** — RC=0. That is what a fresh clone and CI get, not just what
+this box's working tree gets.
+
+**Learned:**
+
+- **A platform-gated `return()` above a `REQUIRED` probe hides the probe from two
+  of three platforms.** `if(NOT UNIX OR APPLE) return()` meant Windows and macOS
+  never reached the pipewire line, so a hard dependency that stopped the entire
+  linux tree could sit on `main` looking green. Any dependency probe below a
+  platform gate is, by construction, only tested on the platforms below that gate
+  — worth remembering before adding one.
+- **Check for consumers before deciding between "make it optional" and "make it
+  opt-in".** A target nothing links can be skipped silently at near-zero cost; a
+  target something links cannot, because the consumer's
+  `target_link_libraries` then fails on a nonexistent target. The grep is one
+  command and it picked the option.
+- **Resolve-then-generate, never resolve-while-generating.** The original loop
+  emitted `add_custom_command`s for the protocols it had found and only then hit
+  the missing one. Splitting the loop is what lets a missing XML join the same
+  report as a missing package instead of being a separate failure mode.
+
+**STEP 4 chores this unblocked:** **S2** flipped `IN-REVIEW` → `DONE`
+([#54](https://github.com/JeffMcClintock/TideSynth/pull/54) merged 2026-08-14)
+and moved verbatim to `BACKLOG-DONE.md`. The `linux` NEXT row, which this
+morning pointed at "#53 first, then S3", now points at **S3** alone.
+
+**Next:** **S3** for the next linux run — `SE16/SynthEditSem/TideApp.cpp` is
+ALLOWED, the box can build again, and S2 supplied the evidence its row lacked
+(finding A6: live write sites behind the `assert(false)` stubs). The two
+judgements still waiting on Jeff are unchanged: **S1b/S5/S7/S8 are GATED-in-full
+and should not read as `TODO`** to a scheduled run, and **A2's sandbox-escape
+question gates doing S7 properly**.
+
+**Branch/PR:** [GMPI_Wrappers#3](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/3)
+(merged, `49ff927`) for the fix; this entry and the backlog cleanup on
+`tide/linux/post-merge-cleanup`. Both working copies left on their default
+branches, clean.
+
+---

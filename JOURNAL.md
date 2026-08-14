@@ -46,6 +46,122 @@ Template:
 
 ---
 
+## 2026-08-15 — windows — C12a
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness; no `claude` CLI on PATH to version, same as the C5 and C12 runs) · as `tide-rack-bot`
+
+**Did:** Carve-out sub-stage **C12a**, the first of the six the C12 scoping run
+split out the day before. Four `${EDITOR_DIR}` lines deleted from
+`SE16/EditorLib/CMakeLists.txt` — `GuiPin.h`, `Module_Info_Plugin.{cpp,h}` and
+`resource.h` — plus the stale stage comment replaced. **Nothing moved and no
+file was deleted.** `SE16` `c58e4bc5a` on `tide/win/C12a-delist-dead-duplicate`,
+pushed, [SynthEdit#18](https://github.com/JeffMcClintock/SynthEdit/pull/18).
+**41 → 37 entries.**
+
+**Result — green, and one number differs from the row's prediction in the
+direction that confirms rather than undermines it.**
+
+| check | result |
+|---|---|
+| `${EDITOR_DIR}` entries | **41 → 37** |
+| fresh scratch Ninja tree of `SE16`, Release, configure | RC=0 |
+| build | **904/904, RC=0** |
+| `ctest` | **92/92 passed, 0 failed**, RC=0 |
+| artifacts | `TIDE.gmpi`, `TIDE_VST3.vst3`, `SynthEditCL.exe` all produced |
+| `Module_Info_Plugin` / `GuiPin` edges in `build.ninja` | **0** / **0** |
+| `SynthEdit2.vcxproj` and `.filters` mentions of the four | **0** |
+| `SE_APP_BUILD_NUMBER` at configure | **185** — C9's injection still tracking |
+
+**904, where both the row and the plan doc said "still builds 905/905".** That
+is the expected consequence of the change, not a regression: dropping
+`Module_Info_Plugin.cpp` removes one TU from `EditorLib`, so the ninja edge
+count falls by exactly one from the 905 the C12 scoping run measured on
+`master` hours earlier. **Both documents predicted the count would hold while
+also correctly identifying that this is a real link-surface change needing a
+build — the two statements contradict each other and nobody noticed.** Worth
+saying plainly because "905/905" was written as an acceptance check, and a
+later run reading it literally would have treated a correct build as a failure.
+The 92 tests are unchanged, which is the part that actually had to hold.
+
+**Learned — all three delisting claims verified, and the checks are cheap
+enough that no future stage should skip them.** The plan doc says *"do not take
+it on trust, the checks are two greps"*; re-run this session, all three hold:
+
+- **`GuiPin.h`** — zero includers across `SE16`, `SynthEditLib`, `SynthEditCL`,
+  `gmpi_ui` and `GMPI_Wrappers`. The only apparent extra hits anywhere in the
+  tree came from `SE16/SynthEdit2/.claude/worktrees/` (two stray agent
+  worktrees, gitignored) and `SE16/build/_deps/syntheditlib-src/` — **worth
+  knowing for any future grep-based measurement on this box, because both look
+  like real source and neither is.** Scope greps to the five repo roots.
+- **`Module_Info_Plugin`** — stronger than the row claimed. The row says its
+  only construction site is commented out at `ModuleFactory_Editor.cpp:1320`.
+  It is also true that the `switch` there has **no `case 3`** at all for its
+  class-type id: `case 1` carries the commented-out line and falls through to
+  `default`, i.e. plain `Module_Info` with `SetUnavailable()`. So the type is
+  unreachable by two independent routes, not one.
+- **`resource.h`** — both copies 361 lines; **all 318 `ID_*`/`IDR_*` constants
+  byte-identical**; the only differences are a trailing space in a comment and
+  `_APS_NEXT_RESOURCE_VALUE` (**210** private, **207** public). That counter gap
+  is the measurable sign the private copy has had three resource slots the
+  public one has not, which is **P9**'s whole point and the only thing making
+  C12a safe.
+
+**Learned — A4 has still not been observed firing, and this run's own PR is the
+next chance.** A4's row says to flip it to DONE *"only after watching it merge
+one PR and leave one alone"*. [#59](https://github.com/JeffMcClintock/TideSynth/pull/59),
+the only candidate since it landed, was **merged by `JeffMcClintock`**, not by
+the action — checked via the API rather than inferred from the timeline. The
+workflow has run five times with `conclusion: success`, but success includes
+"correctly declined", so those runs are not evidence either way. **This run's
+TideSynth PR touches only `JOURNAL.md`, `JOURNAL-2026-08.md` and `BACKLOG.md`,
+all three on A4's allowlist, and is authored by `tide-rack-bot` — so it should
+auto-merge.** Whoever reads this next: check whether it did. If it did, that is
+half of A4's flip condition met; the paired SynthEdit PR carries `.txt` build
+code and must stay for Jeff, which is the other half. Left A4 IN-REVIEW.
+
+**Learned — the C12 scoping run's "no non-CMake build edits" claim holds for
+these four specifically**, checked rather than inherited: `SynthEdit2.vcxproj`
+and `.vcxproj.filters` mention none of them. So C12a needed no Visual Studio or
+Xcode project edit, as predicted.
+
+**Next:** **C12b** — the ten control files (`Control`, `Ctl_Combo`,
+`Ctl_Keyboard2`, `Ctl_Slider`, `Ctl_Text`), 1,054 lines, a comfortable single
+session, and it closes 6 dangling edges. The win NEXT row already said "C12a,
+then C12b"; it is now just C12b, and the baseline any successor should compare
+against is **904/904 and 92/92**, not 905. C12c is the bigger win on dangling
+edges (21, more than C5 closed in total) if a box wants that instead — ordering
+between sub-stages is a convenience, not a constraint. **Do not take C12f
+expecting its stated Accept to pass**: it says *"zero `${EDITOR_DIR}` entries
+remain"*, which is only reachable once a–e have landed, so taken now it would
+leave 27 and fail its own check as written.
+
+**One thing deliberately not done.** The NEXT row reads "C12a, then C12b", but
+STEP 2 says pick exactly one item, and one item is what this run took. C12b is
+a `git mv` of ten files into `SynthEditLib` — a second repo, a second PR, and a
+second full build — which is not a rider on a four-line delete. Re-pointing the
+NEXT row at C12b is this entry's contribution to it.
+
+**STEP 1 / 1.5:** no `platform:win` issues. Zero open PRs across all five repos
+at the start of the run; one open issue, TideSynth
+[#44](https://github.com/JeffMcClintock/TideSynth/issues/44) (A6 watchdog
+digest, `github-actions`, informational). One remote branch from another
+platform, `tide/mac/D1-donation-affordance`, with no PR yet — the mac box's live
+D1 claim, not a collision with C12a.
+
+**Side effects on this box:** one scratch Ninja tree and a build script under
+the session scratchpad, both outside every repo. **Jeff's own `SE16\build` was
+not touched** — it is a Visual Studio / Debug tree and was left exactly as
+found. All five working copies were clean and on their default branches at the
+start of the run, and are back on them at the end.
+
+**Branch/PR:** [SynthEdit#18](https://github.com/JeffMcClintock/SynthEdit/pull/18)
+(the code — four deleted lines and the comment) and the TideSynth PR carrying
+this entry and the backlog status. **Merging the TideSynth one alone lands no
+code**, and merging SynthEdit#18 alone is safe on its own — nothing in the two
+depends on the other to build.
+
+---
+
 ## 2026-08-14 — windows — C12 (scoping session)
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness; no `claude` CLI on PATH to version, same as the C5 run) · as `tide-rack-bot`
@@ -590,105 +706,3 @@ BACKLOG/JOURNAL PR is the natural first test.
 **Branch/PR:** `tide/linux/A4-auto-merge-tier`. Committed as Jeff, not as
 `tide-rack-bot` — the bot token deliberately cannot push `.github/workflows/**`.
 
----
-
-## 2026-08-14 — linux — #53 fixed; S2 landed (interactive session, Jeff directing)
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as `tide-rack-bot`
-
-**Did:** Fixed the platform:linux configure break this box filed earlier the same
-day, at Jeff's direction, and did the STEP 4 chores that S2's merge unblocked.
-**The linux box builds again**, verified from merged `main`.
-
-**Result — the break was wider than the issue said, and the fix is one gate.**
-
-[#53](https://github.com/JeffMcClintock/TideSynth/issues/53) named the pipewire
-probe. Reading the file properly found **three** hard-failure sites, any one of
-which kills the whole SE16 configure:
-
-1. nine `pkg_check_modules(... REQUIRED ...)`
-2. `find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)`
-3. `message(FATAL_ERROR)` when a wayland protocol XML is absent
-
-Two facts decided the shape of the fix, and both were checked rather than assumed:
-
-- **Nothing links `Standalone_Wrapper`.** `grep -rn 'Standalone_Wrapper'` across
-  `GMPI_Wrappers`, `SE16`, `GMPI`, `gmpi_ui` and `GMPI-plugins` finds no consumer.
-  So skipping the target costs nothing today.
-- **The parent already documented the contract that was broken.**
-  `wrapper/CMakeLists.txt:12-14` says of this very `add_subdirectory`: *"Returns
-  immediately on platforms whose shell is not written yet, so this is safe to add
-  unconditionally."* The `REQUIRED` probes made that false. The fix restores the
-  stated contract rather than inventing a policy.
-
-So: probe everything, collect what is missing, one gate — skip with a message
-naming the missing packages and the `apt` line, or fail hard under the new
-`GMPI_STANDALONE_STRICT` (default OFF). **That option is the mitigation for the
-fix's own downside** — a silent skip on a machine that meant to build the
-standalone host — so the change does not trade one invisible failure for another.
-
-Two things kept deliberately, both of which a naive "just drop REQUIRED" would
-have lost: the per-module `Found X, version Y` output, which is how you tell
-*absent* from *present but too old*; and naming missing protocol XMLs
-individually, because the usual cause is a distro too old for the staging
-protocols (Ubuntu 22.04 ships wayland-protocols 1.25 and has neither
-`fractional-scale-v1` nor `cursor-shape-v1`) and `GMPI_WAYLAND_PROTOCOLS_DIR`
-fixes that without touching system packages.
-
-**Verification artifact — built, not just configured:**
-
-| Check | Before | After |
-|---|---|---|
-| `cmake -S SE16 -B <fresh> -G Ninja` | RC=1 | **RC=0** |
-| `cmake --build . --target TIDE_VST3` | could not configure | **298/298**, links `TIDE_VST3.so`, assembles the `.vst3` |
-
-The artifact is real: 91 MB ELF exporting `GetPluginFactory` and `ModuleEntry`.
-Two controls so the gate is not passing vacuously — `GMPI_STANDALONE_STRICT=ON`
-gives RC=1 naming `libpipewire-0.3`, and the build graph contains **zero**
-`Standalone_Wrapper` targets while `VST3_Wrapper`, `CLAP_Wrapper`,
-`SynthEditLib`, `EditorLib`, `TIDE_VST3` and `TIDE.gmpi` are all present. (17
-`standalone` strings remain in the graph; all are CMake's per-directory
-`install`/`test`/`edit_cache` boilerplate, emitted for any added subdirectory
-even when it returns early.)
-
-**Re-verified after the merge, which is the check that actually matters:**
-configure of merged `main` with `GMPI_Wrappers` **fetched from GitHub rather than
-a local override** — RC=0. That is what a fresh clone and CI get, not just what
-this box's working tree gets.
-
-**Learned:**
-
-- **A platform-gated `return()` above a `REQUIRED` probe hides the probe from two
-  of three platforms.** `if(NOT UNIX OR APPLE) return()` meant Windows and macOS
-  never reached the pipewire line, so a hard dependency that stopped the entire
-  linux tree could sit on `main` looking green. Any dependency probe below a
-  platform gate is, by construction, only tested on the platforms below that gate
-  — worth remembering before adding one.
-- **Check for consumers before deciding between "make it optional" and "make it
-  opt-in".** A target nothing links can be skipped silently at near-zero cost; a
-  target something links cannot, because the consumer's
-  `target_link_libraries` then fails on a nonexistent target. The grep is one
-  command and it picked the option.
-- **Resolve-then-generate, never resolve-while-generating.** The original loop
-  emitted `add_custom_command`s for the protocols it had found and only then hit
-  the missing one. Splitting the loop is what lets a missing XML join the same
-  report as a missing package instead of being a separate failure mode.
-
-**STEP 4 chores this unblocked:** **S2** flipped `IN-REVIEW` → `DONE`
-([#54](https://github.com/JeffMcClintock/TideSynth/pull/54) merged 2026-08-14)
-and moved verbatim to `BACKLOG-DONE.md`. The `linux` NEXT row, which this
-morning pointed at "#53 first, then S3", now points at **S3** alone.
-
-**Next:** **S3** for the next linux run — `SE16/SynthEditSem/TideApp.cpp` is
-ALLOWED, the box can build again, and S2 supplied the evidence its row lacked
-(finding A6: live write sites behind the `assert(false)` stubs). The two
-judgements still waiting on Jeff are unchanged: **S1b/S5/S7/S8 are GATED-in-full
-and should not read as `TODO`** to a scheduled run, and **A2's sandbox-escape
-question gates doing S7 properly**.
-
-**Branch/PR:** [GMPI_Wrappers#3](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/3)
-(merged, `49ff927`) for the fix; this entry and the backlog cleanup on
-`tide/linux/post-merge-cleanup`. Both working copies left on their default
-branches, clean.
-
----
