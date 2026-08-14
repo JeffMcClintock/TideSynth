@@ -31,6 +31,38 @@ defaults are not.
 
 ---
 
+## Open — PROPOSED, awaiting a merge to become decisions
+
+```
+PROPOSED: Where does SynthEdit2/Dialogs_editor2.cpp go when C12 moves the rest
+          of EditorLib's source list into the public repo?  (BACKLOG C12e)
+  Options: (a) move it to SynthEditLib alongside Dialogs_editor.h, keeping
+               today's arrangement;
+           (b) take it off EditorLib's source list entirely and let
+               SynthEdit2.vcxproj compile it directly, matching how
+               SynthEditApp.cpp and ExportAsPlugin.cpp are already handled;
+           (c) delete it — the three function bodies are already empty, and the
+               other three consumers each supply their own definitions.
+  Recommended default: (b) — the file is an app-level stub sitting in a shared
+    library, and today it only works by static-library accident: TIDE links
+    EditorLib (which contains Dialogs_editor2.obj) AND defines the same three
+    symbols in TideApp.cpp, with no duplicate-symbol error solely because that
+    object holds nothing else and so is never pulled in. Adding one symbol to
+    that file breaks TIDE's link. (b) turns the accident into the deliberate
+    arrangement the other two app-level files already use, for the cost of one
+    vcxproj entry.
+  Default in effect meanwhile: the file stays where it is, C12e is skipped, C12
+    reaches 39 of its 41 entries, and C6 stays blocked.
+  May proceed meanwhile: C12a, C12b, C12c, C12d and C12f — all five are
+    identical under every option.
+  Decide-by: before C6.
+```
+
+Filed 2026-08-14 by the windows box while scoping C12. Evidence and the full
+five-definition table: [c12-remaining-editor-files.md](c12-remaining-editor-files.md).
+
+---
+
 ## Decisions
 
 | Date | Decision | Notes |

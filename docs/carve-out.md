@@ -262,8 +262,27 @@ BACKLOG item **C*n***, except for the one precondition:
      stage's list; four are not, and one is `SynthEditApp.h` — so **C11 now has
      two public-side call sites**, `MfcDocPresenter.cpp` from C4 and
      `ApplySynthEditConfig.cpp` from C5. It still needs Jeff.
+   **Stage 5 is DONE — both PRs merged 2026-08-14.**
+
+5b. **The 41 leftovers — scoped 2026-08-14, split into C12a–C12f.** Not a stage
+   Jeff wrote; a stage the counting produced. Plan, measurements and the
+   reasoning: [c12-remaining-editor-files.md](c12-remaining-editor-files.md).
+   The headline is that C12 is smaller than its row feared and finishes the job
+   cleanly: the 41 entries are **closed under inclusion**, so unlike C4 (+20)
+   and C5 (+10) this stage opens **zero** new dangling private includes, and no
+   C11-shaped follow-up can come out of it. Four of the 41 are dead or duplicate
+   and are delisted rather than moved. Neither `SynthEdit2.vcxproj` nor the
+   SynthEditMac Xcode project lists any of the 41, so it is CMake and `git mv`
+   throughout. One sub-stage, **C12d**, is marked `linux`: `platform_editor.cpp`
+   is the factory breaking a `SynthEditLib`↔`EditorLib` mutual static-archive
+   dependency, and whether the GNU ld rescan group is still needed afterwards is
+   invisible to MSVC. One, **C12e**, is parked on a PROPOSED ruling.
 6. **Move `EditorLib/CMakeLists.txt` itself** into `SynthEditLib`, so the public
    repo can build the editor library standalone. **Do C12 first** — see stage 5.
+   BACKLOG C6's blocker was corrected from `BLOCKED(C5)` to `BLOCKED(C12f)` on
+   2026-08-14: C5 merged that day, which by the status column alone — the one
+   place eligibility lives — had made stage 6 eligible while the only warnings
+   against it were prose.
 7. **Point TIDE at it.** TIDE's CMake consumes public `SynthEditLib` only, with
    no reference to `C:\SE\SE16`. At this point a stranger can build TIDE.
 
