@@ -5256,3 +5256,173 @@ DONE-row/NEXT-row cleanup are committed directly to `main`, interactive
 session.
 
 ---
+
+## 2026-08-14 — macos — E1a
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Desktop 1.26832.0 · as `tide-rack-bot`
+
+**Did:** Ran the audio harness on a second platform for the first time in its
+life — macOS against the Linux goldens — and set the null-test tolerances from
+what came back. **The headline is that finding (e) was closed by measurement
+rather than by widening anything**, and that a *different* class of residual,
+which nobody had modelled, is what actually needed a fix.
+
+**Result:** both cases render on macOS; 2/2 pass after the change; every number
+below is measured, not modelled unless said so.
+
+*Three engines, so the platform axis is isolated rather than assumed.* An
+engine-version or build-config difference would otherwise be indistinguishable
+from a platform one:
+
+| Engine | Origin |
+|---|---|
+| `SynthEditCL V1.6.175` | local Release build, 2026-08-08 |
+| `SynthEditCL V1.6.182` | local **Debug** build, 2026-08-13 |
+| `SynthEditCL V1.6.183` | published `SynthEditCL_mac.zip`, Azure CI, signed |
+
+*The measurements, identical on all three:*
+
+| Case | RMS residual | Peak residual | Class |
+|---|---|---|---|
+| `voice_midi_note` | −123.1 dBFS | −90.3 dBFS = **exactly 1 LSB**, 51/95,999 samples (0.053%) | pure rounding |
+| `osc_naive_sine` | −73.5 dBFS | −68.7 dBFS = 12 LSB | **not rounding** |
+
+**(1) The RMS gate did not need widening, and the reasoning that said it might
+was resting on a premise the data does not support.** E1a's arithmetic was
+right — the −100 dBFS gate tolerates 1-LSB error on at most ~10.7% of samples —
+but it assumed the worst case, 1 LSB on *every* sample. Real cross-platform
+rounding touched **0.053%** of samples: a 200× margin, 22.9 dB of headroom.
+Two builds agree on nearly every sample and disagree only where a value sits on
+a quantisation boundary. Gates stay at −100/−86.
+
+The peak gate's 4.3 dB is structural rather than lucky: **1 LSB is a hard
+per-sample ceiling** for this class. Two builds that agree on the underlying
+float can only disagree about which way it rounds — drift of this class can
+affect more samples, never make one sample wrong by more than 1 LSB.
+
+**(2) `osc_naive_sine` fails for a reason no fixed dBFS number can express.**
+The residual **grows monotonically through the render** — −96 dBFS in the first
+0.1 s block, −69 dBFS in the last — with a best-fit time lag of exactly zero,
+so it is neither rounding nor a delay. Fitting `dphi = k·t` gives a **frequency
+offset of 0.15 ppm ≈ 2.5 ULP at single precision** (2⁻²⁴ = 5.96e-8) on a
+440 Hz tone. `OscillatorNaive`'s table and increment are both `double`, but
+`OscillatorNaive.h:66` derives the table index as a **`float` from a `float`
+pitch**, so the pitch→increment path carries single-precision resolution — the
+right order for what was measured. Named as the plausible locus, **not proven**;
+the measured quantity is the 2.5 ULP.
+
+A frequency offset *integrates*, so the residual is proportional to elapsed
+time. Modelled from the fitted rate (the 2 s row matches measurement to 1–2 dB):
+
+| Duration | Peak | RMS |
+|---|---|---|
+| 0.5 s | −79.6 | −87.4 |
+| **2.0 s** (this case) | **−67.6** | **−75.4** |
+| 8 s | −55.6 | −63.3 |
+| 60 s | −38.1 | −45.8 |
+
+So widening the global gates to admit it would have to reach −67 dBFS — past
+finding (b)'s reference defect (3 LSB × 200 samples, caught at peak −80.8 dBFS)
+— **and would fail again the moment a case renders for 4 s.** Instead: the
+globals stay as the rounding-class budget, and a case whose residual is a
+different class declares its own with `null_tolerance_dbfs`,
+`peak_diff_tolerance_dbfs` and a mandatory `tolerance_reason` that the harness
+**prints on every run** and records per case in the report (schema `/2` → `/3`).
+`osc_naive_sine` is set to **−67.0 / −62.0 dBFS**: 6 dB above measurement, i.e.
+sized for twice the observed drift (~5 ULP), on the grounds that there is no
+reason to think mac-vs-linux is the widest pair. If Windows exceeds that, the
+case fails and someone re-measures — the correct outcome, not a defect.
+
+*The cost, stated rather than buried:* that case keeps full sensitivity to
+level, waveform and tuning (0.3 ppm of detuning still fails it) and loses it for
+localized damage below ~12 LSB. `voice_midi_note` still covers the same
+oscillator at the −86 dBFS default in a fuller chain.
+
+**Verification artifact — five controls through the harness's own `null_test`
+and `Case` loader, not a re-implementation:**
+
+```
+  C0a osc_naive_sine unmodified              rms= -73.5 peak= -68.7  gates -67/-62   -> PASS
+  C0b voice_midi_note unmodified             rms=-123.1 peak= -90.3  gates -100/-86  -> PASS
+  C1  osc_naive_sine, same drift 4x larger   rms= -61.5 peak= -56.7  gates -67/-62   -> FAIL
+  C2  osc_naive_sine, finding-(b) glitch     rms= -73.5 peak= -68.7  gates -67/-62   -> PASS
+  C2  voice_midi_note, finding-(b) glitch    rms=-107.5 peak= -80.8  gates -100/-86  -> FAIL
+```
+
+C1 is the one that matters — **a widened gate is still a gate**. C2 on
+`voice_midi_note` independently reproduces finding (b)'s numbers (−107.6 /
+−80.8 dBFS) on a second platform. C2 on `osc_naive_sine` is the accepted
+sensitivity cost, demonstrated rather than asserted. Also asserted and checked:
+the override does **not** leak to `voice_midi_note`.
+
+Added `render_harness.py --selftest` — synthesises its audio in memory, needs
+no engine or fixtures, and bakes in findings (b) and (e)'s numbers plus the
+override plumbing. **Confirmed discriminating**: reverting `null_test` to ignore
+its tolerance arguments fails it (RC=1), and the 10.7% boundary is straddled
+(1 LSB on 10% of samples passes at −100.3 dBFS, on 12% fails at −99.5 dBFS).
+
+**Learned:**
+
+- **`SynthEditCL_mac.zip` at `https://www.synthedit.com/release_1_6/` is a
+  working download for this harness**, and the E1a row's "the engine is a
+  download, not a build" is true on mac. It is an `.app`; strip the quarantine
+  xattr, then `Contents/MacOS/SynthEditCL` and `Contents/PlugIns` are the
+  `--cli`/`--modules` pair. That is the closest thing to what CI would run.
+- **Finding (c) extends and slightly retracts.** Extends: the published Azure-CI
+  Release build and the local Release build are **byte-identical** on both
+  cases, so same-platform bit-exactness spans build *machines* too. Retracts:
+  the mac **Debug** build differs from mac Release by 1 LSB on 40/95,999
+  samples in `voice_midi_note`. Finding (c) claimed Release-vs-Debug
+  bit-exactness from a *Linux* measurement; it does not hold on macOS. Renders
+  are still run-to-run bit-exact (checked explicitly).
+- **A residual that grows through the render is diagnostic on its own.** Two
+  cheap measurements separate the three plausible causes before any theorising:
+  per-block RMS (flat = rounding, rising = integrating error) and a small
+  lag sweep (a minimum away from zero = a delay). Both were computed here in
+  about a minute and turned "the sine case fails" into "the phase increment
+  differs by 2.5 ULP", which is what made the fix a mechanism change instead of
+  a bigger number.
+- **The app version STEP 0.5 asks for IS discoverable on the mac desktop app**,
+  unlike Windows (see the 2026-08-14 win entry):
+  `/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Applications/Claude.app/Contents/Info.plist`
+  → `1.26832.0`. `claude` is not on `PATH` here either, so the CLI-version
+  route the older mac entries used no longer applies on this box.
+
+**Queue hygiene done in passing, both status-cell-only:**
+
+- **C5 flipped `BLOCKED(C4)` → `TODO`.** C4's three PRs all merged 2026-08-14,
+  which is the condition its own blocker names. The `win` NEXT row already said
+  "C5, if C4's three PRs have merged"; that "if" has resolved, so the row now
+  names C5 outright instead of leaving the next win run to re-derive it.
+- **The `mac` NEXT row is re-pointed at D1**, since both it and its stated
+  fallback (A13) are now done. D1 by the same argument that made E1a a mac
+  item — its own row says whether an AUv3 can open a URL at all "is a factual
+  question the macOS box can answer and the other two cannot". Design note
+  only, no GATED path, no `.github/workflows/**`, and PLAN's "Price and
+  funding" already settles the policy it designs against. Fallback named as S2.
+
+**Not done, deliberately:** the `linux` NEXT row is still the flagged question
+the 2026-08-14 win entry left. Nothing measured here bears on it, and guessing
+at another platform's lane is the mistake that row exists to avoid.
+
+**Next:** the tolerances are now set from *one* cross-platform pair. Windows is
+the third lane and has still never rendered — if it lands inside −67/−62 the
+6 dB margin was right, and if it does not, the right response is to re-measure
+the drift rate rather than to widen again. Nothing here needs Windows to
+proceed. `E1b` (installing `docs/ci/verify.yml`) is still Jeff-only and still
+the thing that would make any of this run automatically.
+
+**On the PR's three red checks — checked before leaving them alone, not
+assumed.** `windows`/`macos`/`linux` are red on #52, and they are red on #49,
+#50 and #51 too, for the same pre-existing reason: `build.yml` configures CMake
+at the repo root and **TideSynth has no root `CMakeLists.txt`** (`CMake Error:
+The source directory ... does not appear to contain CMakeLists.txt`). That is
+**B1** verbatim — the skeleton CI "expected to fail until C7". Job-level
+`continue-on-error: true` is why the same workflow reports *success* on `main`
+while the individual checks read fail on a PR; do not read that difference as a
+regression. `lint` **passes** on this PR, which #49 and #50 could not say.
+
+**Branch/PR:** `tide/mac/E1a-null-tolerances` →
+[#52](https://github.com/JeffMcClintock/TideSynth/pull/52)
+
+---
