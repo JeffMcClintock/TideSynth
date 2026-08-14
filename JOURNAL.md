@@ -255,7 +255,9 @@ or prefab folder was created or invalidated.
    instance found here; nothing guarantees it is the only one.
 
 **Branch/PR:** `tide/win/C12-scope-remaining-editor-files`, TideSynth only —
-PR link below. No other repo was committed in or modified.
+[#59](https://github.com/JeffMcClintock/TideSynth/pull/59). No other repo was
+committed in or modified. **Expect #59 to sit unmerged:** it touches
+`docs/decisions.md`, which A4 denies by design.
 
 ---
 
