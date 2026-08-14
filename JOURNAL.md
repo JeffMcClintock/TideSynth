@@ -163,6 +163,8 @@ halves whole. That is what forces C12f to be the largest single stage of the
 whole carve-out however the rest is arranged — and it is the stage that takes
 `${EDITOR_DIR}` to zero and so unblocks C6.
 
+**Learned, in passing, and it changes B1's premise — `build.yml` is not failing for the reason it says it is.** This PR is markdown-only, so its `windows`/`macos`/`linux` check failures cannot be its own doing; checked anyway rather than asserting it, and all three die identically at the **Configure** step with `CMake Error: The source directory "…/TideSynth" does not appear to contain CMakeLists.txt`. `build.yml`'s own header says the expected failure is that *"TIDE depends on EditorLib, which lives in the private SynthEdit repo, so a clean checkout genuinely cannot build"*, and **B1** asks for it to fail *"for exactly that one honest reason, rather than for toolchain or syntax errors"*. The real failure is neither: **`TideSynth` has no top-level `CMakeLists.txt` at all** — the repo root holds only markdown, `docs/`, `scripts/`, `tests/`, `tools/` and `website/`. So the run never reaches the private dependency, and B1 is not the tidy-up its row implies: it includes **authoring TIDE's top-level CMake**, which is a different size of job and probably wants C7's shape settled first. Not filed as a new row — it is B1's, and B1 is `.github/workflows/**` that the bot token cannot push anyway — but its row now says so.
+
 **Verification artifact.** This item produced no code, so the artifact is the
 measurement and the baseline it was taken against, both re-runnable:
 
