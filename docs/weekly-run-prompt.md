@@ -356,6 +356,11 @@ STEP 3 — Do the work, on the branch you pushed in STEP 2.
     self-contained (no caches or writes scattered across the disk).
   - Build it. Run whatever tests exist. If you cannot build, that is the
     finding — record it honestly rather than committing hopeful code.
+  - **Commit as soon as a coherent change exists, rather than staging it and
+    going away to build.** Staged-but-uncommitted work sits in a shared working
+    tree with nobody's name on it; the 2026-08-15 collision happened in exactly
+    that window, and it was open for about ten minutes. Amend later if you need
+    to — an amended commit is cheap, and a lost claim on your own work is not.
   - If your item had you build anything, note in the journal whether your
     platform's default branch also builds — you usually know as a by-product.
     If you discover your platform's default branch is broken and no platform
@@ -395,6 +400,31 @@ The next run knows only what you write down.
     the row to the Done section after observing that every linked PR merged.
     If you see an IN-REVIEW row whose PRs have all merged, flip it as part of
     your STEP 4.
+  - **Before the first push in each repo, check who authored what you are about
+    to push.** One command, and it must come back clean:
+
+        python3 {REPO}/scripts/check-commit-authorship.py --repo <repo>
+
+    Every commit must be `tide-rack-bot`. If any is not, **STOP and do not
+    push.**
+
+    STEP 0.7 cannot catch this, and the distinction is the whole point: it
+    proves *this process* is the bot, once, at the start. It is a property of
+    the process, not of the repository, and says nothing about any other
+    process with write access to the same working tree. On 2026-08-15 a
+    concurrent agent session on the Windows box committed a run's staged
+    changes onto that run's own branches, authored and committed as Jeff — the
+    content was correct, every exit code was normal, and STEP 0.7 had passed
+    and would have passed again. Jeff is on every ruleset's bypass list, so his
+    name on a commit is the one thing this process cannot afford to be wrong
+    about. Filed and reasoned through as BACKLOG A14.
+
+    If the content is yours, re-author it — `git commit --amend --reset-author`
+    for one commit, `git rebase --exec 'git commit --amend --no-edit
+    --reset-author' <base>` for a range — then run the check again. **Never
+    rewrite a commit that is already pushed**, and never rewrite one a
+    concurrent session may be building on: say so in the journal and leave it.
+
   - Commit both, push the branch, open a PR — in EVERY repo you committed in,
     not just this one. TideSynth's default branch is `main`; a fresh clone may
     leave you on `master`, and `gh pr create --base master` then fails with a
