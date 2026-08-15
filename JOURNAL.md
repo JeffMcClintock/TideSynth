@@ -46,6 +46,59 @@ Template:
 
 ---
 
+## 2026-08-15 — windows — A15 (interactive session, Jeff directing)
+
+**Did:** **A15** — wired A10's [scripts/check-id-refs.py](scripts/check-id-refs.py)
+into the `lint` job, which is the half A10 could not do because the bot token
+is `repo` scope with **no `workflow`**. Pushed as Jeff rather than
+`tide-rack-bot` for exactly that reason; his keyring token on this box does
+carry `workflow` (checked with `gh auth status` first, since the A11 entry
+records that this bites on other boxes and not here).
+
+**Result — both halves of the Accept proven in the PR's own two-commit
+history, in order, rather than asserted.**
+
+| push | carried | `lint` |
+|---|---|---|
+| first | the wiring **+ a probe file naming a nonexistent row `Z9`** | **fail** |
+| second | probe deleted | **pass** |
+
+The failing run reads `id-refs: failure` with `links`, `journal`, `backlog` and
+`provenance` all `success` — so it failed **for the right reason and only that
+reason**, and the `ID_REFS` Summary wiring genuinely converts a step failure
+into a job failure. The passing run reads all five `success` and
+`456 ID reference(s) checked against 98 row(s), 91 distinct ID(s) named`.
+Together those rule out the two ways this could have looked installed while
+doing nothing: failing always, and passing vacuously.
+
+**Learned — the Summary wiring is the part that would have silently rotted, and
+A15's row was right to insist on it.** Every step in this job is
+`continue-on-error`, so a step added *without* `ID_REFS` in the Summary's `env`
+and `for` loop runs, prints its findings, fails — and the job goes green. It
+would look wired for as long as nobody read a log. Same shape as A4's finding
+that a path allowlist can look built while firing on nothing, and the reason
+both halves are now demonstrated separately rather than assumed together.
+
+**Learned — this check is deliberately not diff-based, unlike the four above
+it, and the workflow now carries a comment saying so.** The other four compare
+a base version against head. A cross-reference goes stale when the row it names
+is **renamed or archived** — an edit to a *different file* than the one holding
+the reference. A diff-scoped check would see the reference file unchanged and
+pass, which is precisely the case A10 was filed for. So it reads the whole tree
+every run. Cost is bounded: 456 references, 9 seconds.
+
+**Next:** nothing on this row. The lint job is now five checks, all green on
+`main`. Whoever next touches [scripts/check-id-refs.py](scripts/check-id-refs.py)
+should re-run `--selftest` (20 cases) as well as the tree scan, since CI runs
+only the latter.
+
+**Side effects on this box:** none outside the scratchpad. TideSynth only; no
+other repo was committed in or modified.
+
+**Branch/PR:** [TideSynth#65](https://github.com/JeffMcClintock/TideSynth/pull/65).
+
+---
+
 ## 2026-08-15 — windows — P9
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
@@ -289,134 +342,3 @@ left on their default branches, clean, before it started.
 **Branch/PR:** [TideSynth#62](https://github.com/JeffMcClintock/TideSynth/pull/62),
 based on `tide/win/C12b-controls`. No code outside `scripts/`.
 
----
-
-## 2026-08-15 — windows — C12b (and a second-agent collision worth more than the item)
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness; no `claude` CLI on PATH to version) · as `tide-rack-bot`
-
-**Did:** Carve-out sub-stage **C12b** — `Control`, `Ctl_Combo`, `Ctl_Keyboard2`,
-`Ctl_Slider`, `Ctl_Text`, ten files and 1,053 lines, moved from private
-`SE16/SynthEdit2` into public `SynthEditLib`'s root. **37 → 27
-`${EDITOR_DIR}` entries.** Also added a committed measurement script, and
-archived C12a to [BACKLOG-DONE.md](BACKLOG-DONE.md) after seeing both its PRs
-merge. **This was a second item in one session, taken at Jeff's explicit
-direction in an interactive session — not a scheduled run deciding to keep
-going.** STEP 2's one-item rule stands for unattended runs.
-
-**Read the collision section first if you are short of time. The stage itself
-went exactly as scoped; the collision is the part that changes how a run should
-behave.**
-
-### The collision — another agent committed my work as Jeff
-
-Midway through C12b, with the ten files staged in two repos and nothing yet
-committed, **a second Claude session (Fable 5) running on this same box picked
-up my staged changes and committed them** — on my branches, in both `SE16` and
-`SynthEditLib`, at 10:49:35, authored **and** committed as
-`Jeff McClintock <jef@synthedit.com>`.
-
-The content was mine and was correct: my CMakeLists comment verbatim, my
-repointing, my ten file moves, nothing foreign mixed in. Checked by diffing
-against the merge-base before doing anything else. **The damage was purely to
-authorship — which is exactly what STEP 0.7's four `GIT_*` variables exist to
-prevent**, and the reason they exist is stated in the run prompt: without them
-`git log` cannot tell agent work from Jeff's. Here the mechanism was inverted —
-the variables were set correctly in *my* environment, and a different process
-with a different environment committed my working tree anyway.
-
-**Resolved** by `git commit --amend --reset-author` in both repos with
-`GIT_AUTHOR_*`/`GIT_COMMITTER_*` exported, then an immediate push, on Jeff's
-instruction. Both commits are now `tide-rack-bot`. He also confirmed the other
-session was **still running**, so C12c was deliberately not started and this
-run stopped touching `SE16` and `SynthEditLib` after the push.
-
-**What the next run should take from this, in order of usefulness:**
-
-1. **A clean `git status` is not proof your work is uncommitted.** I read an
-   empty `status --porcelain` in both repos and briefly took it as the changes
-   having been lost. They had been committed by someone else. Check
-   `git log -1 --format='%an'` before concluding anything from a clean tree.
-2. **The staged-but-uncommitted window is the vulnerable one.** Between `git
-   add` and `git commit` the work is in a shared tree with no owner's name on
-   it. On a box that may be running another agent, commit as soon as a coherent
-   change exists and amend later, rather than staging and going off to build for
-   ten minutes — which is exactly what I did.
-3. **The identity assertion in STEP 0.7 cannot detect this.** It proves *this*
-   process is the bot. It says nothing about any other process with write access
-   to the same working trees, and there is currently nothing in the process that
-   would notice. **Filed as A14.**
-4. Do not rewrite commits a concurrent session may be building on without
-   asking. I asked; the answer was to fix the authorship, and it was fine
-   because the branches were unpushed. Unpushed is the condition that made it
-   safe, not the fact that the content was mine.
-
-### Result — the stage itself, all green
-
-| check | result |
-|---|---|
-| `${EDITOR_DIR}` entries | **37 → 27**, zero named `Control` or `Ctl_*` |
-| fresh scratch Ninja tree, Release, configure | RC=0 |
-| build | **904/904, RC=0** — unchanged, as a move should be |
-| `ctest` | **92/92 passed, 0 failed** |
-| the five moved TUs compiled from their **new** home | `EditorLib.dir\C_\SE\SynthEditLib\<name>.cpp.obj`, all five |
-| stale copies left behind in `SE16` | none |
-| **SynthEdit2 (WinUI3)**, MSBuild Release x64 | **RC=0**, links `SynthEdit2.exe` |
-| dangling private includes, public repo | **51 → 45** |
-| `SE_APP_BUILD_NUMBER` at configure | 185 |
-
-**Zero new dangling edges opened — the first stage of which that is true.** C4
-closed 11 and opened 20; C5 closed 15 and opened 10; C12b closed 6 and opened
-**0**, so 51 − 6 = 45 exactly. That is the "closed under inclusion" property the
-C12 scoping run predicted for all of C12, now measured for one stage rather than
-inferred. It is also the cheapest possible check that the moved set is really
-self-contained: if any of the five controls had pulled in a private header no
-stage owns, the total would have landed above 45.
-
-**Learned — `PatchManager.cpp` was resolving two of these headers from its own
-directory, and C12f inherits that.** `SynthEdit2/PatchManager.cpp` includes
-`"Ctl_Slider.h"` and `"Control.h"`. Before this stage both resolved
-own-directory-first inside `SynthEdit2`; now they resolve through EditorLib's
-include path to the public copies. It still builds — that is what 904/904
-proves — but **it is the one own-directory resolution C12b disturbed, and it was
-found by grepping for it rather than by anything failing.** Whoever takes
-**C12f** (which owns `PatchManager`) should know the dependency now runs
-private → public. Worth generalising: every later stage should grep the
-*private* repo for includers of what it is about to move, not just the public
-one, because the public-side scan is blind to this direction.
-
-**Learned — absolute dangling counts are not comparable across runs, only
-deltas within one script.** C5's entry reports 59 → 54; this run's script reads
-51 before C12b, and C12a cannot have closed any (delisting a source-list entry
-changes no `#include`). The gap is definitional — which private directories
-count, whether a repeated include counts once or per site. **So the script is
-now committed:**
-[scripts/dangling_private_includes.py](scripts/dangling_private_includes.py).
-The C12 doc said outright that each stage should re-create it; C4, C5 and the
-C12 scoping run each did, and each got a number nobody else can reproduce. Its
-positive control is that it independently reproduces this stage's Accept line —
-6 edges, `ModuleFactory_Editor.cpp` (4) and `CContainer.cpp` (2) — exactly. It
-documents the own-directory-first rule that makes `resource.h` zero rather than
-71, which is the trap that nearly turned C12a into the largest item in C12.
-
-**Next:** **C12c**, the independent leaves — twelve entries, 1,316 lines,
-closing **21** dangling edges, the largest reduction of any sub-stage. **Take it
-only once C12b has merged**, or you are moving files out of a tree whose
-companion PR is still open. Baselines for whoever does: **904/904, 92/92, and 45
-dangling edges** — and measure with the committed script, not a fresh one.
-
-**STEP 1 / 1.5 at the time C12b was claimed:** no `platform:win` issues; the
-only open PRs were this run's own C12a pair, both since merged by Jeff.
-
-**Side effects on this box:** two scratch Ninja trees, a build script and an
-MSBuild script under the session scratchpad, all outside every repo. The
-MSBuild of `SynthEdit2` wrote into `SE16\x64\Release\` — that is gitignored and
-left `git status` clean, checked. **Jeff's own `SE16\build` was not touched.**
-`SE16` and `SynthEditLib` are back on their default branches; TideSynth is on
-this branch until its PR lands.
-
-**Branch/PR:** [SynthEdit#19](https://github.com/JeffMcClintock/SynthEdit/pull/19)
-+ [SynthEditLib#8](https://github.com/JeffMcClintock/SynthEditLib/pull/8) —
-**these two must merge together**, one removes the files and the other adds them.
-This TideSynth PR carries the journal, the backlog and the script, and lands no
-code.

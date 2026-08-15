@@ -65,6 +65,15 @@ jobs:
         continue-on-error: true
         run: python3 scripts/check-prompt-provenance.py /tmp/base/JOURNAL.md JOURNAL.md
 
+      # A10/A15. Unlike the four above, this one reads the whole tree rather
+      # than a base-vs-head diff: a reference goes stale when the row it names
+      # is renamed or archived, which is an edit to a DIFFERENT file than the
+      # one carrying the reference. Diffing would miss exactly that case.
+      - name: ID cross-references
+        id: idrefs
+        continue-on-error: true
+        run: python3 scripts/check-id-refs.py
+
       - name: Summary
         if: always()
         env:
@@ -72,13 +81,15 @@ jobs:
           JOURNAL: ${{ steps.journal.outcome }}
           BACKLOG: ${{ steps.backlog.outcome }}
           PROVENANCE: ${{ steps.provenance.outcome }}
+          ID_REFS: ${{ steps.idrefs.outcome }}
         run: |
           echo "links:      $LINKS"
           echo "journal:    $JOURNAL"
           echo "backlog:    $BACKLOG"
           echo "provenance: $PROVENANCE"
+          echo "id-refs:    $ID_REFS"
           fail=0
-          for outcome in "$LINKS" "$JOURNAL" "$BACKLOG" "$PROVENANCE"; do
+          for outcome in "$LINKS" "$JOURNAL" "$BACKLOG" "$PROVENANCE" "$ID_REFS"; do
             if [ "$outcome" != "success" ]; then
               fail=1
             fi
