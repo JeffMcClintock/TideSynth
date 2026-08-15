@@ -262,11 +262,11 @@ than fixed, per STEP 5.
   build of EditorLib fails to compile, before any sandbox question is reached.
   `if(APPLE)` needs to become an iOS-excluding condition, or the two files need
   to move behind a per-platform source list. **This lands on M2**, which is
-  written as though the iOS target merely needs building. Filed as **D2**.
+  written as though the iOS target merely needs building. Filed as **D3**.
 - **`browseto.mm` is compiled and never called** (zero call sites, above).
   Deleting it from the Apple source list removes an AppKit dependency and one
   sandbox-hostile API from every Apple build, TIDE's included, at no functional
-  cost. Same file, same gate. Filed as **D3**.
+  cost. Same file, same gate. Filed as **D4**.
 
 ---
 
