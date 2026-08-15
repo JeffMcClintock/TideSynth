@@ -46,6 +46,70 @@ Template:
 
 ---
 
+## 2026-08-15 — windows — P9
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
+
+**Did:** **P9** — a lint that fails when the two `resource.h` copies stop
+agreeing: [scripts/check-resource-h-drift.py](scripts/check-resource-h-drift.py).
+Fifth item this session, at Jeff's direction, TideSynth-only. Took the row's
+cheaper of two options — the lint rather than merging the files into one — on
+the row's own pricing ("minutes for the lint; longer if the two are actually
+merged") and because merging a Visual-Studio-generated header that VS will
+rewrite is a change with its own failure mode.
+
+**Result:** **318 `ID*` constants on each side, all agreeing.** Selftest 7/7.
+Exit 1 on both divergence kinds — a same-name-different-value conflict, and a
+constant present on only one side — tested on **scratch copies**, so neither
+`SE16` nor `SynthEditLib` was written to; both were verified clean afterwards.
+
+**Learned — excluding the `APSTUDIO_INVOKED` block is what makes this check
+survivable, and it is not a detail.** The one thing the two files actually
+differ in today is `_APS_NEXT_RESOURCE_VALUE`: **210** private, **207** public.
+That is Visual Studio's own allocation counter, it compiles to nothing, and it
+moves whenever anyone adds a resource in the IDE. A check that compared it would
+be **red from birth and red forever**, and the first person to see it would turn
+it off — taking the 318 real constants with it. So the whole `#ifdef
+APSTUDIO_INVOKED` block is skipped, nesting-aware, and the selftest pins that
+behaviour with the real 207→210 case as one of its seven.
+
+The counter gap is still worth reading as evidence rather than noise: it says
+the private copy has had **three resource slots allocated that the public one
+has not**. Nothing has collided yet. Nothing would announce it if it did — which
+is the entire reason this row exists.
+
+**Learned — this closes a loop under C12a rather than sitting beside it.** C12a
+delisted `${EDITOR_DIR}/resource.h` on the strength of the two copies being
+identical, and that argument only holds while they stay identical, because
+public and private TUs each resolve to their own copy by the own-directory-first
+rule. That assumption had nothing enforcing it and was made this morning. Now it
+has a check, and the check independently re-derives the same 318 that C12a
+relied on.
+
+**Next:** the row's larger option — pick one copy as the source of truth — is
+still open and still unowned; the lint makes it safe to defer, not unnecessary.
+**Note it cannot run in TideSynth CI**, since one of the two files is in the
+private repo, so it is a dev-box/agent tool like
+[scripts/dangling_private_includes.py](scripts/dangling_private_includes.py).
+Its docstring says to run it as part of **any carve-out stage that moves a
+`.cpp` out of `SynthEdit2`** — such a TU switches from the private copy to the
+public one, a no-op only while this passes. **C12f is the next stage that does
+that**, and its row already says to re-check `resource.h`; this is the command
+for it.
+
+**STEP 1 / 1.5:** unchanged. Open PRs are all this session's own.
+
+**Side effects on this box:** copies of both `resource.h` files in the
+scratchpad, and a throwaway git repo from the A14 run. Nothing outside it. This
+run committed in TideSynth only; `SE16` and `SynthEditLib` were read but never
+written, and were confirmed clean afterwards.
+
+**Branch/PR:** [TideSynth#64](https://github.com/JeffMcClintock/TideSynth/pull/64),
+fourth in the stack (61 → 62 → 63 → 64), each retargeting to `main` as its
+parent merges.
+
+---
+
 ## 2026-08-15 — windows — A14 (the guard for this morning's collision)
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
@@ -356,120 +420,4 @@ this branch until its PR lands.
 **these two must merge together**, one removes the files and the other adds them.
 This TideSynth PR carries the journal, the backlog and the script, and lands no
 code.
-
----
-
-## 2026-08-15 — windows — C12a
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness; no `claude` CLI on PATH to version, same as the C5 and C12 runs) · as `tide-rack-bot`
-
-**Did:** Carve-out sub-stage **C12a**, the first of the six the C12 scoping run
-split out the day before. Four `${EDITOR_DIR}` lines deleted from
-`SE16/EditorLib/CMakeLists.txt` — `GuiPin.h`, `Module_Info_Plugin.{cpp,h}` and
-`resource.h` — plus the stale stage comment replaced. **Nothing moved and no
-file was deleted.** `SE16` `c58e4bc5a` on `tide/win/C12a-delist-dead-duplicate`,
-pushed, [SynthEdit#18](https://github.com/JeffMcClintock/SynthEdit/pull/18).
-**41 → 37 entries.**
-
-**Result — green, and one number differs from the row's prediction in the
-direction that confirms rather than undermines it.**
-
-| check | result |
-|---|---|
-| `${EDITOR_DIR}` entries | **41 → 37** |
-| fresh scratch Ninja tree of `SE16`, Release, configure | RC=0 |
-| build | **904/904, RC=0** |
-| `ctest` | **92/92 passed, 0 failed**, RC=0 |
-| artifacts | `TIDE.gmpi`, `TIDE_VST3.vst3`, `SynthEditCL.exe` all produced |
-| `Module_Info_Plugin` / `GuiPin` edges in `build.ninja` | **0** / **0** |
-| `SynthEdit2.vcxproj` and `.filters` mentions of the four | **0** |
-| `SE_APP_BUILD_NUMBER` at configure | **185** — C9's injection still tracking |
-
-**904, where both the row and the plan doc said "still builds 905/905".** That
-is the expected consequence of the change, not a regression: dropping
-`Module_Info_Plugin.cpp` removes one TU from `EditorLib`, so the ninja edge
-count falls by exactly one from the 905 the C12 scoping run measured on
-`master` hours earlier. **Both documents predicted the count would hold while
-also correctly identifying that this is a real link-surface change needing a
-build — the two statements contradict each other and nobody noticed.** Worth
-saying plainly because "905/905" was written as an acceptance check, and a
-later run reading it literally would have treated a correct build as a failure.
-The 92 tests are unchanged, which is the part that actually had to hold.
-
-**Learned — all three delisting claims verified, and the checks are cheap
-enough that no future stage should skip them.** The plan doc says *"do not take
-it on trust, the checks are two greps"*; re-run this session, all three hold:
-
-- **`GuiPin.h`** — zero includers across `SE16`, `SynthEditLib`, `SynthEditCL`,
-  `gmpi_ui` and `GMPI_Wrappers`. The only apparent extra hits anywhere in the
-  tree came from `SE16/SynthEdit2/.claude/worktrees/` (two stray agent
-  worktrees, gitignored) and `SE16/build/_deps/syntheditlib-src/` — **worth
-  knowing for any future grep-based measurement on this box, because both look
-  like real source and neither is.** Scope greps to the five repo roots.
-- **`Module_Info_Plugin`** — stronger than the row claimed. The row says its
-  only construction site is commented out at `ModuleFactory_Editor.cpp:1320`.
-  It is also true that the `switch` there has **no `case 3`** at all for its
-  class-type id: `case 1` carries the commented-out line and falls through to
-  `default`, i.e. plain `Module_Info` with `SetUnavailable()`. So the type is
-  unreachable by two independent routes, not one.
-- **`resource.h`** — both copies 361 lines; **all 318 `ID_*`/`IDR_*` constants
-  byte-identical**; the only differences are a trailing space in a comment and
-  `_APS_NEXT_RESOURCE_VALUE` (**210** private, **207** public). That counter gap
-  is the measurable sign the private copy has had three resource slots the
-  public one has not, which is **P9**'s whole point and the only thing making
-  C12a safe.
-
-**Learned — A4 has still not been observed firing, and this run's own PR is the
-next chance.** A4's row says to flip it to DONE *"only after watching it merge
-one PR and leave one alone"*. [#59](https://github.com/JeffMcClintock/TideSynth/pull/59),
-the only candidate since it landed, was **merged by `JeffMcClintock`**, not by
-the action — checked via the API rather than inferred from the timeline. The
-workflow has run five times with `conclusion: success`, but success includes
-"correctly declined", so those runs are not evidence either way. **This run's
-TideSynth PR touches only `JOURNAL.md`, `JOURNAL-2026-08.md` and `BACKLOG.md`,
-all three on A4's allowlist, and is authored by `tide-rack-bot` — so it should
-auto-merge.** Whoever reads this next: check whether it did. If it did, that is
-half of A4's flip condition met; the paired SynthEdit PR carries `.txt` build
-code and must stay for Jeff, which is the other half. Left A4 IN-REVIEW.
-
-**Learned — the C12 scoping run's "no non-CMake build edits" claim holds for
-these four specifically**, checked rather than inherited: `SynthEdit2.vcxproj`
-and `.vcxproj.filters` mention none of them. So C12a needed no Visual Studio or
-Xcode project edit, as predicted.
-
-**Next:** **C12b** — the ten control files (`Control`, `Ctl_Combo`,
-`Ctl_Keyboard2`, `Ctl_Slider`, `Ctl_Text`), 1,054 lines, a comfortable single
-session, and it closes 6 dangling edges. The win NEXT row already said "C12a,
-then C12b"; it is now just C12b, and the baseline any successor should compare
-against is **904/904 and 92/92**, not 905. C12c is the bigger win on dangling
-edges (21, more than C5 closed in total) if a box wants that instead — ordering
-between sub-stages is a convenience, not a constraint. **Do not take C12f
-expecting its stated Accept to pass**: it says *"zero `${EDITOR_DIR}` entries
-remain"*, which is only reachable once a–e have landed, so taken now it would
-leave 27 and fail its own check as written.
-
-**One thing deliberately not done.** The NEXT row reads "C12a, then C12b", but
-STEP 2 says pick exactly one item, and one item is what this run took. C12b is
-a `git mv` of ten files into `SynthEditLib` — a second repo, a second PR, and a
-second full build — which is not a rider on a four-line delete. Re-pointing the
-NEXT row at C12b is this entry's contribution to it.
-
-**STEP 1 / 1.5:** no `platform:win` issues. Zero open PRs across all five repos
-at the start of the run; one open issue, TideSynth
-[#44](https://github.com/JeffMcClintock/TideSynth/issues/44) (A6 watchdog
-digest, `github-actions`, informational). One remote branch from another
-platform, `tide/mac/D1-donation-affordance`, with no PR yet — the mac box's live
-D1 claim, not a collision with C12a.
-
-**Side effects on this box:** one scratch Ninja tree and a build script under
-the session scratchpad, both outside every repo. **Jeff's own `SE16\build` was
-not touched** — it is a Visual Studio / Debug tree and was left exactly as
-found. All five working copies were clean and on their default branches at the
-start of the run, and are back on them at the end.
-
-**Branch/PR:** [SynthEdit#18](https://github.com/JeffMcClintock/SynthEdit/pull/18)
-(the code — four deleted lines and the comment) and the TideSynth PR carrying
-this entry and the backlog status. **Merging the TideSynth one alone lands no
-code**, and merging SynthEdit#18 alone is safe on its own — nothing in the two
-depends on the other to build.
 
