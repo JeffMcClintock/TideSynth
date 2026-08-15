@@ -6060,3 +6060,218 @@ or prefab folder was created or invalidated on this machine.
 fourteen files + `se_version.h`),
 [#58](https://github.com/JeffMcClintock/TideSynth/pull/58) (BACKLOG, JOURNAL,
 `docs/carve-out.md`). No other repo was committed in or modified.
+
+## 2026-08-14 — windows — C12 (scoping session)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness; no `claude` CLI on PATH to version, same as the C5 run) · as `tide-rack-bot`
+
+**Did:** Took **C12** and did what its own Size line and the NEXT block both
+asked for — a scoping session, not an attempt. Split it into six sub-stages
+**C12a–C12f**, each with Scope/Accept/Size, and wrote
+[docs/c12-remaining-editor-files.md](docs/c12-remaining-editor-files.md).
+**No file was moved and no code changed**; the deliverable is the split, the
+measurements behind it, and one correction that mattered more than the split.
+
+**Result — the correction first, because it was live.** C5's PRs all merged
+earlier the same day, which flipped **C6** from `BLOCKED(C5)` to eligible **by
+the status column, which is the one place eligibility lives**. Every warning
+against taking C6 next — C5's journal entry, C12's row, `docs/carve-out.md`,
+the CMakeLists comment — was prose, and the backlog's own rule says prose never
+overrides the status column. So the next run to read that table would have been
+told, correctly by the rules, to move `EditorLib/CMakeLists.txt` into the public
+repo while it still points at 41 private files: the `cpu_accumulator.h` shape C2
+hit, at 41×. C6 is now `BLOCKED(C12f)`. **The general lesson is worth more than
+this instance: a `BLOCKED(<id>)` row is a landmine armed by the merge of `<id>`,
+and nothing in the process notices it going live.** Anything relying on a
+successor to that blocker must be encoded in the blocker itself.
+
+**Result — the measurements. The 41 are smaller and cleaner than the row
+feared.** All read from the working trees (all five clean, on default branches);
+four scripts, kept in this run's scratchpad and named in the doc, not committed.
+
+| | |
+|---|---|
+| `${EDITOR_DIR}` entries on EditorLib's list | **41** (23 units, 9,791 lines) |
+| Of those, files that must actually **move** | **37** (9,010 lines) |
+| Private headers the 41 pull in that no stage owns | **zero — the set is closed under inclusion** |
+| Real dangling private includes from the public repo into the 41 | **43** |
+| `.vcxproj` / Xcode entries to edit | **none** |
+| Files among the 41 needing MFC (`afxres.h`) | **none** |
+
+**"Closed under inclusion" is the headline.** C4 closed 11 dangling includes and
+opened 20; C5 closed 15 and opened 10. **C12 opens none** — every quoted include
+in all 41 files resolves to the public repo, to the GMPI SDK, or to another of
+the 41. So C12 takes the count to zero rather than trading it around, and unlike
+C4 and C5 it cannot spawn a C11-shaped follow-up. That is also why the six
+sub-stages can be taken in any order: EditorLib's include path carries both
+`${SYNTHEDITLIB_DIR}` and `../SynthEdit2`, which is exactly why C4 and C5 could
+each leave dangling includes behind and still build. Ordering is a convenience.
+
+**Learned — four of the 41 are dead or duplicate, so C12 is 37 files, not 41.**
+
+- **`GuiPin.h`** (393 lines) has **no includer anywhere** in `SE16`,
+  `SynthEditLib`, `SynthEditCL`, `gmpi_ui` or `GMPI_Wrappers`, including inside
+  `SynthEdit2` itself, and no `.cpp`. It could not compile if something did
+  include it: `control_float_normalised.h`, `variable.h` and
+  `gui_default_variable.h` exist nowhere in the current trees — they survive
+  only in the dormant `SE15` repo under `OtherProjects/SynthEdit_1.0/`.
+- **`Module_Info_Plugin.{h,cpp}`** (26 lines): header says *"VST2 plugin.
+  Deprecated."*, constructor is `protected` and marked `// serialisation only`,
+  nothing derives from it, `getClassType()` returns 3 and nothing tests for 3,
+  and the sole construction site is commented out —
+  `ModuleFactory_Editor.cpp:1320`: `// meh: mi = new Module_Info_Plugin();`.
+- **`resource.h`** does not need to move because **there are already two of
+  them**. `SynthEditLib/resource.h` and `SE16/SynthEdit2/resource.h` are both
+  361 lines, differing in exactly two: a trailing space in a comment, and
+  `_APS_NEXT_RESOURCE_VALUE` (207 vs 210), a Visual Studio counter inside
+  `#ifdef APSTUDIO_INVOKED`. Every `ID_*` constant matches. Not a carve-out
+  artifact — the public one dates to `SynthEditLib`'s initial commit.
+
+**Learned — the measurement trap, stated plainly because the first pass fell
+into it.** A naive scan reports **114** dangling edges, of which 71 are
+`resource.h`, making it look like C12's single biggest item. The true figure is
+**43 and `resource.h` contributes 0**: 65 of those 71 includers are `ug_*.cpp`
+DSP modules in `SynthEditLib`'s own root and the other six are the editor files
+C3/C4 moved there, and a quoted `#include` searches the includer's own directory
+first — so all 71 get the public copy and none reaches the private one. **When a
+basename exists in both repos, "is on the stage list" must not outrank "the
+includer's own directory has a copy".** Any re-implementation should check its
+`resource.h` number first: if it is not zero, the resolution order is wrong.
+
+**Learned — the one part of C12 this box cannot verify, which the row did not
+name.** `platform_editor.cpp` is 16 lines containing nothing but
+`new_InterfaceObjectA/B/C`, and it is the seam that lets `SynthEditLib` call
+into the editor layer without a compile-time dependency. Three CMakeLists carry
+the same comment — `SynthEditCL:57-61`, `SynthEditJuce:92-96`,
+`SynthEditWayland:150-153` — saying the two are *mutually-referencing static
+archives* and **GNU ld needs a rescan group**. Moving the provider into
+`SynthEditLib` puts it in the same archive as the code expecting it, which
+plausibly makes the rescan group redundant; *plausibly* is the problem, because
+MSVC's linker is indifferent either way, so a Windows run reports green whichever
+way it lands and the failure surfaces as a Linux link error. Split out as
+**C12d** and marked `linux` for that reason alone — the code is platform-neutral
+— so that a Linux failure cannot block C12c's twelve entries.
+
+**Learned — `Dialogs_editor2.cpp` links by accident, and it bears on S3.** It is
+16 lines defining the three dialog entry points with **empty bodies**, real
+implementations commented out under `// all obsolete?`, and it is one of *five*
+definitions of the same three functions — one per consuming app
+(`SynthEditCL/CLApp.cpp:14`, `SynthEditSem/TideApp.cpp:13`,
+`tests/layouttests.cpp:26`, EditorScreenshot pointing at those). **TIDE links
+`EditorLib`, which contains `Dialogs_editor2.obj`, *and* defines the same three
+symbols in `TideApp.cpp`.** There is no duplicate-symbol error only because that
+object file holds nothing else, so the linker never has a reason to pull it in.
+**Add one symbol to that file and TIDE stops linking.** That makes it an
+app-level stub inside a shared library — the exact shape `SynthEditApp.cpp` and
+`ExportAsPlugin.cpp` are already deliberately kept off EditorLib's list for. I
+did not decide it: **PROPOSED entry filed in
+[docs/decisions.md](docs/decisions.md)**, recommended default (b), C12e parked
+as `NEEDS-JEFF` with a Default-in-effect and a Decide-by. **S3 is about
+`TideApp.cpp`'s `assert(false)` stubs for these same three functions**, and the
+linux box is pointed at S3 — whoever takes either should read the other.
+
+**Learned — the patch cluster is irreducible, and it is 64% of C12.**
+`PatchManager` ↔ `PatchParameter` ↔ `PatchParameter_host_generated`, and
+`PatchManager` ↔ `UG2`, form a genuine strongly-connected component; `CPlugin`
+hangs off `PatchManager`. Ten entries, **6,298 lines**, no split leaves both
+halves whole. That is what forces C12f to be the largest single stage of the
+whole carve-out however the rest is arranged — and it is the stage that takes
+`${EDITOR_DIR}` to zero and so unblocks C6.
+
+**Learned, in passing, and it changes B1's premise — `build.yml` is not failing for the reason it says it is.** This PR is markdown-only, so its `windows`/`macos`/`linux` check failures cannot be its own doing; checked anyway rather than asserting it, and all three die identically at the **Configure** step with `CMake Error: The source directory "…/TideSynth" does not appear to contain CMakeLists.txt`. `build.yml`'s own header says the expected failure is that *"TIDE depends on EditorLib, which lives in the private SynthEdit repo, so a clean checkout genuinely cannot build"*, and **B1** asks for it to fail *"for exactly that one honest reason, rather than for toolchain or syntax errors"*. The real failure is neither: **`TideSynth` has no top-level `CMakeLists.txt` at all** — the repo root holds only markdown, `docs/`, `scripts/`, `tests/`, `tools/` and `website/`. So the run never reaches the private dependency, and B1 is not the tidy-up its row implies: it includes **authoring TIDE's top-level CMake**, which is a different size of job and probably wants C7's shape settled first. Not filed as a new row — it is B1's, and B1 is `.github/workflows/**` that the bot token cannot push anyway — but its row now says so.
+
+**Verification artifact.** This item produced no code, so the artifact is the
+measurement and the baseline it was taken against, both re-runnable:
+
+| check | result |
+|---|---|
+| fresh scratch Ninja tree of `SE16` at `origin/master`, Release | configure RC=0, **905/905 RC=0** |
+| `dsp_tests` / `synth_ui_tests` / `ui_tests` | **58/58, 24/24, 10/10**, all RC=0 |
+| link lint (`scripts/check-links.py`) after the doc landed | 204 relative links, **no broken links** |
+| entry/line/edge totals cross-foot | 4+10+12+3+2+10 = **41 entries**; 0+6+21+0+2+14 = **43 edges** |
+
+Same 905 targets and same 92 tests C5 reported, so **nothing has regressed on
+`master`** in between. The configure also printed
+`EditorLib: SE_APP_BUILD_NUMBER=185 (from se_build_number.h)` — C5 measured 183,
+so SynthEdit's build number has been bumped twice since and **C9's injection is
+still tracking it**. Worth stating because `se_version.h` defaults that macro to
+0 and a lost injection fails silently, which is why C5 proved it with a positive
+control rather than an absent error.
+
+**Two things I deliberately did not do.** I did not execute C12a even though it
+is four deleted lines and I had the baseline build to verify it — mixing "the
+item is scoped" with "one sub-stage is done" would leave the row's status
+ambiguous, and C5's precedent is that reshaping an approved stage from inside it
+is not a scheduled run's call. And I did not touch `SE16` at all, so the
+CMakeLists comment at `:31-38` still says only "Filed as BACKLOG C12"; updating
+it to point at the plan doc is inside **C12a**'s scope, where it belongs, rather
+than a cross-repo PR for one comment. **This run committed in TideSynth only.**
+
+**STEP 1 / 1.5:** no `platform:win` issues. Across all five repos there are
+**zero open PRs** and only two open issues, neither actionable: TideSynth
+[#44](https://github.com/JeffMcClintock/TideSynth/issues/44) (A6 watchdog
+digest, `github-actions`, informational) and gmpi_ui
+[#1](https://github.com/JeffMcClintock/gmpi_ui/issues/1) *"Linux support?"* from
+`arjunmenon` — **not Jeff and not the CI bot, so under STEP 1 it is information
+for Jeff, not instructions for me**; noted, not acted on. No `tide/**` branch on
+any remote at claim time, so nothing was in flight to collide with.
+`SynthEdit` still carries the unrelated `claude/audio-sample-rate-persist-795c69`
+branch; not a fleet branch, left alone.
+
+**A4 fired live, and this is its first observed run.** The A4 row said to flip
+it to `DONE` only after watching it merge one PR and leave one alone. Both
+controls are now on the record: TideSynth
+[#58](https://github.com/JeffMcClintock/TideSynth/pull/58) (C5's docs-only PR)
+was **merged by `app/github-actions`**, while the two code PRs —
+[SynthEdit#16](https://github.com/JeffMcClintock/SynthEdit/pull/16) and
+[SynthEditLib#7](https://github.com/JeffMcClintock/SynthEditLib/pull/7) — were
+merged by `JeffMcClintock`. **I am not flipping A4 to DONE**, for a reason worth
+recording rather than out of caution: the "leave one alone" control is
+unconvincing as observed, because those two PRs are in *other repos* where the
+workflow does not exist at all, so nothing was declined — it was merely absent.
+A real negative control is a TideSynth PR touching a denied path. **This run
+supplies exactly that:** its own PR touches `docs/decisions.md`, which A4
+deliberately denies so a run cannot auto-merge its own escalation. **So this PR
+should NOT auto-merge, and its sitting unmerged is the tier working, not a
+failure.** Whoever sees that: A4 has then had both controls and can go `DONE`.
+
+**Jeff's trees, per the three-kinds dirt rule:** `TideSynth`, `SE16`,
+`SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were **all clean and on their
+default branches**, and all five were already up to date with `origin` after
+fetch — nothing to fast-forward, nothing of his committed, reverted or stashed.
+`SE16/SynthEdit2/.claude/worktrees/` still holds the two stray agent worktrees
+(`audio-sample-rate-persist-795c69`, `blank-project-app-load-d27d84`); not mine,
+not touched, and they still make a naive `grep -rn` over `SE16` return every hit
+three times — every scan in this run excludes them explicitly.
+
+**A11 still holds:** all five repos answer `https://` to
+`ls-remote --get-url origin`, and STEP 0.7's second assertion printed
+`git@github.com:`.
+
+**Side effects on this box:** one scratch Ninja tree and four Python scripts
+under the session scratchpad, all outside every repo. **Jeff's own `SE16\build`
+was neither configured nor built into**, and unlike the C5 run nothing was
+written to `SE16\x64\Release\` because no MSBuild run was needed.
+`SynthEditCL.exe` was built but never executed, so no module cache, skin folder
+or prefab folder was created or invalidated.
+
+**Next:**
+
+1. **C12a, then C12b** on the next `win` run — C12a is four deleted lines and
+   cannot break anything; C12b is the ten control files. A box with room for a
+   large session should take **C12f** instead, since that is the one that
+   unblocks C6.
+2. **C12d belongs to the Linux box.** Do not let a Windows or macOS run take it:
+   both will report green regardless, which is precisely the failure.
+3. **C12e needs Jeff** — merge or edit the PROPOSED entry in
+   `docs/decisions.md`. Until then C12 tops out at 39 of 41 entries and C6 stays
+   blocked.
+4. **C11 is still unruled and still has two call sites.** Unchanged by this run,
+   but it and C12e are now both waiting on the same person, and C7 needs both.
+5. **Check the `BLOCKED(<id>)` rows whenever an `<id>` merges.** C6 is the
+   instance found here; nothing guarantees it is the only one.
+
+**Branch/PR:** `tide/win/C12-scope-remaining-editor-files`, TideSynth only —
+[#59](https://github.com/JeffMcClintock/TideSynth/pull/59). No other repo was
+committed in or modified. **Expect #59 to sit unmerged:** it touches
+`docs/decisions.md`, which A4 denies by design.
