@@ -33,33 +33,7 @@ defaults are not.
 
 ## Open — PROPOSED, awaiting a merge to become decisions
 
-```
-PROPOSED: Where does SynthEdit2/Dialogs_editor2.cpp go when C12 moves the rest
-          of EditorLib's source list into the public repo?  (BACKLOG C12e)
-  Options: (a) move it to SynthEditLib alongside Dialogs_editor.h, keeping
-               today's arrangement;
-           (b) take it off EditorLib's source list entirely and let
-               SynthEdit2.vcxproj compile it directly, matching how
-               SynthEditApp.cpp and ExportAsPlugin.cpp are already handled;
-           (c) delete it — the three function bodies are already empty, and the
-               other three consumers each supply their own definitions.
-  Recommended default: (b) — the file is an app-level stub sitting in a shared
-    library, and today it only works by static-library accident: TIDE links
-    EditorLib (which contains Dialogs_editor2.obj) AND defines the same three
-    symbols in TideApp.cpp, with no duplicate-symbol error solely because that
-    object holds nothing else and so is never pulled in. Adding one symbol to
-    that file breaks TIDE's link. (b) turns the accident into the deliberate
-    arrangement the other two app-level files already use, for the cost of one
-    vcxproj entry.
-  Default in effect meanwhile: the file stays where it is, C12e is skipped, C12
-    reaches 39 of its 41 entries, and C6 stays blocked.
-  May proceed meanwhile: C12a, C12b, C12c, C12d and C12f — all five are
-    identical under every option.
-  Decide-by: before C6.
-```
-
-Filed 2026-08-14 by the windows box while scoping C12. Evidence and the full
-five-definition table: [c12-remaining-editor-files.md](c12-remaining-editor-files.md).
+*(none open)*
 
 ---
 
@@ -67,6 +41,7 @@ five-definition table: [c12-remaining-editor-files.md](c12-remaining-editor-file
 
 | Date | Decision | Notes |
 |---|---|---|
+| 2026-08-15 | **C12e resolved: option (b) — `Dialogs_editor2.cpp` comes off EditorLib's source list and each consuming app compiles it directly.** `Dialogs_editor.h` moves to `SynthEditLib` as both options assumed | Answered in session ("go with your recommendation"). **The recommendation was right but its stated reasoning was wrong on a load-bearing point, found by measuring before implementing:** the PROPOSED entry said the other consumers "each supply their own definitions", so (b) would cost only one vcxproj entry. **`SynthEditCL` does not** — its CMake target compiles `main.cpp`, **not** `CLApp.cpp`, and `main.cpp` carries a comment saying it deliberately relies on EditorLib for these stubs. So (b) as literally written breaks SynthEditCL's link. Implemented as (b) *properly* — the `SynthEditApp.cpp`/`ExportAsPlugin.cpp` pattern the option itself points at, where **every** app that needs the symbols compiles the file: `SynthEditCL/CMakeLists.txt` and `SynthEdit2.vcxproj` both gain an entry; `TideApp.cpp` and `layouttests.cpp` already define their own. **Two further corrections to the entry's facts:** the file defines **two** functions, not three (`doDialogBuildCodeSkeleton` is not in `Dialogs_editor.h` at all and belongs to S3), and there are **four** definitions in the tree, not five — `EditorScreenshot` and `SynthEditCL/main.cpp` only carry comments pointing at EditorLib's. Verified: 27 → 25 `${EDITOR_DIR}` entries, fresh Ninja tree **904/904 RC=0**, **TIDE.gmpi and TIDE_VST3.vst3 both link** — the specific thing C12e's Accept named. Execution: [SynthEdit#20](https://github.com/JeffMcClintock/SynthEdit/pull/20) + [SynthEditLib#9](https://github.com/JeffMcClintock/SynthEditLib/pull/9), which must merge together. See BACKLOG C12e |
 | 2026-08-13 | **Constraint 1 reversed: the rack (Panel View rendered as a Eurorack case) is now TIDE's default top-level view, not the structure view.** Unlocking a module/Container takes the user into its own structure view to rewire signal flow; unlocking is still breadcrumb navigation, only the default rendering per level flips from structure to rack | Rides on SynthEdit's new "rack mode" (Panel View rendered as a Eurorack case, modules/Containers drag-and-snap into rack slots — already shipping in SynthEdit as an option, `SE16` `a056d3f5b`), which becomes TIDE's *only* top-level option rather than one of two. Makes TIDE's design closer to Cardinal (a rack UI over compiled-in modules) with the added feature of editing each module's own signal flow. The 2026-08-09 Eurorack-rack section of PLAN.md already gestured at "opening a Container is optional" as the differentiator; this is the concrete mechanism that fulfils it, and the piece that was still missing — constraint 1's own wording still said "No panel view" until now. **Open follow-ups, not resolved by this ruling alone:** whether the v0.1 acceptance test (PLAN.md, "What done looks like") should now be rack-first rather than structure-view-first; whether BACKLOG U1 ("close the gap to the one-view UX") needs rescoping around the rack as the default rather than the structure view. Full ruling: PLAN.md constraint 1 |
 | 2026-08-13 | **C9 resolved: option (c) — `SynthEditLib` gets its own version header**, decoupled from `SE16/se_build_number.h` | TIDE Rack's release cycle is not tied to SynthEdit's, so it should not read SynthEdit's version number, and the header cannot move to the public repo without a `.github/workflows/**` edit no scheduled run may make. C4/C5 implement: new header (or compile definition) in `SynthEditLib` for the two live users (`ModuleFactory_Editor.cpp`, `SkinMgr.cpp` at C4; `Application.cpp` at C5); `se_build_number.h` stays exactly where SynthEdit's three release workflows expect it. See BACKLOG C9 |
 | 2026-08-13 | **R1(a) resolved: TIDE ships under the existing `SynthEdit Limited` signing identity.** No second Azure certificate profile | Cost — a second cert profile is not affordable right now. Mitigated with a branding line rather than a new identity: **"TIDE Synth — by SynthEdit Ltd"**, placed subtly (about pane / footer / installer credit, not the plugin name itself — constraints 1 and 5 still rule out anything that reads as a splash or nag). Placement is a small design task, not yet filed — see BACKLOG note |
