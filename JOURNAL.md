@@ -610,4 +610,3 @@ or prefab folder was created or invalidated.
 [#59](https://github.com/JeffMcClintock/TideSynth/pull/59). No other repo was
 committed in or modified. **Expect #59 to sit unmerged:** it touches
 `docs/decisions.md`, which A4 denies by design.
-
