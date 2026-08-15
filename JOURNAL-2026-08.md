@@ -5735,3 +5735,118 @@ question gates doing S7 properly**.
 branches, clean.
 
 ---
+
+## 2026-08-14 — linux — A4 built (interactive session, Jeff directing)
+
+**Did:** Built the auto-merge tier for coordination PRs, after Jeff asked why
+BACKLOG/JOURNAL bookkeeping needs a human at all. It does not; A4 has been the
+answer since 2026-08-09 and could not be built by the fleet itself. **Two
+defects in its specification were found first, and the second is the serious
+one.**
+
+**Why no scheduled run could ever have done this.** A4 is a
+`.github/workflows/**` file and the bot token is `repo` scope with no
+`workflow` — measured this session, `x-oauth-scopes: repo`. That is the
+credential-layer enforcement of the no-workflow-edits rule working exactly as
+designed, and its consequence is that **the one item that would free scheduled
+runs is the one item scheduled runs are structurally forbidden from building.**
+Jeff's own token on this box already carries `workflow`, so no `gh auth refresh`
+was needed here; the commit is his.
+
+**Defect 1 — the allowlist would have fired close to never.** A4 says
+"PRs touching only `JOURNAL.md`, `BACKLOG.md`, and `docs/**`". Checked against
+the file lists of the last seven merged PRs, that scores **0 of 7**:
+
+| Blocker | PRs |
+|---|---|
+| `JOURNAL-2026-08.md` | 7 of 7 |
+| `BACKLOG-DONE.md` | #55, #54, #48 |
+
+**A8 created both files on 2026-08-12 — three days after A4's allowlist was
+written — and nobody updated the allowlist.** STEP 4 *mandates* rotating into
+exactly those two files every run, so the tier would have shipped, looked
+correct, and merged almost nothing. With them added the same seven score
+**3 of 7**: #48, #50 and #55 auto-merge; #51, #52 and #54 correctly wait on
+`scripts/`, `tests/` and `tools/`; #41 on `.github/`.
+
+**Defect 2 — `docs/**` was too wide, and the miss was `docs/decisions.md`.**
+A4 excluded `docs/weekly-run-prompt.md` and `PLAN.md` because "they steer the
+fleet". `docs/decisions.md` steers it harder: that file *is* the PROPOSED
+mechanism, and its own text says **"Jeff's merge of that PR is the decision."**
+Auto-merging it would let a run answer its own escalation — the single file in
+`docs/**` where merging is an act of authority rather than bookkeeping. Now
+denied by name, and the selftest tries it both alone and smuggled in beside a
+legitimate journal entry.
+
+**Result — design, and the option deliberately not taken.**
+
+The trigger is `workflow_run` on `lint`, not `pull_request`:
+
+- A `workflow_run` job always runs the **default branch's** copy of the
+  workflow, never the PR's. So a PR cannot edit the rules that judge it. The
+  allowlist denies `.github/**` anyway; this is the second lock.
+- It gates on lint having actually concluded green.
+
+**`gh pr merge --auto` was rejected, and the reason is measurable rather than
+stylistic.** It delegates the waiting to GitHub, which only works when a
+ruleset marks lint a *required* check. This repo has `allow_auto_merge:false`,
+and ruleset `20600401` ("Agent PRs only") carries **only** `deletion`,
+`non_fast_forward` and `pull_request` — **no required-status-checks rule at
+all.** With neither, `--auto` merges immediately and the lint gate is
+decorative. Anyone reaching for `--auto` here should check those two settings
+first; the failure is silent and looks like success.
+
+Making lint a required check repo-wide was the other route and was **not**
+taken: it changes the merge rules for every PR including code, which is wider
+than A4's own "Human merge remains for … all code repos". Keeping the tier
+inside one workflow plus one script means no repository setting can drift out
+of sync with it.
+
+**Guards beyond the allowlist**, because a path allowlist alone is not an
+authorisation model: author must be `tide-rack-bot`, not a draft, open, and
+based on the default branch. Without the author check, a docs-only PR from
+anyone able to open one is an unauthenticated write path into `main`. The
+workflow never checks out or executes PR code — it reads the changed-file list
+from the API and runs the allowlist script from `main`, which is what makes
+`contents: write` safe to grant.
+
+**Verification artifact:** the eligibility decision is a script, not YAML, so
+it is testable without GitHub. `scripts/automerge_eligible.py --selftest` —
+**19 cases, 0 failed.** Seven are the real file lists of merged PRs, so those
+expectations are measurements. The rest are edges: both carve-outs alone and
+beside a legitimate journal edit, `PLAN.md`, `website/`, the auto-merge
+workflow itself, the script itself, an empty list, an unrecognised new
+top-level file, and a near-miss on the archive regex (`JOURNAL-2026-8.md`).
+
+**The selftest earned its keep before it ever ran in CI:** `docs/../PLAN.md`
+passed the first draft, because it starts with `docs/` and the prefix test was
+happy. `git diff --name-only` normalises paths so it is not reachable in
+practice — which is precisely why it deserved a guard rather than an
+assumption about an upstream tool's output. Now rejected along with absolute
+paths and backslashes.
+
+**Learned:**
+
+- **A path allowlist ages badly and silently.** A4's went stale three days
+  after it was written, because a *different* item (A8) added two files, and
+  nothing connected them. The lesson is not "update the allowlist" but
+  "an allowlist needs a test that runs against real recent PRs" — which is why
+  the selftest carries seven of them, and why a future run adding a new
+  coordination file should add a case there in the same change.
+- **Strict inclusion, never exclusion.** The failure mode of an exclusion list
+  is that tomorrow's file merges by default. Everything unrecognised fails
+  closed, which is why `tools/` and `tests/` blocked correctly without ever
+  having been thought about when the list was written.
+- **`--auto` is not "merge when checks pass" unless a ruleset says which
+  checks.** With no required-status-checks rule it is just "merge now".
+
+**Next:** **not verified live, and it cannot be** — a `workflow_run` workflow
+only fires once it is on the default branch, so the first real firing can only
+be watched after this merges. Flip A4 to `DONE` only after seeing it **merge
+one PR and leave another alone**; the negative control matters more than the
+positive one, since an auto-merge action that is wrong about its allowlist is
+a worse problem than merging by hand. The next scheduled run's own
+BACKLOG/JOURNAL PR is the natural first test.
+
+**Branch/PR:** `tide/linux/A4-auto-merge-tier`. Committed as Jeff, not as
+`tide-rack-bot` — the bot token deliberately cannot push `.github/workflows/**`.

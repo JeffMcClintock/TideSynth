@@ -46,6 +46,138 @@ Template:
 
 ---
 
+## 2026-08-15 — windows — C12b (and a second-agent collision worth more than the item)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness; no `claude` CLI on PATH to version) · as `tide-rack-bot`
+
+**Did:** Carve-out sub-stage **C12b** — `Control`, `Ctl_Combo`, `Ctl_Keyboard2`,
+`Ctl_Slider`, `Ctl_Text`, ten files and 1,053 lines, moved from private
+`SE16/SynthEdit2` into public `SynthEditLib`'s root. **37 → 27
+`${EDITOR_DIR}` entries.** Also added a committed measurement script, and
+archived C12a to [BACKLOG-DONE.md](BACKLOG-DONE.md) after seeing both its PRs
+merge. **This was a second item in one session, taken at Jeff's explicit
+direction in an interactive session — not a scheduled run deciding to keep
+going.** STEP 2's one-item rule stands for unattended runs.
+
+**Read the collision section first if you are short of time. The stage itself
+went exactly as scoped; the collision is the part that changes how a run should
+behave.**
+
+### The collision — another agent committed my work as Jeff
+
+Midway through C12b, with the ten files staged in two repos and nothing yet
+committed, **a second Claude session (Fable 5) running on this same box picked
+up my staged changes and committed them** — on my branches, in both `SE16` and
+`SynthEditLib`, at 10:49:35, authored **and** committed as
+`Jeff McClintock <jef@synthedit.com>`.
+
+The content was mine and was correct: my CMakeLists comment verbatim, my
+repointing, my ten file moves, nothing foreign mixed in. Checked by diffing
+against the merge-base before doing anything else. **The damage was purely to
+authorship — which is exactly what STEP 0.7's four `GIT_*` variables exist to
+prevent**, and the reason they exist is stated in the run prompt: without them
+`git log` cannot tell agent work from Jeff's. Here the mechanism was inverted —
+the variables were set correctly in *my* environment, and a different process
+with a different environment committed my working tree anyway.
+
+**Resolved** by `git commit --amend --reset-author` in both repos with
+`GIT_AUTHOR_*`/`GIT_COMMITTER_*` exported, then an immediate push, on Jeff's
+instruction. Both commits are now `tide-rack-bot`. He also confirmed the other
+session was **still running**, so C12c was deliberately not started and this
+run stopped touching `SE16` and `SynthEditLib` after the push.
+
+**What the next run should take from this, in order of usefulness:**
+
+1. **A clean `git status` is not proof your work is uncommitted.** I read an
+   empty `status --porcelain` in both repos and briefly took it as the changes
+   having been lost. They had been committed by someone else. Check
+   `git log -1 --format='%an'` before concluding anything from a clean tree.
+2. **The staged-but-uncommitted window is the vulnerable one.** Between `git
+   add` and `git commit` the work is in a shared tree with no owner's name on
+   it. On a box that may be running another agent, commit as soon as a coherent
+   change exists and amend later, rather than staging and going off to build for
+   ten minutes — which is exactly what I did.
+3. **The identity assertion in STEP 0.7 cannot detect this.** It proves *this*
+   process is the bot. It says nothing about any other process with write access
+   to the same working trees, and there is currently nothing in the process that
+   would notice. **Filed as A14.**
+4. Do not rewrite commits a concurrent session may be building on without
+   asking. I asked; the answer was to fix the authorship, and it was fine
+   because the branches were unpushed. Unpushed is the condition that made it
+   safe, not the fact that the content was mine.
+
+### Result — the stage itself, all green
+
+| check | result |
+|---|---|
+| `${EDITOR_DIR}` entries | **37 → 27**, zero named `Control` or `Ctl_*` |
+| fresh scratch Ninja tree, Release, configure | RC=0 |
+| build | **904/904, RC=0** — unchanged, as a move should be |
+| `ctest` | **92/92 passed, 0 failed** |
+| the five moved TUs compiled from their **new** home | `EditorLib.dir\C_\SE\SynthEditLib\<name>.cpp.obj`, all five |
+| stale copies left behind in `SE16` | none |
+| **SynthEdit2 (WinUI3)**, MSBuild Release x64 | **RC=0**, links `SynthEdit2.exe` |
+| dangling private includes, public repo | **51 → 45** |
+| `SE_APP_BUILD_NUMBER` at configure | 185 |
+
+**Zero new dangling edges opened — the first stage of which that is true.** C4
+closed 11 and opened 20; C5 closed 15 and opened 10; C12b closed 6 and opened
+**0**, so 51 − 6 = 45 exactly. That is the "closed under inclusion" property the
+C12 scoping run predicted for all of C12, now measured for one stage rather than
+inferred. It is also the cheapest possible check that the moved set is really
+self-contained: if any of the five controls had pulled in a private header no
+stage owns, the total would have landed above 45.
+
+**Learned — `PatchManager.cpp` was resolving two of these headers from its own
+directory, and C12f inherits that.** `SynthEdit2/PatchManager.cpp` includes
+`"Ctl_Slider.h"` and `"Control.h"`. Before this stage both resolved
+own-directory-first inside `SynthEdit2`; now they resolve through EditorLib's
+include path to the public copies. It still builds — that is what 904/904
+proves — but **it is the one own-directory resolution C12b disturbed, and it was
+found by grepping for it rather than by anything failing.** Whoever takes
+**C12f** (which owns `PatchManager`) should know the dependency now runs
+private → public. Worth generalising: every later stage should grep the
+*private* repo for includers of what it is about to move, not just the public
+one, because the public-side scan is blind to this direction.
+
+**Learned — absolute dangling counts are not comparable across runs, only
+deltas within one script.** C5's entry reports 59 → 54; this run's script reads
+51 before C12b, and C12a cannot have closed any (delisting a source-list entry
+changes no `#include`). The gap is definitional — which private directories
+count, whether a repeated include counts once or per site. **So the script is
+now committed:**
+[scripts/dangling_private_includes.py](scripts/dangling_private_includes.py).
+The C12 doc said outright that each stage should re-create it; C4, C5 and the
+C12 scoping run each did, and each got a number nobody else can reproduce. Its
+positive control is that it independently reproduces this stage's Accept line —
+6 edges, `ModuleFactory_Editor.cpp` (4) and `CContainer.cpp` (2) — exactly. It
+documents the own-directory-first rule that makes `resource.h` zero rather than
+71, which is the trap that nearly turned C12a into the largest item in C12.
+
+**Next:** **C12c**, the independent leaves — twelve entries, 1,316 lines,
+closing **21** dangling edges, the largest reduction of any sub-stage. **Take it
+only once C12b has merged**, or you are moving files out of a tree whose
+companion PR is still open. Baselines for whoever does: **904/904, 92/92, and 45
+dangling edges** — and measure with the committed script, not a fresh one.
+
+**STEP 1 / 1.5 at the time C12b was claimed:** no `platform:win` issues; the
+only open PRs were this run's own C12a pair, both since merged by Jeff.
+
+**Side effects on this box:** two scratch Ninja trees, a build script and an
+MSBuild script under the session scratchpad, all outside every repo. The
+MSBuild of `SynthEdit2` wrote into `SE16\x64\Release\` — that is gitignored and
+left `git status` clean, checked. **Jeff's own `SE16\build` was not touched.**
+`SE16` and `SynthEditLib` are back on their default branches; TideSynth is on
+this branch until its PR lands.
+
+**Branch/PR:** [SynthEdit#19](https://github.com/JeffMcClintock/SynthEdit/pull/19)
++ [SynthEditLib#8](https://github.com/JeffMcClintock/SynthEditLib/pull/8) —
+**these two must merge together**, one removes the files and the other adds them.
+This TideSynth PR carries the journal, the backlog and the script, and lands no
+code.
+
+---
+
 ## 2026-08-15 — windows — C12a
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness; no `claude` CLI on PATH to version, same as the C5 and C12 runs) · as `tide-rack-bot`
@@ -588,121 +720,3 @@ or prefab folder was created or invalidated on this machine.
 fourteen files + `se_version.h`),
 [#58](https://github.com/JeffMcClintock/TideSynth/pull/58) (BACKLOG, JOURNAL,
 `docs/carve-out.md`). No other repo was committed in or modified.
-
----
-
-## 2026-08-14 — linux — A4 built (interactive session, Jeff directing)
-
-**Did:** Built the auto-merge tier for coordination PRs, after Jeff asked why
-BACKLOG/JOURNAL bookkeeping needs a human at all. It does not; A4 has been the
-answer since 2026-08-09 and could not be built by the fleet itself. **Two
-defects in its specification were found first, and the second is the serious
-one.**
-
-**Why no scheduled run could ever have done this.** A4 is a
-`.github/workflows/**` file and the bot token is `repo` scope with no
-`workflow` — measured this session, `x-oauth-scopes: repo`. That is the
-credential-layer enforcement of the no-workflow-edits rule working exactly as
-designed, and its consequence is that **the one item that would free scheduled
-runs is the one item scheduled runs are structurally forbidden from building.**
-Jeff's own token on this box already carries `workflow`, so no `gh auth refresh`
-was needed here; the commit is his.
-
-**Defect 1 — the allowlist would have fired close to never.** A4 says
-"PRs touching only `JOURNAL.md`, `BACKLOG.md`, and `docs/**`". Checked against
-the file lists of the last seven merged PRs, that scores **0 of 7**:
-
-| Blocker | PRs |
-|---|---|
-| `JOURNAL-2026-08.md` | 7 of 7 |
-| `BACKLOG-DONE.md` | #55, #54, #48 |
-
-**A8 created both files on 2026-08-12 — three days after A4's allowlist was
-written — and nobody updated the allowlist.** STEP 4 *mandates* rotating into
-exactly those two files every run, so the tier would have shipped, looked
-correct, and merged almost nothing. With them added the same seven score
-**3 of 7**: #48, #50 and #55 auto-merge; #51, #52 and #54 correctly wait on
-`scripts/`, `tests/` and `tools/`; #41 on `.github/`.
-
-**Defect 2 — `docs/**` was too wide, and the miss was `docs/decisions.md`.**
-A4 excluded `docs/weekly-run-prompt.md` and `PLAN.md` because "they steer the
-fleet". `docs/decisions.md` steers it harder: that file *is* the PROPOSED
-mechanism, and its own text says **"Jeff's merge of that PR is the decision."**
-Auto-merging it would let a run answer its own escalation — the single file in
-`docs/**` where merging is an act of authority rather than bookkeeping. Now
-denied by name, and the selftest tries it both alone and smuggled in beside a
-legitimate journal entry.
-
-**Result — design, and the option deliberately not taken.**
-
-The trigger is `workflow_run` on `lint`, not `pull_request`:
-
-- A `workflow_run` job always runs the **default branch's** copy of the
-  workflow, never the PR's. So a PR cannot edit the rules that judge it. The
-  allowlist denies `.github/**` anyway; this is the second lock.
-- It gates on lint having actually concluded green.
-
-**`gh pr merge --auto` was rejected, and the reason is measurable rather than
-stylistic.** It delegates the waiting to GitHub, which only works when a
-ruleset marks lint a *required* check. This repo has `allow_auto_merge:false`,
-and ruleset `20600401` ("Agent PRs only") carries **only** `deletion`,
-`non_fast_forward` and `pull_request` — **no required-status-checks rule at
-all.** With neither, `--auto` merges immediately and the lint gate is
-decorative. Anyone reaching for `--auto` here should check those two settings
-first; the failure is silent and looks like success.
-
-Making lint a required check repo-wide was the other route and was **not**
-taken: it changes the merge rules for every PR including code, which is wider
-than A4's own "Human merge remains for … all code repos". Keeping the tier
-inside one workflow plus one script means no repository setting can drift out
-of sync with it.
-
-**Guards beyond the allowlist**, because a path allowlist alone is not an
-authorisation model: author must be `tide-rack-bot`, not a draft, open, and
-based on the default branch. Without the author check, a docs-only PR from
-anyone able to open one is an unauthenticated write path into `main`. The
-workflow never checks out or executes PR code — it reads the changed-file list
-from the API and runs the allowlist script from `main`, which is what makes
-`contents: write` safe to grant.
-
-**Verification artifact:** the eligibility decision is a script, not YAML, so
-it is testable without GitHub. `scripts/automerge_eligible.py --selftest` —
-**19 cases, 0 failed.** Seven are the real file lists of merged PRs, so those
-expectations are measurements. The rest are edges: both carve-outs alone and
-beside a legitimate journal edit, `PLAN.md`, `website/`, the auto-merge
-workflow itself, the script itself, an empty list, an unrecognised new
-top-level file, and a near-miss on the archive regex (`JOURNAL-2026-8.md`).
-
-**The selftest earned its keep before it ever ran in CI:** `docs/../PLAN.md`
-passed the first draft, because it starts with `docs/` and the prefix test was
-happy. `git diff --name-only` normalises paths so it is not reachable in
-practice — which is precisely why it deserved a guard rather than an
-assumption about an upstream tool's output. Now rejected along with absolute
-paths and backslashes.
-
-**Learned:**
-
-- **A path allowlist ages badly and silently.** A4's went stale three days
-  after it was written, because a *different* item (A8) added two files, and
-  nothing connected them. The lesson is not "update the allowlist" but
-  "an allowlist needs a test that runs against real recent PRs" — which is why
-  the selftest carries seven of them, and why a future run adding a new
-  coordination file should add a case there in the same change.
-- **Strict inclusion, never exclusion.** The failure mode of an exclusion list
-  is that tomorrow's file merges by default. Everything unrecognised fails
-  closed, which is why `tools/` and `tests/` blocked correctly without ever
-  having been thought about when the list was written.
-- **`--auto` is not "merge when checks pass" unless a ruleset says which
-  checks.** With no required-status-checks rule it is just "merge now".
-
-**Next:** **not verified live, and it cannot be** — a `workflow_run` workflow
-only fires once it is on the default branch, so the first real firing can only
-be watched after this merges. Flip A4 to `DONE` only after seeing it **merge
-one PR and leave another alone**; the negative control matters more than the
-positive one, since an auto-merge action that is wrong about its allowlist is
-a worse problem than merging by hand. The next scheduled run's own
-BACKLOG/JOURNAL PR is the natural first test.
-
-**Branch/PR:** `tide/linux/A4-auto-merge-tier`. Committed as Jeff, not as
-`tide-rack-bot` — the bot token deliberately cannot push `.github/workflows/**`.
-
