@@ -6519,3 +6519,103 @@ this branch until its PR lands.
 **these two must merge together**, one removes the files and the other adds them.
 This TideSynth PR carries the journal, the backlog and the script, and lands no
 code.
+
+## 2026-08-15 — windows — A10 (script half; A15 filed for the gated half)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
+
+**Did:** Built **A10**, the bare-ID cross-reference lint A3 deferred:
+[scripts/check-id-refs.py](scripts/check-id-refs.py). **Third item this
+session, at Jeff's explicit direction in an interactive session** — and picked
+because he confirmed a second agent was still writing to `SE16` and
+`SynthEditLib`, so this run stayed inside TideSynth. **The workflow step that
+turns the script into an actual gate is not here** — `.github/workflows/**` is
+structurally unpushable by the bot token — so that is filed as **A15** with the
+exact YAML, per STEP 5's "do the allowed-side part, file the gated part naming
+the exact file".
+
+**Result.**
+
+| check | result |
+|---|---|
+| against the tree as it stands | **447 references checked, 97 rows, 91 distinct IDs, zero flagged** |
+| built-in selftest | **20 cases, 0 failed** |
+| deliberately stale `**Z9**` | detected, **exit 1** |
+| deliberately stale `BLOCKED(C99)` | detected, exit 1 |
+| deliberately stale `superseded by P42` | detected, exit 1 |
+| clean tree / selftest exit codes | 0 and 0 |
+| `scripts/check-links.py` after the change | 208 links, no breakage |
+
+**The row said to budget this as a design session first, and that was right —
+the implementation is 40 lines and the design is the whole item.** A10 predicted
+the failure mode (a naive `\b[A-Z]\d+[a-z]?\b` false-positives constantly, and a
+noisy lint erodes trust in the other four checks) but not the fix. **The fix is
+two shape rules, both read off the ID column rather than guessed:**
+
+- **A real ID has exactly one uppercase letter.** All 96 rows do — A, B, C, D,
+  E, G, H, L, M, N, P, R, S, U, V, W, X. This single rule kills **`SE16`, which
+  occurs 331 times in these docs** and is by far the worst offender, plus
+  `SE15` and `SE14`.
+- **One or two digits.** The longest real ID is `C12f`/`S10`/`A13`; MSVC
+  diagnostics are four. This kills `C1083` (8 occurrences), `C2664` and
+  `C4834` — all of which appear in journal entries today.
+
+Everything the row worried about is gone before context is even considered.
+Context then does the remaining work: only **bold**, `BLOCKED(...)`, or an
+explicit trigger phrase (`see`, `blocked on`, `filed as`, `unblocks`,
+`supersedes`, …) counts as a reference, so the row's own example — `P7a` inside
+a sentence about `checkSizeConstraint(0,0,2178,32672)` — is never examined, and
+neither is a bare `V1`. Fenced blocks, inline code spans and link targets are
+skipped.
+
+**Learned — `BLOCKED(<id>)` is the highest-value case and A10's row never named
+it.** The row is written entirely about prose mentions. But `BLOCKED(<id>)` is
+the one cross-reference this process treats as load-bearing: the backlog says
+outright that **eligibility lives in the status column alone** and that prose
+never overrides it. A typo there does not read as wrong — `BLOCKED(C12g)` would
+sit in the table looking exactly like a valid blocker and would never clear,
+because no row will ever be `C12g`. It is 8 of the 447 references and the only
+ones where being wrong silently changes what a run is allowed to do. Worth
+saying because it inverts the row's own priority: the prose half is hygiene, the
+`BLOCKED()` half is correctness.
+
+**Learned — the check has real coverage, which was not obvious in advance.** A
+lint that fires on nothing is indistinguishable from one that examines nothing,
+so the number to record is not "zero stale" but **447 references examined across
+91 distinct IDs**, the most-referenced being C6 (15), then C12, C9, S1b and B1
+(11 each). It is not decorative.
+
+**Learned — stacked PRs are a genuine false-positive source, and this run hit it
+within minutes.** The C12b PR adds row **A14**; this run's journal entry
+references it. Branched from `origin/main`, the reference is dangling — and the
+check is *right*, because on that branch the row really does not exist. Two
+things came out of it: `--allow-id` as the documented escape, and this branch
+being **stacked on `tide/win/C12b-controls` rather than `origin/main`**, which
+was the better fix and also avoids a certain `JOURNAL.md` conflict between two
+open PRs that both prepend an entry. **Whoever reviews: this PR's base is the
+C12b branch and GitHub will retarget it to `main` when C12b merges.**
+
+**Next:** **A15** — five lines in `.github/workflows/lint.yml`, Jeff's to push:
+
+```yaml
+      - name: ID cross-references
+        id: idrefs
+        continue-on-error: true
+        run: python3 scripts/check-id-refs.py
+```
+
+plus `ID_REFS: ${{ steps.idrefs.outcome }}` in the Summary step's `env` and
+`"$ID_REFS"` in its `for` loop. **Both halves matter** — every step is
+`continue-on-error`, so a step added without the Summary wiring reports into the
+void and fails nothing. That is the same shape as A4's finding that an allowlist
+can look built while firing on nothing.
+
+**STEP 1 / 1.5:** unchanged from earlier today — no `platform:win` issues; the
+open PRs are this session's own (SynthEdit#19, SynthEditLib#8, TideSynth#61).
+
+**Side effects on this box:** none outside the scratchpad. This run committed in
+TideSynth only, and did not touch `SE16` or `SynthEditLib` at all — both were
+left on their default branches, clean, before it started.
+
+**Branch/PR:** [TideSynth#62](https://github.com/JeffMcClintock/TideSynth/pull/62),
+based on `tide/win/C12b-controls`. No code outside `scripts/`.

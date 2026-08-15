@@ -46,6 +46,140 @@ Template:
 
 ---
 
+## 2026-08-15 — windows — C12e (interactive session, Jeff ruling)
+
+**Did:** **C12e**, ruled in session ("go with your recommendation") — option
+(b). `Dialogs_editor.h` moved to `SynthEditLib`; `Dialogs_editor2.cpp` came off
+EditorLib's source list and is now compiled by each app that needs it.
+**27 → 25 `${EDITOR_DIR}` entries.** Also struck a stale NEEDS-JEFF from **A9**
+(below), and recorded the ruling in
+[docs/decisions.md](docs/decisions.md), which now has **no open PROPOSED
+entries**.
+
+**The headline is not the move. It is that the recommendation's stated
+reasoning was wrong on the one point that decided the work, and measuring
+before implementing is what caught it.**
+
+Both this row and the PROPOSED entry said the other consumers *"each supply
+their own definitions"*, which made (b) a one-`vcxproj`-entry change.
+**`SynthEditCL` does not supply its own.** Its CMake target compiles
+`main.cpp`, **not** `CLApp.cpp` — `CLApp.cpp` is in no build file at all — and
+`main.cpp` carries a comment saying in as many words that it relies on
+EditorLib for these stubs, as does `EditorScreenshot/EditorCommandDispatcher.cpp`.
+So (b) as literally written would have removed the only definition SynthEditCL
+had and broken its link.
+
+Implemented as (b) **properly**, which is what option (b)'s own text points at:
+the `SynthEditApp.cpp` / `ExportAsPlugin.cpp` pattern, where **every** app that
+needs the symbols compiles the file itself. `SynthEditCL/CMakeLists.txt` and
+`SynthEdit2.vcxproj` each gained an entry; `TideApp.cpp` and `layouttests.cpp`
+already define their own.
+
+**Two more of the row's facts were wrong**, both harmless but worth correcting
+because they were repeated in three places:
+
+- The file defines **two** functions, not three. `doDialogBuildCodeSkeleton`
+  appears in neither `Dialogs_editor2.cpp` nor `Dialogs_editor.h` — it is
+  declared and defined only in `CLApp.cpp` and `TideApp.cpp`, and belongs to
+  **S3**, not here.
+- There are **four** definitions in the tree, not five:
+  `Dialogs_editor2.cpp`, `CLApp.cpp` (unbuilt), `TideApp.cpp`,
+  `layouttests.cpp`. `EditorScreenshot` and `SynthEditCL/main.cpp` carry only
+  comments pointing at EditorLib's copy.
+
+**Result.**
+
+| check | result |
+|---|---|
+| `${EDITOR_DIR}` entries | **27 → 25** |
+| fresh Ninja tree, Release | **904/904 RC=0** — net zero, one TU left EditorLib and one joined SynthEditCL |
+| `Dialogs_editor2.cpp.obj` | now built **only** by `SynthEditCL.dir`; `EditorLib.dir` has zero |
+| **TIDE still links** — the specific thing the row demanded | **`TIDE.gmpi` and `TIDE_VST3.vst3` both produced** |
+| `SynthEditCL.exe` | links |
+| tests | **91/92** — see below |
+
+**The one test failure is not this change, and that is proven rather than
+argued.** `Layout.ModuleSizeDoesNotGrowOnReopens` fails with a `bad_alloc`,
+reproducibly. **A/B: `SE16` at `origin/master`, with none of C12e, in a
+detached worktree against the same libraries — fails identically.** So it is
+pre-existing on master.
+
+**What it actually is, since the next run will hit it too:** in-flight
+`ITextLayout` work spanning two repos. `gmpi_ui` committed
+**`d3bacf3` "feat: ITextLayout, a retained immutable styled text layout
+(Direct2D)"** partway through this session, and
+`SynthEditLib/modules/se_sdk3_hosting/GmpiCpuUniversalContext.h` — **still
+uncommitted** — already calls `gmpi::drawing::api::ITextLayout`. Pinning
+`gmpi_ui` back to `3ab5524` does not restore green either; it fails to
+*compile*, because that uncommitted header needs the new API. The two are
+mid-flight together and neither half stands alone right now. **Do not "fix"
+this**; it is Jeff's live work in another session. Left untouched, as the
+STEP 5 dirt rule requires.
+
+**Learned — a `*_FOLDER_OVERRIDE` build reads a live working tree, so another
+session's uncommitted work lands in your test results.** This is the first time
+that has actually bitten. It is not a reason to stop using the overrides
+(**X4** settled that), but it is a reason to A/B against the default branch
+**before** blaming your own change — and to do it in a `git worktree`, which
+leaves the developer's tree untouched. The whole diagnosis cost one worktree
+and two targeted builds.
+
+**Learned — A9 has been listing a NEEDS-JEFF that PLAN.md already answered.**
+The row asks for "TIDE's product philosophy in 2–3 sentences as the auto-reject
+filter, Cardinal-style". [PLAN.md](PLAN.md) has carried it since before the row
+was written: **"What TIDE Rack is"** is the one-sentence identity, and the
+**eight design constraints** are the reject filter in more detail than three
+sentences would be. Written 2026-08-09 from the process review and never
+re-pointed. Struck, with the reasoning in the row. **A9 needs nothing from Jeff
+to start.**
+
+**Next:** **C12c** and **C12f** are the remaining sub-stages a Windows box can
+take (C12d is `linux`). C12 now stands at 25 of its original 41 entries, and
+**C12f is what takes it to zero and unblocks C6**. Whoever takes either should
+expect `Layout.ModuleSizeDoesNotGrowOnReopens` to be red until the ITextLayout
+work lands, and should **not** treat it as their own regression — A/B first.
+
+**Side effects on this box:** a scratch Ninja tree, a pristine `gmpi_ui` clone
+and a detached `SE16` worktree, all under the session scratchpad; the worktree
+was removed and `git worktree prune` run, leaving `git worktree list` with only
+Jeff's own entries. `SynthEditLib` was committed in **while dirty with Jeff's
+uncommitted `GmpiCpuUniversalContext.h`** — staged by explicit path, never
+`git add -A`, and that file is untouched.
+
+
+**Postscript — the A14 guard fired on its first real outing, and it mattered.**
+The two code branches were created in the *shared* working copies, and the
+other session commits into whatever branch is checked out there. So its
+in-flight `ITextLayout` commits landed on my branches, interleaved by seconds
+(`SynthEditLib` `eae673b` 13:15:04, mine `93f5ea9` 13:19:27, its `a7eb0bf`
+13:19:50; `SE16` mine `7563bd151` 13:20:02, its `eb66d2ae9` 13:20:05) — and I
+pushed them before noticing. **`scripts/check-commit-authorship.py`, written
+this morning for exactly this, is what caught it**, in the STEP 4 pre-push
+position its own docstring argues for.
+
+Resolved without rewriting or deleting anything: my single commit was
+cherry-picked onto fresh `tide/win/C12e-clean` branches off the default
+branches, **in temporary worktrees so neither shared checkout was touched**,
+and the PRs raised from those. Each clean branch contains exactly one commit,
+verified. The mixed `tide/win/C12e-dialogs-editor` branches are left exactly as
+they are — they hold Jeff's work, and they are not mine to rewrite.
+
+**Two things for the next run.** First: **both shared checkouts are still parked
+on `tide/win/C12e-dialogs-editor`**, so further commits there keep landing on
+it; I deliberately did not switch them, because doing that under a live session
+risks its working tree. Second, and more general: **creating a branch in a
+shared working copy is itself the hazard.** A14's assertion catches the result;
+it does not prevent it. The durable fix is to do code work in a `git worktree`
+rather than by switching the developer's checkout — which is what the cleanup
+had to do anyway.
+
+**Branch/PR:** [SynthEdit#20](https://github.com/JeffMcClintock/SynthEdit/pull/20)
++ [SynthEditLib#9](https://github.com/JeffMcClintock/SynthEditLib/pull/9) —
+**these two must merge together** — and the TideSynth PR carrying this entry,
+the backlog and the ruling.
+
+---
+
 ## 2026-08-15 — windows — A15 (interactive session, Jeff directing)
 
 **Did:** **A15** — wired A10's [scripts/check-id-refs.py](scripts/check-id-refs.py)
@@ -239,106 +373,4 @@ look there before concluding a day is missing.
 **Branch/PR:** [TideSynth#63](https://github.com/JeffMcClintock/TideSynth/pull/63),
 stacked on the A10 branch, which is stacked on C12b. All three retarget to
 `main` as their parents merge.
-
----
-
-## 2026-08-15 — windows — A10 (script half; A15 filed for the gated half)
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
-
-**Did:** Built **A10**, the bare-ID cross-reference lint A3 deferred:
-[scripts/check-id-refs.py](scripts/check-id-refs.py). **Third item this
-session, at Jeff's explicit direction in an interactive session** — and picked
-because he confirmed a second agent was still writing to `SE16` and
-`SynthEditLib`, so this run stayed inside TideSynth. **The workflow step that
-turns the script into an actual gate is not here** — `.github/workflows/**` is
-structurally unpushable by the bot token — so that is filed as **A15** with the
-exact YAML, per STEP 5's "do the allowed-side part, file the gated part naming
-the exact file".
-
-**Result.**
-
-| check | result |
-|---|---|
-| against the tree as it stands | **447 references checked, 97 rows, 91 distinct IDs, zero flagged** |
-| built-in selftest | **20 cases, 0 failed** |
-| deliberately stale `**Z9**` | detected, **exit 1** |
-| deliberately stale `BLOCKED(C99)` | detected, exit 1 |
-| deliberately stale `superseded by P42` | detected, exit 1 |
-| clean tree / selftest exit codes | 0 and 0 |
-| `scripts/check-links.py` after the change | 208 links, no breakage |
-
-**The row said to budget this as a design session first, and that was right —
-the implementation is 40 lines and the design is the whole item.** A10 predicted
-the failure mode (a naive `\b[A-Z]\d+[a-z]?\b` false-positives constantly, and a
-noisy lint erodes trust in the other four checks) but not the fix. **The fix is
-two shape rules, both read off the ID column rather than guessed:**
-
-- **A real ID has exactly one uppercase letter.** All 96 rows do — A, B, C, D,
-  E, G, H, L, M, N, P, R, S, U, V, W, X. This single rule kills **`SE16`, which
-  occurs 331 times in these docs** and is by far the worst offender, plus
-  `SE15` and `SE14`.
-- **One or two digits.** The longest real ID is `C12f`/`S10`/`A13`; MSVC
-  diagnostics are four. This kills `C1083` (8 occurrences), `C2664` and
-  `C4834` — all of which appear in journal entries today.
-
-Everything the row worried about is gone before context is even considered.
-Context then does the remaining work: only **bold**, `BLOCKED(...)`, or an
-explicit trigger phrase (`see`, `blocked on`, `filed as`, `unblocks`,
-`supersedes`, …) counts as a reference, so the row's own example — `P7a` inside
-a sentence about `checkSizeConstraint(0,0,2178,32672)` — is never examined, and
-neither is a bare `V1`. Fenced blocks, inline code spans and link targets are
-skipped.
-
-**Learned — `BLOCKED(<id>)` is the highest-value case and A10's row never named
-it.** The row is written entirely about prose mentions. But `BLOCKED(<id>)` is
-the one cross-reference this process treats as load-bearing: the backlog says
-outright that **eligibility lives in the status column alone** and that prose
-never overrides it. A typo there does not read as wrong — `BLOCKED(C12g)` would
-sit in the table looking exactly like a valid blocker and would never clear,
-because no row will ever be `C12g`. It is 8 of the 447 references and the only
-ones where being wrong silently changes what a run is allowed to do. Worth
-saying because it inverts the row's own priority: the prose half is hygiene, the
-`BLOCKED()` half is correctness.
-
-**Learned — the check has real coverage, which was not obvious in advance.** A
-lint that fires on nothing is indistinguishable from one that examines nothing,
-so the number to record is not "zero stale" but **447 references examined across
-91 distinct IDs**, the most-referenced being C6 (15), then C12, C9, S1b and B1
-(11 each). It is not decorative.
-
-**Learned — stacked PRs are a genuine false-positive source, and this run hit it
-within minutes.** The C12b PR adds row **A14**; this run's journal entry
-references it. Branched from `origin/main`, the reference is dangling — and the
-check is *right*, because on that branch the row really does not exist. Two
-things came out of it: `--allow-id` as the documented escape, and this branch
-being **stacked on `tide/win/C12b-controls` rather than `origin/main`**, which
-was the better fix and also avoids a certain `JOURNAL.md` conflict between two
-open PRs that both prepend an entry. **Whoever reviews: this PR's base is the
-C12b branch and GitHub will retarget it to `main` when C12b merges.**
-
-**Next:** **A15** — five lines in `.github/workflows/lint.yml`, Jeff's to push:
-
-```yaml
-      - name: ID cross-references
-        id: idrefs
-        continue-on-error: true
-        run: python3 scripts/check-id-refs.py
-```
-
-plus `ID_REFS: ${{ steps.idrefs.outcome }}` in the Summary step's `env` and
-`"$ID_REFS"` in its `for` loop. **Both halves matter** — every step is
-`continue-on-error`, so a step added without the Summary wiring reports into the
-void and fails nothing. That is the same shape as A4's finding that an allowlist
-can look built while firing on nothing.
-
-**STEP 1 / 1.5:** unchanged from earlier today — no `platform:win` issues; the
-open PRs are this session's own (SynthEdit#19, SynthEditLib#8, TideSynth#61).
-
-**Side effects on this box:** none outside the scratchpad. This run committed in
-TideSynth only, and did not touch `SE16` or `SynthEditLib` at all — both were
-left on their default branches, clean, before it started.
-
-**Branch/PR:** [TideSynth#62](https://github.com/JeffMcClintock/TideSynth/pull/62),
-based on `tide/win/C12b-controls`. No code outside `scripts/`.
 
