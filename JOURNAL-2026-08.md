@@ -6619,3 +6619,82 @@ left on their default branches, clean, before it started.
 
 **Branch/PR:** [TideSynth#62](https://github.com/JeffMcClintock/TideSynth/pull/62),
 based on `tide/win/C12b-controls`. No code outside `scripts/`.
+
+---
+
+## 2026-08-15 — windows — A14 (the guard for this morning's collision)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
+
+**Did:** Built **A14**, filed earlier in this same session after a concurrent
+Claude session on this box committed this run's staged changes as Jeff.
+[scripts/check-commit-authorship.py](scripts/check-commit-authorship.py), plus
+the STEP 3 and STEP 4 wording in
+[docs/weekly-run-prompt.md](docs/weekly-run-prompt.md) that makes running it
+part of every run. **Fourth item this session, at Jeff's direction, and still
+TideSynth-only** — the second agent was confirmed still live in `SE16` and
+`SynthEditLib`, which this run has not touched since C12b.
+
+**Result — verified against a reconstruction of the actual incident, not by
+reasoning about it.** A throwaway repo in the scratchpad, branch of four
+commits:
+
+| commit | author / committer | flagged |
+|---|---|---|
+| `legit bot commit` | bot / bot | no |
+| `the foreign commit` | **Jeff / Jeff** | **yes** |
+| `another bot commit` | bot / bot | no |
+| half-set `GIT_*` | bot / **Jeff** | **yes** |
+
+Exit 1, both flagged, the two clean ones untouched. Also exits 0 on a clean
+branch and prints "on the default branch, nothing to check" when there is
+nothing to compare, so it is safe to run unconditionally.
+
+**The fourth row is the one I would not have thought to test if the prompt had
+not already documented it.** `GIT_AUTHOR_*` exported but `GIT_COMMITTER_*` not
+is the exact shape measured on this box before the four variables were
+mandated — the run prompt records a bot-pushed test commit coming back from the
+API as `author: JeffMcClintock, committer: JeffMcClintock`. Checking only the
+author would have let half of it through. The check tests both identities.
+
+**Learned — why the check belongs *before* the push and nowhere else.** A
+foreign commit that has been pushed cannot be rewritten; the branch is shared
+and the run prompt forbids rewriting pushed history. So the only useful moment
+is the last one at which the run still owns its history entirely. That also
+shapes the failure output: it prints the remedy (`--amend --reset-author`, or a
+`rebase --exec` for a range) **and** the two cases where the remedy must not be
+applied — anything already pushed, and anything a concurrent session may be
+building on. This morning the branches were unpushed, and that is the only
+reason amending was safe. That condition is easy to lose sight of when the
+content is obviously yours.
+
+**Learned — the guard STEP 0.7 gives is narrower than it reads.** It is a
+property of *the process*, asserted *once*, at the start. Nothing about it is
+wrong; it simply cannot see a second writer, and a run that reads it as "this
+repository is safe" has over-read it. The new STEP 4 text says this in as many
+words, because the failure looked completely normal from inside — correct
+content, clean exit codes, a passed STEP 0.7 — and the only visible sign was a
+name in `git log` that nobody had a reason to read.
+
+**Also added to STEP 3:** commit as soon as a coherent change exists rather
+than staging and going away to build. That window was open about ten minutes
+this morning. It is a smaller, softer mitigation than the assertion and does
+not replace it — it just makes the assertion fire less often.
+
+**Next:** nothing blocking. **A15** (five lines of `lint.yml` for A10's check)
+and this row's own PR both need Jeff. On the carve-out, **C12c** is the win
+NEXT item and is the largest dangling-edge reduction of any sub-stage — but it
+must wait for C12b to merge, and for the second agent to be clear of `SE16` and
+`SynthEditLib`.
+
+**One process note for whoever reads this file next.** Four entries were
+written today from one box, which is not the cadence this journal was designed
+around. It happened because Jeff was directing interactively and told the run
+to keep going; a scheduled run still takes exactly one item. Rotation kept the
+file at four entries throughout, so **three of today's four entries are already
+in [JOURNAL-2026-08.md](JOURNAL-2026-08.md)** by the time anyone reads this —
+look there before concluding a day is missing.
+
+**Branch/PR:** [TideSynth#63](https://github.com/JeffMcClintock/TideSynth/pull/63),
+stacked on the A10 branch, which is stacked on C12b. All three retarget to
+`main` as their parents merge.
