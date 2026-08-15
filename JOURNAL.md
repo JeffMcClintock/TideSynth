@@ -46,6 +46,108 @@ Template:
 
 ---
 
+## 2026-08-15 — windows — A10 (script half; A15 filed for the gated half)
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
+
+**Did:** Built **A10**, the bare-ID cross-reference lint A3 deferred:
+[scripts/check-id-refs.py](scripts/check-id-refs.py). **Third item this
+session, at Jeff's explicit direction in an interactive session** — and picked
+because he confirmed a second agent was still writing to `SE16` and
+`SynthEditLib`, so this run stayed inside TideSynth. **The workflow step that
+turns the script into an actual gate is not here** — `.github/workflows/**` is
+structurally unpushable by the bot token — so that is filed as **A15** with the
+exact YAML, per STEP 5's "do the allowed-side part, file the gated part naming
+the exact file".
+
+**Result.**
+
+| check | result |
+|---|---|
+| against the tree as it stands | **447 references checked, 97 rows, 91 distinct IDs, zero flagged** |
+| built-in selftest | **20 cases, 0 failed** |
+| deliberately stale `**Z9**` | detected, **exit 1** |
+| deliberately stale `BLOCKED(C99)` | detected, exit 1 |
+| deliberately stale `superseded by P42` | detected, exit 1 |
+| clean tree / selftest exit codes | 0 and 0 |
+| `scripts/check-links.py` after the change | 208 links, no breakage |
+
+**The row said to budget this as a design session first, and that was right —
+the implementation is 40 lines and the design is the whole item.** A10 predicted
+the failure mode (a naive `\b[A-Z]\d+[a-z]?\b` false-positives constantly, and a
+noisy lint erodes trust in the other four checks) but not the fix. **The fix is
+two shape rules, both read off the ID column rather than guessed:**
+
+- **A real ID has exactly one uppercase letter.** All 96 rows do — A, B, C, D,
+  E, G, H, L, M, N, P, R, S, U, V, W, X. This single rule kills **`SE16`, which
+  occurs 331 times in these docs** and is by far the worst offender, plus
+  `SE15` and `SE14`.
+- **One or two digits.** The longest real ID is `C12f`/`S10`/`A13`; MSVC
+  diagnostics are four. This kills `C1083` (8 occurrences), `C2664` and
+  `C4834` — all of which appear in journal entries today.
+
+Everything the row worried about is gone before context is even considered.
+Context then does the remaining work: only **bold**, `BLOCKED(...)`, or an
+explicit trigger phrase (`see`, `blocked on`, `filed as`, `unblocks`,
+`supersedes`, …) counts as a reference, so the row's own example — `P7a` inside
+a sentence about `checkSizeConstraint(0,0,2178,32672)` — is never examined, and
+neither is a bare `V1`. Fenced blocks, inline code spans and link targets are
+skipped.
+
+**Learned — `BLOCKED(<id>)` is the highest-value case and A10's row never named
+it.** The row is written entirely about prose mentions. But `BLOCKED(<id>)` is
+the one cross-reference this process treats as load-bearing: the backlog says
+outright that **eligibility lives in the status column alone** and that prose
+never overrides it. A typo there does not read as wrong — `BLOCKED(C12g)` would
+sit in the table looking exactly like a valid blocker and would never clear,
+because no row will ever be `C12g`. It is 8 of the 447 references and the only
+ones where being wrong silently changes what a run is allowed to do. Worth
+saying because it inverts the row's own priority: the prose half is hygiene, the
+`BLOCKED()` half is correctness.
+
+**Learned — the check has real coverage, which was not obvious in advance.** A
+lint that fires on nothing is indistinguishable from one that examines nothing,
+so the number to record is not "zero stale" but **447 references examined across
+91 distinct IDs**, the most-referenced being C6 (15), then C12, C9, S1b and B1
+(11 each). It is not decorative.
+
+**Learned — stacked PRs are a genuine false-positive source, and this run hit it
+within minutes.** The C12b PR adds row **A14**; this run's journal entry
+references it. Branched from `origin/main`, the reference is dangling — and the
+check is *right*, because on that branch the row really does not exist. Two
+things came out of it: `--allow-id` as the documented escape, and this branch
+being **stacked on `tide/win/C12b-controls` rather than `origin/main`**, which
+was the better fix and also avoids a certain `JOURNAL.md` conflict between two
+open PRs that both prepend an entry. **Whoever reviews: this PR's base is the
+C12b branch and GitHub will retarget it to `main` when C12b merges.**
+
+**Next:** **A15** — five lines in `.github/workflows/lint.yml`, Jeff's to push:
+
+```yaml
+      - name: ID cross-references
+        id: idrefs
+        continue-on-error: true
+        run: python3 scripts/check-id-refs.py
+```
+
+plus `ID_REFS: ${{ steps.idrefs.outcome }}` in the Summary step's `env` and
+`"$ID_REFS"` in its `for` loop. **Both halves matter** — every step is
+`continue-on-error`, so a step added without the Summary wiring reports into the
+void and fails nothing. That is the same shape as A4's finding that an allowlist
+can look built while firing on nothing.
+
+**STEP 1 / 1.5:** unchanged from earlier today — no `platform:win` issues; the
+open PRs are this session's own (SynthEdit#19, SynthEditLib#8, TideSynth#61).
+
+**Side effects on this box:** none outside the scratchpad. This run committed in
+TideSynth only, and did not touch `SE16` or `SynthEditLib` at all — both were
+left on their default branches, clean, before it started.
+
+**Branch/PR:** [TideSynth#62](https://github.com/JeffMcClintock/TideSynth/pull/62),
+based on `tide/win/C12b-controls`. No code outside `scripts/`.
+
+---
+
 ## 2026-08-15 — windows — C12b (and a second-agent collision worth more than the item)
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness; no `claude` CLI on PATH to version) · as `tide-rack-bot`
@@ -508,215 +610,3 @@ or prefab folder was created or invalidated.
 [#59](https://github.com/JeffMcClintock/TideSynth/pull/59). No other repo was
 committed in or modified. **Expect #59 to sit unmerged:** it touches
 `docs/decisions.md`, which A4 denies by design.
-
----
-
-## 2026-08-14 — windows — C5
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
-
-**Did:** Carve-out stage **C5**, the app base. Moved fourteen files out of the
-private repo into public `SynthEditLib` and finished **C9** with them. The row
-promised "one `#include` swap and one macro rename, no new machinery" and that
-was accurate — the work took minutes. **The two things worth reading are that
-C5 is the first stage to reduce the public repo's private-include debt rather
-than grow it, and that the stage list does not cover the files it claims to,
-which is filed as C12.**
-
-**Result — all three products build, all tests pass, C9 proven by a control.**
-
-| check | result |
-|---|---|
-| fresh scratch Ninja tree of `SE16`, Release | **905/905, RC=0** — `SynthEdit_VST3`, `SynthEdit_GMPI`, `SynthEditCL`, `TIDE.gmpi`, `TIDE_VST3` |
-| the seven moved TUs really compiled from their new home | log shows `EditorLib.dir\C_\SE\SynthEditLib\<name>.cpp.obj` for all seven |
-| `dsp_tests` / `synth_ui_tests` / `ui_tests` | 58/58, 24/24, 10/10 — all RC=0 |
-| **SynthEdit2 (WinUI3)**, MSBuild Release x64 | **RC=0**, 0 errors, `x64\Release\SynthEdit2\SynthEdit2.exe` |
-| no line-ending churn | `core.autocrlf=false` in both repos; all fourteen `cmp`-identical to their originals before the one C9 edit |
-
-The two MSBuild warnings are `C4834` in `SynthEditApp.cpp:421,437`, a file this
-stage does not touch and does not move — pre-existing, not caused here.
-
-**C9's third and last user, with a control rather than an assertion.**
-
-`Application.cpp:22` included `"../se_build_number.h"` and `:97` read
-`SE_BUILD_NUMBER` to decide whether `CopyInitialPrefabs` re-seeds the user's
-`SynthEdit Projects/Prefabs`. That is the same cache-invalidation shape as
-`SkinMgr` and `ModuleFactory_Editor`, so it took the same treatment: include
-`se_version.h`, read `SE_APP_BUILD_NUMBER`.
-
-| | |
-|---|---|
-| `se_build_number.h` today | `SE_BUILD_NUMBER 183` |
-| configure output | `EditorLib: SE_APP_BUILD_NUMBER=183 (from se_build_number.h)` |
-| `build.ninja` statements carrying the define | **57, every one of them EditorLib**, one distinct value — and `Application.cpp.obj` is among them |
-| probe TU, **no** injection | prints **0** — what a clean clone gets, i.e. TIDE from C7 |
-| probe TU, **with** injection | prints **183** |
-
-The probe is the part that matters: `se_version.h` defaults the macro to 0, so
-a lost injection **fails silently** — nothing would fail to compile and the
-prefab copy would just quietly stop invalidating. An absence of build errors is
-not evidence here, which is why there is a positive control. Note the count is
-still 57, unchanged from C4: `Application.cpp` was already an EditorLib TU, so
-C5 changed which directory it compiles from, not which target owns it.
-
-**Learned — C5 is the first stage to pay debt down, and both halves were
-measured from git refs.** C4 went 47 → 56 and warned that C5 would move
-`Application.h`, the most-included name on the list. It did:
-
-| | dangling private includes in `SynthEditLib` |
-|---|---|
-| before C5 (`SE16 origin/master` / `SynthEditLib origin/main`) | **59** |
-| after C5 | **54** |
-| closed by C5 | **15** |
-| opened by C5 | **10** |
-
-**These are not comparable to C4's 47/56 as absolute numbers** — the C4 script
-lived in that run's scratchpad and is gone, so this is a re-implementation with
-slightly different normalisation (it counts `./CLine2.h` and `CLine2.h`
-separately, and includes SE16's vendored `soundpipe.h`). The delta is the honest
-figure, and both sides were read from git refs with the same script, which is
-the thing C4's entry said to get right. Script re-created as `dangling.py` in
-this run's scratchpad; it is ~70 lines and the next stage should re-create it
-again rather than trust a number.
-
-The 15 closed are all `Application.h` (11) and `SynthEditAppBase.h` (4), from
-`CContainer.cpp`, `CUG.cpp`, `CUG_with_patches.cpp`, `DocOb.cpp`, `plug4.cpp`,
-`checkpoint.cpp`, `imbedded_file.cpp`, `SynthEditDoc2.cpp`,
-`SynthEditDocBase.cpp`, `MfcDocPresenter.cpp`, `SkinMgr.cpp`, `ModuleBrowser.cpp`,
-`PropertiesBrowser.cpp`, `CancellationAnalyse.cpp` and `CpuMeterGui.cpp`.
-
-**Of the 10 opened, 6 are closed by construction later and 4 are not:**
-
-| header | on a stage's list? |
-|---|---|
-| `commandMgr.h` (×2), `PatchParameter.h`, `SuspendDSP.h`, `ui_msg_target.h` | yes — on `EditorLib/CMakeLists.txt`'s list, so C12 closes them |
-| `IMidiDriver.h` (×2), `ParseSynthEditArgs.h`, `ISEAppManaged.h` | **no stage's list** |
-| **`SynthEditApp.h`** | **no stage's list — and it is C11(a)** |
-
-**`SynthEditApp.h` is the one to look at, because C5 has just given C11 a second
-call site and C11 is still unruled.** C4 found `MfcDocPresenter.cpp` reaching
-`theApp->isMoonbaseEnabled()`; now `ApplySynthEditConfig.cpp` includes the same
-deliberately-excluded header from the public repo. That header is excluded *by
-design* so each app picks its own `SE_MOONBASE_SUPPORT` without ODR conflicts,
-so it cannot simply join a stage's list the way `ModulePicker.h` can — C11's
-question got wider, not just longer. `ISEAppManaged.h` was already dangling
-before C5 (`CUG.cpp`); C5 adds a second includer. `IMidiDriver.h` and
-`ParseSynthEditArgs.h` are new and on nobody's list.
-
-**Learned — the big one. The carve-out's stage list does not cover the files it
-says it does, and C7 cannot pass until something does.** `docs/carve-out.md`
-stages C3, C4 and C5 as "the rest", and `EditorLib/CMakeLists.txt`'s own comment
-said "C3-C5 convert the rest, and C6 moves this file itself". After C5 there are
-still **41 `${EDITOR_DIR}` entries** — roughly 21 units: `CLine2`, `commandMgr`,
-`Control`, `CPlugin`, the four `Ctl_*` controls, `Dialogs_editor`, `GuiPin`,
-`IGuiHost`, `InterfaceObject_editor`, `legacyExternalApp`,
-`ModuleDragAndDropManager`, `Module_Info_Plugin`, `PatchManager`,
-`PatchParameter`, `PatchParameter_host_generated`, `platform_editor`,
-`resource.h`, `SuspendDSP`, `UG2`, `ui_msg_target`. **C7's whole test is a clean
-clone with no access to SE16**, and every one of these is on EditorLib's source
-list, so C6 would move a `CMakeLists.txt` that points at 41 files a stranger
-cannot see. Filed as **C12**; the CMakeLists comment now says so rather than
-claiming the conversion is finished, so the next reader is not misled the way
-this run was.
-
-I did not widen C5 to absorb them. C5's file list is Jeff's, the extra 41 are
-about three times C5's own size, and reshaping an approved stage from inside it
-is not a scheduled run's call — the same reasoning C4 used for C11.
-
-**Learned — `cmd.exe /c` is unusable from the Bash tool on this box, and it
-fails by hanging rather than erroring.** MSYS path conversion rewrites the `/c`
-switch to `C:/`, so `cmd.exe` starts *interactively*, prints its banner, and
-blocks on stdin until the tool times out. It looks exactly like a slow CMake
-configure. Ten minutes were lost to it before the banner in the log gave it
-away. Either use the PowerShell tool for anything that needs `vcvars64.bat`
-(what this run did), or set `MSYS_NO_PATHCONV=1`. Note the failure is silent in
-the other direction too: the wrapper's own `echo RC=$?` reported **0** for a
-command that never ran.
-
-**Learned — the C7 cache-thrash problem S2 found for skins now has a third
-instance, and it is the same mechanism.** S2 predicted that from C7 TIDE takes
-`SE_APP_BUILD_NUMBER=0` while SynthEdit keeps 183, so each would re-copy 724 KB
-of skins over the other on every launch. `CopyInitialPrefabs` is keyed on
-exactly the same macro and writes to `SynthEdit Projects/Prefabs` (1.1 MB, 35
-files per S2's own measurement), so it thrashes identically — as does the module
-cache XML. Today nothing thrashes, because TIDE links the one EditorLib that
-carries the injection and so sees 183 too; the divergence begins at C7. This
-strengthens S2's argument that the mechanism should be removed from TIDE
-*before* C7 rather than after, and it is now three caches, not one.
-
-**Learned — no `.vcxproj` or Xcode edit was needed, unlike C3 and C4, and that
-is worth checking rather than assuming.** Neither `SynthEdit2.vcxproj` nor
-`SynthEditMac/SynthEdit.xcodeproj` mentions any of the fourteen files: the
-`.cpp` had already moved to EditorLib (the vcxproj carries only comments saying
-so) and the headers were never listed. `$(SolutionDir)..\SyntheditLib` is
-already on the vcxproj's `AdditionalIncludeDirectories`, so every consumer's
-`#include "Application.h"` keeps resolving through a search path — just to a
-different directory. Two stale path comments in `SynthEditCL/CMakeLists.txt` and
-`SynthEditWayland/CMakeLists.txt` did name `SynthEdit2/Application.cpp` and were
-updated.
-
-**STEP 1 / 1.5:** no `platform:win` issues; the only open issue anywhere in the
-five repos is TideSynth [#44](https://github.com/JeffMcClintock/TideSynth/issues/44)
-(the A6 watchdog digest, `github-actions`, informational) — noted, not acted on.
-**Zero open PRs in all five repos** at claim time, and no `tide/**` branch on any
-remote, so nothing was handed back to this platform and nothing was in flight to
-collide with. `SynthEdit` carries an unrelated `claude/audio-sample-rate-persist-795c69`
-branch, not a fleet branch; left alone.
-
-**A4's first live test is available now.** The A4 run said to flip it to `DONE`
-only after watching it merge one PR and leave another alone, and that the next
-scheduled run's own PRs are the natural first test. This run supplies both
-controls at once: the TideSynth PR is `BACKLOG.md` + `JOURNAL*.md` only and
-should auto-merge, while the two code PRs are in other repos entirely and the
-tier must not touch them. A4 is left `IN-REVIEW` — this run did not observe the
-firing, and observing it is the whole condition.
-
-**Jeff's trees, per the three-kinds dirt rule:** `TideSynth`, `SE16`,
-`SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were **all clean and on their
-default branches** at claim time. Nothing of his was committed, reverted or
-stashed. All five were **fast-forwarded** to `origin` before starting —
-`TideSynth` 4 commits behind, `SE16` 3, `SynthEditLib` 2, `gmpi_ui` 1,
-`GMPI_Wrappers` 2 — true fast-forwards with nothing to stash, noted because it is
-a change to his trees. `SE16/SynthEdit2/.claude/worktrees/` holds two stray
-agent worktrees (`audio-sample-rate-persist-795c69`, `blank-project-app-load-d27d84`);
-they are ignored, they are not mine, and they were not touched — but note they
-make a naive `grep -rn` over `SE16` return every hit three times.
-
-**A11 still holds:** all five repos answer `https://` to
-`ls-remote --get-url origin`, and STEP 0.7's second assertion printed
-`git@github.com:`.
-
-**Side effects on this box:** a scratch Ninja tree and two probe binaries under
-the session scratchpad, all outside every repo — Jeff's own `SE16\build` was not
-configured or built into. The MSBuild run **did** write into `SE16\x64\Release\`,
-which is `.gitignore`d and is where that build has always put its output.
-`SynthEditCL.exe` was built but never executed, so no module cache, skin folder
-or prefab folder was created or invalidated on this machine.
-
-**Next:**
-
-1. **Merge both code PRs together** —
-   [SynthEdit#16](https://github.com/JeffMcClintock/SynthEdit/pull/16) and
-   [SynthEditLib#7](https://github.com/JeffMcClintock/SynthEditLib/pull/7).
-   Merging either alone breaks the build: the files exist in exactly one repo at
-   a time and `EditorLib/CMakeLists.txt` points at the new location.
-2. **C12 before C6, not after.** C6 moves `EditorLib/CMakeLists.txt` into the
-   public repo; doing that while it still points at 41 private files puts a
-   source list a stranger cannot satisfy into the public repo, which is the
-   `cpu_accumulator.h` shape C2 hit, at 41× the size. C12 is `win`-shaped only in
-   that this box has all three build systems to verify against; the row is `any`.
-3. **C11 needs Jeff and now has two call sites, not one.** `SynthEditApp.h` is
-   reached from `MfcDocPresenter.cpp` (C4) and `ApplySynthEditConfig.cpp` (C5).
-   It cannot join a stage's list the way `ModulePicker.h` can, because its
-   exclusion is deliberate and about `SE_MOONBASE_SUPPORT` ODR.
-4. **`IMidiDriver.h`, `ParseSynthEditArgs.h` and `ISEAppManaged.h` are on no
-   stage's list either** — smaller and probably uncontroversial, but they are
-   real C7 blockers and C12 should absorb them explicitly.
-
-**Branch/PR:** `tide/win/C5-move-app-base` in three repos —
-[SynthEdit#16](https://github.com/JeffMcClintock/SynthEdit/pull/16) (deletions,
-`EditorLib/CMakeLists.txt`, two comment fixes),
-[SynthEditLib#7](https://github.com/JeffMcClintock/SynthEditLib/pull/7) (the
-fourteen files + `se_version.h`),
-[#58](https://github.com/JeffMcClintock/TideSynth/pull/58) (BACKLOG, JOURNAL,
-`docs/carve-out.md`). No other repo was committed in or modified.
