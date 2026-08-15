@@ -472,4 +472,3 @@ start of the run, and are back on them at the end.
 this entry and the backlog status. **Merging the TideSynth one alone lands no
 code**, and merging SynthEdit#18 alone is safe on its own — nothing in the two
 depends on the other to build.
-
