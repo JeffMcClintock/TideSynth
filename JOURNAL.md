@@ -720,4 +720,3 @@ or prefab folder was created or invalidated on this machine.
 fourteen files + `se_version.h`),
 [#58](https://github.com/JeffMcClintock/TideSynth/pull/58) (BACKLOG, JOURNAL,
 `docs/carve-out.md`). No other repo was committed in or modified.
-
