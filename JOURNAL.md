@@ -451,134 +451,124 @@ enough to rebuild them. TideSynth was the only repo committed in. `SynthEdit`,
 
 ---
 
-## 2026-08-15 — windows — C12e (interactive session, Jeff ruling)
+## 2026-08-15 — windows — C11, S9, S10, M2 (interactive session, Jeff ruling)
 
-**Did:** **C12e**, ruled in session ("go with your recommendation") — option
-(b). `Dialogs_editor.h` moved to `SynthEditLib`; `Dialogs_editor2.cpp` came off
-EditorLib's source list and is now compiled by each app that needs it.
-**27 → 25 `${EDITOR_DIR}` entries.** Also struck a stale NEEDS-JEFF from **A9**
-(below), and recorded the ruling in
-[docs/decisions.md](docs/decisions.md), which now has **no open PROPOSED
-entries**.
+**Did:** Two rulings from the same session, both against carve-out/product
+questions that had been sitting open. **C11**: narrow the private licence gate
+to a public interface, TIDE needs no licensing. **S10**: retire the dead iOS
+Xcode project, lean on a generic AUv3 backend for `gmpi_ui`. Also corrected
+**S9** (moot) and **M2** (rescoped) as direct consequences of the S10 ruling.
 
-**The headline is not the move. It is that the recommendation's stated
-reasoning was wrong on the one point that decided the work, and measuring
-before implementing is what caught it.**
+**This entry's own production hit the collision this session has now hit
+twice — worth reading before the content, because it changed how the work got
+verified.** Mid-C11, a `git add`+`git commit` in the shared `SE16` checkout
+produced a commit containing only 1 of my 5 changed files — the other four
+(`SynthEdit2.vcxproj`, `SynthEditApp.h`, `SynthEditApp.cpp`,
+`TideAppStubs.cpp`) were present and correct in the working tree throughout,
+but silently absent from the commit. Not a wrong-branch problem this time — a
+**race on the shared git index** with the other session's concurrent
+operations. Recommitted immediately, verified via `git show --stat` before
+doing anything else, confirmed clean. **Filed as A16**, since A14's assertion
+(commit authorship) does not catch this — the commit it flags is correctly
+authored, just short.
 
-Both this row and the PROPOSED entry said the other consumers *"each supply
-their own definitions"*, which made (b) a one-`vcxproj`-entry change.
-**`SynthEditCL` does not supply its own.** Its CMake target compiles
-`main.cpp`, **not** `CLApp.cpp` — `CLApp.cpp` is in no build file at all — and
-`main.cpp` carries a comment saying in as many words that it relies on
-EditorLib for these stubs, as does `EditorScreenshot/EditorCommandDispatcher.cpp`.
-So (b) as literally written would have removed the only definition SynthEditCL
-had and broken its link.
+The recovery method from this morning's collision generalised cleanly:
+cherry-pick onto a fresh worktree off the current default branch, verify the
+full diff against that branch by explicit SHA (not a symbolic ref, and not
+trusting a "pushed" echo — one push silently failed against a broken
+worktree, caught only by re-fetching and diffing from a completely separate
+repo location), push, and only then remove the worktree. Every one of today's
+four code branches (`SE16`×2, `SynthEditLib`×1, and this pattern reused a
+third time within the same hour) went through this, and every one was
+verified from outside the worktree that produced it before being trusted.
 
-Implemented as (b) **properly**, which is what option (b)'s own text points at:
-the `SynthEditApp.cpp` / `ExportAsPlugin.cpp` pattern, where **every** app that
-needs the symbols compiles the file itself. `SynthEditCL/CMakeLists.txt` and
-`SynthEdit2.vcxproj` each gained an entry; `TideApp.cpp` and `layouttests.cpp`
-already define their own.
-
-**Two more of the row's facts were wrong**, both harmless but worth correcting
-because they were repeated in three places:
-
-- The file defines **two** functions, not three. `doDialogBuildCodeSkeleton`
-  appears in neither `Dialogs_editor2.cpp` nor `Dialogs_editor.h` — it is
-  declared and defined only in `CLApp.cpp` and `TideApp.cpp`, and belongs to
-  **S3**, not here.
-- There are **four** definitions in the tree, not five:
-  `Dialogs_editor2.cpp`, `CLApp.cpp` (unbuilt), `TideApp.cpp`,
-  `layouttests.cpp`. `EditorScreenshot` and `SynthEditCL/main.cpp` carry only
-  comments pointing at EditorLib's copy.
+### C11
 
 **Result.**
 
 | check | result |
 |---|---|
-| `${EDITOR_DIR}` entries | **27 → 25** |
-| fresh Ninja tree, Release | **904/904 RC=0** — net zero, one TU left EditorLib and one joined SynthEditCL |
-| `Dialogs_editor2.cpp.obj` | now built **only** by `SynthEditCL.dir`; `EditorLib.dir` has zero |
-| **TIDE still links** — the specific thing the row demanded | **`TIDE.gmpi` and `TIDE_VST3.vst3` both produced** |
-| `SynthEditCL.exe` | links |
-| tests | **91/92** — see below |
+| `SynthEdit2.vcxproj` change | `ModulePicker.h` repointed to `..\..\SynthEditLib\ModulePicker.h`, matching C4's `ModuleBrowser.h` precedent |
+| fresh worktree build, TIDE-only targets | **`TIDE.gmpi` and `TIDE_VST3.vst3` both link** |
+| `GetLicenseState` reaches the linker | confirmed present in `TIDE.dir`'s compiled objects, not inferred from source |
+| `dsp_tests` / `ui_tests` (the suites not blocked by the build issue below) | **11/11** |
 
-**The one test failure is not this change, and that is proven rather than
-argued.** `Layout.ModuleSizeDoesNotGrowOnReopens` fails with a `bad_alloc`,
-reproducibly. **A/B: `SE16` at `origin/master`, with none of C12e, in a
-detached worktree against the same libraries — fails identically.** So it is
-pre-existing on master.
+**Learned — TIDE's stub was already correct in behaviour and I nearly made it
+correct in behaviour for the wrong reason.** `TideAppStubs.cpp` already
+returned `false`/`false` for `isMoonbaseEnabled()`/`licenseIsActive()`, so the
+menu item was never grayed for TIDE before this change. The easy path would
+have been routing `GetLicenseState()` through those same stubbed methods —
+same runtime result, less code. Jeff's ruling said something stronger: *TIDE
+needs no licensing*, not *TIDE's licence check always passes*. So
+`GetLicenseState()` returns `nullptr` outright for TIDE, and the calling code
+never asks the question at all. Behaviourally identical today; the two would
+diverge the moment anyone ever added a real gated feature to either side, and
+only one of them is actually what was decided.
 
-**What it actually is, since the next run will hit it too:** in-flight
-`ITextLayout` work spanning two repos. `gmpi_ui` committed
-**`d3bacf3` "feat: ITextLayout, a retained immutable styled text layout
-(Direct2D)"** partway through this session, and
-`SynthEditLib/modules/se_sdk3_hosting/GmpiCpuUniversalContext.h` — **still
-uncommitted** — already calls `gmpi::drawing::api::ITextLayout`. Pinning
-`gmpi_ui` back to `3ab5524` does not restore green either; it fails to
-*compile*, because that uncommitted header needs the new API. The two are
-mid-flight together and neither half stands alone right now. **Do not "fix"
-this**; it is Jeff's live work in another session. Left untouched, as the
-STEP 5 dirt rule requires.
+**Learned — `isLicensed()` had to be non-`const` in the interface, and that's
+not cosmetic.** The underlying `licenseIsActive()` is non-`const` (it can
+refresh cached activation state), and `hasGatedFeatures()`'s underlying
+`isMoonbaseEnabled() const noexcept` is `const`. An interface that forced both
+to the same const-ness would either lie about one of them or fail to compile;
+mixed const-ness across the two methods is the honest shape.
 
-**Learned — a `*_FOLDER_OVERRIDE` build reads a live working tree, so another
-session's uncommitted work lands in your test results.** This is the first time
-that has actually bitten. It is not a reason to stop using the overrides
-(**X4** settled that), but it is a reason to A/B against the default branch
-**before** blaming your own change — and to do it in a `git worktree`, which
-leaves the developer's tree untouched. The whole diagnosis cost one worktree
-and two targeted builds.
+**A finding NOT acted on, deliberately left for the next run to hit knowingly
+rather than blind:** a full build fails at `EditorScreenshot/ScreenshotRenderer.cpp`
+— `se::DeviceContextLegacyAdapter: cannot instantiate abstract class` — because
+`gmpi_ui`'s in-flight `ITextLayout` work (`d3bacf3`) added a pure-virtual
+`drawTextLayout` that `SynthEditLib`'s own adapter (still uncommitted in the
+shared checkout) hasn't caught up to yet. **Proven unrelated to C11 by two
+independent A/B builds**: `origin/master` + `origin/main`, zero C11 content,
+against the same `gmpi_ui`, fails at the identical file and lines. This is the
+same cross-repo instability C12e's journal entry flagged this morning, now
+manifesting as a hard compile error rather than a runtime `bad_alloc` — it has
+gotten worse, not better, since then. `SynthEditCL` and anything depending on
+`EditorScreenshot` cannot currently be verified by anyone until that work
+lands; TIDE's own targets don't depend on it and were the ones actually
+checked.
 
-**Learned — A9 has been listing a NEEDS-JEFF that PLAN.md already answered.**
-The row asks for "TIDE's product philosophy in 2–3 sentences as the auto-reject
-filter, Cardinal-style". [PLAN.md](PLAN.md) has carried it since before the row
-was written: **"What TIDE Rack is"** is the one-sentence identity, and the
-**eight design constraints** are the reject filter in more detail than three
-sentences would be. Written 2026-08-09 from the process review and never
-re-pointed. Struck, with the reasoning in the row. **A9 needs nothing from Jeff
-to start.**
+### S10 / S9 / M2
 
-**Next:** **C12c** and **C12f** are the remaining sub-stages a Windows box can
-take (C12d is `linux`). C12 now stands at 25 of its original 41 entries, and
-**C12f is what takes it to zero and unblocks C6**. Whoever takes either should
-expect `Layout.ModuleSizeDoesNotGrowOnReopens` to be red until the ITextLayout
-work lands, and should **not** treat it as their own regression — A/B first.
+**Result:** `SE_IOS_APP.xcodeproj` deleted — 7 files, 3,192 lines, all dead.
+Nothing in the CMake tree referenced it; confirmed rather than assumed.
 
-**Side effects on this box:** a scratch Ninja tree, a pristine `gmpi_ui` clone
-and a detached `SE16` worktree, all under the session scratchpad; the worktree
-was removed and `git worktree prune` run, leaving `git worktree list` with only
-Jeff's own entries. `SynthEditLib` was committed in **while dirty with Jeff's
-uncommitted `GmpiCpuUniversalContext.h`** — staged by explicit path, never
-`git add -A`, and that file is untouched.
+**Ruling, verbatim:** *"it's a very old project. TIDE should lean on a generic
+AUv3 iOS backend for gmpi_ui as much as possible."* Read as two decisions, not
+one: retire (not revive) the existing project, and shape whatever replaces it
+around a backend `gmpi_ui`/`GMPI_Wrappers` owns generically, not a TIDE-specific
+rebuild.
 
+**Checked before writing the M2 rescoping, not assumed:** `GMPI_Wrappers/wrapper/`
+holds `VST3`, `AU2`, `CLAP`, `Standalone` — no `AUv3` sibling exists yet. That
+confirms the ruling's second half is a real, unstarted piece of work, not
+already-done infrastructure this session simply didn't know about. M2's row
+now says so, so whoever picks it up next isn't the one who has to discover it.
 
-**Postscript — the A14 guard fired on its first real outing, and it mattered.**
-The two code branches were created in the *shared* working copies, and the
-other session commits into whatever branch is checked out there. So its
-in-flight `ITextLayout` commits landed on my branches, interleaved by seconds
-(`SynthEditLib` `eae673b` 13:15:04, mine `93f5ea9` 13:19:27, its `a7eb0bf`
-13:19:50; `SE16` mine `7563bd151` 13:20:02, its `eb66d2ae9` 13:20:05) — and I
-pushed them before noticing. **`scripts/check-commit-authorship.py`, written
-this morning for exactly this, is what caught it**, in the STEP 4 pre-push
-position its own docstring argues for.
+**What deliberately did *not* happen:** the four target source folders
+(`SE_IOS_APP/`, `SE_IOS_AUDIOUNIT/`, `SeAppMacOS/`, `SeAudioUnitMacOS/`, ~330KB)
+were left in place. S10's own row named the retire action precisely — *"delete
+the .xcodeproj"* — and going further than that on a GATED, shared path is
+exactly the kind of reach the STEP 5 rules warn against, even when the broader
+deletion would probably also be fine. The ALLOWED `SE_IOS_APP/TIDE/` folder
+(S6's, last touched 2026-08-13) was not touched at all.
 
-Resolved without rewriting or deleting anything: my single commit was
-cherry-picked onto fresh `tide/win/C12e-clean` branches off the default
-branches, **in temporary worktrees so neither shared checkout was touched**,
-and the PRs raised from those. Each clean branch contains exactly one commit,
-verified. The mixed `tide/win/C12e-dialogs-editor` branches are left exactly as
-they are — they hold Jeff's work, and they are not mine to rewrite.
+**Next:** **A16** (the git-index race) needs the same kind of fix A14 got this
+morning — likely a pre-commit `git show --stat HEAD` self-check comparing
+against what was staged, since authorship alone doesn't catch a short commit.
+On the carve-out, **C12c** and **C12f** remain the win-box items, both
+currently unverifiable by build for anything touching `EditorScreenshot` until
+the `ITextLayout` work lands — check `gmpi_ui`'s tip before assuming a build
+failure is your own. On iOS, the newly-unblocked-in-shape **M2** is a real
+authoring task now, not a repair job; nobody has started the generic AUv3
+wrapper.
 
-**Two things for the next run.** First: **both shared checkouts are still parked
-on `tide/win/C12e-dialogs-editor`**, so further commits there keep landing on
-it; I deliberately did not switch them, because doing that under a live session
-risks its working tree. Second, and more general: **creating a branch in a
-shared working copy is itself the hazard.** A14's assertion catches the result;
-it does not prevent it. The durable fix is to do code work in a `git worktree`
-rather than by switching the developer's checkout — which is what the cleanup
-had to do anyway.
+**Side effects on this box:** four scratch build trees, two throwaway A/B
+worktrees, and one throwaway repro repo, all under the session scratchpad.
+Both shared checkouts (`SE16`, `SynthEditLib`) remain parked on
+`tide/win/C12e-dialogs-editor`, untouched by this work, as they have been all
+session — that branch is not mine to move out from under a live session.
 
-**Branch/PR:** [SynthEdit#20](https://github.com/JeffMcClintock/SynthEdit/pull/20)
-+ [SynthEditLib#9](https://github.com/JeffMcClintock/SynthEditLib/pull/9) —
-**these two must merge together** — and the TideSynth PR carrying this entry,
-the backlog and the ruling.
+**Branch/PR:** [SynthEdit#21](https://github.com/JeffMcClintock/SynthEdit/pull/21)
++ [SynthEditLib#10](https://github.com/JeffMcClintock/SynthEditLib/pull/10)
+(C11, must merge together) and [SynthEdit#22](https://github.com/JeffMcClintock/SynthEdit/pull/22)
+(S10), plus this TideSynth PR carrying the rulings, journal and backlog.
