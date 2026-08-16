@@ -7500,3 +7500,95 @@ was posted, voted on, or logged into.**
 **Branch/PR:** [TideSynth#71](https://github.com/JeffMcClintock/TideSynth/pull/71),
 stacked on [#69](https://github.com/JeffMcClintock/TideSynth/pull/69) and
 retargeting to `main` as its parent merges.
+
+---
+
+## 2026-08-16 — macos — P5
+
+**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
+
+**Did:** **P5** — the plug-in now calls itself **TIDE Rack**, vendor **TIDE
+Synth**. Fourth item this session, at Jeff's direction; a scheduled run still
+takes exactly one. Filed **P10**.
+
+**The item contained a trap that would have produced a no-op PR, and finding it
+is the main thing to hand on.** The obvious target is
+`SynthEditSem/SynthEdit.xml` — it is 12 lines, it is named after the plug-in, and
+it holds exactly the `id`/`name` attributes P5 is about. **It is not what
+ships.** The live identity is an embedded XML **string literal** in
+`SynthEditSem/SynthEdit.cpp`'s `getPluginInformation()`, which is what the
+wrapper actually parses. `SynthEdit.xml` is referenced only by `SynthEdit.rc`
+(`IDR_GMPXML1 GMPXML`), and the only loader for that resource is inside
+**`#if 0`**, whose non-Windows branch literally reads *"not needed for built-in
+XML #error implement this for mac"*. I had already edited the wrong file before
+tracing far enough to notice. Filed as **P10**; both are updated in step
+meanwhile so they cannot drift.
+
+**The `id` question the previous entry flagged is now answered, by reading the
+code rather than by reasoning about VST3 in general.** The class UID is
+**hashed from the id string** — `textIdtoUuid(plugin->id, ...)` at
+`GMPI_Wrappers/wrapper/VST3/MyVstPluginFactory.cpp:244-245`, feeding
+`info->cid`. So renaming `SE SynthEdit` *would* change the plug-in's identity and
+orphan every host project that had loaded TIDE. It stays. Users never see it,
+and the caution was justified.
+
+**The vendor half explains the original symptom exactly.** Omitting the `vendor`
+attribute defaults `vendorName` to `"GMPI"` —
+`GMPI/Hosting/xml_spec_reader.cpp:532-535` — which is precisely why REAPER
+listed this as *"SynthEdit (GMPI)"*. So P5 was two fields, not one, and the
+second one was invisible until the default was read.
+
+**Result — A/B on the built binary, which is the artifact.**
+
+| | `<Plugin …>` in the binary | `"TIDE Rack"` | `name="SynthEdit"` |
+|---|---|---|---|
+| before (Aug 8 build) | `id="SE SynthEdit" name="SynthEdit"` | **0** | present |
+| after (this build) | `id="SE SynthEdit" name="TIDE Rack" vendor="TIDE Synth"` | 2 | **0** |
+
+`id="SE SynthEdit"` still present in both. Release build of target `TIDE`:
+**BUILD SUCCEEDED, 0 errors**, universal **x86_64 + arm64**.
+
+**Learned — the mac build tree was stale in a way that looks like your own
+breakage, and the fix is one command.** The first build failed with
+`Build input file cannot be found: SynthEdit2/plug4.cpp`. That file has not
+existed since the carve-out moved it; `EditorLib/CMakeLists.txt:120` correctly
+says `${SYNTHEDITLIB_DIR}/plug4.cpp`. The **generated Xcode project** was stale
+— Xcode's `ZERO_CHECK` did not regenerate it. `cmake .` in `build/` fixed it
+(0 references to the old path afterwards, 4 to the right one) and the build then
+succeeded. **Any mac run touching this tree after a carve-out stage should
+expect this and re-run `cmake .` before believing a build failure is theirs.**
+
+**Learned — `getVendor4charCode()` is unaffected, checked rather than assumed.**
+`SanitizeVendor4charCode(code, vendorName)` regenerates the four-character code
+*from the vendor name* only when the code is not 4 alphanumeric characters with
+a capital. `TideApp::getVendor4charCode()` returns `"TIDE"`, which passes, so
+changing `vendorName` from "GMPI" to "TIDE Synth" does **not** reach it. That
+mattered because the four-char code is plug-in identity too, in the AU/preset
+sense, and silently changing it would have been the same class of bug as
+renaming `id`.
+
+**What is NOT verified, and it is the row's own acceptance evidence.** P5's
+original finding was REAPER listing `VST3i: SynthEdit (GMPI)` and
+`TrackFX_AddByName(tr, "TIDE_VST3", ...)` returning -1. **The rebuilt plug-in
+has not been loaded in a host.** The binary carries the right strings and that
+is strong, but "REAPER shows TIDE Rack" is unconfirmed. Marked as such in the
+row rather than claimed.
+
+**STEP 1 / 1.5:** no `platform:mac` issues; no open PRs at the start of this
+item — the earlier stack (#69/#70/#71/#72/#73) had all merged.
+
+**Next:** **U1** for the mac box — the rack-mode UX audit, which
+[docs/about-pane.md](docs/about-pane.md) now depends on, and which a macOS box
+can actually drive. **P10** is the cheap fallback. Whoever loads TIDE in a host
+should close P5's last gap while they are there.
+
+**Side effects on this box:** `SynthEdit/build/` was **regenerated and rebuilt**
+(`cmake .` + Release build of `TIDE`) — that tree was already stale and is now
+correct, but it is Jeff's build tree and the rebuild took a few minutes of CPU.
+`SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were read only and left clean.
+Committed in **two** repos this time: `SynthEdit` (the code) and `TideSynth`
+(this entry and the backlog).
+
+**Branch/PR:** [SynthEdit#24](https://github.com/JeffMcClintock/SynthEdit/pull/24)
++ TideSynth PR — **the SynthEdit one carries the actual fix**; the TideSynth one
+is bookkeeping and they do not have to merge together.
