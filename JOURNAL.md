@@ -46,6 +46,98 @@ Template:
 
 ---
 
+## 2026-08-16 — macos — U2c fix + U2d falsifier (interactive session, Jeff present)
+
+**Prompt:** n/a — interactive session, third of the day on this box, at Jeff's
+direction ("do the U2c one-liner and U2d falsifier now"; logging explicitly
+blessed). Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** **U2c** — the one-line centre default,
+[SynthEdit#26](https://github.com/JeffMcClintock/SynthEdit/pull/26), verified
+live. **U2d** — ran the row's falsifier and kept going until the mechanism
+fell out: **both cheap hypotheses are refuted, and the real one is named.**
+
+**U2c, closed end to end in one cycle.** `TideApp::OpenView` now calls
+`setCenter({viewDimensions/2, viewDimensions/2})` after `setDocument`.
+REAPER 7.45/macOS-arm64, fresh process: **the gridded canvas fills the whole
+pane** — no corner dead-strips, across every subsequent fresh load this
+session — and click-placed modules land at the click point, in view. The §6
+"offset" is dead as a default; U1c still owns what "home" ultimately means.
+
+**U2d falsifier, round 1 — skins were never missing, and the hypothesis dies
+on a path quirk worth keeping:** `BundleInfo::getCommonDocumentFolder()`
+resolves to plain **`$HOME`**, not `~/Documents` — so SkinMgr reads
+`~/SynthEdit Projects/skins/`, which on this box already held 8 real skins
+from Jeff's SynthEdit install, and the temp logging showed
+`getSkin('default3')` scoring an **exact hit** at plugin load. (A seeding
+copy aimed at `~/Documents/SynthEdit Projects/skins` — where this session
+first looked — would target the wrong place entirely.) Placed List Entry:
+still adorner-only.
+
+**Round 2 — the stale module DB was real, and it still was not the cause.**
+`/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi` was **3.5 months stale** (May 7:
+pre-P5 identity `name="SynthEdit"`, 0 `ContainerViewPanel` symbols), and
+**the mac build never refreshes it — P11's win row describes a post-build
+copy that simply has no mac counterpart**; today's `TIDE.gmpi` sits only in
+`build/SynthEditSem/Release/`. Manually installing the fresh one and
+sidelining the editor's `Plugin-Cache*.xml` (renamed `*.u2d-bak`, restorable)
+changed nothing: still adorner-only. Also learned in passing: the VST3 runs
+fine with no cache XMLs present, so those caches belong to the editor app,
+not the plugin.
+
+**Round 3 — the log that ends the hunt.** With `ModuleView::Build`
+instrumented: it fires for `SE PatchCableChangeNotifier` and
+`PatchAutomator` (invisible utilities, `windowType=0`, GUI2 objects
+constructed fine) and **never fires at all for the placed `SE List Entry`.**
+The only silent pre-`Build` exit is `ModuleViewPanel`'s
+`if (!moduleInfo) return;` — *"unregistered module type"*, whose diagnostic
+is `_RPTN`, Debug-only (`ModuleView.cpp:659`). **So the GUI class
+registration for the SE control modules never reaches the panel view's
+module factory in the mac VST3, and the view constructs empty — the adorner
+then hugs a zero rect, which is exactly what Jeff identified on screen.**
+This unifies the two platforms: win's P11 dialog and mac's silence are one
+defect with two failure surfaces, and it explains the win re-test's
+"(3) persists after P11 fixed" — refreshing the DB satisfied the *export*
+path, not the view's factory. U2d's row now carries the next moves: trace
+where the mac VST3 populates the module factory
+(`LoadOrScanModuleData`/CUG), and make the unregistered-type path **loud in
+Release** so this class of failure can never be silent again.
+
+**Learned — a latent trap for whoever ships skins with TIDE:**
+`GetHomeDir()` is the dylib's own directory, so SkinMgr's seeding source
+`{home}/Resources/skins` resolves to **`Contents/MacOS/Resources/`** inside
+the bundle — the exact layout P6 spent six days learning that `codesign`
+refuses. Bundle staging for TIDE must target `Contents/Resources` AND teach
+the seeding path to find it, or skip user-folder seeding entirely
+(constraint: sandbox-safe means the plugin should read its own bundle, not
+write `~/…`).
+
+**Temp instrumentation:** SkinMgr + ModuleView logging was local-only and is
+reverted; the misplaced `~/Documents/SynthEdit Projects/skins` seed is
+removed (the pre-existing "Mac Export" content untouched). What remains on
+the box deliberately: the **refreshed `/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi`**
+(a legitimate update of a 3.5-month-stale install) and the sidelined
+`*.u2d-bak` cache files.
+
+**Next:** **U2d** is now a scoped fix session (factory-population trace +
+loud failure), and it still gates the rack displaying anything; **U1b**
+after it, per the NEXT row. The win box can cheaply confirm the unified
+mechanism by checking whether its `SE List Entry` `ModuleViewPanel` gets a
+`moduleInfo` after a DB refresh.
+
+**Side effects on this box:** `SynthEdit/build/` rebuilt `TIDE_VST3` twice
+and `TIDE` once (PostBuild reinstalled the VST3 each time — it now carries
+U2a's wheel fix and U2c's centring); REAPER quit/relaunched three times
+(module-reload lesson), "Optimus HP" never saved or modified, throwaway
+tabs left open. `gmpi_ui` and `GMPI_Wrappers` untouched this entry;
+`SynthEditLib` was instrumented and **restored byte-clean**.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#26](https://github.com/JeffMcClintock/SynthEdit/pull/26) — the
+SynthEdit one carries the code; they need not merge together.
+
+---
+
 ## 2026-08-16 — macos — U2 triage + U2a wheel fix (interactive session, Jeff present)
 
 **Prompt:** n/a — interactive session, second of the day on this box; Jeff at
@@ -415,82 +507,3 @@ read only and left clean.
 **Branch/PR:** [SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25)
 — **that one carries the change**; the TideSynth PR is bookkeeping and they need
 not merge together.
-
----
-
-## 2026-08-16 — macos — U1
-
-**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
-
-**Did:** **U1** — the fresh audit its own row demanded before anything else,
-[docs/u1-rack-mode-audit.md](docs/u1-rack-mode-audit.md), and split the build
-work into **U1a/U1b/U1c**. Fifth item this session, at Jeff's direction; a
-scheduled run still takes exactly one. Also flipped **P5** to DONE after
-watching both its PRs merge.
-
-**The headline, and it changes what rack mode costs: it is not started, and it
-is also not a from-scratch build.**
-
-`TideApp::OpenView` still constructs `ContainerViewStruct` with
-`CF_STRUCTURE_VIEW` (`TideApp.cpp:63`) — no branch, no setting, no second path.
-The 2026-08-13 pivot changed PLAN and has not yet changed a line of TIDE. **But
-a top-level panel renderer already exists in the public repo TIDE links:**
-`SE2::ContainerViewPanel : public TopView`,
-`SynthEditLib/modules/se_sdk3_hosting/ContainerView.h:15` — same base class as
-the structure view, with `CF_PANEL_VIEW` a first-class type through
-`MfcDocPresenter` and `CUG`, not a stub.
-
-**Learned — "the class exists" and "the class ships" are different claims, and
-only one was true. Measured with both controls.**
-
-| binary | `ContainerViewPanel` | `ContainerViewStruct` | `ModuleViewPanel` | bogus name |
-|---|---|---|---|---|
-| shipped `TIDE.gmpi` | **0** | 15 | 25 | 0 |
-| `ContainerView.o` in `libSynthEditLib.a` | **13** | — | — | — |
-
-`ContainerView.cpp` is on `SynthEditLib/CMakeLists.txt:535`, so it compiles;
-nothing in TIDE references `ContainerViewPanel`, so **the linker never extracts
-that archive member**. Exactly the static-library behaviour C12e documented for
-`Dialogs_editor2.obj`. Without the positive and negative controls the zero would
-have been indistinguishable from a bad `nm` invocation, which is the whole
-reason both are in the table.
-
-**The single most useful number is `ModuleViewPanel` = 25.** The *per-module*
-panel renderer already ships in TIDE; only the *top-level container* one does
-not. That asymmetry is what turns rack mode from "write a renderer" into "wire
-up the one that exists", and it is why U1a is scoped as one line in one ALLOWED
-file rather than a project.
-
-**Learned — two of the P2-era findings survive the pivot, and the visual ones
-could not be re-measured.** No breadcrumb bar; properties and module browsers
-constructible (`TideApp.cpp:79,88`) but unplaced — both still true. The canvas
-offset and the dead strip down the right, from
-[state-of-the-prototype.md](docs/state-of-the-prototype.md) §6, **need a running
-host and this audit did not run one.** Said so in the doc rather than repeating
-them as if re-checked. That is the honest limit of a source-and-symbols audit.
-
-**Split into three, in dependency order, and deliberately not folded together:**
-**U1a** switches the view (one ALLOWED file, two acceptance bars — links, then
-draws); **U1b** the breadcrumb bar, which [about-pane.md](docs/about-pane.md)
-now depends on since it is the only chrome the about pane can hang from; **U1c**
-rack styling and snapping, **the only part that is genuinely unwritten**. U1a's
-result decides whether U1c is styling or a build, so costing U1c now would be
-guessing — its row says so instead of carrying a number.
-
-**U1a's row carries a warning worth repeating here:** nothing has ever linked
-`ContainerViewPanel` in TIDE, so a crash or a blank canvas on first render is
-**information, not the row failing**. File it and keep going.
-
-**STEP 1 / 1.5:** no `platform:mac` issues; no open PRs at the start of this
-item — P5's two had just merged.
-
-**Next:** **U1a**, and it is mac-shaped for the same reason D1 was: its second
-acceptance bar is "draws something sane in a host", which this box can do.
-**P10** is the cheap fallback.
-
-**Side effects on this box:** none — this item read source and ran `nm` on
-binaries already built earlier in the session. TideSynth was the only repo
-committed in; `SynthEdit`, `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were
-read only and left clean on their default branches.
-
-**Branch/PR:** the TideSynth PR carrying this entry, the audit and the split.
