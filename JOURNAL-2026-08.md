@@ -7950,3 +7950,96 @@ was not committed to; TideSynth is the only repo committed in.
 this verifies already landed as
 [SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25) and
 [#24](https://github.com/JeffMcClintock/SynthEdit/pull/24)).
+
+---
+
+## 2026-08-16 — macos — U2 triage + U2a wheel fix (interactive session, Jeff present)
+
+**Prompt:** n/a — interactive session, second of the day on this box; Jeff at
+the keyboard contributing live observations. Committed and pushed as
+`tide-rack-bot` (claude-fable-5).
+
+**Did:** the triage U2's own Accept asked for — root causes named for all
+four symptoms, split into **U2a/U2b/U2c/U2d**, full note in
+[docs/u2-triage-2026-08-16.md](docs/u2-triage-2026-08-16.md) — **and fixed
+U2a in the same sitting**: the mac scroll wheel,
+[gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7), live-verified
+in REAPER before the PR was opened.
+
+**The wheel was a TODO, not a bug.** `DrawingFrameMac.mm scrollWheel:`
+computed deltas and flags, then dropped the event — both dispatch lines
+commented out (`:813`/`:818`), with the VST3-level `onWheel` fallback also
+returning `kResultFalse`. The fix mirrors the proven Windows path
+(`inputClient->onMouseWheel`, 120-per-notch, `ScrollHoriz` for `deltaX`)
+using the `inputClient` the mac frame already used for pointer events —
+which is why clicking always worked while the wheel did not. **Verified on a
+fresh REAPER process:** canvas pans both directions, Ctrl+wheel zooms, the
+module browser list scrolls and reveals entries that were previously
+unreachable by any input, since TIDE hides scrollbars and middle-pan is also
+dead (that one is **U2b**, filed: the backend has no `otherMouse*` handlers
+at all).
+
+**The Windows re-test ([#78](https://github.com/JeffMcClintock/TideSynth/pull/78))
+landed mid-triage, and the two boxes answered each other's open questions.**
+Their "(2) does not reproduce on Windows" is this box's root cause seen from
+the other side — the Windows dispatch was always finished. Their *"every
+later module landing on that same point"* is **U2c**'s mechanism named on
+this box: `TopView::centerPos` defaults `{0,0}` (`ViewBase.h`), TIDE never
+calls `setCenter`/`setPanZoom`, and `AddModule(moduleId, view->getCenter())`
+inserts at exactly that corner — so the §6 "canvas offset / dead strip" both
+boxes see is a **pan default, not a drawing bug**, and the fix is one line in
+ALLOWED `TideApp.cpp`. Their *"(3)+(4) one geometry cause"* guess was half
+right: adjacent, but (4) is that one-line default while **(3) is the real
+remaining unknown — U2d**.
+
+**U2d is the gate on the rack showing anything, and Jeff cracked its
+description live:** the placed control draws **only its ResizeAdorner**
+around a degenerate rect — "blue rectangle with white circles, only the
+resizer" — model fully correct in the properties pane, panel drawing
+nothing. Standing hypothesis, one leg short of proof: the panel pipeline is
+skin-driven (`ContainerView.cpp:25` → SkinMgr/GmpiResourceManager) and
+`TIDE_VST3.vst3` stages **no Resources at all** (binary + Info.plist +
+signature; contrast SynthEditCL's staged `fonts`/`skins`/`templates`). Cheap
+falsifier in the row. P11 is ruled out as its cause — the Windows session
+fixed that trap and (3) still reproduced.
+
+**And (1) is not a code defect on either platform.** Placement is
+click-to-arm → click-to-place by design (`OM_DRAG_NEW_MODULE` →
+`ViewBase::DragNewModule` → drop on the next `onPointerDown`), **proven
+live**: browser click, canvas click, module placed at the exact click point.
+What both boxes reproduced is that the press-drag-release gesture users try
+first does not place. UX decision recorded in the doc; default in effect:
+the design stands.
+
+**Learned — a host keeps a VST3 module mapped after FX-remove.** Remove →
+replace bundle → re-add loaded the OLD dylib, and the first post-fix wheel
+test "failed" purely for that reason; a full REAPER restart picks up the
+replacement. Budget a restart into every mac edit-build-verify loop.
+
+**Learned — correcting this morning's entry:** `reaper-vstplugins_arm64.ini`
+is not just laggy, it is **not a live mirror at all** — byte-identical
+through a clear-cache re-scan *and* a clean quit while the FX browser showed
+the new identity throughout. "The ini rewrites when REAPER exits" was an
+overclaim; the durable rule is: read the FX browser, never the ini. (Also
+told Jeff live: this box's `reaper.ini`/`reaper-reginfo2.ini` are owned by
+**root**, so REAPER cannot persist its preferences here — his machine's
+quirk, not TIDE's.)
+
+**Next:** **U2c** is the best minutes-sized item on this box (one line,
+ALLOWED, fixes the corner anchor and where inserts land on both platforms);
+**U2d**'s falsifier decides whether the rack can display anything and wants
+running before or alongside **U1b**'s chrome. U1b remains the headline item;
+**U1c stays uncosted until U2d lands**. **P10** unchanged as fallback.
+
+**Side effects on this box:** `gmpi_ui` gained one commit on a PR branch
+([gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7), 5+/6-);
+`SynthEdit/build/` rebuilt `TIDE_VST3` (Release) and its PostBuild step
+re-installed `~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3` — now carrying
+the wheel fix. REAPER was restarted twice (module-reload lesson above);
+"Optimus HP" was never saved or modified; the throwaway test tab was left
+open for Jeff, who was driving the plugin UI himself between my steps.
+`SynthEdit` and `SynthEditLib` were read only; `GMPI_Wrappers` read only.
+
+**Branch/PR:** this TideSynth PR (triage doc, U2 split, this entry) +
+[gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7) — **the gmpi_ui
+one carries the code**; they need not merge together.

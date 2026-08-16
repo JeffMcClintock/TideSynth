@@ -46,6 +46,122 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — U2e: the pin-delivery trace, completed (scheduled run, unattended)
+
+**Prompt:** b3e9876 · claude-opus-5[1m] · app 1.30096.5 · as tide-rack-bot
+
+**Did:** answered U2e's one directed question — *"trace how `ModuleView`'s Sdk3
+path delivers initial pin values and why the handler pass is skipped"* — and the
+answer corrects the row's own suspicion. Written up in full at
+[docs/u2e-pin-delivery-trace.md](docs/u2e-pin-delivery-trace.md). **No code
+changed; that was the call, see Next.**
+
+**Result — the handler pass is not skipped, it is never requested.** TIDE's
+`Module_Info` for `SE List Entry` has **zero GUI pin descriptions**, and every
+initial-value path reads that list, so `setPin` is called zero times.
+
+`Module_Info::gui_plugs` is populated by exactly two mechanisms, and the classic
+SDK3 controls use neither:
+
+  1. classic internal DSP — `REGISTER_MODULE_1` + `LIST_PIN2` in C++
+     (`UgDatabase.cpp:347`). This is why **Phase Dist Osc drew with its pins**
+     last night and List Entry did not.
+  2. modern GMPI — `gmpi::Register<T>::withXml(...)` → `RegisterPluginWithXml`
+     (`UgDatabase.cpp:267`) → `ScanXml` (`:287`). This is `PlainImageGui.cpp:182`,
+     i.e. **SE Background Image**.
+  3. SDK3 official module — `GMPI_REGISTER_GUI` (`mp_sdk_gui.h:12`) →
+     `RegisterPlugin` (`UgDatabase.cpp:242`), which stores **a constructor and
+     nothing else**. Its pins live in `ControlsXp.xml:262-283`, which
+     `modules/plugin_helper.cmake:236` copies into the `.sem` bundle for the
+     **module scan — the scan S1a deliberately removed** (PLAN constraints 4 & 7).
+
+The chain, every link at file:line, is in the doc. Short form:
+`ViewBase::ConnectModules` gates **both** default paths on
+`moduleInfo->gui_plugs` (`ViewBase.cpp:711`→`:742`, and `:778`→`:799`) → zero
+`setPin` → `ModuleView.cpp:1404`'s `notifyPin` never fires →
+`GuiPinOwner::notifyPin` (`mp_sdk_gui.cpp:125`) never reaches `doNotify` →
+`ListEntryGui::onSetAppearance` (`ListEntryGui.cpp:49`, the **only**
+`widgets.push_back` site) never runs → `widgets` empty at
+`initialize`/`measure`/`arrange` — the three SIGSEGVs, in `Refresh`'s own call
+order.
+
+**Verification artifact — the shipping binary, A/B with positive controls.**
+`master` built clean first (`cmake --build . --config Release --target
+TIDE_VST3` → `** BUILD SUCCEEDED **`, 0 errors, universal x86_64+arm64), then:
+
+```
+                       id-string   embedded <Plugin id="…"> XML
+SE List Entry               2                 0     <- family 3
+SE Text Entry               2                 0     <- family 3
+SE Background Image         4                 2     <- family 2 (control)
+SE Patch Point in           2                 2     <- family 2 (control)
+PatchAutomator              4                 2     <- family 2 (control)
+"LED Stack" / "Up/Down Select" / "Appearance": 0 / 0 / 0
+```
+
+The controls are the point: the same `strings` command finds full pin metadata
+for family-2 modules in the same binary, so absence is absence, not a tooling
+artifact. `SE List Entry` is **a registered module id with no pins attached**.
+Only **29** `<Plugin id=…>` blocks exist in the entire TIDE binary.
+
+**Learned — three things the next run would otherwise redo.**
+
+  - **The U2e row's skin-bitmap/ImageCache suspicion is not the gate** and should
+    drop to second hypothesis. Nothing in widget construction is *reached* to
+    fail. It also explains why [SynthEdit#28](https://github.com/JeffMcClintock/SynthEdit/pull/28)
+    (resource-folder seeding) measured as a real prerequisite yet was proven
+    insufficient alone: it is a prerequisite for a step the run never gets to.
+  - **Pin IDs are fine** and were worth ruling out explicitly:
+    `ListEntryGui.cpp:32-40` seeds `initializePin(10, pinValueIn, …)` and lets
+    the rest auto-increment to 11-16, matching `ControlsXp.xml:271-281` exactly.
+  - **This is a wall in front of TIDE's whole fixed module set, not one broken
+    control.** Every family-3 module TIDE adds lands in the same state. S1a's
+    trade (no scan → no cache write → sandbox-safe) has this as its unpriced
+    cost, and it is now priced.
+
+**What did NOT work / was ruled out by reading rather than guessing:** the
+`pluginParameters2B` queryInterface path is sound (`MpGuiBase2` derives from
+`IMpUserInterface2B`, `mp_sdk_gui.h:365` answers `MP_IID_GUI_PLUGIN2B`), so the
+"host never got a notify-capable interface" theory is dead. `Module_Info::ScanXml`
+(`Module_Info3_base.cpp:213`) does **not** call `ClearPlugs()` first — it clears
+only `pinXmlDiagnostics_` — which is what makes the tidiest fix risky (below).
+
+**Next:** the fix is a **choice, not an investigation**, and the doc costs three
+options. Recommended: embed `ControlsXp.xml` at build time and
+`RegisterPluginXml` it from `TideApp::InitInstance` — confined to
+`SE16/SynthEditSem/` (ALLOWED), cannot regress the scanning editor. Rejected for
+now: swapping ControlsXp to `withXml`, which is tidier but double-populates
+`Module_Info` in the scanning editor (map `insert` drops and leaks the second)
+and changes commercially-shipped behaviour no macOS box can test.
+**Give U2e's remaining half to an interactive session** — its acceptance is *"a
+placed List Entry draws as a usable combo box"*, a GUI observable an unattended
+run cannot check; and the fix stacks on the still-open #28. The mac NEXT row now
+says so. **U1b** is the unattended-safe mac item, with the caveat that its
+default-flip half must wait on U2e and would undo the open
+[SynthEdit#29](https://github.com/JeffMcClintock/SynthEdit/pull/29).
+
+**Process note for Jeff, no row filed.** The run prompt's STEP 5 lists *"the
+SynthEditLib repo"* as GATED, while U2e's own row says its scope is *"ALLOWED
+(public repo)"* — and precedent agrees with the row (you merged SynthEditLib#12
+and #13 for this item). The contradiction did not bite this run, because nothing
+was written outside TideSynth, but the next run to attempt the U2e fix will hit
+it. Worth one line in whichever of the two is wrong.
+
+**Side effects on this box:** one `TIDE_VST3` Release rebuild from `master` (the
+build artifact above); no REAPER, no GUI, no computer-use — scheduled runs cannot
+get that approval. All five working copies (`TideSynth`, `SynthEdit`,
+`SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers`) were **clean at start** and all are
+returned to their default branches. Nothing of Jeff's was touched.
+
+**Branch/PR:** `tide/mac/U2e-pin-delivery` → this TideSynth PR. No other repo was
+committed in. Three earlier mac PRs remain open, clean and mergeable, and were
+deliberately left alone per STEP 1.5:
+[SynthEdit#28](https://github.com/JeffMcClintock/SynthEdit/pull/28),
+[SynthEdit#29](https://github.com/JeffMcClintock/SynthEdit/pull/29),
+[SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13).
+
+---
+
 ## 2026-08-16 — macos — structure view interim: an oscillator draws with its pins (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session, sixth of the day; Jeff set the goal
@@ -389,96 +505,3 @@ tabs left open. `gmpi_ui` and `GMPI_Wrappers` untouched this entry;
 **Branch/PR:** this TideSynth PR +
 [SynthEdit#26](https://github.com/JeffMcClintock/SynthEdit/pull/26) — the
 SynthEdit one carries the code; they need not merge together.
-
----
-
-## 2026-08-16 — macos — U2 triage + U2a wheel fix (interactive session, Jeff present)
-
-**Prompt:** n/a — interactive session, second of the day on this box; Jeff at
-the keyboard contributing live observations. Committed and pushed as
-`tide-rack-bot` (claude-fable-5).
-
-**Did:** the triage U2's own Accept asked for — root causes named for all
-four symptoms, split into **U2a/U2b/U2c/U2d**, full note in
-[docs/u2-triage-2026-08-16.md](docs/u2-triage-2026-08-16.md) — **and fixed
-U2a in the same sitting**: the mac scroll wheel,
-[gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7), live-verified
-in REAPER before the PR was opened.
-
-**The wheel was a TODO, not a bug.** `DrawingFrameMac.mm scrollWheel:`
-computed deltas and flags, then dropped the event — both dispatch lines
-commented out (`:813`/`:818`), with the VST3-level `onWheel` fallback also
-returning `kResultFalse`. The fix mirrors the proven Windows path
-(`inputClient->onMouseWheel`, 120-per-notch, `ScrollHoriz` for `deltaX`)
-using the `inputClient` the mac frame already used for pointer events —
-which is why clicking always worked while the wheel did not. **Verified on a
-fresh REAPER process:** canvas pans both directions, Ctrl+wheel zooms, the
-module browser list scrolls and reveals entries that were previously
-unreachable by any input, since TIDE hides scrollbars and middle-pan is also
-dead (that one is **U2b**, filed: the backend has no `otherMouse*` handlers
-at all).
-
-**The Windows re-test ([#78](https://github.com/JeffMcClintock/TideSynth/pull/78))
-landed mid-triage, and the two boxes answered each other's open questions.**
-Their "(2) does not reproduce on Windows" is this box's root cause seen from
-the other side — the Windows dispatch was always finished. Their *"every
-later module landing on that same point"* is **U2c**'s mechanism named on
-this box: `TopView::centerPos` defaults `{0,0}` (`ViewBase.h`), TIDE never
-calls `setCenter`/`setPanZoom`, and `AddModule(moduleId, view->getCenter())`
-inserts at exactly that corner — so the §6 "canvas offset / dead strip" both
-boxes see is a **pan default, not a drawing bug**, and the fix is one line in
-ALLOWED `TideApp.cpp`. Their *"(3)+(4) one geometry cause"* guess was half
-right: adjacent, but (4) is that one-line default while **(3) is the real
-remaining unknown — U2d**.
-
-**U2d is the gate on the rack showing anything, and Jeff cracked its
-description live:** the placed control draws **only its ResizeAdorner**
-around a degenerate rect — "blue rectangle with white circles, only the
-resizer" — model fully correct in the properties pane, panel drawing
-nothing. Standing hypothesis, one leg short of proof: the panel pipeline is
-skin-driven (`ContainerView.cpp:25` → SkinMgr/GmpiResourceManager) and
-`TIDE_VST3.vst3` stages **no Resources at all** (binary + Info.plist +
-signature; contrast SynthEditCL's staged `fonts`/`skins`/`templates`). Cheap
-falsifier in the row. P11 is ruled out as its cause — the Windows session
-fixed that trap and (3) still reproduced.
-
-**And (1) is not a code defect on either platform.** Placement is
-click-to-arm → click-to-place by design (`OM_DRAG_NEW_MODULE` →
-`ViewBase::DragNewModule` → drop on the next `onPointerDown`), **proven
-live**: browser click, canvas click, module placed at the exact click point.
-What both boxes reproduced is that the press-drag-release gesture users try
-first does not place. UX decision recorded in the doc; default in effect:
-the design stands.
-
-**Learned — a host keeps a VST3 module mapped after FX-remove.** Remove →
-replace bundle → re-add loaded the OLD dylib, and the first post-fix wheel
-test "failed" purely for that reason; a full REAPER restart picks up the
-replacement. Budget a restart into every mac edit-build-verify loop.
-
-**Learned — correcting this morning's entry:** `reaper-vstplugins_arm64.ini`
-is not just laggy, it is **not a live mirror at all** — byte-identical
-through a clear-cache re-scan *and* a clean quit while the FX browser showed
-the new identity throughout. "The ini rewrites when REAPER exits" was an
-overclaim; the durable rule is: read the FX browser, never the ini. (Also
-told Jeff live: this box's `reaper.ini`/`reaper-reginfo2.ini` are owned by
-**root**, so REAPER cannot persist its preferences here — his machine's
-quirk, not TIDE's.)
-
-**Next:** **U2c** is the best minutes-sized item on this box (one line,
-ALLOWED, fixes the corner anchor and where inserts land on both platforms);
-**U2d**'s falsifier decides whether the rack can display anything and wants
-running before or alongside **U1b**'s chrome. U1b remains the headline item;
-**U1c stays uncosted until U2d lands**. **P10** unchanged as fallback.
-
-**Side effects on this box:** `gmpi_ui` gained one commit on a PR branch
-([gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7), 5+/6-);
-`SynthEdit/build/` rebuilt `TIDE_VST3` (Release) and its PostBuild step
-re-installed `~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3` — now carrying
-the wheel fix. REAPER was restarted twice (module-reload lesson above);
-"Optimus HP" was never saved or modified; the throwaway test tab was left
-open for Jeff, who was driving the plugin UI himself between my steps.
-`SynthEdit` and `SynthEditLib` were read only; `GMPI_Wrappers` read only.
-
-**Branch/PR:** this TideSynth PR (triage doc, U2 split, this entry) +
-[gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7) — **the gmpi_ui
-one carries the code**; they need not merge together.
