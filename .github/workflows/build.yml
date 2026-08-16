@@ -14,6 +14,21 @@
 # executed once. Note what is still NOT fixed: `continue-on-error` at job level
 # means every run reports success, so "green" here still means nothing. That is
 # B1's job, and until it lands nothing should treat this workflow as a gate.
+#
+# 2026-08-16: the matrix is now gated on the `guard` job below, because until
+# C7 lands there is no root CMakeLists.txt and all three platforms died at
+# Configure — putting six FAILURE rows on every PR. Nothing gated on them (this
+# repo has no branch protection and no required status checks, and auto-merge
+# reads `lint`, not this), so their only effect was to train everyone to skim
+# past `gh pr checks` entirely. A check list that is always red measures
+# nothing, exactly like a run that always reports success.
+#
+# The gate deliberately skips rather than fakes a pass: a skipped matrix says
+# "not attempted", where a green one would claim a clean-clone build succeeded.
+# It is keyed on the file itself, like the issue-filing suppression below, so
+# the moment C7 adds a root CMakeLists.txt the matrix starts running again with
+# nobody having to remember to remove anything. This does NOT close B1 — B1
+# still owns authoring that CMake and dropping the `continue-on-error` below.
 
 name: build
 
@@ -40,8 +55,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Is there anything to build yet? Pre-C7 there is not, and the three matrix
+  # jobs would each spend their setup time only to die at Configure.
+  #
+  # This is a separate job rather than a step-level `if:` on Configure/Build
+  # because a matrix job that runs and skips its own steps reports SUCCESS,
+  # which is the one outcome this file must never produce dishonestly.
+  guard:
+    name: guard
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      buildable: ${{ steps.check.outputs.buildable }}
+    steps:
+      # No submodules: this only needs to know whether one file exists at the
+      # root, and recursive submodule fetch is most of a checkout's cost.
+      - uses: actions/checkout@v7
+
+      - id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f CMakeLists.txt ]; then
+            echo "buildable=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Root CMakeLists.txt present — running the build matrix."
+          else
+            echo "buildable=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No root CMakeLists.txt yet (BACKLOG C7) — skipping the build matrix. This is the known pre-C7 state, not a regression."
+          fi
+
   build:
     name: ${{ matrix.name }}
+    needs: guard
+    if: needs.guard.outputs.buildable == 'true'
     runs-on: ${{ matrix.os }}
     continue-on-error: true # remove once C7 lands and green is achievable
 
@@ -117,9 +164,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Pre-C7 this repo has no root CMakeLists.txt, so every run fails at
-          # configure for that one known reason (see the header). Filing it
-          # would bury real failures and re-file on every push.
+          # Backstop. Since 2026-08-16 the `guard` job gates the whole matrix on
+          # this same condition, so reaching here with no root CMakeLists.txt
+          # should be impossible. Kept anyway: it is two lines, and it is what
+          # stops the issue-filing floodgate reopening silently if the guard is
+          # ever removed without this being reconsidered.
           #
           # The check is the file itself rather than a log string: when C7 adds
           # a root CMakeLists.txt the suppression lifts by itself, with nobody
