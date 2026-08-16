@@ -46,6 +46,99 @@ Template:
 
 ---
 
+## 2026-08-16 — macos — U2 triage + U2a wheel fix (interactive session, Jeff present)
+
+**Prompt:** n/a — interactive session, second of the day on this box; Jeff at
+the keyboard contributing live observations. Committed and pushed as
+`tide-rack-bot` (claude-fable-5).
+
+**Did:** the triage U2's own Accept asked for — root causes named for all
+four symptoms, split into **U2a/U2b/U2c/U2d**, full note in
+[docs/u2-triage-2026-08-16.md](docs/u2-triage-2026-08-16.md) — **and fixed
+U2a in the same sitting**: the mac scroll wheel,
+[gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7), live-verified
+in REAPER before the PR was opened.
+
+**The wheel was a TODO, not a bug.** `DrawingFrameMac.mm scrollWheel:`
+computed deltas and flags, then dropped the event — both dispatch lines
+commented out (`:813`/`:818`), with the VST3-level `onWheel` fallback also
+returning `kResultFalse`. The fix mirrors the proven Windows path
+(`inputClient->onMouseWheel`, 120-per-notch, `ScrollHoriz` for `deltaX`)
+using the `inputClient` the mac frame already used for pointer events —
+which is why clicking always worked while the wheel did not. **Verified on a
+fresh REAPER process:** canvas pans both directions, Ctrl+wheel zooms, the
+module browser list scrolls and reveals entries that were previously
+unreachable by any input, since TIDE hides scrollbars and middle-pan is also
+dead (that one is **U2b**, filed: the backend has no `otherMouse*` handlers
+at all).
+
+**The Windows re-test ([#78](https://github.com/JeffMcClintock/TideSynth/pull/78))
+landed mid-triage, and the two boxes answered each other's open questions.**
+Their "(2) does not reproduce on Windows" is this box's root cause seen from
+the other side — the Windows dispatch was always finished. Their *"every
+later module landing on that same point"* is **U2c**'s mechanism named on
+this box: `TopView::centerPos` defaults `{0,0}` (`ViewBase.h`), TIDE never
+calls `setCenter`/`setPanZoom`, and `AddModule(moduleId, view->getCenter())`
+inserts at exactly that corner — so the §6 "canvas offset / dead strip" both
+boxes see is a **pan default, not a drawing bug**, and the fix is one line in
+ALLOWED `TideApp.cpp`. Their *"(3)+(4) one geometry cause"* guess was half
+right: adjacent, but (4) is that one-line default while **(3) is the real
+remaining unknown — U2d**.
+
+**U2d is the gate on the rack showing anything, and Jeff cracked its
+description live:** the placed control draws **only its ResizeAdorner**
+around a degenerate rect — "blue rectangle with white circles, only the
+resizer" — model fully correct in the properties pane, panel drawing
+nothing. Standing hypothesis, one leg short of proof: the panel pipeline is
+skin-driven (`ContainerView.cpp:25` → SkinMgr/GmpiResourceManager) and
+`TIDE_VST3.vst3` stages **no Resources at all** (binary + Info.plist +
+signature; contrast SynthEditCL's staged `fonts`/`skins`/`templates`). Cheap
+falsifier in the row. P11 is ruled out as its cause — the Windows session
+fixed that trap and (3) still reproduced.
+
+**And (1) is not a code defect on either platform.** Placement is
+click-to-arm → click-to-place by design (`OM_DRAG_NEW_MODULE` →
+`ViewBase::DragNewModule` → drop on the next `onPointerDown`), **proven
+live**: browser click, canvas click, module placed at the exact click point.
+What both boxes reproduced is that the press-drag-release gesture users try
+first does not place. UX decision recorded in the doc; default in effect:
+the design stands.
+
+**Learned — a host keeps a VST3 module mapped after FX-remove.** Remove →
+replace bundle → re-add loaded the OLD dylib, and the first post-fix wheel
+test "failed" purely for that reason; a full REAPER restart picks up the
+replacement. Budget a restart into every mac edit-build-verify loop.
+
+**Learned — correcting this morning's entry:** `reaper-vstplugins_arm64.ini`
+is not just laggy, it is **not a live mirror at all** — byte-identical
+through a clear-cache re-scan *and* a clean quit while the FX browser showed
+the new identity throughout. "The ini rewrites when REAPER exits" was an
+overclaim; the durable rule is: read the FX browser, never the ini. (Also
+told Jeff live: this box's `reaper.ini`/`reaper-reginfo2.ini` are owned by
+**root**, so REAPER cannot persist its preferences here — his machine's
+quirk, not TIDE's.)
+
+**Next:** **U2c** is the best minutes-sized item on this box (one line,
+ALLOWED, fixes the corner anchor and where inserts land on both platforms);
+**U2d**'s falsifier decides whether the rack can display anything and wants
+running before or alongside **U1b**'s chrome. U1b remains the headline item;
+**U1c stays uncosted until U2d lands**. **P10** unchanged as fallback.
+
+**Side effects on this box:** `gmpi_ui` gained one commit on a PR branch
+([gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7), 5+/6-);
+`SynthEdit/build/` rebuilt `TIDE_VST3` (Release) and its PostBuild step
+re-installed `~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3` — now carrying
+the wheel fix. REAPER was restarted twice (module-reload lesson above);
+"Optimus HP" was never saved or modified; the throwaway test tab was left
+open for Jeff, who was driving the plugin UI himself between my steps.
+`SynthEdit` and `SynthEditLib` were read only; `GMPI_Wrappers` read only.
+
+**Branch/PR:** this TideSynth PR (triage doc, U2 split, this entry) +
+[gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7) — **the gmpi_ui
+one carries the code**; they need not merge together.
+
+---
+
 ## 2026-08-16 — windows — U1a·P5·U2 host verification, Windows half (interactive session, Jeff present)
 
 **Prompt:** n/a — interactive session, not a scheduled run. Jeff at the
@@ -401,95 +494,3 @@ committed in; `SynthEdit`, `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were
 read only and left clean on their default branches.
 
 **Branch/PR:** the TideSynth PR carrying this entry, the audit and the split.
-
----
-
-## 2026-08-16 — macos — P5
-
-**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
-
-**Did:** **P5** — the plug-in now calls itself **TIDE Rack**, vendor **TIDE
-Synth**. Fourth item this session, at Jeff's direction; a scheduled run still
-takes exactly one. Filed **P10**.
-
-**The item contained a trap that would have produced a no-op PR, and finding it
-is the main thing to hand on.** The obvious target is
-`SynthEditSem/SynthEdit.xml` — it is 12 lines, it is named after the plug-in, and
-it holds exactly the `id`/`name` attributes P5 is about. **It is not what
-ships.** The live identity is an embedded XML **string literal** in
-`SynthEditSem/SynthEdit.cpp`'s `getPluginInformation()`, which is what the
-wrapper actually parses. `SynthEdit.xml` is referenced only by `SynthEdit.rc`
-(`IDR_GMPXML1 GMPXML`), and the only loader for that resource is inside
-**`#if 0`**, whose non-Windows branch literally reads *"not needed for built-in
-XML #error implement this for mac"*. I had already edited the wrong file before
-tracing far enough to notice. Filed as **P10**; both are updated in step
-meanwhile so they cannot drift.
-
-**The `id` question the previous entry flagged is now answered, by reading the
-code rather than by reasoning about VST3 in general.** The class UID is
-**hashed from the id string** — `textIdtoUuid(plugin->id, ...)` at
-`GMPI_Wrappers/wrapper/VST3/MyVstPluginFactory.cpp:244-245`, feeding
-`info->cid`. So renaming `SE SynthEdit` *would* change the plug-in's identity and
-orphan every host project that had loaded TIDE. It stays. Users never see it,
-and the caution was justified.
-
-**The vendor half explains the original symptom exactly.** Omitting the `vendor`
-attribute defaults `vendorName` to `"GMPI"` —
-`GMPI/Hosting/xml_spec_reader.cpp:532-535` — which is precisely why REAPER
-listed this as *"SynthEdit (GMPI)"*. So P5 was two fields, not one, and the
-second one was invisible until the default was read.
-
-**Result — A/B on the built binary, which is the artifact.**
-
-| | `<Plugin …>` in the binary | `"TIDE Rack"` | `name="SynthEdit"` |
-|---|---|---|---|
-| before (Aug 8 build) | `id="SE SynthEdit" name="SynthEdit"` | **0** | present |
-| after (this build) | `id="SE SynthEdit" name="TIDE Rack" vendor="TIDE Synth"` | 2 | **0** |
-
-`id="SE SynthEdit"` still present in both. Release build of target `TIDE`:
-**BUILD SUCCEEDED, 0 errors**, universal **x86_64 + arm64**.
-
-**Learned — the mac build tree was stale in a way that looks like your own
-breakage, and the fix is one command.** The first build failed with
-`Build input file cannot be found: SynthEdit2/plug4.cpp`. That file has not
-existed since the carve-out moved it; `EditorLib/CMakeLists.txt:120` correctly
-says `${SYNTHEDITLIB_DIR}/plug4.cpp`. The **generated Xcode project** was stale
-— Xcode's `ZERO_CHECK` did not regenerate it. `cmake .` in `build/` fixed it
-(0 references to the old path afterwards, 4 to the right one) and the build then
-succeeded. **Any mac run touching this tree after a carve-out stage should
-expect this and re-run `cmake .` before believing a build failure is theirs.**
-
-**Learned — `getVendor4charCode()` is unaffected, checked rather than assumed.**
-`SanitizeVendor4charCode(code, vendorName)` regenerates the four-character code
-*from the vendor name* only when the code is not 4 alphanumeric characters with
-a capital. `TideApp::getVendor4charCode()` returns `"TIDE"`, which passes, so
-changing `vendorName` from "GMPI" to "TIDE Synth" does **not** reach it. That
-mattered because the four-char code is plug-in identity too, in the AU/preset
-sense, and silently changing it would have been the same class of bug as
-renaming `id`.
-
-**What is NOT verified, and it is the row's own acceptance evidence.** P5's
-original finding was REAPER listing `VST3i: SynthEdit (GMPI)` and
-`TrackFX_AddByName(tr, "TIDE_VST3", ...)` returning -1. **The rebuilt plug-in
-has not been loaded in a host.** The binary carries the right strings and that
-is strong, but "REAPER shows TIDE Rack" is unconfirmed. Marked as such in the
-row rather than claimed.
-
-**STEP 1 / 1.5:** no `platform:mac` issues; no open PRs at the start of this
-item — the earlier stack (#69/#70/#71/#72/#73) had all merged.
-
-**Next:** **U1** for the mac box — the rack-mode UX audit, which
-[docs/about-pane.md](docs/about-pane.md) now depends on, and which a macOS box
-can actually drive. **P10** is the cheap fallback. Whoever loads TIDE in a host
-should close P5's last gap while they are there.
-
-**Side effects on this box:** `SynthEdit/build/` was **regenerated and rebuilt**
-(`cmake .` + Release build of `TIDE`) — that tree was already stale and is now
-correct, but it is Jeff's build tree and the rebuild took a few minutes of CPU.
-`SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were read only and left clean.
-Committed in **two** repos this time: `SynthEdit` (the code) and `TideSynth`
-(this entry and the backlog).
-
-**Branch/PR:** [SynthEdit#24](https://github.com/JeffMcClintock/SynthEdit/pull/24)
-+ TideSynth PR — **the SynthEdit one carries the actual fix**; the TideSynth one
-is bookkeeping and they do not have to merge together.
