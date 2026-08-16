@@ -46,6 +46,80 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — U1b: the breadcrumb bar navigates in and out (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff confirmed cable-drag and module
+insertion work, had the repos synced and old branches cleaned, and said
+"take next task". Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** **U1b's chrome-and-navigation half, wired and verified** —
+[SynthEdit#31](https://github.com/JeffMcClintock/SynthEdit/pull/31), stacked
+on [#29](https://github.com/JeffMcClintock/SynthEdit/pull/29). **Verified in
+REAPER, the full loop:** the bar shows "Main"; placing a Container (which
+draws as a proper module box with pins) and double-clicking it navigates
+inside — trail reads "Main › Container", the container's own IO Mod visible
+— and clicking "Main" navigates back out with the forward trail retained
+for one-click re-entry. Both directions of U1b's Accept, live.
+
+**The build was mostly discovery, not invention.** `SE2::BreadcrumbBar`
+already existed in `se_sdk3_hosting` — cross-platform, thumbnail-caching,
+retained-trail, powering every editor frontend (Wayland/JUCE/WinUI/mac
+bridge) — and `TopStripLayout`'s own comment says it grew from exactly this
+strip. TIDE's work was wiring: the bar becomes a fourth strip in
+`SynthEditGui`'s manual pane layout (origin-rooted arrange + PaneHostWrapper
+offset + pane pointer routing, the exact pattern of the two browsers), and
+`ISeApp` grows `OpenViewForContainer` plus two callbacks.
+
+**The enter path was a latent crash, now a feature.** Double-clicking a
+Container runs `PresenterCommand::Open` → `CContainer::OnMenuCommand` →
+`Document()->OpenView` → `CSynthEditAppBase::OpenView` →
+**`m_app_user_interface->OpenView` — and TIDE never sets
+`m_app_user_interface`**, so the gesture was a null deref waiting for the
+first curious user. `TideApp` now overrides that virtual and routes to the
+GUI's navigation callback instead.
+
+**One deliberate mechanism worth keeping: navigation is deferred.**
+Requests originate inside pointer dispatch — a crumb click dispatched by
+the GUI, or a double-click dispatched by the very view being replaced —
+and rebuilding the view stack from within its own dispatch destroys the
+object mid-call. The Wayland app defers to its event-loop tick; TIDE
+defers to a one-shot `gmpi::TimerClient` tick (30 ms), with the callbacks
+cleared and the timer stopped in the destructor. The scroll-wiring block
+was extracted to `wireViewScrollbars()` so navigation re-opens rewire
+identically to the first open.
+
+**Scoped out, recorded rather than hidden:** thumbnails (`renderThumbnail`
+left unset — the bar draws name-only crumbs; the EditorScreenshot helper
+`se_cl::renderContainerThumbnail` is the follow-up), and **U1b's second
+half** — restoring the rack as the *default* with the structure view
+behind an unlock — which waits on the open PR queue
+([#28](https://github.com/JeffMcClintock/SynthEdit/pull/28)/[#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)/[#30](https://github.com/JeffMcClintock/SynthEdit/pull/30))
+and on the unlock UX being decided. The row stays IN-REVIEW listing both.
+
+**Housekeeping done at Jeff's ask:** all five repos synced (gmpi_ui#8 had
+merged — U2b's middle-pan is on main), and thirteen local branches with
+merged PRs deleted across four repos; only open-PR branches and Jeff's own
+release branches remain.
+
+**Next:** merge queue for Jeff — [#28](https://github.com/JeffMcClintock/SynthEdit/pull/28)
+→ [#30](https://github.com/JeffMcClintock/SynthEdit/pull/30), [#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)
+→ [#31](https://github.com/JeffMcClintock/SynthEdit/pull/31), plus
+[SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13).
+Once the queue clears: U1b's default-flip/unlock half on a clean base, then
+**U1c** (enable Jeff's existing rack-mode code). The win box still has
+U2e's two cheap follow-ups.
+
+**Side effects on this box:** two `TIDE_VST3` rebuilds; the installed
+plugin now carries the breadcrumb (struct-interim lineage). REAPER
+restarted once; "Optimus HP" untouched; the test tab holds a Container
+demonstrating the trail.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#31](https://github.com/JeffMcClintock/SynthEdit/pull/31)
+(stacked on [#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)).
+
+---
+
 ## 2026-08-17 — macos — U2e closed on mac: the combo box draws (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session continuing from yesterday's five; Jeff
@@ -384,113 +458,3 @@ own middle-drag as the verify),
 [SynthEdit#27](https://github.com/JeffMcClintock/SynthEdit/pull/27) +
 [SynthEditLib#12](https://github.com/JeffMcClintock/SynthEditLib/pull/12)
 (U2d).
-
----
-
-## 2026-08-16 — macos — U2b + U2d fix session: first modern panel renders (interactive session, Jeff present)
-
-**Prompt:** n/a — interactive session, fourth of the day on this box; Jeff
-said "work on as many tasks as possible, don't stop" and merged PRs live as
-they opened. Committed and pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** **U2b** (mac middle-button pan,
-[gmpi_ui#8](https://github.com/JeffMcClintock/gmpi_ui/pull/8)), and the
-**U2d fix session** — root cause found two layers deeper than yesterday's
-hypotheses, first fix landed and **verified: TIDE drew a modern module
-panel in a host for the first time.** Jeff merged
-[gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7) (U2a wheel)
-and [SynthEdit#26](https://github.com/JeffMcClintock/SynthEdit/pull/26)
-(U2c centring) mid-session, so **U2a and U2c are DONE** — both were
-live-verified before their PRs opened.
-
-**U2d, the actual mechanism, nailed by one trace line.** The typeId
-instrumentation printed `ctor(json): 'SE List Entry' -> moduleInfo=0x0` —
-correct id, same `CModuleFactory` singleton the browser uses (the two-
-factory theory died: `ModuleFactory()` is a `#define` for `Instance()`),
-so the id is simply **not registered in the VST3**. Why: **the modern
-control modules compile only inside `IF(SE2JUCE)`**
-(`SynthEditLib/CMakeLists.txt:553`) — mirrored by
-`initialise_synthedit_modules`'s force-link lists sitting in
-`#if GMPI_IS_PLATFORM_JUCE==1` and `#if SE_GRAPHICS_SUPPORT` blocks, the
-latter macro **never defined for the compiler anywhere** (undefined
-identifiers are 0 in `#if`). Full SynthEdit never noticed because it
-scans modules from disk; TIDE — scan removed by S1a, by design — is the
-first product that needed the static path, and it never existed. The
-browser still lists "List Entry" because the **legacy DocObs**
-(`Ctl_Combo`) link via direct reference; `Ctl_Combo::Export` writes
-`"type": "SE List Entry"` into the panel JSON — so model right, view
-empty, both platforms: **win's P11 dialog and mac's silence are one
-defect's two faces**, and it explains #78's "(3) persists after P11
-fixed".
-
-**The fix, and what it proved.** TIDE now lists its fixed module set
-(PLAN constraint 7) as **direct target sources** in
-`SynthEditSem/CMakeLists.txt`
-([SynthEdit#27](https://github.com/JeffMcClintock/SynthEdit/pull/27),
-stacked on #26) — target sources cannot be dead-stripped. First entry:
-`Controls/PlainImageGui.cpp` (`SE Background Image`). **Verified in
-REAPER: the default document's Background Image module — the thing P11's
-win error named "at instantiate" — draws as a real panel with working
-resize adorners.** Deliberately NOT done: defining `SE_GRAPHICS_SUPPORT`
-lib-wide — it gates dormant code in `Controller.cpp`/`MpParameter.cpp`
-and would double-register modules in the scanning editor
-("Module found twice" boxes).
-
-**The classic SDK3 controls are a further layer, filed as U2e with three
-crash stacks.** Listed with their widget deps, `SE List Entry` registers,
-constructs — and crashed REAPER three different ways in one hour:
-`ClassicControlGuiBase::initialize` (`widgets.back()` on an empty vector —
-address -16 IS the tell: empty `back()` with 16-byte `shared_ptr`
-elements), then `ListEntryGui::measure` (`widgets[0]`, null at 0x0), then
-`ListEntryGui::arrange` after both guards. **The widget layer assumes skin
-bitmaps/fonts load during pin init and never checks** — 47 unguarded
-`widgets[` sites in `ListEntryGui.cpp` alone, so guarding call-sites is
-whack-a-mole; the fix session must make widget-building succeed (or fail
-into a placeholder widget) instead. Guards for the first two crash sites
-plus the Release-loud `ModuleViewPanel` unregistered-type diagnostic are
-in [SynthEditLib#12](https://github.com/JeffMcClintock/SynthEditLib/pull/12);
-the classic controls stay **out** of TIDE's module list until U2e lands —
-**final state verified: no crash, Background Image draws, a placed List
-Entry degrades to the adorner + a stderr line instead of killing the
-host.**
-
-**Learned — the module-set list is the constraint-7 lever.** TIDE's
-"fixed module set, compiled in" now has a literal, reviewable home: the
-source list in `SynthEditSem/CMakeLists.txt`. Growing the rack's palette
-= adding a file there and verifying its layer actually renders. That is
-a better shape than any registry define.
-
-**Learned — U2b is code-complete but untested by hand:** synthetic
-middle-drag isn't available to the agent's tooling, so
-[gmpi_ui#8](https://github.com/JeffMcClintock/gmpi_ui/pull/8) awaits
-Jeff's real mouse. The handlers mirror the proven left/right pairs and
-are gated to `buttonNumber == 2`.
-
-**P10 was deliberately not taken** despite being minutes: it would have
-meant a third stacked SynthEdit branch mid-session with the build tree
-checked out elsewhere; it stays the mac fallback. **P11 gained a mac
-finding:** the win post-build module-DB copy has **no mac counterpart at
-all** — `/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi` sat 3.5 months stale
-(May 7, pre-P5 identity) until this session refreshed it by hand; noted
-in [docs/building.md](docs/building.md).
-
-**Next:** **U2e** is the gate on the rack showing *controls* (Background
-Image proves the pipeline; the classic widget layer is what stands
-between TIDE and a usable List Entry). **U1b** remains the headline.
-U2b/U2d flip on their PRs; U2a/U2c archived DONE.
-
-**Side effects on this box:** `SynthEdit/build/` rebuilt `TIDE_VST3`
-five times and `TIDE` once; the installed VST3 now carries U2a+U2b+U2c+
-the PlainImage registration and is **crash-free**. REAPER crashed three
-times (all TIDE_VST3 faults, all filed with stacks) and was relaunched;
-"Optimus HP" never saved or modified. `/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi`
-refreshed to today's build. Temp trace logging in `SynthEditLib` was
-reverted; the four files now changed there are the real guards/diagnostic
-on the PR branch. Throwaway REAPER tabs left open for Jeff.
-
-**Branch/PR:** this TideSynth PR +
-[gmpi_ui#8](https://github.com/JeffMcClintock/gmpi_ui/pull/8) +
-[SynthEditLib#12](https://github.com/JeffMcClintock/SynthEditLib/pull/12) +
-[SynthEdit#27](https://github.com/JeffMcClintock/SynthEdit/pull/27); merged
-mid-session by Jeff: [gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7),
-[SynthEdit#26](https://github.com/JeffMcClintock/SynthEdit/pull/26).
