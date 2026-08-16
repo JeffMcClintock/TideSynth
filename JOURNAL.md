@@ -46,6 +46,68 @@ Template:
 
 ---
 
+## 2026-08-16 — macos — structure view interim: an oscillator draws with its pins (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session, sixth of the day; Jeff set the goal
+directly: *"first it would be nice to see a basic module drawn in structure
+view, like the oscillator … just draws in the structure view with its
+pins."* Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** flipped `TideApp::OpenView` to `ContainerViewStruct` /
+`CF_STRUCTURE_VIEW` as the **interim default** —
+[SynthEdit#29](https://github.com/JeffMcClintock/SynthEdit/pull/29) — and
+**verified the goal exactly: Phase Dist Osc draws in REAPER as a full
+structure-view module box** — title, rounded body, blue input pins (Pitch,
+Modulation Depth), green list pins (Wave1, Wave2), Audio Out on the right,
+selection chrome, properties pane in sync, placed at the click point.
+First module TIDE's structure view has ever drawn in a host on this
+platform. `ModuleViewStruct` went **0 → 53 symbols** with the flip (it had
+been dead-stripped along with `ContainerViewStruct` since U1a).
+
+**Why this is a flip and not a revert of U1a.** The rack pivot stands;
+what changed is sequencing. U2e isolated the panel-view CONTROLS behind
+one remaining question (the SDK3 pin-delivery pass never runs), while the
+structure view's generic module rendering — box + typed pins, no custom
+GUIs, no skins, exactly as Jeff noted — is the decades-proven path and
+worked on the first try. So the structure view is the *interim* default
+until panel controls land; **U1b's job is unchanged and now easier**: make
+the rack the default again with the structure view behind its unlock —
+both classes now link, and the `SE2::TopView` typing keeps the flip one
+line. The two views' remaining difference is which one `OpenView` names.
+
+**Recorded from Jeff, and it reframes U1c:** *"we already added a basic
+rack mode to synthedit. code is there already."* That matches what the
+code shows — `ModuleViewPanel`'s JSON ctor reads an `isRackModule` flag,
+and `ViewBase::snapToGrid`'s comment describes rack-mode axes ("one HP
+across, one whole rack row down — so modules land in real slots"). U1c's
+row said "genuinely not written / from-scratch build" — **corrected: U1c
+is wiring and enabling existing rack code**, the same shape U1a turned out
+to be. Its row now says so.
+
+**The navigation stack earned its keep immediately:** finding the
+oscillator meant scrolling the module browser (the wheel fix), and the
+centred canvas (U2c) put the placed module exactly where clicked, in
+view. Everything from this morning compounds.
+
+**Next:** unchanged in priority, sharper in shape — **U2e's pin-delivery
+trace** (usable panel controls), then **U1b** (rack default + unlock,
+now trivially two linked classes and chrome), then **U1c** (enable the
+existing rack code). The module-browser filter box (type-to-find) would
+have made tonight faster; noted as a UX nicety for U1-series work, not
+filed as a row.
+
+**Side effects on this box:** one more `TIDE_VST3` rebuild + auto-install
+— the installed plugin now opens the structure view; REAPER quit/relaunch
+once, "Optimus HP" untouched; throwaway tabs remain. `SynthEdit` working
+copy returned to `master` after push.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)
+(stacks cleanly beside [#28](https://github.com/JeffMcClintock/SynthEdit/pull/28)
+— same file, different functions, merge order irrelevant).
+
+---
+
 ## 2026-08-16 — macos — U2e first pass: crash-free placeholders, one question left (interactive session, Jeff present)
 
 **Prompt:** n/a — interactive session, fifth of the day; Jeff verified
