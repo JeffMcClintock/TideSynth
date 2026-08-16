@@ -46,6 +46,76 @@ Template:
 
 ---
 
+## 2026-08-16 — macos — U1a
+
+**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
+
+**Did:** **U1a** — `TideApp::OpenView` now constructs `SE2::ContainerViewPanel`
+with `CF_PANEL_VIEW`. **TIDE opens the rack/panel view.** Sixth item this
+session, at Jeff's direction.
+
+**Result — the symbol A/B, which is bar (a) and is the whole verifiable claim:**
+
+| | before | after |
+|---|---|---|
+| `ContainerViewPanel` | **0** | **13** |
+| `ContainerViewStruct` | 15 | **0** |
+| `ModuleViewPanel` | 25 | 25 |
+| bogus name (control) | 0 | 0 |
+
+Release build **BUILD SUCCEEDED, 0 errors**, universal x86_64 + arm64, and P5's
+identity strings verified un-regressed in the same binary.
+
+**Learned — the interesting number is the one that went to zero, not the one
+that went to thirteen.** `ContainerViewStruct` is now at **0 symbols**: nothing
+constructs it, so **the structure view is currently unreachable**. Constraint 1
+asks for *two* depths — rack by default, structure view on unlock — so this
+change makes the rack default *and* removes the other depth. That is a real
+regression against constraint 1 taken as a whole, not a tidy half-step, and I
+have written it into **U1b**'s row: that item is now "breadcrumb bar **and** an
+unlock path that constructs the structure view", which is more than it was
+scoped as an hour ago. **Nobody would have noticed this from the diff** — it
+only shows up because the audit had established the before-numbers.
+
+**Learned — it was four files, and typing the interface to the base is what
+makes it the last time.** `ISeApp` was typed to the concrete
+`ContainerViewStruct`, threaded through `TideApp.h`, `TideAppWrapper.h` and
+`SynthEditGui.cpp`. It is now `SE2::TopView`. Every member `SynthEditGui.cpp`
+calls on the view — `arrange`, `Presenter`, `getCenter`, `DragNewModule`, the
+scrollbar callbacks — is a base member, checked before the change rather than
+discovered by the compiler. **The one thing the compiler did catch** was a
+forward declaration: `TideAppWrapper.h` declared `class ContainerViewStruct;`
+rather than including anything, so the first build failed with 17 errors that
+all cascaded from `no type named 'TopView' in namespace 'SE2'`. One line.
+
+**What is NOT done, and it is bar (b) of this row's own Accept.** *"Draws
+something sane in a host"* — **the plug-in has not been loaded in a DAW.** The
+class links and the binary builds; whether the rack renders, renders blank, or
+crashes is unknown. U1a's row warned that a crash here would be information
+rather than failure; that warning is still unspent, because nobody has looked.
+
+**Next — and the most useful next action is not a backlog item.** **Load the
+rebuilt `TIDE.gmpi` in a DAW.** One observation closes U1a's bar (b), closes
+P5's outstanding "REAPER shows TIDE Rack" check, and unblocks U1b and U1c, which
+should *stay* blocked until then — taking either now means building on a view
+nobody has seen render. The mac NEXT row therefore points at **P10** (minutes,
+ALLOWED, deletes the dead `SynthEdit.xml` that nearly caused a no-op PR during
+P5) rather than at more rack work.
+
+**STEP 1 / 1.5:** no `platform:mac` issues. [SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25)
+is this run's own and is the only open PR.
+
+**Side effects on this box:** `SynthEdit/build/` rebuilt again (Release,
+target `TIDE`). Committed in two repos: `SynthEdit` (the change) and `TideSynth`
+(this entry and the backlog). `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were
+read only and left clean.
+
+**Branch/PR:** [SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25)
+— **that one carries the change**; the TideSynth PR is bookkeeping and they need
+not merge together.
+
+---
+
 ## 2026-08-16 — macos — U1
 
 **Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
