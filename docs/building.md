@@ -145,3 +145,26 @@ Release build ~6 min from cold.
 - **Building other targets pulls in the whole product.** `--target TIDE
   TIDE_VST3` builds only what TIDE needs (SynthEditLib, EditorLib, HarfBuzz).
   A bare `cmake --build` builds SynthEditCL, the tests and the rest too.
+
+## The two-target trap (P11): `TIDE_VST3` alone ships a half-built install
+
+Building only `--target TIDE_VST3` leaves the *module database* stale: the
+`SE *` GUI modules resolve through the installed `TIDE.gmpi`, which is
+written by the **`TIDE` target's** post-build step, not by `TIDE_VST3`'s.
+On Windows the stale-DB symptom is a modal *"required module is missing
+from the module database"* that blames the user's installation; the fix is
+building both targets (P11 tracks making this self-consistent or at least
+honestly diagnosed).
+
+**On macOS it is worse: there is no install step at all.** The `TIDE`
+target's post-build copy has no mac counterpart — the fresh `TIDE.gmpi`
+lands only in `build/SynthEditSem/Release/`, and
+`/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi` goes stale silently (found
+2026-08-16 at 3.5 months old, pre-P5 identity). Until P11 lands, refresh it
+by hand after building:
+
+    cp -R build/SynthEditSem/Release/TIDE.gmpi "/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi"
+
+(Note: the stale DB was ruled out as the cause of U2d's blank panels — see
+that row — so do not expect this copy to fix rendering; it fixes the
+export/module-database path P11 describes.)

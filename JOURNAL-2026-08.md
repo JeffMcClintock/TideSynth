@@ -7671,3 +7671,165 @@ committed in; `SynthEdit`, `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were
 read only and left clean on their default branches.
 
 **Branch/PR:** the TideSynth PR carrying this entry, the audit and the split.
+
+---
+
+## 2026-08-16 — macos — U1a
+
+**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
+
+**Did:** **U1a** — `TideApp::OpenView` now constructs `SE2::ContainerViewPanel`
+with `CF_PANEL_VIEW`. **TIDE opens the rack/panel view.** Sixth item this
+session, at Jeff's direction.
+
+**Result — the symbol A/B, which is bar (a) and is the whole verifiable claim:**
+
+| | before | after |
+|---|---|---|
+| `ContainerViewPanel` | **0** | **13** |
+| `ContainerViewStruct` | 15 | **0** |
+| `ModuleViewPanel` | 25 | 25 |
+| bogus name (control) | 0 | 0 |
+
+Release build **BUILD SUCCEEDED, 0 errors**, universal x86_64 + arm64, and P5's
+identity strings verified un-regressed in the same binary.
+
+**Learned — the interesting number is the one that went to zero, not the one
+that went to thirteen.** `ContainerViewStruct` is now at **0 symbols**: nothing
+constructs it, so **the structure view is currently unreachable**. Constraint 1
+asks for *two* depths — rack by default, structure view on unlock — so this
+change makes the rack default *and* removes the other depth. That is a real
+regression against constraint 1 taken as a whole, not a tidy half-step, and I
+have written it into **U1b**'s row: that item is now "breadcrumb bar **and** an
+unlock path that constructs the structure view", which is more than it was
+scoped as an hour ago. **Nobody would have noticed this from the diff** — it
+only shows up because the audit had established the before-numbers.
+
+**Learned — it was four files, and typing the interface to the base is what
+makes it the last time.** `ISeApp` was typed to the concrete
+`ContainerViewStruct`, threaded through `TideApp.h`, `TideAppWrapper.h` and
+`SynthEditGui.cpp`. It is now `SE2::TopView`. Every member `SynthEditGui.cpp`
+calls on the view — `arrange`, `Presenter`, `getCenter`, `DragNewModule`, the
+scrollbar callbacks — is a base member, checked before the change rather than
+discovered by the compiler. **The one thing the compiler did catch** was a
+forward declaration: `TideAppWrapper.h` declared `class ContainerViewStruct;`
+rather than including anything, so the first build failed with 17 errors that
+all cascaded from `no type named 'TopView' in namespace 'SE2'`. One line.
+
+**What is NOT done, and it is bar (b) of this row's own Accept.** *"Draws
+something sane in a host"* — **the plug-in has not been loaded in a DAW.** The
+class links and the binary builds; whether the rack renders, renders blank, or
+crashes is unknown. U1a's row warned that a crash here would be information
+rather than failure; that warning is still unspent, because nobody has looked.
+
+**Next — and the most useful next action is not a backlog item.** **Load the
+rebuilt `TIDE.gmpi` in a DAW.** One observation closes U1a's bar (b), closes
+P5's outstanding "REAPER shows TIDE Rack" check, and unblocks U1b and U1c, which
+should *stay* blocked until then — taking either now means building on a view
+nobody has seen render. The mac NEXT row therefore points at **P10** (minutes,
+ALLOWED, deletes the dead `SynthEdit.xml` that nearly caused a no-op PR during
+P5) rather than at more rack work.
+
+**STEP 1 / 1.5:** no `platform:mac` issues. [SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25)
+is this run's own and is the only open PR.
+
+**Side effects on this box:** `SynthEdit/build/` rebuilt again (Release,
+target `TIDE`). Committed in two repos: `SynthEdit` (the change) and `TideSynth`
+(this entry and the backlog). `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were
+read only and left clean.
+
+**Branch/PR:** [SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25)
+— **that one carries the change**; the TideSynth PR is bookkeeping and they need
+not merge together.
+
+---
+
+## 2026-08-16 — macos — U1a·P5 host verification (interactive session, Jeff present)
+
+**Prompt:** n/a — interactive session, not a scheduled run. Jeff at the
+keyboard; Claude (claude-fable-5) drove REAPER by computer use; committed and
+pushed as `tide-rack-bot`.
+
+**Did:** the one observation the last two entries said mattered more than any
+backlog item — **loaded the rebuilt `TIDE_VST3.vst3` in a host and looked at
+it.** REAPER 7.45/macOS-arm64: cleared the VST cache and re-scanned all 93
+plug-ins (progress dialog confirmed **+0 cached**), then in a NEW project tab
+("Optimus HP" untouched throughout, per this session's own rule) inserted the
+plug-in and opened its UI. That one sitting closed **P5**'s outstanding host
+check and **U1a**'s bar (b), filed **U2**, unblocked **U1b**/**U1c**, and
+re-pointed mac NEXT at U1b.
+
+**Result — P5, now closed end to end.** The FX browser lists exactly
+**`VST3i: TIDE Rack (TIDE Synth)`** — the strings P5 put in the binary,
+finally observed in the host that motivated the row. The API half, run via
+ReaScript (see Learned): `TrackFX_AddByName(tr, "TIDE Rack", false, -1)` →
+**0**, and `"VST3i: TIDE Rack (TIDE Synth)"` → **1**, both instances
+reporting the full name. **The row's literal cited call,
+`TrackFX_AddByName(tr, "TIDE_VST3", ...)`, still returns -1 — and always
+will**: that API matches display names, not bundle filenames, so the call was
+only ever a proxy for "unfindable by name", and the thing it proxied is
+fixed. Recorded in P5's archived row rather than left as a loose end.
+
+**Result — U1a bar (b): the rack RENDERS.** No crash through instantiate, UI
+open, module insert, selection, and a window resize. What draws: the module
+browser (categories + list, working), the panel canvas with its grid, and the
+properties pane, which populates correctly on selection (List Entry: pins,
+parameters, Appearance=Combo Box). With
+[SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25) and
+[#76](https://github.com/JeffMcClintock/TideSynth/pull/76) both merged and
+bar (b) met, **U1a is DONE and archived**; U1b and U1c flip to TODO.
+
+**The bugs bar (b) promised to surface exist, and they are U2** — four, exact
+symptoms in the row: (1) **drag-and-drop from the module browser places
+nothing** — two synthetic drag profiles and Jeff's real mouse all failed;
+double-click inserts fine, so it is the drop path, not insertion; (2) **the
+scroll wheel is dead** everywhere in the plugin UI (real hardware); (3) a
+placed **List Entry control draws as a ~10 px glyph stack**, not a usable
+combo box, while its properties pane is fully correct — model right, panel
+geometry wrong; (4) **the §6 canvas offset/dead-strip layout survives in the
+panel view** and re-anchors oddly on resize. Moog Filter showing no panel is
+correct panel-view semantics, not a fifth defect. A crash was the feared
+outcome; the actual outcome — a rendering view whose input/geometry layer has
+simply never been exercised — is cheaper than that, and it is exactly the
+costing input U1c was waiting on.
+
+**Learned — REAPER's plug-in cache ini flushes on exit, not on scan.** After
+a completed clear-cache re-scan, `reaper-vstplugins_arm64.ini` on disk stayed
+byte-identical (mtime included) while the FX browser and `TrackFX_AddByName`
+both showed the new identity. Anyone re-checking P5's "cached symptom" from a
+shell while REAPER is running will read the stale line and wrongly conclude
+the re-scan failed. While the app lives, the in-app browser is the truth, not
+the file.
+
+**Learned — `REAPER -nonewinst <script.lua>` runs a ReaScript inside the
+already-running instance**, no screen control needed. The AddByName numbers
+above came from a script injected that way; it guarded against the wrong
+project being active (abort if the active project path contains "optimus")
+and deleted its own scratch track afterwards. That is the pattern for any
+future agent needing REAPER API answers on a box where REAPER is already
+open.
+
+**Learned — the a2 doc's macOS caveat is settled.** All five repos on this
+box answer `https://github.com/...` to `git ls-remote --get-url origin`, the
+global `insteadOf` rewrite is present, and the credential helper chain is
+`gh`'s — so
+[docs/a2-actor-separation.md](docs/a2-actor-separation.md)'s "macOS remotes
+have still never been inspected" is now answered, on the record here. Not
+edited there — that file is a dated record, the same reasoning as A9's
+non-edit of the process review.
+
+**Next:** **U1b** (mac NEXT re-pointed): breadcrumb bar plus the
+structure-view unlock path. **Read U2 before starting it** — the breadcrumb
+lands in the same view whose input layer U2 describes, and U1c stays uncosted
+until U2 is triaged. **P10** remains the cheap fallback.
+
+**Side effects on this box:** REAPER's VST cache cleared and re-scanned (93
+plug-ins; in-memory — the ini rewrites when REAPER exits). A throwaway
+unsaved project tab was left open in REAPER for Jeff to play with; "Optimus
+HP" was never saved or modified. TideSynth is the only repo committed in;
+`SynthEdit`, `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were read only and
+left clean.
+
+**Branch/PR:** this PR (TideSynth only — no code changed anywhere; the code
+already landed as
+[SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25)).
