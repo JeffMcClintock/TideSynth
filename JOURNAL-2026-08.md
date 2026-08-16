@@ -8668,3 +8668,174 @@ cable, noted for honesty.
 on [#28](https://github.com/JeffMcClintock/SynthEdit/pull/28); merge #28 →
 #30, or together; [#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)
 is independent).
+
+---
+
+## 2026-08-17 — linux — S3 (TIDE-side half), plus two platform:linux breaks found and filed
+
+**Prompt:** b3e9876 · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as tide-rack-bot
+
+**Did:** closed **S3**'s TIDE-side half —
+[SynthEdit#32](https://github.com/JeffMcClintock/SynthEdit/pull/32) — and, while
+building the baseline it needed, found that **this box cannot build `main` at
+all** and filed both causes as
+[#87](https://github.com/JeffMcClintock/TideSynth/issues/87) and
+[#88](https://github.com/JeffMcClintock/TideSynth/issues/88). The build breaks
+are the more important half of this run.
+
+**STEP 1 and 1.5 were clean at the start** — no open `platform:linux` issue in
+any of the five repos, no `tide/linux/**` PR. The three open `tide/mac/**` PRs
+are green with nothing unresolved and were left alone. The `linux` NEXT row said
+**S3**, it survived screening (`SE16/SynthEditSem/TideApp.cpp` is ALLOWED, no
+open PROPOSED entry touches it), and its acceptance check was stateable before
+starting, so it was takeable.
+
+**Break 1 — [#87](https://github.com/JeffMcClintock/TideSynth/issues/87):
+`SynthEditLib` does not compile with GCC, and the cause says so itself.**
+`modules/se_sdk3_hosting/ModuleView.cpp:621-633` carries
+
+```
+// TEMPORARY U2d trace - local only, do not commit.
+#include <cstdio>
+#include <cstdarg>
+static void tideTraceLog(...)  { if (FILE* f = fopen("/tmp/tide-skin-debug.log", "a")) ... }
+```
+
+committed as `227ba48` via
+[SynthEditLib#12](https://github.com/JeffMcClintock/SynthEditLib/pull/12) (U2d).
+`namespace SE2 {` opens at `:38` and closes at `:1893`, so those two `#include`s
+are **inside `SE2`** and declare a nested `SE2::std`. Every later unqualified
+`std::` in the file then resolves there and fails — 30+ errors starting at
+`:696`, the first `std::` use after the includes: *"‘SE2::std::map’ has not been
+declared"*, then `make_unique`, `vector`, `max`, `min`, `string`, `unique_ptr`.
+The file's own `using namespace std;` at `:34` cannot help, because qualified
+lookup finds `SE2::std` first.
+
+**Why no other box has seen it, and this is the part worth keeping:** both
+headers are include-guarded. On a toolchain that already pulled them in
+transitively before line 623, the two lines expand to **nothing** and no
+`SE2::std` is created. libstdc++ here does not, so it is created. **The bug is
+equally present in the source on all three platforms; only Linux is unlucky
+enough to be told.** A misplaced `#include` inside a namespace is invisible
+wherever the header happens to have been included already.
+
+**It is also a live constraints 3 and 4 violation in the shared library**, not
+just a build break: `fopen("/tmp/tide-skin-debug.log", "a")` runs unconditionally
+in both `ModuleView` constructors, no `#ifdef`, in Release — a hard-coded
+absolute path outside the bundle, in code SynthEdit links too. One revert fixes
+both problems.
+
+**Break 2 — [#88](https://github.com/JeffMcClintock/TideSynth/issues/88):
+`SynthEditWayland` fails to link, and C12e is why.** `undefined reference to
+doDialogConnectUg(CUG*)` and `doDialogPatchManager(CUG_with_patches*)`. C12e
+(`a2ffdcd3c`) took `Dialogs_editor2.cpp` off EditorLib's source list so each app
+compiles it directly; `SynthEditCL/CMakeLists.txt:42` and
+`SynthEdit2/SynthEdit2.vcxproj:290` got the entry, **`SynthEditWayland` and
+`SynthEditJuce` did not**. Neither target is generated on Windows, where C12e was
+verified — its journal entry's "904/904 RC=0, TIDE.gmpi and TIDE_VST3.vst3 both
+link" is all true and touches neither. Same shape as the 2026-08-14 finding here:
+a target below a platform gate is only ever tested below that gate.
+`SynthEditWayland/CMakeLists.txt` already sets `EDITOR2_DIR` (`:134`) and already
+compiles `SynthEditApp.cpp` (`:160`), so it is one line short. `SynthEditJuce`
+is not generated on this box, so that half of the issue is by inspection and the
+issue says so.
+
+**Neither was fixed, and that is the run's one real judgement call.** STEP 1 says
+a broken build on your platform outranks all backlog work and tells you to fix
+it. STEP 5 says `SynthEditLib` is GATED, and `SE16/SynthEditWayland/` and
+`SE16/SynthEditJuce/` are on neither list so they are GATED by default. **Both
+fixes are one revert and one line, which is exactly the situation STEP 5 warns
+about** — *"do not reach across the line because the fix looks small — that is
+precisely when it is tempting"*. So: filed, with the full diagnosis and the exact
+fix, and not touched. The 2026-08-17 macOS run's process note about
+`SynthEditLib` being called ALLOWED in a row and GATED in the prompt is no longer
+abstract; it now blocks a build fix on a broken platform. **That contradiction is
+the thing to resolve, and it is Jeff's.**
+
+**S3 itself, and this row named one of its three functions wrongly.**
+`doDialogBuildCodeSkeleton` is declared by **no header anywhere** and called by
+**nothing** — checked across `SE16`, `SynthEditLib`, `gmpi_ui` and
+`GMPI_Wrappers`. It was dead weight, not a guard, so it is deleted rather than
+made loud. The live "Build Code Skeleton..." path never went through it:
+`MfcDocPresenter.cpp:1276` → `POPUP_MENU_DEBUG_CODE` → `CUG.cpp:2034`'s
+`VO_Notify(OM_SHOW_CODE_SKELETON_DIALOG)`, whose only handler is the WinUI3 app's
+`MainWindow.xaml.cpp:762`. TIDE registers none, so it is dropped. **Consequence
+for the sandbox audit: finding A6's `create_directory`/`copy_file` sites in
+`CUG::BuildSkeletonCode` are unreachable in TIDE, though still linked** — A6 read
+the stub as the guard on that path and it never was. The other two,
+`doDialogConnectUg` and `doDialogPatchManager`, *are* reachable
+(`CUG.cpp:2635`, `CUG_with_patches.cpp:164`) and now report on stderr on every
+build, keeping the `assert` for debug.
+
+**Why stderr and not something louder**, since the row said "fail loudly":
+`abort()`/`std::terminate()` kills the host DAW, which is strictly worse than the
+no-op it replaces and is the P4 failure; a message box is a modal dialog
+(constraint 5) needing a parent window TIDE may not have under AUv3, which is why
+`TideAppStubs.cpp` already stubs `SafeMessagebox` to nothing; a log file is a
+write outside the bundle (constraints 3 and 4) — the very thing the audit filed
+these under. stderr is what is left, and it is already this project's answer to
+the same question at `ModuleView.cpp:684` (*"Loud in Release on purpose … stderr,
+not a dialog"*). The reasoning is in the code, not just here.
+
+**Verification artifact — A/B on the shipping binary, with a positive control.**
+`TIDE_VST3.so`, Release, `-DNDEBUG -O3` confirmed from `ninja -t commands` on
+`TideApp.cpp.o`:
+
+| Measurement | before | after |
+|---|---|---|
+| `"TIDE ships no such dialog"` in `strings` | 0 | **1** |
+| `doDialogBuildCodeSkeleton` in `nm -C` | `T doDialogBuildCodeSkeleton[abi:cxx11] (CUG*)` | **absent** |
+| `doDialogConnectUg` / `doDialogPatchManager` | present | present |
+| `__assert_fail` in `nm -uC` | **0** | **0** |
+
+That last row is the one that matters: it measures S3's premise rather than
+asserting it. The old `assert(false)` compiled to **literally nothing** in a
+shipping build — there is no `__assert_fail` reference in the binary at all, so
+the stubs really did return as though the dialog had been shown and cancelled.
+The control is the pair of symbols present in both binaries, which shows the
+absence of the third is a real deletion and not a tooling artifact.
+
+Builds, in the same tree: **`TIDE_VST3` 297/297** (links `TIDE_VST3.so`,
+assembles the bundle), **`TIDE.gmpi`**, **`SynthEditCL` 19/19**. `SynthEditWayland`
+is red for #88's reasons, not this change's — its two undefined symbols are
+defined in `TideApp.cpp`, which is not on that target's link line before or after.
+
+**Learned:**
+
+- **A `#include` inside a namespace is a platform-dependent time bomb, and the
+  guard is what hides it.** Whether it does damage depends entirely on whether
+  something else already included that header in that TU. Worth a lint; nothing
+  about the source tells you which platforms are affected.
+- **"Loud in release" has a narrow menu in a plugin.** Three of the four obvious
+  options each break a PLAN constraint or kill the host. Anyone reaching for
+  `abort()` on a future S3-shaped row should read `TideApp.cpp`'s comment first.
+- **A stub is not evidence that a path is guarded.** A6 assumed
+  `doDialogBuildCodeSkeleton` sat on the Build Code Skeleton path; it sat on
+  nothing. Check the call graph, not the name.
+- **Reading a shared working tree read-only has a limit.** Verifying S3 needed a
+  `SynthEditLib` that compiles, and #87 meant there was none. Solved with a
+  throwaway `git clone` of it into the scratch dir with the trace removed, used
+  only as a `SYNTHEDITLIB_FOLDER_OVERRIDE`. Nothing was committed there and Jeff's
+  checkout was never modified — worth repeating rather than patching his tree
+  and hoping to restore it.
+
+**Next:** **[#87](https://github.com/JeffMcClintock/TideSynth/issues/87) and
+[#88](https://github.com/JeffMcClintock/TideSynth/issues/88) first**, by whoever
+is allowed to touch them — until then Linux is red and every "linux verified"
+claim on this repo is worth re-checking. **S3g** carries S3's other half (the
+menu entries, all GATED, NEEDS-JEFF). **Do not take C12d** despite its `linux`
+mark: its Accept requires `SynthEditWayland` and `SynthEditJuce` to link under
+GCC and #88 stops both. The next thing this box can actually finish is **P10**.
+
+**Side effects on this box:** none to Jeff's trees. All five working copies were
+**clean at start**, all are back on their default branches, and only
+`SE16/SynthEditSem/TideApp.cpp` was ever modified. The build tree, the
+`SynthEditLib` clone and the logs are all under the session scratch dir, not in
+`~/SE`; Jeff's own `~/SE/build` was not touched or read into. No GUI, no host —
+a scheduled run cannot get that approval, so nothing here is a runtime
+observation.
+
+**Branch/PR:** `tide/linux/S3-dialog-stubs` in both repos — this TideSynth PR +
+[SynthEdit#32](https://github.com/JeffMcClintock/SynthEdit/pull/32). Merging one
+without the other is harmless here: the TideSynth side is bookkeeping only and
+the SynthEdit side is self-contained.
