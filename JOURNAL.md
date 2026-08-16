@@ -46,6 +46,98 @@ Template:
 
 ---
 
+## 2026-08-16 — macos — U1a·P5 host verification (interactive session, Jeff present)
+
+**Prompt:** n/a — interactive session, not a scheduled run. Jeff at the
+keyboard; Claude (claude-fable-5) drove REAPER by computer use; committed and
+pushed as `tide-rack-bot`.
+
+**Did:** the one observation the last two entries said mattered more than any
+backlog item — **loaded the rebuilt `TIDE_VST3.vst3` in a host and looked at
+it.** REAPER 7.45/macOS-arm64: cleared the VST cache and re-scanned all 93
+plug-ins (progress dialog confirmed **+0 cached**), then in a NEW project tab
+("Optimus HP" untouched throughout, per this session's own rule) inserted the
+plug-in and opened its UI. That one sitting closed **P5**'s outstanding host
+check and **U1a**'s bar (b), filed **U2**, unblocked **U1b**/**U1c**, and
+re-pointed mac NEXT at U1b.
+
+**Result — P5, now closed end to end.** The FX browser lists exactly
+**`VST3i: TIDE Rack (TIDE Synth)`** — the strings P5 put in the binary,
+finally observed in the host that motivated the row. The API half, run via
+ReaScript (see Learned): `TrackFX_AddByName(tr, "TIDE Rack", false, -1)` →
+**0**, and `"VST3i: TIDE Rack (TIDE Synth)"` → **1**, both instances
+reporting the full name. **The row's literal cited call,
+`TrackFX_AddByName(tr, "TIDE_VST3", ...)`, still returns -1 — and always
+will**: that API matches display names, not bundle filenames, so the call was
+only ever a proxy for "unfindable by name", and the thing it proxied is
+fixed. Recorded in P5's archived row rather than left as a loose end.
+
+**Result — U1a bar (b): the rack RENDERS.** No crash through instantiate, UI
+open, module insert, selection, and a window resize. What draws: the module
+browser (categories + list, working), the panel canvas with its grid, and the
+properties pane, which populates correctly on selection (List Entry: pins,
+parameters, Appearance=Combo Box). With
+[SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25) and
+[#76](https://github.com/JeffMcClintock/TideSynth/pull/76) both merged and
+bar (b) met, **U1a is DONE and archived**; U1b and U1c flip to TODO.
+
+**The bugs bar (b) promised to surface exist, and they are U2** — four, exact
+symptoms in the row: (1) **drag-and-drop from the module browser places
+nothing** — two synthetic drag profiles and Jeff's real mouse all failed;
+double-click inserts fine, so it is the drop path, not insertion; (2) **the
+scroll wheel is dead** everywhere in the plugin UI (real hardware); (3) a
+placed **List Entry control draws as a ~10 px glyph stack**, not a usable
+combo box, while its properties pane is fully correct — model right, panel
+geometry wrong; (4) **the §6 canvas offset/dead-strip layout survives in the
+panel view** and re-anchors oddly on resize. Moog Filter showing no panel is
+correct panel-view semantics, not a fifth defect. A crash was the feared
+outcome; the actual outcome — a rendering view whose input/geometry layer has
+simply never been exercised — is cheaper than that, and it is exactly the
+costing input U1c was waiting on.
+
+**Learned — REAPER's plug-in cache ini flushes on exit, not on scan.** After
+a completed clear-cache re-scan, `reaper-vstplugins_arm64.ini` on disk stayed
+byte-identical (mtime included) while the FX browser and `TrackFX_AddByName`
+both showed the new identity. Anyone re-checking P5's "cached symptom" from a
+shell while REAPER is running will read the stale line and wrongly conclude
+the re-scan failed. While the app lives, the in-app browser is the truth, not
+the file.
+
+**Learned — `REAPER -nonewinst <script.lua>` runs a ReaScript inside the
+already-running instance**, no screen control needed. The AddByName numbers
+above came from a script injected that way; it guarded against the wrong
+project being active (abort if the active project path contains "optimus")
+and deleted its own scratch track afterwards. That is the pattern for any
+future agent needing REAPER API answers on a box where REAPER is already
+open.
+
+**Learned — the a2 doc's macOS caveat is settled.** All five repos on this
+box answer `https://github.com/...` to `git ls-remote --get-url origin`, the
+global `insteadOf` rewrite is present, and the credential helper chain is
+`gh`'s — so
+[docs/a2-actor-separation.md](docs/a2-actor-separation.md)'s "macOS remotes
+have still never been inspected" is now answered, on the record here. Not
+edited there — that file is a dated record, the same reasoning as A9's
+non-edit of the process review.
+
+**Next:** **U1b** (mac NEXT re-pointed): breadcrumb bar plus the
+structure-view unlock path. **Read U2 before starting it** — the breadcrumb
+lands in the same view whose input layer U2 describes, and U1c stays uncosted
+until U2 is triaged. **P10** remains the cheap fallback.
+
+**Side effects on this box:** REAPER's VST cache cleared and re-scanned (93
+plug-ins; in-memory — the ini rewrites when REAPER exits). A throwaway
+unsaved project tab was left open in REAPER for Jeff to play with; "Optimus
+HP" was never saved or modified. TideSynth is the only repo committed in;
+`SynthEdit`, `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were read only and
+left clean.
+
+**Branch/PR:** this PR (TideSynth only — no code changed anywhere; the code
+already landed as
+[SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25)).
+
+---
+
 ## 2026-08-16 — macos — U1a
 
 **Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
@@ -418,104 +510,3 @@ was posted, voted on, or logged into.**
 **Branch/PR:** [TideSynth#71](https://github.com/JeffMcClintock/TideSynth/pull/71),
 stacked on [#69](https://github.com/JeffMcClintock/TideSynth/pull/69) and
 retargeting to `main` as its parent merges.
-
----
-
-## 2026-08-16 — macos — D2
-
-**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
-
-**Did:** **D2** — placed the *"TIDE Synth — by SynthEdit Ltd"* credit. **Second
-item this session, at Jeff's direction** ("do the next task"); a scheduled run
-still takes exactly one. Both halves the row named: the website footer, which is
-real code, and the plugin-side placement, which is a spec only.
-
-**The design decision worth recording is that D1 and D2 were about to get two
-different answers to one question.** Both need "a subtle surface that is not a
-dialog", and D1's note had already argued one into existence. So this run wrote
-[docs/about-pane.md](docs/about-pane.md) as the *single* answer — **one about
-pane off the breadcrumb bar holding exactly four things** (version, credit,
-donation, licence). The fixed list is the point: an about pane is where things
-get *put*, so it is precisely the surface that accretes until it becomes the
-splash screen PLAN forbids. Adding a fifth item now needs a ruling.
-
-**Result — website half.**
-
-| check | result |
-|---|---|
-| footer wording | **"TIDE Synth — by SynthEdit Ltd"** — R1(a) verbatim |
-| tag balance | OK |
-| subresource tags (`script`/`img`/`link`/`iframe`/…) | **zero** — the page's "no external requests" promise is intact |
-| `https://www.synthedit.com/` | **200, no redirect** |
-| live outbound links | 4, all real |
-
-The credit is a plain `<a href>`, which is the same settled arrangement as the
-existing ko-fi and github links — an outbound href loads nothing, so linking
-does not cost the page its zero-request property.
-
-**Learned — a raw grep of `website/index.html` finds `#donate-url-tbd`, and it
-is a false alarm both README and page comments will make you doubt.** That
-string is the placeholder the W1 history says was removed; it survives **only
-inside an HTML comment** describing the old mistake. Stripping comments before
-counting shows **0** occurrences in live markup. Anyone auditing that file
-should strip comments first — the file is more comment than markup by volume,
-deliberately, so raw greps mislead in both directions.
-
-**Learned — `curl` cannot tell you whether a Ko-fi handle exists.** Ko-fi
-returns **403 to any user-agent it dislikes, including for handles that plainly
-do not exist** — checked with a deliberately nonsense handle as a control, which
-also returned 403. So a status-code check proves nothing, and the website
-README's standing rule ("confirm the URL resolves before committing it") needs a
-real browser to satisfy. Done that way here.
-
-**Two things found by actually opening it, neither of which a code reading would
-have surfaced:**
-
-- **The Ko-fi page does not identify itself as TIDE Rack's.**
-  <https://ko-fi.com/tiderack> renders as *"Buy Jef a Coffee"*, display name
-  **"Jef"**, bio *"I'm a dude in New Zealand"* — nothing naming TIDE Rack, TIDE
-  Synth or SynthEdit. **This defeats D2's own justification one hop later**: the
-  website's link text is *"Donate to TIDE Rack on Ko-fi"*, so a user meets
-  exactly the unexplained-identity surprise the credit exists to prevent. Filed
-  as **D5**, `NEEDS-JEFF` — it is account settings and needs the password.
-- **`ko-fi.com/TideRack` (website) and `ko-fi.com/tiderack` (Wayland code,
-  `WaylandMainWindow.cpp:50`) reach the same page** — Ko-fi canonicalises to
-  lowercase. The inconsistency is harmless; recorded so nobody "fixes" one of
-  them and re-checks this.
-
-**Prior art reused rather than reinvented:** `WaylandMainWindow::showAbout()`
-(`:953-959`) already puts version, company and donation URL in one place as
-plain text. TIDE takes the **content** and not the **container** — that one is
-`SeMessageBoxAsync`, a modal dialog, which constraint 5 rules out. The spec says
-so explicitly, because the temptation on implementation day will be to copy the
-function.
-
-**Sequencing — I applied last run's lesson and it worked.** The previous entry
-learned that A4's auto-merge can merge a PR mid-STEP-4, and the fix was to
-finish STEP 4 and push it **before** opening the PR. Done that way here: this
-entry, the backlog and the D5 row were all committed and pushed first, so the PR
-was complete the moment it existed. **No placeholder was ever pushed** — the
-`__D2PR__` substitution happened before the first push, not after it.
-
-**This PR will not auto-merge, and that is correct.** It touches `website/**`,
-which A4's allowlist deliberately excludes because **a merge there IS a
-production deploy of tidesynth.com**. So it waits for Jeff, unlike the last two.
-
-**STEP 1 / 1.5:** re-checked at the start of this item — no `platform:mac`
-issues, no open PRs in any of the five repos (both of this session's earlier PRs
-had already auto-merged).
-
-**Next:** **A9** for the mac box — the D-series is now exhausted for a scheduled
-run (D1/D2 IN-REVIEW; D3/D4 GATED in `SE16/EditorLib/CMakeLists.txt`; D5 needs
-Jeff's Ko-fi password). A9 is `any`, unblocked, PROPOSED-output-only, and should
-be budgeted as a design session first. **D5 is small and worth doing before
-v0.1 links that page from inside the plugin as well as from the website.**
-
-**Side effects on this box:** none outside the scratchpad. TideSynth was the
-only repo committed in; `SynthEdit` was read (`WaylandMainWindow.cpp`) and not
-written, and `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were untouched — all
-four confirmed clean and on their default branches. Two public pages were
-fetched read-only (ko-fi.com, synthedit.com); nothing was posted, and no account
-was logged into.
-
-**Branch/PR:** [TideSynth#69](https://github.com/JeffMcClintock/TideSynth/pull/69).
