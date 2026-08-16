@@ -7592,3 +7592,82 @@ Committed in **two** repos this time: `SynthEdit` (the code) and `TideSynth`
 **Branch/PR:** [SynthEdit#24](https://github.com/JeffMcClintock/SynthEdit/pull/24)
 + TideSynth PR — **the SynthEdit one carries the actual fix**; the TideSynth one
 is bookkeeping and they do not have to merge together.
+
+---
+
+## 2026-08-16 — macos — U1
+
+**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
+
+**Did:** **U1** — the fresh audit its own row demanded before anything else,
+[docs/u1-rack-mode-audit.md](docs/u1-rack-mode-audit.md), and split the build
+work into **U1a/U1b/U1c**. Fifth item this session, at Jeff's direction; a
+scheduled run still takes exactly one. Also flipped **P5** to DONE after
+watching both its PRs merge.
+
+**The headline, and it changes what rack mode costs: it is not started, and it
+is also not a from-scratch build.**
+
+`TideApp::OpenView` still constructs `ContainerViewStruct` with
+`CF_STRUCTURE_VIEW` (`TideApp.cpp:63`) — no branch, no setting, no second path.
+The 2026-08-13 pivot changed PLAN and has not yet changed a line of TIDE. **But
+a top-level panel renderer already exists in the public repo TIDE links:**
+`SE2::ContainerViewPanel : public TopView`,
+`SynthEditLib/modules/se_sdk3_hosting/ContainerView.h:15` — same base class as
+the structure view, with `CF_PANEL_VIEW` a first-class type through
+`MfcDocPresenter` and `CUG`, not a stub.
+
+**Learned — "the class exists" and "the class ships" are different claims, and
+only one was true. Measured with both controls.**
+
+| binary | `ContainerViewPanel` | `ContainerViewStruct` | `ModuleViewPanel` | bogus name |
+|---|---|---|---|---|
+| shipped `TIDE.gmpi` | **0** | 15 | 25 | 0 |
+| `ContainerView.o` in `libSynthEditLib.a` | **13** | — | — | — |
+
+`ContainerView.cpp` is on `SynthEditLib/CMakeLists.txt:535`, so it compiles;
+nothing in TIDE references `ContainerViewPanel`, so **the linker never extracts
+that archive member**. Exactly the static-library behaviour C12e documented for
+`Dialogs_editor2.obj`. Without the positive and negative controls the zero would
+have been indistinguishable from a bad `nm` invocation, which is the whole
+reason both are in the table.
+
+**The single most useful number is `ModuleViewPanel` = 25.** The *per-module*
+panel renderer already ships in TIDE; only the *top-level container* one does
+not. That asymmetry is what turns rack mode from "write a renderer" into "wire
+up the one that exists", and it is why U1a is scoped as one line in one ALLOWED
+file rather than a project.
+
+**Learned — two of the P2-era findings survive the pivot, and the visual ones
+could not be re-measured.** No breadcrumb bar; properties and module browsers
+constructible (`TideApp.cpp:79,88`) but unplaced — both still true. The canvas
+offset and the dead strip down the right, from
+[state-of-the-prototype.md](docs/state-of-the-prototype.md) §6, **need a running
+host and this audit did not run one.** Said so in the doc rather than repeating
+them as if re-checked. That is the honest limit of a source-and-symbols audit.
+
+**Split into three, in dependency order, and deliberately not folded together:**
+**U1a** switches the view (one ALLOWED file, two acceptance bars — links, then
+draws); **U1b** the breadcrumb bar, which [about-pane.md](docs/about-pane.md)
+now depends on since it is the only chrome the about pane can hang from; **U1c**
+rack styling and snapping, **the only part that is genuinely unwritten**. U1a's
+result decides whether U1c is styling or a build, so costing U1c now would be
+guessing — its row says so instead of carrying a number.
+
+**U1a's row carries a warning worth repeating here:** nothing has ever linked
+`ContainerViewPanel` in TIDE, so a crash or a blank canvas on first render is
+**information, not the row failing**. File it and keep going.
+
+**STEP 1 / 1.5:** no `platform:mac` issues; no open PRs at the start of this
+item — P5's two had just merged.
+
+**Next:** **U1a**, and it is mac-shaped for the same reason D1 was: its second
+acceptance bar is "draws something sane in a host", which this box can do.
+**P10** is the cheap fallback.
+
+**Side effects on this box:** none — this item read source and ran `nm` on
+binaries already built earlier in the session. TideSynth was the only repo
+committed in; `SynthEdit`, `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were
+read only and left clean on their default branches.
+
+**Branch/PR:** the TideSynth PR carrying this entry, the audit and the split.
