@@ -46,6 +46,123 @@ Template:
 
 ---
 
+## 2026-08-16 — windows — U1a·P5·U2 host verification, Windows half (interactive session, Jeff present)
+
+**Prompt:** n/a — interactive session, not a scheduled run. Jeff at the
+keyboard; Claude (claude-opus-5) drove REAPER by computer use; committed and
+pushed as `tide-rack-bot`.
+
+**Did:** the Windows half of the verification the mac session finished earlier
+today. Rebuilt `TIDE_VST3` from `origin/master`, cleared REAPER's VST cache,
+re-scanned, and loaded the rack in a new empty project. **The point was never
+to re-close U1a or P5** — both were already closed on mac evidence, and this
+run does not touch their status. It was to find out **which of U2's four
+first-render defects belong to the panel view and which belong to macOS**,
+because U2's own text proposes a pairing that Windows disproves.
+
+**Result — the rack renders on Windows too.** REAPER 7.78/win64 rev 608e49
+(Jul 18 2026), x64. No crash through instantiate → UI open → insert → select →
+window resize → remove → re-instantiate. Category tree, module list, gridded
+panel canvas and properties pane all draw, and the properties pane populates
+correctly on selection (List Entry: pins, parameters, Appearance=Combo Box —
+the same cell the mac session read).
+
+**Result — U2 is three-quarters cross-platform, and its own hypothesis is
+wrong.** The row guesses *"(1)/(2) smell like one event-routing cause"*.
+Windows splits that pair:
+
+| U2 | mac | windows |
+|---|---|---|
+| (1) drag-drop from the module browser places nothing | fails | **reproduces** |
+| (2) scroll wheel dead everywhere in the UI | fails | **works fine** |
+| (3) a placed control draws at the wrong size | ~10 px glyph stack | **reproduces, worse** |
+| (4) §6 canvas offset/dead-strip, re-anchors on resize | fails | **reproduces** |
+
+So **(1), (3) and (4) are the panel view's own defects and (2) is macOS-only**,
+and (1) and (2) cannot be one cause. Detail worth having before anyone opens
+these: **(1)** a stepped-slow synthetic drag of both `Moog Filter` and
+`List Entry` highlights the row in the browser, shows no drag ghost, and drops
+nothing — while double-click inserts fine, the same split the mac saw, so it is
+the drop path on both platforms. **(2)** the wheel scrolls the module list and
+the canvas on real hardware. **(3)** on Windows the control does not draw at
+all: only its selection/resize adorner draws, **collapsed onto a zero-size rect
+at the canvas origin**, with every subsequent module landing on the same point.
+Jeff identified the artifact at the keyboard — a blue outline with white circle
+resize nodes, which is what proves the module *is* inserted and selected rather
+than missing. `Text Entry` behaves identically. So mac's "~10 px" and Windows'
+"zero" are the same defect at two magnitudes: the model is right and the panel
+geometry is not. **(4)** the canvas is anchored to the **right and bottom** of
+its pane with dead grey filling the top and left, and on a window resize it
+translates with the right edge rather than reflowing.
+
+**Result — P5's Windows half, with the UID evidence mac could not get.**
+Windows showed the *same original symptom* first: before the re-scan,
+`%APPDATA%\REAPER\reaper-vstplugins64.ini` read
+`TIDE_VST3.vst3=6346B150292DDD01,741344739{67756C506E694D47504920501951ED43,SynthEdit (GMPI)!!!VSTi`.
+After a clear-cache re-scan of all 153 plug-ins (the dialog confirmed
+**+0 cached**) the same line reads `...,TIDE Rack (TIDE Synth)!!!VSTi`. **The
+class UID `741344739{67756C506E694D47504920501951ED43` is byte-identical
+across that change** — a direct, measured confirmation that leaving the XML id
+`SE SynthEdit` alone kept the hashed VST3 class UID stable, so no saved host
+project is orphaned. That is the one thing P5's row most feared and it had
+never been observed; the mac could not observe it because its ini never
+rewrote (see below). FX browser: **`VST3i: TIDE Rack (TIDE Synth)`**. Via
+ReaScript, `TrackFX_AddByName(tr, "TIDE_VST3", false, -1)` → **-1**, exactly as
+on mac and for the same reason; `"TIDE Rack"` → 0, `"VST3i: TIDE Rack (TIDE
+Synth)"` → 1 and bare `"TIDE"` → 2, all three reporting the full name.
+`EnumInstalledFX` over 354 installed FX returns exactly one TIDE entry, ident
+`C:\Program Files\Common Files\VST3\TIDE_VST3.vst3`.
+
+**Learned — the mac entry's cache-flush rule is macOS's, not REAPER's.** That
+entry states, as a general REAPER fact, that the plug-in cache ini *"flushes on
+exit, not on scan"*. On Windows/7.78 it flushed **at scan time**:
+`reaper-vstplugins64.ini` was rewritten with the new identity while REAPER was
+still running, which is what made the UID A/B above possible. Not edited there
+— that entry is the record of what that box saw, the same reasoning A9 used for
+the process review. Read it as platform-specific, and on Windows the file is
+trustworthy mid-session.
+
+**Learned — building `TIDE_VST3` alone ships a plug-in that cannot build its
+DSP graph. Filed as P11.** On Windows the VST3 resolves its built-in `SE *` GUI
+modules through the *installed module database*, whose TIDE entry is
+`C:\Program Files\Common Files\SynthEdit\modules\TIDE.gmpi` — written by the
+separate `TIDE` target, not by `TIDE_VST3`. With a stale `TIDE.gmpi` there, the
+plug-in threw **"Export failed: required module is missing from the module
+database"** naming `SE Background Image` at instantiate and `SE List Entry` /
+`SE Text Entry` on each GUI insert, while DSP-only modules (`Moog Filter`)
+exported clean — the tell that isolates it to the GUI half. Building the `TIDE`
+target as well cleared every one of them. **The error blames the user's
+install** (*"this installation is broken. Re-scan modules"*) for what is
+actually a half-built tree, which is why this is worth a row rather than a
+footnote. **U2's (3) survives the fix** — re-tested with a consistent database
+and the control still draws as a zero-size rect, so the geometry defect and
+this trap are independent.
+
+**Next:** unchanged — **win NEXT stays C12c**; this run was verification, not a
+claim on a work item. **U2 is now the triage-ready row** its Accept asks for on
+three of four defects, and whoever takes it should start from (3)/(4) as one
+geometry cause with (1) separate — not from U2's original (1)+(2) pairing.
+**Note U2's `Plat` cell still reads `mac` and now understates the row**: the
+BACKLOG lint ([scripts/check-backlog-diff.py](scripts/check-backlog-diff.py))
+forbids a run changing `Plat` on an existing row, so that cell needs Jeff or a
+deliberate human edit; the Item text carries the correction meanwhile. **P11**
+is new, `any`, and small.
+
+**Side effects on this box:** REAPER's VST cache cleared and re-scanned (153
+plug-ins; the ini rewrote in place, see above). `TIDE_VST3.vst3` and
+`TIDE.gmpi` in `C:\Program Files\Common Files\` are now current Release builds
+rather than the stale 2:43 pm ones. A throwaway unsaved REAPER project with a
+TIDE instance was left open for Jeff; no saved project was opened or modified.
+`SE16` is on the pre-existing local branch `fix/synthedit2-dbghelp-link` and
+was not committed to; TideSynth is the only repo committed in.
+
+**Branch/PR:** this PR (TideSynth only — no code changed anywhere; the code
+this verifies already landed as
+[SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25) and
+[#24](https://github.com/JeffMcClintock/SynthEdit/pull/24)).
+
+---
+
 ## 2026-08-16 — macos — U1a·P5 host verification (interactive session, Jeff present)
 
 **Prompt:** n/a — interactive session, not a scheduled run. Jeff at the
@@ -376,137 +493,3 @@ Committed in **two** repos this time: `SynthEdit` (the code) and `TideSynth`
 **Branch/PR:** [SynthEdit#24](https://github.com/JeffMcClintock/SynthEdit/pull/24)
 + TideSynth PR — **the SynthEdit one carries the actual fix**; the TideSynth one
 is bookkeeping and they do not have to merge together.
-
----
-
-## 2026-08-16 — macos — A9
-
-**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
-
-**Did:** **A9** — the community research routine,
-[scripts/community-research.py](scripts/community-research.py), with
-[docs/community-research.md](docs/community-research.md) and a human-editable
-[rejection memory](docs/community-research-rejected.md). **Third item this
-session, at Jeff's direction** ("keep working"); a scheduled run still takes
-exactly one. Also flipped **D5** to DONE — Jeff updated the Ko-fi page mid-session
-and it is verified below.
-
-**The guardrails are structural rather than policy**, which is the part worth
-keeping. A9 lists them as hard rules, so `_get()` is the only network call in
-the file and can only issue GET: **there is no write path to disable.** Posting,
-voting or DMing would require adding the capability first, which is the point at
-which a human says no. Courtesy rate 1.5s process-wide, identifying User-Agent,
-https-only, and the script **prints** — it cannot edit `BACKLOG.md`.
-
-**Result — three things the first LIVE run found that no selftest would have.**
-This is the entry's real content, because all three looked fine in isolation.
-
-1. **It auto-rejected a real Surge XT crash report.** *"Surge XT CLAP crashes
-   REAPER on load (SIGSEGV in JUCE repaint)"* was dropped under "constraint 2 —
-   the DAW owns I/O", because somewhere in the reporter's diagnostics was the
-   phrase *"The standalone app also works fine"*. An incidental mention in a bug
-   report is not a feature request, and **discarding crash reports is the worst
-   thing this filter could do.** Constraint rules now read the **title** only;
-   the hypothesis flag still reads the body, because its failure mode is the
-   opposite and much cheaper. Both pinned by selftest cases built from **the
-   real incident**, not an invented example.
-2. **Output was sorted ascending by date**, burying 2026 items under 2024 ones.
-   Worth naming because **it looked like a fetch bug and was not** — I checked
-   the raw API response and it returns newest-first; the defect was entirely in
-   my display sort. Ranking is now hypothesis-first, then engagement, then
-   recency, all descending.
-3. **A passive scan cannot serve the standing hypothesis at all.** Across **48
-   real items** (30 forum topics + 18 Cardinal issues) the hypothesis filter
-   matched **zero** — an iPad thread appears on that forum roughly once a year.
-   So a "watch" built on reading the newest topics would have looked like a
-   working watch that had simply found nothing, which is the exact failure shape
-   this project keeps hitting.
-
-**Learned — the fix for (3) is that the watch has to SEARCH, and searching needs
-one more correction than it looks like.** A `watch` source now queries Discourse
-search directly and finds the signal on the first call: *"VCV Rack for iPad -
-2025?"*, *"VCV Rack on iOS/Android devices?"*, *"How are you connecting/using
-VCV with an iPad?"*. But Discourse search matches **post bodies**, so the top
-hits were the forum's megathreads — *"What are you listening to?"* (6,135
-replies) and *"Member Introductions"* — which merely contain "iPad" somewhere
-across thousands of posts. **Requiring the match in the topic TITLE cut 54 hits
-to 17, all on-topic**, and watch items rank by recency rather than engagement,
-because the hypothesis is about someone moving into the gap *now*.
-
-**Verified:** selftest **17/17** (offline); a live run across all five sources;
-and the rejection memory proven by **A/B** rather than by reading the code —
-with `surge#7782` listed a run reports `1 already rejected before · 24
-proposed`, and with the file removed the same run reports `0 · 25` and the item
-reappears.
-
-**Measured in passing, and it corrects a doc:** the VCV ecosystem is **553
-plugins and 4,958 modules**.
-[docs/process-review-2026-08-09.md](docs/process-review-2026-08-09.md) describes
-it as *"the 8,000+ module ecosystem"* — roughly 1.6× over. Not edited there, since
-that document is a dated record of a review; the correction lives in A9's row and
-in the new doc.
-
-**The limitation I did not paper over.** Ranking is engagement, which is a proxy
-for *worth a glance*, not for relevance to TIDE — so other projects' housekeeping
-("Do a windows arm64ec build", "Release checklist for Surge XT 1.4") still
-reaches the output. **The routine filters what TIDE has ruled out; it does not
-judge what TIDE needs, and it should not pretend to.** Triage stays human, which
-is what A9's PROPOSED-only design asks for anyway. A relevance signal is the next
-real improvement and wants thought rather than more regexes. Stated at the top of
-the doc's limitations section, not buried.
-
-**D5 — DONE, and verified rather than taken on trust.** Jeff updated the Ko-fi
-page during the session. It now renders as **"Jef [TIDE Rack]"** with the title
-*"Buy Jef [TIDE Rack] a Coffee"*; an hour earlier it was plain *"Jef"* with
-nothing naming the product. Checked in a real browser, which is the only way —
-this session established that Ko-fi 403s unfamiliar user-agents **even for
-handles that do not exist**, so `curl` cannot answer the question. The website's
-*"Donate to TIDE Rack on Ko-fi"* link now lands somewhere that agrees with its
-own link text. Flipped on the D2 branch, because D5 is defined there and does not
-exist on `main` yet.
-
-**STEP 1 / 1.5:** no `platform:mac` issues. [#69](https://github.com/JeffMcClintock/TideSynth/pull/69)
-is open and is this session's own — `lint` green, and its three red build checks
-are the pre-existing **B1** condition (all three die at Configure because
-TideSynth has no top-level `CMakeLists.txt`), so it is waiting for merge rather
-than for work. This branch is **stacked on it**, as the 61→64 stack was.
-
-**A concurrent run exists, and I found it late — say so plainly, per the prompt.**
-[#70](https://github.com/JeffMcClintock/TideSynth/pull/70)
-(`tide/win/C11-S10-rulings`, also `tide-rack-bot`, opened 00:42Z) was created
-*after* I opened #69, and I only noticed it because it took the PR number I had
-predicted. It touches `BACKLOG.md`, `JOURNAL.md` and `JOURNAL-2026-08.md` — the
-same three coordination files every run edits — so **conflicts with this stack
-are expected, and merge order matters.** It is a different item set (C11, S10,
-S9, M2, A16), not a duplicate claim, so nothing was wasted.
-
-**It does supersede one thing I wrote above and in the NEXT row**: #70 rules
-**S9 → WONTFIX** and **S10 → IN-REVIEW** (retire, not revive), and rescopes
-**M2**. My screening said the remaining `mac`-only rows were "GATED or Jeff's",
-naming S9 and S10 — that conclusion still holds (neither is available work), but
-the *reason* for S9/S10 changes once #70 lands. **I did not rebase this stack
-onto #70.** The prompt says to make your branch a delta on top of theirs when you
-collide, and that is written for colliding on the same *item*; here the overlap
-is only the shared coordination files, which is the ordinary condition for every
-run. Rebasing three stacked branches onto a fourth unmerged one would make all of
-them depend on #70 merging first, for no gain. Flagged on the PR instead so
-whoever merges sequences it.
-
-**Next:** **P5** for the mac box. Its scope got cleaner this session without
-anyone editing it: [docs/about-pane.md](docs/about-pane.md) now says the about
-pane is a *third* surface that does **not** change the host-visible plug-in name
-or the vendor string, so P5 owns exactly two fields. **Whoever next runs the
-research routine should read its limitations section first** — the output is a
-proposal list, and treating it as a to-do list is the way this becomes noise.
-
-**Side effects on this box:** none outside the scratchpad. TideSynth was the only
-repo committed in; `SynthEdit` was read only, and `SynthEditLib`, `gmpi_ui` and
-`GMPI_Wrappers` were untouched. The routine made read-only GET requests to
-community.vcvrack.com, api.github.com and raw.githubusercontent.com; **nothing
-was posted, voted on, or logged into.**
-
-**Learned — do not predict your own PR number, even to avoid a placeholder.** The previous entry's fix for the auto-merge race was to finish STEP 4 *before* opening the PR, which means writing the number before it exists. I wrote #70; GitHub issued **#71**. Predicting is the same defect as a placeholder wearing a plausible disguise — and worse, because a wrong-but-real number links to someone else's PR rather than looking obviously unfinished. **The rule that actually works: push STEP 4 first, open the PR, then correct the number in a follow-up commit on the same branch.** Safe whenever the PR cannot auto-merge before you get there, which is any PR touching `scripts/` or `website/`.
-
-**Branch/PR:** [TideSynth#71](https://github.com/JeffMcClintock/TideSynth/pull/71),
-stacked on [#69](https://github.com/JeffMcClintock/TideSynth/pull/69) and
-retargeting to `main` as its parent merges.
