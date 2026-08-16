@@ -46,6 +46,87 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — U2e closed on mac: the combo box draws (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session continuing from yesterday's five; Jeff
+confirmed cable-drag and module insertion work in the structure view, then
+said "do the next task". The box's own scheduled run fired unattended at 06:19 and completed the same trace from source ([docs/u2e-pin-delivery-trace.md](docs/u2e-pin-delivery-trace.md)) — this session read SDK and code independently, converged on the same mechanism, and shipped the fix it framed as "a decision, not an investigation". Committed and pushed as `tide-rack-bot`
+(claude-fable-5).
+
+**Did:** **U2e's pin-delivery trace, to the bottom, and the fix** —
+[SynthEdit#30](https://github.com/JeffMcClintock/SynthEdit/pull/30), stacked
+on [#28](https://github.com/JeffMcClintock/SynthEdit/pull/28). **Verified in
+REAPER: a placed List Entry draws as a real combo box with styled title, and
+the module browser shows exactly the fixed module set.** The row's Accept is
+met on mac.
+
+**The trace, mechanically.** SDK3 semantics read from the SDK itself:
+`setPin` stores only; handlers fire **only on `notifyPin`**; the base
+`initialize()` does nothing (its fire-all is deprecated in place). Initial
+values are sent by `ViewBase::ConnectModules` STEP 2 — which iterates
+**`moduleInfo->gui_plugs`** to parse and send each pin default. And
+`gui_plugs` was **empty**: the pin descriptions live in `ControlsXp.xml`,
+which only the module scan ever loaded — and TIDE's scan is gone by design
+(S1a). No descriptions → nothing sent → no `notifyPin` → `onSetAppearance`
+never ran → no widgets. Every layer below (registration, resources, guards)
+was real but insufficient; this was the last missing piece.
+
+**The fix, in two parts.** CMake stages `ControlsXp.xml` into
+`Contents/Resources` **from SynthEditLib's copy** — single source of truth,
+no drift (`BundleInfo::getResource` falls back to exactly that folder on
+mac; the P6 rule keeps data out of `MacOS/`). `TideApp::InitInstance` then
+merges it — **into already-registered classes only**. The merge-only filter
+was learned live, not designed up front: a plain `RegisterPluginsXml` call
+**grew the browser** with insertable phantoms (Keyboard (MPE), Scope3, Volt
+Meter… XML-only, no class — one placed as an empty adorner before the
+filter existed). `Module_Info3_internal`s without constructors are NOT
+hidden by the browser's `isDllAvailable()` filter, so curation must happen
+at registration: iterate the XML, `GetById`, `ScanXml` only on hits.
+Constraint 7's fixed set stays exactly as curated — verified by eye against
+the browser before and after.
+
+**What the day-and-a-half arc adds up to.** U2 filed four symptoms two days
+ago; every one is now DONE or IN-REVIEW with the mac verify green: wheel
+(U2a ✓ merged), middle-pan (U2b ✓ merged, Jeff's hand on the mouse),
+centring (U2c ✓ merged), registration + first modern panel (U2d ✓ merged),
+and now pin delivery + a drawing control (U2e, #28+#30 +
+[SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13)
+in review). The structure view draws full module boxes with pins and
+patchable cables ([#29](https://github.com/JeffMcClintock/SynthEdit/pull/29),
+Jeff verified cable-drag by hand). **TIDE went from "renders a grid and
+silent adorners" to "a patchable structure view AND a panel view that draws
+real skinned controls" in two sessions' worth of days.**
+
+**Learned — the browser does NOT filter unavailable internal modules.**
+`ExportModuleNames` skips `!isDllAvailable()`, but `Module_Info3_internal`
+never sets that flag false for XML-only entries (the assignment in
+`RegisterPluginConstructor` is commented out as "might be needed?"). Anyone
+registering module XML wholesale into a scanless product will grow the
+insert menu with phantoms. The merge-only loop is the pattern; noted here
+because the win box will want it too.
+
+**Next:** the win box has two cheap U2e follow-ups (staging equivalent —
+win reads the same file as a fallback after the exe resource — and the
+combo re-verify). Then the board is exactly what the NEXT row says: **U1b**
+(breadcrumb + restore rack-as-default with the structure view behind the
+unlock — both classes link, the flip is one line) and **U1c** (enable
+Jeff's existing rack-mode code). **P10** unchanged as fallback.
+
+**Side effects on this box:** three more `TIDE_VST3` rebuilds; the
+installed plugin now carries the full U2a–U2e stack (panel view default on
+this branch lineage) and staged `ControlsXp.xml`; REAPER restarted three
+times, "Optimus HP" untouched; the throwaway tab with Jeff's two-oscillator
+cable patch from last night was lost to a restart — two modules and one
+cable, noted for honesty.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#30](https://github.com/JeffMcClintock/SynthEdit/pull/30) (stacked
+on [#28](https://github.com/JeffMcClintock/SynthEdit/pull/28); merge #28 →
+#30, or together; [#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)
+is independent).
+
+---
+
 ## 2026-08-17 — macos — U2e: the pin-delivery trace, completed (scheduled run, unattended)
 
 **Prompt:** b3e9876 · claude-opus-5[1m] · app 1.30096.5 · as tide-rack-bot
@@ -413,95 +494,3 @@ on the PR branch. Throwaway REAPER tabs left open for Jeff.
 [SynthEdit#27](https://github.com/JeffMcClintock/SynthEdit/pull/27); merged
 mid-session by Jeff: [gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7),
 [SynthEdit#26](https://github.com/JeffMcClintock/SynthEdit/pull/26).
-
----
-
-## 2026-08-16 — macos — U2c fix + U2d falsifier (interactive session, Jeff present)
-
-**Prompt:** n/a — interactive session, third of the day on this box, at Jeff's
-direction ("do the U2c one-liner and U2d falsifier now"; logging explicitly
-blessed). Committed and pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** **U2c** — the one-line centre default,
-[SynthEdit#26](https://github.com/JeffMcClintock/SynthEdit/pull/26), verified
-live. **U2d** — ran the row's falsifier and kept going until the mechanism
-fell out: **both cheap hypotheses are refuted, and the real one is named.**
-
-**U2c, closed end to end in one cycle.** `TideApp::OpenView` now calls
-`setCenter({viewDimensions/2, viewDimensions/2})` after `setDocument`.
-REAPER 7.45/macOS-arm64, fresh process: **the gridded canvas fills the whole
-pane** — no corner dead-strips, across every subsequent fresh load this
-session — and click-placed modules land at the click point, in view. The §6
-"offset" is dead as a default; U1c still owns what "home" ultimately means.
-
-**U2d falsifier, round 1 — skins were never missing, and the hypothesis dies
-on a path quirk worth keeping:** `BundleInfo::getCommonDocumentFolder()`
-resolves to plain **`$HOME`**, not `~/Documents` — so SkinMgr reads
-`~/SynthEdit Projects/skins/`, which on this box already held 8 real skins
-from Jeff's SynthEdit install, and the temp logging showed
-`getSkin('default3')` scoring an **exact hit** at plugin load. (A seeding
-copy aimed at `~/Documents/SynthEdit Projects/skins` — where this session
-first looked — would target the wrong place entirely.) Placed List Entry:
-still adorner-only.
-
-**Round 2 — the stale module DB was real, and it still was not the cause.**
-`/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi` was **3.5 months stale** (May 7:
-pre-P5 identity `name="SynthEdit"`, 0 `ContainerViewPanel` symbols), and
-**the mac build never refreshes it — P11's win row describes a post-build
-copy that simply has no mac counterpart**; today's `TIDE.gmpi` sits only in
-`build/SynthEditSem/Release/`. Manually installing the fresh one and
-sidelining the editor's `Plugin-Cache*.xml` (renamed `*.u2d-bak`, restorable)
-changed nothing: still adorner-only. Also learned in passing: the VST3 runs
-fine with no cache XMLs present, so those caches belong to the editor app,
-not the plugin.
-
-**Round 3 — the log that ends the hunt.** With `ModuleView::Build`
-instrumented: it fires for `SE PatchCableChangeNotifier` and
-`PatchAutomator` (invisible utilities, `windowType=0`, GUI2 objects
-constructed fine) and **never fires at all for the placed `SE List Entry`.**
-The only silent pre-`Build` exit is `ModuleViewPanel`'s
-`if (!moduleInfo) return;` — *"unregistered module type"*, whose diagnostic
-is `_RPTN`, Debug-only (`ModuleView.cpp:659`). **So the GUI class
-registration for the SE control modules never reaches the panel view's
-module factory in the mac VST3, and the view constructs empty — the adorner
-then hugs a zero rect, which is exactly what Jeff identified on screen.**
-This unifies the two platforms: win's P11 dialog and mac's silence are one
-defect with two failure surfaces, and it explains the win re-test's
-"(3) persists after P11 fixed" — refreshing the DB satisfied the *export*
-path, not the view's factory. U2d's row now carries the next moves: trace
-where the mac VST3 populates the module factory
-(`LoadOrScanModuleData`/CUG), and make the unregistered-type path **loud in
-Release** so this class of failure can never be silent again.
-
-**Learned — a latent trap for whoever ships skins with TIDE:**
-`GetHomeDir()` is the dylib's own directory, so SkinMgr's seeding source
-`{home}/Resources/skins` resolves to **`Contents/MacOS/Resources/`** inside
-the bundle — the exact layout P6 spent six days learning that `codesign`
-refuses. Bundle staging for TIDE must target `Contents/Resources` AND teach
-the seeding path to find it, or skip user-folder seeding entirely
-(constraint: sandbox-safe means the plugin should read its own bundle, not
-write `~/…`).
-
-**Temp instrumentation:** SkinMgr + ModuleView logging was local-only and is
-reverted; the misplaced `~/Documents/SynthEdit Projects/skins` seed is
-removed (the pre-existing "Mac Export" content untouched). What remains on
-the box deliberately: the **refreshed `/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi`**
-(a legitimate update of a 3.5-month-stale install) and the sidelined
-`*.u2d-bak` cache files.
-
-**Next:** **U2d** is now a scoped fix session (factory-population trace +
-loud failure), and it still gates the rack displaying anything; **U1b**
-after it, per the NEXT row. The win box can cheaply confirm the unified
-mechanism by checking whether its `SE List Entry` `ModuleViewPanel` gets a
-`moduleInfo` after a DB refresh.
-
-**Side effects on this box:** `SynthEdit/build/` rebuilt `TIDE_VST3` twice
-and `TIDE` once (PostBuild reinstalled the VST3 each time — it now carries
-U2a's wheel fix and U2c's centring); REAPER quit/relaunched three times
-(module-reload lesson), "Optimus HP" never saved or modified, throwaway
-tabs left open. `gmpi_ui` and `GMPI_Wrappers` untouched this entry;
-`SynthEditLib` was instrumented and **restored byte-clean**.
-
-**Branch/PR:** this TideSynth PR +
-[SynthEdit#26](https://github.com/JeffMcClintock/SynthEdit/pull/26) — the
-SynthEdit one carries the code; they need not merge together.
