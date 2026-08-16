@@ -46,6 +46,117 @@ Template:
 
 ---
 
+## 2026-08-16 — macos — A9
+
+**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
+
+**Did:** **A9** — the community research routine,
+[scripts/community-research.py](scripts/community-research.py), with
+[docs/community-research.md](docs/community-research.md) and a human-editable
+[rejection memory](docs/community-research-rejected.md). **Third item this
+session, at Jeff's direction** ("keep working"); a scheduled run still takes
+exactly one. Also flipped **D5** to DONE — Jeff updated the Ko-fi page mid-session
+and it is verified below.
+
+**The guardrails are structural rather than policy**, which is the part worth
+keeping. A9 lists them as hard rules, so `_get()` is the only network call in
+the file and can only issue GET: **there is no write path to disable.** Posting,
+voting or DMing would require adding the capability first, which is the point at
+which a human says no. Courtesy rate 1.5s process-wide, identifying User-Agent,
+https-only, and the script **prints** — it cannot edit `BACKLOG.md`.
+
+**Result — three things the first LIVE run found that no selftest would have.**
+This is the entry's real content, because all three looked fine in isolation.
+
+1. **It auto-rejected a real Surge XT crash report.** *"Surge XT CLAP crashes
+   REAPER on load (SIGSEGV in JUCE repaint)"* was dropped under "constraint 2 —
+   the DAW owns I/O", because somewhere in the reporter's diagnostics was the
+   phrase *"The standalone app also works fine"*. An incidental mention in a bug
+   report is not a feature request, and **discarding crash reports is the worst
+   thing this filter could do.** Constraint rules now read the **title** only;
+   the hypothesis flag still reads the body, because its failure mode is the
+   opposite and much cheaper. Both pinned by selftest cases built from **the
+   real incident**, not an invented example.
+2. **Output was sorted ascending by date**, burying 2026 items under 2024 ones.
+   Worth naming because **it looked like a fetch bug and was not** — I checked
+   the raw API response and it returns newest-first; the defect was entirely in
+   my display sort. Ranking is now hypothesis-first, then engagement, then
+   recency, all descending.
+3. **A passive scan cannot serve the standing hypothesis at all.** Across **48
+   real items** (30 forum topics + 18 Cardinal issues) the hypothesis filter
+   matched **zero** — an iPad thread appears on that forum roughly once a year.
+   So a "watch" built on reading the newest topics would have looked like a
+   working watch that had simply found nothing, which is the exact failure shape
+   this project keeps hitting.
+
+**Learned — the fix for (3) is that the watch has to SEARCH, and searching needs
+one more correction than it looks like.** A `watch` source now queries Discourse
+search directly and finds the signal on the first call: *"VCV Rack for iPad -
+2025?"*, *"VCV Rack on iOS/Android devices?"*, *"How are you connecting/using
+VCV with an iPad?"*. But Discourse search matches **post bodies**, so the top
+hits were the forum's megathreads — *"What are you listening to?"* (6,135
+replies) and *"Member Introductions"* — which merely contain "iPad" somewhere
+across thousands of posts. **Requiring the match in the topic TITLE cut 54 hits
+to 17, all on-topic**, and watch items rank by recency rather than engagement,
+because the hypothesis is about someone moving into the gap *now*.
+
+**Verified:** selftest **17/17** (offline); a live run across all five sources;
+and the rejection memory proven by **A/B** rather than by reading the code —
+with `surge#7782` listed a run reports `1 already rejected before · 24
+proposed`, and with the file removed the same run reports `0 · 25` and the item
+reappears.
+
+**Measured in passing, and it corrects a doc:** the VCV ecosystem is **553
+plugins and 4,958 modules**.
+[docs/process-review-2026-08-09.md](docs/process-review-2026-08-09.md) describes
+it as *"the 8,000+ module ecosystem"* — roughly 1.6× over. Not edited there, since
+that document is a dated record of a review; the correction lives in A9's row and
+in the new doc.
+
+**The limitation I did not paper over.** Ranking is engagement, which is a proxy
+for *worth a glance*, not for relevance to TIDE — so other projects' housekeeping
+("Do a windows arm64ec build", "Release checklist for Surge XT 1.4") still
+reaches the output. **The routine filters what TIDE has ruled out; it does not
+judge what TIDE needs, and it should not pretend to.** Triage stays human, which
+is what A9's PROPOSED-only design asks for anyway. A relevance signal is the next
+real improvement and wants thought rather than more regexes. Stated at the top of
+the doc's limitations section, not buried.
+
+**D5 — DONE, and verified rather than taken on trust.** Jeff updated the Ko-fi
+page during the session. It now renders as **"Jef [TIDE Rack]"** with the title
+*"Buy Jef [TIDE Rack] a Coffee"*; an hour earlier it was plain *"Jef"* with
+nothing naming the product. Checked in a real browser, which is the only way —
+this session established that Ko-fi 403s unfamiliar user-agents **even for
+handles that do not exist**, so `curl` cannot answer the question. The website's
+*"Donate to TIDE Rack on Ko-fi"* link now lands somewhere that agrees with its
+own link text. Flipped on the D2 branch, because D5 is defined there and does not
+exist on `main` yet.
+
+**STEP 1 / 1.5:** no `platform:mac` issues. [#69](https://github.com/JeffMcClintock/TideSynth/pull/69)
+is open and is this session's own — `lint` green, and its three red build checks
+are the pre-existing **B1** condition (all three die at Configure because
+TideSynth has no top-level `CMakeLists.txt`), so it is waiting for merge rather
+than for work. This branch is **stacked on it**, as the 61→64 stack was.
+
+**Next:** **P5** for the mac box. Its scope got cleaner this session without
+anyone editing it: [docs/about-pane.md](docs/about-pane.md) now says the about
+pane is a *third* surface that does **not** change the host-visible plug-in name
+or the vendor string, so P5 owns exactly two fields. **Whoever next runs the
+research routine should read its limitations section first** — the output is a
+proposal list, and treating it as a to-do list is the way this becomes noise.
+
+**Side effects on this box:** none outside the scratchpad. TideSynth was the only
+repo committed in; `SynthEdit` was read only, and `SynthEditLib`, `gmpi_ui` and
+`GMPI_Wrappers` were untouched. The routine made read-only GET requests to
+community.vcvrack.com, api.github.com and raw.githubusercontent.com; **nothing
+was posted, voted on, or logged into.**
+
+**Branch/PR:** [TideSynth#70](https://github.com/JeffMcClintock/TideSynth/pull/70),
+stacked on [#69](https://github.com/JeffMcClintock/TideSynth/pull/69) and
+retargeting to `main` as its parent merges.
+
+---
+
 ## 2026-08-16 — macos — D2
 
 **Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
@@ -448,56 +559,3 @@ had to do anyway.
 + [SynthEditLib#9](https://github.com/JeffMcClintock/SynthEditLib/pull/9) —
 **these two must merge together** — and the TideSynth PR carrying this entry,
 the backlog and the ruling.
-
----
-
-## 2026-08-15 — windows — A15 (interactive session, Jeff directing)
-
-**Did:** **A15** — wired A10's [scripts/check-id-refs.py](scripts/check-id-refs.py)
-into the `lint` job, which is the half A10 could not do because the bot token
-is `repo` scope with **no `workflow`**. Pushed as Jeff rather than
-`tide-rack-bot` for exactly that reason; his keyring token on this box does
-carry `workflow` (checked with `gh auth status` first, since the A11 entry
-records that this bites on other boxes and not here).
-
-**Result — both halves of the Accept proven in the PR's own two-commit
-history, in order, rather than asserted.**
-
-| push | carried | `lint` |
-|---|---|---|
-| first | the wiring **+ a probe file naming a nonexistent row `Z9`** | **fail** |
-| second | probe deleted | **pass** |
-
-The failing run reads `id-refs: failure` with `links`, `journal`, `backlog` and
-`provenance` all `success` — so it failed **for the right reason and only that
-reason**, and the `ID_REFS` Summary wiring genuinely converts a step failure
-into a job failure. The passing run reads all five `success` and
-`456 ID reference(s) checked against 98 row(s), 91 distinct ID(s) named`.
-Together those rule out the two ways this could have looked installed while
-doing nothing: failing always, and passing vacuously.
-
-**Learned — the Summary wiring is the part that would have silently rotted, and
-A15's row was right to insist on it.** Every step in this job is
-`continue-on-error`, so a step added *without* `ID_REFS` in the Summary's `env`
-and `for` loop runs, prints its findings, fails — and the job goes green. It
-would look wired for as long as nobody read a log. Same shape as A4's finding
-that a path allowlist can look built while firing on nothing, and the reason
-both halves are now demonstrated separately rather than assumed together.
-
-**Learned — this check is deliberately not diff-based, unlike the four above
-it, and the workflow now carries a comment saying so.** The other four compare
-a base version against head. A cross-reference goes stale when the row it names
-is **renamed or archived** — an edit to a *different file* than the one holding
-the reference. A diff-scoped check would see the reference file unchanged and
-pass, which is precisely the case A10 was filed for. So it reads the whole tree
-every run. Cost is bounded: 456 references, 9 seconds.
-
-**Next:** nothing on this row. The lint job is now five checks, all green on
-`main`. Whoever next touches [scripts/check-id-refs.py](scripts/check-id-refs.py)
-should re-run `--selftest` (20 cases) as well as the tree scan, since CI runs
-only the latter.
-
-**Side effects on this box:** none outside the scratchpad. TideSynth only; no
-other repo was committed in or modified.
-
-**Branch/PR:** [TideSynth#65](https://github.com/JeffMcClintock/TideSynth/pull/65).
