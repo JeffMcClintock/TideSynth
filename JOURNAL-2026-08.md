@@ -6951,3 +6951,127 @@ had to do anyway.
 + [SynthEditLib#9](https://github.com/JeffMcClintock/SynthEditLib/pull/9) —
 **these two must merge together** — and the TideSynth PR carrying this entry,
 the backlog and the ruling.
+
+---
+
+## 2026-08-15 — windows — C11, S9, S10, M2 (interactive session, Jeff ruling)
+
+**Did:** Two rulings from the same session, both against carve-out/product
+questions that had been sitting open. **C11**: narrow the private licence gate
+to a public interface, TIDE needs no licensing. **S10**: retire the dead iOS
+Xcode project, lean on a generic AUv3 backend for `gmpi_ui`. Also corrected
+**S9** (moot) and **M2** (rescoped) as direct consequences of the S10 ruling.
+
+**This entry's own production hit the collision this session has now hit
+twice — worth reading before the content, because it changed how the work got
+verified.** Mid-C11, a `git add`+`git commit` in the shared `SE16` checkout
+produced a commit containing only 1 of my 5 changed files — the other four
+(`SynthEdit2.vcxproj`, `SynthEditApp.h`, `SynthEditApp.cpp`,
+`TideAppStubs.cpp`) were present and correct in the working tree throughout,
+but silently absent from the commit. Not a wrong-branch problem this time — a
+**race on the shared git index** with the other session's concurrent
+operations. Recommitted immediately, verified via `git show --stat` before
+doing anything else, confirmed clean. **Filed as A16**, since A14's assertion
+(commit authorship) does not catch this — the commit it flags is correctly
+authored, just short.
+
+The recovery method from this morning's collision generalised cleanly:
+cherry-pick onto a fresh worktree off the current default branch, verify the
+full diff against that branch by explicit SHA (not a symbolic ref, and not
+trusting a "pushed" echo — one push silently failed against a broken
+worktree, caught only by re-fetching and diffing from a completely separate
+repo location), push, and only then remove the worktree. Every one of today's
+four code branches (`SE16`×2, `SynthEditLib`×1, and this pattern reused a
+third time within the same hour) went through this, and every one was
+verified from outside the worktree that produced it before being trusted.
+
+### C11
+
+**Result.**
+
+| check | result |
+|---|---|
+| `SynthEdit2.vcxproj` change | `ModulePicker.h` repointed to `..\..\SynthEditLib\ModulePicker.h`, matching C4's `ModuleBrowser.h` precedent |
+| fresh worktree build, TIDE-only targets | **`TIDE.gmpi` and `TIDE_VST3.vst3` both link** |
+| `GetLicenseState` reaches the linker | confirmed present in `TIDE.dir`'s compiled objects, not inferred from source |
+| `dsp_tests` / `ui_tests` (the suites not blocked by the build issue below) | **11/11** |
+
+**Learned — TIDE's stub was already correct in behaviour and I nearly made it
+correct in behaviour for the wrong reason.** `TideAppStubs.cpp` already
+returned `false`/`false` for `isMoonbaseEnabled()`/`licenseIsActive()`, so the
+menu item was never grayed for TIDE before this change. The easy path would
+have been routing `GetLicenseState()` through those same stubbed methods —
+same runtime result, less code. Jeff's ruling said something stronger: *TIDE
+needs no licensing*, not *TIDE's licence check always passes*. So
+`GetLicenseState()` returns `nullptr` outright for TIDE, and the calling code
+never asks the question at all. Behaviourally identical today; the two would
+diverge the moment anyone ever added a real gated feature to either side, and
+only one of them is actually what was decided.
+
+**Learned — `isLicensed()` had to be non-`const` in the interface, and that's
+not cosmetic.** The underlying `licenseIsActive()` is non-`const` (it can
+refresh cached activation state), and `hasGatedFeatures()`'s underlying
+`isMoonbaseEnabled() const noexcept` is `const`. An interface that forced both
+to the same const-ness would either lie about one of them or fail to compile;
+mixed const-ness across the two methods is the honest shape.
+
+**A finding NOT acted on, deliberately left for the next run to hit knowingly
+rather than blind:** a full build fails at `EditorScreenshot/ScreenshotRenderer.cpp`
+— `se::DeviceContextLegacyAdapter: cannot instantiate abstract class` — because
+`gmpi_ui`'s in-flight `ITextLayout` work (`d3bacf3`) added a pure-virtual
+`drawTextLayout` that `SynthEditLib`'s own adapter (still uncommitted in the
+shared checkout) hasn't caught up to yet. **Proven unrelated to C11 by two
+independent A/B builds**: `origin/master` + `origin/main`, zero C11 content,
+against the same `gmpi_ui`, fails at the identical file and lines. This is the
+same cross-repo instability C12e's journal entry flagged this morning, now
+manifesting as a hard compile error rather than a runtime `bad_alloc` — it has
+gotten worse, not better, since then. `SynthEditCL` and anything depending on
+`EditorScreenshot` cannot currently be verified by anyone until that work
+lands; TIDE's own targets don't depend on it and were the ones actually
+checked.
+
+### S10 / S9 / M2
+
+**Result:** `SE_IOS_APP.xcodeproj` deleted — 7 files, 3,192 lines, all dead.
+Nothing in the CMake tree referenced it; confirmed rather than assumed.
+
+**Ruling, verbatim:** *"it's a very old project. TIDE should lean on a generic
+AUv3 iOS backend for gmpi_ui as much as possible."* Read as two decisions, not
+one: retire (not revive) the existing project, and shape whatever replaces it
+around a backend `gmpi_ui`/`GMPI_Wrappers` owns generically, not a TIDE-specific
+rebuild.
+
+**Checked before writing the M2 rescoping, not assumed:** `GMPI_Wrappers/wrapper/`
+holds `VST3`, `AU2`, `CLAP`, `Standalone` — no `AUv3` sibling exists yet. That
+confirms the ruling's second half is a real, unstarted piece of work, not
+already-done infrastructure this session simply didn't know about. M2's row
+now says so, so whoever picks it up next isn't the one who has to discover it.
+
+**What deliberately did *not* happen:** the four target source folders
+(`SE_IOS_APP/`, `SE_IOS_AUDIOUNIT/`, `SeAppMacOS/`, `SeAudioUnitMacOS/`, ~330KB)
+were left in place. S10's own row named the retire action precisely — *"delete
+the .xcodeproj"* — and going further than that on a GATED, shared path is
+exactly the kind of reach the STEP 5 rules warn against, even when the broader
+deletion would probably also be fine. The ALLOWED `SE_IOS_APP/TIDE/` folder
+(S6's, last touched 2026-08-13) was not touched at all.
+
+**Next:** **A16** (the git-index race) needs the same kind of fix A14 got this
+morning — likely a pre-commit `git show --stat HEAD` self-check comparing
+against what was staged, since authorship alone doesn't catch a short commit.
+On the carve-out, **C12c** and **C12f** remain the win-box items, both
+currently unverifiable by build for anything touching `EditorScreenshot` until
+the `ITextLayout` work lands — check `gmpi_ui`'s tip before assuming a build
+failure is your own. On iOS, the newly-unblocked-in-shape **M2** is a real
+authoring task now, not a repair job; nobody has started the generic AUv3
+wrapper.
+
+**Side effects on this box:** four scratch build trees, two throwaway A/B
+worktrees, and one throwaway repro repo, all under the session scratchpad.
+Both shared checkouts (`SE16`, `SynthEditLib`) remain parked on
+`tide/win/C12e-dialogs-editor`, untouched by this work, as they have been all
+session — that branch is not mine to move out from under a live session.
+
+**Branch/PR:** [SynthEdit#21](https://github.com/JeffMcClintock/SynthEdit/pull/21)
++ [SynthEditLib#10](https://github.com/JeffMcClintock/SynthEditLib/pull/10)
+(C11, must merge together) and [SynthEdit#22](https://github.com/JeffMcClintock/SynthEdit/pull/22)
+(S10), plus this TideSynth PR carrying the rulings, journal and backlog.
