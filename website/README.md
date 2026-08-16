@@ -80,6 +80,33 @@ unclaimed handle renders a button that 404s, the same dead-link failure as
 
 The in-plugin side is **not** this — that is BACKLOG **D1**, design-note only.
 
+## The SynthEdit Ltd credit — done
+
+**Live in the footer: "TIDE Synth — by SynthEdit Ltd"**, linking to
+<https://www.synthedit.com/>. BACKLOG **D2**, implementing the **R1(a)** ruling
+of 2026-08-13.
+
+**Why it exists**, so it is not read as marketing: TIDE ships **signed under the
+existing `SynthEdit Limited` identity**, because a second certificate profile is
+not affordable. A user therefore meets that company name in a Gatekeeper or UAC
+prompt whether or not this page mentions it — and an unexpected company name in
+an OS security dialog is a reason to cancel an install. The credit's job is that
+they meet it *here first*, on TIDE's own terms.
+
+Three things not to "fix":
+
+- **The wording is R1(a)'s, verbatim, and names the *organisation*.** Not "TIDE
+  Rack by SynthEdit Ltd" — that drops the middle term this whole site exists to
+  explain (TIDE Rack is a product of TIDE Synth; TIDE Synth is SynthEdit Ltd's).
+  See the naming section above.
+- **Footer, not masthead.** R1(a) says "placed subtly". A banner would be
+  advertising; a footer line is provenance.
+- **It is a plain `<a href>`**, like every other link here, so the page still
+  makes zero external requests. Same settled rule as the donation link.
+
+The in-plugin half of D2 is a placement spec only, not built:
+[../docs/about-pane.md](../docs/about-pane.md).
+
 ## The "open source" wording
 
 The page says TIDE is open source under the ISC licence. That became true on
