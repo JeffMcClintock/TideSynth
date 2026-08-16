@@ -7833,3 +7833,120 @@ left clean.
 **Branch/PR:** this PR (TideSynth only — no code changed anywhere; the code
 already landed as
 [SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25)).
+
+---
+
+## 2026-08-16 — windows — U1a·P5·U2 host verification, Windows half (interactive session, Jeff present)
+
+**Prompt:** n/a — interactive session, not a scheduled run. Jeff at the
+keyboard; Claude (claude-opus-5) drove REAPER by computer use; committed and
+pushed as `tide-rack-bot`.
+
+**Did:** the Windows half of the verification the mac session finished earlier
+today. Rebuilt `TIDE_VST3` from `origin/master`, cleared REAPER's VST cache,
+re-scanned, and loaded the rack in a new empty project. **The point was never
+to re-close U1a or P5** — both were already closed on mac evidence, and this
+run does not touch their status. It was to find out **which of U2's four
+first-render defects belong to the panel view and which belong to macOS**,
+because U2's own text proposes a pairing that Windows disproves.
+
+**Result — the rack renders on Windows too.** REAPER 7.78/win64 rev 608e49
+(Jul 18 2026), x64. No crash through instantiate → UI open → insert → select →
+window resize → remove → re-instantiate. Category tree, module list, gridded
+panel canvas and properties pane all draw, and the properties pane populates
+correctly on selection (List Entry: pins, parameters, Appearance=Combo Box —
+the same cell the mac session read).
+
+**Result — U2 is three-quarters cross-platform, and its own hypothesis is
+wrong.** The row guesses *"(1)/(2) smell like one event-routing cause"*.
+Windows splits that pair:
+
+| U2 | mac | windows |
+|---|---|---|
+| (1) drag-drop from the module browser places nothing | fails | **reproduces** |
+| (2) scroll wheel dead everywhere in the UI | fails | **works fine** |
+| (3) a placed control draws at the wrong size | ~10 px glyph stack | **reproduces, worse** |
+| (4) §6 canvas offset/dead-strip, re-anchors on resize | fails | **reproduces** |
+
+So **(1), (3) and (4) are the panel view's own defects and (2) is macOS-only**,
+and (1) and (2) cannot be one cause. Detail worth having before anyone opens
+these: **(1)** a stepped-slow synthetic drag of both `Moog Filter` and
+`List Entry` highlights the row in the browser, shows no drag ghost, and drops
+nothing — while double-click inserts fine, the same split the mac saw, so it is
+the drop path on both platforms. **(2)** the wheel scrolls the module list and
+the canvas on real hardware. **(3)** on Windows the control does not draw at
+all: only its selection/resize adorner draws, **collapsed onto a zero-size rect
+at the canvas origin**, with every subsequent module landing on the same point.
+Jeff identified the artifact at the keyboard — a blue outline with white circle
+resize nodes, which is what proves the module *is* inserted and selected rather
+than missing. `Text Entry` behaves identically. So mac's "~10 px" and Windows'
+"zero" are the same defect at two magnitudes: the model is right and the panel
+geometry is not. **(4)** the canvas is anchored to the **right and bottom** of
+its pane with dead grey filling the top and left, and on a window resize it
+translates with the right edge rather than reflowing.
+
+**Result — P5's Windows half, with the UID evidence mac could not get.**
+Windows showed the *same original symptom* first: before the re-scan,
+`%APPDATA%\REAPER\reaper-vstplugins64.ini` read
+`TIDE_VST3.vst3=6346B150292DDD01,741344739{67756C506E694D47504920501951ED43,SynthEdit (GMPI)!!!VSTi`.
+After a clear-cache re-scan of all 153 plug-ins (the dialog confirmed
+**+0 cached**) the same line reads `...,TIDE Rack (TIDE Synth)!!!VSTi`. **The
+class UID `741344739{67756C506E694D47504920501951ED43` is byte-identical
+across that change** — a direct, measured confirmation that leaving the XML id
+`SE SynthEdit` alone kept the hashed VST3 class UID stable, so no saved host
+project is orphaned. That is the one thing P5's row most feared and it had
+never been observed; the mac could not observe it because its ini never
+rewrote (see below). FX browser: **`VST3i: TIDE Rack (TIDE Synth)`**. Via
+ReaScript, `TrackFX_AddByName(tr, "TIDE_VST3", false, -1)` → **-1**, exactly as
+on mac and for the same reason; `"TIDE Rack"` → 0, `"VST3i: TIDE Rack (TIDE
+Synth)"` → 1 and bare `"TIDE"` → 2, all three reporting the full name.
+`EnumInstalledFX` over 354 installed FX returns exactly one TIDE entry, ident
+`C:\Program Files\Common Files\VST3\TIDE_VST3.vst3`.
+
+**Learned — the mac entry's cache-flush rule is macOS's, not REAPER's.** That
+entry states, as a general REAPER fact, that the plug-in cache ini *"flushes on
+exit, not on scan"*. On Windows/7.78 it flushed **at scan time**:
+`reaper-vstplugins64.ini` was rewritten with the new identity while REAPER was
+still running, which is what made the UID A/B above possible. Not edited there
+— that entry is the record of what that box saw, the same reasoning A9 used for
+the process review. Read it as platform-specific, and on Windows the file is
+trustworthy mid-session.
+
+**Learned — building `TIDE_VST3` alone ships a plug-in that cannot build its
+DSP graph. Filed as P11.** On Windows the VST3 resolves its built-in `SE *` GUI
+modules through the *installed module database*, whose TIDE entry is
+`C:\Program Files\Common Files\SynthEdit\modules\TIDE.gmpi` — written by the
+separate `TIDE` target, not by `TIDE_VST3`. With a stale `TIDE.gmpi` there, the
+plug-in threw **"Export failed: required module is missing from the module
+database"** naming `SE Background Image` at instantiate and `SE List Entry` /
+`SE Text Entry` on each GUI insert, while DSP-only modules (`Moog Filter`)
+exported clean — the tell that isolates it to the GUI half. Building the `TIDE`
+target as well cleared every one of them. **The error blames the user's
+install** (*"this installation is broken. Re-scan modules"*) for what is
+actually a half-built tree, which is why this is worth a row rather than a
+footnote. **U2's (3) survives the fix** — re-tested with a consistent database
+and the control still draws as a zero-size rect, so the geometry defect and
+this trap are independent.
+
+**Next:** unchanged — **win NEXT stays C12c**; this run was verification, not a
+claim on a work item. **U2 is now the triage-ready row** its Accept asks for on
+three of four defects, and whoever takes it should start from (3)/(4) as one
+geometry cause with (1) separate — not from U2's original (1)+(2) pairing.
+**Note U2's `Plat` cell still reads `mac` and now understates the row**: the
+BACKLOG lint ([scripts/check-backlog-diff.py](scripts/check-backlog-diff.py))
+forbids a run changing `Plat` on an existing row, so that cell needs Jeff or a
+deliberate human edit; the Item text carries the correction meanwhile. **P11**
+is new, `any`, and small.
+
+**Side effects on this box:** REAPER's VST cache cleared and re-scanned (153
+plug-ins; the ini rewrote in place, see above). `TIDE_VST3.vst3` and
+`TIDE.gmpi` in `C:\Program Files\Common Files\` are now current Release builds
+rather than the stale 2:43 pm ones. A throwaway unsaved REAPER project with a
+TIDE instance was left open for Jeff; no saved project was opened or modified.
+`SE16` is on the pre-existing local branch `fix/synthedit2-dbghelp-link` and
+was not committed to; TideSynth is the only repo committed in.
+
+**Branch/PR:** this PR (TideSynth only — no code changed anywhere; the code
+this verifies already landed as
+[SynthEdit#25](https://github.com/JeffMcClintock/SynthEdit/pull/25) and
+[#24](https://github.com/JeffMcClintock/SynthEdit/pull/24)).
