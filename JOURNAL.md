@@ -46,6 +46,85 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — U1c: rack mode on, modules bolt to the rails (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff said "do U1c". Committed and pushed
+as `tide-rack-bot` (claude-fable-5).
+
+**Did:** **U1c** — [SynthEdit#34](https://github.com/JeffMcClintock/SynthEdit/pull/34),
+stacked on [#33](https://github.com/JeffMcClintock/SynthEdit/pull/33).
+**Verified in REAPER: TIDE renders a real Eurorack case — dark interior,
+bevelled aluminium rails, threaded mounting holes at every HP — and a dragged
+module snaps onto a rack row instead of staying where it was dropped.**
+Constraint 1's rack is now what the plug-in actually looks like.
+
+**It was one line, because Jeff had already built the rack.** Everything sits
+behind `Document()->rackMode`, and **the only thing missing was a way to turn
+it on in a TIDE build**: the flag is a per-project setting whose sole toggle
+lives in a `#if defined(_DEBUG)` context menu, so a Release TIDE could never
+reach it. `TideApp::InitInstance` now sets it at document creation, because
+TIDE *is* the rack rather than a project that opts in. What that unlocks, all
+pre-existing: `MfcDocPresenter::getRackLayout()` enables **only for the
+top-level panel view** (sub-panels and every structure view keep ordinary
+layout — exactly what U1b's second depth needs); `ViewBase::snapToGrid()`
+switches from the square snap to **one HP across, one rack row down**; and
+`TopView::renderRack()` draws the case. **The row's original "the only part
+of U1c that is a from-scratch build" was wrong in the same direction U1a's
+and U1b's estimates were** — this is the third time the honest answer was
+"the code is there, wire it up", and Jeff said so twice before the code
+confirmed it.
+
+**Learned — verify against the branch that has the prerequisite, not against
+`master`.** The first build showed no rack at all. Probes proved
+`ContainerViewPanel::render` was never called, then that `getRackLayout()`
+was never called — mystifying until the cause turned out to be **my own
+staging**: I branched U1c off `master`, where **U1b's rack-as-default
+(#33) is still an open PR**, so the master container still opened as the
+*structure* view and the panel-view rack path was unreachable by
+construction. Rebasing onto `tide/mac/U1b-rack-default` made it render on the
+first try. **The tell was that two independent probes both showed "never
+called" — that pattern means the code is not on the path, so check what you
+are running before you debug what you wrote.** Both probes are reverted.
+
+**Learned — a rebase can silently put someone else's commit on your branch,
+and the authorship check is what catches it.** Rebasing onto the U1b branch
+replayed Jeff's `dbghelp` fix (already on `master` as `85cd689a0`) as a new
+SHA on my topic branch, so the push carried a commit not authored by the bot.
+`scripts/check-commit-authorship.py` flagged it — **exactly the class of thing
+A14 exists for, caught by the tool rather than by luck.** Fixed with
+`git rebase --onto` to drop the duplicate, then `--force-with-lease` on my own
+just-pushed topic branch (PR #34 was a minute old, nothing else built on it;
+Jeff's original commit on `master` was never touched). Stated plainly here
+because it is a rewrite of a pushed ref, same as the D1 precedent.
+
+**Known follow-up, not blocking, recorded rather than pre-solved:**
+`rackMode` is persisted per project (`s("rack_mode", rackMode)`), so a patch
+authored in full SynthEdit *without* rack mode could load into TIDE with the
+rack off. TIDE forces it on at document creation; if project load overrides
+that, forcing it after load is the fix.
+
+**Next:** with U1a/U1b/U1c landed, **constraint 1 is substantially done** —
+rack by default, structure view behind an unlock, breadcrumb navigation, and
+modules that bolt to rails. The natural next work is the **D-series** (the
+about pane now has the breadcrumb bar to hang from) and **U1**'s own row,
+which can finally be closed once U1a–U1c merge. The win box still owes U2e's
+two follow-ups.
+
+**Side effects on this box:** five `TIDE_VST3` rebuilds; the installed
+plug-in now opens as a rack case. REAPER restarted three times — one restart
+raced a scripted quit and left a "save unsaved project?" prompt, answered
+**No** for a throwaway tab; **"Optimus HP" was never saved or modified**, and
+REAPER's own reload of it (with its pre-existing missing-plug-in warning) was
+dismissed untouched. Temporary probes in `SynthEditLib` were local-only and
+are reverted; that repo is clean.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#34](https://github.com/JeffMcClintock/SynthEdit/pull/34) (stacked
+on [#33](https://github.com/JeffMcClintock/SynthEdit/pull/33) — merge that
+first, or both together).
+
+---
+
 ## 2026-08-17 — macos — U1b complete: two depths, both directions (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session; Jeff merged the outstanding PRs, asked
@@ -365,84 +444,3 @@ observation.
 [SynthEdit#32](https://github.com/JeffMcClintock/SynthEdit/pull/32). Merging one
 without the other is harmless here: the TideSynth side is bookkeeping only and
 the SynthEdit side is self-contained.
-
----
-
-## 2026-08-17 — macos — U2e closed on mac: the combo box draws (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session continuing from yesterday's five; Jeff
-confirmed cable-drag and module insertion work in the structure view, then
-said "do the next task". The box's own scheduled run fired unattended at 06:19 and completed the same trace from source ([docs/u2e-pin-delivery-trace.md](docs/u2e-pin-delivery-trace.md)) — this session read SDK and code independently, converged on the same mechanism, and shipped the fix it framed as "a decision, not an investigation". Committed and pushed as `tide-rack-bot`
-(claude-fable-5).
-
-**Did:** **U2e's pin-delivery trace, to the bottom, and the fix** —
-[SynthEdit#30](https://github.com/JeffMcClintock/SynthEdit/pull/30), stacked
-on [#28](https://github.com/JeffMcClintock/SynthEdit/pull/28). **Verified in
-REAPER: a placed List Entry draws as a real combo box with styled title, and
-the module browser shows exactly the fixed module set.** The row's Accept is
-met on mac.
-
-**The trace, mechanically.** SDK3 semantics read from the SDK itself:
-`setPin` stores only; handlers fire **only on `notifyPin`**; the base
-`initialize()` does nothing (its fire-all is deprecated in place). Initial
-values are sent by `ViewBase::ConnectModules` STEP 2 — which iterates
-**`moduleInfo->gui_plugs`** to parse and send each pin default. And
-`gui_plugs` was **empty**: the pin descriptions live in `ControlsXp.xml`,
-which only the module scan ever loaded — and TIDE's scan is gone by design
-(S1a). No descriptions → nothing sent → no `notifyPin` → `onSetAppearance`
-never ran → no widgets. Every layer below (registration, resources, guards)
-was real but insufficient; this was the last missing piece.
-
-**The fix, in two parts.** CMake stages `ControlsXp.xml` into
-`Contents/Resources` **from SynthEditLib's copy** — single source of truth,
-no drift (`BundleInfo::getResource` falls back to exactly that folder on
-mac; the P6 rule keeps data out of `MacOS/`). `TideApp::InitInstance` then
-merges it — **into already-registered classes only**. The merge-only filter
-was learned live, not designed up front: a plain `RegisterPluginsXml` call
-**grew the browser** with insertable phantoms (Keyboard (MPE), Scope3, Volt
-Meter… XML-only, no class — one placed as an empty adorner before the
-filter existed). `Module_Info3_internal`s without constructors are NOT
-hidden by the browser's `isDllAvailable()` filter, so curation must happen
-at registration: iterate the XML, `GetById`, `ScanXml` only on hits.
-Constraint 7's fixed set stays exactly as curated — verified by eye against
-the browser before and after.
-
-**What the day-and-a-half arc adds up to.** U2 filed four symptoms two days
-ago; every one is now DONE or IN-REVIEW with the mac verify green: wheel
-(U2a ✓ merged), middle-pan (U2b ✓ merged, Jeff's hand on the mouse),
-centring (U2c ✓ merged), registration + first modern panel (U2d ✓ merged),
-and now pin delivery + a drawing control (U2e, #28+#30 +
-[SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13)
-in review). The structure view draws full module boxes with pins and
-patchable cables ([#29](https://github.com/JeffMcClintock/SynthEdit/pull/29),
-Jeff verified cable-drag by hand). **TIDE went from "renders a grid and
-silent adorners" to "a patchable structure view AND a panel view that draws
-real skinned controls" in two sessions' worth of days.**
-
-**Learned — the browser does NOT filter unavailable internal modules.**
-`ExportModuleNames` skips `!isDllAvailable()`, but `Module_Info3_internal`
-never sets that flag false for XML-only entries (the assignment in
-`RegisterPluginConstructor` is commented out as "might be needed?"). Anyone
-registering module XML wholesale into a scanless product will grow the
-insert menu with phantoms. The merge-only loop is the pattern; noted here
-because the win box will want it too.
-
-**Next:** the win box has two cheap U2e follow-ups (staging equivalent —
-win reads the same file as a fallback after the exe resource — and the
-combo re-verify). Then the board is exactly what the NEXT row says: **U1b**
-(breadcrumb + restore rack-as-default with the structure view behind the
-unlock — both classes link, the flip is one line) and **U1c** (enable
-Jeff's existing rack-mode code). **P10** unchanged as fallback.
-
-**Side effects on this box:** three more `TIDE_VST3` rebuilds; the
-installed plugin now carries the full U2a–U2e stack (panel view default on
-this branch lineage) and staged `ControlsXp.xml`; REAPER restarted three
-times, "Optimus HP" untouched; the throwaway tab with Jeff's two-oscillator
-cable patch from last night was lost to a restart — two modules and one
-cable, noted for honesty.
-
-**Branch/PR:** this TideSynth PR +
-[SynthEdit#30](https://github.com/JeffMcClintock/SynthEdit/pull/30) (stacked
-on [#28](https://github.com/JeffMcClintock/SynthEdit/pull/28); merge #28 →
-#30, or together; [#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)
-is independent).
