@@ -48,6 +48,7 @@ done too.
 **Branch/PR:** none — committed directly to `main`, interactive session.
 
 ---
+
 ## 2026-08-13 — linux — A11 (new; A2 follow-up, interactive session, Jeff directing)
 
 **Did:** Jeff asked for help finishing **A2** on this box. A2 had been flipped
@@ -1486,6 +1487,9 @@ review doc and delivered in-session. Then A3 is the NEXT `any` item.
 **Prompt:** n/a — interactive session, not a scheduled run.
 
 **Branch/PR:** `process/2026-08-09-review`.
+
+---
+
 ## 2026-08-09 — macos — G4
 
 **Did:** Replaced this box's scheduled task with the bootstrap from
@@ -1601,6 +1605,9 @@ records the instructions I *followed*, not the ones I was *given*. From the next
 run on, on all three boxes, those are the same thing.
 
 **Branch/PR:** `tide/mac/G4-bootstrap-task` → PR against `main`.
+
+---
+
 ## 2026-08-09 — linux — G5
 
 **Did:** Replaced this box's scheduled task with the bootstrap from
@@ -4224,6 +4231,8 @@ that baseline.
 
 **Branch/PR:** none — scaffolding committed directly.
 
+---
+
 ## 2026-08-13 — macos — A11, mac half — halted at STEP 0.7, then resolved in session (part 1 of 2)
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · app 1.26832.0 · as `tide-rack-bot`
@@ -5426,6 +5435,7 @@ regression. `lint` **passes** on this PR, which #49 and #50 could not say.
 [#52](https://github.com/JeffMcClintock/TideSynth/pull/52)
 
 ---
+
 ## 2026-08-14 — linux — S2 (plus a platform:linux build break found and filed)
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as `tide-rack-bot`
@@ -5851,6 +5861,8 @@ BACKLOG/JOURNAL PR is the natural first test.
 **Branch/PR:** `tide/linux/A4-auto-merge-tier`. Committed as Jeff, not as
 `tide-rack-bot` — the bot token deliberately cannot push `.github/workflows/**`.
 
+---
+
 ## 2026-08-14 — windows — C5
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
@@ -6060,6 +6072,8 @@ or prefab folder was created or invalidated on this machine.
 fourteen files + `se_version.h`),
 [#58](https://github.com/JeffMcClintock/TideSynth/pull/58) (BACKLOG, JOURNAL,
 `docs/carve-out.md`). No other repo was committed in or modified.
+
+---
 
 ## 2026-08-14 — windows — C12 (scoping session)
 
@@ -6276,6 +6290,8 @@ or prefab folder was created or invalidated.
 committed in or modified. **Expect #59 to sit unmerged:** it touches
 `docs/decisions.md`, which A4 denies by design.
 
+---
+
 ## 2026-08-15 — windows — C12a
 
 **Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness; no `claude` CLI on PATH to version, same as the C5 and C12 runs) · as `tide-rack-bot`
@@ -6389,6 +6405,8 @@ start of the run, and are back on them at the end.
 this entry and the backlog status. **Merging the TideSynth one alone lands no
 code**, and merging SynthEdit#18 alone is safe on its own — nothing in the two
 depends on the other to build.
+
+---
 
 ## 2026-08-15 — windows — C12b (and a second-agent collision worth more than the item)
 
@@ -6519,6 +6537,8 @@ this branch until its PR lands.
 **these two must merge together**, one removes the files and the other adds them.
 This TideSynth PR carries the journal, the backlog and the script, and lands no
 code.
+
+---
 
 ## 2026-08-15 — windows — A10 (script half; A15 filed for the gated half)
 
@@ -7346,3 +7366,137 @@ fetched read-only (ko-fi.com, synthedit.com); nothing was posted, and no account
 was logged into.
 
 **Branch/PR:** [TideSynth#69](https://github.com/JeffMcClintock/TideSynth/pull/69).
+
+---
+
+## 2026-08-16 — macos — A9
+
+**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
+
+**Did:** **A9** — the community research routine,
+[scripts/community-research.py](scripts/community-research.py), with
+[docs/community-research.md](docs/community-research.md) and a human-editable
+[rejection memory](docs/community-research-rejected.md). **Third item this
+session, at Jeff's direction** ("keep working"); a scheduled run still takes
+exactly one. Also flipped **D5** to DONE — Jeff updated the Ko-fi page mid-session
+and it is verified below.
+
+**The guardrails are structural rather than policy**, which is the part worth
+keeping. A9 lists them as hard rules, so `_get()` is the only network call in
+the file and can only issue GET: **there is no write path to disable.** Posting,
+voting or DMing would require adding the capability first, which is the point at
+which a human says no. Courtesy rate 1.5s process-wide, identifying User-Agent,
+https-only, and the script **prints** — it cannot edit `BACKLOG.md`.
+
+**Result — three things the first LIVE run found that no selftest would have.**
+This is the entry's real content, because all three looked fine in isolation.
+
+1. **It auto-rejected a real Surge XT crash report.** *"Surge XT CLAP crashes
+   REAPER on load (SIGSEGV in JUCE repaint)"* was dropped under "constraint 2 —
+   the DAW owns I/O", because somewhere in the reporter's diagnostics was the
+   phrase *"The standalone app also works fine"*. An incidental mention in a bug
+   report is not a feature request, and **discarding crash reports is the worst
+   thing this filter could do.** Constraint rules now read the **title** only;
+   the hypothesis flag still reads the body, because its failure mode is the
+   opposite and much cheaper. Both pinned by selftest cases built from **the
+   real incident**, not an invented example.
+2. **Output was sorted ascending by date**, burying 2026 items under 2024 ones.
+   Worth naming because **it looked like a fetch bug and was not** — I checked
+   the raw API response and it returns newest-first; the defect was entirely in
+   my display sort. Ranking is now hypothesis-first, then engagement, then
+   recency, all descending.
+3. **A passive scan cannot serve the standing hypothesis at all.** Across **48
+   real items** (30 forum topics + 18 Cardinal issues) the hypothesis filter
+   matched **zero** — an iPad thread appears on that forum roughly once a year.
+   So a "watch" built on reading the newest topics would have looked like a
+   working watch that had simply found nothing, which is the exact failure shape
+   this project keeps hitting.
+
+**Learned — the fix for (3) is that the watch has to SEARCH, and searching needs
+one more correction than it looks like.** A `watch` source now queries Discourse
+search directly and finds the signal on the first call: *"VCV Rack for iPad -
+2025?"*, *"VCV Rack on iOS/Android devices?"*, *"How are you connecting/using
+VCV with an iPad?"*. But Discourse search matches **post bodies**, so the top
+hits were the forum's megathreads — *"What are you listening to?"* (6,135
+replies) and *"Member Introductions"* — which merely contain "iPad" somewhere
+across thousands of posts. **Requiring the match in the topic TITLE cut 54 hits
+to 17, all on-topic**, and watch items rank by recency rather than engagement,
+because the hypothesis is about someone moving into the gap *now*.
+
+**Verified:** selftest **17/17** (offline); a live run across all five sources;
+and the rejection memory proven by **A/B** rather than by reading the code —
+with `surge#7782` listed a run reports `1 already rejected before · 24
+proposed`, and with the file removed the same run reports `0 · 25` and the item
+reappears.
+
+**Measured in passing, and it corrects a doc:** the VCV ecosystem is **553
+plugins and 4,958 modules**.
+[docs/process-review-2026-08-09.md](docs/process-review-2026-08-09.md) describes
+it as *"the 8,000+ module ecosystem"* — roughly 1.6× over. Not edited there, since
+that document is a dated record of a review; the correction lives in A9's row and
+in the new doc.
+
+**The limitation I did not paper over.** Ranking is engagement, which is a proxy
+for *worth a glance*, not for relevance to TIDE — so other projects' housekeeping
+("Do a windows arm64ec build", "Release checklist for Surge XT 1.4") still
+reaches the output. **The routine filters what TIDE has ruled out; it does not
+judge what TIDE needs, and it should not pretend to.** Triage stays human, which
+is what A9's PROPOSED-only design asks for anyway. A relevance signal is the next
+real improvement and wants thought rather than more regexes. Stated at the top of
+the doc's limitations section, not buried.
+
+**D5 — DONE, and verified rather than taken on trust.** Jeff updated the Ko-fi
+page during the session. It now renders as **"Jef [TIDE Rack]"** with the title
+*"Buy Jef [TIDE Rack] a Coffee"*; an hour earlier it was plain *"Jef"* with
+nothing naming the product. Checked in a real browser, which is the only way —
+this session established that Ko-fi 403s unfamiliar user-agents **even for
+handles that do not exist**, so `curl` cannot answer the question. The website's
+*"Donate to TIDE Rack on Ko-fi"* link now lands somewhere that agrees with its
+own link text. Flipped on the D2 branch, because D5 is defined there and does not
+exist on `main` yet.
+
+**STEP 1 / 1.5:** no `platform:mac` issues. [#69](https://github.com/JeffMcClintock/TideSynth/pull/69)
+is open and is this session's own — `lint` green, and its three red build checks
+are the pre-existing **B1** condition (all three die at Configure because
+TideSynth has no top-level `CMakeLists.txt`), so it is waiting for merge rather
+than for work. This branch is **stacked on it**, as the 61→64 stack was.
+
+**A concurrent run exists, and I found it late — say so plainly, per the prompt.**
+[#70](https://github.com/JeffMcClintock/TideSynth/pull/70)
+(`tide/win/C11-S10-rulings`, also `tide-rack-bot`, opened 00:42Z) was created
+*after* I opened #69, and I only noticed it because it took the PR number I had
+predicted. It touches `BACKLOG.md`, `JOURNAL.md` and `JOURNAL-2026-08.md` — the
+same three coordination files every run edits — so **conflicts with this stack
+are expected, and merge order matters.** It is a different item set (C11, S10,
+S9, M2, A16), not a duplicate claim, so nothing was wasted.
+
+**It does supersede one thing I wrote above and in the NEXT row**: #70 rules
+**S9 → WONTFIX** and **S10 → IN-REVIEW** (retire, not revive), and rescopes
+**M2**. My screening said the remaining `mac`-only rows were "GATED or Jeff's",
+naming S9 and S10 — that conclusion still holds (neither is available work), but
+the *reason* for S9/S10 changes once #70 lands. **I did not rebase this stack
+onto #70.** The prompt says to make your branch a delta on top of theirs when you
+collide, and that is written for colliding on the same *item*; here the overlap
+is only the shared coordination files, which is the ordinary condition for every
+run. Rebasing three stacked branches onto a fourth unmerged one would make all of
+them depend on #70 merging first, for no gain. Flagged on the PR instead so
+whoever merges sequences it.
+
+**Next:** **P5** for the mac box. Its scope got cleaner this session without
+anyone editing it: [docs/about-pane.md](docs/about-pane.md) now says the about
+pane is a *third* surface that does **not** change the host-visible plug-in name
+or the vendor string, so P5 owns exactly two fields. **Whoever next runs the
+research routine should read its limitations section first** — the output is a
+proposal list, and treating it as a to-do list is the way this becomes noise.
+
+**Side effects on this box:** none outside the scratchpad. TideSynth was the only
+repo committed in; `SynthEdit` was read only, and `SynthEditLib`, `gmpi_ui` and
+`GMPI_Wrappers` were untouched. The routine made read-only GET requests to
+community.vcvrack.com, api.github.com and raw.githubusercontent.com; **nothing
+was posted, voted on, or logged into.**
+
+**Learned — do not predict your own PR number, even to avoid a placeholder.** The previous entry's fix for the auto-merge race was to finish STEP 4 *before* opening the PR, which means writing the number before it exists. I wrote #70; GitHub issued **#71**. Predicting is the same defect as a placeholder wearing a plausible disguise — and worse, because a wrong-but-real number links to someone else's PR rather than looking obviously unfinished. **The rule that actually works: push STEP 4 first, open the PR, then correct the number in a follow-up commit on the same branch.** Safe whenever the PR cannot auto-merge before you get there, which is any PR touching `scripts/` or `website/`.
+
+**Branch/PR:** [TideSynth#71](https://github.com/JeffMcClintock/TideSynth/pull/71),
+stacked on [#69](https://github.com/JeffMcClintock/TideSynth/pull/69) and
+retargeting to `main` as its parent merges.
