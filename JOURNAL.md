@@ -46,6 +46,140 @@ Template:
 
 ---
 
+## 2026-08-16 — macos — A9
+
+**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
+
+**Did:** **A9** — the community research routine,
+[scripts/community-research.py](scripts/community-research.py), with
+[docs/community-research.md](docs/community-research.md) and a human-editable
+[rejection memory](docs/community-research-rejected.md). **Third item this
+session, at Jeff's direction** ("keep working"); a scheduled run still takes
+exactly one. Also flipped **D5** to DONE — Jeff updated the Ko-fi page mid-session
+and it is verified below.
+
+**The guardrails are structural rather than policy**, which is the part worth
+keeping. A9 lists them as hard rules, so `_get()` is the only network call in
+the file and can only issue GET: **there is no write path to disable.** Posting,
+voting or DMing would require adding the capability first, which is the point at
+which a human says no. Courtesy rate 1.5s process-wide, identifying User-Agent,
+https-only, and the script **prints** — it cannot edit `BACKLOG.md`.
+
+**Result — three things the first LIVE run found that no selftest would have.**
+This is the entry's real content, because all three looked fine in isolation.
+
+1. **It auto-rejected a real Surge XT crash report.** *"Surge XT CLAP crashes
+   REAPER on load (SIGSEGV in JUCE repaint)"* was dropped under "constraint 2 —
+   the DAW owns I/O", because somewhere in the reporter's diagnostics was the
+   phrase *"The standalone app also works fine"*. An incidental mention in a bug
+   report is not a feature request, and **discarding crash reports is the worst
+   thing this filter could do.** Constraint rules now read the **title** only;
+   the hypothesis flag still reads the body, because its failure mode is the
+   opposite and much cheaper. Both pinned by selftest cases built from **the
+   real incident**, not an invented example.
+2. **Output was sorted ascending by date**, burying 2026 items under 2024 ones.
+   Worth naming because **it looked like a fetch bug and was not** — I checked
+   the raw API response and it returns newest-first; the defect was entirely in
+   my display sort. Ranking is now hypothesis-first, then engagement, then
+   recency, all descending.
+3. **A passive scan cannot serve the standing hypothesis at all.** Across **48
+   real items** (30 forum topics + 18 Cardinal issues) the hypothesis filter
+   matched **zero** — an iPad thread appears on that forum roughly once a year.
+   So a "watch" built on reading the newest topics would have looked like a
+   working watch that had simply found nothing, which is the exact failure shape
+   this project keeps hitting.
+
+**Learned — the fix for (3) is that the watch has to SEARCH, and searching needs
+one more correction than it looks like.** A `watch` source now queries Discourse
+search directly and finds the signal on the first call: *"VCV Rack for iPad -
+2025?"*, *"VCV Rack on iOS/Android devices?"*, *"How are you connecting/using
+VCV with an iPad?"*. But Discourse search matches **post bodies**, so the top
+hits were the forum's megathreads — *"What are you listening to?"* (6,135
+replies) and *"Member Introductions"* — which merely contain "iPad" somewhere
+across thousands of posts. **Requiring the match in the topic TITLE cut 54 hits
+to 17, all on-topic**, and watch items rank by recency rather than engagement,
+because the hypothesis is about someone moving into the gap *now*.
+
+**Verified:** selftest **17/17** (offline); a live run across all five sources;
+and the rejection memory proven by **A/B** rather than by reading the code —
+with `surge#7782` listed a run reports `1 already rejected before · 24
+proposed`, and with the file removed the same run reports `0 · 25` and the item
+reappears.
+
+**Measured in passing, and it corrects a doc:** the VCV ecosystem is **553
+plugins and 4,958 modules**.
+[docs/process-review-2026-08-09.md](docs/process-review-2026-08-09.md) describes
+it as *"the 8,000+ module ecosystem"* — roughly 1.6× over. Not edited there, since
+that document is a dated record of a review; the correction lives in A9's row and
+in the new doc.
+
+**The limitation I did not paper over.** Ranking is engagement, which is a proxy
+for *worth a glance*, not for relevance to TIDE — so other projects' housekeeping
+("Do a windows arm64ec build", "Release checklist for Surge XT 1.4") still
+reaches the output. **The routine filters what TIDE has ruled out; it does not
+judge what TIDE needs, and it should not pretend to.** Triage stays human, which
+is what A9's PROPOSED-only design asks for anyway. A relevance signal is the next
+real improvement and wants thought rather than more regexes. Stated at the top of
+the doc's limitations section, not buried.
+
+**D5 — DONE, and verified rather than taken on trust.** Jeff updated the Ko-fi
+page during the session. It now renders as **"Jef [TIDE Rack]"** with the title
+*"Buy Jef [TIDE Rack] a Coffee"*; an hour earlier it was plain *"Jef"* with
+nothing naming the product. Checked in a real browser, which is the only way —
+this session established that Ko-fi 403s unfamiliar user-agents **even for
+handles that do not exist**, so `curl` cannot answer the question. The website's
+*"Donate to TIDE Rack on Ko-fi"* link now lands somewhere that agrees with its
+own link text. Flipped on the D2 branch, because D5 is defined there and does not
+exist on `main` yet.
+
+**STEP 1 / 1.5:** no `platform:mac` issues. [#69](https://github.com/JeffMcClintock/TideSynth/pull/69)
+is open and is this session's own — `lint` green, and its three red build checks
+are the pre-existing **B1** condition (all three die at Configure because
+TideSynth has no top-level `CMakeLists.txt`), so it is waiting for merge rather
+than for work. This branch is **stacked on it**, as the 61→64 stack was.
+
+**A concurrent run exists, and I found it late — say so plainly, per the prompt.**
+[#70](https://github.com/JeffMcClintock/TideSynth/pull/70)
+(`tide/win/C11-S10-rulings`, also `tide-rack-bot`, opened 00:42Z) was created
+*after* I opened #69, and I only noticed it because it took the PR number I had
+predicted. It touches `BACKLOG.md`, `JOURNAL.md` and `JOURNAL-2026-08.md` — the
+same three coordination files every run edits — so **conflicts with this stack
+are expected, and merge order matters.** It is a different item set (C11, S10,
+S9, M2, A16), not a duplicate claim, so nothing was wasted.
+
+**It does supersede one thing I wrote above and in the NEXT row**: #70 rules
+**S9 → WONTFIX** and **S10 → IN-REVIEW** (retire, not revive), and rescopes
+**M2**. My screening said the remaining `mac`-only rows were "GATED or Jeff's",
+naming S9 and S10 — that conclusion still holds (neither is available work), but
+the *reason* for S9/S10 changes once #70 lands. **I did not rebase this stack
+onto #70.** The prompt says to make your branch a delta on top of theirs when you
+collide, and that is written for colliding on the same *item*; here the overlap
+is only the shared coordination files, which is the ordinary condition for every
+run. Rebasing three stacked branches onto a fourth unmerged one would make all of
+them depend on #70 merging first, for no gain. Flagged on the PR instead so
+whoever merges sequences it.
+
+**Next:** **P5** for the mac box. Its scope got cleaner this session without
+anyone editing it: [docs/about-pane.md](docs/about-pane.md) now says the about
+pane is a *third* surface that does **not** change the host-visible plug-in name
+or the vendor string, so P5 owns exactly two fields. **Whoever next runs the
+research routine should read its limitations section first** — the output is a
+proposal list, and treating it as a to-do list is the way this becomes noise.
+
+**Side effects on this box:** none outside the scratchpad. TideSynth was the only
+repo committed in; `SynthEdit` was read only, and `SynthEditLib`, `gmpi_ui` and
+`GMPI_Wrappers` were untouched. The routine made read-only GET requests to
+community.vcvrack.com, api.github.com and raw.githubusercontent.com; **nothing
+was posted, voted on, or logged into.**
+
+**Learned — do not predict your own PR number, even to avoid a placeholder.** The previous entry's fix for the auto-merge race was to finish STEP 4 *before* opening the PR, which means writing the number before it exists. I wrote #70; GitHub issued **#71**. Predicting is the same defect as a placeholder wearing a plausible disguise — and worse, because a wrong-but-real number links to someone else's PR rather than looking obviously unfinished. **The rule that actually works: push STEP 4 first, open the PR, then correct the number in a follow-up commit on the same branch.** Safe whenever the PR cannot auto-merge before you get there, which is any PR touching `scripts/` or `website/`.
+
+**Branch/PR:** [TideSynth#71](https://github.com/JeffMcClintock/TideSynth/pull/71),
+stacked on [#69](https://github.com/JeffMcClintock/TideSynth/pull/69) and
+retargeting to `main` as its parent merges.
+
+---
+
 ## 2026-08-16 — macos — D2
 
 **Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
@@ -438,137 +572,3 @@ session — that branch is not mine to move out from under a live session.
 + [SynthEditLib#10](https://github.com/JeffMcClintock/SynthEditLib/pull/10)
 (C11, must merge together) and [SynthEdit#22](https://github.com/JeffMcClintock/SynthEdit/pull/22)
 (S10), plus this TideSynth PR carrying the rulings, journal and backlog.
-
----
-
-## 2026-08-15 — windows — C12e (interactive session, Jeff ruling)
-
-**Did:** **C12e**, ruled in session ("go with your recommendation") — option
-(b). `Dialogs_editor.h` moved to `SynthEditLib`; `Dialogs_editor2.cpp` came off
-EditorLib's source list and is now compiled by each app that needs it.
-**27 → 25 `${EDITOR_DIR}` entries.** Also struck a stale NEEDS-JEFF from **A9**
-(below), and recorded the ruling in
-[docs/decisions.md](docs/decisions.md), which now has **no open PROPOSED
-entries**.
-
-**The headline is not the move. It is that the recommendation's stated
-reasoning was wrong on the one point that decided the work, and measuring
-before implementing is what caught it.**
-
-Both this row and the PROPOSED entry said the other consumers *"each supply
-their own definitions"*, which made (b) a one-`vcxproj`-entry change.
-**`SynthEditCL` does not supply its own.** Its CMake target compiles
-`main.cpp`, **not** `CLApp.cpp` — `CLApp.cpp` is in no build file at all — and
-`main.cpp` carries a comment saying in as many words that it relies on
-EditorLib for these stubs, as does `EditorScreenshot/EditorCommandDispatcher.cpp`.
-So (b) as literally written would have removed the only definition SynthEditCL
-had and broken its link.
-
-Implemented as (b) **properly**, which is what option (b)'s own text points at:
-the `SynthEditApp.cpp` / `ExportAsPlugin.cpp` pattern, where **every** app that
-needs the symbols compiles the file itself. `SynthEditCL/CMakeLists.txt` and
-`SynthEdit2.vcxproj` each gained an entry; `TideApp.cpp` and `layouttests.cpp`
-already define their own.
-
-**Two more of the row's facts were wrong**, both harmless but worth correcting
-because they were repeated in three places:
-
-- The file defines **two** functions, not three. `doDialogBuildCodeSkeleton`
-  appears in neither `Dialogs_editor2.cpp` nor `Dialogs_editor.h` — it is
-  declared and defined only in `CLApp.cpp` and `TideApp.cpp`, and belongs to
-  **S3**, not here.
-- There are **four** definitions in the tree, not five:
-  `Dialogs_editor2.cpp`, `CLApp.cpp` (unbuilt), `TideApp.cpp`,
-  `layouttests.cpp`. `EditorScreenshot` and `SynthEditCL/main.cpp` carry only
-  comments pointing at EditorLib's copy.
-
-**Result.**
-
-| check | result |
-|---|---|
-| `${EDITOR_DIR}` entries | **27 → 25** |
-| fresh Ninja tree, Release | **904/904 RC=0** — net zero, one TU left EditorLib and one joined SynthEditCL |
-| `Dialogs_editor2.cpp.obj` | now built **only** by `SynthEditCL.dir`; `EditorLib.dir` has zero |
-| **TIDE still links** — the specific thing the row demanded | **`TIDE.gmpi` and `TIDE_VST3.vst3` both produced** |
-| `SynthEditCL.exe` | links |
-| tests | **91/92** — see below |
-
-**The one test failure is not this change, and that is proven rather than
-argued.** `Layout.ModuleSizeDoesNotGrowOnReopens` fails with a `bad_alloc`,
-reproducibly. **A/B: `SE16` at `origin/master`, with none of C12e, in a
-detached worktree against the same libraries — fails identically.** So it is
-pre-existing on master.
-
-**What it actually is, since the next run will hit it too:** in-flight
-`ITextLayout` work spanning two repos. `gmpi_ui` committed
-**`d3bacf3` "feat: ITextLayout, a retained immutable styled text layout
-(Direct2D)"** partway through this session, and
-`SynthEditLib/modules/se_sdk3_hosting/GmpiCpuUniversalContext.h` — **still
-uncommitted** — already calls `gmpi::drawing::api::ITextLayout`. Pinning
-`gmpi_ui` back to `3ab5524` does not restore green either; it fails to
-*compile*, because that uncommitted header needs the new API. The two are
-mid-flight together and neither half stands alone right now. **Do not "fix"
-this**; it is Jeff's live work in another session. Left untouched, as the
-STEP 5 dirt rule requires.
-
-**Learned — a `*_FOLDER_OVERRIDE` build reads a live working tree, so another
-session's uncommitted work lands in your test results.** This is the first time
-that has actually bitten. It is not a reason to stop using the overrides
-(**X4** settled that), but it is a reason to A/B against the default branch
-**before** blaming your own change — and to do it in a `git worktree`, which
-leaves the developer's tree untouched. The whole diagnosis cost one worktree
-and two targeted builds.
-
-**Learned — A9 has been listing a NEEDS-JEFF that PLAN.md already answered.**
-The row asks for "TIDE's product philosophy in 2–3 sentences as the auto-reject
-filter, Cardinal-style". [PLAN.md](PLAN.md) has carried it since before the row
-was written: **"What TIDE Rack is"** is the one-sentence identity, and the
-**eight design constraints** are the reject filter in more detail than three
-sentences would be. Written 2026-08-09 from the process review and never
-re-pointed. Struck, with the reasoning in the row. **A9 needs nothing from Jeff
-to start.**
-
-**Next:** **C12c** and **C12f** are the remaining sub-stages a Windows box can
-take (C12d is `linux`). C12 now stands at 25 of its original 41 entries, and
-**C12f is what takes it to zero and unblocks C6**. Whoever takes either should
-expect `Layout.ModuleSizeDoesNotGrowOnReopens` to be red until the ITextLayout
-work lands, and should **not** treat it as their own regression — A/B first.
-
-**Side effects on this box:** a scratch Ninja tree, a pristine `gmpi_ui` clone
-and a detached `SE16` worktree, all under the session scratchpad; the worktree
-was removed and `git worktree prune` run, leaving `git worktree list` with only
-Jeff's own entries. `SynthEditLib` was committed in **while dirty with Jeff's
-uncommitted `GmpiCpuUniversalContext.h`** — staged by explicit path, never
-`git add -A`, and that file is untouched.
-
-
-**Postscript — the A14 guard fired on its first real outing, and it mattered.**
-The two code branches were created in the *shared* working copies, and the
-other session commits into whatever branch is checked out there. So its
-in-flight `ITextLayout` commits landed on my branches, interleaved by seconds
-(`SynthEditLib` `eae673b` 13:15:04, mine `93f5ea9` 13:19:27, its `a7eb0bf`
-13:19:50; `SE16` mine `7563bd151` 13:20:02, its `eb66d2ae9` 13:20:05) — and I
-pushed them before noticing. **`scripts/check-commit-authorship.py`, written
-this morning for exactly this, is what caught it**, in the STEP 4 pre-push
-position its own docstring argues for.
-
-Resolved without rewriting or deleting anything: my single commit was
-cherry-picked onto fresh `tide/win/C12e-clean` branches off the default
-branches, **in temporary worktrees so neither shared checkout was touched**,
-and the PRs raised from those. Each clean branch contains exactly one commit,
-verified. The mixed `tide/win/C12e-dialogs-editor` branches are left exactly as
-they are — they hold Jeff's work, and they are not mine to rewrite.
-
-**Two things for the next run.** First: **both shared checkouts are still parked
-on `tide/win/C12e-dialogs-editor`**, so further commits there keep landing on
-it; I deliberately did not switch them, because doing that under a live session
-risks its working tree. Second, and more general: **creating a branch in a
-shared working copy is itself the hazard.** A14's assertion catches the result;
-it does not prevent it. The durable fix is to do code work in a `git worktree`
-rather than by switching the developer's checkout — which is what the cleanup
-had to do anyway.
-
-**Branch/PR:** [SynthEdit#20](https://github.com/JeffMcClintock/SynthEdit/pull/20)
-+ [SynthEditLib#9](https://github.com/JeffMcClintock/SynthEditLib/pull/9) —
-**these two must merge together** — and the TideSynth PR carrying this entry,
-the backlog and the ruling.
