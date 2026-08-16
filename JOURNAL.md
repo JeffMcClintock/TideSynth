@@ -51,7 +51,7 @@ Template:
 **Prompt:** b3e9876 · claude-opus-5[1m] · Claude Code CLI 2.1.220 · as tide-rack-bot
 
 **Did:** closed **S3**'s TIDE-side half —
-[SynthEdit#31](https://github.com/JeffMcClintock/SynthEdit/pull/31) — and, while
+[SynthEdit#32](https://github.com/JeffMcClintock/SynthEdit/pull/32) — and, while
 building the baseline it needed, found that **this box cannot build `main` at
 all** and filed both causes as
 [#87](https://github.com/JeffMcClintock/TideSynth/issues/87) and
@@ -211,7 +211,7 @@ a scheduled run cannot get that approval, so nothing here is a runtime
 observation.
 
 **Branch/PR:** `tide/linux/S3-dialog-stubs` in both repos — this TideSynth PR +
-[SynthEdit#31](https://github.com/JeffMcClintock/SynthEdit/pull/31). Merging one
+[SynthEdit#32](https://github.com/JeffMcClintock/SynthEdit/pull/32). Merging one
 without the other is harmless here: the TideSynth side is bookkeeping only and
 the SynthEdit side is self-contained.
 
