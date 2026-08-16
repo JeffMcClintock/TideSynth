@@ -46,6 +46,107 @@ Template:
 
 ---
 
+## 2026-08-16 — macos — D2
+
+**Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
+
+**Did:** **D2** — placed the *"TIDE Synth — by SynthEdit Ltd"* credit. **Second
+item this session, at Jeff's direction** ("do the next task"); a scheduled run
+still takes exactly one. Both halves the row named: the website footer, which is
+real code, and the plugin-side placement, which is a spec only.
+
+**The design decision worth recording is that D1 and D2 were about to get two
+different answers to one question.** Both need "a subtle surface that is not a
+dialog", and D1's note had already argued one into existence. So this run wrote
+[docs/about-pane.md](docs/about-pane.md) as the *single* answer — **one about
+pane off the breadcrumb bar holding exactly four things** (version, credit,
+donation, licence). The fixed list is the point: an about pane is where things
+get *put*, so it is precisely the surface that accretes until it becomes the
+splash screen PLAN forbids. Adding a fifth item now needs a ruling.
+
+**Result — website half.**
+
+| check | result |
+|---|---|
+| footer wording | **"TIDE Synth — by SynthEdit Ltd"** — R1(a) verbatim |
+| tag balance | OK |
+| subresource tags (`script`/`img`/`link`/`iframe`/…) | **zero** — the page's "no external requests" promise is intact |
+| `https://www.synthedit.com/` | **200, no redirect** |
+| live outbound links | 4, all real |
+
+The credit is a plain `<a href>`, which is the same settled arrangement as the
+existing ko-fi and github links — an outbound href loads nothing, so linking
+does not cost the page its zero-request property.
+
+**Learned — a raw grep of `website/index.html` finds `#donate-url-tbd`, and it
+is a false alarm both README and page comments will make you doubt.** That
+string is the placeholder the W1 history says was removed; it survives **only
+inside an HTML comment** describing the old mistake. Stripping comments before
+counting shows **0** occurrences in live markup. Anyone auditing that file
+should strip comments first — the file is more comment than markup by volume,
+deliberately, so raw greps mislead in both directions.
+
+**Learned — `curl` cannot tell you whether a Ko-fi handle exists.** Ko-fi
+returns **403 to any user-agent it dislikes, including for handles that plainly
+do not exist** — checked with a deliberately nonsense handle as a control, which
+also returned 403. So a status-code check proves nothing, and the website
+README's standing rule ("confirm the URL resolves before committing it") needs a
+real browser to satisfy. Done that way here.
+
+**Two things found by actually opening it, neither of which a code reading would
+have surfaced:**
+
+- **The Ko-fi page does not identify itself as TIDE Rack's.**
+  <https://ko-fi.com/tiderack> renders as *"Buy Jef a Coffee"*, display name
+  **"Jef"**, bio *"I'm a dude in New Zealand"* — nothing naming TIDE Rack, TIDE
+  Synth or SynthEdit. **This defeats D2's own justification one hop later**: the
+  website's link text is *"Donate to TIDE Rack on Ko-fi"*, so a user meets
+  exactly the unexplained-identity surprise the credit exists to prevent. Filed
+  as **D5**, `NEEDS-JEFF` — it is account settings and needs the password.
+- **`ko-fi.com/TideRack` (website) and `ko-fi.com/tiderack` (Wayland code,
+  `WaylandMainWindow.cpp:50`) reach the same page** — Ko-fi canonicalises to
+  lowercase. The inconsistency is harmless; recorded so nobody "fixes" one of
+  them and re-checks this.
+
+**Prior art reused rather than reinvented:** `WaylandMainWindow::showAbout()`
+(`:953-959`) already puts version, company and donation URL in one place as
+plain text. TIDE takes the **content** and not the **container** — that one is
+`SeMessageBoxAsync`, a modal dialog, which constraint 5 rules out. The spec says
+so explicitly, because the temptation on implementation day will be to copy the
+function.
+
+**Sequencing — I applied last run's lesson and it worked.** The previous entry
+learned that A4's auto-merge can merge a PR mid-STEP-4, and the fix was to
+finish STEP 4 and push it **before** opening the PR. Done that way here: this
+entry, the backlog and the D5 row were all committed and pushed first, so the PR
+was complete the moment it existed. **No placeholder was ever pushed** — the
+`__D2PR__` substitution happened before the first push, not after it.
+
+**This PR will not auto-merge, and that is correct.** It touches `website/**`,
+which A4's allowlist deliberately excludes because **a merge there IS a
+production deploy of tidesynth.com**. So it waits for Jeff, unlike the last two.
+
+**STEP 1 / 1.5:** re-checked at the start of this item — no `platform:mac`
+issues, no open PRs in any of the five repos (both of this session's earlier PRs
+had already auto-merged).
+
+**Next:** **A9** for the mac box — the D-series is now exhausted for a scheduled
+run (D1/D2 IN-REVIEW; D3/D4 GATED in `SE16/EditorLib/CMakeLists.txt`; D5 needs
+Jeff's Ko-fi password). A9 is `any`, unblocked, PROPOSED-output-only, and should
+be budgeted as a design session first. **D5 is small and worth doing before
+v0.1 links that page from inside the plugin as well as from the website.**
+
+**Side effects on this box:** none outside the scratchpad. TideSynth was the
+only repo committed in; `SynthEdit` was read (`WaylandMainWindow.cpp`) and not
+written, and `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were untouched — all
+four confirmed clean and on their default branches. Two public pages were
+fetched read-only (ko-fi.com, synthedit.com); nothing was posted, and no account
+was logged into.
+
+**Branch/PR:** [TideSynth#69](https://github.com/JeffMcClintock/TideSynth/pull/69).
+
+---
+
 ## 2026-08-16 — macos — D1
 
 **Prompt:** `b3e9876` · claude-opus-5[1m] · Claude Code 2.1.229 · as `tide-rack-bot`
@@ -400,67 +501,3 @@ only the latter.
 other repo was committed in or modified.
 
 **Branch/PR:** [TideSynth#65](https://github.com/JeffMcClintock/TideSynth/pull/65).
-
----
-
-## 2026-08-15 — windows — P9
-
-**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
-
-**Did:** **P9** — a lint that fails when the two `resource.h` copies stop
-agreeing: [scripts/check-resource-h-drift.py](scripts/check-resource-h-drift.py).
-Fifth item this session, at Jeff's direction, TideSynth-only. Took the row's
-cheaper of two options — the lint rather than merging the files into one — on
-the row's own pricing ("minutes for the lint; longer if the two are actually
-merged") and because merging a Visual-Studio-generated header that VS will
-rewrite is a change with its own failure mode.
-
-**Result:** **318 `ID*` constants on each side, all agreeing.** Selftest 7/7.
-Exit 1 on both divergence kinds — a same-name-different-value conflict, and a
-constant present on only one side — tested on **scratch copies**, so neither
-`SE16` nor `SynthEditLib` was written to; both were verified clean afterwards.
-
-**Learned — excluding the `APSTUDIO_INVOKED` block is what makes this check
-survivable, and it is not a detail.** The one thing the two files actually
-differ in today is `_APS_NEXT_RESOURCE_VALUE`: **210** private, **207** public.
-That is Visual Studio's own allocation counter, it compiles to nothing, and it
-moves whenever anyone adds a resource in the IDE. A check that compared it would
-be **red from birth and red forever**, and the first person to see it would turn
-it off — taking the 318 real constants with it. So the whole `#ifdef
-APSTUDIO_INVOKED` block is skipped, nesting-aware, and the selftest pins that
-behaviour with the real 207→210 case as one of its seven.
-
-The counter gap is still worth reading as evidence rather than noise: it says
-the private copy has had **three resource slots allocated that the public one
-has not**. Nothing has collided yet. Nothing would announce it if it did — which
-is the entire reason this row exists.
-
-**Learned — this closes a loop under C12a rather than sitting beside it.** C12a
-delisted `${EDITOR_DIR}/resource.h` on the strength of the two copies being
-identical, and that argument only holds while they stay identical, because
-public and private TUs each resolve to their own copy by the own-directory-first
-rule. That assumption had nothing enforcing it and was made this morning. Now it
-has a check, and the check independently re-derives the same 318 that C12a
-relied on.
-
-**Next:** the row's larger option — pick one copy as the source of truth — is
-still open and still unowned; the lint makes it safe to defer, not unnecessary.
-**Note it cannot run in TideSynth CI**, since one of the two files is in the
-private repo, so it is a dev-box/agent tool like
-[scripts/dangling_private_includes.py](scripts/dangling_private_includes.py).
-Its docstring says to run it as part of **any carve-out stage that moves a
-`.cpp` out of `SynthEdit2`** — such a TU switches from the private copy to the
-public one, a no-op only while this passes. **C12f is the next stage that does
-that**, and its row already says to re-check `resource.h`; this is the command
-for it.
-
-**STEP 1 / 1.5:** unchanged. Open PRs are all this session's own.
-
-**Side effects on this box:** copies of both `resource.h` files in the
-scratchpad, and a throwaway git repo from the A14 run. Nothing outside it. This
-run committed in TideSynth only; `SE16` and `SynthEditLib` were read but never
-written, and were confirmed clean afterwards.
-
-**Branch/PR:** [TideSynth#64](https://github.com/JeffMcClintock/TideSynth/pull/64),
-fourth in the stack (61 → 62 → 63 → 64), each retargeting to `main` as its
-parent merges.
