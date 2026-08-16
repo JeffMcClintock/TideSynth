@@ -8136,6 +8136,8 @@ tabs left open. `gmpi_ui` and `GMPI_Wrappers` untouched this entry;
 [SynthEdit#26](https://github.com/JeffMcClintock/SynthEdit/pull/26) — the
 SynthEdit one carries the code; they need not merge together.
 
+---
+
 ## 2026-08-16 — macos — U2b + U2d fix session: first modern panel renders (interactive session, Jeff present)
 
 **Prompt:** n/a — interactive session, fourth of the day on this box; Jeff
@@ -8325,5 +8327,3 @@ own middle-drag as the verify),
 [SynthEdit#27](https://github.com/JeffMcClintock/SynthEdit/pull/27) +
 [SynthEditLib#12](https://github.com/JeffMcClintock/SynthEditLib/pull/12)
 (U2d).
-
----
