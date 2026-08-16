@@ -138,6 +138,27 @@ are the pre-existing **B1** condition (all three die at Configure because
 TideSynth has no top-level `CMakeLists.txt`), so it is waiting for merge rather
 than for work. This branch is **stacked on it**, as the 61→64 stack was.
 
+**A concurrent run exists, and I found it late — say so plainly, per the prompt.**
+[#70](https://github.com/JeffMcClintock/TideSynth/pull/70)
+(`tide/win/C11-S10-rulings`, also `tide-rack-bot`, opened 00:42Z) was created
+*after* I opened #69, and I only noticed it because it took the PR number I had
+predicted. It touches `BACKLOG.md`, `JOURNAL.md` and `JOURNAL-2026-08.md` — the
+same three coordination files every run edits — so **conflicts with this stack
+are expected, and merge order matters.** It is a different item set (C11, S10,
+S9, M2, A16), not a duplicate claim, so nothing was wasted.
+
+**It does supersede one thing I wrote above and in the NEXT row**: #70 rules
+**S9 → WONTFIX** and **S10 → IN-REVIEW** (retire, not revive), and rescopes
+**M2**. My screening said the remaining `mac`-only rows were "GATED or Jeff's",
+naming S9 and S10 — that conclusion still holds (neither is available work), but
+the *reason* for S9/S10 changes once #70 lands. **I did not rebase this stack
+onto #70.** The prompt says to make your branch a delta on top of theirs when you
+collide, and that is written for colliding on the same *item*; here the overlap
+is only the shared coordination files, which is the ordinary condition for every
+run. Rebasing three stacked branches onto a fourth unmerged one would make all of
+them depend on #70 merging first, for no gain. Flagged on the PR instead so
+whoever merges sequences it.
+
 **Next:** **P5** for the mac box. Its scope got cleaner this session without
 anyone editing it: [docs/about-pane.md](docs/about-pane.md) now says the about
 pane is a *third* surface that does **not** change the host-visible plug-in name
@@ -151,7 +172,9 @@ repo committed in; `SynthEdit` was read only, and `SynthEditLib`, `gmpi_ui` and
 community.vcvrack.com, api.github.com and raw.githubusercontent.com; **nothing
 was posted, voted on, or logged into.**
 
-**Branch/PR:** [TideSynth#70](https://github.com/JeffMcClintock/TideSynth/pull/70),
+**Learned — do not predict your own PR number, even to avoid a placeholder.** The previous entry's fix for the auto-merge race was to finish STEP 4 *before* opening the PR, which means writing the number before it exists. I wrote #70; GitHub issued **#71**. Predicting is the same defect as a placeholder wearing a plausible disguise — and worse, because a wrong-but-real number links to someone else's PR rather than looking obviously unfinished. **The rule that actually works: push STEP 4 first, open the PR, then correct the number in a follow-up commit on the same branch.** Safe whenever the PR cannot auto-merge before you get there, which is any PR touching `scripts/` or `website/`.
+
+**Branch/PR:** [TideSynth#71](https://github.com/JeffMcClintock/TideSynth/pull/71),
 stacked on [#69](https://github.com/JeffMcClintock/TideSynth/pull/69) and
 retargeting to `main` as its parent merges.
 
