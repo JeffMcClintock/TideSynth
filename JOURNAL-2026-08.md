@@ -8245,3 +8245,85 @@ on the PR branch. Throwaway REAPER tabs left open for Jeff.
 [SynthEdit#27](https://github.com/JeffMcClintock/SynthEdit/pull/27); merged
 mid-session by Jeff: [gmpi_ui#7](https://github.com/JeffMcClintock/gmpi_ui/pull/7),
 [SynthEdit#26](https://github.com/JeffMcClintock/SynthEdit/pull/26).
+
+---
+
+## 2026-08-16 — macos — U2e first pass: crash-free placeholders, one question left (interactive session, Jeff present)
+
+**Prompt:** n/a — interactive session, fifth of the day; Jeff verified
+middle-drag by hand, merged
+[gmpi_ui#8](https://github.com/JeffMcClintock/gmpi_ui/pull/8),
+[SynthEdit#27](https://github.com/JeffMcClintock/SynthEdit/pull/27) and
+[SynthEditLib#12](https://github.com/JeffMcClintock/SynthEditLib/pull/12)
+mid-session, and said "keep going". Committed and pushed as
+`tide-rack-bot` (claude-fable-5).
+
+**Did:** flipped **U2b** and **U2d** to DONE (merged + verified — U2b by
+Jeff's own middle-drag), then took **U2e** far enough that the classic
+controls are **crash-free, visible, and one isolated question from
+working**: PRs
+[SynthEdit#28](https://github.com/JeffMcClintock/SynthEdit/pull/28) and
+[SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13).
+
+**U2e finding 1 — TIDE never seeded the resource folders.** The base
+`CSynthEditAppBase::InitInstance` seeds
+`GmpiResourceManager::resourceFolders` (skin images among them);
+`TideApp::InitInstance` replaced the base wholesale for S1a and dropped
+that seeding, so every skin-image URI resolved against an **empty map**.
+Seeded now (`Image` only — the one type panel controls read). This is a
+real prerequisite for widget bitmaps, **but it was not the crash gate**:
+rebuilding with the seed alone still crashed in
+`ListEntryGui::arrange`.
+
+**U2e finding 2 — the actual gate, isolated to one sentence.** Widgets
+are built inside `onSetAppearance()` — a **pin-update handler**
+(`ListEntryGui.cpp`: ctor `initializePin(pinAppearance, …onSetAppearance)`,
+handler gated only by `currentAppearance == pinAppearance`, ctor default
+`-2`). Had the handlers fired even once with default pin values,
+`ACM_PLAIN` would have built a ListWidget — the vector being empty at
+crash time means **the pin-update handlers never run at all in TIDE's
+SDK3 hosting**. The next U2e step is therefore a single directed trace:
+how `ModuleView`'s Sdk3 path delivers initial pin values (the "fake
+plugs" `Ctl_Combo::Export` writes) and why the handler pass never
+happens — the same wiring the editor exercises when these controls work
+in full SynthEdit.
+
+**U2e finding 3 — with `arrange()` guarded, the state is honest and
+stable.** Third SIGSEGV site from the same root (initialize → measure →
+arrange, all `widgets[]` on empty); guard landed
+([SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13)).
+**Verified in REAPER on the final build: no crash through instantiate →
+insert → select; the placed List Entry draws as a right-sized, selectable
+100×20 placeholder at the click point; Background Image renders
+alongside; properties pane fully correct.** The classic controls stay in
+the module list — a visible empty placeholder plus a stderr breadcrumb
+beats both a dead host and an invisible module.
+
+**Learned — pin defaults argue the diagnosis for us.** When a handler's
+absence can be inferred from what default values *would* have built, the
+"is it invoked at all vs does it fail inside" fork resolves without
+instrumentation. That saved a fourth build-and-crash cycle.
+
+**Next:** **U2e's pin-delivery trace** is the single remaining step
+between TIDE and usable classic controls — after it, the combo should
+draw for real and U1c's costing finally has a live control to look at.
+**U1b** remains the headline. **P10** untouched as fallback.
+
+**Side effects on this box:** `SynthEdit/build/` rebuilt `TIDE_VST3`
+three more times; the installed plugin now carries U2a+U2b+U2c+U2d+the
+U2e prerequisites and is crash-free (verified). REAPER crashed twice
+more during diagnosis (both filed in the U2e row's stack list, same
+root) and was relaunched; "Optimus HP" untouched throughout. Working
+copies: `SynthEdit` on `tide/mac/U2e-resource-folders`, `SynthEditLib`
+on `tide/mac/U2e-arrange-guards` (both pushed, PRs open); returned to
+defaults after push.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#28](https://github.com/JeffMcClintock/SynthEdit/pull/28) +
+[SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13);
+merged mid-session by Jeff:
+[gmpi_ui#8](https://github.com/JeffMcClintock/gmpi_ui/pull/8) (U2b, his
+own middle-drag as the verify),
+[SynthEdit#27](https://github.com/JeffMcClintock/SynthEdit/pull/27) +
+[SynthEditLib#12](https://github.com/JeffMcClintock/SynthEditLib/pull/12)
+(U2d).
