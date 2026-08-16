@@ -6698,3 +6698,65 @@ look there before concluding a day is missing.
 **Branch/PR:** [TideSynth#63](https://github.com/JeffMcClintock/TideSynth/pull/63),
 stacked on the A10 branch, which is stacked on C12b. All three retarget to
 `main` as their parents merge.
+
+## 2026-08-15 — windows — P9
+
+**Prompt:** `dd93251` · claude-opus-5[1m] · Claude Code (Claude Agent SDK harness) · as `tide-rack-bot`
+
+**Did:** **P9** — a lint that fails when the two `resource.h` copies stop
+agreeing: [scripts/check-resource-h-drift.py](scripts/check-resource-h-drift.py).
+Fifth item this session, at Jeff's direction, TideSynth-only. Took the row's
+cheaper of two options — the lint rather than merging the files into one — on
+the row's own pricing ("minutes for the lint; longer if the two are actually
+merged") and because merging a Visual-Studio-generated header that VS will
+rewrite is a change with its own failure mode.
+
+**Result:** **318 `ID*` constants on each side, all agreeing.** Selftest 7/7.
+Exit 1 on both divergence kinds — a same-name-different-value conflict, and a
+constant present on only one side — tested on **scratch copies**, so neither
+`SE16` nor `SynthEditLib` was written to; both were verified clean afterwards.
+
+**Learned — excluding the `APSTUDIO_INVOKED` block is what makes this check
+survivable, and it is not a detail.** The one thing the two files actually
+differ in today is `_APS_NEXT_RESOURCE_VALUE`: **210** private, **207** public.
+That is Visual Studio's own allocation counter, it compiles to nothing, and it
+moves whenever anyone adds a resource in the IDE. A check that compared it would
+be **red from birth and red forever**, and the first person to see it would turn
+it off — taking the 318 real constants with it. So the whole `#ifdef
+APSTUDIO_INVOKED` block is skipped, nesting-aware, and the selftest pins that
+behaviour with the real 207→210 case as one of its seven.
+
+The counter gap is still worth reading as evidence rather than noise: it says
+the private copy has had **three resource slots allocated that the public one
+has not**. Nothing has collided yet. Nothing would announce it if it did — which
+is the entire reason this row exists.
+
+**Learned — this closes a loop under C12a rather than sitting beside it.** C12a
+delisted `${EDITOR_DIR}/resource.h` on the strength of the two copies being
+identical, and that argument only holds while they stay identical, because
+public and private TUs each resolve to their own copy by the own-directory-first
+rule. That assumption had nothing enforcing it and was made this morning. Now it
+has a check, and the check independently re-derives the same 318 that C12a
+relied on.
+
+**Next:** the row's larger option — pick one copy as the source of truth — is
+still open and still unowned; the lint makes it safe to defer, not unnecessary.
+**Note it cannot run in TideSynth CI**, since one of the two files is in the
+private repo, so it is a dev-box/agent tool like
+[scripts/dangling_private_includes.py](scripts/dangling_private_includes.py).
+Its docstring says to run it as part of **any carve-out stage that moves a
+`.cpp` out of `SynthEdit2`** — such a TU switches from the private copy to the
+public one, a no-op only while this passes. **C12f is the next stage that does
+that**, and its row already says to re-check `resource.h`; this is the command
+for it.
+
+**STEP 1 / 1.5:** unchanged. Open PRs are all this session's own.
+
+**Side effects on this box:** copies of both `resource.h` files in the
+scratchpad, and a throwaway git repo from the A14 run. Nothing outside it. This
+run committed in TideSynth only; `SE16` and `SynthEditLib` were read but never
+written, and were confirmed clean afterwards.
+
+**Branch/PR:** [TideSynth#64](https://github.com/JeffMcClintock/TideSynth/pull/64),
+fourth in the stack (61 → 62 → 63 → 64), each retargeting to `main` as its
+parent merges.
