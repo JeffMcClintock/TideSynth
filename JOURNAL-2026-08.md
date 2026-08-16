@@ -6762,3 +6762,58 @@ written, and were confirmed clean afterwards.
 **Branch/PR:** [TideSynth#64](https://github.com/JeffMcClintock/TideSynth/pull/64),
 fourth in the stack (61 → 62 → 63 → 64), each retargeting to `main` as its
 parent merges.
+
+---
+
+## 2026-08-15 — windows — A15 (interactive session, Jeff directing)
+
+**Did:** **A15** — wired A10's [scripts/check-id-refs.py](scripts/check-id-refs.py)
+into the `lint` job, which is the half A10 could not do because the bot token
+is `repo` scope with **no `workflow`**. Pushed as Jeff rather than
+`tide-rack-bot` for exactly that reason; his keyring token on this box does
+carry `workflow` (checked with `gh auth status` first, since the A11 entry
+records that this bites on other boxes and not here).
+
+**Result — both halves of the Accept proven in the PR's own two-commit
+history, in order, rather than asserted.**
+
+| push | carried | `lint` |
+|---|---|---|
+| first | the wiring **+ a probe file naming a nonexistent row `Z9`** | **fail** |
+| second | probe deleted | **pass** |
+
+The failing run reads `id-refs: failure` with `links`, `journal`, `backlog` and
+`provenance` all `success` — so it failed **for the right reason and only that
+reason**, and the `ID_REFS` Summary wiring genuinely converts a step failure
+into a job failure. The passing run reads all five `success` and
+`456 ID reference(s) checked against 98 row(s), 91 distinct ID(s) named`.
+Together those rule out the two ways this could have looked installed while
+doing nothing: failing always, and passing vacuously.
+
+**Learned — the Summary wiring is the part that would have silently rotted, and
+A15's row was right to insist on it.** Every step in this job is
+`continue-on-error`, so a step added *without* `ID_REFS` in the Summary's `env`
+and `for` loop runs, prints its findings, fails — and the job goes green. It
+would look wired for as long as nobody read a log. Same shape as A4's finding
+that a path allowlist can look built while firing on nothing, and the reason
+both halves are now demonstrated separately rather than assumed together.
+
+**Learned — this check is deliberately not diff-based, unlike the four above
+it, and the workflow now carries a comment saying so.** The other four compare
+a base version against head. A cross-reference goes stale when the row it names
+is **renamed or archived** — an edit to a *different file* than the one holding
+the reference. A diff-scoped check would see the reference file unchanged and
+pass, which is precisely the case A10 was filed for. So it reads the whole tree
+every run. Cost is bounded: 456 references, 9 seconds.
+
+**Next:** nothing on this row. The lint job is now five checks, all green on
+`main`. Whoever next touches [scripts/check-id-refs.py](scripts/check-id-refs.py)
+should re-run `--selftest` (20 cases) as well as the tree scan, since CI runs
+only the latter.
+
+**Side effects on this box:** none outside the scratchpad. TideSynth only; no
+other repo was committed in or modified.
+
+**Branch/PR:** [TideSynth#65](https://github.com/JeffMcClintock/TideSynth/pull/65).
+
+---
