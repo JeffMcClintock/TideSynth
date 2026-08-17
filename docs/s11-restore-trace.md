@@ -148,10 +148,19 @@ look, not a separate bug.
 
 **Two open questions, deliberately not answered here:**
 
-- **Does the base64 change cause the crash?** *Unknown.* The A/B against a
-  pre-base64 binary was never run. Nobody should assume either way — that A/B is
-  the cheapest next measurement and the same control that settled the blank-editor
-  question earlier in the week.
+- **Does the base64 change cause the crash?** **ANSWERED — no.** The A/B was run
+  later the same day and **exonerates it.** Reverting *only* the preset writer and
+  reader to pre-base64 form (`git checkout 602dc21^ -- Hosting/processor_holder.cpp
+  Hosting/controller_holder.h`, keeping `Core/base64.h` so SynthEditLib's forwarder
+  still compiles, and keeping PR#2's seeding fix; `base64Encode`/`base64Decode`
+  confirmed at 0 hits before building) **still aborts REAPER on the same project.**
+  Repro is now **4/4, one of them on a binary that can neither encode a blob into a
+  preset nor decode one back** — new report `REAPER-2026-08-17-202724`, identical
+  main-thread signature, verified here independently.
+  **So the crash is pre-existing, exposed by opening this project rather than
+  introduced by the merged change.** Not isolated by that A/B: the *seeding* fix
+  (GMPI PR#2) stayed in, and `git checkout fa4d46a^ -- Hosting/processor_holder.cpp`
+  would isolate it if anyone wants that too.
 - **Does `/tmp/tide-persist3.rpp` crash too, or only the larger
   `/tmp/tide-restore-test.rpp`?** Untested, and the difference was thought to be
   a clue (persist3: 4426 bytes, near-empty rack; restore-test: 4568 bytes, with a
@@ -204,8 +213,10 @@ Stated plainly, because the three have different strengths:
   path for the chunk (from the sources).
 - **Proven, second-hand then independently corroborated:** reopening a saved
   project aborts REAPER on the main thread via an uncaught exception.
-- **Not established:** that the base64 change causes the crash; that audio would
-  return if the crash were fixed; that the two `.rpp` files behave differently.
+- **Disproven:** that the base64 change causes the crash (A/B, 4/4).
+- **Not established:** that audio would return if the crash were fixed; that the
+  two `.rpp` files behave differently; that PR#2's seeding fix is innocent (it was
+  never isolated).
 
 **Standing trap, unrelated but easy to re-trigger:** `SynthEdit` and
 `SynthEditLib` must stay at their paired C12c tips (`28907334e` / `f0e3c92`).

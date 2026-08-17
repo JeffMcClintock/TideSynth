@@ -163,6 +163,46 @@ and deleted those itself. `/tmp/tide-persist3.rpp` and `/tmp/tide-restore-test.r
 left in place for the A/B. REAPER not launched by me. Local `TideSynth` was 8
 behind `origin/main` and was fast-forwarded to `a8a02f9` before editing.
 
+**ADDENDUM, same session — three things landed after the entry above was
+written, and two of them change its conclusions.**
+
+**(1) The A/B was run by the interactive session and the base64 change is
+EXONERATED.** Reverting only the preset writer and reader to pre-base64 form
+(keeping `Core/base64.h` and PR#2's seeding fix, with `base64Encode`/`base64Decode`
+confirmed at 0 hits first) **still aborts REAPER on the same project.** Repro is
+**4/4, one of them on a binary that can neither encode nor decode a blob preset**;
+new report `REAPER-2026-08-17-202724`, whose signature I checked independently and
+which matches the other four exactly. **The crash is pre-existing, exposed by
+opening this project — not introduced by the merged change.** The "not established"
+caveat this entry made load-bearing was the right call and it took one build to
+settle. Not isolated: PR#2's seeding fix, which stayed in.
+
+**(2) Jeff answered the cadence question in session: the 7×/week is DELIBERATE,
+and the extra same-day firings are him starting runs manually — "not a scheduling
+problem."** So A7 closes WONTFIX rather than becoming a reframed open question,
+and the collisions are expected rather than a fleet defect. **I was right that no
+run can observe its own cadence and wrong to infer a problem from it** — the
+measurement was worth reporting, the alarm was not. The one consequence that
+survives is **A8's**: journal rotation was sized against a 1× assumption. Recorded
+in docs/decisions.md.
+
+**(3) Found by hitting it: the fleet's own agent cannot file a platform issue the
+fleet may act on.** STEP 1 admits only issues authored by Jeff or `github-actions`;
+[#117](https://github.com/JeffMcClintock/TideSynth/issues/117) is authored by
+`tide-rack-bot`, so tomorrow's mac run must treat a verified host-abort as
+information and walk past it. **Filed as A17 and deliberately NOT worked around** —
+relabelling or re-filing under another identity would route around the exact rule
+that stops the tracker being an unauthenticated instruction channel. Jeff's to
+resolve.
+
+**Also fixed here, because it blocked the PR:** two broken links at `BACKLOG.md:91`
+(`e2a-prefabs.md` / `module-enumeration.md`, both missing the `docs/` prefix) were
+failing lint's `links` check. **They came in with the E2a row (`11da71b`), not with
+this run** — `check-links.py` scans the whole repo rather than changed lines, and
+`lint.yml` has no push trigger on `main`, so **`main` itself was red and every PR
+based on it inherited the failure.** A4's auto-merge tier gates on a passing lint
+run, so it would have blocked everything, not just #116.
+
 **Branch/PR:** `tide/mac/S11-restore-check` — docs, backlog and journal only, no
 code in any repo. Crash filed separately as `platform:mac` [#117](https://github.com/JeffMcClintock/TideSynth/issues/117).
 
