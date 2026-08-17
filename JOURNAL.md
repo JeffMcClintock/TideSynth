@@ -46,6 +46,77 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — FIRST SOUND (interactive session, Jeff present — "i can hear it!")
+
+**Prompt:** n/a — interactive session. Jeff merged the S12 stack, pointed out
+that Sound Out is the device sink and "VST Output" the plugin path, and then
+— after three more fixes — heard TIDE Rack's first sound. Committed and
+pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** finished the S12 thin slice. **Place 1 kHz Tone, place Sound Out,
+drag the cable: track meter −6.0 dB, master green, and Jeff heard it.** The
+whole product loop is live for the first time: edit the rack → document
+exports → chunk parameter → processor → graph rebuilds → audio.
+[SynthEditLib#15](https://github.com/JeffMcClintock/SynthEditLib/pull/15) +
+[SynthEdit#40](https://github.com/JeffMcClintock/SynthEdit/pull/40), 
+diagnostics stripped.
+
+**The three finds between "merged" and the meter moving, in order:**
+
+1. **The export pruner was a design decision, not a bug** — with any target
+   except `SAT_SYNTHEDIT_DSP`, `ExportXml_Pt2` on a top-level container
+   serialises ONLY its first child container and disregards loose modules
+   ("save XML for use in a plugin. Excludes 'Sound Out'..." — the comment says
+   it plainly). The probe that proved both per-module gates PASSED
+   (`doExport=1 hasDsp=1`) is what forced reading past them. **TIDE now
+   exports with the editor's own runtime format, and the modules appear.**
+2. **The AsyncRestart swap path is unreachable in the plugin runtime** —
+   `eRuntimeState::resetting` exists only as a case label; nothing enters it.
+   So the first (empty) graph played silence forever while every later
+   document push was stored and never consumed. **Fix: `documentPending_`
+   forces `prepareToPlay` to rebuild, and the processor re-calls it on every
+   document arrival** — synchronous, in place, fine at rack scale; the faded
+   swap can come later without changing the transport.
+3. **No browser unhide was needed.** Jeff's pointer resolved cleanly:
+   "VST Output" is what `SetupVstIO` builds internally; the user-facing sink
+   is plain **Sound Out**, whose `ug_soundcard_out` is a real
+   `ISpecialIoModuleAudioOut` — it registers with the audio master at `Open`
+   and receives whatever buffers the shell provides: device buffers in the
+   standalone, **the host's output buffers in TIDE**. (IO Mod, the other
+   candidate, refuses to instantiate in a master container — it needs a
+   parent to expose plugs to.)
+
+**Learned — when both gates pass and the output is still empty, the skip is
+between the gates.** The probe pattern (log every candidate's name plus each
+gate's verdict) took one build and turned "modules missing, cause unknown"
+into "read `ExportXml_Pt2`". And its own first run crashed REAPER on an
+uninitialised iterator (`it_doc_ob` needs `First()`), which is the day's
+smallest lesson: MFC-style iterators do not position themselves.
+
+**Also caught on the way:** my line-ending-blind Python edit turned the GMPI
+patch into a 2212-line diff; redone byte-safe (CRLF preserved) it is 58
+lines. **Check the patch size before filing a patch.**
+
+**Where S12 stands:** thin-slice Accept met and heard. Remaining, named in
+the row: the MIDI-note path (wired via `onMidiMessage` → `rack.MidiIn`, but
+untested — no MIDI module was in the patch), the faded document swap, preset
+retention across edits, and re-verifying a REAPER save/reopen now that the
+chunk carries real documents (S11's other half). **The GMPI blob-transport
+patch is still unapplied** — main lacks "ppc3" and GMPI_Wrappers main now
+requires it, so builders without the local branch break; the patch sits in
+[docs/patches/](docs/patches/gmpi-blob-param-transport.patch) and Jeff's queue.
+
+**Side effects on this box:** ~6 more TIDE_VST3 rebuilds, one REAPER crash
+(my probe's iterator — report read, fixed), several restarts; throwaway
+projects only, **"Optimus HP" untouched**. `/tmp/tide-s12.log` and
+`/tmp/tide-dsp-doc.xml` left behind by the now-removed diagnostics.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEditLib#15](https://github.com/JeffMcClintock/SynthEditLib/pull/15) +
+[SynthEdit#40](https://github.com/JeffMcClintock/SynthEdit/pull/40).
+
+---
+
 ## 2026-08-17 — macos — S12 built to its last step: the rack has an engine; the tone is one gate away (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session. Jeff ruled Option A with the boundary
@@ -427,63 +498,3 @@ reloaded on its own and was left alone). Only `SynthEdit` was committed in.
 
 **Branch/PR:** this TideSynth PR +
 [SynthEdit#38](https://github.com/JeffMcClintock/SynthEdit/pull/38).
-
----
-
-## 2026-08-17 — macos — P10: the dead XML is gone (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff merged the D3/D6 stack, then
-"sync repos, clean up branches, continue". Committed and pushed as
-`tide-rack-bot` (claude-fable-5).
-
-**Did:** synced all five repos and deleted every merged local branch (only
-`main`/`master` and Jeff's own release branches remain; **zero open PRs** in
-all four repos at the start), then took **P10** — the item the NEXT row names
-for exactly this situation — [SynthEdit#37](https://github.com/JeffMcClintock/SynthEdit/pull/37).
-`SynthEditSem/SynthEdit.xml` and its `SynthEdit.rc` resource line are deleted.
-
-**Why the file had to go, restated because it is the trap P5 nearly fell
-into:** the file looks like the source of truth — 12 lines, named after the
-plug-in, holding `id` and `name` — and **is not what ships**. The live identity
-is the embedded XML string literal in `SynthEdit.cpp`'s
-`getPluginInformation()`. Editing the `.xml` alone changes nothing at runtime
-on any platform: a no-op PR that reviews as correct.
-
-**Re-verified before deleting rather than trusting the row, and the discipline
-mattered twice this week.** D4's central measurement turned out false
-yesterday, so P10 got the same treatment: only two references exist (the `.rc`
-line and an explanatory comment in `SynthEdit.cpp`), and the sole loader sits
-inside `#if 0`. **The near-miss worth recording: the loader's first visible
-guard is `#if _WIN32` at `MyVstPluginFactory.cpp:472`, which reads as live —
-the `#if 0` that kills it is the *enclosing* one at `:462`.** I read the inner
-guard first and briefly concluded the row was wrong, exactly as I had concluded
-about D4. Checking the enclosing guard settled it in one command. **When a
-"this code is dead" claim rests on a preprocessor guard, find the outermost
-one, not the nearest.**
-
-**Accept met, both halves:** TIDE_VST3 and SynthEdit_VST3 build on macOS, and
-the built binary's identity is byte-identical — `id="SE SynthEdit"
-name="TIDE Rack" vendor="TIDE Synth"`, the strings P5 put there.
-
-**The limit this box cannot close, stated rather than glossed:** `.rc` files
-are Windows-only, so the deletion is verified *consistent* here but the Windows
-resource compile is unexercised. It should be trivially fine — the only line
-naming the file goes with the file — but the Windows box is the real check, and
-the PR says so.
-
-**Next:** with P10 done, the mac backlog has **no remaining item a scheduled
-run should take on its own initiative**. What is left is either Jeff's call
-(the R-series, all blocked on there being something to ship) or small
-follow-ups already recorded in their rows: crumb thumbnails (U1b), `rackMode`
-on project load (U1c), Windows/Linux clipboard for Copy link (D6), and the win
-box's two U2e items. **That is a genuinely finished board rather than a tired
-one**, and the NEXT row now says so in those words so the next run does not
-invent scope to fill the gap.
-
-**Side effects on this box:** two `TIDE_VST3` builds and one `SynthEdit_VST3`
-build; the installed plug-in is current. REAPER was not driven this entry.
-Only `SynthEdit` was committed in; the other four repos were read only and are
-clean on their default branches.
-
-**Branch/PR:** this TideSynth PR +
-[SynthEdit#37](https://github.com/JeffMcClintock/SynthEdit/pull/37).
