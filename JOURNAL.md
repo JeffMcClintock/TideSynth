@@ -46,6 +46,88 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — S12 mapped: the machinery exists, in the sibling VST3 target (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session. Jeff's pointer, in substance: SynthEdit
+also builds the graph for its own use and switches out the DSP smoothly; the
+SynthEdit VST3 target is similar and can rebuild the graph under certain
+conditions. Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** followed the pointer through the code and rewrote **S12** from "scope
+unknown, probably large" into a **start-ready implementation map with file:line
+references**. No product code this entry; the map is the deliverable, and it
+changes S12's size class from "unknown" to "one focused session".
+
+**What the pointer found, part by part:**
+
+1. **The plugin-side graph host exists:** `SynthRuntime`
+   (`SynthEditLib/SynthRuntime.cpp` — sibling of the standalone's
+   `SynthRuntime_editor`) owns `SeAudioMaster` and builds the whole DSP graph
+   from an XML document. Today it reads that XML from the **`dsp.se.xml`
+   bundle resource** (line 59) — the thing SynthEdit's *exporter* bakes in.
+   **The cache check is the injection point:** `if
+   (!currentDspXml.RootElement())` means a pre-seeded document skips the
+   bundle read entirely. TIDE never needs a baked resource; it needs to hand
+   the runtime its XML.
+2. **The smooth swap Jeff described is real and complete**
+   (`SynthRuntime.cpp:330-395`): `audioMasterState::AsyncRestart` → retain
+   presets (`getPresetsState`) → `Close()` → new `SeAudioMaster` → background
+   `rebuildDsp` thread → fade-up. **And the document-swap hook already exists
+   in skeletal form:** a `pendingDspXml` branch sits inside that path behind
+   `#if 0 // editor only` — disabled because an exported plug-in's document
+   never changes. TIDE is exactly the product that flag was sketched for.
+3. **A complete working reference exists:** `se_vst3`'s `SeProcessor`
+   (`adelayprocessor.cpp`, 1502 lines) does everything TIDE's stub does not —
+   `prepareToPlay`/`reInitialise`, MIDI translation, queue servicing,
+   `ProcessorStateMgrVst3`, and `setState`/`getState` whose chunk is a
+   `DawPreset` string. **Jeff's "all state lives in the preset" is that
+   target's existing design**, not a new invention.
+4. **The editor can emit the DSP XML at runtime:** `dsp.se.xml` is nothing but
+   `<Document><DSP>` wrapping `MasterContainer->ExportXml(element, target)` —
+   fifteen copyable lines in `ExportAsPlugin.cpp:1204-1220` (skip the Release
+   `Scramble`). So the live document TIDE's editor already edits can produce
+   exactly what `SynthRuntime` eats, with the same serialiser the exporter
+   uses.
+
+**Why S11 and S12 turn out to be one mechanism.** Document XML rides in the
+preset (S11's rulings); a preset that carries a new document sets
+`pendingDspXml` and triggers `AsyncRestart`; the rebuild thread constructs the
+new graph while audio fades (S12). Save, restore, and preset-change-modifies-
+the-rack are the same wire.
+
+**The one fork, flagged for a one-word ruling.** **Option A (recommended):**
+keep TIDE as a GMPI plug-in and grow its processor a `SynthRuntime` — all of
+this session's controller/editor wiring survives, and the document travels
+through the already-declared `chunk` blob parameter bound to a DSP pin
+(`BlobInPin` exists in sdk3; the GMPI-Core equivalent is a named unknown).
+**Option B:** rebase TIDE onto `se_vst3`'s `SeProcessor`/`SeController` —
+the processor comes ready-made, but the `controllerPtr` trick, TideApp
+attachment and editor hosting all get redone against Steinberg classes.
+**Named unknowns for either:** `BundleInfo` calls inside `SynthRuntime`
+(`latencyConstraint`, resource folder) against a bundle that lacks the
+exporter's resources; in-process queue wiring TideApp ↔ runtime.
+
+**Thin-slice accept, unchanged:** place **1 kHz Tone**, wire it to **Sound
+Out**, play, and see the host meter move.
+
+**Learned — "scope it before costing it" can cost one hour and change the
+answer.** Yesterday's S12 said "unknown and probably large: building a DSP
+graph at runtime is what the exporter does at build time". The pointer plus an
+hour of reading found the runtime builder, the swap machinery, the skeletal
+document-swap hook, and the serialiser — all existing, none speculative. The
+row now names them by file and line, which is the difference between a next
+session that implements and one that re-discovers.
+
+**Next:** S12, Option A unless Jeff says B — starting with the fresh-context
+implementation session the row is now written to launch.
+
+**Side effects on this box:** none — read-only exploration; nothing built,
+REAPER not driven. Only TideSynth committed.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).
+
+---
+
 ## 2026-08-17 — macos — S11's design answered by Jeff; S12 filed: TIDE makes no sound (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session. Jeff answered S11's three open questions
@@ -405,97 +487,3 @@ clipboard.
 
 **Branch/PR:** this TideSynth PR +
 [SynthEdit#36](https://github.com/JeffMcClintock/SynthEdit/pull/36).
-
----
-
-## 2026-08-17 — macos — D3 done, D4 refuted by measurement, U1 closed (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff asked me to merge the U1b/U1c
-stack, sync, and "do the D-series". Committed and pushed as `tide-rack-bot`
-(claude-fable-5).
-
-**Did:** merged [SynthEdit#33](https://github.com/JeffMcClintock/SynthEdit/pull/33)
-and [#34](https://github.com/JeffMcClintock/SynthEdit/pull/34) at Jeff's
-request (so **U1a+U1b+U1c are all on `master`** and **U1 itself closes**),
-synced all five repos, then took the D-series: **D3 is done**
-([gmpi_ui#9](https://github.com/JeffMcClintock/gmpi_ui/pull/9) +
-[SynthEdit#35](https://github.com/JeffMcClintock/SynthEdit/pull/35)) and
-**D4 is WONTFIX — its central measurement is now false, and acting on it
-would have broken the build.**
-
-**D4 first, because it is the finding.** The row says *"grepping SynthEdit,
-SynthEditLib, gmpi_ui and GMPI_Wrappers finds **zero** call sites for
-`gmpi::browse_to`"* and concludes the file can be dropped *"at no functional
-cost"*. Re-measured today: **two live call sites** —
-`SynthEditLib/SkinMgr.cpp:111` (`SkinMgr::EditSkin`, the "open this skin's
-folder" command) and `SynthEditLib/MfcDocPresenter.cpp:1106` (the
-skin-folder context command). Deleting `browseto.mm` would have produced an
-undefined symbol, not a saving. The row was filed 2026-08-16; the C-series
-carve-out has been moving files into `SynthEditLib` throughout, so the
-likeliest explanation is that the callers arrived with a move after the grep
-ran. **The lesson is the cheap one: re-run a row's own measurement before
-acting on its conclusion, especially a "delete this, nothing uses it" row in
-a tree that is being actively carved up.** I ran the positive control too
-(`gmpi::open_url`, 5+ call sites) so a zero would have been distinguishable
-from a broken grep.
-
-**D4's *intent* is nonetheless delivered — by D3.** Its real goal was
-removing an AppKit dependency and a sandbox-hostile API
-(`activateFileViewerSelectingURLs:`, i.e. reveal-in-Finder) from Apple builds
-that should not have them. D3's split does exactly that for the platform
-where it matters: `browse_to` compiles to a deliberate no-op off macOS. On
-macOS it stays, because it is used. So D4 is WONTFIX with the goal met
-elsewhere rather than dropped.
-
-**D3, and why the fix is not where the row put it.** The row proposed making
-`EditorLib/CMakeLists.txt`'s `if(APPLE)` block iOS-excluding. That alone
-would only convert a **compile** error into a **link** error: the headers
-dispatch on `__APPLE__` — true on iOS — so the call sites still reference
-`browse_to_impl`/`open_url_impl`. **The split belongs in the `.mm` files**,
-which now choose their framework internally on `TARGET_OS_OSX`: `open_url`
-uses `NSWorkspace` on macOS and `UIApplication openURL:options:completionHandler:`
-on iOS; `browse_to` is macOS-only behaviour and a no-op elsewhere. The CMake
-change is then just the framework line — **AppKit is macOS-only, iOS wants
-UIKit**; CoreText, CoreFoundation and UniformTypeIdentifiers exist on both.
-
-**Verified, and the limit stated:** TIDE_VST3, SynthEdit_VST3 **and**
-SynthEditCL all build on macOS (that was D4's own Accept, reused here as the
-regression check). **The iOS side is unverifiable on this box** — no iOS
-target exists (S10) — so this removes the known compile blocker rather than
-proving an iOS build succeeds. Said that way in the row and both PRs.
-
-**Learned — a codesign failure on SynthEditCL can be stale-bundle detritus,
-and my first A/B was not controlled.** SynthEditCL failed with P6's exact
-string (*"code object is not signed at all … Contents/MacOS/Resources/
-Prefabs/Button Small2.syntheditprefab"*). My first check stashed the change
-**and** deleted the .app, so a pass proved nothing about which variable
-mattered. Re-run properly — change applied, fresh bundle — it **builds
-clean**: the failure was a stale bundle carrying resources under
-`Contents/MacOS/`, not P6 regressing and not my edit. **`rm -rf` the .app
-before believing a codesign failure on that target**, and change one variable
-at a time even when the first answer is the one you wanted.
-
-**Bookkeeping done in the same pass:** U1b and U1c flip **DONE** (their PRs
-merged this session) and **U1 itself flips DONE and archives** — its three
-children have all landed, which is what its row was waiting for. Constraint
-1 is now delivered end to end: rack by default, structure view behind an
-unlock, breadcrumb navigation, and modules that bolt to rack rows.
-
-**Next:** the D-series is exhausted for now — D1/D2 landed 2026-08-16, D3 is
-IN-REVIEW, D4 is WONTFIX, **D5 is Jeff's Ko-fi account** (done). The about
-pane that D1/D2 designed is the natural next build: it now has the
-breadcrumb bar to hang from, and [docs/about-pane.md](docs/about-pane.md)
-fixes its contents to exactly four items. It needs a row of its own — filed
-as **D6**. The win box still owes U2e's two follow-ups.
-
-**Side effects on this box:** three products rebuilt (TIDE_VST3,
-SynthEdit_VST3, SynthEditCL — the last twice, once from a fresh bundle);
-`SynthEditCL.app` was deleted and rebuilt in the build tree. REAPER was not
-driven this session. `gmpi_ui` and `SynthEdit` each carry one commit on a PR
-branch; `SynthEditLib`, `TideSynth` and `GMPI_Wrappers` were read only.
-
-**Branch/PR:** this TideSynth PR +
-[gmpi_ui#9](https://github.com/JeffMcClintock/gmpi_ui/pull/9) +
-[SynthEdit#35](https://github.com/JeffMcClintock/SynthEdit/pull/35) — **the
-two code PRs must merge together**: the CMake one alone changes nothing, the
-helper one alone leaves iOS linking AppKit.
