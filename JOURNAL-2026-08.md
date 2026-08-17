@@ -8913,3 +8913,80 @@ demonstrating the trail.
 **Branch/PR:** this TideSynth PR +
 [SynthEdit#31](https://github.com/JeffMcClintock/SynthEdit/pull/31)
 (stacked on [#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)).
+
+---
+
+## 2026-08-17 — macos — U1b complete: two depths, both directions (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff merged the outstanding PRs, asked
+for the remaining one to be resolved and merged, then "do U1b's second half".
+Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** resolved and landed the last open PR, then **finished U1b** —
+[SynthEdit#33](https://github.com/JeffMcClintock/SynthEdit/pull/33). **The
+rack is the default again and the structure view sits behind an unlock, with
+all four navigation paths verified in REAPER.** Constraint 1's two depths are
+now real in the plug-in.
+
+**The routing, in one sentence:** the **master** container opens as the rack
+(panel view — the product's face, workable now that U2d/U2e made panel
+modules and controls draw); **any other** container opens as its structure
+view; and `OpenViewForContainer` grows an optional explicit `view_flag` where
+**0 routes by depth and a `CF_*` honours the caller**. That one parameter is
+what turns SynthEdit's *existing* menu commands into the unlock and its
+inverse — no new UI invented:
+
+| gesture | result |
+|---|---|
+| open the plug-in | **rack** (panel view, modules drawing) |
+| double-click a Container | its **structure** view, breadcrumb follows |
+| **"Goto Structure…"** on the master | the master's **structure** view — the unlock |
+| **"Panel Edit…"** | back to the **rack** |
+| **"Main"** crumb | back to the **rack** |
+
+**Learned — a false negative that cost an hour, and the tell.** "Panel
+Edit…" appeared not to work: the canvas stayed on the fine structure grid,
+and a List Entry inserted afterwards drew structure-style (module box + a
+"Value Out" pin), which looked like confirmation. It was an artifact: the
+context menu had been left open across a model switch, macOS auto-dismissed
+it, and the click landed on the canvas instead. **Instrumenting
+`TideApp::OpenView` settled it in one build** — `flag=256` (structure) then
+`flag=128` (panel) both logged, with the two-tone rack canvas back on screen.
+**The rule worth keeping: when a GUI verification contradicts a code path
+that reads correct, suspect the input, not the code — and re-run the gesture
+fresh before believing the failure.** A stale menu is invisible in a
+screenshot.
+
+**Learned — Jeff's rack machinery is right there, and U1c should start from
+it.** `CContainer::OnMenuCommand` already handles
+**`POPUP_MENU_TOGGLE_RACKMODULE`** (toggling `m_is_rack_module`, the flag
+`ModuleViewPanel`'s JSON ctor already reads) and **`POPUP_MENU_TOGGLE_LOCKED`
+→ `toggleLocked()`**. So U1c is enabling and surfacing existing code, exactly
+as Jeff said — and the lock machinery is the natural home for a future
+unlock UX if the menu command is ever felt to be too hidden.
+
+**Also did — the PR queue is empty.** [#90](https://github.com/JeffMcClintock/TideSynth/pull/90)
+(the linux S3 run's) was conflicting on all three coordination files; resolved
+by keeping **both** sides' journal entries (S3 below the newer U1b entry, both
+archives unioned) and **cross-picking** the NEXT rows — main's `mac`, the
+branch's `linux`. **One lint trap worth recording:** the S3 entry quoted `nm`
+output containing `[abi:cxx11]` immediately followed by `(CUG*)`, which `check-links.py` reads as a
+markdown link to a file named `CUG*`; a space between `]` and `(` defuses it
+without touching the quoted output's meaning. Every repo is now at zero open
+PRs except this session's own.
+
+**Next:** **U1c** — enable the existing rack-mode code (`m_is_rack_module`,
+the rack axes already documented in `ViewBase::snapToGrid`), which is what
+makes modules *snap into rack rows* rather than free-float. After that the
+D-series surfaces (the about pane hangs off the breadcrumb bar, which now
+exists). The win box still owes U2e's two follow-ups (staging + combo
+re-verify).
+
+**Side effects on this box:** four `TIDE_VST3` rebuilds; the installed
+plug-in now opens as the rack. REAPER restarted twice; "Optimus HP" untouched
+throughout; test tabs left open. Temp navigation logging was local-only and
+is removed.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#33](https://github.com/JeffMcClintock/SynthEdit/pull/33) (against
+`master`, no stack — the queue is clear).
