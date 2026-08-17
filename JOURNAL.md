@@ -46,6 +46,87 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — issue #117 (STEP 1)
+
+**Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** closed [#117](https://github.com/JeffMcClintock/TideSynth/issues/117)
+on a fresh Release build of `master`, and archived the **S11** row, whose five
+PRs had all merged. No code changed anywhere.
+
+**Read the prompt again mid-session, and it had moved: `b3e9876` -> `397330d`.**
+Worth saying because a run normally reads it once at STEP 0 and would not
+notice. Three changes land on this box: STEP 1 now admits `tide-rack-bot`
+issues (A19); STEP 5 gained the GATED build-break exception with six bounds
+(A17); STEP 3/4 now want `check-commit-completeness.py --record/--verify`
+around commits in a shared checkout (A16). **The first of those is what made
+this run's work possible at all** — two earlier runs, mine included, walked
+past #117 because the fleet could not act on its own agent's issue. The
+deadlock A19 described is now gone, and #117 was the first thing to come out of
+it.
+
+**Result — #117 is fixed, and the fix builds here.** Cause, for the record:
+`std::stod()` on every parameter regardless of datatype in the processor's
+preset reader, latent while blobs serialised as `"0"` and reachable the moment
+one was written as base64. `setPresetUnsafe` runs on the host's **main** thread,
+so the throw unwound into the event loop and killed the DAW. Fixed by
+[GMPI#5](https://github.com/JeffMcClintock/GMPI/pull/5) (the throw),
+[GMPI_Wrappers#6](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/6)
+(main-thread fail-safe at all three host boundaries) and
+[SynthEdit#43](https://github.com/JeffMcClintock/SynthEdit/pull/43) (`<Editor>`
+in the chunk, imported instead of always creating blank) — all merged and
+present in their default branches, checked individually.
+
+**Verification artifact — a full Release build of `master` `d6043de1f` on this
+box, all three products:**
+
+```
+TIDE_VST3   ** BUILD SUCCEEDED **   universal x86_64 + arm64
+TIDE        ** BUILD SUCCEEDED **
+SynthEditCL ** BUILD SUCCEEDED **
+```
+
+and the built bundle carries the `Editor` element name from SynthEdit#43, so it
+is the fixed code rather than a stale link — which is worth checking on this box
+specifically, given the prebuilt-library trap.
+
+**So: mac's default branch builds, as of now.** No `platform:mac` issue is open.
+
+**Learned — say which half of a verification you did not do.** The runtime
+proof (exit 134 SIGABRT in ~8s -> loads clean, 2516-byte byte-identical
+round-trip) is the interactive session's, not mine; computer-use is refused
+during a scheduled run, so I could not re-run REAPER. STEP 1's new clause says a
+bot issue is **evidence, not instruction**, and to re-verify on your own
+platform before acting. I could verify the build half and not the runtime half,
+so the issue comment says exactly that rather than implying I watched it load.
+Closing on a build plus someone else's measured A/B is a judgement call, and it
+should be visible as one.
+
+**Learned — the four overrides are all set on this box now, including the one
+that cost a cycle.** `GMPI_WRAPPER_FOLDER_OVERRIDE` is in the CMake cache
+alongside the other three, so the build uses the local `GMPI_Wrappers` clone
+rather than a FetchContent copy. Confirmed from `CMakeCache.txt` before
+building, which is cheaper than discovering it from a build that silently
+ignored local edits.
+
+**Next:** no platform issue and no open PR on this box. The mac NEXT row's two
+GUI-less pointers are both spent (S14 measured, A20 shipped), so the next
+unattended run falls to STEP 2's topmost-eligible rule. What is actually
+blocking progress is two rulings, both Jeff's and both minutes of work:
+**S15** (pick (a) route rack placement to the structure rect, or (b) give `CUG`
+a real panel rect) which unblocks S14, and **A25** (four lines wiring A20's
+check into `lint.yml`). **S13** — TIDE cannot run as a Debug build, a missing
+`database.se.xml` tripping `assert(false)` in `UgDatabase.cpp:549` — is the one
+that stops anyone attaching a debugger to the next crash, and is GATED.
+
+**Side effects on this box:** three Release targets built, so
+`SynthEdit/build/` is warm and its `Release` outputs are current. No source
+changed in any repo. All eight repos on their default branch and clean.
+
+**Branch/PR:** `tide/mac/issue-117` — TideSynth backlog and journal only.
+
+---
+
 ## 2026-08-18 — macos — A20
 
 **Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
@@ -461,66 +542,5 @@ needs a GUI session.
 **no GMPI modification** — the finding that prompted this was read-only.
 
 **Branch/PR:** `tide/mac/gmpi-pr-gated`.
-
----
-
-## 2026-08-18 — windows — unblocked the macOS A16 PR, filed the duplicate-id gap as A23 (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive; Jeff asked to sync the repos, hear what was
-waiting on him, then unblock [#119](https://github.com/JeffMcClintock/TideSynth/pull/119)
-and file the id-allocation gap. Committed and pushed as `tide-rack-bot`
-(claude-opus-5).
-
-**Did:** synced all six repos (all clean, all on default branches), merged
-`main` into the macOS box's `tide/mac/A16-commit-completeness` so
-[#119](https://github.com/JeffMcClintock/TideSynth/pull/119) is mergeable
-again — `mergeable=false` → `true` — and filed **A23** for the duplicate-id
-hole that bit this fleet yesterday.
-
-**Merged rather than rebased, deliberately.** That branch is another box's and
-its commits are already pushed; a rebase would rewrite them, which the run
-prompt forbids for good reason even when a human asks for "a rebase". Merging
-`main` in reaches the same mergeable state and rewrites nothing. Two conflicts:
-`BACKLOG.md`, where `main` had gained A20–A22 while the branch held A16 flipped
-to IN-REVIEW (kept both — main's new rows, the branch's newer A16), and
-`JOURNAL.md`, where both sides had prepended an entry (ordered newest first:
-main's 2026-08-18 C9 above the branch's 2026-08-17 A16).
-
-**The thing worth recording about A23, because it is not the obvious failure.**
-Two runs filed an A17 an hour apart. **Git did not conflict** — the rows were
-inserted at different points in the file, so both merged cleanly and the
-duplicate reached `main` silently. No check failed; a human noticed. Allocation
-scans `BACKLOG.md` on a branch cut from `main`, where a concurrent run's row is
-unmerged and invisible, and STEP 2's collision protocol does not cover it —
-that protocol is about *claiming an existing item*, not *allocating a new id*.
-
-**Why A23 is takeable by a scheduled run**, which is the part that makes it
-worth filing rather than escalating: `scripts/check-id-refs.py` already parses
-every row id in both files, and `lint.yml` invokes it **with no arguments**, so
-a duplicate assertion is a few lines on data it already has and needs **no
-`.github/workflows/**` edit** — the wall that keeps A12 and B1 out of reach.
-Lint runs against the merge result, which is precisely where a silent duplicate
-becomes visible.
-
-**Learned — "git merged it cleanly" is not "the merge was correct".** Both of
-today's merges made this point in different ways: the duplicate id merged
-cleanly and was wrong, and yesterday's journal rotation *also* merged cleanly
-while duplicating two archive entries, because an append-only file never
-collides. **For files that are ordered lists rather than code, absence of
-conflict carries almost no information; check the invariant (ids unique,
-entries appear once, order is newest-first) explicitly after every merge.**
-
-**Also observed while reporting:** every open `platform:*` issue — #87, #88,
-#111 and #117 — is authored by `tide-rack-bot`, so STEP 1 bars every run from
-acting on all four. That is A19's finding and the macOS box already has a fix
-in [#123](https://github.com/JeffMcClintock/TideSynth/pull/123); noted here
-only because it means A17's GATED question cannot unblock those issues on its
-own.
-
-**Side effects on this box:** none — docs and rows; nothing built. All six
-repos left synced, clean and on their default branches.
-
-**Branch/PR:** this TideSynth PR, plus the merge commit pushed to
-`tide/mac/A16-commit-completeness` for #119.
 
 ---

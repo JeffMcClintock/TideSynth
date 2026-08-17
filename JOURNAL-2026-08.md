@@ -11046,3 +11046,64 @@ an unattended run still cannot finish it.
 **Branch/PR:** `tide/mac/A19-issue-authorship`.
 
 ---
+
+## 2026-08-18 — windows — unblocked the macOS A16 PR, filed the duplicate-id gap as A23 (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive; Jeff asked to sync the repos, hear what was
+waiting on him, then unblock [#119](https://github.com/JeffMcClintock/TideSynth/pull/119)
+and file the id-allocation gap. Committed and pushed as `tide-rack-bot`
+(claude-opus-5).
+
+**Did:** synced all six repos (all clean, all on default branches), merged
+`main` into the macOS box's `tide/mac/A16-commit-completeness` so
+[#119](https://github.com/JeffMcClintock/TideSynth/pull/119) is mergeable
+again — `mergeable=false` → `true` — and filed **A23** for the duplicate-id
+hole that bit this fleet yesterday.
+
+**Merged rather than rebased, deliberately.** That branch is another box's and
+its commits are already pushed; a rebase would rewrite them, which the run
+prompt forbids for good reason even when a human asks for "a rebase". Merging
+`main` in reaches the same mergeable state and rewrites nothing. Two conflicts:
+`BACKLOG.md`, where `main` had gained A20–A22 while the branch held A16 flipped
+to IN-REVIEW (kept both — main's new rows, the branch's newer A16), and
+`JOURNAL.md`, where both sides had prepended an entry (ordered newest first:
+main's 2026-08-18 C9 above the branch's 2026-08-17 A16).
+
+**The thing worth recording about A23, because it is not the obvious failure.**
+Two runs filed an A17 an hour apart. **Git did not conflict** — the rows were
+inserted at different points in the file, so both merged cleanly and the
+duplicate reached `main` silently. No check failed; a human noticed. Allocation
+scans `BACKLOG.md` on a branch cut from `main`, where a concurrent run's row is
+unmerged and invisible, and STEP 2's collision protocol does not cover it —
+that protocol is about *claiming an existing item*, not *allocating a new id*.
+
+**Why A23 is takeable by a scheduled run**, which is the part that makes it
+worth filing rather than escalating: `scripts/check-id-refs.py` already parses
+every row id in both files, and `lint.yml` invokes it **with no arguments**, so
+a duplicate assertion is a few lines on data it already has and needs **no
+`.github/workflows/**` edit** — the wall that keeps A12 and B1 out of reach.
+Lint runs against the merge result, which is precisely where a silent duplicate
+becomes visible.
+
+**Learned — "git merged it cleanly" is not "the merge was correct".** Both of
+today's merges made this point in different ways: the duplicate id merged
+cleanly and was wrong, and yesterday's journal rotation *also* merged cleanly
+while duplicating two archive entries, because an append-only file never
+collides. **For files that are ordered lists rather than code, absence of
+conflict carries almost no information; check the invariant (ids unique,
+entries appear once, order is newest-first) explicitly after every merge.**
+
+**Also observed while reporting:** every open `platform:*` issue — #87, #88,
+#111 and #117 — is authored by `tide-rack-bot`, so STEP 1 bars every run from
+acting on all four. That is A19's finding and the macOS box already has a fix
+in [#123](https://github.com/JeffMcClintock/TideSynth/pull/123); noted here
+only because it means A17's GATED question cannot unblock those issues on its
+own.
+
+**Side effects on this box:** none — docs and rows; nothing built. All six
+repos left synced, clean and on their default branches.
+
+**Branch/PR:** this TideSynth PR, plus the merge commit pushed to
+`tide/mac/A16-commit-completeness` for #119.
+
+---
