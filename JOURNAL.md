@@ -96,11 +96,61 @@ are all waiting on.
 
 **Side effects on this box:** none — docs and rows only; nothing built.
 
-**Branch/PR:** this TideSynth PR. Note it was branched from `main` while
+**Branch/PR:** this TideSynth PR. Branched from `main` while
 [#114](https://github.com/JeffMcClintock/TideSynth/pull/114) (the same
-session's E2a/S8/E4 work) was still open, so that PR's journal entry is not
-above this one yet; whichever merges second needs a trivial JOURNAL/BACKLOG
-rebase.
+session's E2a/S8/E4 work) was still open; #114 merged first and this branch
+took `main` back in, so the entry below is that work.
+
+---
+
+## 2026-08-17 — windows — E2a planned, S8 corrected, E4 filed (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive; Jeff asked for the E2a plan, the S8 row fix, and
+an answer on user-authored prefabs under AUv3. Committed and pushed as
+`tide-rack-bot` (claude-fable-5).
+
+**Did:** wrote [docs/e2a-prefabs.md](docs/e2a-prefabs.md) — the implementation
+plan E2a's row now points at — corrected S8's premise in place, and filed the
+user-prefab question as **E4** (NEEDS-JEFF) with the analysis in the doc's §7.
+
+**The three findings under the plan, all measured today:**
+
+- **The prefab format is forced, not chosen.** `CContainer::LoadPrefab`
+  parses only modern `.synthedit`/`.syntheditprefab`; the `.seprefab` branch
+  (`CContainer.cpp:2996`) launches an installed SynthEdit 1.5 to upgrade the
+  file and is `_WIN32`-only — unusable from any sandboxed plugin. The 2024
+  prototype prefabs are references, not inputs.
+- **`Output.seprefab` contains no Sound Out** (decoded the UTF-16 payload:
+  Container + `SE Patch Point in` + `IO Mod`). The Output prefab is authored
+  from scratch; `TIDE.se1` is where the working Sound Out example lives.
+- **S8's "delete the forbidden modules" premise would have silenced TIDE.**
+  All three modules it names are `RegisterIoModule` seams, and Sound Out is
+  the plugin's audio egress — `SeAudioMaster` hands it the host's output
+  buffers (`SeAudioMaster.cpp:560-562`, `:640-642`), the same seam S12 used
+  for MIDI input. The row now says relabel-not-delete, with cites.
+
+**On user prefabs (E4):** yes under AUv3 — prefabs are data, and an extension
+may write inside its own container, which constraint 4's wording permits. The
+open ruling is desktop, where no OS-enforced container exists and the natural
+folder is the one constraint 4 names as banned. Default in effect: not v0.1.
+
+**Ruling, later the same sitting — constraint 9.** Presented with E4's
+"bless a desktop folder?" question, Jeff declined the shape of the question:
+rather than per-platform blessed locations, **TIDE Rack only implements
+features implementable on the lowest-common-denominator target (today AUv3)**.
+Added as PLAN.md constraint 9, recorded in docs/decisions.md, and applied to
+E4 — which drops from NEEDS-JEFF to BLOCKED(E2): the per-device library is
+allowed in principle (AUv3 can write in its own container), and desktop gets
+the same container semantics or nothing. Note for future rows: questions of
+the form "may platform X do Y?" now start from "can AUv3 do Y?".
+
+**Next:** E2a is takeable with a concrete first step — author the Output
+prefab as `.synthedit`, then module-enumeration stage 4 to ship it. The
+oscillator prefab stays gated on S8's oscillator finding.
+
+**Side effects on this box:** none — docs and rows only; nothing built.
+
+**Branch/PR:** this TideSynth PR.
 
 ---
 
@@ -460,80 +510,3 @@ untouched**.
 
 **Branch/PR:** this TideSynth PR + local GMPI branch `tide/mac/seed-blob-pins`
 (patch filed for Jeff).
-
----
-
-## 2026-08-17 — macos — the MIDI mystery solved: a second processor instance, and it never gets the document (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff merged choice (ii) and said "keep
-going till you are blocked". Committed and pushed as `tide-rack-bot`
-(claude-fable-5).
-
-**Did:** chased the "MIDI stops after a rebuild" defect and **solved it — the
-cause is not the rebuild at all.** REAPER runs **two** TIDE processor
-instances, and **MIDI is delivered to the one that has never received a
-document**. This also retracts yesterday's conclusion, which was based on a
-transport that had quietly stopped. No code change; the evidence and the fix
-direction are the deliverable.
-
-**The evidence, from one instrumented run** (probe in TIDE's `onMidiMessage`,
-`subProcess` and `SynthRuntime::MidiIn`, all logging `this`):
-
-```
-onMidiMessage  proc[0x12b0b0800] prepared=1   x31      <- editor's instance
-onMidiMessage  proc[0x12ba36800] prepared=0   x77      <- the one REAPER feeds MIDI
-PREPARE        proc[0x12b0b0800]  (every document)
-subProcess     proc[0x12b0b0800]  (only this one)
-```
-
-**So:** the instance the editor is attached to receives every document push,
-builds its graph and runs audio. A **second** processor instance receives the
-host's MIDI, has `prepared=0` for its whole life, and never runs `subProcess`.
-The two never meet.
-
-**Why it happens, and it is a flaw in my S12 design rather than a host quirk.**
-TIDE pushes the document **only when the XML changes** — `serviceDocumentSync`
-dedupes against `lastPushedDspXml`. **Any processor that appears afterwards
-therefore starts empty and stays empty**, because nothing ever re-sends. A
-plug-in's processor can be created at any time — the host may re-instantiate
-after a `restartComponent`, add an instance for offline/anticipative
-processing, or restore state into a fresh one — so "push once on change" was
-never going to be sufficient.
-
-**Fix direction, and the right one is not the obvious one.** The hacky answer
-is to re-push periodically. **The correct answer is that a newly created
-processor should be seeded with the current value of every parameter**,
-including blob parameters — which is what the chunk parameter is for. The
-document already persists in the DAW state (that half now works), so the same
-delivery that restores a saved project should seed a mid-session instance.
-Worth checking whether `gmpi_processor` seeds pins from
-`patchManager` at construction and simply skips blobs: if so, this is a small
-generic fix in the same place as this morning's transport work, not a
-TIDE-specific patch.
-
-**Learned — retract cleanly when the evidence changes.** Yesterday I recorded
-"MIDI delivery stops across a document rebuild", with instance pointers to
-back it. Today's run shows MIDI never stopped: **the transport had stopped**
-because clicking in the editor to place modules had halted playback, and my
-"no deliveries after the rebuild" was that, not a defect. **The pointer
-evidence was real and the conclusion drawn from it was wrong** — the missing
-control was "is the transport actually running while I measure?", which the
-`reaper.defer` sampler answers in its first line and which I did not check
-before concluding.
-
-**Also settled: there is exactly one processor per editor.** The earlier
-worry that registration and delivery hit different `SeAudioMaster`s has the
-same explanation — different *processors*, each with its own runtime and
-generator, not a stale pointer inside one.
-
-**Next:** seed a new processor with the current chunk-parameter value (check
-`gmpi_processor`'s construction path for blob handling first, since a generic
-fix there beats a TIDE-specific one). That is the last thing between the
-current build and an audible MIDI note.
-
-**Side effects on this box:** four TIDE_VST3 builds; **all probes reverted
-byte-safely and both trees verified clean** (`git status` empty in SynthEdit
-and SynthEditLib), installed plug-in rebuilt from the committed state. REAPER
-restarted twice; **"Optimus HP" untouched**.
-
-**Branch/PR:** this TideSynth PR (row + entry only; no code).
