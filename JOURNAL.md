@@ -46,6 +46,128 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — S11: the restore side measured — it does not merely fail, it aborts the host
+
+**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** took the mac NEXT row's instruction literally — *"measure
+`/tmp/tide-persist3.rpp` reopening before writing any code"* — and wrote no
+code. The measurement is the deliverable. Full trace in
+[docs/s11-restore-trace.md](docs/s11-restore-trace.md); decoded golden document
+checked in as [docs/s11-restored-document.xml](docs/s11-restored-document.xml).
+
+**Result — three findings, of different strengths, kept separate deliberately.**
+
+**(1) The save side is finished, proven from the artefact alone** — no build, no
+host. `/tmp/tide-persist3.rpp` carries 1119 bytes of VST state; the outer
+`<Preset>`'s `Param id="1"` holds a 964-char base64 value decoding to a
+**723-byte `<Document>` containing the placed Container `Id=2079404292`**. The
+rack is genuinely in the project file.
+
+**(2) The editor has no inbound path for the chunk — proven from sources.**
+Four independent one-way facts, any one of which alone would break restore:
+`SynthEditController::setParameter` is `return ReturnCode::NoSupport;`
+(`SynthEditController.cpp:94`); parameter 1 has a pin only in `<Audio>`, none in
+`<GUI>` (`SynthEdit.cpp:202` vs `:205`) and every controller→editor route in GMPI
+iterates `guiPins` (`controller_holder.cpp:51,166,229,289,365,458,504,586`), so
+it is unreachable by construction; `onPushChunk` is push-only
+(`SynthEditController.cpp:78` → `TideApp.cpp:274`), with no `ImportXml` /
+`OnOpenDocument` anywhere in `SynthEditSem/`; and `TideApp::InitInstance`
+unconditionally runs `createNewDocument(); OnNewDocument();`
+(`TideApp.cpp:377-378`) from `initialize()`, ahead of state restore. The
+processor, by contrast, *is* seeded from the restored parameter —
+`processor_holder.cpp:215` does it explicitly and its comment names "on state
+restore". **So base64 was necessary but not sufficient.**
+
+**(3) Reopening a saved project ABORTS REAPER — deterministic 3/3.** This came
+from the concurrent interactive session that owned REAPER, and I re-verified it
+here from the box's own crash reports rather than relaying it. **Four** `.ips`
+files (`191525`, `193800`, `200213`, `200926`), identical signature:
+`EXC_CRASH`/`SIGABRT`, **faulting thread 0 — the main thread** — `abort` ←
+`__cxa_rethrow` ← `objc_exception_rethrow` ← `-[NSApplication run]`.
+
+**The reports add two things the repro did not.** `TIDE_VST3` is loaded in all
+four, so TIDE is implicated rather than merely present; and **TIDE's own frames
+appear only on `wrapper::Processor_VST3::CommunicationProc()` worker threads,
+never on the faulting one** (three such threads at 19:15, two at 19:38, one each
+at 20:02/20:09 — consistent with the previously-journalled second processor
+instance). **That exonerates the DSP-side graph build and explains the guard's
+negative result:** the interactive session wrapped `rack.prepareToPlay` in the
+processor's `onSetPins`, it caught nothing while REAPER still died — because
+`onSetPins` is on the audio thread and the throw is on the main thread. **The
+guard was in the wrong thread, not the wrong place.** It has been reverted and
+its branch deleted (it also wrote `/tmp/tide-load-error.log`, outside the bundle
+— constraint 4); `SynthEdit` is back on `master` `28907334e`, clean.
+
+**Learned — a negative result is worth more when you say which kind it is.**
+This entry deliberately separates *proven from artefact*, *proven from source*,
+*corroborated second-hand*, and *not established*. The last category is the one
+that protects the next run: **nobody has run the A/B against a pre-base64
+binary**, so whether the merged base64 change *causes* the crash is genuinely
+unknown, and it would be easy for this write-up to imply otherwise. Same control
+that settled the blank-editor question earlier this week; it is the cheapest
+next measurement and it is not done.
+
+**Learned — a guard that catches nothing is evidence about threads, not about
+exceptions.** "Caught nothing and it still died" reads like a dead end; crossed
+with the crash report's faulting thread it becomes a positive result that
+eliminates the whole DSP-side hypothesis.
+
+**Learned — the claim protocol does not protect a working tree.** Three agent
+sessions shared these checkouts today. I found `SynthEdit` parked on an unpushed,
+zero-commit `tide/mac/S11-load-guard` with uncommitted edits, and my first read
+was STEP 5 category 3 ("the developer's work in progress"). It was not — it was a
+live *agent* session. A pushed DOING mark is visible; an uncommitted tree is not,
+and this is the A14/A16 shape again. **Asking the other sessions cost two
+messages and corrected both my ownership model and my conclusion.** A run that
+finds a dirty shared tree should look for a live peer before reasoning about the
+dirt.
+
+**Process finding, unrelated to S11 and larger than it: this box is scheduled
+DAILY, not weekly.** Read from the live task config, not inferred:
+`tidesynth-weekly-macos` has `cronExpression: 0 6 * * *` — *"At 06:03 AM, every
+day"* — while its own description still says *"Weekly ... (Sat 02:00)"*. The cron
+is what runs. **So this box has been running 7×/week while `docs/weekly-run-prompt.md`,
+A8's journal-rotation sizing and A7 itself all assume 1×** — and A7, *"raise
+cadence to 2 staggered runs per box per week"*, has been sitting at NEEDS-JEFF
+waiting for a decision the box blew past by 3.5×. A7's own reasoning was that
+cadence multiplies journal growth, PR volume and credential-exposure window
+linearly; that has been happening unmeasured. **It is the same silent-staleness
+class the bootstrap redesign was built to kill, except it lives in the cron,
+which the bootstrap deliberately holds nothing about — no run can observe its own
+cadence, which is why none ever reported it.** A7's row is re-pointed: the
+question is no longer "1× → 2×?" but "we are at 7×, what did we intend?"
+**Nothing was changed** — cron is standing configuration and A7 is Jeff's.
+Separately observed and *not* diagnosed: this firing was at 20:11 local, which a
+06:00 daily cron does not explain (manual trigger, catch-up, or otherwise —
+unknown, and left that way).
+
+**Next:** in order — **(1) run the pre-base64 A/B**, the cheapest thing that
+could convict or exonerate the merged change and the only reason to suspect it;
+**(2) make the load path fail safe on the main thread** (an unusable document
+must give an empty rack, never kill the DAW); **(3)** then the editor route —
+`<GUI>` pin for parameter 1 or a real `setParameter`, plus importing the document
+instead of always creating a blank one. (1) and (2) need a GUI observable, so an
+unattended run cannot finish them and should take U1b or D6 instead and say so.
+
+**Build trap worth carrying forward:** keep `SynthEdit` `28907334e` and
+`SynthEditLib` `f0e3c92` paired. Mismatched C12c tips reproduce `redefinition of
+'ui_msg_target'` — the public half adds twelve files the private half deletes —
+and **it reports at the innocent copy**, which will cost an hour to anyone who
+bisects the crash across those repos.
+
+**Side effects on this box:** none to any repo but this one. **No builds, no
+source changes, nothing written outside TideSynth.** I did not touch the
+`SynthEdit` tree, its branch or its dirt at any point; the other session reverted
+and deleted those itself. `/tmp/tide-persist3.rpp` and `/tmp/tide-restore-test.rpp`
+left in place for the A/B. REAPER not launched by me. Local `TideSynth` was 8
+behind `origin/main` and was fast-forwarded to `a8a02f9` before editing.
+
+**Branch/PR:** `tide/mac/S11-restore-check` — docs, backlog and journal only, no
+code in any repo. Crash filed separately as a `platform:mac` issue.
+
+---
+
 ## 2026-08-17 — windows — E2a planned, S8 corrected, E4 filed (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive; Jeff asked for the E2a plan, the S8 row fix, and
