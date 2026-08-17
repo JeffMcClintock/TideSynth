@@ -46,6 +46,63 @@ Template:
 
 ---
 
+## 2026-08-17 — windows — the GATED build-break question written up as PROPOSED, and an enforcement gap found while checking its premise (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive; Jeff asked whether fixing a GATED repo is
+reasonable given he reviews the PR, then asked for it as a `PROPOSED:` entry.
+Committed and pushed as `tide-rack-bot` (claude-opus-5).
+
+**Did:** wrote the `PROPOSED:` entry in [docs/decisions.md](docs/decisions.md)
+— three options, recommended default (b) "build-break repair only", six bounds
+that keep it from becoming general GATED access — and filed **A17** (the
+question) and **A18** (the enforcement gap below). No code touched.
+
+**The finding, and it came from checking the premise rather than answering the
+question.** Jeff's framing was *"provided the resulting PR is reviewed by me"*,
+which assumes a PR exists. Measured:
+
+| repo | GATED paths | enforcement |
+|---|---|---|
+| `SynthEditLib` (public) | the repo | `main` protected, "Agent PRs only" ruleset active |
+| `SynthEdit` (private) | `EditorLib/`, `SynthEdit2/` | **`master` `protected=false`, no ruleset** |
+
+`gh api repos/JeffMcClintock/SynthEdit/rulesets` answers *"Upgrade to GitHub
+Pro or make this repository public"* — **private repos on this plan cannot
+carry rulesets at all.** So the bot has write access to the commercial repo's
+default branch with nothing mechanical in the way, and every PR opened there
+(#41, #20, #15) was voluntary compliance with the run prompt. Two of the three
+GATED paths live in that repo, which is precisely where A17 would relax the
+gate. Filed as **A18** with three options: upgrade the plan, add detection to
+the A6 digest, or accept convention knowingly.
+
+**Learned — verify the mechanism a rule leans on, not just the rule.** The run
+prompt's own "Becoming the agent" section carries a verification table with the
+row *"bot pushes to `main` — rejected — GH013"*, and I had read it. It does not
+name a repo. I assumed it generalised; it does not, and the one repo where it
+fails is the commercial one. **A recorded verification is evidence about the
+thing that was verified, not about the class it appears to belong to.**
+
+**Also worth knowing for future rows:** the gate is arguably over-tight on
+`SynthEditLib` for a reason nobody has revisited — STEP 5's ALLOWED/GATED split
+is from 2026-08-06 (G2), and the bot identity plus rulesets that make
+"everything is reviewed" true landed 2026-08-09 (A2). The gate was calibrated
+for a world where a run pushed as Jeff carrying his bypass. That world ended on
+the public repos and persists on `SE16`.
+
+**Next:** A17 and A18 are Jeff's, and they pair — A17's premise is A18's
+enforcement. Until both are answered the default stands: a run that finds a
+GATED build break files the issue and stops, which is what #87, #88 and #111
+are all waiting on.
+
+**Side effects on this box:** none — docs and rows only; nothing built.
+
+**Branch/PR:** this TideSynth PR. Branched from `main` while
+[#114](https://github.com/JeffMcClintock/TideSynth/pull/114) (the same
+session's E2a/S8/E4 work) was still open; #114 merged first and this branch
+took `main` back in, so the entry below is that work.
+
+---
+
 ## 2026-08-17 — windows — E2a planned, S8 corrected, E4 filed (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive; Jeff asked for the E2a plan, the S8 row fix, and
@@ -453,80 +510,3 @@ untouched**.
 
 **Branch/PR:** this TideSynth PR + local GMPI branch `tide/mac/seed-blob-pins`
 (patch filed for Jeff).
-
----
-
-## 2026-08-17 — macos — the MIDI mystery solved: a second processor instance, and it never gets the document (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff merged choice (ii) and said "keep
-going till you are blocked". Committed and pushed as `tide-rack-bot`
-(claude-fable-5).
-
-**Did:** chased the "MIDI stops after a rebuild" defect and **solved it — the
-cause is not the rebuild at all.** REAPER runs **two** TIDE processor
-instances, and **MIDI is delivered to the one that has never received a
-document**. This also retracts yesterday's conclusion, which was based on a
-transport that had quietly stopped. No code change; the evidence and the fix
-direction are the deliverable.
-
-**The evidence, from one instrumented run** (probe in TIDE's `onMidiMessage`,
-`subProcess` and `SynthRuntime::MidiIn`, all logging `this`):
-
-```
-onMidiMessage  proc[0x12b0b0800] prepared=1   x31      <- editor's instance
-onMidiMessage  proc[0x12ba36800] prepared=0   x77      <- the one REAPER feeds MIDI
-PREPARE        proc[0x12b0b0800]  (every document)
-subProcess     proc[0x12b0b0800]  (only this one)
-```
-
-**So:** the instance the editor is attached to receives every document push,
-builds its graph and runs audio. A **second** processor instance receives the
-host's MIDI, has `prepared=0` for its whole life, and never runs `subProcess`.
-The two never meet.
-
-**Why it happens, and it is a flaw in my S12 design rather than a host quirk.**
-TIDE pushes the document **only when the XML changes** — `serviceDocumentSync`
-dedupes against `lastPushedDspXml`. **Any processor that appears afterwards
-therefore starts empty and stays empty**, because nothing ever re-sends. A
-plug-in's processor can be created at any time — the host may re-instantiate
-after a `restartComponent`, add an instance for offline/anticipative
-processing, or restore state into a fresh one — so "push once on change" was
-never going to be sufficient.
-
-**Fix direction, and the right one is not the obvious one.** The hacky answer
-is to re-push periodically. **The correct answer is that a newly created
-processor should be seeded with the current value of every parameter**,
-including blob parameters — which is what the chunk parameter is for. The
-document already persists in the DAW state (that half now works), so the same
-delivery that restores a saved project should seed a mid-session instance.
-Worth checking whether `gmpi_processor` seeds pins from
-`patchManager` at construction and simply skips blobs: if so, this is a small
-generic fix in the same place as this morning's transport work, not a
-TIDE-specific patch.
-
-**Learned — retract cleanly when the evidence changes.** Yesterday I recorded
-"MIDI delivery stops across a document rebuild", with instance pointers to
-back it. Today's run shows MIDI never stopped: **the transport had stopped**
-because clicking in the editor to place modules had halted playback, and my
-"no deliveries after the rebuild" was that, not a defect. **The pointer
-evidence was real and the conclusion drawn from it was wrong** — the missing
-control was "is the transport actually running while I measure?", which the
-`reaper.defer` sampler answers in its first line and which I did not check
-before concluding.
-
-**Also settled: there is exactly one processor per editor.** The earlier
-worry that registration and delivery hit different `SeAudioMaster`s has the
-same explanation — different *processors*, each with its own runtime and
-generator, not a stale pointer inside one.
-
-**Next:** seed a new processor with the current chunk-parameter value (check
-`gmpi_processor`'s construction path for blob handling first, since a generic
-fix there beats a TIDE-specific one). That is the last thing between the
-current build and an audible MIDI note.
-
-**Side effects on this box:** four TIDE_VST3 builds; **all probes reverted
-byte-safely and both trees verified clean** (`git status` empty in SynthEdit
-and SynthEditLib), installed plug-in rebuilt from the committed state. REAPER
-restarted twice; **"Optimus HP" untouched**.
-
-**Branch/PR:** this TideSynth PR (row + entry only; no code).

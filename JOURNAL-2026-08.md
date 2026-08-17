@@ -10,6 +10,7 @@ August 2026 is split between two files: the most recent entries stay in
 the entries it still holds.
 
 ---
+
 ## 2026-08-13 — windows — A11, win half (interactive session, Jeff directing)
 
 **Did:** Checked this box against the SSH-remote gap the linux run found in
@@ -8330,88 +8331,6 @@ own middle-drag as the verify),
 
 ---
 
-## 2026-08-16 — macos — U2e first pass: crash-free placeholders, one question left (interactive session, Jeff present)
-
-**Prompt:** n/a — interactive session, fifth of the day; Jeff verified
-middle-drag by hand, merged
-[gmpi_ui#8](https://github.com/JeffMcClintock/gmpi_ui/pull/8),
-[SynthEdit#27](https://github.com/JeffMcClintock/SynthEdit/pull/27) and
-[SynthEditLib#12](https://github.com/JeffMcClintock/SynthEditLib/pull/12)
-mid-session, and said "keep going". Committed and pushed as
-`tide-rack-bot` (claude-fable-5).
-
-**Did:** flipped **U2b** and **U2d** to DONE (merged + verified — U2b by
-Jeff's own middle-drag), then took **U2e** far enough that the classic
-controls are **crash-free, visible, and one isolated question from
-working**: PRs
-[SynthEdit#28](https://github.com/JeffMcClintock/SynthEdit/pull/28) and
-[SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13).
-
-**U2e finding 1 — TIDE never seeded the resource folders.** The base
-`CSynthEditAppBase::InitInstance` seeds
-`GmpiResourceManager::resourceFolders` (skin images among them);
-`TideApp::InitInstance` replaced the base wholesale for S1a and dropped
-that seeding, so every skin-image URI resolved against an **empty map**.
-Seeded now (`Image` only — the one type panel controls read). This is a
-real prerequisite for widget bitmaps, **but it was not the crash gate**:
-rebuilding with the seed alone still crashed in
-`ListEntryGui::arrange`.
-
-**U2e finding 2 — the actual gate, isolated to one sentence.** Widgets
-are built inside `onSetAppearance()` — a **pin-update handler**
-(`ListEntryGui.cpp`: ctor `initializePin(pinAppearance, …onSetAppearance)`,
-handler gated only by `currentAppearance == pinAppearance`, ctor default
-`-2`). Had the handlers fired even once with default pin values,
-`ACM_PLAIN` would have built a ListWidget — the vector being empty at
-crash time means **the pin-update handlers never run at all in TIDE's
-SDK3 hosting**. The next U2e step is therefore a single directed trace:
-how `ModuleView`'s Sdk3 path delivers initial pin values (the "fake
-plugs" `Ctl_Combo::Export` writes) and why the handler pass never
-happens — the same wiring the editor exercises when these controls work
-in full SynthEdit.
-
-**U2e finding 3 — with `arrange()` guarded, the state is honest and
-stable.** Third SIGSEGV site from the same root (initialize → measure →
-arrange, all `widgets[]` on empty); guard landed
-([SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13)).
-**Verified in REAPER on the final build: no crash through instantiate →
-insert → select; the placed List Entry draws as a right-sized, selectable
-100×20 placeholder at the click point; Background Image renders
-alongside; properties pane fully correct.** The classic controls stay in
-the module list — a visible empty placeholder plus a stderr breadcrumb
-beats both a dead host and an invisible module.
-
-**Learned — pin defaults argue the diagnosis for us.** When a handler's
-absence can be inferred from what default values *would* have built, the
-"is it invoked at all vs does it fail inside" fork resolves without
-instrumentation. That saved a fourth build-and-crash cycle.
-
-**Next:** **U2e's pin-delivery trace** is the single remaining step
-between TIDE and usable classic controls — after it, the combo should
-draw for real and U1c's costing finally has a live control to look at.
-**U1b** remains the headline. **P10** untouched as fallback.
-
-**Side effects on this box:** `SynthEdit/build/` rebuilt `TIDE_VST3`
-three more times; the installed plugin now carries U2a+U2b+U2c+U2d+the
-U2e prerequisites and is crash-free (verified). REAPER crashed twice
-more during diagnosis (both filed in the U2e row's stack list, same
-root) and was relaunched; "Optimus HP" untouched throughout. Working
-copies: `SynthEdit` on `tide/mac/U2e-resource-folders`, `SynthEditLib`
-on `tide/mac/U2e-arrange-guards` (both pushed, PRs open); returned to
-defaults after push.
-
-**Branch/PR:** this TideSynth PR +
-[SynthEdit#28](https://github.com/JeffMcClintock/SynthEdit/pull/28) +
-[SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13);
-merged mid-session by Jeff:
-[gmpi_ui#8](https://github.com/JeffMcClintock/gmpi_ui/pull/8) (U2b, his
-own middle-drag as the verify),
-[SynthEdit#27](https://github.com/JeffMcClintock/SynthEdit/pull/27) +
-[SynthEditLib#12](https://github.com/JeffMcClintock/SynthEditLib/pull/12)
-(U2d).
-
----
-
 ## 2026-08-16 — macos — structure view interim: an oscillator draws with its pins (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session, sixth of the day; Jeff set the goal
@@ -10056,81 +9975,6 @@ not driven, no probes left anywhere. All six repos clean.
 
 ---
 
-## 2026-08-17 — macos — container-IO contract reverse-engineered; the MIDI In module is standalone-only (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff ruled "synthesise real container IO
-for MIDI, I think that is the least disruptive to SynthEdit". Committed and
-pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** worked out **exactly** what `exportDspXml` has to emit, by reading the
-importer rather than guessing — and found one thing that changes the shape of
-the fix: **the patch's "MIDI In" module cannot be the endpoint, because in a
-plug-in nothing ever feeds it.** No code change; the contract and that
-constraint are the deliverable, and together they make the next session a
-single implementation pass.
-
-**The XML contract, from `ug_base::Setup` and `SeAudioMaster::BuildModules`:**
-
-- A **container IO plug** is any `<Plug>` carrying a `Direction` attribute —
-  that is literally how the importer distinguishes it ("IO Plug on Container
-  or I/O Mod. Identified by 'Direction' element"). It becomes
-  `new UPlug(this, (EDirection)direction, (EPlugDataType)datatype)`, so:
-  `<Plug Direction="0" Datatype="2"/>` is a MIDI **input** — `DT_MIDI2` is
-  **2** in `EPlugDataType{DT_ENUM=0, DT_TEXT, DT_MIDI2, DT_DOUBLE, DT_BOOL,
-  DT_FSAMPLE=5}`.
-- An **IO Mod**'s plug ties to its container's plug **by handle**, and only
-  when the module carries `UGF_IO_MOD`:
-  `<Plug Direction="1" Datatype="2" TiedTo="<containerHandle>"
-  TiedToPinIdx="<n>"/>` → `up->TiedTo = p2; p2->TiedTo = up;`
-- **Connections** are `<Line From="<handle>" To="<handle>" FromPin="i"
-  ToPin="j"/>`; `FromPin`/`ToPin` default to 0, and the handles are resolved
-  through `HandleToObject`.
-
-**The constraint that changes the design.** TIDE's browser offers a **MIDI In**
-module, and it looks like the obvious MIDI source — but
-`modules_internal/MidiIn.h` is `class MidiIn final : public MpBase2, public
-ISpecialIoModule`, and it obtains MIDI by calling
-`AudioMaster()->RegisterIoModule(this)` in `open()`. In the **standalone** that
-registration lands in `UIoManager`, which feeds it from a MIDI device. In the
-**plug-in** it lands in `SynthRuntime::RegisterIoModule`, whose entire body is
-`{ return 1; } // nothing special to do in plugin`. **So a "MIDI In" module in
-a plug-in registers itself and is then never fed by anyone** — it is a
-standalone-app module, and its Audio pins confirm it (`MIDI Data` out,
-`Activity` out, `MPE Mode` in — **no MIDI input pin at all**, so nothing can be
-routed into it either).
-
-**Which means the classic plug-in MIDI path is the only one available**, and
-it is exactly what Jeff's ruling describes: host → `vst_in` → **the synth
-container's DT_MIDI2 plug** → an **IO Mod** inside → the user's MIDI-consuming
-modules (MIDI-CV 2 and friends). That is how an exported SE plug-in has always
-worked; TIDE's flat rack simply never grew the container plug.
-
-**So the open question is a UX one, not a mechanical one, and it is Jeff's:**
-what does the user patch *from* in the rack? Either **(i)** TIDE synthesises a
-container MIDI plug plus a tied IO Mod at export, and the IO Mod is the thing
-users drag from — it is already in TIDE's module list, so this needs no new
-module and no SynthEdit change; or **(ii)** TIDE keeps "MIDI In" as the
-user-facing source and `SynthRuntime` learns to feed registered MIDI modules
-the way `UIoManager` does — nicer for users, but it is the SynthEdit change
-Jeff's ruling was steering away from.
-
-**Learned — read the importer, not the exporter, when synthesising a format.**
-Every attribute that matters here (`Direction` as the IO-plug marker,
-`Datatype`'s enum ordering, `TiedTo`/`TiedToPinIdx`, the defaulting of
-`FromPin`/`ToPin`) came from the ~40 lines that *parse* the XML. The exporter
-would have shown only what a normal project happens to contain, which is
-exactly the case that does not apply to TIDE's synthesised document.
-
-**Next:** Jeff picks (i) or (ii); the row holds the full contract so the
-implementation is one pass either way.
-
-**Side effects on this box:** read-only investigation — nothing built, REAPER
-not driven, no probes left anywhere. All six repos clean.
-
-**Branch/PR:** this TideSynth PR (row + entry only; no code).
-
----
-
 ## 2026-08-17 — macos — choice (ii) built: the runtime feeds MIDI In; a second defect surfaced (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session. Jeff ruled **choice (ii)**: "MIDI-in will
@@ -10195,3 +10039,80 @@ reopened that project, after which every script created its own tab).
 
 **Branch/PR:** this TideSynth PR +
 [SynthEditLib#16](https://github.com/JeffMcClintock/SynthEditLib/pull/16).
+
+---
+
+## 2026-08-17 — macos — the MIDI mystery solved: a second processor instance, and it never gets the document (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff merged choice (ii) and said "keep
+going till you are blocked". Committed and pushed as `tide-rack-bot`
+(claude-fable-5).
+
+**Did:** chased the "MIDI stops after a rebuild" defect and **solved it — the
+cause is not the rebuild at all.** REAPER runs **two** TIDE processor
+instances, and **MIDI is delivered to the one that has never received a
+document**. This also retracts yesterday's conclusion, which was based on a
+transport that had quietly stopped. No code change; the evidence and the fix
+direction are the deliverable.
+
+**The evidence, from one instrumented run** (probe in TIDE's `onMidiMessage`,
+`subProcess` and `SynthRuntime::MidiIn`, all logging `this`):
+
+```
+onMidiMessage  proc[0x12b0b0800] prepared=1   x31      <- editor's instance
+onMidiMessage  proc[0x12ba36800] prepared=0   x77      <- the one REAPER feeds MIDI
+PREPARE        proc[0x12b0b0800]  (every document)
+subProcess     proc[0x12b0b0800]  (only this one)
+```
+
+**So:** the instance the editor is attached to receives every document push,
+builds its graph and runs audio. A **second** processor instance receives the
+host's MIDI, has `prepared=0` for its whole life, and never runs `subProcess`.
+The two never meet.
+
+**Why it happens, and it is a flaw in my S12 design rather than a host quirk.**
+TIDE pushes the document **only when the XML changes** — `serviceDocumentSync`
+dedupes against `lastPushedDspXml`. **Any processor that appears afterwards
+therefore starts empty and stays empty**, because nothing ever re-sends. A
+plug-in's processor can be created at any time — the host may re-instantiate
+after a `restartComponent`, add an instance for offline/anticipative
+processing, or restore state into a fresh one — so "push once on change" was
+never going to be sufficient.
+
+**Fix direction, and the right one is not the obvious one.** The hacky answer
+is to re-push periodically. **The correct answer is that a newly created
+processor should be seeded with the current value of every parameter**,
+including blob parameters — which is what the chunk parameter is for. The
+document already persists in the DAW state (that half now works), so the same
+delivery that restores a saved project should seed a mid-session instance.
+Worth checking whether `gmpi_processor` seeds pins from
+`patchManager` at construction and simply skips blobs: if so, this is a small
+generic fix in the same place as this morning's transport work, not a
+TIDE-specific patch.
+
+**Learned — retract cleanly when the evidence changes.** Yesterday I recorded
+"MIDI delivery stops across a document rebuild", with instance pointers to
+back it. Today's run shows MIDI never stopped: **the transport had stopped**
+because clicking in the editor to place modules had halted playback, and my
+"no deliveries after the rebuild" was that, not a defect. **The pointer
+evidence was real and the conclusion drawn from it was wrong** — the missing
+control was "is the transport actually running while I measure?", which the
+`reaper.defer` sampler answers in its first line and which I did not check
+before concluding.
+
+**Also settled: there is exactly one processor per editor.** The earlier
+worry that registration and delivery hit different `SeAudioMaster`s has the
+same explanation — different *processors*, each with its own runtime and
+generator, not a stale pointer inside one.
+
+**Next:** seed a new processor with the current chunk-parameter value (check
+`gmpi_processor`'s construction path for blob handling first, since a generic
+fix there beats a TIDE-specific one). That is the last thing between the
+current build and an audible MIDI note.
+
+**Side effects on this box:** four TIDE_VST3 builds; **all probes reverted
+byte-safely and both trees verified clean** (`git status` empty in SynthEdit
+and SynthEditLib), installed plug-in rebuilt from the committed state. REAPER
+restarted twice; **"Optimus HP" untouched**.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).
