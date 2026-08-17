@@ -46,6 +46,112 @@ Template:
 
 ---
 
+## 2026-08-17 — windows — C12c done, and the Windows build of `main` is broken by something else
+
+**Prompt:** `b3e9876e8` · claude-opus-5[1m] · app version not discoverable on
+this box (no `claude` on PATH, nothing recorded in `~/.claude`) · as
+`tide-rack-bot`
+
+**Did:** took **C12c** from the NEXT block and finished it — the twelve
+independent leaves (`CLine2`, `commandMgr`, `SuspendDSP`, `legacyExternalApp`,
+`ModuleDragAndDropManager` as `.cpp`+`.h`, plus header-only `ui_msg_target.h`
+and `IGuiHost.h`, 1,316 lines) moved from `SE16/SynthEdit2/` into
+`SynthEditLib`'s root, and `EditorLib/CMakeLists.txt` repoints them.
+**25 → 13 `${EDITOR_DIR}` entries.** Files are byte-identical (`cmp`) to the
+originals.
+
+**Result — the numbers, and then the caveat they were measured under.**
+
+- **Dangling private includes 42 → 21**, `scripts/dangling_private_includes.py`
+  before and after. Exactly the 21 edges C12c's Accept names, **zero new
+  opened**: `CLine2.h` 7, `SuspendDSP.h` 6, then `commandMgr.h`,
+  `legacyExternalApp.h`, `ModuleDragAndDropManager.h`, `ui_msg_target.h` at 2
+  each; `IGuiHost.h` had no public includer and closes 0, as predicted.
+- **Fresh scratch Ninja tree, Release, all four sibling repos on local
+  overrides: `935/935 RC=0`, `ctest 92/92 passed, 0 failed`** (93 listed, 1
+  disabled upstream), producing `TIDE.gmpi`, `TIDE_VST3.vst3` and
+  `SynthEditCL.exe`. The build log shows the five moved `.cpp`s compiling as
+  `EditorLib\...\C_\SE\SynthEditLib\<name>.cpp.obj` — from the public repo, not
+  the private one.
+- **The edge total is 935, not the 904 the backlog and C12a recorded.** That is
+  upstream growth in `SynthEditLib` (the tearout-window-layout feature), not
+  C12c, which moves TUs rather than adding or removing them. **The new baseline
+  for later sub-stages is 935/935 and 92/92.**
+
+**The caveat, and it is the important half of this entry: `SynthEditLib`'s
+`main` does not compile on Windows, and C12c had nothing to do with it.** The
+first full build died at edge 78 of 935:
+
+```
+C:\SE\SynthEditLib\SeAudioMaster.cpp(548): error C2680: 'MidiIn *': invalid target type for dynamic_cast
+C:\SE\SynthEditLib\SeAudioMaster.cpp(548): note: 'MidiIn': class must be defined before using in a dynamic_cast
+C:\SE\SynthEditLib\SeAudioMaster.cpp(805): error C2027: use of undefined type 'MidiIn'
+C:\SE\SynthEditLib\SeAudioMaster.h(609): note: see declaration of 'MidiIn'
+```
+
+From `e14970e`, "Feed a patch's MIDI In module in plug-in hosts too (S12(a))",
+merged as SynthEditLib#16 from the macOS box today. Clang accepts
+`class MidiIn* midiInModule = {};` at `SeAudioMaster.h:609` together with
+`dynamic_cast<class MidiIn*>` at `:548`; MSVC binds both to the incomplete type
+that first declaration introduces, and never to the complete class in
+`modules_internal/MidiIn.h`. Filed as
+[#111](https://github.com/JeffMcClintock/TideSynth/issues/111) with a suggested
+one-line fix. **Not fixed here** — `SynthEditLib` is GATED for a scheduled run
+and this is not a carve-out stage, the same STEP 1 / STEP 5 contradiction the
+linux box hit this morning in [#87](https://github.com/JeffMcClintock/TideSynth/issues/87).
+**Two `platform:*` breaks in GATED shared code in one day is the signal, not
+the coincidence** — this needs Jeff's ruling, not a third run's judgement.
+
+So C12c was verified with its twelve files on top of `d96edbb`, the merge
+immediately before `e14970e`, not on top of `main`. **The gap that leaves is
+stated in both PR bodies:** this branch has not been proven to build against
+`main` as `main` stands, only against `main` minus one unrelated commit.
+
+**Learned — a control compile is cheap and it is what makes "not my fault"
+a fact rather than a claim.** The tempting move was to reason that a TU in the
+`SynthEditLib` target cannot be affected by `EditorLib`'s source list. That
+reasoning is correct and it is not evidence. Checking out pristine `origin/main`
+and re-running the *exact* `cl.exe` command line from the failing ninja edge
+reproduced all three errors identically in about forty seconds, with none of
+C12c present. **When a build breaks during your change, re-run the one failing
+compile against the untouched tree before you diagnose anything.**
+
+**Learned — four things about that failure were ruled out, so nobody repeats
+them:** it is not a missing include (`/showIncludes` shows
+`modules_internal/MidiIn.h` opened at `.cpp:26`, ahead of both failures); not a
+shadowing duplicate (`git ls-files` finds exactly one `MidiIn.h`); not
+conditional compilation (in the preprocessed TU `class MidiIn final` sits at
+line 344022 and the failing `dynamic_cast` at 356338); and **not** the bare
+elaborated-type-specifier pattern, because a minimal `class X* member;`-then-
+define-`X` repro compiles clean under the same compiler and flags. The
+interaction is more specific than that shape alone, and I stopped there rather
+than keep digging in a GATED file.
+
+**Learned — the run prompt's GATED wording says "C1-C7" and the carve-out is up
+to C12.** C12a, C12b, C12e, C9 and C11 have all been executed and merged as
+GATED edits under a rule whose literal text does not cover them, and the NEXT
+block instructs this box to take C12c. The practice is settled and the wording
+is not; worth an edit to STEP 5 next time someone touches the prompt.
+
+**Next:** **C12f** is the remaining large stage — the patch cluster, ten
+entries, 6,298 lines, atomic, and the one that takes `${EDITOR_DIR}` to zero and
+unblocks C6. C12d stays `linux`. Before either, someone with the authority
+should fix [#111](https://github.com/JeffMcClintock/TideSynth/issues/111), or
+the next Windows run pays the same tax and the next Windows *user* cannot build
+TIDE at all.
+
+**Side effects on this box:** a scratch Ninja tree at `C:\SE\build-c12c`
+(Jeff's own `SE16\build` untouched); no other repo modified. All five working
+copies were clean before this run and are returned to their default branches.
+
+**Postscript, same session:** Jeff merged both code PRs within minutes of them being opened (07:21 and 07:24 UTC), so C12c has landed on `master` and `main` already. The row stays `IN-REVIEW` regardless — a run does not set `DONE` on its own fresh work — and the next run may flip it.
+
+**Branch/PR:** [SynthEdit#41](https://github.com/JeffMcClintock/SynthEdit/pull/41)
++ [SynthEditLib#18](https://github.com/JeffMcClintock/SynthEditLib/pull/18),
+which must merge together, plus this TideSynth PR.
+
+---
+
 ## 2026-08-17 — macos — presets now carry the rack: blobs base64'd, non-stateful params excluded (unsupervised)
 
 **Prompt:** n/a — Jeff chose base64 and asked for the codec to live in GMPI or
