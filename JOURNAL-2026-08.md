@@ -9300,3 +9300,64 @@ clean on their default branches.
 
 **Branch/PR:** this TideSynth PR +
 [SynthEdit#37](https://github.com/JeffMcClintock/SynthEdit/pull/37).
+
+---
+
+## 2026-08-17 — macos — crumb thumbnails, and what they cost (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff picked the U1b crumb-thumbnail
+follow-up off the list the previous entry left. Committed and pushed as
+`tide-rack-bot` (claude-fable-5).
+
+**Did:** wired the breadcrumb bar's thumbnails —
+[SynthEdit#38](https://github.com/JeffMcClintock/SynthEdit/pull/38). **Verified
+in REAPER: crumbs render the container's real content, and switching the master
+from rack to structure view swaps the tile from the dark case to the light
+structure grid with the placed Container visible inside it** — so it is
+genuinely rendering the container, not drawing a placeholder.
+
+**There was nothing to invent.** `BreadcrumbBar::renderThumbnail` has always
+been the way in, `se_cl::renderContainerThumbnail` has been shared since it was
+lifted out of SynthEdit2 ("which made thumbnails a Windows-only feature by
+accident rather than by design"), and both the Wayland and WinUI editors
+already install the callback. TIDE left it unset and silently got name-only
+crumbs. **This is the fourth item in a row where the answer was wiring, not
+building** — U1a, U1c, D6's content, and now this.
+
+**The one interface change, and why it is two methods rather than one.**
+`ISeApp` grows `setQuiet(bool)` returning the **previous** value. The offscreen
+render walks the module factory, whose duplicate-module dialogs must be
+suppressed around it; the Wayland version scopes `app_.quiet` directly, but
+`ISeApp` exists to firewall SE SDK3 off from the GMPI side, so exposing the
+application object to get at one bool would have been the wrong shape.
+Returning the previous value means callers restore rather than assume `false`.
+
+**Measured the cost rather than waving at it, because a plug-in pays for every
+byte.** TIDE_VST3 went **10,149,744 → 10,414,832 bytes (+265,088, +2.6%)**.
+Static-archive extraction did most of what C12e's rule predicts —
+`EditorCommandDispatcher` is **not** linked (0 symbols) — **but
+`SamplingProfiler` IS pulled in (8 symbols)** through `ScreenshotRenderer`.
+That is the finding worth keeping: **the screenshot library is not free of its
+tooling, and "only the members you reference" is true transitively, which is
+not the same as "only the members you wanted".** If the cost is unwanted the
+revert is two lines, and the PR says so.
+
+**Learned — the strongest visual test is a CHANGE, not a picture.** A dark
+thumbnail of a dark rack is indistinguishable from a black rectangle, and I
+nearly recorded "it renders" on that basis. Switching the same container to its
+structure view and watching the tile change to a light grid **containing the
+module I had just placed** is proof that content is being rendered per
+container and per view flag. Same discipline as yesterday's clipboard sentinel:
+make the thing prove it changed, do not photograph it once.
+
+**Next:** three small follow-ups remain from the finished-board list —
+`rackMode` on project load (**U1c**), Windows/Linux clipboard for Copy link
+(**D6**), and the win box's two **U2e** items — plus the **R-series**, which is
+Jeff's call. The mac NEXT row's "do not invent scope" still stands.
+
+**Side effects on this box:** two `TIDE_VST3` builds; the installed plug-in now
+draws thumbnails. REAPER restarted once; **"Optimus HP" untouched** (it
+reloaded on its own and was left alone). Only `SynthEdit` was committed in.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#38](https://github.com/JeffMcClintock/SynthEdit/pull/38).
