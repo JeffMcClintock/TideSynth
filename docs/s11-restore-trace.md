@@ -4,6 +4,8 @@ Measured 2026-08-17 on the macOS box by the weekly scheduled run, against the
 mac NEXT row's instruction: *"measure `/tmp/tide-persist3.rpp` reopening before
 writing any code."*
 
+**Crash filed as `platform:mac` [#117](https://github.com/JeffMcClintock/TideSynth/issues/117).**
+
 **Answer: no, and it cannot today — the editor has no inbound path for the
 chunk.** The save side is finished and provably correct; the restore side was
 never wired at all. The base64 work ([GMPI#3](https://github.com/JeffMcClintock/GMPI/pull/3)

@@ -164,7 +164,7 @@ left in place for the A/B. REAPER not launched by me. Local `TideSynth` was 8
 behind `origin/main` and was fast-forwarded to `a8a02f9` before editing.
 
 **Branch/PR:** `tide/mac/S11-restore-check` — docs, backlog and journal only, no
-code in any repo. Crash filed separately as a `platform:mac` issue.
+code in any repo. Crash filed separately as `platform:mac` [#117](https://github.com/JeffMcClintock/TideSynth/issues/117).
 
 ---
 
