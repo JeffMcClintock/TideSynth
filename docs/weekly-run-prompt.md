@@ -560,6 +560,36 @@ What you may edit outside this repo:
   with the non-TIDE iOS and macOS targets, so a TIDE build phase living there
   is still a risk to SynthEdit's own builds. File it rather than editing it.
 
+  PR-GATED — the GMPI repo. Ruled by Jeff 2026-08-18: **"GMPI is our most
+  highly curated repo, changing it is not to be done lightly. I would prefer
+  that modifications to GMPI go via a human-approved PR."**
+
+  This is its own category because neither of the other two fits. GMPI is not
+  ALLOWED — you do not change it as ordinary backlog work, and "the fix is only
+  four lines" is not a reason to. It is not GATED either — you are not required
+  to file a ruling question and stop, because the route exists.
+
+  What you may do: **propose a change as a PR against GMPI, and never merge it.**
+  What that costs you, and it is deliberate:
+
+    - **Raise the bar before you touch it, not after.** GMPI is the lowest
+      layer, shared by SynthEdit and every other GMPI plug-in, so a change here
+      is not TIDE's to get wrong. Keep it minimal, comment the reasoning, and
+      say in the PR body what you did NOT verify.
+    - **A GMPI PR is a proposal, not a fix.** Do not mark a BACKLOG row DONE on
+      the strength of one, and do not build later work on top of it as though
+      it had landed.
+    - **If the same change can be made on the TIDE side instead, make it there.**
+      Reaching into GMPI because it is the tidier place is exactly the reflex
+      this category exists to slow down.
+    - Rebuild `SynthEditCL` as well as TIDE, and stage only the files you
+      actually changed (`git add <path>`, never `git add -A`) — the same care
+      gmpi_ui and GMPI_Wrappers already carry, for the same reason.
+
+  Note this rule is about *modifications*. Reading GMPI, and tracing a bug into
+  it, has never needed permission and still does not — the 2026-08-18 `std::stod`
+  finding was found that way and filed without touching a line.
+
   Any repo or path on NEITHER list is GATED by default. Do the allowed-side
   part if one exists, and file the scope question as a BACKLOG row naming the
   exact path — do not edit it because it seems obviously fine. G3 is the
