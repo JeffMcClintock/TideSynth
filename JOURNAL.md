@@ -46,6 +46,86 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — A16: the short-commit race reproduced, and guarded
+
+**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** took A16 after S11 (Jeff had said "do as many tasks as you can without
+supervision"). Got the repro the original filing explicitly could not, then wrote
+the guard its Scope asked for.
+
+**Result — the repro, which is the part that was unknown.** A16 said the cause
+was "most likely a race on `.git/index` ... plausible but not proven; no reliable
+repro was attempted". It reproduces every time, and the mechanism is **narrower**
+than the filing guessed. In a throwaway repo:
+
+    git add f1 f2 f3 f4 f5              # 5 staged
+    git reset -q HEAD -- f2 f3 f4 f5    # the other session, mid-flight
+    git commit -m mine                  # exits 0, commits f1 ALONE
+
+Five staged, one landed, **all five still correct in the working tree** — the
+filed symptom to the letter.
+
+**What makes this a diagnosis rather than a plausible story is the shapes that
+DON'T reproduce it,** and I tested them because a story that explains everything
+explains nothing:
+
+| Concurrent op | Result |
+|---|---|
+| **partial `git reset HEAD -- <subset>`** | **5 staged, 1 landed, silent — this is A16** |
+| full `git reset` | commit fails loudly, `nothing added to commit` |
+| peer runs `git commit` first | right content, wrong author — that is **A14**, not this |
+| `git checkout HEAD -- <path>` | no effect |
+
+**So it is not "a race on the index" generally — it is specifically an operation
+that unstages a subset.** Only that one both succeeds and lies.
+
+**Guard:** `scripts/check-commit-completeness.py`, shaped after
+`check-commit-authorship.py`. It **has to be two-phase** (`--record` before the
+commit, `--verify` after) and that is not a design preference: the race destroys
+the staged list, which is the only thing a post-hoc check could compare against.
+There is no one-shot version of this check, which is probably why the original
+row described it as a before/after comparison too. The manifest lives in `.git/`
+so it can never be committed by accident, and `--verify` with no manifest is a
+**skip, not a failure**, so the guard cannot break a commit made before it
+existed.
+
+**Accept met:** `--selftest` builds throwaway repositories and asserts all three
+outcomes — clean passes, partial unstage fails naming exactly the four missing
+paths, full unstage fails. I also ran `--record`/`--verify` for real around this
+entry's own commits, which is the only honest way to ship a commit guard.
+
+**Learned — two guards that look redundant can be complementary, and the way to
+tell is to check each against the other's incident.** A14 and A16 both read as
+"a concurrent session broke a commit", and it is tempting to treat one script as
+covering both. It does not: the 2026-08-15 **short** commit was correctly
+authored as `tide-rack-bot`, so the authorship check passed and would pass again;
+the 2026-08-15 **foreign** commit had entirely correct content, so a completeness
+check would have waved it through. Each is blind exactly where the other looks.
+That is now stated in STEP 4 rather than left for someone to rediscover.
+
+**Learned — "no repro was attempted" is often a much cheaper gap than it looks.**
+This one took about five minutes of shell in a temp directory, and it converted a
+guess into a mechanism narrow enough to write a test for. The original session's
+call to prioritise recovering the lost content was right in the moment; the note
+that a repro was never tried is what made it findable later.
+
+**Not done, deliberately:** wiring the guard into `lint.yml`. That is
+`.github/workflows/**`, which the bot token structurally cannot push. It would
+not work there anyway — CI has no access to a pre-commit manifest, so this guard
+is inherently local, and a CI-side version would have to assert something
+different.
+
+**Next:** nothing blocks on this. If Jeff wants it enforced rather than
+documented, the wiring is his (or an interactive session's) to add.
+
+**Side effects on this box:** none. Docs and one new script, TideSynth only. No
+builds. Temp repos created and removed under `$TMPDIR` by the selftest.
+
+**Branch/PR:** `tide/mac/A16-commit-completeness`.
+
+---
+
 ## 2026-08-17 — macos — backlog id collision: A17 filed twice, renumbered to A19
 
 **Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot

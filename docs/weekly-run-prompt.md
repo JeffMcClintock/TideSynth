@@ -356,6 +356,19 @@ STEP 3 — Do the work, on the branch you pushed in STEP 2.
     self-contained (no caches or writes scattered across the disk).
   - Build it. Run whatever tests exist. If you cannot build, that is the
     finding — record it honestly rather than committing hopeful code.
+  - **In a shared checkout, record what you staged before you commit it:**
+
+        python3 {REPO}/scripts/check-commit-completeness.py --record   # before
+        git commit ...
+        python3 {REPO}/scripts/check-commit-completeness.py --verify   # after
+
+    A concurrent git operation in the same working copy can unstage a subset
+    between your `git add` and your `git commit`, and the commit then succeeds,
+    exits 0 and is correctly authored while containing less than you staged.
+    Reproduced 2026-08-17; the authorship check cannot see it, because nothing
+    about the *author* is wrong. `--verify` with no recorded manifest is a skip,
+    so this is safe to forget -- but forgetting it is how BACKLOG A16 happened.
+
   - **Commit as soon as a coherent change exists, rather than staging it and
     going away to build.** Staged-but-uncommitted work sits in a shared working
     tree with nobody's name on it; the 2026-08-15 collision happened in exactly
@@ -407,6 +420,12 @@ The next run knows only what you write down.
 
     Every commit must be `tide-rack-bot`. If any is not, **STOP and do not
     push.**
+
+    **These are two checks, not one, and each is blind to the other's failure:**
+    authorship asserts *who* wrote a commit, completeness asserts *what is in
+    it*. The 2026-08-15 short commit was correctly authored, so this check
+    passed and would pass again; the 2026-08-15 foreign commit had the right
+    content, so a completeness check would have passed it. Run both.
 
     STEP 0.7 cannot catch this, and the distinction is the whole point: it
     proves *this process* is the bot, once, at the start. It is a property of
