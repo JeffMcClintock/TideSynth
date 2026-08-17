@@ -46,6 +46,110 @@ Template:
 
 ---
 
+## 2026-08-17 — windows — C12c done, and the Windows build of `main` is broken by something else
+
+**Prompt:** `b3e9876e8` · claude-opus-5[1m] · app version not discoverable on
+this box (no `claude` on PATH, nothing recorded in `~/.claude`) · as
+`tide-rack-bot`
+
+**Did:** took **C12c** from the NEXT block and finished it — the twelve
+independent leaves (`CLine2`, `commandMgr`, `SuspendDSP`, `legacyExternalApp`,
+`ModuleDragAndDropManager` as `.cpp`+`.h`, plus header-only `ui_msg_target.h`
+and `IGuiHost.h`, 1,316 lines) moved from `SE16/SynthEdit2/` into
+`SynthEditLib`'s root, and `EditorLib/CMakeLists.txt` repoints them.
+**25 → 13 `${EDITOR_DIR}` entries.** Files are byte-identical (`cmp`) to the
+originals.
+
+**Result — the numbers, and then the caveat they were measured under.**
+
+- **Dangling private includes 42 → 21**, `scripts/dangling_private_includes.py`
+  before and after. Exactly the 21 edges C12c's Accept names, **zero new
+  opened**: `CLine2.h` 7, `SuspendDSP.h` 6, then `commandMgr.h`,
+  `legacyExternalApp.h`, `ModuleDragAndDropManager.h`, `ui_msg_target.h` at 2
+  each; `IGuiHost.h` had no public includer and closes 0, as predicted.
+- **Fresh scratch Ninja tree, Release, all four sibling repos on local
+  overrides: `935/935 RC=0`, `ctest 92/92 passed, 0 failed`** (93 listed, 1
+  disabled upstream), producing `TIDE.gmpi`, `TIDE_VST3.vst3` and
+  `SynthEditCL.exe`. The build log shows the five moved `.cpp`s compiling as
+  `EditorLib\...\C_\SE\SynthEditLib\<name>.cpp.obj` — from the public repo, not
+  the private one.
+- **The edge total is 935, not the 904 the backlog and C12a recorded.** That is
+  upstream growth in `SynthEditLib` (the tearout-window-layout feature), not
+  C12c, which moves TUs rather than adding or removing them. **The new baseline
+  for later sub-stages is 935/935 and 92/92.**
+
+**The caveat, and it is the important half of this entry: `SynthEditLib`'s
+`main` does not compile on Windows, and C12c had nothing to do with it.** The
+first full build died at edge 78 of 935:
+
+```
+C:\SE\SynthEditLib\SeAudioMaster.cpp(548): error C2680: 'MidiIn *': invalid target type for dynamic_cast
+C:\SE\SynthEditLib\SeAudioMaster.cpp(548): note: 'MidiIn': class must be defined before using in a dynamic_cast
+C:\SE\SynthEditLib\SeAudioMaster.cpp(805): error C2027: use of undefined type 'MidiIn'
+C:\SE\SynthEditLib\SeAudioMaster.h(609): note: see declaration of 'MidiIn'
+```
+
+From `e14970e`, "Feed a patch's MIDI In module in plug-in hosts too (S12(a))",
+merged as SynthEditLib#16 from the macOS box today. Clang accepts
+`class MidiIn* midiInModule = {};` at `SeAudioMaster.h:609` together with
+`dynamic_cast<class MidiIn*>` at `:548`; MSVC binds both to the incomplete type
+that first declaration introduces, and never to the complete class in
+`modules_internal/MidiIn.h`. Filed as
+[#111](https://github.com/JeffMcClintock/TideSynth/issues/111) with a suggested
+one-line fix. **Not fixed here** — `SynthEditLib` is GATED for a scheduled run
+and this is not a carve-out stage, the same STEP 1 / STEP 5 contradiction the
+linux box hit this morning in [#87](https://github.com/JeffMcClintock/TideSynth/issues/87).
+**Two `platform:*` breaks in GATED shared code in one day is the signal, not
+the coincidence** — this needs Jeff's ruling, not a third run's judgement.
+
+So C12c was verified with its twelve files on top of `d96edbb`, the merge
+immediately before `e14970e`, not on top of `main`. **The gap that leaves is
+stated in both PR bodies:** this branch has not been proven to build against
+`main` as `main` stands, only against `main` minus one unrelated commit.
+
+**Learned — a control compile is cheap and it is what makes "not my fault"
+a fact rather than a claim.** The tempting move was to reason that a TU in the
+`SynthEditLib` target cannot be affected by `EditorLib`'s source list. That
+reasoning is correct and it is not evidence. Checking out pristine `origin/main`
+and re-running the *exact* `cl.exe` command line from the failing ninja edge
+reproduced all three errors identically in about forty seconds, with none of
+C12c present. **When a build breaks during your change, re-run the one failing
+compile against the untouched tree before you diagnose anything.**
+
+**Learned — four things about that failure were ruled out, so nobody repeats
+them:** it is not a missing include (`/showIncludes` shows
+`modules_internal/MidiIn.h` opened at `.cpp:26`, ahead of both failures); not a
+shadowing duplicate (`git ls-files` finds exactly one `MidiIn.h`); not
+conditional compilation (in the preprocessed TU `class MidiIn final` sits at
+line 344022 and the failing `dynamic_cast` at 356338); and **not** the bare
+elaborated-type-specifier pattern, because a minimal `class X* member;`-then-
+define-`X` repro compiles clean under the same compiler and flags. The
+interaction is more specific than that shape alone, and I stopped there rather
+than keep digging in a GATED file.
+
+**Learned — the run prompt's GATED wording says "C1-C7" and the carve-out is up
+to C12.** C12a, C12b, C12e, C9 and C11 have all been executed and merged as
+GATED edits under a rule whose literal text does not cover them, and the NEXT
+block instructs this box to take C12c. The practice is settled and the wording
+is not; worth an edit to STEP 5 next time someone touches the prompt.
+
+**Next:** **C12f** is the remaining large stage — the patch cluster, ten
+entries, 6,298 lines, atomic, and the one that takes `${EDITOR_DIR}` to zero and
+unblocks C6. C12d stays `linux`. Before either, someone with the authority
+should fix [#111](https://github.com/JeffMcClintock/TideSynth/issues/111), or
+the next Windows run pays the same tax and the next Windows *user* cannot build
+TIDE at all.
+
+**Side effects on this box:** a scratch Ninja tree at `C:\SE\build-c12c`
+(Jeff's own `SE16\build` untouched); no other repo modified. All five working
+copies were clean before this run and are returned to their default branches.
+
+**Branch/PR:** [SynthEdit#41](https://github.com/JeffMcClintock/SynthEdit/pull/41)
++ [SynthEditLib#18](https://github.com/JeffMcClintock/SynthEditLib/pull/18),
+which must merge together, plus this TideSynth PR.
+
+---
+
 ## 2026-08-17 — macos — S11's restore has exactly one blocker: blobs are not encoded in the preset (unsupervised)
 
 **Prompt:** n/a — Jeff left with "do as many tasks as you can unsupervised"
@@ -373,166 +477,3 @@ reopened that project, after which every script created its own tab).
 
 **Branch/PR:** this TideSynth PR +
 [SynthEditLib#16](https://github.com/JeffMcClintock/SynthEditLib/pull/16).
-
----
-
-## 2026-08-17 — macos — container-IO contract reverse-engineered; the MIDI In module is standalone-only (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff ruled "synthesise real container IO
-for MIDI, I think that is the least disruptive to SynthEdit". Committed and
-pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** worked out **exactly** what `exportDspXml` has to emit, by reading the
-importer rather than guessing — and found one thing that changes the shape of
-the fix: **the patch's "MIDI In" module cannot be the endpoint, because in a
-plug-in nothing ever feeds it.** No code change; the contract and that
-constraint are the deliverable, and together they make the next session a
-single implementation pass.
-
-**The XML contract, from `ug_base::Setup` and `SeAudioMaster::BuildModules`:**
-
-- A **container IO plug** is any `<Plug>` carrying a `Direction` attribute —
-  that is literally how the importer distinguishes it ("IO Plug on Container
-  or I/O Mod. Identified by 'Direction' element"). It becomes
-  `new UPlug(this, (EDirection)direction, (EPlugDataType)datatype)`, so:
-  `<Plug Direction="0" Datatype="2"/>` is a MIDI **input** — `DT_MIDI2` is
-  **2** in `EPlugDataType{DT_ENUM=0, DT_TEXT, DT_MIDI2, DT_DOUBLE, DT_BOOL,
-  DT_FSAMPLE=5}`.
-- An **IO Mod**'s plug ties to its container's plug **by handle**, and only
-  when the module carries `UGF_IO_MOD`:
-  `<Plug Direction="1" Datatype="2" TiedTo="<containerHandle>"
-  TiedToPinIdx="<n>"/>` → `up->TiedTo = p2; p2->TiedTo = up;`
-- **Connections** are `<Line From="<handle>" To="<handle>" FromPin="i"
-  ToPin="j"/>`; `FromPin`/`ToPin` default to 0, and the handles are resolved
-  through `HandleToObject`.
-
-**The constraint that changes the design.** TIDE's browser offers a **MIDI In**
-module, and it looks like the obvious MIDI source — but
-`modules_internal/MidiIn.h` is `class MidiIn final : public MpBase2, public
-ISpecialIoModule`, and it obtains MIDI by calling
-`AudioMaster()->RegisterIoModule(this)` in `open()`. In the **standalone** that
-registration lands in `UIoManager`, which feeds it from a MIDI device. In the
-**plug-in** it lands in `SynthRuntime::RegisterIoModule`, whose entire body is
-`{ return 1; } // nothing special to do in plugin`. **So a "MIDI In" module in
-a plug-in registers itself and is then never fed by anyone** — it is a
-standalone-app module, and its Audio pins confirm it (`MIDI Data` out,
-`Activity` out, `MPE Mode` in — **no MIDI input pin at all**, so nothing can be
-routed into it either).
-
-**Which means the classic plug-in MIDI path is the only one available**, and
-it is exactly what Jeff's ruling describes: host → `vst_in` → **the synth
-container's DT_MIDI2 plug** → an **IO Mod** inside → the user's MIDI-consuming
-modules (MIDI-CV 2 and friends). That is how an exported SE plug-in has always
-worked; TIDE's flat rack simply never grew the container plug.
-
-**So the open question is a UX one, not a mechanical one, and it is Jeff's:**
-what does the user patch *from* in the rack? Either **(i)** TIDE synthesises a
-container MIDI plug plus a tied IO Mod at export, and the IO Mod is the thing
-users drag from — it is already in TIDE's module list, so this needs no new
-module and no SynthEdit change; or **(ii)** TIDE keeps "MIDI In" as the
-user-facing source and `SynthRuntime` learns to feed registered MIDI modules
-the way `UIoManager` does — nicer for users, but it is the SynthEdit change
-Jeff's ruling was steering away from.
-
-**Learned — read the importer, not the exporter, when synthesising a format.**
-Every attribute that matters here (`Direction` as the IO-plug marker,
-`Datatype`'s enum ordering, `TiedTo`/`TiedToPinIdx`, the defaulting of
-`FromPin`/`ToPin`) came from the ~40 lines that *parse* the XML. The exporter
-would have shown only what a normal project happens to contain, which is
-exactly the case that does not apply to TIDE's synthesised document.
-
-**Next:** Jeff picks (i) or (ii); the row holds the full contract so the
-implementation is one pass either way.
-
-**Side effects on this box:** read-only investigation — nothing built, REAPER
-not driven, no probes left anywhere. All six repos clean.
-
-**Branch/PR:** this TideSynth PR (row + entry only; no code).
-
----
-
-## 2026-08-17 — macos — suspect (a) refuted; the real cause found: the rack exposes no plugs (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff said "do suspect (a)". Committed
-and pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** chased suspect (a) — the UMP-vs-MIDI-1.0 format theory — and **it is
-wrong**. Instrumenting the chain instead found the actual break, one layer
-lower and much more consequential: **TIDE's rack container exposes no MIDI
-plug and no audio plugs, so `SetupVstIO` never connects the synthetic VST
-Input's MIDI Out to anything.** No code change; the diagnosis is the
-deliverable.
-
-**Suspect (a) is refuted at the source.** `SeAudioMaster::MidiIn` hands the
-bytes to `ug_vst_in::sendMidi`, which calls `MpeConverter::processMidi` — and
-that function opens with `if (gmpi::midi_2_0::isMidi2Message(msg)) { sink(msg,
-timestamp); return; }`. **MIDI 2.0 passes through by design**, comment and
-all. The UMP packets TIDE forwards are exactly what it accepts. Nothing needs
-translating.
-
-**What the chain probe showed, in order:**
-
-```
-SetupVstIO: synthModule=1 plugs=3
-  synth plug: type=0 dir=0        <- DT_ENUM
-  synth plug: type=4 dir=0        <- DT_BOOL
-  synth plug: type=0 dir=0        <- DT_ENUM
-AudioMaster::MidiIn len=8 [40 90 3c] audioIn=1
-  vst_in sink: size=8 inUse=0 mo=1
-```
-
-`EPlugDataType` is `DT_ENUM=0, DT_TEXT=1, DT_MIDI2=2, DT_DOUBLE=3, DT_BOOL=4,
-DT_FSAMPLE=5`. **So the container's three plugs are ENUM, BOOL, ENUM — there
-is no DT_MIDI2 plug and no DT_FSAMPLE plug.** `SetupVstIO` loops over exactly
-those looking for MIDI and audio, finds neither, and connects nothing —
-which is precisely the measured `inUse=0` on `vst_in`'s MIDI Out. **The MIDI
-arrives at the audio master, is converted correctly, and is then sent into a
-plug with no connections.**
-
-**And this explains the asymmetry that made the bug confusing.** Audio works
-(the tone clipped at +10 dB) **not** through the container's plugs but because
-**Sound Out is a special IO module**: `ug_soundcard_out` registers itself via
-`RegisterIoModule` at `Open()` and receives the host's buffers directly. MIDI
-has no equivalent registration, so it depends on the container plumbing that
-does not exist. **A rack that makes sound while ignoring MIDI is exactly what
-those two different mechanisms predict.**
-
-**The fix direction, for the next session to design rather than guess:** the
-inner rack container needs real plugin IO — a `DT_MIDI2` input plug wired to
-the patch's MIDI In module (and, if audio should ever leave via the container
-rather than via Sound Out's registration, `DT_FSAMPLE` outputs too). In SE
-terms that is what an **IO Mod** provides, and `exportDspXml`'s synthetic
-outer container is the natural place to synthesise it. **Whether TIDE should
-instead treat the patch's "MIDI In" module as a registering special IO module
-— the symmetric counterpart of Sound Out — is the design question, and it is
-Jeff's call.**
-
-**Learned — probe the chain, not the theory.** Suspect (a) was a reasonable
-hypothesis and it cost one build to disprove by *reading the consumer*
-(`processMidi`'s first three lines). The chain probe then located the break
-in a single run because it logged **at four points**, so the last successful
-step and the first failing one were adjacent in the output. **Instrumenting
-several points at once beats bisecting one hypothesis at a time.**
-
-**Caught a build-configuration trap of my own making:** the first probe run
-produced *no log at all*, because `cmake --fresh` had also cleared
-`SYNTHEDITLIB_FOLDER_OVERRIDE`, so the build was compiling **SynthEditLib
-fetched from GitHub** (`_deps/syntheditlib-src`) and my local edits were
-invisible. Verified by `strings`-ing the installed binary for the probe's log
-path — zero hits — before believing the silence. **`strings` the artefact when
-a probe does not fire; the code you edited may not be the code that ran.** The
-override is now restored to the local checkout, which is how this box was set
-up before the `--fresh`.
-
-**Next:** design the container-IO fix (S12(a) continues). Everything else in
-S12's remainder is unchanged.
-
-**Side effects on this box:** four TIDE_VST3 builds; all probes reverted and
-the installed plug-in rebuilt clean (verified probe-free with `strings`).
-`SYNTHEDITLIB_FOLDER_OVERRIDE` now points at the local checkout again; GMPI
-and GMPI_Wrappers remain upstream. REAPER restarted twice. **"Optimus HP" was
-never modified — and the guard proved itself:** REAPER reopened that project
-as the active tab and the rig script aborted rather than touch it, after which
-every subsequent script created its own new tab first.
-
-**Branch/PR:** this TideSynth PR (row + entry only; no code).

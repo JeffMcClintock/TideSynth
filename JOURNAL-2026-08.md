@@ -9890,3 +9890,166 @@ built from `master` with no diagnostics**. REAPER restarted twice; throwaway
 projects only, **"Optimus HP" untouched**.
 
 **Branch/PR:** this TideSynth PR (row + entry only; no code).
+
+---
+
+## 2026-08-17 — macos — suspect (a) refuted; the real cause found: the rack exposes no plugs (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff said "do suspect (a)". Committed
+and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** chased suspect (a) — the UMP-vs-MIDI-1.0 format theory — and **it is
+wrong**. Instrumenting the chain instead found the actual break, one layer
+lower and much more consequential: **TIDE's rack container exposes no MIDI
+plug and no audio plugs, so `SetupVstIO` never connects the synthetic VST
+Input's MIDI Out to anything.** No code change; the diagnosis is the
+deliverable.
+
+**Suspect (a) is refuted at the source.** `SeAudioMaster::MidiIn` hands the
+bytes to `ug_vst_in::sendMidi`, which calls `MpeConverter::processMidi` — and
+that function opens with `if (gmpi::midi_2_0::isMidi2Message(msg)) { sink(msg,
+timestamp); return; }`. **MIDI 2.0 passes through by design**, comment and
+all. The UMP packets TIDE forwards are exactly what it accepts. Nothing needs
+translating.
+
+**What the chain probe showed, in order:**
+
+```
+SetupVstIO: synthModule=1 plugs=3
+  synth plug: type=0 dir=0        <- DT_ENUM
+  synth plug: type=4 dir=0        <- DT_BOOL
+  synth plug: type=0 dir=0        <- DT_ENUM
+AudioMaster::MidiIn len=8 [40 90 3c] audioIn=1
+  vst_in sink: size=8 inUse=0 mo=1
+```
+
+`EPlugDataType` is `DT_ENUM=0, DT_TEXT=1, DT_MIDI2=2, DT_DOUBLE=3, DT_BOOL=4,
+DT_FSAMPLE=5`. **So the container's three plugs are ENUM, BOOL, ENUM — there
+is no DT_MIDI2 plug and no DT_FSAMPLE plug.** `SetupVstIO` loops over exactly
+those looking for MIDI and audio, finds neither, and connects nothing —
+which is precisely the measured `inUse=0` on `vst_in`'s MIDI Out. **The MIDI
+arrives at the audio master, is converted correctly, and is then sent into a
+plug with no connections.**
+
+**And this explains the asymmetry that made the bug confusing.** Audio works
+(the tone clipped at +10 dB) **not** through the container's plugs but because
+**Sound Out is a special IO module**: `ug_soundcard_out` registers itself via
+`RegisterIoModule` at `Open()` and receives the host's buffers directly. MIDI
+has no equivalent registration, so it depends on the container plumbing that
+does not exist. **A rack that makes sound while ignoring MIDI is exactly what
+those two different mechanisms predict.**
+
+**The fix direction, for the next session to design rather than guess:** the
+inner rack container needs real plugin IO — a `DT_MIDI2` input plug wired to
+the patch's MIDI In module (and, if audio should ever leave via the container
+rather than via Sound Out's registration, `DT_FSAMPLE` outputs too). In SE
+terms that is what an **IO Mod** provides, and `exportDspXml`'s synthetic
+outer container is the natural place to synthesise it. **Whether TIDE should
+instead treat the patch's "MIDI In" module as a registering special IO module
+— the symmetric counterpart of Sound Out — is the design question, and it is
+Jeff's call.**
+
+**Learned — probe the chain, not the theory.** Suspect (a) was a reasonable
+hypothesis and it cost one build to disprove by *reading the consumer*
+(`processMidi`'s first three lines). The chain probe then located the break
+in a single run because it logged **at four points**, so the last successful
+step and the first failing one were adjacent in the output. **Instrumenting
+several points at once beats bisecting one hypothesis at a time.**
+
+**Caught a build-configuration trap of my own making:** the first probe run
+produced *no log at all*, because `cmake --fresh` had also cleared
+`SYNTHEDITLIB_FOLDER_OVERRIDE`, so the build was compiling **SynthEditLib
+fetched from GitHub** (`_deps/syntheditlib-src`) and my local edits were
+invisible. Verified by `strings`-ing the installed binary for the probe's log
+path — zero hits — before believing the silence. **`strings` the artefact when
+a probe does not fire; the code you edited may not be the code that ran.** The
+override is now restored to the local checkout, which is how this box was set
+up before the `--fresh`.
+
+**Next:** design the container-IO fix (S12(a) continues). Everything else in
+S12's remainder is unchanged.
+
+**Side effects on this box:** four TIDE_VST3 builds; all probes reverted and
+the installed plug-in rebuilt clean (verified probe-free with `strings`).
+`SYNTHEDITLIB_FOLDER_OVERRIDE` now points at the local checkout again; GMPI
+and GMPI_Wrappers remain upstream. REAPER restarted twice. **"Optimus HP" was
+never modified — and the guard proved itself:** REAPER reopened that project
+as the active tab and the rig script aborted rather than touch it, after which
+every subsequent script created its own new tab first.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).
+
+---
+
+## 2026-08-17 — macos — container-IO contract reverse-engineered; the MIDI In module is standalone-only (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff ruled "synthesise real container IO
+for MIDI, I think that is the least disruptive to SynthEdit". Committed and
+pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** worked out **exactly** what `exportDspXml` has to emit, by reading the
+importer rather than guessing — and found one thing that changes the shape of
+the fix: **the patch's "MIDI In" module cannot be the endpoint, because in a
+plug-in nothing ever feeds it.** No code change; the contract and that
+constraint are the deliverable, and together they make the next session a
+single implementation pass.
+
+**The XML contract, from `ug_base::Setup` and `SeAudioMaster::BuildModules`:**
+
+- A **container IO plug** is any `<Plug>` carrying a `Direction` attribute —
+  that is literally how the importer distinguishes it ("IO Plug on Container
+  or I/O Mod. Identified by 'Direction' element"). It becomes
+  `new UPlug(this, (EDirection)direction, (EPlugDataType)datatype)`, so:
+  `<Plug Direction="0" Datatype="2"/>` is a MIDI **input** — `DT_MIDI2` is
+  **2** in `EPlugDataType{DT_ENUM=0, DT_TEXT, DT_MIDI2, DT_DOUBLE, DT_BOOL,
+  DT_FSAMPLE=5}`.
+- An **IO Mod**'s plug ties to its container's plug **by handle**, and only
+  when the module carries `UGF_IO_MOD`:
+  `<Plug Direction="1" Datatype="2" TiedTo="<containerHandle>"
+  TiedToPinIdx="<n>"/>` → `up->TiedTo = p2; p2->TiedTo = up;`
+- **Connections** are `<Line From="<handle>" To="<handle>" FromPin="i"
+  ToPin="j"/>`; `FromPin`/`ToPin` default to 0, and the handles are resolved
+  through `HandleToObject`.
+
+**The constraint that changes the design.** TIDE's browser offers a **MIDI In**
+module, and it looks like the obvious MIDI source — but
+`modules_internal/MidiIn.h` is `class MidiIn final : public MpBase2, public
+ISpecialIoModule`, and it obtains MIDI by calling
+`AudioMaster()->RegisterIoModule(this)` in `open()`. In the **standalone** that
+registration lands in `UIoManager`, which feeds it from a MIDI device. In the
+**plug-in** it lands in `SynthRuntime::RegisterIoModule`, whose entire body is
+`{ return 1; } // nothing special to do in plugin`. **So a "MIDI In" module in
+a plug-in registers itself and is then never fed by anyone** — it is a
+standalone-app module, and its Audio pins confirm it (`MIDI Data` out,
+`Activity` out, `MPE Mode` in — **no MIDI input pin at all**, so nothing can be
+routed into it either).
+
+**Which means the classic plug-in MIDI path is the only one available**, and
+it is exactly what Jeff's ruling describes: host → `vst_in` → **the synth
+container's DT_MIDI2 plug** → an **IO Mod** inside → the user's MIDI-consuming
+modules (MIDI-CV 2 and friends). That is how an exported SE plug-in has always
+worked; TIDE's flat rack simply never grew the container plug.
+
+**So the open question is a UX one, not a mechanical one, and it is Jeff's:**
+what does the user patch *from* in the rack? Either **(i)** TIDE synthesises a
+container MIDI plug plus a tied IO Mod at export, and the IO Mod is the thing
+users drag from — it is already in TIDE's module list, so this needs no new
+module and no SynthEdit change; or **(ii)** TIDE keeps "MIDI In" as the
+user-facing source and `SynthRuntime` learns to feed registered MIDI modules
+the way `UIoManager` does — nicer for users, but it is the SynthEdit change
+Jeff's ruling was steering away from.
+
+**Learned — read the importer, not the exporter, when synthesising a format.**
+Every attribute that matters here (`Direction` as the IO-plug marker,
+`Datatype`'s enum ordering, `TiedTo`/`TiedToPinIdx`, the defaulting of
+`FromPin`/`ToPin`) came from the ~40 lines that *parse* the XML. The exporter
+would have shown only what a normal project happens to contain, which is
+exactly the case that does not apply to TIDE's synthesised document.
+
+**Next:** Jeff picks (i) or (ii); the row holds the full contract so the
+implementation is one pass either way.
+
+**Side effects on this box:** read-only investigation — nothing built, REAPER
+not driven, no probes left anywhere. All six repos clean.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).
