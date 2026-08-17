@@ -46,6 +46,107 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — S11: the restore crash is FIXED, and the rack now survives reload (interactive)
+
+**Interactive session, Jeff directing.** He owned the ordering (fail safe first,
+then find the throw, then wire the editor), ruled GMPI in scope when the fix
+landed there, and REAPER was available throughout — every claim below is a
+measurement in REAPER, not an inference.
+
+**Did:** all three steps, verified, three PRs.
+
+1. **Fail safe on the main thread.** `setState` / `setComponentState` /
+   `stateLoad` are host boundaries the DAW calls on the **main thread** while
+   opening a project. An exception escaping one unwinds into the host's own
+   event loop, where there is no handler — on macOS it reaches
+   `-[NSApplication run]` and `terminate()` aborts the DAW. All three now
+   catch and report failure. CLAP's `stateLoad` is `noexcept`, so an escape
+   there does not even unwind; it calls `std::terminate` directly.
+2. **Found the throw — measured, not reasoned.**
+   `GMPI/Hosting/processor_holder.cpp:503` called `std::stod()` on every
+   parameter's `val` whatever the datatype. Fixed by dispatching on datatype,
+   which the **controller-side reader of the same loop already did** via
+   `GmpiParameter::setFromXml` — so the fix is one line reusing the correct
+   implementation, not a second copy of the dispatch.
+3. **Gave parameter 1 an editor route and imported the document.**
+
+**Result:**
+
+| | Before | After |
+|---|---|---|
+| open `/tmp/tide-restore-test.rpp` | exit **134** SIGABRT in ~8s | loads, REAPER stays up |
+| stderr | `libc++abi: terminating due to uncaught exception of type std::invalid_argument: stod: no conversion` | clean |
+| crash report | `REAPER-2026-08-18-084525.ips` (thread 0, `EXC_CRASH`) | none |
+| rack round trip | modules gone on reload | **2516 bytes, byte-identical** |
+
+The round-trip test is the strong one, and it is objective rather than visual:
+place a module → save → quit → reopen → save again → decode the VST state out
+of both `.rpp` files and diff. Identical, 2516 bytes, `<Document>` + `<DSP>` +
+`<Editor>` + `<master_container>` with all three modules. Before the change the
+same trip came back with the modules gone. Decoder kept at
+`scripts/decode_rpp.py`; artefacts `/tmp/tide-s11-verify.rpp` (the save) and
+`/tmp/tide-s11-final.rpp` (the round trip, shipping binary).
+
+**Learned — five things, three of them traps:**
+
+- **THE STDERR TRICK. Launch the DAW from a shell, not `open -a`, and the
+  uncaught exception names itself.** One line — `std::invalid_argument: stod:
+  no conversion` — turned a static suspicion into proof with no debugger, no
+  breakpoint and no rebuild. Four previous sessions characterised this crash
+  from `.ips` reports alone. Do this **first** next time.
+- **The absent-TIDE-frames reasoning was a red herring, and here is why.** The
+  trace concluded the main thread was innocent of TIDE because no TIDE frames
+  appear on thread 0. But for an **uncaught** exception the stack is already
+  unwound by the time `terminate` runs — the frames are *gone*, not absent.
+  `Processor_VST3::setState` was on that thread all along. An `.ips` for
+  SIGABRT-via-terminate cannot tell you where the throw was.
+- **BUILD TRAP, new and expensive: `GMPI_WRAPPER_FOLDER_OVERRIDE` was not set
+  on this box** — the only one of the four that wasn't. `GMPI_SDK`,
+  `GMPI_UI` and `SYNTHEDITLIB` all point at local checkouts, so
+  `GMPI_Wrappers` looked like it did too. It did not: the build used a
+  FetchContent clone at `build/_deps/gmpi_wrappers-src` (pinned Aug 17 15:33),
+  and **every edit to the local `GMPI_Wrappers` checkout was silently
+  ignored** — compiled fine, changed nothing, no warning. Cost a full
+  build-and-test cycle chasing a route that was never in the binary. Fixed
+  with `cmake -DGMPI_WRAPPER_FOLDER_OVERRIDE=~/Documents/GitHub/GMPI_Wrappers .`
+  in `SynthEdit/build`, and CMake then prints `Using local GMPI WRAPPERS
+  folder`. **Check for that line.**
+- **TIDE cannot run as a Debug build.** `database.se.xml` is absent from the
+  bundle in both configs, so `CModuleFactory::RegisterExternalPluginsXmlOnce`
+  (`SynthEditLib/UgDatabase.cpp:549`) hits `assert(false)` and aborts REAPER.
+  In Release the assert compiles out and it silently returns. Filed as **S13**
+  — it is why every previous session was Release, and it blocks debugging the
+  very crashes we keep chasing. Fix is in a GATED path.
+- **The saved chunk was DSP-only, and the editor cannot read that format.**
+  This is the architectural half nobody had noticed: `<Modules>` (capital,
+  consumed by `SeAudioMaster`) versus `<modules>` under `<master_container>`
+  (consumed by `ImportModules`), and the DSP shape carries **no positions at
+  all**. So the rack could never have come back however well the blob
+  survived. The chunk now carries both sections under one `<Document>`;
+  `BuildDspGraph` navigates `Document->DSP` explicitly, so the sibling is
+  invisible to it.
+
+**Also corrected:** the row's claim that the A/B "exonerated base64" and that
+the crash was unrelated to it. The row itself already carried that correction;
+this run confirms the accurate framing — **the defect is pre-existing and
+latent, and base64 made it reachable** by being the first thing ever to
+serialise a blob as text.
+
+**Next:** two follow-ups filed, neither blocking. **S13** — the Debug-build
+assert above. **S14** — modules placed from the browser get `structRect` all
+zeros, so they persist correctly but do not *render*; the rack looks empty
+though the document is right. Persistence and placement are separate problems
+and only the first is fixed. Also unmeasured still: whether **audio** returns
+now that the document reaches both sides.
+
+**Branch/PR:** [GMPI#5](https://github.com/JeffMcClintock/GMPI/pull/5) ·
+[GMPI_Wrappers#6](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/6) ·
+[SynthEdit#43](https://github.com/JeffMcClintock/SynthEdit/pull/43). **Merge
+GMPI_Wrappers#6 and SynthEdit#43 together** — without the wrapper's caller,
+`SynthEditController::setParameter` is dead code.
+
+---
+
 ## 2026-08-18 — macos — A17 resolved (b), A18 answered: detection instead of prevention
 
 **Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
