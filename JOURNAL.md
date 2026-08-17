@@ -46,6 +46,66 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — MIDI notes play: the blob pin was never seeded on a new processor (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff merged choice (ii) and said "keep
+going till you are blocked". Committed and pushed as `tide-rack-bot`
+(claude-fable-5).
+
+**Did:** found and fixed the last blocker. **A MIDI note now plays a TIDE
+rack.** Measured: **peak 0.5103 (−5.8 dB) while the note sounds, 0.0001 with
+the transport stopped** — so the audio genuinely follows the notes rather than
+droning, which is the test Jeff's VCA correction made possible. The fix is
+generic and lives in GMPI; **the bot cannot push that repo (403 again), so the
+patch is filed at
+[docs/patches/gmpi-seed-blob-pins.patch](docs/patches/gmpi-seed-blob-pins.patch)**
+(72 lines) for Jeff to apply, exactly like this morning's transport patch.
+
+**The bug, in one sentence:** `gmpi_processor`'s pin-initialisation loop seeded
+parameter-backed pins for `Float32`, `Int32` and `Bool`, and **`Blob` fell
+through to `default: assert(false)`** — so a newly created processor started
+with an empty blob pin and was never told otherwise, because blobs only reach
+the processor when they **change**.
+
+**Why that mattered so much here.** A host creates processors whenever it
+likes — after `restartComponent`, for offline or anticipative processing, on
+state restore. REAPER was running **two** TIDE processors: the editor's held
+the rack document and ran audio, while a second one received all the MIDI with
+`prepared=0` for its entire life. It had never been handed the document, so it
+had no graph to play. **The two-instance behaviour was never the bug; the
+un-seeded blob pin was.**
+
+**Learned — a `default: assert(false)` is a to-do list.** The same switch
+statement had already bitten me this morning: `sendParameterToProcessor` was
+missing its Blob case, and I added it to fix the *change* path. **I fixed one
+arm of the pattern and did not check the other**, so the initialise path kept
+the hole for another six hours. When a datatype is missing from one switch
+over `PinDatatype`, grep every switch over `PinDatatype` in the same file
+before moving on — there were exactly two, and they needed the same case.
+
+**Verification note:** the gate test is what makes this claim safe. A patch
+whose oscillator reaches Sound Out will drone at its default pitch and read a
+healthy peak whether or not MIDI works — Jeff caught me making exactly that
+mistake earlier. Comparing **note-playing (0.5103) against transport-stopped
+(0.0001)** is the measurement that cannot be faked by a drone.
+
+**Next:** with notes audible, S12(a) is done. The remainder of S12 is the
+save/reopen re-check (the chunk now carries real documents **and** is seeded
+into fresh processors, so S11's restore half may work already), then the faded
+swap and preset retention.
+
+**Side effects on this box:** three TIDE_VST3 builds; all probes reverted
+earlier and both code trees verified clean before this change. **The build now
+points `GMPI_SDK_FOLDER_OVERRIDE` at the local GMPI checkout** (needed to test
+the unmerged patch) — it should be cleared once Jeff applies it, or fresh
+clones will build without the fix. REAPER restarted twice; **"Optimus HP"
+untouched**.
+
+**Branch/PR:** this TideSynth PR + local GMPI branch `tide/mac/seed-blob-pins`
+(patch filed for Jeff).
+
+---
+
 ## 2026-08-17 — macos — the MIDI mystery solved: a second processor instance, and it never gets the document (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session; Jeff merged choice (ii) and said "keep

@@ -1,0 +1,72 @@
+From 7526b107654878540f52b185f094a47578a913a1 Mon Sep 17 00:00:00 2001
+From: tide-rack-bot <314850083+tide-rack-bot@users.noreply.github.com>
+Date: Mon, 17 Aug 2026 17:33:02 +1200
+Subject: [PATCH] Seed blob pins on processor creation
+
+gmpi_processor's pin-initialisation loop seeded parameter-backed pins
+for Float32, Int32 and Bool; Blob fell through to 'default:
+assert(false)', so a newly created processor started with an empty blob
+pin and was never told otherwise - blobs only reach the processor when
+they CHANGE.
+
+That is not a corner case: a host creates processors at will (after
+restartComponent, for offline or anticipative processing, on state
+restore), and any of those instances would run with no blob state at
+all. Found via TideSynth S12: REAPER ran two TIDE processors and fed
+MIDI to the second one, which had never received the rack document and
+so produced silence.
+
+Seeds from the parameter's current bytes, skipping an empty value so a
+later change still delivers it. The parameter owns the storage and
+outlives the event queue, matching sendParameterToProcessor.
+
+Verified in REAPER: a MIDI instrument (MIDI In -> MIDI-CV 2 -> osc,
+Gate -> VCA) now sounds - peak 0.5103 (-5.8 dB) while a note plays and
+0.0001 with the transport stopped, so audio follows the notes.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ Hosting/processor_holder.cpp | 27 +++++++++++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/Hosting/processor_holder.cpp b/Hosting/processor_holder.cpp
+index 1d1653a..75400c3 100644
+--- a/Hosting/processor_holder.cpp
++++ b/Hosting/processor_holder.cpp
+@@ -211,6 +211,33 @@ bool gmpi_processor::start_processor(gmpi::api::IProcessorHost* host, gmpi::host
+ 						copyValueToEvent(e, static_cast<bool>(std::round(param->valueReal())));
+ 					}
+ 					break;
++
++					case gmpi::PinDatatype::Blob:
++					{
++						// Seed the pin with the parameter's CURRENT bytes, not a
++						// default. A processor can be created at any time - after
++						// restartComponent, for offline rendering, or on state
++						// restore - and without this it would start with an empty
++						// blob and never be told otherwise, since blobs only reach
++						// it when they CHANGE. The parameter owns the storage and
++						// outlives this event queue.
++						auto* v = std::get_if<std::vector<uint8_t>>(&param->value_);
++						if (!v || v->empty())
++							continue; // nothing stored yet; a later change will deliver it
++
++						e.size_ = static_cast<int32_t>(v->size());
++						if (v->size() > 8)
++						{
++							e.oversizeData_ = v->data();
++						}
++						else
++						{
++							std::fill(std::begin(e.data_), std::end(e.data_), uint8_t{});
++							std::copy(v->begin(), v->end(), e.data_);
++						}
++					}
++					break;
++
+ 					default:
+ 						assert(false); // unsupported type.
+ 					}
+-- 
+2.50.1 (Apple Git-155)
+
