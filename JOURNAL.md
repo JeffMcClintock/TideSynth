@@ -46,6 +46,73 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — choice (ii) built: the runtime feeds MIDI In; a second defect surfaced (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session. Jeff ruled **choice (ii)**: "MIDI-in will
+eventually be a rack module with a patch-point of its own, perhaps more like a
+MIDI-CV". (He also briefly pasted Optimus dialog screenshots from another
+session and said to carry on with MIDI — no Optimus work was done.) Committed
+and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** implemented (ii) —
+[SynthEditLib#16](https://github.com/JeffMcClintock/SynthEditLib/pull/16), 29
+lines. **`SeAudioMaster` now remembers a registered `MIDI In` module and
+`MidiIn()` feeds it with the same `AddMidiEvent` call
+`UIoManager::OnMidiData` makes**, so the module behaves identically in the
+standalone and in a plug-in. **Half-verified, and the other half turned up a
+second, separate defect** — both stated below rather than blurred together.
+
+**Why the gap existed, in one line:** a MIDI In module registers itself with
+the audio master exactly as Sound Out does, the standalone's `UIoManager`
+pairs that registration with a MIDI device, and the plug-in's
+`SynthRuntime::RegisterIoModule` is a documented no-op — *"nothing special to
+do in plugin"*. **So a MIDI In module in a plug-in patch was silent by
+construction**, and the fix is to make the plug-in the device.
+
+**Verified:** the module **does** register in a plug-in — the probe printed
+`RegisterIoModule[0x11e39a370]: midiIn=1` and the pointer was stored.
+
+**Not verified, and the reason is a NEW finding:** after the document rebuild
+that adds the module, **no further MIDI reached `SynthRuntime::MidiIn` at
+all**. Instance pointers made it unambiguous: every delivery went to
+`SeAudioMaster[0x11ce0e2a0]` — the graph that existed *before* the rebuild —
+and the registration landed on `[0x11e39a370]`, the graph built *after* it,
+which then received nothing despite the transport running for 240 sampled
+frames. **So MIDI delivery stops across a document rebuild.** That is
+independent of this fix and is the next thing to chase.
+
+**Learned — log the instance pointer when two objects can wear the same
+name.** "Registered" and "not receiving" looked contradictory until `%p`
+showed they were different `SeAudioMaster`s. **And read the log's ORDER before
+concluding:** I nearly filed "registration never happens" when the
+registration line was simply the *last* line in the file — everything before
+it predated placing the module. One `tail` corrected a wrong conclusion.
+
+**Repeated a mistake I had already recorded, which is worth admitting.** My
+first cleanup of the probes used a line-based Python rewrite and normalised
+`SeAudioMaster.cpp`/`.h` from CRLF to LF — a **5754-line diff** for a 29-line
+change, exactly the trap I hit on the GMPI patch earlier today and wrote down.
+Reverted and redone byte-safely (`b'\r\n'`-aware), giving the honest 29-line
+diff. **A lesson recorded is not a lesson learned until the tool that caused
+it is fixed** — the byte-safe `edit()` helper now used should be the default
+for every repo that stores CRLF.
+
+**Next:** chase the rebuild defect — MIDI stops reaching the processor after a
+graph rebuild. Cheapest probe is the one already proven: log in TIDE's
+`onMidiMessage` and in `SynthRuntime::MidiIn` across a document change, and
+compare instance pointers on both sides.
+
+**Side effects on this box:** six TIDE_VST3 builds; all probes reverted and
+the installed plug-in rebuilt from the committed state. REAPER restarted three
+times; **"Optimus HP" untouched** (the guard aborted one script when REAPER
+reopened that project, after which every script created its own tab).
+`SYNTHEDITLIB_FOLDER_OVERRIDE` remains pointed at the local checkout.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEditLib#16](https://github.com/JeffMcClintock/SynthEditLib/pull/16).
+
+---
+
 ## 2026-08-17 — macos — container-IO contract reverse-engineered; the MIDI In module is standalone-only (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session; Jeff ruled "synthesise real container IO
@@ -412,80 +479,3 @@ projects only, **"Optimus HP" untouched**. `/tmp/tide-s12.log` and
 **Branch/PR:** this TideSynth PR +
 [SynthEditLib#15](https://github.com/JeffMcClintock/SynthEditLib/pull/15) +
 [SynthEdit#40](https://github.com/JeffMcClintock/SynthEdit/pull/40).
-
----
-
-## 2026-08-17 — macos — S12 built to its last step: the rack has an engine; the tone is one gate away (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session. Jeff ruled Option A with the boundary
-sharpened — "keep the wrappers pure and simple, put the DSP xml stuff in TIDE
-itself" — and the implementation began. Committed and pushed as
-`tide-rack-bot` (claude-fable-5).
-
-**Did:** the S12 thin slice, end to end except its final step, across four
-repos: GMPI branch `tide/mac/blob-param-transport` (**the bot cannot push to
-that repo — 403 — so the commit is local and the patch is filed at
-[docs/patches/gmpi-blob-param-transport.patch](docs/patches/gmpi-blob-param-transport.patch)
-for Jeff to apply**),
-[GMPI_Wrappers#4](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/4),
-[SynthEditLib#14](https://github.com/JeffMcClintock/SynthEditLib/pull/14),
-[SynthEdit#39](https://github.com/JeffMcClintock/SynthEdit/pull/39) (WIP).
-
-**Found and fixed on the way in — the wrapper had no blob transport at all.**
-The three-point log bisected it in one run: the editor pushed 570 bytes, the
-controller's `setParameter` returned Ok, and the processor's pin never fired.
-`notifyDaw`/`performEdit` speak normalized doubles; `onQueMessageReady`
-consumed only `"ppc2"`. **The fix is generic, not TIDE-specific** — any
-wrapped plug-in with a blob parameter needs it: the holder hands changed blobs
-to a wrapper-installed hook (the `"ppc3"` framing already existed unused!),
-the VST3 wrapper moves the framed bytes with its existing binary message, and
-the processor holder consumes them into a Blob PinSet event. **Verified: the
-next run's log shows the same push arriving as `onSetPins size=570`.**
-
-**Then the graph — three crashes, each teaching the document's required
-shape:** (1) `SetupVstIO` derefs the *nested synth container* — exported
-projects have main→synth-child, TIDE's flat rack IS the master → wrap the
-export in a synthetic outer container. (2) `BuildPatchManager` runs on main
-unconditionally → move the PatchManager to the outer; the inner inherits,
-ordinary SE containment. (3) After both: **the empty document builds and RUNS
-(`prepared SR=48000 BS=512`) and a wired-document push while running takes
-the AsyncRestart fade/teardown/rebuild path without crashing.** The
-`#if 0 // editor only` `pendingDspXml` hook is enabled and working.
-
-**The frontier, precisely: modules are pruned from the export.** The placed
-1 kHz Tone and Sound Out never reach the XML — `<Modules />` stays empty while
-their connecting `<Line>` survives. First cause found and fixed:
-`CDocOb::exportFlags = EXP_PLUGIN` makes `doExport()` drop every
-`excludeFromVst` module — **Sound Out and the whole Diagnostic group are
-exactly those** — because a baked export replaces them; TIDE self-hosts
-editor semantics, so flags are now 0. **But modules are still pruned with
-flags 0.** Prime suspect: the other gate in `CUG::ExportXml` —
-`hasDspModule()` false because the module set's **DSP-side registrations never
-ran in TIDE**. That is the exact U2d pattern that hit the GUI half. **Next
-probe (one build): log `name / doExport() / hasDspModule()` per master-child
-inside `exportDspXml`.**
-
-**Learned — a three-point log turns "it doesn't work" into a one-run
-bisect.** sync-push / setParameter-rc / onSetPins-size located a missing
-wrapper subsystem in a single REAPER launch, then re-verified the fix the
-same way. The temp diagnostics (tagged `TEMP S12 diag`) are deliberately
-left in the WIP branch so the next session continues without re-instrumenting;
-they come out before merge.
-
-**Build note until the stack lands:** TIDE's build cache now sets
-`GMPI_SDK_FOLDER_OVERRIDE` and `GMPI_WRAPPER_FOLDER_OVERRIDE` to the local
-checkouts (CPM otherwise fetches GitHub main, which lacks the transport).
-Drop the overrides once the GMPI patch and GMPI_Wrappers#4 are on main.
-
-**Next:** the row's next-probe, then whichever registration wiring it names —
-the Accept (1 kHz Tone → Sound Out → host meter moves) is plausibly one or
-two builds away. After the tone: remove the diagnostics, then S11's restore
-path rides the same wire (the chunk already persists in the DAW state).
-
-**Side effects on this box:** ~8 TIDE_VST3 rebuilds; REAPER crashed twice
-(both crash reports read and acted on) and was restarted ~6 times; throwaway
-projects only, **"Optimus HP" never opened, saved or modified**. Temp files:
-`/tmp/tide-s12.log`, `/tmp/tide-dsp-doc.xml`. GMPI repo has a local branch
-the bot could not push.
-
-**Branch/PR:** this TideSynth PR + the four-repo stack above.
