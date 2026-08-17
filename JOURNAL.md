@@ -46,6 +46,83 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — the MIDI mystery solved: a second processor instance, and it never gets the document (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff merged choice (ii) and said "keep
+going till you are blocked". Committed and pushed as `tide-rack-bot`
+(claude-fable-5).
+
+**Did:** chased the "MIDI stops after a rebuild" defect and **solved it — the
+cause is not the rebuild at all.** REAPER runs **two** TIDE processor
+instances, and **MIDI is delivered to the one that has never received a
+document**. This also retracts yesterday's conclusion, which was based on a
+transport that had quietly stopped. No code change; the evidence and the fix
+direction are the deliverable.
+
+**The evidence, from one instrumented run** (probe in TIDE's `onMidiMessage`,
+`subProcess` and `SynthRuntime::MidiIn`, all logging `this`):
+
+```
+onMidiMessage  proc[0x12b0b0800] prepared=1   x31      <- editor's instance
+onMidiMessage  proc[0x12ba36800] prepared=0   x77      <- the one REAPER feeds MIDI
+PREPARE        proc[0x12b0b0800]  (every document)
+subProcess     proc[0x12b0b0800]  (only this one)
+```
+
+**So:** the instance the editor is attached to receives every document push,
+builds its graph and runs audio. A **second** processor instance receives the
+host's MIDI, has `prepared=0` for its whole life, and never runs `subProcess`.
+The two never meet.
+
+**Why it happens, and it is a flaw in my S12 design rather than a host quirk.**
+TIDE pushes the document **only when the XML changes** — `serviceDocumentSync`
+dedupes against `lastPushedDspXml`. **Any processor that appears afterwards
+therefore starts empty and stays empty**, because nothing ever re-sends. A
+plug-in's processor can be created at any time — the host may re-instantiate
+after a `restartComponent`, add an instance for offline/anticipative
+processing, or restore state into a fresh one — so "push once on change" was
+never going to be sufficient.
+
+**Fix direction, and the right one is not the obvious one.** The hacky answer
+is to re-push periodically. **The correct answer is that a newly created
+processor should be seeded with the current value of every parameter**,
+including blob parameters — which is what the chunk parameter is for. The
+document already persists in the DAW state (that half now works), so the same
+delivery that restores a saved project should seed a mid-session instance.
+Worth checking whether `gmpi_processor` seeds pins from
+`patchManager` at construction and simply skips blobs: if so, this is a small
+generic fix in the same place as this morning's transport work, not a
+TIDE-specific patch.
+
+**Learned — retract cleanly when the evidence changes.** Yesterday I recorded
+"MIDI delivery stops across a document rebuild", with instance pointers to
+back it. Today's run shows MIDI never stopped: **the transport had stopped**
+because clicking in the editor to place modules had halted playback, and my
+"no deliveries after the rebuild" was that, not a defect. **The pointer
+evidence was real and the conclusion drawn from it was wrong** — the missing
+control was "is the transport actually running while I measure?", which the
+`reaper.defer` sampler answers in its first line and which I did not check
+before concluding.
+
+**Also settled: there is exactly one processor per editor.** The earlier
+worry that registration and delivery hit different `SeAudioMaster`s has the
+same explanation — different *processors*, each with its own runtime and
+generator, not a stale pointer inside one.
+
+**Next:** seed a new processor with the current chunk-parameter value (check
+`gmpi_processor`'s construction path for blob handling first, since a generic
+fix there beats a TIDE-specific one). That is the last thing between the
+current build and an audible MIDI note.
+
+**Side effects on this box:** four TIDE_VST3 builds; **all probes reverted
+byte-safely and both trees verified clean** (`git status` empty in SynthEdit
+and SynthEditLib), installed plug-in rebuilt from the committed state. REAPER
+restarted twice; **"Optimus HP" untouched**.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).
+
+---
+
 ## 2026-08-17 — macos — choice (ii) built: the runtime feeds MIDI In; a second defect surfaced (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session. Jeff ruled **choice (ii)**: "MIDI-in will
@@ -408,74 +485,3 @@ builds (~15 min); `_deps` for GMPI and GMPI_Wrappers re-cloned from GitHub;
 REAPER restarted once, throwaway project only, **"Optimus HP" untouched**.
 
 **Branch/PR:** this TideSynth PR (doc + entry only; no code).
-
----
-
-## 2026-08-17 — macos — FIRST SOUND (interactive session, Jeff present — "i can hear it!")
-
-**Prompt:** n/a — interactive session. Jeff merged the S12 stack, pointed out
-that Sound Out is the device sink and "VST Output" the plugin path, and then
-— after three more fixes — heard TIDE Rack's first sound. Committed and
-pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** finished the S12 thin slice. **Place 1 kHz Tone, place Sound Out,
-drag the cable: track meter −6.0 dB, master green, and Jeff heard it.** The
-whole product loop is live for the first time: edit the rack → document
-exports → chunk parameter → processor → graph rebuilds → audio.
-[SynthEditLib#15](https://github.com/JeffMcClintock/SynthEditLib/pull/15) +
-[SynthEdit#40](https://github.com/JeffMcClintock/SynthEdit/pull/40), 
-diagnostics stripped.
-
-**The three finds between "merged" and the meter moving, in order:**
-
-1. **The export pruner was a design decision, not a bug** — with any target
-   except `SAT_SYNTHEDIT_DSP`, `ExportXml_Pt2` on a top-level container
-   serialises ONLY its first child container and disregards loose modules
-   ("save XML for use in a plugin. Excludes 'Sound Out'..." — the comment says
-   it plainly). The probe that proved both per-module gates PASSED
-   (`doExport=1 hasDsp=1`) is what forced reading past them. **TIDE now
-   exports with the editor's own runtime format, and the modules appear.**
-2. **The AsyncRestart swap path is unreachable in the plugin runtime** —
-   `eRuntimeState::resetting` exists only as a case label; nothing enters it.
-   So the first (empty) graph played silence forever while every later
-   document push was stored and never consumed. **Fix: `documentPending_`
-   forces `prepareToPlay` to rebuild, and the processor re-calls it on every
-   document arrival** — synchronous, in place, fine at rack scale; the faded
-   swap can come later without changing the transport.
-3. **No browser unhide was needed.** Jeff's pointer resolved cleanly:
-   "VST Output" is what `SetupVstIO` builds internally; the user-facing sink
-   is plain **Sound Out**, whose `ug_soundcard_out` is a real
-   `ISpecialIoModuleAudioOut` — it registers with the audio master at `Open`
-   and receives whatever buffers the shell provides: device buffers in the
-   standalone, **the host's output buffers in TIDE**. (IO Mod, the other
-   candidate, refuses to instantiate in a master container — it needs a
-   parent to expose plugs to.)
-
-**Learned — when both gates pass and the output is still empty, the skip is
-between the gates.** The probe pattern (log every candidate's name plus each
-gate's verdict) took one build and turned "modules missing, cause unknown"
-into "read `ExportXml_Pt2`". And its own first run crashed REAPER on an
-uninitialised iterator (`it_doc_ob` needs `First()`), which is the day's
-smallest lesson: MFC-style iterators do not position themselves.
-
-**Also caught on the way:** my line-ending-blind Python edit turned the GMPI
-patch into a 2212-line diff; redone byte-safe (CRLF preserved) it is 58
-lines. **Check the patch size before filing a patch.**
-
-**Where S12 stands:** thin-slice Accept met and heard. Remaining, named in
-the row: the MIDI-note path (wired via `onMidiMessage` → `rack.MidiIn`, but
-untested — no MIDI module was in the patch), the faded document swap, preset
-retention across edits, and re-verifying a REAPER save/reopen now that the
-chunk carries real documents (S11's other half). **The GMPI blob-transport
-patch is still unapplied** — main lacks "ppc3" and GMPI_Wrappers main now
-requires it, so builders without the local branch break; the patch sits in
-[docs/patches/](docs/patches/gmpi-blob-param-transport.patch) and Jeff's queue.
-
-**Side effects on this box:** ~6 more TIDE_VST3 rebuilds, one REAPER crash
-(my probe's iterator — report read, fixed), several restarts; throwaway
-projects only, **"Optimus HP" untouched**. `/tmp/tide-s12.log` and
-`/tmp/tide-dsp-doc.xml` left behind by the now-removed diagnostics.
-
-**Branch/PR:** this TideSynth PR +
-[SynthEditLib#15](https://github.com/JeffMcClintock/SynthEditLib/pull/15) +
-[SynthEdit#40](https://github.com/JeffMcClintock/SynthEdit/pull/40).

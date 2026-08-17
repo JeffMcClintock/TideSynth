@@ -9684,3 +9684,74 @@ projects only, **"Optimus HP" never opened, saved or modified**. Temp files:
 the bot could not push.
 
 **Branch/PR:** this TideSynth PR + the four-repo stack above.
+
+---
+
+## 2026-08-17 — macos — FIRST SOUND (interactive session, Jeff present — "i can hear it!")
+
+**Prompt:** n/a — interactive session. Jeff merged the S12 stack, pointed out
+that Sound Out is the device sink and "VST Output" the plugin path, and then
+— after three more fixes — heard TIDE Rack's first sound. Committed and
+pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** finished the S12 thin slice. **Place 1 kHz Tone, place Sound Out,
+drag the cable: track meter −6.0 dB, master green, and Jeff heard it.** The
+whole product loop is live for the first time: edit the rack → document
+exports → chunk parameter → processor → graph rebuilds → audio.
+[SynthEditLib#15](https://github.com/JeffMcClintock/SynthEditLib/pull/15) +
+[SynthEdit#40](https://github.com/JeffMcClintock/SynthEdit/pull/40), 
+diagnostics stripped.
+
+**The three finds between "merged" and the meter moving, in order:**
+
+1. **The export pruner was a design decision, not a bug** — with any target
+   except `SAT_SYNTHEDIT_DSP`, `ExportXml_Pt2` on a top-level container
+   serialises ONLY its first child container and disregards loose modules
+   ("save XML for use in a plugin. Excludes 'Sound Out'..." — the comment says
+   it plainly). The probe that proved both per-module gates PASSED
+   (`doExport=1 hasDsp=1`) is what forced reading past them. **TIDE now
+   exports with the editor's own runtime format, and the modules appear.**
+2. **The AsyncRestart swap path is unreachable in the plugin runtime** —
+   `eRuntimeState::resetting` exists only as a case label; nothing enters it.
+   So the first (empty) graph played silence forever while every later
+   document push was stored and never consumed. **Fix: `documentPending_`
+   forces `prepareToPlay` to rebuild, and the processor re-calls it on every
+   document arrival** — synchronous, in place, fine at rack scale; the faded
+   swap can come later without changing the transport.
+3. **No browser unhide was needed.** Jeff's pointer resolved cleanly:
+   "VST Output" is what `SetupVstIO` builds internally; the user-facing sink
+   is plain **Sound Out**, whose `ug_soundcard_out` is a real
+   `ISpecialIoModuleAudioOut` — it registers with the audio master at `Open`
+   and receives whatever buffers the shell provides: device buffers in the
+   standalone, **the host's output buffers in TIDE**. (IO Mod, the other
+   candidate, refuses to instantiate in a master container — it needs a
+   parent to expose plugs to.)
+
+**Learned — when both gates pass and the output is still empty, the skip is
+between the gates.** The probe pattern (log every candidate's name plus each
+gate's verdict) took one build and turned "modules missing, cause unknown"
+into "read `ExportXml_Pt2`". And its own first run crashed REAPER on an
+uninitialised iterator (`it_doc_ob` needs `First()`), which is the day's
+smallest lesson: MFC-style iterators do not position themselves.
+
+**Also caught on the way:** my line-ending-blind Python edit turned the GMPI
+patch into a 2212-line diff; redone byte-safe (CRLF preserved) it is 58
+lines. **Check the patch size before filing a patch.**
+
+**Where S12 stands:** thin-slice Accept met and heard. Remaining, named in
+the row: the MIDI-note path (wired via `onMidiMessage` → `rack.MidiIn`, but
+untested — no MIDI module was in the patch), the faded document swap, preset
+retention across edits, and re-verifying a REAPER save/reopen now that the
+chunk carries real documents (S11's other half). **The GMPI blob-transport
+patch is still unapplied** — main lacks "ppc3" and GMPI_Wrappers main now
+requires it, so builders without the local branch break; the patch sits in
+[docs/patches/](docs/patches/gmpi-blob-param-transport.patch) and Jeff's queue.
+
+**Side effects on this box:** ~6 more TIDE_VST3 rebuilds, one REAPER crash
+(my probe's iterator — report read, fixed), several restarts; throwaway
+projects only, **"Optimus HP" untouched**. `/tmp/tide-s12.log` and
+`/tmp/tide-dsp-doc.xml` left behind by the now-removed diagnostics.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEditLib#15](https://github.com/JeffMcClintock/SynthEditLib/pull/15) +
+[SynthEdit#40](https://github.com/JeffMcClintock/SynthEdit/pull/40).
