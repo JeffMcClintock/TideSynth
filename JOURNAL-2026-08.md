@@ -9069,3 +9069,97 @@ are reverted; that repo is clean.
 [SynthEdit#34](https://github.com/JeffMcClintock/SynthEdit/pull/34) (stacked
 on [#33](https://github.com/JeffMcClintock/SynthEdit/pull/33) — merge that
 first, or both together).
+
+---
+
+## 2026-08-17 — macos — D3 done, D4 refuted by measurement, U1 closed (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff asked me to merge the U1b/U1c
+stack, sync, and "do the D-series". Committed and pushed as `tide-rack-bot`
+(claude-fable-5).
+
+**Did:** merged [SynthEdit#33](https://github.com/JeffMcClintock/SynthEdit/pull/33)
+and [#34](https://github.com/JeffMcClintock/SynthEdit/pull/34) at Jeff's
+request (so **U1a+U1b+U1c are all on `master`** and **U1 itself closes**),
+synced all five repos, then took the D-series: **D3 is done**
+([gmpi_ui#9](https://github.com/JeffMcClintock/gmpi_ui/pull/9) +
+[SynthEdit#35](https://github.com/JeffMcClintock/SynthEdit/pull/35)) and
+**D4 is WONTFIX — its central measurement is now false, and acting on it
+would have broken the build.**
+
+**D4 first, because it is the finding.** The row says *"grepping SynthEdit,
+SynthEditLib, gmpi_ui and GMPI_Wrappers finds **zero** call sites for
+`gmpi::browse_to`"* and concludes the file can be dropped *"at no functional
+cost"*. Re-measured today: **two live call sites** —
+`SynthEditLib/SkinMgr.cpp:111` (`SkinMgr::EditSkin`, the "open this skin's
+folder" command) and `SynthEditLib/MfcDocPresenter.cpp:1106` (the
+skin-folder context command). Deleting `browseto.mm` would have produced an
+undefined symbol, not a saving. The row was filed 2026-08-16; the C-series
+carve-out has been moving files into `SynthEditLib` throughout, so the
+likeliest explanation is that the callers arrived with a move after the grep
+ran. **The lesson is the cheap one: re-run a row's own measurement before
+acting on its conclusion, especially a "delete this, nothing uses it" row in
+a tree that is being actively carved up.** I ran the positive control too
+(`gmpi::open_url`, 5+ call sites) so a zero would have been distinguishable
+from a broken grep.
+
+**D4's *intent* is nonetheless delivered — by D3.** Its real goal was
+removing an AppKit dependency and a sandbox-hostile API
+(`activateFileViewerSelectingURLs:`, i.e. reveal-in-Finder) from Apple builds
+that should not have them. D3's split does exactly that for the platform
+where it matters: `browse_to` compiles to a deliberate no-op off macOS. On
+macOS it stays, because it is used. So D4 is WONTFIX with the goal met
+elsewhere rather than dropped.
+
+**D3, and why the fix is not where the row put it.** The row proposed making
+`EditorLib/CMakeLists.txt`'s `if(APPLE)` block iOS-excluding. That alone
+would only convert a **compile** error into a **link** error: the headers
+dispatch on `__APPLE__` — true on iOS — so the call sites still reference
+`browse_to_impl`/`open_url_impl`. **The split belongs in the `.mm` files**,
+which now choose their framework internally on `TARGET_OS_OSX`: `open_url`
+uses `NSWorkspace` on macOS and `UIApplication openURL:options:completionHandler:`
+on iOS; `browse_to` is macOS-only behaviour and a no-op elsewhere. The CMake
+change is then just the framework line — **AppKit is macOS-only, iOS wants
+UIKit**; CoreText, CoreFoundation and UniformTypeIdentifiers exist on both.
+
+**Verified, and the limit stated:** TIDE_VST3, SynthEdit_VST3 **and**
+SynthEditCL all build on macOS (that was D4's own Accept, reused here as the
+regression check). **The iOS side is unverifiable on this box** — no iOS
+target exists (S10) — so this removes the known compile blocker rather than
+proving an iOS build succeeds. Said that way in the row and both PRs.
+
+**Learned — a codesign failure on SynthEditCL can be stale-bundle detritus,
+and my first A/B was not controlled.** SynthEditCL failed with P6's exact
+string (*"code object is not signed at all … Contents/MacOS/Resources/
+Prefabs/Button Small2.syntheditprefab"*). My first check stashed the change
+**and** deleted the .app, so a pass proved nothing about which variable
+mattered. Re-run properly — change applied, fresh bundle — it **builds
+clean**: the failure was a stale bundle carrying resources under
+`Contents/MacOS/`, not P6 regressing and not my edit. **`rm -rf` the .app
+before believing a codesign failure on that target**, and change one variable
+at a time even when the first answer is the one you wanted.
+
+**Bookkeeping done in the same pass:** U1b and U1c flip **DONE** (their PRs
+merged this session) and **U1 itself flips DONE and archives** — its three
+children have all landed, which is what its row was waiting for. Constraint
+1 is now delivered end to end: rack by default, structure view behind an
+unlock, breadcrumb navigation, and modules that bolt to rack rows.
+
+**Next:** the D-series is exhausted for now — D1/D2 landed 2026-08-16, D3 is
+IN-REVIEW, D4 is WONTFIX, **D5 is Jeff's Ko-fi account** (done). The about
+pane that D1/D2 designed is the natural next build: it now has the
+breadcrumb bar to hang from, and [docs/about-pane.md](docs/about-pane.md)
+fixes its contents to exactly four items. It needs a row of its own — filed
+as **D6**. The win box still owes U2e's two follow-ups.
+
+**Side effects on this box:** three products rebuilt (TIDE_VST3,
+SynthEdit_VST3, SynthEditCL — the last twice, once from a fresh bundle);
+`SynthEditCL.app` was deleted and rebuilt in the build tree. REAPER was not
+driven this session. `gmpi_ui` and `SynthEdit` each carry one commit on a PR
+branch; `SynthEditLib`, `TideSynth` and `GMPI_Wrappers` were read only.
+
+**Branch/PR:** this TideSynth PR +
+[gmpi_ui#9](https://github.com/JeffMcClintock/gmpi_ui/pull/9) +
+[SynthEdit#35](https://github.com/JeffMcClintock/SynthEdit/pull/35) — **the
+two code PRs must merge together**: the CMake one alone changes nothing, the
+helper one alone leaves iOS linking AppKit.
