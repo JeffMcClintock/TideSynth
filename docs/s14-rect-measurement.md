@@ -11,11 +11,27 @@ filed as **S15**.
 > placement path not assigning one, or from rack mode expecting a *panel* rect
 > rather than `structRect`.
 
-**Answer: both halves describe the same bug, and they are the same event.**
-Rack mode addresses the *panel* rect; a plain DSP module has no panel rect;
-so the assignment lands on an empty base-class no-op and is silently
-discarded. `structRect` — the only rect such a module persists — is never
-written, so it stays `0,0,0,0`.
+**Answer: the mechanism below is real, but it is not a defect — and this
+document originally drew the wrong conclusion from it.** Corrected 2026-08-18
+by Jeff, the same day, before anything was built on it.
+
+Rack mode addresses the *panel* rect; a plain DSP module has no panel rect; so
+the assignment lands on an empty base-class no-op and is discarded, and
+`structRect` stays `0,0,0,0`. All of that is accurately measured. **What was
+wrong was the inference that `CUG` therefore needs geometry it does not have.**
+
+**A bare DSP module is not a rack citizen and was never meant to be one.** Rack
+modules are Containers, designed in advance and shipped as **prefabs**, added
+to the rack at runtime: the container carries the panel, with patch-points and
+knobs/sliders on it wired internally to non-GUI modules like an oscillator. The
+container is what the rack draws. A module that has its own GUI — a scope, say
+— can also sit on the rack directly, and **that already works today**.
+
+So the three bare `1 KHz Tone` modules in the measured document are not a
+product composition at all. They are what audio testing looks like: drop plain
+modules in, switch to the structure view, check basic audio functionality. That
+is a developer workflow, not something an end user does on the main screen, and
+it is why they have no rack geometry — nothing was supposed to give them any.
 
 ## What was compared
 
@@ -96,16 +112,35 @@ hence non-zero `structRect` in every prefab.
 This also explains why the container itself is zero: `master_container` is a
 `CUG` too, placed the same way.
 
-## Why TIDE cannot fix this on its own side
+## What the measurement is still good for
 
-Every one of the four sites is in **`SynthEditLib`**, which is GATED, and S14
-is not a carve-out stage. A17's 2026-08-18 ruling permits a run to repair a
-**build break** in a GATED path; this is a functional defect, not a build
-break, so that ruling does not reach it. `TideApp.cpp`'s only involvement is
-setting `Document()->rackMode = true`, which is correct and is not the bug.
+The four facts above stand, and one of them now reads as *confirmation* rather
+than a complaint. In the full-SynthEdit prefab, the modules carrying a
+`panelRect` are exactly the ones with a GUI, and the plain DSP modules
+(`FloatToVolts`, `IO Mod`) carry none. That is the same split at code level
+that Jeff describes at product level: GUI-bearing modules have a panel presence
+and can go on the rack; plain modules cannot, and are composed inside a
+container instead.
 
-Filed as **S15**, with the two candidate fixes and the reason it wants a
-ruling rather than a guess.
+The container half is already provided for, under a name this document did not
+think to look for. `CContainer` is not a `CControl` — it is
+`CContainer : CUG_with_patches : CUG` — but it overrides the rect accessors
+itself (`SynthEditLib/CContainer.h:60-62`) and serialises its own panel
+geometry as **`PanelWndPosition`** (`:214`). That element is already present in
+the measured chunk, on the `master_container`. **The rack's geometry mechanism
+exists, on the object that is meant to have it.**
+
+**Neither fix this document originally proposed should be built:**
+
+- *Give `CUG` a panel rect* — adds geometry to the object that is specifically
+  not supposed to appear on the rack, and duplicates what `CContainer` has.
+- *Route rack placement to `structRect`* — pushes rack geometry into the
+  schematic view's rect and fights the container's existing `PanelWndPosition`.
+
+**The GATED framing was wrong with them.** This document said the fix was
+entirely in `SynthEditLib` and needed a ruling because option (b) changed the
+on-disk schema for every SynthEdit module. No shared-format change is needed,
+so that claim on Jeff's attention goes away too.
 
 ## Reproducing this measurement
 
@@ -129,9 +164,14 @@ EOF
 
 ## What to measure next
 
-The **acceptance** in S14 ("a module placed in the rack is visible, and still
-visible after reload") cannot be observed without a GUI, so confirming any fix
-needs an interactive session. But the *pre*-check is headless and worth doing
-first: after a candidate fix, re-export the chunk and assert the modules'
-rects are non-zero and distinct — that separates "geometry is now stored" from
-"geometry is stored and the rack draws it", which are different failures.
+Nothing, for S14 — closed as not-a-defect. The live work moved elsewhere: the
+prefab rack modules themselves are **E2a**/**E2**, and rack-shaped styling for
+GUI-bearing modules is **E5**.
+
+**The lesson, since it cost a row and a request for a ruling:** the measurement
+was sound and the architecture behind it was assumed. Three bare DSP modules in
+a test patch were read as the product's intended composition, and a two-option
+design fork was built on that reading and sent to Jeff to decide between. One
+question first — *what is a rack module supposed to be?* — would have replaced
+all of it. Measure the artefact, but establish what the artefact is supposed to
+be before concluding the code is wrong.
