@@ -46,6 +46,66 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — S11's restore has exactly one blocker: blobs are not encoded in the preset (unsupervised)
+
+**Prompt:** n/a — Jeff left with "do as many tasks as you can unsupervised"
+after the upstream verification. Committed and pushed as `tide-rack-bot`
+(claude-fable-5).
+
+**Did:** took S12(b), the save/reopen re-check, and **measured rather than
+assumed — the rack still does not survive a reload, and the reason is now a
+single named TODO** in code, not a mystery.
+
+**Measured:** with a full instrument patched and playing, the saved VST state
+is **250 bytes of base64 before the save and 250 after the reopen** — the same
+number S11 recorded before any of today's work. The document is pushed through
+the chunk parameter and it reaches the processor (that is why MIDI notes now
+play), but **it is not written into the DAW's saved state.**
+
+**The cause, both halves, already flagged in the source:**
+
+- **Writer** — `gmpi_processor::getPresetUnsafe()` writes every parameter with
+  `paramElement->SetAttribute("val", parameter.valueReal())`. `valueReal()` is
+  the *double* accessor, so a blob parameter is serialised as `val="0"` and the
+  bytes are silently dropped. That is exactly the two-parameter, all-zero
+  `<Preset>` S11 dissected.
+- **Reader** — `GmpiParameter::setFromXml` has, verbatim:
+  `case gmpi::PinDatatype::Blob: break; // TODO uuencode or hex`.
+
+So blob parameters have **never** round-tripped through a preset; TIDE is
+simply the first plug-in whose entire state is a blob.
+
+**The decision this needs, and it is Jeff's because it is a persisted
+format:** which encoding — base64 or hex — and where the codec lives.
+`SynthEditLib/Base64.h` exists, but **GMPI is the lower layer and cannot depend
+on SynthEditLib**, so GMPI needs its own small encoder (or the pair moves into
+GMPI and SynthEditLib uses it). Both sites are one function each; the work is
+small, the format choice is permanent.
+
+**Why I stopped here rather than implementing it.** It is a change to a
+persisted file format in shared code, at the end of a very long session, and
+the encoding choice is not mine to make silently. **The rest of today's fixes
+were behaviour; this one is compatibility** — a preset written by the first
+implementation has to be readable by every later one.
+
+**Learned — "it reaches the processor" and "it is saved" are different
+claims.** The chunk parameter now demonstrably delivers the document to the
+DSP (notes play), which made it tempting to assume persistence followed. The
+`GetTrackStateChunk` byte count answered it in one line and cost nothing.
+**Measure the artefact you actually care about; a working adjacent path is not
+evidence.**
+
+**Next:** S11 — implement blob encoding in the preset writer and reader once
+Jeff picks the encoding. That single change should complete S11's restore,
+since the document already survives everywhere else in the chain.
+
+**Side effects on this box:** no code changed; nothing built. REAPER driven,
+two throwaway projects written to `/tmp`; **"Optimus HP" untouched**.
+
+**Branch/PR:** this TideSynth PR (rows + entry only; no code).
+
+---
+
 ## 2026-08-17 — macos — MIDI notes verified from pure upstream; the patch workaround is retired (interactive session, then unsupervised)
 
 **Prompt:** n/a — interactive session; Jeff granted the bot write access to
@@ -474,75 +534,5 @@ and GMPI_Wrappers remain upstream. REAPER restarted twice. **"Optimus HP" was
 never modified — and the guard proved itself:** REAPER reopened that project
 as the active tab and the rig script aborted rather than touch it, after which
 every subsequent script created its own new tab first.
-
-**Branch/PR:** this TideSynth PR (row + entry only; no code).
-
----
-
-## 2026-08-17 — macos — S12(a): MIDI reaches the processor but not the graph (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff said "sync and clean up, then
-continue", which meant S12's next item: verify the MIDI note path. Committed
-and pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** synced all six repos and deleted three merged branches, then took
-**S12(a)**. **Result: MIDI arrives at TIDE's processor and is forwarded to the
-runtime, but produces no sound in a correctly-built instrument — the MIDI does
-not manifest inside the DSP graph.** No code change; the measurement and the
-two named suspects are the deliverable.
-
-**What is proven, each by direct measurement:**
-
-1. **MIDI reaches the processor.** A temporary probe in `onMidiMessage` logged
-   **42 messages with `prepared=1`** during a looping C4: note-ons (`0x90`),
-   note-offs (`0x80`), and the note number `0x3c` = 60. They are forwarded to
-   `rack.MidiIn`. **They arrive as 8-byte MIDI 2.0 UMP packets** (leading
-   `0x40` = MIDI2 channel-voice), not 3-byte MIDI 1.0 — which is the first
-   suspect below.
-2. **The audio path works.** With the oscillator wired straight to Sound Out
-   the master meter clipped at **+10 dB** — loud, obviously alive.
-3. **A complete instrument is silent.** Jeff's correction was the key
-   methodological point: an oscillator wired directly to Sound Out **drones at
-   its default pitch whether or not MIDI arrives**, so it proves nothing about
-   MIDI. Rebuilt as a real instrument — **MIDI In → MIDI-CV 2; Pitch → Phase
-   Dist Osc; Gate → VCA Volume; Osc → VCA Signal; VCA → Sound Out** — and the
-   measured peak is **−156.7 dB, i.e. digital silence**, throughout the note.
-
-**Learned — a tight Lua polling loop measures nothing.** My first two
-"measurements" reported 9.3M and 34M samples of `Track_GetPeakInfo`, all
-identical, because a busy-wait blocks REAPER's main thread and those values
-only update on it: **the loop was re-reading one frozen snapshot millions of
-times and reporting it as a result.** The give-away was the transport position
-never advancing across 6 seconds of wall clock. Re-done with `reaper.defer`
-(one sample per main-thread cycle), position advanced normally and the reading
-was trustworthy. **A high sample count is not evidence; a changing input is.**
-
-**Two suspects for the next session, in order:**
-
-1. **MIDI format.** GMPI hands the processor **UMP**; `SeAudioMaster::MidiIn`
-   may expect MIDI 1.0 bytes. `se_vst3`'s `SeProcessor` does explicit
-   translation around its `MidiIn` calls (`midi2data`/`midi2size`, and it
-   advertises `kMIDIProtocol_2_0`), which TIDE's one-line forward does not.
-   Compare those call sites first.
-2. **Container plumbing.** `SeAudioMaster::SetupVstIO` connects the synthetic
-   **VST Input**'s "MIDI Out" to *the synth container's* MIDI plug — and S12
-   wraps TIDE's flat rack in a **synthetic outer container**, so MIDI may be
-   delivered to the outer container and never forwarded to the inner rack
-   where the MIDI In module lives. That wrapper was introduced for
-   `SetupVstIO`'s benefit, so it is exactly the code to re-read.
-
-**Also worth knowing:** TIDE's module set has **no MIDI Monitor** (Diagnostic
-holds only 1 kHz Tone and DAW Sample Rate), which is why the verification had
-to be built from a VCA instead of read off a monitor — Jeff suggested a
-monitor first and it simply is not in the fixed set.
-
-**Next:** S12(a) continues with suspect 1 (cheap: log what
-`SeAudioMaster::MidiIn` receives, and compare with `se_vst3`'s translation),
-then suspect 2. The other S12 remainder items are unchanged.
-
-**Side effects on this box:** two probe builds plus two clean rebuilds; the
-probe branch was deleted and the tree reverted, so **the installed plug-in is
-built from `master` with no diagnostics**. REAPER restarted twice; throwaway
-projects only, **"Optimus HP" untouched**.
 
 **Branch/PR:** this TideSynth PR (row + entry only; no code).
