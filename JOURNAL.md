@@ -46,6 +46,47 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — backlog id collision: A17 filed twice, renumbered to A19
+
+**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** renumbered the issue-authorship row **A17 → A19** and opened
+[#118](https://github.com/JeffMcClintock/TideSynth/pull/118). No other change.
+
+**Result:** [#116](https://github.com/JeffMcClintock/TideSynth/pull/116) landed a
+**duplicate `| A17 |` row**. [#115](https://github.com/JeffMcClintock/TideSynth/pull/115)
+merged into `main` while that run was in flight and allocated **both A17 and
+A18** — Jeff's GATED-build-break question and the `SE16` master-unprotected
+question. I had read the backlog, picked the next free id, and worked for some
+minutes before committing; by the time I pushed, two ids that were free when I
+looked were taken. Jeff's rows came first and keep their ids. A17, A18 and A19
+now each appear exactly once.
+
+**Learned — "next free id" is a read-modify-write race, and this backlog has no
+lock.** Checking `grep -o "^| A[0-9]*"` at the start of a run and allocating
+from it at the end is only safe if nothing else merges in between, which on a
+box running several sessions a day is not a safe assumption. **Cheap mitigation
+for the next run: re-check the id against freshly-fetched `origin/main`
+immediately before committing, not when you first read the file.** The same race
+presumably applies to every id series, not just A.
+
+**Learned — the journal's prepend-only check caught me doing the wrong repair.**
+My first attempt at this fix edited the *landed* entry's text to say A19. That is
+exactly what `check-journal-prepend.py` forbids ("an existing entry edited in
+place ... fails"), and the check failed the PR. It was right to: the earlier
+entry saying "filed as A17" is what actually happened, and the correction belongs
+in a new entry like this one rather than in a rewrite of the old one. **A log you
+edit is not a log.** The `links` sub-check passed on that same run, so the
+lint fix from #116 is holding.
+
+**Next:** nothing follows from this. A19 itself is Jeff's to answer.
+
+**Side effects on this box:** none. Docs only, TideSynth only.
+
+**Branch/PR:** [#118](https://github.com/JeffMcClintock/TideSynth/pull/118).
+
+---
+
 ## 2026-08-17 — macos — S11: the restore side measured — it does not merely fail, it aborts the host
 
 **Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
@@ -190,7 +231,7 @@ in docs/decisions.md.
 fleet may act on.** STEP 1 admits only issues authored by Jeff or `github-actions`;
 [#117](https://github.com/JeffMcClintock/TideSynth/issues/117) is authored by
 `tide-rack-bot`, so tomorrow's mac run must treat a verified host-abort as
-information and walk past it. **Filed as A19 (A17 and A18 were both concurrently taken on `main` by #115) and deliberately NOT worked around** —
+information and walk past it. **Filed as A17 and deliberately NOT worked around** —
 relabelling or re-filing under another identity would route around the exact rule
 that stops the tracker being an unauthenticated instruction channel. Jeff's to
 resolve.
