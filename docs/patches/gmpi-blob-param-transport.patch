@@ -1,0 +1,128 @@
+From d83cd65ec84541b94bcfd095541684565c46253d Mon Sep 17 00:00:00 2001
+From: tide-rack-bot <314850083+tide-rack-bot@users.noreply.github.com>
+Date: Mon, 17 Aug 2026 14:29:32 +1200
+Subject: [PATCH] Blob parameters reach the processor (TideSynth S12)
+
+IControllerHost::setParameter stored a changed blob in the controller-side
+patch manager and then dropped it: notifyDaw/performEdit speak normalized
+doubles, so blobs had no controller-to-processor transport at all, and
+gmpi_processor::onQueMessageReady consumed only 'ppc2' (double).
+
+Three additions, all generic:
+- controller_holder: a changed blob now goes to the wrapper-installed
+  sendNonNativeParameterToProcessor hook (default no-op). The parameter's
+  own getQueMessage already framed blobs ('ppc3'); nothing new invented.
+- processor_holder: consume 'ppc3' - read the bytes, update the param,
+  deliver to the DSP pin via the existing sendParameterToProcessor.
+- sendParameterToProcessor: a Blob case for the PinSet event. The
+  parameter owns the bytes; the event points into that storage for
+  payloads over the 8 inline bytes - queue drain and the next update are
+  same-thread, so the vector cannot move underneath the event.
+
+Verified live in REAPER (TIDE): a 570-byte blob pushed on the controller
+side arrives as a pin update in the processor's onSetPins.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ Hosting/controller_holder.h  | 15 +++++++++++-
+ Hosting/processor_holder.cpp | 44 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 58 insertions(+), 1 deletion(-)
+
+diff --git a/Hosting/controller_holder.h b/Hosting/controller_holder.h
+index 7b13027..130403b 100644
+--- a/Hosting/controller_holder.h
++++ b/Hosting/controller_holder.h
+@@ -322,6 +322,13 @@ public:
+ 
+ 	std::function<void(GmpiParameter*)> notifyDaw = [](GmpiParameter*) {};
+ 
++	// Transport for parameter types the DAW's own parameter mechanism cannot
++	// carry (currently blobs). Installed by each wrapper; default no-op keeps
++	// hosts that never need it working unchanged. The parameter's
++	// getQueMessage() already frames these ("ppc3"); the wrapper only moves
++	// the framed bytes to the processor's ui->dsp queue.
++	std::function<void(GmpiParameter*)> sendNonNativeParameterToProcessor = [](GmpiParameter*) {};
++
+ 	void init(gmpi::hosting::pluginInfo& info);
+ 
+ 	// send initial value of all parameters to GUI
+@@ -364,7 +371,13 @@ public:
+ 			switch (param->info->datatype)
+ 			{
+ 			case gmpi::PinDatatype::Blob:
+-				param->setBlob({ data, static_cast<size_t>(size) });
++				// Unlike scalars, blobs cannot ride the DAW's normalized-value
++				// path (notifyDaw/performEdit speak doubles), so a changed blob
++				// goes to the processor through the wrapper-installed hook
++				// below - each wrapper supplies its own transport (VST3: a
++				// binary IMessage into the processor's ui->dsp queue).
++				if (param->setBlob({ data, static_cast<size_t>(size) }))
++					sendNonNativeParameterToProcessor(param);
+ 				break;
+ 			case gmpi::PinDatatype::Float32:
+ 				if (size == sizeof(float))
+diff --git a/Hosting/processor_holder.cpp b/Hosting/processor_holder.cpp
+index c524df6..1d1653a 100644
+--- a/Hosting/processor_holder.cpp
++++ b/Hosting/processor_holder.cpp
+@@ -300,6 +300,26 @@ void gmpi_processor::sendParameterToProcessor(gmpi::hosting::pluginInfo const& i
+ 				copyValueToEvent(e, static_cast<bool>(std::round(param->valueReal())));
+ 			}
+ 			break;
++
++			case gmpi::PinDatatype::Blob:
++			{
++				// The parameter owns the bytes; the event points into that
++				// storage for payloads over the 8 inline bytes. Safe because
++				// queue drain and the next parameter update happen on the same
++				// thread, so the vector cannot move underneath the event.
++				const auto& v = std::get<std::vector<uint8_t>>(param->value_);
++				e.size_ = static_cast<int32_t>(v.size());
++				if (v.size() > 8)
++				{
++					e.oversizeData_ = v.data();
++				}
++				else
++				{
++					std::fill(std::begin(e.data_), std::end(e.data_), uint8_t{});
++					std::copy(v.begin(), v.end(), e.data_);
++				}
++			}
++			break;
+ 			default:
+ 				assert(false); // unsupported type.
+ 			}
+@@ -333,6 +353,30 @@ bool gmpi_processor::onQueMessageReady(int handle, int msg_id, gmpi::hosting::my
+ 		return true;
+ 	}
+ 	break;
++
++	case id_to_long("ppc3"): // Patch parameter change, blob payload. See
++	                         // GmpiParameter::getQueMessage for the framing and
++	                         // gmpi_controller_holder::setParameter for the sender.
++	{
++		int32_t size{};
++		strm >> size;
++
++		std::vector<uint8_t> bytes(static_cast<size_t>(size));
++		if (size > 0)
++			strm.Read(bytes.data(), static_cast<unsigned int>(size));
++
++		if (auto* param = patchManager.getParameter(handle); param)
++		{
++			if (param->setBlob(bytes))
++			{
++				constexpr int sampleOffset{};
++				sendParameterToProcessor(*info, param, sampleOffset);
++			}
++		}
++
++		return true;
++	}
++	break;
+ 	};
+ 
+ 	return false; // failed to consume message.
+-- 
+2.50.1 (Apple Git-155)
+
