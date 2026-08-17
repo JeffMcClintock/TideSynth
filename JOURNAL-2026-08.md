@@ -8839,3 +8839,77 @@ observation.
 [SynthEdit#32](https://github.com/JeffMcClintock/SynthEdit/pull/32). Merging one
 without the other is harmless here: the TideSynth side is bookkeeping only and
 the SynthEdit side is self-contained.
+
+---
+
+## 2026-08-17 — macos — U1b: the breadcrumb bar navigates in and out (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff confirmed cable-drag and module
+insertion work, had the repos synced and old branches cleaned, and said
+"take next task". Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** **U1b's chrome-and-navigation half, wired and verified** —
+[SynthEdit#31](https://github.com/JeffMcClintock/SynthEdit/pull/31), stacked
+on [#29](https://github.com/JeffMcClintock/SynthEdit/pull/29). **Verified in
+REAPER, the full loop:** the bar shows "Main"; placing a Container (which
+draws as a proper module box with pins) and double-clicking it navigates
+inside — trail reads "Main › Container", the container's own IO Mod visible
+— and clicking "Main" navigates back out with the forward trail retained
+for one-click re-entry. Both directions of U1b's Accept, live.
+
+**The build was mostly discovery, not invention.** `SE2::BreadcrumbBar`
+already existed in `se_sdk3_hosting` — cross-platform, thumbnail-caching,
+retained-trail, powering every editor frontend (Wayland/JUCE/WinUI/mac
+bridge) — and `TopStripLayout`'s own comment says it grew from exactly this
+strip. TIDE's work was wiring: the bar becomes a fourth strip in
+`SynthEditGui`'s manual pane layout (origin-rooted arrange + PaneHostWrapper
+offset + pane pointer routing, the exact pattern of the two browsers), and
+`ISeApp` grows `OpenViewForContainer` plus two callbacks.
+
+**The enter path was a latent crash, now a feature.** Double-clicking a
+Container runs `PresenterCommand::Open` → `CContainer::OnMenuCommand` →
+`Document()->OpenView` → `CSynthEditAppBase::OpenView` →
+**`m_app_user_interface->OpenView` — and TIDE never sets
+`m_app_user_interface`**, so the gesture was a null deref waiting for the
+first curious user. `TideApp` now overrides that virtual and routes to the
+GUI's navigation callback instead.
+
+**One deliberate mechanism worth keeping: navigation is deferred.**
+Requests originate inside pointer dispatch — a crumb click dispatched by
+the GUI, or a double-click dispatched by the very view being replaced —
+and rebuilding the view stack from within its own dispatch destroys the
+object mid-call. The Wayland app defers to its event-loop tick; TIDE
+defers to a one-shot `gmpi::TimerClient` tick (30 ms), with the callbacks
+cleared and the timer stopped in the destructor. The scroll-wiring block
+was extracted to `wireViewScrollbars()` so navigation re-opens rewire
+identically to the first open.
+
+**Scoped out, recorded rather than hidden:** thumbnails (`renderThumbnail`
+left unset — the bar draws name-only crumbs; the EditorScreenshot helper
+`se_cl::renderContainerThumbnail` is the follow-up), and **U1b's second
+half** — restoring the rack as the *default* with the structure view
+behind an unlock — which waits on the open PR queue
+([#28](https://github.com/JeffMcClintock/SynthEdit/pull/28)/[#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)/[#30](https://github.com/JeffMcClintock/SynthEdit/pull/30))
+and on the unlock UX being decided. The row stays IN-REVIEW listing both.
+
+**Housekeeping done at Jeff's ask:** all five repos synced (gmpi_ui#8 had
+merged — U2b's middle-pan is on main), and thirteen local branches with
+merged PRs deleted across four repos; only open-PR branches and Jeff's own
+release branches remain.
+
+**Next:** merge queue for Jeff — [#28](https://github.com/JeffMcClintock/SynthEdit/pull/28)
+→ [#30](https://github.com/JeffMcClintock/SynthEdit/pull/30), [#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)
+→ [#31](https://github.com/JeffMcClintock/SynthEdit/pull/31), plus
+[SynthEditLib#13](https://github.com/JeffMcClintock/SynthEditLib/pull/13).
+Once the queue clears: U1b's default-flip/unlock half on a clean base, then
+**U1c** (enable Jeff's existing rack-mode code). The win box still has
+U2e's two cheap follow-ups.
+
+**Side effects on this box:** two `TIDE_VST3` rebuilds; the installed
+plugin now carries the breadcrumb (struct-interim lineage). REAPER
+restarted once; "Optimus HP" untouched; the test tab holds a Container
+demonstrating the trail.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#31](https://github.com/JeffMcClintock/SynthEdit/pull/31)
+(stacked on [#29](https://github.com/JeffMcClintock/SynthEdit/pull/29)).
