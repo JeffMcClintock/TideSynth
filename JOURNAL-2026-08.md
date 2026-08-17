@@ -9361,3 +9361,91 @@ reloaded on its own and was left alone). Only `SynthEdit` was committed in.
 
 **Branch/PR:** this TideSynth PR +
 [SynthEdit#38](https://github.com/JeffMcClintock/SynthEdit/pull/38).
+
+---
+
+## 2026-08-17 — macos — TIDE does not save the user's rack (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff said "keep working, no mercy" after
+merging the thumbnails. I went after the smallest remaining follow-up
+(`rackMode` on project load) and found something much larger on the way in.
+Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** filed **S11** — **TIDE never persists or restores its document, so the
+user's rack is lost the moment a project is reloaded.** No code change this
+entry: the finding, its evidence, and the mechanism are the deliverable, and
+the fix is a real feature that should be scoped deliberately rather than
+started at the end of a long session.
+
+**How it surfaced, which is the useful part.** U1c's follow-up asks what
+happens to `rackMode` when a project is loaded, since the flag is serialised
+(`s("rack_mode", rackMode)` in `SynthEditDocBase.h`). Following D4's lesson I
+went to measure rather than reason — and the measurement kept coming back
+wrong in a way that only made sense if **nothing loads a document at all.**
+
+**The evidence, in three steps, each one cheap:**
+
+1. **The saved state is 250 bytes of base64** for a project containing a placed
+   List Entry in a rack (`GetTrackStateChunk` via ReaScript). A document with a
+   module in it cannot fit in 250 bytes.
+2. **Decoded, it is two parameters and nothing else** — the `.rpp`'s VST block
+   reads `<Preset><Param id="1" val="0"/><Param id="0" val="0"/></Preset>`.
+   Those are `controllerPtr` and `chunk`, both zero.
+3. **Save → close → reopen → the module is gone.** The reloaded plug-in draws
+   an empty rack: rails present (rack mode is set at document creation), no
+   List Entry. Verified visually.
+
+**The mechanism, so the row is actionable rather than alarming.** TIDE's XML
+already declares the parameter this needs —
+`<Parameter id="1" name="chunk" ignorePatchChange="true" datatype="blob"/>` —
+and **nothing in the codebase ever writes it or reads it**;
+`TideApp::InitInstance` unconditionally does `createNewDocument()` +
+`OnNewDocument()`, so every instance starts empty by construction. The
+controller's preset system (`MpController` / `DawPreset`) serialises
+*parameter values*, which is exactly the two-param XML observed. The document
+has its own serialisers already — `CSynthEditDocBase::ExportXml` /
+`ImportXml` — so the shape of the fix is: export the document into that blob
+parameter on save, import it back and rebuild the view on load.
+
+**Why this is an architecture difference and not an oversight to be ashamed
+of.** In a normal SynthEdit-exported plug-in the document IS the product: it
+is baked in at export time and the chunk only has to carry knob values. TIDE
+inverts that — **the document is what the user edits at runtime** — so it must
+ride in the state. Nobody wrote that because nothing before TIDE needed it.
+That framing belongs in the row so the next reader does not go looking for a
+regression.
+
+**What it means for the release, stated plainly:** the mac NEXT row said this
+morning that the board was finished and the remaining question was v0.1. **It
+still is, and this is now the answer**: a synthesiser that cannot save its
+patch is not shippable, so **S11 blocks the R-series** more concretely than
+"there is nothing to ship" did. That is a better problem than it sounds —
+the question moved from "what should we build?" to "build this one thing".
+
+**Also settled, and it retires a follow-up:** U1c's `rackMode`-on-load worry is
+**moot in the form it was written**. Nothing loads a document, so nothing can
+override the flag; the rack survives *because* the document is always fresh.
+When S11 lands, the question becomes live again and S11's own work has to
+answer it — noted in both rows so the retirement is not silently forgotten.
+
+**Learned — chase the follow-up, find the feature.** The smallest item on the
+list was the one that exposed the largest gap, because verifying it required
+exercising a path (state round-trip) that no previous session had reason to
+touch. **Six sessions of host verification never caught this**: every test
+opened a fresh plug-in, and a fresh plug-in looks identical whether or not
+persistence exists. The failure is only visible across a save/reload boundary,
+which is a class of test worth adding deliberately rather than stumbling into.
+
+**Next:** **S11** is the item, and it is Jeff's call how far to take it — the
+row proposes the minimum honest version (round-trip the document through the
+existing blob parameter) and lists the questions that need his answer, chiefly
+what happens to the DSP graph on restore and whether patch-change should
+reload the rack.
+
+**Side effects on this box:** no code changed, nothing rebuilt. REAPER was
+driven and a throwaway project was written to `/tmp/tide-persist-test.rpp` as
+part of the test; **"Optimus HP" was never opened, saved or modified** — the
+test script aborts if it sees that project active, which it checked and
+reported.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).
