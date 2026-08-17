@@ -291,6 +291,11 @@ run filed a correctly-labelled `platform:mac` issue describing a reproducible
 host abort, and no run was permitted to pick it up. The rule was right and the
 gap was real; this closes the gap without weakening what the rule protects.
 
+**If the cause is in a GATED path, you may now repair it** — see STEP 5's
+exception and its six bounds, ruled 2026-08-18. Until then this step and STEP 5
+pointed opposite ways, and three platform breaks sat unfixed while each box
+rediscovered the standoff.
+
 The fix protocol: work on the branch named in the issue if one is named,
 otherwise create `tide/{PLATFORM}/issue-<number>`. Push, open a PR, and comment
 on the issue with what was wrong and a link to the PR. Close the issue only if
@@ -550,10 +555,52 @@ What you may edit outside this repo:
     - SE16/SynthEdit2/
     - the SynthEditLib repo
 
-  If the fix you need is in a GATED path, do the TIDE-side part, then file the
-  gated part as its own BACKLOG item naming the exact file and why. Do not
-  reach across the line because the fix looks small — that is precisely when
-  it is tempting and precisely when it breaks someone else's build.
+  **ONE EXCEPTION, ruled 2026-08-18 (BACKLOG A17, option b): you MAY repair a
+  build break whose cause is in a GATED path** — because you cannot merge your
+  own PR, so Jeff still reviews everything that lands. This is narrow, and the
+  six bounds are what keep it narrow:
+
+    1. **Trigger only.** Your platform's default branch does not build, and the
+       cause is in a GATED path. Not "I noticed something in EditorLib."
+    2. **Minimal restoration.** Prefer reverting the named commit. Forward-fix
+       only where a revert would remove working functionality.
+    3. **Nothing the break did not force.** No refactoring, no cleanup, no
+       behaviour change, no "while I was in there."
+    4. **Its own PR**, GATED-only, never bundled with backlog work, naming the
+       breaking commit and the verification.
+    5. **State which consumers you built.** `SynthEditLib` ships in SynthEdit as
+       well as TIDE, so "TIDE builds now" is not evidence the commercial product
+       is safe.
+    6. **Fall back to filing** whenever the minimal fix is not obvious. If you
+       cannot state the fix in one sentence, file the issue and stop.
+
+  **What did NOT change:** STEP 3's *"do not fix build failures for a platform
+  you cannot compile on"* is untouched and orthogonal — it is the rule least
+  worth relaxing. And this is build-break repair only; it is not a general
+  licence to edit shared code, which was considered as option (c) and declined,
+  because review discharges the correctness risk but not the reviewer's
+  attention budget.
+
+  **The honest gap in this, which you should know rather than be shielded from.**
+  The exception rests on "it gets reviewed", and that is enforced mechanically
+  in `SynthEditLib` (protected `main`, ruleset active) but **not in `SE16`,
+  whose `master` is unprotected** — private repos cannot carry rulesets on the
+  current plan, and **Jeff decided 2026-08-18 not to upgrade**. So in `SE16` the
+  discipline is convention plus detection, not prevention. The detection is
+  yours to run:
+
+        python3 {REPO}/scripts/check-no-direct-commits.py --repo <repo>
+
+  Run it on every GATED repo you touched, before you finish. It flags any
+  agent-authored *and* agent-committed commit sitting on the default branch's
+  first-parent chain — i.e. one that arrived without a PR. Baseline measured
+  2026-08-18: all six repos clean, including `SE16`.
+
+  If the fix you need is in a GATED path and is NOT a build break, do the
+  TIDE-side part, then file the gated part as its own BACKLOG item naming the
+  exact file and why. Do not reach across the line because the fix looks small —
+  that is precisely when it is tempting and precisely when it breaks someone
+  else's build.
 
   Shared build files stay GATED even when they configure a TIDE target. In
   particular SE16/SE_IOS_APP/SE_IOS_APP.xcodeproj/project.pbxproj is shared

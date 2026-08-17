@@ -33,107 +33,7 @@ defaults are not.
 
 ## Open — PROPOSED, awaiting a merge to become decisions
 
-### May a scheduled run repair a build break in a GATED path?
-
-Raised 2026-08-17 by Jeff, after the same standoff occurred twice in two days
-on two different boxes ([#87](https://github.com/JeffMcClintock/TideSynth/issues/87)
-linux, [#111](https://github.com/JeffMcClintock/TideSynth/issues/111) windows).
-Jeff's framing: *"is it reasonable to allow fixing gated repo provided the
-resulting PR is reviewed by me?"*
-
-```
-PROPOSED: may a scheduled run fix a build break whose cause is in a GATED
-  path (SE16/EditorLib/, SE16/SynthEdit2/, the SynthEditLib repo), given that
-  it cannot merge its own PR?
-  Options:
-    (a) No -- today's rule. File a platform issue and stop.
-    (b) Yes, narrowly -- build-break repair only, under the six bounds below.
-    (c) Yes, generally -- GATED becomes advisory; any item may edit shared
-        code because everything arrives as a reviewed PR anyway.
-  Recommended default: (b) -- review discharges the correctness and
-    irreversibility risk the gate was mostly protecting, but not the
-    attention-budget risk, which is what keeps (c) off the table.
-  Default in effect meanwhile: (a). Runs file the issue and stop, so a
-    break in shared code waits for Jeff or an interactive session, and each
-    box rediscovers it in turn.
-  May proceed meanwhile: everything. No backlog item is contingent on this;
-    it changes only what a run does when it finds a broken default branch.
-  Decide-by: before the next scheduled run on any box, or this decides
-    itself -- the linux box already has two such issues waiting and will
-    meet the same wall.
-```
-
-**The premise this rests on, and it is only two-thirds true today.** "It gets
-reviewed" assumes a PR exists. Measured 2026-08-17:
-
-| repo | GATED paths it holds | enforcement |
-|---|---|---|
-| `SynthEditLib` (public) | the repo itself | `main` protected, "Agent PRs only" ruleset **active** |
-| `SynthEdit` (private) | `EditorLib/`, `SynthEdit2/` | **`master` unprotected, no ruleset** |
-
-Private repos on the current plan cannot carry rulesets — the API answers
-*"Upgrade to GitHub Pro or make this repository public."* So in `SE16` the bot
-holds write access to `master` with nothing mechanical in the way; every PR a
-run has opened there (#41, #20, #15) was voluntary compliance with the run
-prompt. **If review is to be the control that replaces the gate, it has to
-exist where the gate is being relaxed.** Either upgrade the plan so the same
-ruleset covers `SE16`, or add a detection control — the A6 watchdog digest
-flagging any `tide-rack-bot` commit on `SE16/master` that did not arrive as a
-merge. Prevention is better; detection is cheaper; convention alone is what is
-in force right now.
-
-**The six bounds that make (b) narrow rather than (c) by another name:**
-
-1. **Trigger only.** Your platform's default branch does not build, and the
-   cause is in a GATED path. Not "I noticed something in EditorLib."
-2. **Minimal restoration.** Prefer reverting the named commit. A forward fix
-   only where a revert would remove working functionality — which is exactly
-   [#111](https://github.com/JeffMcClintock/TideSynth/issues/111), where
-   reverting `e14970e` would undo the macOS box's MIDI work.
-3. **Nothing the break did not force.** No refactoring, no cleanup, no
-   behaviour change, no "while I was in there."
-4. **Its own PR**, GATED-only, never bundled with backlog work, naming the
-   breaking commit and the verification.
-5. **State which consumers were built.** `SynthEditLib` ships in SynthEdit as
-   well as TIDE, so "TIDE builds now" is not evidence the commercial product
-   is safe.
-6. **Fall back to (a)** whenever the minimal fix is not obvious. A run that
-   cannot state the fix in one sentence files the issue and stops.
-
-STEP 3's *"do not fix build failures for a platform you cannot compile on"* is
-untouched and orthogonal. It is the rule least worth relaxing, and #88 is its
-current example: a Windows run caused it and only the linux box can verify the
-repair.
-
-**Why not (c).** The gate protects two different things and review only
-discharges one. Correctness and irreversibility, it handles — nothing lands
-without Jeff. Attention budget, it does not: (c) invites runs to generate
-review load on the commercial product for work nobody asked for, and the
-reviewer is the bottleneck the whole arrangement is trying to conserve. The
-C8 ruling already declined to widen the gate as a side effect of a 30-line
-header; (c) is that same widening with more steps.
-
-**Why the gate is arguably over-tight today.** STEP 5's ALLOWED/GATED split
-was written 2026-08-06 (G2). The bot identity and the branch rulesets landed
-2026-08-09 (A2). So the gate was calibrated for a world in which a run pushed
-as Jeff, carrying his bypass — and on `SynthEditLib` that world is genuinely
-gone. It has not been re-examined since the thing that made it partly
-redundant arrived.
-
-**Disclosure.** This entry was drafted by an agent, which is the party the
-looser rule benefits. Weigh it accordingly. The honest cost of (b) is review
-load on commercial code plus the risk that a plausible-but-wrong fix reads
-fine at merge time; the honest cost of (a) is this week — three boxes each
-spending a session rediscovering the same standoff while the break sits on
-`main`.
-
-**What (b) would have done to the three open breaks:** repaired
-[#87](https://github.com/JeffMcClintock/TideSynth/issues/87) (a revert) and
-[#88](https://github.com/JeffMcClintock/TideSynth/issues/88) (two lines, on
-the box that can verify them); left
-[#111](https://github.com/JeffMcClintock/TideSynth/issues/111) as a PR in
-Jeff's queue, since a shared-code change Clang accepts and MSVC rejects is
-exactly the case bound 2 sends to review.
+*(none open)*
 
 ---
 
@@ -141,6 +41,7 @@ exactly the case bound 2 sends to review.
 
 | Date | Decision | Notes |
 |---|---|---|
+| 2026-08-18 | **A17 resolved: option (b) — a scheduled run MAY repair a build break whose cause is in a GATED path**, under six bounds, with detection instead of prevention in `SE16` | Ruled in session. Jeff also decided **not to upgrade the GitHub plan** (*"I'm not upgrading my plan. Let's make a best-effort approach."*), which settles the entry's open premise: review is enforced mechanically in `SynthEditLib` (protected `main`) but **cannot be in the private `SE16`**, so there the control is convention **plus detection**. Detection implemented as `scripts/check-no-direct-commits.py`, run per-repo by every run: it flags any commit on the default branch's first-parent chain that is agent-authored **and** agent-committed. **The committer half is load-bearing and was found by measuring:** a first draft keyed on author alone flagged eight `SE16` commits as bypasses — every one was author `tide-rack-bot`, committer `Jeff McClintock`, i.e. Jeff landing agent work by rebase or squash, which is A17's premise being *satisfied*. Eight false alarms on the first run, avoided by checking before reporting. **Baseline 2026-08-18: all six repos clean** — no agent commit has ever reached a default branch without a PR, including on the unprotected `SE16/master`. Option (c) (GATED becomes advisory) was declined: review discharges correctness and irreversibility, not the reviewer's attention budget. STEP 3's "never fix a platform you cannot compile on" is untouched. See BACKLOG A17, A18 |
 | 2026-08-18 | **GMPI is PR-GATED — a third STEP 5 category.** A run may propose a change as a PR against GMPI and never merge it; it is neither ordinary ALLOWED work nor a file-and-stop GATED path | Ruled in session: *"GMPI is our most highly curated repo, changing it is not to be done lightly. i would prefer that modifications to GMPI go via a human-approved PR."* Raised because the [#117](https://github.com/JeffMcClintock/TideSynth/issues/117) host-abort fix lives entirely in `GMPI/Hosting/processor_holder.cpp` and GMPI was on **neither** STEP 5 list, so it was GATED by default and no run could act — the fourth instance in two days of a platform break stranded behind a permissions question (see A17, and [#87](https://github.com/JeffMcClintock/TideSynth/issues/87)/[#88](https://github.com/JeffMcClintock/TideSynth/issues/88)/[#111](https://github.com/JeffMcClintock/TideSynth/issues/111)). **Interpretation taken, and flagged rather than assumed:** a scheduled run already never merges its own PRs, so an agent-authored GMPI PR *is* human-approved at merge time — the rule is read as permitting agents to propose, with a raised bar, not as reserving authorship to humans. **Default in effect if that reading is wrong:** say so and GMPI reverts to GATED, file-and-stop. **Reading GMPI was never restricted and still is not** — the `std::stod` throw site was found by tracing into it without editing a line. See weekly-run-prompt.md STEP 5 |
 | 2026-08-17 | **A7 closed WONTFIX: the 7x/week agent cadence is deliberate, and same-day extra runs are Jeff starting them manually** | Answered in session ("7 times is on purpose, the clashes are me starting extra runs manually. not a scheduling problem") after a scheduled run measured `cronExpression: 0 6 * * *` against a task description still reading *"Weekly ... (Sat 02:00)"* and flagged the mismatch. A7 had asked to raise cadence 1x -> 2x and had sat at NEEDS-JEFF while the fleet already ran 7x. **Consequences deliberately NOT reopened as work:** the stale task description is cosmetic; the concurrent-session collisions are expected, being manual overlapping runs rather than a defect. **The one live consequence is A8's** — journal rotation was sized against a 1x assumption ("192 KB across 37 entries in six days"), and that sizing is A8's to revisit. See BACKLOG A7, A8 |
 | 2026-08-17 | **Constraint 9: lowest common denominator.** TIDE Rack only implements features implementable on its most restricted target (today iOS AUv3); no per-platform blessed exceptions | Ruled in session, prompted by E4's question of where a desktop user-prefab library may live: rather than bless specific folders on specific platforms, the rule is that a feature exists only if the strictest sandbox can host it. Elevates PLAN's existing "if it runs there, it runs anywhere" from observation to constraint 9. Supersedes E4's desktop-folder NEEDS-JEFF question: the per-device library follows the AUv3 container model on every platform or does not exist. See PLAN.md constraint 9, BACKLOG E4 |
