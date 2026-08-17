@@ -46,6 +46,109 @@ Template:
 
 ---
 
+## 2026-08-18 — windows — the first competitive review, a module set, and a false belief corrected (interactive session, Jeff directing)
+
+**Prompt:** Jeff asked whether a review of TIDE Rack's competition existed and,
+if not, to research Eurorack simulators and adjacent patchers (Reaktor Blocks,
+Bitwig's Grid) — price, OS, plugin formats, features, pros and cons — plus a
+comparison of visual design language, and MVP / nice-to-have module lists for
+the backlog. He asked for a design specialist on the UI analysis. Then: mention
+it in PLAN and commit.
+
+**Did:** it did not exist — **this is the project's first competitive review.**
+Added [docs/competitive-review.md](docs/competitive-review.md),
+[docs/module-set.md](docs/module-set.md) and
+[docs/blocks-connection-scheme.md](docs/blocks-connection-scheme.md); filed
+**E5**, **E6** and **A24**; substantially updated **V2**; added a "Competitive
+position" section to PLAN.md. Also published a rendered summary as an artifact.
+
+**Result:** `check-id-refs.py` and `check-links.py` both pass (694 id refs / 352
+relative links). No line-ending churn — `git diff` and
+`git diff --ignore-all-space` are byte-identical in shape.
+
+**Learned:** four things the next run would otherwise rediscover, or worse, not.
+
+1. **A9's standing hypothesis is FALSE as written and two docs reason from it.**
+   *"No open-source modular exists on iOS AUv3"* — **plugdata is GPL-3.0, free,
+   on the iOS App Store, and ships AUv3 instrument and effect plugins.** The
+   narrower claim survives (*no open-source Eurorack-style **rack*** on iOS) and
+   is what to reason from. **Corollary that also needs unlearning:** GPLv3 does
+   not structurally bar VCV or Cardinal from the App Store — the tension is real
+   but enforceable only by copyright holders, and Apple does not audit licences.
+   VCV's obstacle is contributor consent plus its $149 Pro business. **ISC is an
+   advantage, not a moat.** Filed as **A24**.
+2. **V2 has a settled shape and a documented trap, both from precedent.** RNBO,
+   plugdata and Bitwig's Grid expose parameters declaratively from the patch
+   with no panel; Reaktor and M4L make you draw a knob first. Both DAW-hosted
+   racks pre-declare a slot pool (VCV **1024**, Reason **>2000** advertised,
+   ~256 usable) so automation needs no setup — **and both bind positionally, so
+   deleting a module can silently repoint an existing automation lane onto a
+   different parameter.** Bind to module id + param id instead. Cheap now,
+   near-impossible to retrofit once patches exist in the wild.
+3. **The module set is not a DSP job.** `C:\SE\SynthEditLib` carries **75
+   `ug_*` DSP modules** plus a modern SEM set (`EnvelopeAdsr`, `SVFilter2`,
+   `VaFilters`, `Delay3`, `Reverb`, `StepSequencer`, `Waveshapers`, `BPMClock3`,
+   `Arpeggiator`, `Unison`). It is a Container-authoring and panel-art job, and
+   **the schedule risk is per-module panel cost, which nobody has measured.**
+   The measured MVP is three tiers: 3 (E2a's acceptance test) / **12** (the hard
+   intersection present in all five reference sets) / **22** (credible release).
+   **The one place "copy the intersection" gives the wrong answer:** every
+   reference set defers reverb/chorus/compressor to a paid tier or a store, and
+   constraint 7 means TIDE cannot — so it must budget for the FX layer anyway.
+4. **AUv3 extensions are memory-capped at ~300 MB (32-bit) / ~360 MB (64-bit)
+   per instance** ([Apple Developer Forums](https://developer.apple.com/forums/thread/47396)).
+   Via constraint 9 that caps the compiled-in module set, embedded wavetables
+   and rack size on **every** platform. Recorded in PLAN's new section and
+   **flagged for Jeff as a possible tenth constraint — deliberately not added
+   unilaterally.**
+
+Two market facts nothing in the tree recorded: **Native Instruments entered
+preliminary insolvency Jan 2026 and was acquired by inMusic in May** (Reaktor's
+last release: 2023-04-13), and **LANDR acquired Reason Studios Jan 2026** and
+immediately repositioned Reason Rack as a standalone plugin for every DAW — the
+closest precedent to TIDE just got a well-funded owner pushing it.
+
+**Method note, since it affects how much to trust §5:** the design survey was
+done by downloading official screenshots and **viewing them**, not from memory —
+Reaktor Blocks, VCV Rack, Bitwig Grid, Voltage Modular, Audulus, plus TIDE's own
+`p2-tide-editor-release.png`. Blocks' "tasteful realism" is characterised
+precisely enough to implement: the panel is flat/matte/screwless and **all the
+realism is in the knobs** (top-lit gradient, faint sheen, soft low-opacity
+contact shadow reading as ambient occlusion). The most useful negative result is
+Voltage Modular: **thin cables do not save a dense rack** — its panels are
+unreadable under the patch.
+
+**Caveat on the module lists:** ~13 of Blocks Base's 24 block *names* are
+UNVERIFIED — NI's pages refuse automated fetch and no third party enumerates
+them. The functions are well attested; the names are not. Flagged in the doc.
+
+**Collision found at commit time, and it matters more than anything else here:**
+`docs/ui-design-language.md` **already existed in the working tree**, untracked,
+on no branch, with no commit history, alongside three generated
+`docs/images/ui-language-*.svg`. **Another session wrote it and it was left
+completely untouched** — not committed, not edited. It is a serious,
+implementation-ready proposal (Marathon / Designers Republic: true-black ground,
+flat `#1C1C1C` panels, 1px butt strokes, acid `#C0FE04` for live state only,
+family liveries, arcs for knobs, polyline cables) and it is **more finished than
+this review's §5**, which does not attempt palette, geometry, type or density.
+**It conflicts with §5 on precisely the point Jeff's brief named:** it bans drop
+shadows, bevels and decorative gradients outright, while Jeff asked for Blocks'
+*"abstract but with some tasteful realism like shadows"*. **E6 was rewritten to
+carry both proposals and the crux rather than pretend §5 stands alone**, and §5
+now opens with a pointer to it. **Do not author panels until E6 is ruled.**
+**Lesson for the fleet:** this is A23's hazard in a different costume — two
+sessions producing overlapping work that git will not conflict on, because one
+side is untracked. `git status` before committing is what caught it.
+
+**Next:** **E6 wants a `PROPOSED:` entry in decisions.md, not an agent's pick** —
+it is a genuine design fork and every panel authored before it is rework. **A24
+is minutes and should go early**, because two docs currently state a refuted
+claim. E5 is a ruling, then E2 does the building.
+
+**Branch/PR:** `tide/win/competitive-review`.
+
+---
+
 ## 2026-08-18 — windows — unblocked the macOS A16 PR, filed the duplicate-id gap as A23 (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive; Jeff asked to sync the repos, hear what was
