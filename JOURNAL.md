@@ -126,16 +126,33 @@ them. The functions are well attested; the names are not. Flagged in the doc.
 `docs/ui-design-language.md` **already existed in the working tree**, untracked,
 on no branch, with no commit history, alongside three generated
 `docs/images/ui-language-*.svg`. **Another session wrote it and it was left
-completely untouched** — not committed, not edited. It is a serious,
-implementation-ready proposal (Marathon / Designers Republic: true-black ground,
-flat `#1C1C1C` panels, 1px butt strokes, acid `#C0FE04` for live state only,
-family liveries, arcs for knobs, polyline cables) and it is **more finished than
-this review's §5**, which does not attempt palette, geometry, type or density.
-**It conflicts with §5 on precisely the point Jeff's brief named:** it bans drop
-shadows, bevels and decorative gradients outright, while Jeff asked for Blocks'
-*"abstract but with some tasteful realism like shadows"*. **E6 was rewritten to
-carry both proposals and the crux rather than pretend §5 stands alone**, and §5
-now opens with a pointer to it. **Do not author panels until E6 is ruled.**
+completely untouched** — not committed, not edited. It proposes a Marathon /
+Designers Republic language: true-black ground, flat `#1C1C1C` panels, 1px butt
+strokes, acid `#C0FE04` for live state only, family liveries, arcs for knobs,
+polyline cables. **It conflicts with §5 on precisely the point Jeff's brief
+named:** it bans drop shadows, bevels and decorative gradients outright, while
+Jeff asked for Blocks' *"abstract but with some tasteful realism like shadows"*.
+**Do not author panels until E6 is ruled.**
+
+**Corrected within the same session, and the correction is the useful part.**
+This entry and E6 first described that document as "more implementation-ready"
+than §5 and framed the recommended default as *its* palette and geometry with a
+shadow bolted on. **Jeff's response: *"we're spit-balling with the marathon
+stuff. don't discount your recommendations just yet."*** So the framing was
+wrong twice over — the document is **exploratory, not a baseline**, and **being
+more detailed is not being more validated.** E6 now treats the two as **peers**:
+the Marathon doc is more specified on palette/geometry/type (real gaps §5 must
+close whichever way this goes), while §5 carries the evidence — five shipping
+competitor UIs viewed directly, the density failure that sinks dense cabled
+racks, and the authoring-cost argument. Recommended default is now a synthesis
+**led by §5's direction**, harvesting the Marathon doc's no-bitmap drawability,
+1px geometry, restricted palette and accent-as-state. Also newly recorded
+against option (a): **the source language's own shipped UI was widely panned for
+legibility ("fontslop"), and the named failure mode was density on a surface
+read continuously — which is what a plugin is.** The document itself raises this
+and guardrails against it; it is a thing to test before adopting, not a
+disqualifier. **General lesson: deferring to whichever artefact looks more
+finished is a real failure mode when one of them is a sketch.**
 **Lesson for the fleet:** this is A23's hazard in a different costume — two
 sessions producing overlapping work that git will not conflict on, because one
 side is untracked. `git status` before committing is what caught it.

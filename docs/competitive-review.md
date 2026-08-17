@@ -300,19 +300,18 @@ UI. The distance from here to any row in the table above is the real design work
 
 ### Recommendation — filed as BACKLOG E6, for Jeff to rule on
 
-> **Read this first: a competing proposal already exists.**
-> [ui-design-language.md](ui-design-language.md) — found in the working tree
-> while committing this review, written by another session — proposes a
-> Marathon/Designers-Republic language that is far more implementation-ready
-> than what follows: it settles palette, geometry, type and density, ships
-> example SVGs as a feasibility proof, and is drawable in GMPI code with no
-> bitmap assets. **It also bans drop shadows, bevels and decorative gradients
-> outright, which contradicts the recommendation below on exactly the point
-> Jeff raised** ("abstract but with some tasteful realism like shadows").
-> Neither document overrules the other. **E6 is where the two get reconciled**,
-> and the synthesis worth considering is that document's palette, geometry and
-> no-bitmap discipline with a contact shadow admitted as the one sanctioned
-> exception, on controls only.
+> **A second proposal exists, and it is exploratory.**
+> [ui-design-language.md](ui-design-language.md) — found untracked in the
+> working tree while committing this review — sketches a
+> Marathon/Designers-Republic language. Jeff's characterisation, 2026-08-18:
+> *"we're spit-balling with the marathon stuff."* It is worked out in more
+> detail on palette, geometry and type than this section attempts, and its
+> no-bitmap drawability argument is genuinely strong — but **detail is not
+> validation, and the two documents are peers, not a baseline and a comment.**
+> They conflict on one specific point: it bans drop shadows, bevels and
+> decorative gradients outright, and the recommendation below puts a soft
+> contact shadow on controls because that is the thing Jeff actually named
+> liking in Blocks. **E6 is where the two get reconciled.**
 
 **Adopt Blocks' material treatment, the Grid's colour discipline, and a true
 rack layout.**
