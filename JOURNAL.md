@@ -46,6 +46,67 @@ Template:
 
 ---
 
+## 2026-08-18 — windows — unblocked the macOS A16 PR, filed the duplicate-id gap as A23 (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive; Jeff asked to sync the repos, hear what was
+waiting on him, then unblock [#119](https://github.com/JeffMcClintock/TideSynth/pull/119)
+and file the id-allocation gap. Committed and pushed as `tide-rack-bot`
+(claude-opus-5).
+
+**Did:** synced all six repos (all clean, all on default branches), merged
+`main` into the macOS box's `tide/mac/A16-commit-completeness` so
+[#119](https://github.com/JeffMcClintock/TideSynth/pull/119) is mergeable
+again — `mergeable=false` → `true` — and filed **A23** for the duplicate-id
+hole that bit this fleet yesterday.
+
+**Merged rather than rebased, deliberately.** That branch is another box's and
+its commits are already pushed; a rebase would rewrite them, which the run
+prompt forbids for good reason even when a human asks for "a rebase". Merging
+`main` in reaches the same mergeable state and rewrites nothing. Two conflicts:
+`BACKLOG.md`, where `main` had gained A20–A22 while the branch held A16 flipped
+to IN-REVIEW (kept both — main's new rows, the branch's newer A16), and
+`JOURNAL.md`, where both sides had prepended an entry (ordered newest first:
+main's 2026-08-18 C9 above the branch's 2026-08-17 A16).
+
+**The thing worth recording about A23, because it is not the obvious failure.**
+Two runs filed an A17 an hour apart. **Git did not conflict** — the rows were
+inserted at different points in the file, so both merged cleanly and the
+duplicate reached `main` silently. No check failed; a human noticed. Allocation
+scans `BACKLOG.md` on a branch cut from `main`, where a concurrent run's row is
+unmerged and invisible, and STEP 2's collision protocol does not cover it —
+that protocol is about *claiming an existing item*, not *allocating a new id*.
+
+**Why A23 is takeable by a scheduled run**, which is the part that makes it
+worth filing rather than escalating: `scripts/check-id-refs.py` already parses
+every row id in both files, and `lint.yml` invokes it **with no arguments**, so
+a duplicate assertion is a few lines on data it already has and needs **no
+`.github/workflows/**` edit** — the wall that keeps A12 and B1 out of reach.
+Lint runs against the merge result, which is precisely where a silent duplicate
+becomes visible.
+
+**Learned — "git merged it cleanly" is not "the merge was correct".** Both of
+today's merges made this point in different ways: the duplicate id merged
+cleanly and was wrong, and yesterday's journal rotation *also* merged cleanly
+while duplicating two archive entries, because an append-only file never
+collides. **For files that are ordered lists rather than code, absence of
+conflict carries almost no information; check the invariant (ids unique,
+entries appear once, order is newest-first) explicitly after every merge.**
+
+**Also observed while reporting:** every open `platform:*` issue — #87, #88,
+#111 and #117 — is authored by `tide-rack-bot`, so STEP 1 bars every run from
+acting on all four. That is A19's finding and the macOS box already has a fix
+in [#123](https://github.com/JeffMcClintock/TideSynth/pull/123); noted here
+only because it means A17's GATED question cannot unblock those issues on its
+own.
+
+**Side effects on this box:** none — docs and rows; nothing built. All six
+repos left synced, clean and on their default branches.
+
+**Branch/PR:** this TideSynth PR, plus the merge commit pushed to
+`tide/mac/A16-commit-completeness` for #119.
+
+---
+
 ## 2026-08-18 — macos — C9
 
 **Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
@@ -420,56 +481,3 @@ are all waiting on.
 [#114](https://github.com/JeffMcClintock/TideSynth/pull/114) (the same
 session's E2a/S8/E4 work) was still open; #114 merged first and this branch
 took `main` back in, so the entry below is that work.
-
----
-
-## 2026-08-17 — windows — E2a planned, S8 corrected, E4 filed (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive; Jeff asked for the E2a plan, the S8 row fix, and
-an answer on user-authored prefabs under AUv3. Committed and pushed as
-`tide-rack-bot` (claude-fable-5).
-
-**Did:** wrote [docs/e2a-prefabs.md](docs/e2a-prefabs.md) — the implementation
-plan E2a's row now points at — corrected S8's premise in place, and filed the
-user-prefab question as **E4** (NEEDS-JEFF) with the analysis in the doc's §7.
-
-**The three findings under the plan, all measured today:**
-
-- **The prefab format is forced, not chosen.** `CContainer::LoadPrefab`
-  parses only modern `.synthedit`/`.syntheditprefab`; the `.seprefab` branch
-  (`CContainer.cpp:2996`) launches an installed SynthEdit 1.5 to upgrade the
-  file and is `_WIN32`-only — unusable from any sandboxed plugin. The 2024
-  prototype prefabs are references, not inputs.
-- **`Output.seprefab` contains no Sound Out** (decoded the UTF-16 payload:
-  Container + `SE Patch Point in` + `IO Mod`). The Output prefab is authored
-  from scratch; `TIDE.se1` is where the working Sound Out example lives.
-- **S8's "delete the forbidden modules" premise would have silenced TIDE.**
-  All three modules it names are `RegisterIoModule` seams, and Sound Out is
-  the plugin's audio egress — `SeAudioMaster` hands it the host's output
-  buffers (`SeAudioMaster.cpp:560-562`, `:640-642`), the same seam S12 used
-  for MIDI input. The row now says relabel-not-delete, with cites.
-
-**On user prefabs (E4):** yes under AUv3 — prefabs are data, and an extension
-may write inside its own container, which constraint 4's wording permits. The
-open ruling is desktop, where no OS-enforced container exists and the natural
-folder is the one constraint 4 names as banned. Default in effect: not v0.1.
-
-**Ruling, later the same sitting — constraint 9.** Presented with E4's
-"bless a desktop folder?" question, Jeff declined the shape of the question:
-rather than per-platform blessed locations, **TIDE Rack only implements
-features implementable on the lowest-common-denominator target (today AUv3)**.
-Added as PLAN.md constraint 9, recorded in docs/decisions.md, and applied to
-E4 — which drops from NEEDS-JEFF to BLOCKED(E2): the per-device library is
-allowed in principle (AUv3 can write in its own container), and desktop gets
-the same container semantics or nothing. Note for future rows: questions of
-the form "may platform X do Y?" now start from "can AUv3 do Y?".
-
-**Next:** E2a is takeable with a concrete first step — author the Output
-prefab as `.synthedit`, then module-enumeration stage 4 to ship it. The
-oscillator prefab stays gated on S8's oscillator finding.
-
-**Side effects on this box:** none — docs and rows only; nothing built.
-
-**Branch/PR:** this TideSynth PR.
-
----
