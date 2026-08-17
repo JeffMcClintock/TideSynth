@@ -190,7 +190,7 @@ in docs/decisions.md.
 fleet may act on.** STEP 1 admits only issues authored by Jeff or `github-actions`;
 [#117](https://github.com/JeffMcClintock/TideSynth/issues/117) is authored by
 `tide-rack-bot`, so tomorrow's mac run must treat a verified host-abort as
-information and walk past it. **Filed as A17 and deliberately NOT worked around** —
+information and walk past it. **Filed as A19 (A17 and A18 were both concurrently taken on `main` by #115) and deliberately NOT worked around** —
 relabelling or re-filing under another identity would route around the exact rule
 that stops the tracker being an unauthenticated instruction channel. Jeff's to
 resolve.
