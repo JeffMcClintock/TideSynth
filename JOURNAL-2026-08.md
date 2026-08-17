@@ -9163,3 +9163,80 @@ branch; `SynthEditLib`, `TideSynth` and `GMPI_Wrappers` were read only.
 [SynthEdit#35](https://github.com/JeffMcClintock/SynthEdit/pull/35) — **the
 two code PRs must merge together**: the CMake one alone changes nothing, the
 helper one alone leaves iOS linking AppKit.
+
+---
+
+## 2026-08-17 — macos — D6: the about pane is built (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff said "do D6". Committed and pushed
+as `tide-rack-bot` (claude-fable-5).
+
+**Did:** **D6** — [SynthEdit#36](https://github.com/JeffMcClintock/SynthEdit/pull/36).
+The about pane that D1 and D2 designed exists and works: it opens from the
+breadcrumb bar, shows exactly the four specified items, the donation link opens
+Ko-fi, **Copy link puts the exact URL on the system clipboard**, and clicking
+away dismisses it. **This is the first D-series item that is a running feature
+rather than a design note** — D1 and D2 produced the spec, and it survived
+contact with implementation essentially unchanged.
+
+**What it looks like:** a rounded panel centred over the editor with a soft
+scrim behind it — *TIDE Rack — version 0.1 (unreleased)* in bold, the credit
+under it, then the ko-fi URL in link blue with **Copy link** beside it, then
+*ISC licence — github.com/JeffMcClintock/TideSynth*. An **X** at the corner and
+click-away both dismiss.
+
+**Every rule in the spec is kept, and the code says so where it matters.**
+`AboutPane.h` restates the six rules at the top, next to the code that has to
+keep them, because they are the kind of thing a later reader deletes by
+accident: nothing unprompted (**the only way in is a plain "About" text
+affordance** at the right end of the breadcrumb strip — no badge, no dot, no
+splash); never a dialog or a second window; nothing blocking audio; no image
+assets; the donation line degrades to text but never to nothing; **exactly four
+items, and a fifth needs a ruling.**
+
+**The one design decision I had to make, and it is rule 5 taken literally.**
+"Copy link" needs a clipboard write, and GMPI has no clipboard abstraction —
+only `KeyListenerCallback`'s cut/copy hooks, which are for text fields. So the
+pane asks `tide::clipboardAvailable()` and **omits the button entirely where the
+answer is no**, rather than drawing one that silently does nothing. Apple gets
+`NSPasteboard`/`UIPasteboard` (split on `TARGET_OS_OSX`, the same pattern D3
+just established); Windows and Linux get a stub returning false, with a comment
+naming the reachable APIs for whoever wires them. **A dead button would have
+broken the very rule the button exists to serve.**
+
+**Where it lives, and why not in the shared bar.** The pane is TIDE's alone, so
+it is in `SynthEditSem` (ALLOWED); `SE2::BreadcrumbBar` is shared with every
+SynthEdit frontend and gains nothing TIDE-specific. The affordance is drawn by
+`SynthEditGui` over the strip's right end, which also keeps the bar's own
+hit-testing untouched.
+
+**Learned — verify a clipboard by reading it back, not by watching the label
+change.** The button flips to "Copied" on its own return value, which is
+exactly the kind of self-report that can be true while the write failed. I
+primed the system clipboard with a sentinel string via `pbcopy`, clicked Copy
+link, and checked `pbpaste`: the sentinel was gone and the URL was there.
+**That is a one-line check that turns "the UI said it worked" into evidence**,
+and it is available to any mac session.
+
+**Caught in my own first build:** the pane rendered with no Copy button at all —
+`copyOffered` defaulted to `false` and I never wired it. The screenshot looked
+fine (four items, all correct), which is precisely why the row's Accept lists
+the button separately. Fixed by initialising it from `clipboardAvailable()`.
+
+**Next:** the D-series is now exhausted — D1/D2 (design) and D6 (build) landed,
+D3 is IN-REVIEW, D4 is WONTFIX, D5 was Jeff's. With constraint 1 delivered
+(U1a/U1b/U1c) and the about pane built, **the plug-in has its shape**. The
+honest next question is not another feature but **what v0.1 needs**, which is
+the R-series' territory (R2–R6, all blocked on there being something to ship) —
+and the version line in this pane will be the first thing that has to stop
+saying "unreleased". The win box still owes U2e's two follow-ups.
+
+**Side effects on this box:** three `TIDE_VST3` rebuilds; the installed
+plug-in now has the about pane. REAPER restarted twice; **"Optimus HP" was
+never saved or modified**. The system clipboard was overwritten twice as part
+of the test (sentinel, then the ko-fi URL) — it now holds
+`https://ko-fi.com/tiderack`, which is worth saying because it is Jeff's
+clipboard.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#36](https://github.com/JeffMcClintock/SynthEdit/pull/36).

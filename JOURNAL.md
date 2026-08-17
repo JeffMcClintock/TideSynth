@@ -46,6 +46,83 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — S12 built to its last step: the rack has an engine; the tone is one gate away (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session. Jeff ruled Option A with the boundary
+sharpened — "keep the wrappers pure and simple, put the DSP xml stuff in TIDE
+itself" — and the implementation began. Committed and pushed as
+`tide-rack-bot` (claude-fable-5).
+
+**Did:** the S12 thin slice, end to end except its final step, across four
+repos: GMPI branch `tide/mac/blob-param-transport` (**the bot cannot push to
+that repo — 403 — so the commit is local and the patch is filed at
+[docs/patches/gmpi-blob-param-transport.patch](docs/patches/gmpi-blob-param-transport.patch)
+for Jeff to apply**),
+[GMPI_Wrappers#4](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/4),
+[SynthEditLib#14](https://github.com/JeffMcClintock/SynthEditLib/pull/14),
+[SynthEdit#39](https://github.com/JeffMcClintock/SynthEdit/pull/39) (WIP).
+
+**Found and fixed on the way in — the wrapper had no blob transport at all.**
+The three-point log bisected it in one run: the editor pushed 570 bytes, the
+controller's `setParameter` returned Ok, and the processor's pin never fired.
+`notifyDaw`/`performEdit` speak normalized doubles; `onQueMessageReady`
+consumed only `"ppc2"`. **The fix is generic, not TIDE-specific** — any
+wrapped plug-in with a blob parameter needs it: the holder hands changed blobs
+to a wrapper-installed hook (the `"ppc3"` framing already existed unused!),
+the VST3 wrapper moves the framed bytes with its existing binary message, and
+the processor holder consumes them into a Blob PinSet event. **Verified: the
+next run's log shows the same push arriving as `onSetPins size=570`.**
+
+**Then the graph — three crashes, each teaching the document's required
+shape:** (1) `SetupVstIO` derefs the *nested synth container* — exported
+projects have main→synth-child, TIDE's flat rack IS the master → wrap the
+export in a synthetic outer container. (2) `BuildPatchManager` runs on main
+unconditionally → move the PatchManager to the outer; the inner inherits,
+ordinary SE containment. (3) After both: **the empty document builds and RUNS
+(`prepared SR=48000 BS=512`) and a wired-document push while running takes
+the AsyncRestart fade/teardown/rebuild path without crashing.** The
+`#if 0 // editor only` `pendingDspXml` hook is enabled and working.
+
+**The frontier, precisely: modules are pruned from the export.** The placed
+1 kHz Tone and Sound Out never reach the XML — `<Modules />` stays empty while
+their connecting `<Line>` survives. First cause found and fixed:
+`CDocOb::exportFlags = EXP_PLUGIN` makes `doExport()` drop every
+`excludeFromVst` module — **Sound Out and the whole Diagnostic group are
+exactly those** — because a baked export replaces them; TIDE self-hosts
+editor semantics, so flags are now 0. **But modules are still pruned with
+flags 0.** Prime suspect: the other gate in `CUG::ExportXml` —
+`hasDspModule()` false because the module set's **DSP-side registrations never
+ran in TIDE**. That is the exact U2d pattern that hit the GUI half. **Next
+probe (one build): log `name / doExport() / hasDspModule()` per master-child
+inside `exportDspXml`.**
+
+**Learned — a three-point log turns "it doesn't work" into a one-run
+bisect.** sync-push / setParameter-rc / onSetPins-size located a missing
+wrapper subsystem in a single REAPER launch, then re-verified the fix the
+same way. The temp diagnostics (tagged `TEMP S12 diag`) are deliberately
+left in the WIP branch so the next session continues without re-instrumenting;
+they come out before merge.
+
+**Build note until the stack lands:** TIDE's build cache now sets
+`GMPI_SDK_FOLDER_OVERRIDE` and `GMPI_WRAPPER_FOLDER_OVERRIDE` to the local
+checkouts (CPM otherwise fetches GitHub main, which lacks the transport).
+Drop the overrides once the GMPI patch and GMPI_Wrappers#4 are on main.
+
+**Next:** the row's next-probe, then whichever registration wiring it names —
+the Accept (1 kHz Tone → Sound Out → host meter moves) is plausibly one or
+two builds away. After the tone: remove the diagnostics, then S11's restore
+path rides the same wire (the chunk already persists in the DAW state).
+
+**Side effects on this box:** ~8 TIDE_VST3 rebuilds; REAPER crashed twice
+(both crash reports read and acted on) and was restarted ~6 times; throwaway
+projects only, **"Optimus HP" never opened, saved or modified**. Temp files:
+`/tmp/tide-s12.log`, `/tmp/tide-dsp-doc.xml`. GMPI repo has a local branch
+the bot could not push.
+
+**Branch/PR:** this TideSynth PR + the four-repo stack above.
+
+---
+
 ## 2026-08-17 — macos — S12 mapped: the machinery exists, in the sibling VST3 target (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session. Jeff's pointer, in substance: SynthEdit
@@ -410,80 +487,3 @@ clean on their default branches.
 
 **Branch/PR:** this TideSynth PR +
 [SynthEdit#37](https://github.com/JeffMcClintock/SynthEdit/pull/37).
-
----
-
-## 2026-08-17 — macos — D6: the about pane is built (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff said "do D6". Committed and pushed
-as `tide-rack-bot` (claude-fable-5).
-
-**Did:** **D6** — [SynthEdit#36](https://github.com/JeffMcClintock/SynthEdit/pull/36).
-The about pane that D1 and D2 designed exists and works: it opens from the
-breadcrumb bar, shows exactly the four specified items, the donation link opens
-Ko-fi, **Copy link puts the exact URL on the system clipboard**, and clicking
-away dismisses it. **This is the first D-series item that is a running feature
-rather than a design note** — D1 and D2 produced the spec, and it survived
-contact with implementation essentially unchanged.
-
-**What it looks like:** a rounded panel centred over the editor with a soft
-scrim behind it — *TIDE Rack — version 0.1 (unreleased)* in bold, the credit
-under it, then the ko-fi URL in link blue with **Copy link** beside it, then
-*ISC licence — github.com/JeffMcClintock/TideSynth*. An **X** at the corner and
-click-away both dismiss.
-
-**Every rule in the spec is kept, and the code says so where it matters.**
-`AboutPane.h` restates the six rules at the top, next to the code that has to
-keep them, because they are the kind of thing a later reader deletes by
-accident: nothing unprompted (**the only way in is a plain "About" text
-affordance** at the right end of the breadcrumb strip — no badge, no dot, no
-splash); never a dialog or a second window; nothing blocking audio; no image
-assets; the donation line degrades to text but never to nothing; **exactly four
-items, and a fifth needs a ruling.**
-
-**The one design decision I had to make, and it is rule 5 taken literally.**
-"Copy link" needs a clipboard write, and GMPI has no clipboard abstraction —
-only `KeyListenerCallback`'s cut/copy hooks, which are for text fields. So the
-pane asks `tide::clipboardAvailable()` and **omits the button entirely where the
-answer is no**, rather than drawing one that silently does nothing. Apple gets
-`NSPasteboard`/`UIPasteboard` (split on `TARGET_OS_OSX`, the same pattern D3
-just established); Windows and Linux get a stub returning false, with a comment
-naming the reachable APIs for whoever wires them. **A dead button would have
-broken the very rule the button exists to serve.**
-
-**Where it lives, and why not in the shared bar.** The pane is TIDE's alone, so
-it is in `SynthEditSem` (ALLOWED); `SE2::BreadcrumbBar` is shared with every
-SynthEdit frontend and gains nothing TIDE-specific. The affordance is drawn by
-`SynthEditGui` over the strip's right end, which also keeps the bar's own
-hit-testing untouched.
-
-**Learned — verify a clipboard by reading it back, not by watching the label
-change.** The button flips to "Copied" on its own return value, which is
-exactly the kind of self-report that can be true while the write failed. I
-primed the system clipboard with a sentinel string via `pbcopy`, clicked Copy
-link, and checked `pbpaste`: the sentinel was gone and the URL was there.
-**That is a one-line check that turns "the UI said it worked" into evidence**,
-and it is available to any mac session.
-
-**Caught in my own first build:** the pane rendered with no Copy button at all —
-`copyOffered` defaulted to `false` and I never wired it. The screenshot looked
-fine (four items, all correct), which is precisely why the row's Accept lists
-the button separately. Fixed by initialising it from `clipboardAvailable()`.
-
-**Next:** the D-series is now exhausted — D1/D2 (design) and D6 (build) landed,
-D3 is IN-REVIEW, D4 is WONTFIX, D5 was Jeff's. With constraint 1 delivered
-(U1a/U1b/U1c) and the about pane built, **the plug-in has its shape**. The
-honest next question is not another feature but **what v0.1 needs**, which is
-the R-series' territory (R2–R6, all blocked on there being something to ship) —
-and the version line in this pane will be the first thing that has to stop
-saying "unreleased". The win box still owes U2e's two follow-ups.
-
-**Side effects on this box:** three `TIDE_VST3` rebuilds; the installed
-plug-in now has the about pane. REAPER restarted twice; **"Optimus HP" was
-never saved or modified**. The system clipboard was overwritten twice as part
-of the test (sentinel, then the ko-fi URL) — it now holds
-`https://ko-fi.com/tiderack`, which is worth saying because it is Jeff's
-clipboard.
-
-**Branch/PR:** this TideSynth PR +
-[SynthEdit#36](https://github.com/JeffMcClintock/SynthEdit/pull/36).
