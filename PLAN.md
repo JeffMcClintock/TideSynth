@@ -164,6 +164,20 @@ These are the non-negotiables. Every backlog item is checked against them.
    `<CommonDocuments>\SynthEdit Projects\skins\` from its constructor, and a
    TIDE build can reach it.
 
+9. **Lowest common denominator, everywhere.** TIDE Rack only implements
+   features that can be implemented on its most restricted target — today
+   that is iOS AUv3, whose sandbox is the strictest set of rules any TIDE
+   binary runs under. If a feature cannot be built within those rules, it is
+   not built for the other platforms either: no desktop-only features, and no
+   per-platform blessed exceptions (a folder that exists only on Windows, a
+   capability that exists only outside the sandbox). This elevates the
+   existing observation below — "if it runs there, it runs anywhere" — from a
+   design habit to a rule, and it is why questions of the form "where may
+   platform X write?" are answered by the AUv3 container model, not by
+   platform-specific carve-outs. Decided by Jeff, 2026-08-17. First applied
+   ruling: BACKLOG **E4** (user prefabs). See
+   [docs/decisions.md](docs/decisions.md).
+
 ## Where the code currently lives
 
 TIDE is not starting from zero. A working prototype exists:

@@ -46,6 +46,57 @@ Template:
 
 ---
 
+## 2026-08-17 — windows — E2a planned, S8 corrected, E4 filed (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive; Jeff asked for the E2a plan, the S8 row fix, and
+an answer on user-authored prefabs under AUv3. Committed and pushed as
+`tide-rack-bot` (claude-fable-5).
+
+**Did:** wrote [docs/e2a-prefabs.md](docs/e2a-prefabs.md) — the implementation
+plan E2a's row now points at — corrected S8's premise in place, and filed the
+user-prefab question as **E4** (NEEDS-JEFF) with the analysis in the doc's §7.
+
+**The three findings under the plan, all measured today:**
+
+- **The prefab format is forced, not chosen.** `CContainer::LoadPrefab`
+  parses only modern `.synthedit`/`.syntheditprefab`; the `.seprefab` branch
+  (`CContainer.cpp:2996`) launches an installed SynthEdit 1.5 to upgrade the
+  file and is `_WIN32`-only — unusable from any sandboxed plugin. The 2024
+  prototype prefabs are references, not inputs.
+- **`Output.seprefab` contains no Sound Out** (decoded the UTF-16 payload:
+  Container + `SE Patch Point in` + `IO Mod`). The Output prefab is authored
+  from scratch; `TIDE.se1` is where the working Sound Out example lives.
+- **S8's "delete the forbidden modules" premise would have silenced TIDE.**
+  All three modules it names are `RegisterIoModule` seams, and Sound Out is
+  the plugin's audio egress — `SeAudioMaster` hands it the host's output
+  buffers (`SeAudioMaster.cpp:560-562`, `:640-642`), the same seam S12 used
+  for MIDI input. The row now says relabel-not-delete, with cites.
+
+**On user prefabs (E4):** yes under AUv3 — prefabs are data, and an extension
+may write inside its own container, which constraint 4's wording permits. The
+open ruling is desktop, where no OS-enforced container exists and the natural
+folder is the one constraint 4 names as banned. Default in effect: not v0.1.
+
+**Ruling, later the same sitting — constraint 9.** Presented with E4's
+"bless a desktop folder?" question, Jeff declined the shape of the question:
+rather than per-platform blessed locations, **TIDE Rack only implements
+features implementable on the lowest-common-denominator target (today AUv3)**.
+Added as PLAN.md constraint 9, recorded in docs/decisions.md, and applied to
+E4 — which drops from NEEDS-JEFF to BLOCKED(E2): the per-device library is
+allowed in principle (AUv3 can write in its own container), and desktop gets
+the same container semantics or nothing. Note for future rows: questions of
+the form "may platform X do Y?" now start from "can AUv3 do Y?".
+
+**Next:** E2a is takeable with a concrete first step — author the Output
+prefab as `.synthedit`, then module-enumeration stage 4 to ship it. The
+oscillator prefab stays gated on S8's oscillator finding.
+
+**Side effects on this box:** none — docs and rows only; nothing built.
+
+**Branch/PR:** this TideSynth PR.
+
+---
+
 ## 2026-08-17 — windows — C12c done, and the Windows build of `main` is broken by something else
 
 **Prompt:** `b3e9876e8` · claude-opus-5[1m] · app version not discoverable on
@@ -477,147 +528,5 @@ current build and an audible MIDI note.
 byte-safely and both trees verified clean** (`git status` empty in SynthEdit
 and SynthEditLib), installed plug-in rebuilt from the committed state. REAPER
 restarted twice; **"Optimus HP" untouched**.
-
-**Branch/PR:** this TideSynth PR (row + entry only; no code).
-
----
-
-## 2026-08-17 — macos — choice (ii) built: the runtime feeds MIDI In; a second defect surfaced (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session. Jeff ruled **choice (ii)**: "MIDI-in will
-eventually be a rack module with a patch-point of its own, perhaps more like a
-MIDI-CV". (He also briefly pasted Optimus dialog screenshots from another
-session and said to carry on with MIDI — no Optimus work was done.) Committed
-and pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** implemented (ii) —
-[SynthEditLib#16](https://github.com/JeffMcClintock/SynthEditLib/pull/16), 29
-lines. **`SeAudioMaster` now remembers a registered `MIDI In` module and
-`MidiIn()` feeds it with the same `AddMidiEvent` call
-`UIoManager::OnMidiData` makes**, so the module behaves identically in the
-standalone and in a plug-in. **Half-verified, and the other half turned up a
-second, separate defect** — both stated below rather than blurred together.
-
-**Why the gap existed, in one line:** a MIDI In module registers itself with
-the audio master exactly as Sound Out does, the standalone's `UIoManager`
-pairs that registration with a MIDI device, and the plug-in's
-`SynthRuntime::RegisterIoModule` is a documented no-op — *"nothing special to
-do in plugin"*. **So a MIDI In module in a plug-in patch was silent by
-construction**, and the fix is to make the plug-in the device.
-
-**Verified:** the module **does** register in a plug-in — the probe printed
-`RegisterIoModule[0x11e39a370]: midiIn=1` and the pointer was stored.
-
-**Not verified, and the reason is a NEW finding:** after the document rebuild
-that adds the module, **no further MIDI reached `SynthRuntime::MidiIn` at
-all**. Instance pointers made it unambiguous: every delivery went to
-`SeAudioMaster[0x11ce0e2a0]` — the graph that existed *before* the rebuild —
-and the registration landed on `[0x11e39a370]`, the graph built *after* it,
-which then received nothing despite the transport running for 240 sampled
-frames. **So MIDI delivery stops across a document rebuild.** That is
-independent of this fix and is the next thing to chase.
-
-**Learned — log the instance pointer when two objects can wear the same
-name.** "Registered" and "not receiving" looked contradictory until `%p`
-showed they were different `SeAudioMaster`s. **And read the log's ORDER before
-concluding:** I nearly filed "registration never happens" when the
-registration line was simply the *last* line in the file — everything before
-it predated placing the module. One `tail` corrected a wrong conclusion.
-
-**Repeated a mistake I had already recorded, which is worth admitting.** My
-first cleanup of the probes used a line-based Python rewrite and normalised
-`SeAudioMaster.cpp`/`.h` from CRLF to LF — a **5754-line diff** for a 29-line
-change, exactly the trap I hit on the GMPI patch earlier today and wrote down.
-Reverted and redone byte-safely (`b'\r\n'`-aware), giving the honest 29-line
-diff. **A lesson recorded is not a lesson learned until the tool that caused
-it is fixed** — the byte-safe `edit()` helper now used should be the default
-for every repo that stores CRLF.
-
-**Next:** chase the rebuild defect — MIDI stops reaching the processor after a
-graph rebuild. Cheapest probe is the one already proven: log in TIDE's
-`onMidiMessage` and in `SynthRuntime::MidiIn` across a document change, and
-compare instance pointers on both sides.
-
-**Side effects on this box:** six TIDE_VST3 builds; all probes reverted and
-the installed plug-in rebuilt from the committed state. REAPER restarted three
-times; **"Optimus HP" untouched** (the guard aborted one script when REAPER
-reopened that project, after which every script created its own tab).
-`SYNTHEDITLIB_FOLDER_OVERRIDE` remains pointed at the local checkout.
-
-**Branch/PR:** this TideSynth PR +
-[SynthEditLib#16](https://github.com/JeffMcClintock/SynthEditLib/pull/16).
-
----
-
-## 2026-08-17 — macos — container-IO contract reverse-engineered; the MIDI In module is standalone-only (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff ruled "synthesise real container IO
-for MIDI, I think that is the least disruptive to SynthEdit". Committed and
-pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** worked out **exactly** what `exportDspXml` has to emit, by reading the
-importer rather than guessing — and found one thing that changes the shape of
-the fix: **the patch's "MIDI In" module cannot be the endpoint, because in a
-plug-in nothing ever feeds it.** No code change; the contract and that
-constraint are the deliverable, and together they make the next session a
-single implementation pass.
-
-**The XML contract, from `ug_base::Setup` and `SeAudioMaster::BuildModules`:**
-
-- A **container IO plug** is any `<Plug>` carrying a `Direction` attribute —
-  that is literally how the importer distinguishes it ("IO Plug on Container
-  or I/O Mod. Identified by 'Direction' element"). It becomes
-  `new UPlug(this, (EDirection)direction, (EPlugDataType)datatype)`, so:
-  `<Plug Direction="0" Datatype="2"/>` is a MIDI **input** — `DT_MIDI2` is
-  **2** in `EPlugDataType{DT_ENUM=0, DT_TEXT, DT_MIDI2, DT_DOUBLE, DT_BOOL,
-  DT_FSAMPLE=5}`.
-- An **IO Mod**'s plug ties to its container's plug **by handle**, and only
-  when the module carries `UGF_IO_MOD`:
-  `<Plug Direction="1" Datatype="2" TiedTo="<containerHandle>"
-  TiedToPinIdx="<n>"/>` → `up->TiedTo = p2; p2->TiedTo = up;`
-- **Connections** are `<Line From="<handle>" To="<handle>" FromPin="i"
-  ToPin="j"/>`; `FromPin`/`ToPin` default to 0, and the handles are resolved
-  through `HandleToObject`.
-
-**The constraint that changes the design.** TIDE's browser offers a **MIDI In**
-module, and it looks like the obvious MIDI source — but
-`modules_internal/MidiIn.h` is `class MidiIn final : public MpBase2, public
-ISpecialIoModule`, and it obtains MIDI by calling
-`AudioMaster()->RegisterIoModule(this)` in `open()`. In the **standalone** that
-registration lands in `UIoManager`, which feeds it from a MIDI device. In the
-**plug-in** it lands in `SynthRuntime::RegisterIoModule`, whose entire body is
-`{ return 1; } // nothing special to do in plugin`. **So a "MIDI In" module in
-a plug-in registers itself and is then never fed by anyone** — it is a
-standalone-app module, and its Audio pins confirm it (`MIDI Data` out,
-`Activity` out, `MPE Mode` in — **no MIDI input pin at all**, so nothing can be
-routed into it either).
-
-**Which means the classic plug-in MIDI path is the only one available**, and
-it is exactly what Jeff's ruling describes: host → `vst_in` → **the synth
-container's DT_MIDI2 plug** → an **IO Mod** inside → the user's MIDI-consuming
-modules (MIDI-CV 2 and friends). That is how an exported SE plug-in has always
-worked; TIDE's flat rack simply never grew the container plug.
-
-**So the open question is a UX one, not a mechanical one, and it is Jeff's:**
-what does the user patch *from* in the rack? Either **(i)** TIDE synthesises a
-container MIDI plug plus a tied IO Mod at export, and the IO Mod is the thing
-users drag from — it is already in TIDE's module list, so this needs no new
-module and no SynthEdit change; or **(ii)** TIDE keeps "MIDI In" as the
-user-facing source and `SynthRuntime` learns to feed registered MIDI modules
-the way `UIoManager` does — nicer for users, but it is the SynthEdit change
-Jeff's ruling was steering away from.
-
-**Learned — read the importer, not the exporter, when synthesising a format.**
-Every attribute that matters here (`Direction` as the IO-plug marker,
-`Datatype`'s enum ordering, `TiedTo`/`TiedToPinIdx`, the defaulting of
-`FromPin`/`ToPin`) came from the ~40 lines that *parse* the XML. The exporter
-would have shown only what a normal project happens to contain, which is
-exactly the case that does not apply to TIDE's synthesised document.
-
-**Next:** Jeff picks (i) or (ii); the row holds the full contract so the
-implementation is one pass either way.
-
-**Side effects on this box:** read-only investigation — nothing built, REAPER
-not driven, no probes left anywhere. All six repos clean.
 
 **Branch/PR:** this TideSynth PR (row + entry only; no code).
