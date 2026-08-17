@@ -46,6 +46,72 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — MIDI notes verified from pure upstream; the patch workaround is retired (interactive session, then unsupervised)
+
+**Prompt:** n/a — interactive session; Jeff granted the bot write access to
+GMPI, merged [GMPI#2](https://github.com/JeffMcClintock/GMPI/pull/2), then
+said "clean up the patches and verify from upstream" and left ("do as many
+tasks as you can unsupervised"). Committed and pushed as `tide-rack-bot`
+(claude-fable-5).
+
+**Did:** **the bot can now open PRs on GMPI** (invitation accepted,
+`push=true` confirmed), and with both GMPI fixes merged I **cleared every
+local override and re-verified MIDI from pure upstream: peak 0.5103 (−5.8 dB)
+with a note, 0.0001 with the transport stopped** — the identical numbers to
+the local-override build, so a fresh clone now hears MIDI. This closes S12(a)
+properly rather than on a machine-specific build.
+
+**The access fix, for the record:** the bot had `push=true` on all five other
+repos and **`push=false` on GMPI alone** — it had simply never been granted.
+Jeff added it as a collaborator; the bot accepted invitation `329366224`
+itself via `gh api -X PATCH user/repository_invitations/<id>`. **Both GMPI
+fixes are now normal PRs (#1 and #2), and the patch-file route is retired.**
+
+**A near-miss worth recording, because it would have been a false pass.**
+After clearing the overrides the build **succeeded** — and grepping the
+fetched sources showed **the fixes were absent**: `_deps` still held the old
+checkouts, because **FetchContent does not re-pull an already-populated
+dependency just because `origin/main` moved.** I had "verified upstream"
+against stale code for one build. Fixed by `git fetch && git reset --hard
+origin/main` in each `_deps/*-src`, after which all four greps matched and
+the numbers reproduced. **Grep the fetched source for the change you are
+verifying — a green build proves nothing about which code was compiled.**
+
+**Cleanup, and why the patch files stay.** `docs/patches/` now carries a
+**README marking both patches superseded**, with the PR each landed as, and
+an instruction not to use that route again. **The `.patch` files themselves
+are kept deliberately**: JOURNAL entries link to them and the journal is an
+immutable record, so deleting the files would break history to tidy a folder.
+The README is the honest way to say "obsolete" without rewriting the past.
+
+**Also cleared:** all three `*_FOLDER_OVERRIDE` cache entries are empty, the
+local GMPI branches are deleted, and the installed plug-in is byte-identical
+(`cmp`) to the pure-upstream build. `SE_LOCAL_BUILD=TRUE` had to be restored
+again after the earlier `--fresh` — the trap already documented in
+[docs/building.md](docs/building.md), hit for the second time today, which is
+why it is written down.
+
+**Learned — a clean instance beats a debugged one.** The first upstream
+measurement read silence, and the reason was not the build: earlier failed
+UI batches had dropped modules into that instance's rack while the structure
+view was not open, leaving a polluted document. Rebuilding the patch in a
+**fresh tab** reproduced the expected numbers immediately. **When a test rig
+has been poked at by failed automation, rebuild the rig before debugging the
+product.**
+
+**Next:** S12's remainder — the save/reopen re-check first, since the chunk
+now carries real documents *and* is seeded into fresh processors, so S11's
+restore half may already work; then the faded swap and preset retention.
+
+**Side effects on this box:** several TIDE_VST3 builds; `_deps` for GMPI,
+GMPI_Wrappers and SynthEditLib re-cloned/reset to upstream main; overrides
+cleared; installed plug-in current. REAPER restarted twice and several
+throwaway tabs were created; **"Optimus HP" untouched**.
+
+**Branch/PR:** this TideSynth PR (docs + bookkeeping only; no code).
+
+---
+
 ## 2026-08-17 — macos — MIDI notes play: the blob pin was never seeded on a new processor (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session; Jeff merged choice (ii) and said "keep
@@ -480,68 +546,3 @@ built from `master` with no diagnostics**. REAPER restarted twice; throwaway
 projects only, **"Optimus HP" untouched**.
 
 **Branch/PR:** this TideSynth PR (row + entry only; no code).
-
----
-
-## 2026-08-17 — macos — the sound reproduces from upstream alone (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff applied the GMPI patch, merged it,
-and said "done". Committed and pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** verified the thing the local overrides had been hiding: **with no
-local overrides and nothing unmerged anywhere, a from-scratch configure that
-fetches GMPI and GMPI_Wrappers from GitHub main builds TIDE and it still makes
-sound** — 1 kHz Tone → Sound Out, −6.0 dB, master green. The four-repo S12
-stack is now genuinely self-consistent on main, and this box builds exactly
-what a fresh clone would. Also appended a build-trap note to
-[docs/building.md](docs/building.md).
-
-**Confirmed on main before testing:** `ppc3` in `processor_holder.cpp` and the
-`sendNonNativeParameterToProcessor` hook in `controller_holder.h` (GMPI,
-merged as PR #1), and the VST3 installer of that hook in GMPI_Wrappers. Then
-cleared both `GMPI_*_FOLDER_OVERRIDE` cache entries and deleted the local
-`tide/mac/blob-param-transport` branch — **nothing on this box is now needed
-to build TIDE that is not on GitHub.**
-
-**Made a mess and cleaned it, which is the entry's real content.** Clearing
-the overrides was not enough: FetchContent had already populated `_deps`, so
-I deleted those directories — which left the build tree inconsistent and
-configure failing (`gmpi_plugin.cmake` not found; the fetch step silently
-declined to re-run). The right tool was **`cmake --fresh`**, and it worked
-first time. But `--fresh` wipes the *whole* cache, and two of those cached
-values mattered:
-
-1. **The generator.** The tree was an **Xcode** project; a bare `--fresh`
-   re-generated it as Unix Makefiles. Restored with
-   `cmake --fresh -G Xcode .` — worth knowing before anyone runs `--fresh` on
-   a tree they did not create.
-2. **`SE_LOCAL_BUILD`**, and this one is genuinely nasty. The POST_BUILD step
-   that copies the bundle to `~/Library/Audio/Plug-Ins/VST3` lives inside
-   `if(SE_LOCAL_BUILD)` in GMPI's `gmpi_plugin.cmake`, and the option is
-   **declared FALSE by default** — a developer machine auto-installs only
-   because the value is sitting in `CMakeCache.txt`. After `--fresh` it was
-   gone, so **the build succeeded, the bundle in the tree was current, and
-   REAPER kept loading the previous binary.** No error anywhere.
-
-**Learned — "it built" and "the host is running it" are different claims, and
-a cache reset can split them silently.** I caught it only because I compared
-the installed binary's timestamp and size against the build tree's before
-trusting a host test, which turned a plausible false pass into a two-command
-fix (`cmake -DSE_LOCAL_BUILD=TRUE .`). **This is the same discipline as the
-clipboard sentinel and the thumbnail change-test: make the artefact prove it
-is the one under test.** Both traps are now written into
-[docs/building.md](docs/building.md), since the next person to run `--fresh`
-here will hit them in the same order.
-
-**Left as found:** Xcode generator restored, `SE_LOCAL_BUILD=TRUE` restored,
-overrides empty, installed plug-in byte-identical to the current build tree
-(checked with `cmp`).
-
-**Next:** unchanged — S12's remainder in its row (MIDI-note verify first, then
-the save/reopen re-check, faded swap, preset retention).
-
-**Side effects on this box:** two full fresh configures and three TIDE_VST3
-builds (~15 min); `_deps` for GMPI and GMPI_Wrappers re-cloned from GitHub;
-REAPER restarted once, throwaway project only, **"Optimus HP" untouched**.
-
-**Branch/PR:** this TideSynth PR (doc + entry only; no code).

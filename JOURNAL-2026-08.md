@@ -9755,3 +9755,68 @@ projects only, **"Optimus HP" untouched**. `/tmp/tide-s12.log` and
 **Branch/PR:** this TideSynth PR +
 [SynthEditLib#15](https://github.com/JeffMcClintock/SynthEditLib/pull/15) +
 [SynthEdit#40](https://github.com/JeffMcClintock/SynthEdit/pull/40).
+
+---
+
+## 2026-08-17 — macos — the sound reproduces from upstream alone (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff applied the GMPI patch, merged it,
+and said "done". Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** verified the thing the local overrides had been hiding: **with no
+local overrides and nothing unmerged anywhere, a from-scratch configure that
+fetches GMPI and GMPI_Wrappers from GitHub main builds TIDE and it still makes
+sound** — 1 kHz Tone → Sound Out, −6.0 dB, master green. The four-repo S12
+stack is now genuinely self-consistent on main, and this box builds exactly
+what a fresh clone would. Also appended a build-trap note to
+[docs/building.md](docs/building.md).
+
+**Confirmed on main before testing:** `ppc3` in `processor_holder.cpp` and the
+`sendNonNativeParameterToProcessor` hook in `controller_holder.h` (GMPI,
+merged as PR #1), and the VST3 installer of that hook in GMPI_Wrappers. Then
+cleared both `GMPI_*_FOLDER_OVERRIDE` cache entries and deleted the local
+`tide/mac/blob-param-transport` branch — **nothing on this box is now needed
+to build TIDE that is not on GitHub.**
+
+**Made a mess and cleaned it, which is the entry's real content.** Clearing
+the overrides was not enough: FetchContent had already populated `_deps`, so
+I deleted those directories — which left the build tree inconsistent and
+configure failing (`gmpi_plugin.cmake` not found; the fetch step silently
+declined to re-run). The right tool was **`cmake --fresh`**, and it worked
+first time. But `--fresh` wipes the *whole* cache, and two of those cached
+values mattered:
+
+1. **The generator.** The tree was an **Xcode** project; a bare `--fresh`
+   re-generated it as Unix Makefiles. Restored with
+   `cmake --fresh -G Xcode .` — worth knowing before anyone runs `--fresh` on
+   a tree they did not create.
+2. **`SE_LOCAL_BUILD`**, and this one is genuinely nasty. The POST_BUILD step
+   that copies the bundle to `~/Library/Audio/Plug-Ins/VST3` lives inside
+   `if(SE_LOCAL_BUILD)` in GMPI's `gmpi_plugin.cmake`, and the option is
+   **declared FALSE by default** — a developer machine auto-installs only
+   because the value is sitting in `CMakeCache.txt`. After `--fresh` it was
+   gone, so **the build succeeded, the bundle in the tree was current, and
+   REAPER kept loading the previous binary.** No error anywhere.
+
+**Learned — "it built" and "the host is running it" are different claims, and
+a cache reset can split them silently.** I caught it only because I compared
+the installed binary's timestamp and size against the build tree's before
+trusting a host test, which turned a plausible false pass into a two-command
+fix (`cmake -DSE_LOCAL_BUILD=TRUE .`). **This is the same discipline as the
+clipboard sentinel and the thumbnail change-test: make the artefact prove it
+is the one under test.** Both traps are now written into
+[docs/building.md](docs/building.md), since the next person to run `--fresh`
+here will hit them in the same order.
+
+**Left as found:** Xcode generator restored, `SE_LOCAL_BUILD=TRUE` restored,
+overrides empty, installed plug-in byte-identical to the current build tree
+(checked with `cmp`).
+
+**Next:** unchanged — S12's remainder in its row (MIDI-note verify first, then
+the save/reopen re-check, faded swap, preset retention).
+
+**Side effects on this box:** two full fresh configures and three TIDE_VST3
+builds (~15 min); `_deps` for GMPI and GMPI_Wrappers re-cloned from GitHub;
+REAPER restarted once, throwaway project only, **"Optimus HP" untouched**.
+
+**Branch/PR:** this TideSynth PR (doc + entry only; no code).
