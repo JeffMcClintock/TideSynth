@@ -158,8 +158,8 @@ default branches; `SynthEdit` and `SynthEditLib` were read only — no build, no
 edit, no branch. Nothing written outside `TideSynth` and the scratch dir. The
 GATED line was not approached: C9's verification is entirely read-only.
 
-**Branch/PR:** `tide/mac/C9-verify-build-number-decoupling` — [TideSynth#120](https://github.com/JeffMcClintock/TideSynth/pull/120).
-Docs only; no branch or commit in any other repo.
+**Branch/PR:** `tide/mac/C9-verify-build-number-decoupling` — see PR link in
+BACKLOG rows.
 
 ---
 
