@@ -9890,3 +9890,91 @@ built from `master` with no diagnostics**. REAPER restarted twice; throwaway
 projects only, **"Optimus HP" untouched**.
 
 **Branch/PR:** this TideSynth PR (row + entry only; no code).
+
+---
+
+## 2026-08-17 — macos — suspect (a) refuted; the real cause found: the rack exposes no plugs (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff said "do suspect (a)". Committed
+and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** chased suspect (a) — the UMP-vs-MIDI-1.0 format theory — and **it is
+wrong**. Instrumenting the chain instead found the actual break, one layer
+lower and much more consequential: **TIDE's rack container exposes no MIDI
+plug and no audio plugs, so `SetupVstIO` never connects the synthetic VST
+Input's MIDI Out to anything.** No code change; the diagnosis is the
+deliverable.
+
+**Suspect (a) is refuted at the source.** `SeAudioMaster::MidiIn` hands the
+bytes to `ug_vst_in::sendMidi`, which calls `MpeConverter::processMidi` — and
+that function opens with `if (gmpi::midi_2_0::isMidi2Message(msg)) { sink(msg,
+timestamp); return; }`. **MIDI 2.0 passes through by design**, comment and
+all. The UMP packets TIDE forwards are exactly what it accepts. Nothing needs
+translating.
+
+**What the chain probe showed, in order:**
+
+```
+SetupVstIO: synthModule=1 plugs=3
+  synth plug: type=0 dir=0        <- DT_ENUM
+  synth plug: type=4 dir=0        <- DT_BOOL
+  synth plug: type=0 dir=0        <- DT_ENUM
+AudioMaster::MidiIn len=8 [40 90 3c] audioIn=1
+  vst_in sink: size=8 inUse=0 mo=1
+```
+
+`EPlugDataType` is `DT_ENUM=0, DT_TEXT=1, DT_MIDI2=2, DT_DOUBLE=3, DT_BOOL=4,
+DT_FSAMPLE=5`. **So the container's three plugs are ENUM, BOOL, ENUM — there
+is no DT_MIDI2 plug and no DT_FSAMPLE plug.** `SetupVstIO` loops over exactly
+those looking for MIDI and audio, finds neither, and connects nothing —
+which is precisely the measured `inUse=0` on `vst_in`'s MIDI Out. **The MIDI
+arrives at the audio master, is converted correctly, and is then sent into a
+plug with no connections.**
+
+**And this explains the asymmetry that made the bug confusing.** Audio works
+(the tone clipped at +10 dB) **not** through the container's plugs but because
+**Sound Out is a special IO module**: `ug_soundcard_out` registers itself via
+`RegisterIoModule` at `Open()` and receives the host's buffers directly. MIDI
+has no equivalent registration, so it depends on the container plumbing that
+does not exist. **A rack that makes sound while ignoring MIDI is exactly what
+those two different mechanisms predict.**
+
+**The fix direction, for the next session to design rather than guess:** the
+inner rack container needs real plugin IO — a `DT_MIDI2` input plug wired to
+the patch's MIDI In module (and, if audio should ever leave via the container
+rather than via Sound Out's registration, `DT_FSAMPLE` outputs too). In SE
+terms that is what an **IO Mod** provides, and `exportDspXml`'s synthetic
+outer container is the natural place to synthesise it. **Whether TIDE should
+instead treat the patch's "MIDI In" module as a registering special IO module
+— the symmetric counterpart of Sound Out — is the design question, and it is
+Jeff's call.**
+
+**Learned — probe the chain, not the theory.** Suspect (a) was a reasonable
+hypothesis and it cost one build to disprove by *reading the consumer*
+(`processMidi`'s first three lines). The chain probe then located the break
+in a single run because it logged **at four points**, so the last successful
+step and the first failing one were adjacent in the output. **Instrumenting
+several points at once beats bisecting one hypothesis at a time.**
+
+**Caught a build-configuration trap of my own making:** the first probe run
+produced *no log at all*, because `cmake --fresh` had also cleared
+`SYNTHEDITLIB_FOLDER_OVERRIDE`, so the build was compiling **SynthEditLib
+fetched from GitHub** (`_deps/syntheditlib-src`) and my local edits were
+invisible. Verified by `strings`-ing the installed binary for the probe's log
+path — zero hits — before believing the silence. **`strings` the artefact when
+a probe does not fire; the code you edited may not be the code that ran.** The
+override is now restored to the local checkout, which is how this box was set
+up before the `--fresh`.
+
+**Next:** design the container-IO fix (S12(a) continues). Everything else in
+S12's remainder is unchanged.
+
+**Side effects on this box:** four TIDE_VST3 builds; all probes reverted and
+the installed plug-in rebuilt clean (verified probe-free with `strings`).
+`SYNTHEDITLIB_FOLDER_OVERRIDE` now points at the local checkout again; GMPI
+and GMPI_Wrappers remain upstream. REAPER restarted twice. **"Optimus HP" was
+never modified — and the guard proved itself:** REAPER reopened that project
+as the active tab and the rig script aborted rather than touch it, after which
+every subsequent script created its own new tab first.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).

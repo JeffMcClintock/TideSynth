@@ -46,6 +46,73 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — presets now carry the rack: blobs base64'd, non-stateful params excluded (unsupervised)
+
+**Prompt:** n/a — Jeff chose base64 and asked for the codec to live in GMPI or
+GMPI-UI "so we're not duplicating code", then said "work continuously" and
+left. Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** implemented S11's blocker —
+[GMPI#3](https://github.com/JeffMcClintock/GMPI/pull/3) +
+[SynthEditLib#17](https://github.com/JeffMcClintock/SynthEditLib/pull/17).
+**A project's saved VST state grows from 250 bytes of base64 to 1503, and the
+`.rpp` now contains the rack document inside the `<Preset>`.** The bytes are
+in the file, which is exactly what was missing.
+
+**Where the codec went, per the ruling:** `GMPI/Core/base64.h` — the lowest
+layer that needs it, since **both** ends of the round-trip (the writer in
+`Hosting/processor_holder.cpp` and the reader in `Hosting/controller_holder.h`)
+live in GMPI. **`SynthEditLib/Base64.h` is now a thin forwarder**, so there is
+one implementation rather than two and its four call sites are unchanged.
+
+**The second half was not optional, and I only found it by breaking the
+editor.** With encoding in place the plug-in UI **rendered blank**. Stashing
+the change made it render again; that A/B, run in the same REAPER session,
+proved the regression was mine rather than session flakiness. The cause:
+TIDE's **`controllerPtr` is a blob holding a raw pointer**, declared
+`persistant="false"` — harmless while blobs serialised as `"0"`, but once they
+round-trip properly, **restoring one hands the plug-in a dangling pointer from
+a previous run.** Fixed by honouring the flag the spec already carries:
+`if (!parameter.info->is_stateful) continue;`. With encoding **and** guard,
+the editor is normal.
+
+**Learned — making serialisation work can resurrect things that were only
+safe while broken.** The `"0"` bug was silently protecting a
+session-only pointer from ever being restored. **When you fix a lossy
+round-trip, audit what was relying on the loss** — the `is_stateful` flag
+existed precisely for this, and nothing had needed to respect it until now.
+
+**Also learned — an A/B beats a hypothesis, and costs one build.** The blank
+editor could plausibly have been the day's REAPER instability (a deleted
+project file, dialogs, a failed load). Stashing and rebuilding answered it in
+one cycle instead of a debugging session, and it is the same control I used on
+the codesign failure earlier in the week.
+
+**Build note for future sessions, now also in memory:** this box builds with
+`GMPI_SDK_FOLDER_OVERRIDE`, `GMPI_UI_FOLDER_OVERRIDE` and
+`SYNTHEDITLIB_FOLDER_OVERRIDE` pointed at the local checkouts, per Jeff — the
+local clones are the truth while several repos move together, and FetchContent
+will not re-pull once `_deps` is populated.
+
+**Next:** S11's remaining half — confirm the **restore** side rebuilds the
+rack on load (place a module, save, reopen, look). The reader decodes base64
+now, so this may already work; measure before writing code.
+
+**Side effects on this box:** several TIDE_VST3 builds including a stash/A/B
+cycle; the three `*_FOLDER_OVERRIDE` entries point at local checkouts;
+installed plug-in current. REAPER restarted repeatedly and several throwaway
+tabs made; a stale `/tmp/tide-persist2.rpp` I had deleted caused one REAPER
+"error opening project" dialog — **`/tmp/tide-persist3.rpp` is left in place
+deliberately** for the restore test. REAPER twice offered to reopen **"Optimus
+HP"** after a failed load and **both times it was declined; that project was
+never opened or modified.**
+
+**Branch/PR:** this TideSynth PR + [GMPI#3](https://github.com/JeffMcClintock/GMPI/pull/3)
++ [SynthEditLib#17](https://github.com/JeffMcClintock/SynthEditLib/pull/17)
+(**must merge together** — the forwarder includes GMPI's header).
+
+---
+
 ## 2026-08-17 — macos — S11's restore has exactly one blocker: blobs are not encoded in the preset (unsupervised)
 
 **Prompt:** n/a — Jeff left with "do as many tasks as you can unsupervised"
@@ -446,93 +513,5 @@ implementation is one pass either way.
 
 **Side effects on this box:** read-only investigation — nothing built, REAPER
 not driven, no probes left anywhere. All six repos clean.
-
-**Branch/PR:** this TideSynth PR (row + entry only; no code).
-
----
-
-## 2026-08-17 — macos — suspect (a) refuted; the real cause found: the rack exposes no plugs (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff said "do suspect (a)". Committed
-and pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** chased suspect (a) — the UMP-vs-MIDI-1.0 format theory — and **it is
-wrong**. Instrumenting the chain instead found the actual break, one layer
-lower and much more consequential: **TIDE's rack container exposes no MIDI
-plug and no audio plugs, so `SetupVstIO` never connects the synthetic VST
-Input's MIDI Out to anything.** No code change; the diagnosis is the
-deliverable.
-
-**Suspect (a) is refuted at the source.** `SeAudioMaster::MidiIn` hands the
-bytes to `ug_vst_in::sendMidi`, which calls `MpeConverter::processMidi` — and
-that function opens with `if (gmpi::midi_2_0::isMidi2Message(msg)) { sink(msg,
-timestamp); return; }`. **MIDI 2.0 passes through by design**, comment and
-all. The UMP packets TIDE forwards are exactly what it accepts. Nothing needs
-translating.
-
-**What the chain probe showed, in order:**
-
-```
-SetupVstIO: synthModule=1 plugs=3
-  synth plug: type=0 dir=0        <- DT_ENUM
-  synth plug: type=4 dir=0        <- DT_BOOL
-  synth plug: type=0 dir=0        <- DT_ENUM
-AudioMaster::MidiIn len=8 [40 90 3c] audioIn=1
-  vst_in sink: size=8 inUse=0 mo=1
-```
-
-`EPlugDataType` is `DT_ENUM=0, DT_TEXT=1, DT_MIDI2=2, DT_DOUBLE=3, DT_BOOL=4,
-DT_FSAMPLE=5`. **So the container's three plugs are ENUM, BOOL, ENUM — there
-is no DT_MIDI2 plug and no DT_FSAMPLE plug.** `SetupVstIO` loops over exactly
-those looking for MIDI and audio, finds neither, and connects nothing —
-which is precisely the measured `inUse=0` on `vst_in`'s MIDI Out. **The MIDI
-arrives at the audio master, is converted correctly, and is then sent into a
-plug with no connections.**
-
-**And this explains the asymmetry that made the bug confusing.** Audio works
-(the tone clipped at +10 dB) **not** through the container's plugs but because
-**Sound Out is a special IO module**: `ug_soundcard_out` registers itself via
-`RegisterIoModule` at `Open()` and receives the host's buffers directly. MIDI
-has no equivalent registration, so it depends on the container plumbing that
-does not exist. **A rack that makes sound while ignoring MIDI is exactly what
-those two different mechanisms predict.**
-
-**The fix direction, for the next session to design rather than guess:** the
-inner rack container needs real plugin IO — a `DT_MIDI2` input plug wired to
-the patch's MIDI In module (and, if audio should ever leave via the container
-rather than via Sound Out's registration, `DT_FSAMPLE` outputs too). In SE
-terms that is what an **IO Mod** provides, and `exportDspXml`'s synthetic
-outer container is the natural place to synthesise it. **Whether TIDE should
-instead treat the patch's "MIDI In" module as a registering special IO module
-— the symmetric counterpart of Sound Out — is the design question, and it is
-Jeff's call.**
-
-**Learned — probe the chain, not the theory.** Suspect (a) was a reasonable
-hypothesis and it cost one build to disprove by *reading the consumer*
-(`processMidi`'s first three lines). The chain probe then located the break
-in a single run because it logged **at four points**, so the last successful
-step and the first failing one were adjacent in the output. **Instrumenting
-several points at once beats bisecting one hypothesis at a time.**
-
-**Caught a build-configuration trap of my own making:** the first probe run
-produced *no log at all*, because `cmake --fresh` had also cleared
-`SYNTHEDITLIB_FOLDER_OVERRIDE`, so the build was compiling **SynthEditLib
-fetched from GitHub** (`_deps/syntheditlib-src`) and my local edits were
-invisible. Verified by `strings`-ing the installed binary for the probe's log
-path — zero hits — before believing the silence. **`strings` the artefact when
-a probe does not fire; the code you edited may not be the code that ran.** The
-override is now restored to the local checkout, which is how this box was set
-up before the `--fresh`.
-
-**Next:** design the container-IO fix (S12(a) continues). Everything else in
-S12's remainder is unchanged.
-
-**Side effects on this box:** four TIDE_VST3 builds; all probes reverted and
-the installed plug-in rebuilt clean (verified probe-free with `strings`).
-`SYNTHEDITLIB_FOLDER_OVERRIDE` now points at the local checkout again; GMPI
-and GMPI_Wrappers remain upstream. REAPER restarted twice. **"Optimus HP" was
-never modified — and the guard proved itself:** REAPER reopened that project
-as the active tab and the rig script aborted rather than touch it, after which
-every subsequent script created its own new tab first.
 
 **Branch/PR:** this TideSynth PR (row + entry only; no code).
