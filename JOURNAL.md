@@ -152,6 +152,73 @@ which must merge together, plus this TideSynth PR.
 
 ---
 
+## 2026-08-17 — macos — presets now carry the rack: blobs base64'd, non-stateful params excluded (unsupervised)
+
+**Prompt:** n/a — Jeff chose base64 and asked for the codec to live in GMPI or
+GMPI-UI "so we're not duplicating code", then said "work continuously" and
+left. Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** implemented S11's blocker —
+[GMPI#3](https://github.com/JeffMcClintock/GMPI/pull/3) +
+[SynthEditLib#17](https://github.com/JeffMcClintock/SynthEditLib/pull/17).
+**A project's saved VST state grows from 250 bytes of base64 to 1503, and the
+`.rpp` now contains the rack document inside the `<Preset>`.** The bytes are
+in the file, which is exactly what was missing.
+
+**Where the codec went, per the ruling:** `GMPI/Core/base64.h` — the lowest
+layer that needs it, since **both** ends of the round-trip (the writer in
+`Hosting/processor_holder.cpp` and the reader in `Hosting/controller_holder.h`)
+live in GMPI. **`SynthEditLib/Base64.h` is now a thin forwarder**, so there is
+one implementation rather than two and its four call sites are unchanged.
+
+**The second half was not optional, and I only found it by breaking the
+editor.** With encoding in place the plug-in UI **rendered blank**. Stashing
+the change made it render again; that A/B, run in the same REAPER session,
+proved the regression was mine rather than session flakiness. The cause:
+TIDE's **`controllerPtr` is a blob holding a raw pointer**, declared
+`persistant="false"` — harmless while blobs serialised as `"0"`, but once they
+round-trip properly, **restoring one hands the plug-in a dangling pointer from
+a previous run.** Fixed by honouring the flag the spec already carries:
+`if (!parameter.info->is_stateful) continue;`. With encoding **and** guard,
+the editor is normal.
+
+**Learned — making serialisation work can resurrect things that were only
+safe while broken.** The `"0"` bug was silently protecting a
+session-only pointer from ever being restored. **When you fix a lossy
+round-trip, audit what was relying on the loss** — the `is_stateful` flag
+existed precisely for this, and nothing had needed to respect it until now.
+
+**Also learned — an A/B beats a hypothesis, and costs one build.** The blank
+editor could plausibly have been the day's REAPER instability (a deleted
+project file, dialogs, a failed load). Stashing and rebuilding answered it in
+one cycle instead of a debugging session, and it is the same control I used on
+the codesign failure earlier in the week.
+
+**Build note for future sessions, now also in memory:** this box builds with
+`GMPI_SDK_FOLDER_OVERRIDE`, `GMPI_UI_FOLDER_OVERRIDE` and
+`SYNTHEDITLIB_FOLDER_OVERRIDE` pointed at the local checkouts, per Jeff — the
+local clones are the truth while several repos move together, and FetchContent
+will not re-pull once `_deps` is populated.
+
+**Next:** S11's remaining half — confirm the **restore** side rebuilds the
+rack on load (place a module, save, reopen, look). The reader decodes base64
+now, so this may already work; measure before writing code.
+
+**Side effects on this box:** several TIDE_VST3 builds including a stash/A/B
+cycle; the three `*_FOLDER_OVERRIDE` entries point at local checkouts;
+installed plug-in current. REAPER restarted repeatedly and several throwaway
+tabs made; a stale `/tmp/tide-persist2.rpp` I had deleted caused one REAPER
+"error opening project" dialog — **`/tmp/tide-persist3.rpp` is left in place
+deliberately** for the restore test. REAPER twice offered to reopen **"Optimus
+HP"** after a failed load and **both times it was declined; that project was
+never opened or modified.**
+
+**Branch/PR:** this TideSynth PR + [GMPI#3](https://github.com/JeffMcClintock/GMPI/pull/3)
++ [SynthEditLib#17](https://github.com/JeffMcClintock/SynthEditLib/pull/17)
+(**must merge together** — the forwarder includes GMPI's header).
+
+---
+
 ## 2026-08-17 — macos — S11's restore has exactly one blocker: blobs are not encoded in the preset (unsupervised)
 
 **Prompt:** n/a — Jeff left with "do as many tasks as you can unsupervised"
@@ -479,3 +546,78 @@ reopened that project, after which every script created its own tab).
 
 **Branch/PR:** this TideSynth PR +
 [SynthEditLib#16](https://github.com/JeffMcClintock/SynthEditLib/pull/16).
+
+---
+
+## 2026-08-17 — macos — container-IO contract reverse-engineered; the MIDI In module is standalone-only (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff ruled "synthesise real container IO
+for MIDI, I think that is the least disruptive to SynthEdit". Committed and
+pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** worked out **exactly** what `exportDspXml` has to emit, by reading the
+importer rather than guessing — and found one thing that changes the shape of
+the fix: **the patch's "MIDI In" module cannot be the endpoint, because in a
+plug-in nothing ever feeds it.** No code change; the contract and that
+constraint are the deliverable, and together they make the next session a
+single implementation pass.
+
+**The XML contract, from `ug_base::Setup` and `SeAudioMaster::BuildModules`:**
+
+- A **container IO plug** is any `<Plug>` carrying a `Direction` attribute —
+  that is literally how the importer distinguishes it ("IO Plug on Container
+  or I/O Mod. Identified by 'Direction' element"). It becomes
+  `new UPlug(this, (EDirection)direction, (EPlugDataType)datatype)`, so:
+  `<Plug Direction="0" Datatype="2"/>` is a MIDI **input** — `DT_MIDI2` is
+  **2** in `EPlugDataType{DT_ENUM=0, DT_TEXT, DT_MIDI2, DT_DOUBLE, DT_BOOL,
+  DT_FSAMPLE=5}`.
+- An **IO Mod**'s plug ties to its container's plug **by handle**, and only
+  when the module carries `UGF_IO_MOD`:
+  `<Plug Direction="1" Datatype="2" TiedTo="<containerHandle>"
+  TiedToPinIdx="<n>"/>` → `up->TiedTo = p2; p2->TiedTo = up;`
+- **Connections** are `<Line From="<handle>" To="<handle>" FromPin="i"
+  ToPin="j"/>`; `FromPin`/`ToPin` default to 0, and the handles are resolved
+  through `HandleToObject`.
+
+**The constraint that changes the design.** TIDE's browser offers a **MIDI In**
+module, and it looks like the obvious MIDI source — but
+`modules_internal/MidiIn.h` is `class MidiIn final : public MpBase2, public
+ISpecialIoModule`, and it obtains MIDI by calling
+`AudioMaster()->RegisterIoModule(this)` in `open()`. In the **standalone** that
+registration lands in `UIoManager`, which feeds it from a MIDI device. In the
+**plug-in** it lands in `SynthRuntime::RegisterIoModule`, whose entire body is
+`{ return 1; } // nothing special to do in plugin`. **So a "MIDI In" module in
+a plug-in registers itself and is then never fed by anyone** — it is a
+standalone-app module, and its Audio pins confirm it (`MIDI Data` out,
+`Activity` out, `MPE Mode` in — **no MIDI input pin at all**, so nothing can be
+routed into it either).
+
+**Which means the classic plug-in MIDI path is the only one available**, and
+it is exactly what Jeff's ruling describes: host → `vst_in` → **the synth
+container's DT_MIDI2 plug** → an **IO Mod** inside → the user's MIDI-consuming
+modules (MIDI-CV 2 and friends). That is how an exported SE plug-in has always
+worked; TIDE's flat rack simply never grew the container plug.
+
+**So the open question is a UX one, not a mechanical one, and it is Jeff's:**
+what does the user patch *from* in the rack? Either **(i)** TIDE synthesises a
+container MIDI plug plus a tied IO Mod at export, and the IO Mod is the thing
+users drag from — it is already in TIDE's module list, so this needs no new
+module and no SynthEdit change; or **(ii)** TIDE keeps "MIDI In" as the
+user-facing source and `SynthRuntime` learns to feed registered MIDI modules
+the way `UIoManager` does — nicer for users, but it is the SynthEdit change
+Jeff's ruling was steering away from.
+
+**Learned — read the importer, not the exporter, when synthesising a format.**
+Every attribute that matters here (`Direction` as the IO-plug marker,
+`Datatype`'s enum ordering, `TiedTo`/`TiedToPinIdx`, the defaulting of
+`FromPin`/`ToPin`) came from the ~40 lines that *parse* the XML. The exporter
+would have shown only what a normal project happens to contain, which is
+exactly the case that does not apply to TIDE's synthesised document.
+
+**Next:** Jeff picks (i) or (ii); the row holds the full contract so the
+implementation is one pass either way.
+
+**Side effects on this box:** read-only investigation — nothing built, REAPER
+not driven, no probes left anywhere. All six repos clean.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).
