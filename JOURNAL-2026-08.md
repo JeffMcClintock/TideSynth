@@ -9525,3 +9525,85 @@ rebuild. Both rows say which comes first and why.
 not driven. Only TideSynth was committed in.
 
 **Branch/PR:** this TideSynth PR (rows + entry only; no code).
+
+---
+
+## 2026-08-17 — macos — S12 mapped: the machinery exists, in the sibling VST3 target (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session. Jeff's pointer, in substance: SynthEdit
+also builds the graph for its own use and switches out the DSP smoothly; the
+SynthEdit VST3 target is similar and can rebuild the graph under certain
+conditions. Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** followed the pointer through the code and rewrote **S12** from "scope
+unknown, probably large" into a **start-ready implementation map with file:line
+references**. No product code this entry; the map is the deliverable, and it
+changes S12's size class from "unknown" to "one focused session".
+
+**What the pointer found, part by part:**
+
+1. **The plugin-side graph host exists:** `SynthRuntime`
+   (`SynthEditLib/SynthRuntime.cpp` — sibling of the standalone's
+   `SynthRuntime_editor`) owns `SeAudioMaster` and builds the whole DSP graph
+   from an XML document. Today it reads that XML from the **`dsp.se.xml`
+   bundle resource** (line 59) — the thing SynthEdit's *exporter* bakes in.
+   **The cache check is the injection point:** `if
+   (!currentDspXml.RootElement())` means a pre-seeded document skips the
+   bundle read entirely. TIDE never needs a baked resource; it needs to hand
+   the runtime its XML.
+2. **The smooth swap Jeff described is real and complete**
+   (`SynthRuntime.cpp:330-395`): `audioMasterState::AsyncRestart` → retain
+   presets (`getPresetsState`) → `Close()` → new `SeAudioMaster` → background
+   `rebuildDsp` thread → fade-up. **And the document-swap hook already exists
+   in skeletal form:** a `pendingDspXml` branch sits inside that path behind
+   `#if 0 // editor only` — disabled because an exported plug-in's document
+   never changes. TIDE is exactly the product that flag was sketched for.
+3. **A complete working reference exists:** `se_vst3`'s `SeProcessor`
+   (`adelayprocessor.cpp`, 1502 lines) does everything TIDE's stub does not —
+   `prepareToPlay`/`reInitialise`, MIDI translation, queue servicing,
+   `ProcessorStateMgrVst3`, and `setState`/`getState` whose chunk is a
+   `DawPreset` string. **Jeff's "all state lives in the preset" is that
+   target's existing design**, not a new invention.
+4. **The editor can emit the DSP XML at runtime:** `dsp.se.xml` is nothing but
+   `<Document><DSP>` wrapping `MasterContainer->ExportXml(element, target)` —
+   fifteen copyable lines in `ExportAsPlugin.cpp:1204-1220` (skip the Release
+   `Scramble`). So the live document TIDE's editor already edits can produce
+   exactly what `SynthRuntime` eats, with the same serialiser the exporter
+   uses.
+
+**Why S11 and S12 turn out to be one mechanism.** Document XML rides in the
+preset (S11's rulings); a preset that carries a new document sets
+`pendingDspXml` and triggers `AsyncRestart`; the rebuild thread constructs the
+new graph while audio fades (S12). Save, restore, and preset-change-modifies-
+the-rack are the same wire.
+
+**The one fork, flagged for a one-word ruling.** **Option A (recommended):**
+keep TIDE as a GMPI plug-in and grow its processor a `SynthRuntime` — all of
+this session's controller/editor wiring survives, and the document travels
+through the already-declared `chunk` blob parameter bound to a DSP pin
+(`BlobInPin` exists in sdk3; the GMPI-Core equivalent is a named unknown).
+**Option B:** rebase TIDE onto `se_vst3`'s `SeProcessor`/`SeController` —
+the processor comes ready-made, but the `controllerPtr` trick, TideApp
+attachment and editor hosting all get redone against Steinberg classes.
+**Named unknowns for either:** `BundleInfo` calls inside `SynthRuntime`
+(`latencyConstraint`, resource folder) against a bundle that lacks the
+exporter's resources; in-process queue wiring TideApp ↔ runtime.
+
+**Thin-slice accept, unchanged:** place **1 kHz Tone**, wire it to **Sound
+Out**, play, and see the host meter move.
+
+**Learned — "scope it before costing it" can cost one hour and change the
+answer.** Yesterday's S12 said "unknown and probably large: building a DSP
+graph at runtime is what the exporter does at build time". The pointer plus an
+hour of reading found the runtime builder, the swap machinery, the skeletal
+document-swap hook, and the serialiser — all existing, none speculative. The
+row now names them by file and line, which is the difference between a next
+session that implements and one that re-discovers.
+
+**Next:** S12, Option A unless Jeff says B — starting with the fresh-context
+implementation session the row is now written to launch.
+
+**Side effects on this box:** none — read-only exploration; nothing built,
+REAPER not driven. Only TideSynth committed.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).

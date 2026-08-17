@@ -46,6 +46,81 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — container-IO contract reverse-engineered; the MIDI In module is standalone-only (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff ruled "synthesise real container IO
+for MIDI, I think that is the least disruptive to SynthEdit". Committed and
+pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** worked out **exactly** what `exportDspXml` has to emit, by reading the
+importer rather than guessing — and found one thing that changes the shape of
+the fix: **the patch's "MIDI In" module cannot be the endpoint, because in a
+plug-in nothing ever feeds it.** No code change; the contract and that
+constraint are the deliverable, and together they make the next session a
+single implementation pass.
+
+**The XML contract, from `ug_base::Setup` and `SeAudioMaster::BuildModules`:**
+
+- A **container IO plug** is any `<Plug>` carrying a `Direction` attribute —
+  that is literally how the importer distinguishes it ("IO Plug on Container
+  or I/O Mod. Identified by 'Direction' element"). It becomes
+  `new UPlug(this, (EDirection)direction, (EPlugDataType)datatype)`, so:
+  `<Plug Direction="0" Datatype="2"/>` is a MIDI **input** — `DT_MIDI2` is
+  **2** in `EPlugDataType{DT_ENUM=0, DT_TEXT, DT_MIDI2, DT_DOUBLE, DT_BOOL,
+  DT_FSAMPLE=5}`.
+- An **IO Mod**'s plug ties to its container's plug **by handle**, and only
+  when the module carries `UGF_IO_MOD`:
+  `<Plug Direction="1" Datatype="2" TiedTo="<containerHandle>"
+  TiedToPinIdx="<n>"/>` → `up->TiedTo = p2; p2->TiedTo = up;`
+- **Connections** are `<Line From="<handle>" To="<handle>" FromPin="i"
+  ToPin="j"/>`; `FromPin`/`ToPin` default to 0, and the handles are resolved
+  through `HandleToObject`.
+
+**The constraint that changes the design.** TIDE's browser offers a **MIDI In**
+module, and it looks like the obvious MIDI source — but
+`modules_internal/MidiIn.h` is `class MidiIn final : public MpBase2, public
+ISpecialIoModule`, and it obtains MIDI by calling
+`AudioMaster()->RegisterIoModule(this)` in `open()`. In the **standalone** that
+registration lands in `UIoManager`, which feeds it from a MIDI device. In the
+**plug-in** it lands in `SynthRuntime::RegisterIoModule`, whose entire body is
+`{ return 1; } // nothing special to do in plugin`. **So a "MIDI In" module in
+a plug-in registers itself and is then never fed by anyone** — it is a
+standalone-app module, and its Audio pins confirm it (`MIDI Data` out,
+`Activity` out, `MPE Mode` in — **no MIDI input pin at all**, so nothing can be
+routed into it either).
+
+**Which means the classic plug-in MIDI path is the only one available**, and
+it is exactly what Jeff's ruling describes: host → `vst_in` → **the synth
+container's DT_MIDI2 plug** → an **IO Mod** inside → the user's MIDI-consuming
+modules (MIDI-CV 2 and friends). That is how an exported SE plug-in has always
+worked; TIDE's flat rack simply never grew the container plug.
+
+**So the open question is a UX one, not a mechanical one, and it is Jeff's:**
+what does the user patch *from* in the rack? Either **(i)** TIDE synthesises a
+container MIDI plug plus a tied IO Mod at export, and the IO Mod is the thing
+users drag from — it is already in TIDE's module list, so this needs no new
+module and no SynthEdit change; or **(ii)** TIDE keeps "MIDI In" as the
+user-facing source and `SynthRuntime` learns to feed registered MIDI modules
+the way `UIoManager` does — nicer for users, but it is the SynthEdit change
+Jeff's ruling was steering away from.
+
+**Learned — read the importer, not the exporter, when synthesising a format.**
+Every attribute that matters here (`Direction` as the IO-plug marker,
+`Datatype`'s enum ordering, `TiedTo`/`TiedToPinIdx`, the defaulting of
+`FromPin`/`ToPin`) came from the ~40 lines that *parse* the XML. The exporter
+would have shown only what a normal project happens to contain, which is
+exactly the case that does not apply to TIDE's synthesised document.
+
+**Next:** Jeff picks (i) or (ii); the row holds the full contract so the
+implementation is one pass either way.
+
+**Side effects on this box:** read-only investigation — nothing built, REAPER
+not driven, no probes left anywhere. All six repos clean.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).
+
+---
+
 ## 2026-08-17 — macos — suspect (a) refuted; the real cause found: the rack exposes no plugs (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session; Jeff said "do suspect (a)". Committed
@@ -414,85 +489,3 @@ projects only, **"Optimus HP" never opened, saved or modified**. Temp files:
 the bot could not push.
 
 **Branch/PR:** this TideSynth PR + the four-repo stack above.
-
----
-
-## 2026-08-17 — macos — S12 mapped: the machinery exists, in the sibling VST3 target (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session. Jeff's pointer, in substance: SynthEdit
-also builds the graph for its own use and switches out the DSP smoothly; the
-SynthEdit VST3 target is similar and can rebuild the graph under certain
-conditions. Committed and pushed as `tide-rack-bot` (claude-fable-5).
-
-**Did:** followed the pointer through the code and rewrote **S12** from "scope
-unknown, probably large" into a **start-ready implementation map with file:line
-references**. No product code this entry; the map is the deliverable, and it
-changes S12's size class from "unknown" to "one focused session".
-
-**What the pointer found, part by part:**
-
-1. **The plugin-side graph host exists:** `SynthRuntime`
-   (`SynthEditLib/SynthRuntime.cpp` — sibling of the standalone's
-   `SynthRuntime_editor`) owns `SeAudioMaster` and builds the whole DSP graph
-   from an XML document. Today it reads that XML from the **`dsp.se.xml`
-   bundle resource** (line 59) — the thing SynthEdit's *exporter* bakes in.
-   **The cache check is the injection point:** `if
-   (!currentDspXml.RootElement())` means a pre-seeded document skips the
-   bundle read entirely. TIDE never needs a baked resource; it needs to hand
-   the runtime its XML.
-2. **The smooth swap Jeff described is real and complete**
-   (`SynthRuntime.cpp:330-395`): `audioMasterState::AsyncRestart` → retain
-   presets (`getPresetsState`) → `Close()` → new `SeAudioMaster` → background
-   `rebuildDsp` thread → fade-up. **And the document-swap hook already exists
-   in skeletal form:** a `pendingDspXml` branch sits inside that path behind
-   `#if 0 // editor only` — disabled because an exported plug-in's document
-   never changes. TIDE is exactly the product that flag was sketched for.
-3. **A complete working reference exists:** `se_vst3`'s `SeProcessor`
-   (`adelayprocessor.cpp`, 1502 lines) does everything TIDE's stub does not —
-   `prepareToPlay`/`reInitialise`, MIDI translation, queue servicing,
-   `ProcessorStateMgrVst3`, and `setState`/`getState` whose chunk is a
-   `DawPreset` string. **Jeff's "all state lives in the preset" is that
-   target's existing design**, not a new invention.
-4. **The editor can emit the DSP XML at runtime:** `dsp.se.xml` is nothing but
-   `<Document><DSP>` wrapping `MasterContainer->ExportXml(element, target)` —
-   fifteen copyable lines in `ExportAsPlugin.cpp:1204-1220` (skip the Release
-   `Scramble`). So the live document TIDE's editor already edits can produce
-   exactly what `SynthRuntime` eats, with the same serialiser the exporter
-   uses.
-
-**Why S11 and S12 turn out to be one mechanism.** Document XML rides in the
-preset (S11's rulings); a preset that carries a new document sets
-`pendingDspXml` and triggers `AsyncRestart`; the rebuild thread constructs the
-new graph while audio fades (S12). Save, restore, and preset-change-modifies-
-the-rack are the same wire.
-
-**The one fork, flagged for a one-word ruling.** **Option A (recommended):**
-keep TIDE as a GMPI plug-in and grow its processor a `SynthRuntime` — all of
-this session's controller/editor wiring survives, and the document travels
-through the already-declared `chunk` blob parameter bound to a DSP pin
-(`BlobInPin` exists in sdk3; the GMPI-Core equivalent is a named unknown).
-**Option B:** rebase TIDE onto `se_vst3`'s `SeProcessor`/`SeController` —
-the processor comes ready-made, but the `controllerPtr` trick, TideApp
-attachment and editor hosting all get redone against Steinberg classes.
-**Named unknowns for either:** `BundleInfo` calls inside `SynthRuntime`
-(`latencyConstraint`, resource folder) against a bundle that lacks the
-exporter's resources; in-process queue wiring TideApp ↔ runtime.
-
-**Thin-slice accept, unchanged:** place **1 kHz Tone**, wire it to **Sound
-Out**, play, and see the host meter move.
-
-**Learned — "scope it before costing it" can cost one hour and change the
-answer.** Yesterday's S12 said "unknown and probably large: building a DSP
-graph at runtime is what the exporter does at build time". The pointer plus an
-hour of reading found the runtime builder, the swap machinery, the skeletal
-document-swap hook, and the serialiser — all existing, none speculative. The
-row now names them by file and line, which is the difference between a next
-session that implements and one that re-discovers.
-
-**Next:** S12, Option A unless Jeff says B — starting with the fresh-context
-implementation session the row is now written to launch.
-
-**Side effects on this box:** none — read-only exploration; nothing built,
-REAPER not driven. Only TideSynth committed.
-
-**Branch/PR:** this TideSynth PR (row + entry only; no code).
