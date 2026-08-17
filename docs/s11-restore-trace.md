@@ -1,5 +1,38 @@
 # S11 — does the rack come back on reload?
 
+> **RESOLVED 2026-08-18 (macos, interactive). Read this box before the rest of
+> the document, because two of its conclusions were wrong.**
+>
+> The crash is fixed and the rack now survives reload — see the journal entry
+> and BACKLOG S11. PRs: [GMPI#5](https://github.com/JeffMcClintock/GMPI/pull/5),
+> [GMPI_Wrappers#6](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/6),
+> [SynthEdit#43](https://github.com/JeffMcClintock/SynthEdit/pull/43).
+>
+> **Correction 1 — section 4's central inference is unsound.** It reasons that
+> because TIDE's frames appear only on `CommunicationProc()` worker threads and
+> never on faulting thread 0, "the DSP-side graph build is thereby largely
+> exonerated" and the throw must be somewhere else on the main thread. The
+> premise is a measurement; the inference is not. For an **uncaught** exception
+> the stack is **already unwound** by the time `terminate` runs, so the throwing
+> frames are *gone from the report*, not absent from the thread. The throw was
+> in `Processor_VST3::setState` → `gmpi_processor::setPresetUnsafe` — on thread
+> 0 the whole time. **An `.ips` for SIGABRT-via-terminate cannot tell you where
+> the throw was.** Do not repeat this reasoning.
+>
+> **Correction 2 — section 5's option "handle it in `setParameter`" had no
+> caller.** `sePluginController` was only ever `initialize()`d; nothing in any
+> wrapper ever called `setParameter` on a plug-in's `<Controller/>`. The option
+> was not merely unused, it was not wired at all, and GMPI_Wrappers#6 is what
+> made it real.
+>
+> **What actually found it, in one command:** launch the DAW from a shell rather
+> than `open -a`, and libc++abi names the exception itself —
+> `terminating due to uncaught exception of type std::invalid_argument: stod: no
+> conversion`. No debugger, no rebuild. Four sessions had characterised this
+> crash from `.ips` reports alone.
+>
+> Sections 1-3 below stand as written and were confirmed.
+
 Measured 2026-08-17 on the macOS box by the weekly scheduled run, against the
 mac NEXT row's instruction: *"measure `/tmp/tide-persist3.rpp` reopening before
 writing any code."*
