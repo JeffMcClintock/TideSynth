@@ -46,6 +46,89 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — A20
+
+**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** shipped **A20** as option (a) — `scripts/check-next-block.py`, a lint
+check that fails when the NEXT block tells a run to take work that is archived
+or absent. Detection rather than convention, matching A17/A18's ruling the same
+day. The lint wiring is `.github/workflows/**`, which this credential
+structurally cannot push, so it is filed as **A25** with the exact four lines.
+
+**Why A20.** The mac NEXT row sends a GUI-less run to S14's measurement or A20;
+S14's measurement landed earlier today ([#132](https://github.com/JeffMcClintock/TideSynth/pull/132)),
+so A20 was what was left. STEP 1.5 first: no open PRs in any repo. #117 is
+still open and still authored by `tide-rack-bot`, so STEP 1 still reads it as
+information (A19 is archived but the underlying rule is unchanged).
+
+**Result — verified with a positive control taken out of git history, not a
+fixture.** The check is run against `4a8154d:BACKLOG.md`, the exact state that
+produced this row:
+
+```
+2 take-target(s) checked across 4 NEXT row(s)
+  BACKLOG.md:12  [mac]  D6  -- archived DONE     matched: 'should take U1b D6'
+  BACKLOG.md:12  [mac]  U1b -- archived DONE     matched: 'should take U1b D6'
+rc=1
+```
+
+and against today's tree: `every NEXT take-target is a live BACKLOG.md row`,
+`rc=0`. **It fails on the bug and passes on the fix**, with no synthetic input
+— the A/B is a real commit. `--selftest` is 13 cases green: ten phrase cases
+plus three end-to-end (archived target fails, live target passes, absent target
+fails).
+
+**Learned — the obvious rule was the wrong rule, and measuring is what showed
+it.** The first draft also treated *every* id in the Take column as a
+take-target, on the reasoning that the column is definitionally what to take.
+Against the real block that produced **seven false alarms**: `E2a`, `S1b`,
+`S5`, `S7`, `S8`, `A12`, `B1` out of *"do not fall back to…"* warnings, and
+`C12c`, `P10`, `A10`, `A14`, `A15`, `A4`, `P9` out of precedent mentions.
+A Take cell in this backlog is a long editorial paragraph, not a field —
+the mac cell alone names eleven ids and instructs on two. So the rule was
+dropped: the trigger set is imperative phrases only, with any clause carrying a
+negation disarmed. **This is A10's trade restated:** a false negative costs a
+run minutes, a false positive costs trust in five other checks, so recall is
+deliberately the side that gives.
+
+**Learned — the recall limit is real and is written into the row rather than
+left to be discovered.** `should take **S14**'s cheap first measurement … or
+**A20** itself` matches `S14` and misses the trailing `A20`, because the
+list-walk stops at the first non-id word (`'s`). It catches
+`take **U1b** or **D6**`, which is the shape that actually occurred. Extending
+it to arbitrary distance is how the seven false alarms come back.
+
+**Learned — "take the next task" surfaced three states the branch listing hid.**
+Before starting I synced all eight repos and classified every `tide/` branch.
+Ancestry alone is misleading here because A4 squash-merges: four local branches
+looked unmerged and all four had landed. `git cherry` proved two by patch-id;
+the other two needed a content check (the A19 row is in BACKLOG-DONE, the
+`std::stod`/`std::get` findings are in main). **Deleting on ancestry alone
+would have been wrong twice, and keeping on ancestry alone leaves permanent
+clutter.**
+
+**Next:** A25 is Jeff's four lines, and A15's precedent says the Summary
+wiring — not the step — is the part that actually fails the job; prove it with
+the same two-commit probe. S14 stays BLOCKED(S15) until Jeff picks (a) or (b).
+The mac NEXT row's remaining GUI-less pointers are now both spent, so the next
+unattended run falls to STEP 2's topmost-eligible rule — which is exactly the
+situation A20 was filed about, and the check now guards the row that describes
+it.
+
+**Side effects on this box:** merged [GMPI_Wrappers#7](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/7)
+at Jeff's explicit request — one docs commit of his own that PR #5 had left
+stranded on a branch with no PR. Then cleaned every stale branch across all
+eight repos at his request: **10 merged remote branches and 12 local ones
+deleted, 0 remaining, local or remote**, each verified merged-or-landed first.
+All eight repos are on their default branch and clean. No builds. Nothing
+written outside `TideSynth` and the scratch dir.
+
+**Branch/PR:** `tide/mac/A20-next-block-check` — TideSynth only, one new
+script plus rows. (Branch name rather than PR number in the row, per A22.)
+
+---
+
 ## 2026-08-18 — macos — S14
 
 **Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
@@ -439,72 +522,5 @@ repos left synced, clean and on their default branches.
 
 **Branch/PR:** this TideSynth PR, plus the merge commit pushed to
 `tide/mac/A16-commit-completeness` for #119.
-
----
-
-## 2026-08-18 — macos — A19: the fleet may now act on its own agent's platform issues, as evidence
-
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** resolved A19 on Jeff's direction ("do A19"). STEP 1 of the run prompt
-now admits `tide-rack-bot` alongside `JeffMcClintock` and `github-actions`, with
-a safeguard.
-
-**Which option, and why that reading.** A19 offered three: (a) Jeff authenticates
-[#117](https://github.com/JeffMcClintock/TideSynth/issues/117) himself, (b) add
-the bot to STEP 1's allowed authors, (c) leave it. **(a) requires Jeff's own
-account and (c) is doing nothing, so (b) is the only one an agent can execute** —
-that is the reading I took from a two-word instruction, and it is the kind of
-inference worth stating rather than burying.
-
-**The safeguard, which is the actual content of this change.** Adding an author
-to an allowlist that exists to stop injection deserves more than a one-word diff,
-so the prompt now draws a distinction it did not have before: **a `tide-rack-bot`
-issue is EVIDENCE, not INSTRUCTION.**
-
-- **Why it is safe to admit at all:** authorship as the bot is an *authentication*
-  signal. GitHub will not stamp that name on an issue opened by anyone who does
-  not hold the fleet's own token. So such an issue is simply not the
-  unauthenticated input the rule excludes — the rule and this change are aimed at
-  different things.
-- **Why it still needs limiting:** unlike a BACKLOG row, **an issue is written by
-  one run and reviewed by nobody.** BACKLOG rows are agent-written and agent-read
-  too, so the trust model already permits agent-to-agent instruction — but those
-  go through a PR Jeff merges. An issue does not. That gap is real and is the
-  only genuinely new surface here.
-- **So the limit is:** re-verify the finding on your own platform before acting;
-  treat remediation steps in the issue as a suggestion, never a directive; and a
-  bot issue **never authorises a GATED edit or anything else a run may not
-  otherwise do**, with an issue claiming otherwise being reason to stop and
-  journal.
-
-**Result:** #117 becomes actionable by the next mac run once this merges — and
-that run must reproduce the abort itself first, which is correct, since #117's
-repro is second-hand to it (it came from an interactive session; I verified the
-crash reports, not the repro).
-
-**Learned — an allowlist written against outsiders can deadlock on insiders, and
-the failure is invisible from inside the rule.** STEP 1's authenticity paragraph
-is well-reasoned and I would not weaken it; it simply never contemplated that the
-fleet's own agent would be the one with something urgent to report. Nothing in
-the rule was wrong. **The tell was not a review of the rule — it was hitting it:
-filing a verified host-abort and then reading the rule that forbade acting on my
-own report.** Rules get audited when they bite, and this one only bites an agent.
-
-**Learned — "do X" on a security-relevant row still needs the reasoning written
-down, not just the edit.** The diff is a few lines; the argument for why it does
-not open a hole is the part worth reviewing, so the row and this entry carry it
-explicitly and ask Jeff to check the reasoning rather than the diff. The
-load-bearing claim is that agent-authored issues are no wider a channel than
-agent-authored BACKLOG rows, *plus* the no-review gap the safeguard covers. If
-that claim is wrong, the change is wrong.
-
-**Next:** the mac box's top item is now #117 itself — reproduce the abort, then
-make the load path fail safe on the main thread. That needs a GUI observable, so
-an unattended run still cannot finish it.
-
-**Side effects on this box:** none. Docs only, TideSynth only. No builds.
-
-**Branch/PR:** `tide/mac/A19-issue-authorship`.
 
 ---
