@@ -10473,3 +10473,54 @@ copies were clean before this run and are returned to their default branches.
 which must merge together, plus this TideSynth PR.
 
 ---
+
+---
+
+## 2026-08-17 — windows — E2a planned, S8 corrected, E4 filed (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive; Jeff asked for the E2a plan, the S8 row fix, and
+an answer on user-authored prefabs under AUv3. Committed and pushed as
+`tide-rack-bot` (claude-fable-5).
+
+**Did:** wrote [docs/e2a-prefabs.md](docs/e2a-prefabs.md) — the implementation
+plan E2a's row now points at — corrected S8's premise in place, and filed the
+user-prefab question as **E4** (NEEDS-JEFF) with the analysis in the doc's §7.
+
+**The three findings under the plan, all measured today:**
+
+- **The prefab format is forced, not chosen.** `CContainer::LoadPrefab`
+  parses only modern `.synthedit`/`.syntheditprefab`; the `.seprefab` branch
+  (`CContainer.cpp:2996`) launches an installed SynthEdit 1.5 to upgrade the
+  file and is `_WIN32`-only — unusable from any sandboxed plugin. The 2024
+  prototype prefabs are references, not inputs.
+- **`Output.seprefab` contains no Sound Out** (decoded the UTF-16 payload:
+  Container + `SE Patch Point in` + `IO Mod`). The Output prefab is authored
+  from scratch; `TIDE.se1` is where the working Sound Out example lives.
+- **S8's "delete the forbidden modules" premise would have silenced TIDE.**
+  All three modules it names are `RegisterIoModule` seams, and Sound Out is
+  the plugin's audio egress — `SeAudioMaster` hands it the host's output
+  buffers (`SeAudioMaster.cpp:560-562`, `:640-642`), the same seam S12 used
+  for MIDI input. The row now says relabel-not-delete, with cites.
+
+**On user prefabs (E4):** yes under AUv3 — prefabs are data, and an extension
+may write inside its own container, which constraint 4's wording permits. The
+open ruling is desktop, where no OS-enforced container exists and the natural
+folder is the one constraint 4 names as banned. Default in effect: not v0.1.
+
+**Ruling, later the same sitting — constraint 9.** Presented with E4's
+"bless a desktop folder?" question, Jeff declined the shape of the question:
+rather than per-platform blessed locations, **TIDE Rack only implements
+features implementable on the lowest-common-denominator target (today AUv3)**.
+Added as PLAN.md constraint 9, recorded in docs/decisions.md, and applied to
+E4 — which drops from NEEDS-JEFF to BLOCKED(E2): the per-device library is
+allowed in principle (AUv3 can write in its own container), and desktop gets
+the same container semantics or nothing. Note for future rows: questions of
+the form "may platform X do Y?" now start from "can AUv3 do Y?".
+
+**Next:** E2a is takeable with a concrete first step — author the Output
+prefab as `.synthedit`, then module-enumeration stage 4 to ship it. The
+oscillator prefab stays gated on S8's oscillator finding.
+
+**Side effects on this box:** none — docs and rows only; nothing built.
+
+**Branch/PR:** this TideSynth PR.
