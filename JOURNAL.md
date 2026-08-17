@@ -46,6 +46,71 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — the sound reproduces from upstream alone (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff applied the GMPI patch, merged it,
+and said "done". Committed and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** verified the thing the local overrides had been hiding: **with no
+local overrides and nothing unmerged anywhere, a from-scratch configure that
+fetches GMPI and GMPI_Wrappers from GitHub main builds TIDE and it still makes
+sound** — 1 kHz Tone → Sound Out, −6.0 dB, master green. The four-repo S12
+stack is now genuinely self-consistent on main, and this box builds exactly
+what a fresh clone would. Also appended a build-trap note to
+[docs/building.md](docs/building.md).
+
+**Confirmed on main before testing:** `ppc3` in `processor_holder.cpp` and the
+`sendNonNativeParameterToProcessor` hook in `controller_holder.h` (GMPI,
+merged as PR #1), and the VST3 installer of that hook in GMPI_Wrappers. Then
+cleared both `GMPI_*_FOLDER_OVERRIDE` cache entries and deleted the local
+`tide/mac/blob-param-transport` branch — **nothing on this box is now needed
+to build TIDE that is not on GitHub.**
+
+**Made a mess and cleaned it, which is the entry's real content.** Clearing
+the overrides was not enough: FetchContent had already populated `_deps`, so
+I deleted those directories — which left the build tree inconsistent and
+configure failing (`gmpi_plugin.cmake` not found; the fetch step silently
+declined to re-run). The right tool was **`cmake --fresh`**, and it worked
+first time. But `--fresh` wipes the *whole* cache, and two of those cached
+values mattered:
+
+1. **The generator.** The tree was an **Xcode** project; a bare `--fresh`
+   re-generated it as Unix Makefiles. Restored with
+   `cmake --fresh -G Xcode .` — worth knowing before anyone runs `--fresh` on
+   a tree they did not create.
+2. **`SE_LOCAL_BUILD`**, and this one is genuinely nasty. The POST_BUILD step
+   that copies the bundle to `~/Library/Audio/Plug-Ins/VST3` lives inside
+   `if(SE_LOCAL_BUILD)` in GMPI's `gmpi_plugin.cmake`, and the option is
+   **declared FALSE by default** — a developer machine auto-installs only
+   because the value is sitting in `CMakeCache.txt`. After `--fresh` it was
+   gone, so **the build succeeded, the bundle in the tree was current, and
+   REAPER kept loading the previous binary.** No error anywhere.
+
+**Learned — "it built" and "the host is running it" are different claims, and
+a cache reset can split them silently.** I caught it only because I compared
+the installed binary's timestamp and size against the build tree's before
+trusting a host test, which turned a plausible false pass into a two-command
+fix (`cmake -DSE_LOCAL_BUILD=TRUE .`). **This is the same discipline as the
+clipboard sentinel and the thumbnail change-test: make the artefact prove it
+is the one under test.** Both traps are now written into
+[docs/building.md](docs/building.md), since the next person to run `--fresh`
+here will hit them in the same order.
+
+**Left as found:** Xcode generator restored, `SE_LOCAL_BUILD=TRUE` restored,
+overrides empty, installed plug-in byte-identical to the current build tree
+(checked with `cmp`).
+
+**Next:** unchanged — S12's remainder in its row (MIDI-note verify first, then
+the save/reopen re-check, faded swap, preset retention).
+
+**Side effects on this box:** two full fresh configures and three TIDE_VST3
+builds (~15 min); `_deps` for GMPI and GMPI_Wrappers re-cloned from GitHub;
+REAPER restarted once, throwaway project only, **"Optimus HP" untouched**.
+
+**Branch/PR:** this TideSynth PR (doc + entry only; no code).
+
+---
+
 ## 2026-08-17 — macos — FIRST SOUND (interactive session, Jeff present — "i can hear it!")
 
 **Prompt:** n/a — interactive session. Jeff merged the S12 stack, pointed out
@@ -437,64 +502,3 @@ test script aborts if it sees that project active, which it checked and
 reported.
 
 **Branch/PR:** this TideSynth PR (row + entry only; no code).
-
----
-
-## 2026-08-17 — macos — crumb thumbnails, and what they cost (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session; Jeff picked the U1b crumb-thumbnail
-follow-up off the list the previous entry left. Committed and pushed as
-`tide-rack-bot` (claude-fable-5).
-
-**Did:** wired the breadcrumb bar's thumbnails —
-[SynthEdit#38](https://github.com/JeffMcClintock/SynthEdit/pull/38). **Verified
-in REAPER: crumbs render the container's real content, and switching the master
-from rack to structure view swaps the tile from the dark case to the light
-structure grid with the placed Container visible inside it** — so it is
-genuinely rendering the container, not drawing a placeholder.
-
-**There was nothing to invent.** `BreadcrumbBar::renderThumbnail` has always
-been the way in, `se_cl::renderContainerThumbnail` has been shared since it was
-lifted out of SynthEdit2 ("which made thumbnails a Windows-only feature by
-accident rather than by design"), and both the Wayland and WinUI editors
-already install the callback. TIDE left it unset and silently got name-only
-crumbs. **This is the fourth item in a row where the answer was wiring, not
-building** — U1a, U1c, D6's content, and now this.
-
-**The one interface change, and why it is two methods rather than one.**
-`ISeApp` grows `setQuiet(bool)` returning the **previous** value. The offscreen
-render walks the module factory, whose duplicate-module dialogs must be
-suppressed around it; the Wayland version scopes `app_.quiet` directly, but
-`ISeApp` exists to firewall SE SDK3 off from the GMPI side, so exposing the
-application object to get at one bool would have been the wrong shape.
-Returning the previous value means callers restore rather than assume `false`.
-
-**Measured the cost rather than waving at it, because a plug-in pays for every
-byte.** TIDE_VST3 went **10,149,744 → 10,414,832 bytes (+265,088, +2.6%)**.
-Static-archive extraction did most of what C12e's rule predicts —
-`EditorCommandDispatcher` is **not** linked (0 symbols) — **but
-`SamplingProfiler` IS pulled in (8 symbols)** through `ScreenshotRenderer`.
-That is the finding worth keeping: **the screenshot library is not free of its
-tooling, and "only the members you reference" is true transitively, which is
-not the same as "only the members you wanted".** If the cost is unwanted the
-revert is two lines, and the PR says so.
-
-**Learned — the strongest visual test is a CHANGE, not a picture.** A dark
-thumbnail of a dark rack is indistinguishable from a black rectangle, and I
-nearly recorded "it renders" on that basis. Switching the same container to its
-structure view and watching the tile change to a light grid **containing the
-module I had just placed** is proof that content is being rendered per
-container and per view flag. Same discipline as yesterday's clipboard sentinel:
-make the thing prove it changed, do not photograph it once.
-
-**Next:** three small follow-ups remain from the finished-board list —
-`rackMode` on project load (**U1c**), Windows/Linux clipboard for Copy link
-(**D6**), and the win box's two **U2e** items — plus the **R-series**, which is
-Jeff's call. The mac NEXT row's "do not invent scope" still stands.
-
-**Side effects on this box:** two `TIDE_VST3` builds; the installed plug-in now
-draws thumbnails. REAPER restarted once; **"Optimus HP" untouched** (it
-reloaded on its own and was left alone). Only `SynthEdit` was committed in.
-
-**Branch/PR:** this TideSynth PR +
-[SynthEdit#38](https://github.com/JeffMcClintock/SynthEdit/pull/38).

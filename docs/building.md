@@ -168,3 +168,31 @@ by hand after building:
 (Note: the stale DB was ruled out as the cause of U2d's blank panels — see
 that row — so do not expect this copy to fix rendering; it fixes the
 export/module-database path P11 describes.)
+
+## `SE_LOCAL_BUILD` — why your build stopped installing itself (macOS)
+
+The plug-in bundle is copied to `~/Library/Audio/Plug-Ins/VST3` by a POST_BUILD
+step in GMPI's `gmpi_plugin.cmake` that sits inside **`if(SE_LOCAL_BUILD)`**.
+That option is declared `FALSE` by default (`SynthEdit/CMakeLists.txt`), so a
+developer machine only auto-installs because someone set it once and the value
+lived in `CMakeCache.txt` ever after.
+
+**Anything that resets the cache silently disables the auto-install** — most
+easily `cmake --fresh`, which is otherwise the right tool for forcing a genuine
+from-scratch configure. The symptom is confusing rather than loud: the build
+succeeds, the bundle in the build tree is current, and **the host keeps loading
+the previous binary**, so you appear to be testing a change that was never
+deployed. Verified on 2026-08-17 while re-testing S12 against upstream.
+
+Re-enable it with:
+
+```bash
+cmake -DSE_LOCAL_BUILD=TRUE .
+```
+
+Two habits that make this cheap to catch: compare the timestamp of
+`build/SynthEditSem/Release/<name>.vst3/Contents/MacOS/<name>` against the
+installed copy before believing a host test, and remember that
+`--fresh` also resets **every** other cached option you rely on (the two
+`GMPI_*_FOLDER_OVERRIDE` paths and the generator among them — a `--fresh`
+without `-G Xcode` will quietly switch an Xcode tree to Unix Makefiles).
