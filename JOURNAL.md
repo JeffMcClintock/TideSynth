@@ -46,6 +46,66 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — P10: the dead XML is gone (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff merged the D3/D6 stack, then
+"sync repos, clean up branches, continue". Committed and pushed as
+`tide-rack-bot` (claude-fable-5).
+
+**Did:** synced all five repos and deleted every merged local branch (only
+`main`/`master` and Jeff's own release branches remain; **zero open PRs** in
+all four repos at the start), then took **P10** — the item the NEXT row names
+for exactly this situation — [SynthEdit#37](https://github.com/JeffMcClintock/SynthEdit/pull/37).
+`SynthEditSem/SynthEdit.xml` and its `SynthEdit.rc` resource line are deleted.
+
+**Why the file had to go, restated because it is the trap P5 nearly fell
+into:** the file looks like the source of truth — 12 lines, named after the
+plug-in, holding `id` and `name` — and **is not what ships**. The live identity
+is the embedded XML string literal in `SynthEdit.cpp`'s
+`getPluginInformation()`. Editing the `.xml` alone changes nothing at runtime
+on any platform: a no-op PR that reviews as correct.
+
+**Re-verified before deleting rather than trusting the row, and the discipline
+mattered twice this week.** D4's central measurement turned out false
+yesterday, so P10 got the same treatment: only two references exist (the `.rc`
+line and an explanatory comment in `SynthEdit.cpp`), and the sole loader sits
+inside `#if 0`. **The near-miss worth recording: the loader's first visible
+guard is `#if _WIN32` at `MyVstPluginFactory.cpp:472`, which reads as live —
+the `#if 0` that kills it is the *enclosing* one at `:462`.** I read the inner
+guard first and briefly concluded the row was wrong, exactly as I had concluded
+about D4. Checking the enclosing guard settled it in one command. **When a
+"this code is dead" claim rests on a preprocessor guard, find the outermost
+one, not the nearest.**
+
+**Accept met, both halves:** TIDE_VST3 and SynthEdit_VST3 build on macOS, and
+the built binary's identity is byte-identical — `id="SE SynthEdit"
+name="TIDE Rack" vendor="TIDE Synth"`, the strings P5 put there.
+
+**The limit this box cannot close, stated rather than glossed:** `.rc` files
+are Windows-only, so the deletion is verified *consistent* here but the Windows
+resource compile is unexercised. It should be trivially fine — the only line
+naming the file goes with the file — but the Windows box is the real check, and
+the PR says so.
+
+**Next:** with P10 done, the mac backlog has **no remaining item a scheduled
+run should take on its own initiative**. What is left is either Jeff's call
+(the R-series, all blocked on there being something to ship) or small
+follow-ups already recorded in their rows: crumb thumbnails (U1b), `rackMode`
+on project load (U1c), Windows/Linux clipboard for Copy link (D6), and the win
+box's two U2e items. **That is a genuinely finished board rather than a tired
+one**, and the NEXT row now says so in those words so the next run does not
+invent scope to fill the gap.
+
+**Side effects on this box:** two `TIDE_VST3` builds and one `SynthEdit_VST3`
+build; the installed plug-in is current. REAPER was not driven this entry.
+Only `SynthEdit` was committed in; the other four repos were read only and are
+clean on their default branches.
+
+**Branch/PR:** this TideSynth PR +
+[SynthEdit#37](https://github.com/JeffMcClintock/SynthEdit/pull/37).
+
+---
+
 ## 2026-08-17 — macos — D6: the about pane is built (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session; Jeff said "do D6". Committed and pushed
