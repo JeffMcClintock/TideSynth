@@ -121,6 +121,70 @@ builds. The repo scans were read-only.
 
 ---
 
+## 2026-08-18 — macos — GMPI ruled PR-GATED: a third STEP 5 category
+
+**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** recorded Jeff's ruling — *"GMPI is our most highly curated repo,
+changing it is not to be done lightly. i would prefer that modifications to GMPI
+go via a human-approved PR."* STEP 5 gains a **PR-GATED** category holding GMPI;
+`docs/decisions.md` carries the ruling.
+
+**Why a third category rather than putting GMPI on an existing list.** Neither
+fits. **ALLOWED** is wrong — that is the list for TIDE's own folders, where
+changing things is ordinary backlog work, and the whole point of the ruling is
+that GMPI is not that. **GATED** is wrong too — GATED means file the question and
+stop, and Jeff did not say stop, he named a route. Forcing GMPI onto either list
+would have lost half the instruction.
+
+**The interpretation I took, flagged rather than buried.** "Human-approved PR"
+could mean (a) agents may propose, humans approve at merge — or (b) humans author
+GMPI changes, full stop. **I read it as (a)**, because a scheduled run already
+never merges its own PRs, so an agent-authored GMPI PR *is* human-approved at
+merge time; if he meant agents never touch it, "GATED" was the word already
+available. **The two readings differ materially** — under (a) [#117](https://github.com/JeffMcClintock/TideSynth/issues/117)
+becomes work a run can do, under (b) it stays Jeff's — so the decisions entry
+carries a `Default in effect` line: if the reading is wrong, GMPI reverts to
+GATED and file-and-stop.
+
+**What the category costs a run, deliberately.** Propose, never merge; keep it
+minimal and say in the PR what you did *not* verify; **a GMPI PR is a proposal,
+not a fix**, so no row goes DONE on the strength of one and no later work builds
+on it as though it had landed; and **if the change can be made TIDE-side instead,
+make it there** — reaching into GMPI because it is the tidier place is the reflex
+this exists to slow down.
+
+**One thing worth stating explicitly, because it nearly got lost:** the rule is
+about *modifications*. **Reading GMPI has never needed permission and still does
+not** — today's `std::stod` throw site was found by tracing into it and filed
+without editing a line. A category that accidentally discouraged reading would
+have made this class of bug harder to find, not safer.
+
+**Learned — when a ruling does not fit the existing taxonomy, extend the
+taxonomy rather than round the ruling to the nearest slot.** The tempting move
+was "add GMPI to ALLOWED with a warning comment", which is how the instruction
+would have decayed: the warning is prose, the list membership is what a run
+actually checks. A named category with its own rules is what survives being read
+by a fresh agent with no memory.
+
+**Context — this is the fourth platform break in two days stranded behind a
+permissions question** (#87, #88, #111 on GATED `SynthEditLib`/app folders, #117
+on GMPI). This ruling clears the fourth. **A17 — may a run repair a build break
+whose cause is in a GATED path? — still governs the other three** and is still
+NEEDS-JEFF.
+
+**Next:** #117's fix is now proposable by a run: datatype dispatch in the
+processor's preset reader plus a loud assert, per Jeff's framing. It still wants
+a debugger to confirm `std::stod` is the throw before anyone writes it, and that
+needs a GUI session.
+
+**Side effects on this box:** none. Docs only, TideSynth only. No builds, and
+**no GMPI modification** — the finding that prompted this was read-only.
+
+**Branch/PR:** `tide/mac/gmpi-pr-gated`.
+
+---
+
 ## 2026-08-18 — windows — unblocked the macOS A16 PR, filed the duplicate-id gap as A23 (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive; Jeff asked to sync the repos, hear what was
