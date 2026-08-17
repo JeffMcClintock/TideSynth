@@ -9820,3 +9820,73 @@ builds (~15 min); `_deps` for GMPI and GMPI_Wrappers re-cloned from GitHub;
 REAPER restarted once, throwaway project only, **"Optimus HP" untouched**.
 
 **Branch/PR:** this TideSynth PR (doc + entry only; no code).
+
+---
+
+## 2026-08-17 — macos — S12(a): MIDI reaches the processor but not the graph (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff said "sync and clean up, then
+continue", which meant S12's next item: verify the MIDI note path. Committed
+and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** synced all six repos and deleted three merged branches, then took
+**S12(a)**. **Result: MIDI arrives at TIDE's processor and is forwarded to the
+runtime, but produces no sound in a correctly-built instrument — the MIDI does
+not manifest inside the DSP graph.** No code change; the measurement and the
+two named suspects are the deliverable.
+
+**What is proven, each by direct measurement:**
+
+1. **MIDI reaches the processor.** A temporary probe in `onMidiMessage` logged
+   **42 messages with `prepared=1`** during a looping C4: note-ons (`0x90`),
+   note-offs (`0x80`), and the note number `0x3c` = 60. They are forwarded to
+   `rack.MidiIn`. **They arrive as 8-byte MIDI 2.0 UMP packets** (leading
+   `0x40` = MIDI2 channel-voice), not 3-byte MIDI 1.0 — which is the first
+   suspect below.
+2. **The audio path works.** With the oscillator wired straight to Sound Out
+   the master meter clipped at **+10 dB** — loud, obviously alive.
+3. **A complete instrument is silent.** Jeff's correction was the key
+   methodological point: an oscillator wired directly to Sound Out **drones at
+   its default pitch whether or not MIDI arrives**, so it proves nothing about
+   MIDI. Rebuilt as a real instrument — **MIDI In → MIDI-CV 2; Pitch → Phase
+   Dist Osc; Gate → VCA Volume; Osc → VCA Signal; VCA → Sound Out** — and the
+   measured peak is **−156.7 dB, i.e. digital silence**, throughout the note.
+
+**Learned — a tight Lua polling loop measures nothing.** My first two
+"measurements" reported 9.3M and 34M samples of `Track_GetPeakInfo`, all
+identical, because a busy-wait blocks REAPER's main thread and those values
+only update on it: **the loop was re-reading one frozen snapshot millions of
+times and reporting it as a result.** The give-away was the transport position
+never advancing across 6 seconds of wall clock. Re-done with `reaper.defer`
+(one sample per main-thread cycle), position advanced normally and the reading
+was trustworthy. **A high sample count is not evidence; a changing input is.**
+
+**Two suspects for the next session, in order:**
+
+1. **MIDI format.** GMPI hands the processor **UMP**; `SeAudioMaster::MidiIn`
+   may expect MIDI 1.0 bytes. `se_vst3`'s `SeProcessor` does explicit
+   translation around its `MidiIn` calls (`midi2data`/`midi2size`, and it
+   advertises `kMIDIProtocol_2_0`), which TIDE's one-line forward does not.
+   Compare those call sites first.
+2. **Container plumbing.** `SeAudioMaster::SetupVstIO` connects the synthetic
+   **VST Input**'s "MIDI Out" to *the synth container's* MIDI plug — and S12
+   wraps TIDE's flat rack in a **synthetic outer container**, so MIDI may be
+   delivered to the outer container and never forwarded to the inner rack
+   where the MIDI In module lives. That wrapper was introduced for
+   `SetupVstIO`'s benefit, so it is exactly the code to re-read.
+
+**Also worth knowing:** TIDE's module set has **no MIDI Monitor** (Diagnostic
+holds only 1 kHz Tone and DAW Sample Rate), which is why the verification had
+to be built from a VCA instead of read off a monitor — Jeff suggested a
+monitor first and it simply is not in the fixed set.
+
+**Next:** S12(a) continues with suspect 1 (cheap: log what
+`SeAudioMaster::MidiIn` receives, and compare with `se_vst3`'s translation),
+then suspect 2. The other S12 remainder items are unchanged.
+
+**Side effects on this box:** two probe builds plus two clean rebuilds; the
+probe branch was deleted and the tree reverted, so **the installed plug-in is
+built from `master` with no diagnostics**. REAPER restarted twice; throwaway
+projects only, **"Optimus HP" untouched**.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).
