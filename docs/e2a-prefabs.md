@@ -163,6 +163,16 @@ Three tiers, independent of each other:
    file-open sheet every iOS app has than to the dialogs the constraint bans,
    but that reading is Jeff's to confirm, not this doc's to assume.
 
+**Ruled the same day, superseding the tier-2 question above:** Jeff declined
+to bless per-platform folders and ruled the general principle instead —
+**PLAN.md constraint 9, lowest common denominator**: TIDE Rack only implements
+features implementable on its most restricted target (today AUv3). Applied
+here: the per-device library is allowed in principle, because AUv3 *can* write
+inside its own container — and every platform implements that same container
+model; desktop gets the AUv3 semantics, not a blessed folder. The tier-3
+document-picker question stays open for implementation time. E4 is therefore
+`BLOCKED(E2)`, not NEEDS-JEFF.
+
 Explicitly *not* proposed: abusing the AUv3 user-preset API
 (`AUAudioUnit.userPresets`) as prefab storage — its granularity is
 whole-plugin state, and a prefab is a rack module, not a preset.

@@ -77,6 +77,16 @@ may write inside its own container, which constraint 4's wording permits. The
 open ruling is desktop, where no OS-enforced container exists and the natural
 folder is the one constraint 4 names as banned. Default in effect: not v0.1.
 
+**Ruling, later the same sitting — constraint 9.** Presented with E4's
+"bless a desktop folder?" question, Jeff declined the shape of the question:
+rather than per-platform blessed locations, **TIDE Rack only implements
+features implementable on the lowest-common-denominator target (today AUv3)**.
+Added as PLAN.md constraint 9, recorded in docs/decisions.md, and applied to
+E4 — which drops from NEEDS-JEFF to BLOCKED(E2): the per-device library is
+allowed in principle (AUv3 can write in its own container), and desktop gets
+the same container semantics or nothing. Note for future rows: questions of
+the form "may platform X do Y?" now start from "can AUv3 do Y?".
+
 **Next:** E2a is takeable with a concrete first step — author the Output
 prefab as `.synthedit`, then module-enumeration stage 4 to ship it. The
 oscillator prefab stays gated on S8's oscillator finding.
