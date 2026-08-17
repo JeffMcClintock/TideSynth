@@ -46,6 +46,90 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — S13 (Jeff directing)
+
+**Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** fixed **S13** — TIDE could not run as a Debug build. One-file change in
+GATED `SynthEditLib/UgDatabase.cpp`, taken on Jeff's direct instruction, which
+is the "needs Jeff or an interactive session" the row was waiting for.
+[SynthEditLib#19](https://github.com/JeffMcClintock/SynthEditLib/pull/19).
+Filed **S16** for something found while A/B-ing it.
+
+**Result — the fix is the one the row called honest: don't assert on an absent
+database.** `RegisterExternalPluginsXmlOnce` read `database.se.xml`, parsed it,
+and treated *any* parse error as `assert(false)`, so absent and corrupt were
+indistinguishable. It now returns early on an empty resource and **keeps the
+assert for a database that is present but will not parse**.
+
+**Absent is legitimate, and that was established rather than assumed:**
+`database.se.xml` is written by `ExportAsPlugin`
+(`SynthEdit2/ExportAsPlugin.cpp:1704,1722,1731,1742`), so an *exported* plugin
+has one and a plugin built directly from source does not. TIDE is the latter —
+constraint 7 compiles the module set in, S1a removed the scan — so there is
+nothing to register. Release compiled the assert out and returned silently,
+which is why this survived so long; Debug aborted the host.
+
+**Verification artifact — a runnable probe against the real `tinyxml2`,
+showing precisely what the old code could not tell apart:**
+
+```
+absent    -> Error()=true   id=15 XML_ERROR_EMPTY_DOCUMENT
+malformed -> Error()=true   id=16 XML_ERROR_MISMATCHED_ELEMENT
+valid     -> Error()=false
+```
+
+Both error rows hit the one `assert(false)`. Builds, consumers included because
+this library ships in SynthEdit too: `TIDE_VST3` **Debug and Release**,
+`SynthEditCL`, `SynthEdit_VST3`, `SynthEdit_GMPI` — all SUCCEEDED.
+
+**Learned — the obvious API would have broken the commercial product, and one
+grep caught it.** `BundleInfo::ResourceExists()` is exactly what this code
+wants and reads as the clean fix. Off JUCE it is `return false;`
+**unconditionally** (`BundleInfo.cpp:490`), so using it would have made
+*SynthEdit* — which does ship a database — skip module registration entirely.
+The correct test was the boring one, and it was already in the codebase six
+lines away: `SynthRuntime.cpp:80` guards `dsp.se.xml` with `.empty()` right
+after calling this same function. **In shared code, prefer the pattern the
+neighbouring line already uses over the API that reads better.**
+
+**Learned — always A/B the test suite, even when the change cannot plausibly
+touch it.** `dsp_tests` came back **44 failed / 13 passed** after my change,
+which looks damning. Stashing the change and rebuilding gave **exactly the same
+44/13**, so it is pre-existing. Without that control I would either have
+believed I broke it or, worse, waved it away by reasoning that a database guard
+cannot affect DSP maths — and been right by luck.
+
+**And the cause of those 44 is worth its own row (S16).**
+`tests/projecttests.cpp:103` and `tests/layouttests.cpp:56` hardcode
+`/Users/jeffmcclintock/SynthEdit/build/`; this checkout is
+`~/Documents/GitHub/SynthEdit`, so every test that shells out to `SynthEditCL`
+fails with `No such file or directory`. **None is a real DSP failure.** It
+matters because the C-stage rows cite "92 tests all RC=0" as evidence and that
+is a *Windows ninja* number — on mac the suite has been almost entirely red,
+and a run building here cannot distinguish a regression from the path bug.
+`SynthEdit/tests/` is on neither STEP 5 list, so GATED by default: filed, not
+fixed.
+
+**Next:** **S13's Accept is not met by me** and the row stays IN-REVIEW for it —
+a Debug `TIDE_VST3` actually loading a project in REAPER. Computer-use is
+refused in a scheduled run and there is no runnable standalone TIDE, so nobody
+has watched the Debug build survive a load; that is one check for an
+interactive session. Then **S16** makes the mac suite a usable signal, which
+every later run benefits from.
+
+**Side effects on this box:** `SynthEdit/build/` now has Debug **and** Release
+outputs for several targets, where before only Release was current. One source
+file changed in `SynthEditLib`, on its own branch with its own PR. All other
+repos untouched and clean.
+
+**Branch/PR:** `tide/mac/S13-debug-assert` in both repos —
+[SynthEditLib#19](https://github.com/JeffMcClintock/SynthEditLib/pull/19) (the
+fix) and the TideSynth half (rows and this entry, docs only). Neither blocks
+the other's build.
+
+---
+
 ## 2026-08-18 — macos — S14 closed not-a-defect, S15 withdrawn (Jeff directing)
 
 **Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
@@ -375,106 +459,5 @@ No repo was dirty at any point. No builds. Nothing written outside
 
 **Branch/PR:** `tide/mac/S14-zero-structrect` — TideSynth docs only, no code
 in any repo. (Row carries the branch name rather than a PR number, per A22.)
-
----
-
-## 2026-08-18 — macos — S11: the restore crash is FIXED, and the rack now survives reload (interactive)
-
-**Interactive session, Jeff directing.** He owned the ordering (fail safe first,
-then find the throw, then wire the editor), ruled GMPI in scope when the fix
-landed there, and REAPER was available throughout — every claim below is a
-measurement in REAPER, not an inference.
-
-**Did:** all three steps, verified, three PRs.
-
-1. **Fail safe on the main thread.** `setState` / `setComponentState` /
-   `stateLoad` are host boundaries the DAW calls on the **main thread** while
-   opening a project. An exception escaping one unwinds into the host's own
-   event loop, where there is no handler — on macOS it reaches
-   `-[NSApplication run]` and `terminate()` aborts the DAW. All three now
-   catch and report failure. CLAP's `stateLoad` is `noexcept`, so an escape
-   there does not even unwind; it calls `std::terminate` directly.
-2. **Found the throw — measured, not reasoned.**
-   `GMPI/Hosting/processor_holder.cpp:503` called `std::stod()` on every
-   parameter's `val` whatever the datatype. Fixed by dispatching on datatype,
-   which the **controller-side reader of the same loop already did** via
-   `GmpiParameter::setFromXml` — so the fix is one line reusing the correct
-   implementation, not a second copy of the dispatch.
-3. **Gave parameter 1 an editor route and imported the document.**
-
-**Result:**
-
-| | Before | After |
-|---|---|---|
-| open `/tmp/tide-restore-test.rpp` | exit **134** SIGABRT in ~8s | loads, REAPER stays up |
-| stderr | `libc++abi: terminating due to uncaught exception of type std::invalid_argument: stod: no conversion` | clean |
-| crash report | `REAPER-2026-08-18-084525.ips` (thread 0, `EXC_CRASH`) | none |
-| rack round trip | modules gone on reload | **2516 bytes, byte-identical** |
-
-The round-trip test is the strong one, and it is objective rather than visual:
-place a module → save → quit → reopen → save again → decode the VST state out
-of both `.rpp` files and diff. Identical, 2516 bytes, `<Document>` + `<DSP>` +
-`<Editor>` + `<master_container>` with all three modules. Before the change the
-same trip came back with the modules gone. Decoder kept at
-`scripts/decode_rpp.py`; artefacts `/tmp/tide-s11-verify.rpp` (the save) and
-`/tmp/tide-s11-final.rpp` (the round trip, shipping binary).
-
-**Learned — five things, three of them traps:**
-
-- **THE STDERR TRICK. Launch the DAW from a shell, not `open -a`, and the
-  uncaught exception names itself.** One line — `std::invalid_argument: stod:
-  no conversion` — turned a static suspicion into proof with no debugger, no
-  breakpoint and no rebuild. Four previous sessions characterised this crash
-  from `.ips` reports alone. Do this **first** next time.
-- **The absent-TIDE-frames reasoning was a red herring, and here is why.** The
-  trace concluded the main thread was innocent of TIDE because no TIDE frames
-  appear on thread 0. But for an **uncaught** exception the stack is already
-  unwound by the time `terminate` runs — the frames are *gone*, not absent.
-  `Processor_VST3::setState` was on that thread all along. An `.ips` for
-  SIGABRT-via-terminate cannot tell you where the throw was.
-- **BUILD TRAP, new and expensive: `GMPI_WRAPPER_FOLDER_OVERRIDE` was not set
-  on this box** — the only one of the four that wasn't. `GMPI_SDK`,
-  `GMPI_UI` and `SYNTHEDITLIB` all point at local checkouts, so
-  `GMPI_Wrappers` looked like it did too. It did not: the build used a
-  FetchContent clone at `build/_deps/gmpi_wrappers-src` (pinned Aug 17 15:33),
-  and **every edit to the local `GMPI_Wrappers` checkout was silently
-  ignored** — compiled fine, changed nothing, no warning. Cost a full
-  build-and-test cycle chasing a route that was never in the binary. Fixed
-  with `cmake -DGMPI_WRAPPER_FOLDER_OVERRIDE=~/Documents/GitHub/GMPI_Wrappers .`
-  in `SynthEdit/build`, and CMake then prints `Using local GMPI WRAPPERS
-  folder`. **Check for that line.**
-- **TIDE cannot run as a Debug build.** `database.se.xml` is absent from the
-  bundle in both configs, so `CModuleFactory::RegisterExternalPluginsXmlOnce`
-  (`SynthEditLib/UgDatabase.cpp:549`) hits `assert(false)` and aborts REAPER.
-  In Release the assert compiles out and it silently returns. Filed as **S13**
-  — it is why every previous session was Release, and it blocks debugging the
-  very crashes we keep chasing. Fix is in a GATED path.
-- **The saved chunk was DSP-only, and the editor cannot read that format.**
-  This is the architectural half nobody had noticed: `<Modules>` (capital,
-  consumed by `SeAudioMaster`) versus `<modules>` under `<master_container>`
-  (consumed by `ImportModules`), and the DSP shape carries **no positions at
-  all**. So the rack could never have come back however well the blob
-  survived. The chunk now carries both sections under one `<Document>`;
-  `BuildDspGraph` navigates `Document->DSP` explicitly, so the sibling is
-  invisible to it.
-
-**Also corrected:** the row's claim that the A/B "exonerated base64" and that
-the crash was unrelated to it. The row itself already carried that correction;
-this run confirms the accurate framing — **the defect is pre-existing and
-latent, and base64 made it reachable** by being the first thing ever to
-serialise a blob as text.
-
-**Next:** two follow-ups filed, neither blocking. **S13** — the Debug-build
-assert above. **S14** — modules placed from the browser get `structRect` all
-zeros, so they persist correctly but do not *render*; the rack looks empty
-though the document is right. Persistence and placement are separate problems
-and only the first is fixed. Also unmeasured still: whether **audio** returns
-now that the document reaches both sides.
-
-**Branch/PR:** [GMPI#5](https://github.com/JeffMcClintock/GMPI/pull/5) ·
-[GMPI_Wrappers#6](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/6) ·
-[SynthEdit#43](https://github.com/JeffMcClintock/SynthEdit/pull/43). **Merge
-GMPI_Wrappers#6 and SynthEdit#43 together** — without the wrapper's caller,
-`SynthEditController::setParameter` is dead code.
 
 ---
