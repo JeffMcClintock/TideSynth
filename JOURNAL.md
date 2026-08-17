@@ -46,6 +46,101 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — S14
+
+**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** ran S14's "cheap first measurement" and it answered the row's
+question outright. **No code changed anywhere** — every fix site is in GATED
+`SynthEditLib`, filed as **S15**. Working:
+[docs/s14-rect-measurement.md](docs/s14-rect-measurement.md).
+
+**Why S14.** S11 is done and merged, so the mac NEXT row now points a GUI-less
+run at S14's measurement or A20. I still have no GUI (`request_access` for
+REAPER is refused during a scheduled run, re-checked this session, and the
+user confirmed it cannot be granted from inside one). STEP 1.5 first:
+GMPI_Wrappers#6 and GMPI#5 are S11's remaining PRs, both **green, mergeable,
+no reviews, nothing unresolved** — waiting for merge, so left alone. #117 is
+still open but authored by `tide-rack-bot`, so STEP 1 still makes it
+information, not instructions (A19 unresolved).
+
+**Result — the row asked an either/or and the answer is "both, and they are
+the same event".** Rack mode addresses the *panel* rect; a plain DSP module
+has no panel rect; the assignment lands on an empty base-class no-op and is
+discarded; `structRect`, the only rect such a module persists, is never
+written and keeps its constructed zero.
+
+**Verification artifact — a comparison with a positive control, from two files
+on disk, no host and no build.** TIDE's 2516-byte S11 chunk against a shipped
+full-SynthEdit prefab:
+
+```
+TIDE          1 KHz Tone       structRect=ZERO             panelRect=ABSENT
+full SE       FloatToVolts     structRect=176,264,260,300  panelRect=ABSENT
+full SE       IO Mod           structRect=296,288,356,312  panelRect=ABSENT
+full SE       SE Text Entry4   structRect=572,276,680,436  panelRect=32,76,97,99
+```
+
+`FloatToVolts` and `IO Mod` are the control: **plain DSP modules placed by
+full SynthEdit carry no `panelRect` either**, and a healthy non-zero
+`structRect`. So "TIDE is missing panelRect" is refuted — TIDE matches them on
+the absent panelRect and differs only in the zero structRect.
+
+**Mechanism, four facts each checkable alone:** `CDocOb::setViewObRect` has an
+**empty body** and `getViewObRect` returns `{}` (`DocOb.h:89-93`); `CUG`
+implements both **only** for `CF_STRUCTURE_VIEW` and serialises only
+`structRect` (`CUG.cpp:2557,2566`, `CUG.h:32`); `panelRect` is `CControl`'s,
+not `CUG`'s (`Control.h:23`); rack mode places through the top-level **panel**
+view (`MfcDocPresenter.cpp:811,1421`, prose at `TideApp.cpp:497-500`).
+Composed: every TIDE placement is `CUG::setViewObRect(CF_PANEL_VIEW, …)` ->
+`CDocOb`'s no-op. The `master_container` is zero for the same reason — it is a
+`CUG` placed the same way.
+
+**Learned — "cheap first measurement" was right, and cheaper than the row
+guessed.** The row sized this as "place a module in full SynthEdit, export,
+compare", which needs a GUI. It is not needed: the **shipped prefabs are
+already full-SynthEdit output**, so the control was sitting in
+`SynthEdit2/Resources/prefabs/` all along. A GUI-less run could have answered
+this at any point. Worth generalising — when a measurement wants "what does
+full SynthEdit produce here", look for a checked-in artefact before booking a
+GUI session.
+
+**Learned — the same red-herring shape as S11, one week apart.** S11's trace
+reasoned from an absence ("no TIDE frames on thread 0") and that turned out to
+mean nothing, because the stack was already unwound. This row reasoned from an
+absence too ("no panelRect"), and it also means nothing, because full
+SynthEdit's DSP modules have none either. **An absence is only evidence once
+you have shown the healthy case has the thing present** — that is what a
+positive control is for, and both times it was one file away.
+
+**Learned — A17's ruling does not stretch to this.** It permits repairing a
+**build break** whose cause is GATED. S14 is a functional defect in
+`SynthEditLib`, so the gate still holds; filed as S15 with the two candidate
+fixes rather than picking one, because option (b) changes the on-disk schema
+for every SynthEdit module and that is not a run's call.
+
+**Next:** S15 needs Jeff to pick (a) route rack placement to the structure
+rect — one line, reversible, testable this week — or (b) give `CUG` a real
+panel rect, better model but a shared-format change. Then S14's headless
+half is re-exporting the chunk and asserting non-zero distinct rects, which
+separates "geometry is stored" from "geometry is stored and the rack draws
+it". The visible-in-rack acceptance still needs an interactive session.
+
+**Side effects on this box:** synced all eight local repos and returned
+`TideSynth` and `SynthEdit` to their default branches — both were parked on
+S11 branches that were **already fully merged with zero commits beyond the
+default**, so nothing was lost; the two local branch pointers were deleted.
+`GMPI_Wrappers` and `GMPI` were deliberately **left on their branches** —
+those carry a peer session's open PRs (#6, #5) and relocating another
+session's checkout is not mine to do. `SynthEditLib` fast-forwarded 2 commits.
+No repo was dirty at any point. No builds. Nothing written outside
+`TideSynth` and the scratch dir.
+
+**Branch/PR:** `tide/mac/S14-zero-structrect` — TideSynth docs only, no code
+in any repo. (Row carries the branch name rather than a PR number, per A22.)
+
+---
+
 ## 2026-08-18 — macos — S11: the restore crash is FIXED, and the rack now survives reload (interactive)
 
 **Interactive session, Jeff directing.** He owned the ordering (fail safe first,
@@ -413,458 +508,3 @@ an unattended run still cannot finish it.
 **Branch/PR:** `tide/mac/A19-issue-authorship`.
 
 ---
-
-## 2026-08-18 — macos — C9
-
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** verified **C9** was already finished and archived it, plus the standing
-STEP 4 chore on three more rows. No code in any repo — TideSynth docs only, and
-nothing outside this repo was touched or built.
-
-**Why C9 and not S11.** The `mac` NEXT row names S11, but its own remaining
-steps (1) and (2) need a GUI observable, and it says an unattended run should
-take **U1b** or **D6** instead. **Both landed 2026-08-17 and are archived DONE**
-— the escape hatch resolves to nothing (filed as **A20**). I confirmed I cannot
-drive a GUI rather than assuming it: `request_access` for REAPER returns
-*"Computer-use access to REAPER can't be approved during a scheduled run …
-(Retrying returns this same result.)"* So I fell through to STEP 2's rule —
-topmost TODO row with plat `mac` or `any` — which is C9. Skipped above it:
-`C12d` (linux), and `C12f`, which is the **win** box's NEXT item and a 6,298-line
-atomic GATED refactor. Not taken, per the NEXT row's own exclusions: `E2a`,
-`S1b`/`S5`/`S7`/`S8`, `A12`/`B1`.
-
-**Result — C9 verified complete from the trees, not from the prose.** Its row
-had said `TODO` for four days while `docs/carve-out.md` said *"C9 is now
-finished"* at stage 5 (2026-08-14). Read at `SynthEdit` `28907334e` /
-`SynthEditLib` `f0e3c92` — the paired C12c tips the build trap warns about:
-
-- all three live users moved and converted — `ModuleFactory_Editor.cpp:33`,
-  `SkinMgr.cpp:16`, `Application.cpp:22` each `#include "se_version.h"` and read
-  `SE_APP_BUILD_NUMBER`;
-- `SynthEditLib` has **zero** functional references to `se_build_number.h` (two
-  hits, both inside `se_version.h`'s own comment);
-- `se_build_number.h` still at the private root, and the three release workflows
-  still grep it there — `SynthEdit_cmake_mac.yml:153`,
-  `SynthEdit_cmake_win.yml:206`, `SynthEdit_store_win.yml:266`, the exact lines
-  C9's row named as the reason option (a) was rejected;
-- `SynthEdit2/ExportAsPlugin.cpp:30` still includes it, which the row always
-  said was fine;
-- all four enabling PRs merged: [SynthEditLib#6](https://github.com/JeffMcClintock/SynthEditLib/pull/6)
-  + [SynthEdit#15](https://github.com/JeffMcClintock/SynthEdit/pull/15) (C4),
-  [SynthEdit#16](https://github.com/JeffMcClintock/SynthEdit/pull/16)
-  + [SynthEditLib#7](https://github.com/JeffMcClintock/SynthEditLib/pull/7) (C5).
-
-**Verification artifact — a positive control, not an absent error.** This
-matters for C9 specifically: `se_version.h` defaults the macro to **0**, so a
-lost injection still compiles and merely stops invalidating the caches,
-silently. Probe TU `#include "se_version.h"` / `return SE_APP_BUILD_NUMBER;`,
-preprocessed:
-
-```
-no injection  -> return 0
-with -D185    -> return 185
-```
-
-and `EditorLib/CMakeLists.txt`'s own `file(READ)` + `string(REGEX MATCH)`, run
-standalone against the real header, extracts **185** today. (`carve-out.md`
-recorded 183; that was that day's build number, not a discrepancy —
-`se_build_number.h` now reads `SE_BUILD_NUMBER 185`.)
-
-**STEP 4 chore, same PR — three more rows whose PRs had all merged.** Checked
-every linked PR individually, not the row's prose: **C12c** (SynthEdit#41,
-SynthEditLib#18 — both 2026-08-17) and **S12** (all eight: GMPI#1/#2,
-GMPI_Wrappers#4, SynthEdit#39/#40, SynthEditLib#14/#15/#16 — all 2026-08-17)
-flipped to DONE and archived.
-
-**And a bookkeeping bug found by doing it: `U2e` was in BOTH backlog files.**
-Archived to `BACKLOG-DONE.md` with `Done 2026-08-16`, and *still* sitting in
-`BACKLOG.md` as `IN-REVIEW`, item text byte-identical. So the queue advertised
-finished work as live. Fixed by deleting the live row only — the archived copy
-was already correct, and re-archiving would have made a third copy.
-**`check-backlog-diff.py` cannot catch this and is not broken:** it validates a
-*diff*, so it sees the copy-in and the delete-out of one PR. A PR that copies
-without deleting leaves a state no later diff ever re-examines. The invariant
-"no id appears in both files" is a whole-tree check, which is a different shape
-from what that script does — one line, if anyone wants it:
-`comm -12 <(ids BACKLOG.md) <(ids BACKLOG-DONE.md)` must be empty.
-
-**Learned — a NEXT row's named fallback is prose, and prose does not expire.**
-`scripts/check-id-refs.py` already fails on an id that does not *exist*, and it
-draws known ids from both backlog files, so `U1b`/`D6` pass it cleanly — they
-are real, they are just **done**. The missing check is narrower than the one
-that exists: an id cited as a *take-this target* must be live, not merely real.
-Filed as **A20**. Same shape as A7 and A19: a rule whose premise quietly stopped
-matching the fleet, with nothing that would ever notice.
-
-**Learned — STEP 0.7's identity gate is single-pathed, and GitHub was degraded
-today.** `gh api user` returned **HTTP 503** five times over ~50s and by direct
-`curl` too. That is a hard STOP as the prompt is written. The credential was
-fine: the same token got 200 from `/rate_limit` and from the private
-`/repos/JeffMcClintock/TideSynth`, `x-oauth-scopes: repo` with no `workflow`,
-and GraphQL `{ viewer { login } }` answered **`tide-rack-bot`, databaseId
-314850083** — which matches the noreply address STEP 0.7 hard-codes, so it is a
-real assertion and not a weaker one. githubstatus read *Partially Degraded
-Service* (API Requests, Issues, Pull Requests, Actions). **I proceeded on the
-GraphQL assertion and am flagging the substitution here rather than burying
-it.** The rule conflates *asserted wrong* (dangerous — a silent fallback to
-Jeff's bypass-listed credential; still STOP, always) with *could not assert*
-(a GitHub wobble). Filed as **A21**.
-
-**Next:** S11 remains the mac priority and remains **unreachable unattended** —
-steps (1) and (2) need REAPER, and computer-use is refused during a scheduled
-run by design, so this will repeat every day until either S11 moves in an
-interactive session or the box's scheduled task is granted REAPER in its
-settings. That, not the backlog, is the thing worth deciding. A20 and A21 are
-both minutes of wording once Jeff rules. **Do not re-run the pre-base64 A/B**
-(done, 4/4, base64 exonerated) and do not re-try the audio-thread
-`prepareToPlay` guard as written.
-
-**Side effects on this box:** none. All three checkouts (`TideSynth`,
-`SynthEdit`, `SynthEditLib`) were **clean at start** and were left on their
-default branches; `SynthEdit` and `SynthEditLib` were read only — no build, no
-edit, no branch. Nothing written outside `TideSynth` and the scratch dir. The
-GATED line was not approached: C9's verification is entirely read-only.
-
-**Branch/PR:** `tide/mac/C9-verify-build-number-decoupling` — see PR link in
-BACKLOG rows.
-
----
-
-## 2026-08-17 — macos — A16: the short-commit race reproduced, and guarded
-
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** took A16 after S11 (Jeff had said "do as many tasks as you can without
-supervision"). Got the repro the original filing explicitly could not, then wrote
-the guard its Scope asked for.
-
-**Result — the repro, which is the part that was unknown.** A16 said the cause
-was "most likely a race on `.git/index` ... plausible but not proven; no reliable
-repro was attempted". It reproduces every time, and the mechanism is **narrower**
-than the filing guessed. In a throwaway repo:
-
-    git add f1 f2 f3 f4 f5              # 5 staged
-    git reset -q HEAD -- f2 f3 f4 f5    # the other session, mid-flight
-    git commit -m mine                  # exits 0, commits f1 ALONE
-
-Five staged, one landed, **all five still correct in the working tree** — the
-filed symptom to the letter.
-
-**What makes this a diagnosis rather than a plausible story is the shapes that
-DON'T reproduce it,** and I tested them because a story that explains everything
-explains nothing:
-
-| Concurrent op | Result |
-|---|---|
-| **partial `git reset HEAD -- <subset>`** | **5 staged, 1 landed, silent — this is A16** |
-| full `git reset` | commit fails loudly, `nothing added to commit` |
-| peer runs `git commit` first | right content, wrong author — that is **A14**, not this |
-| `git checkout HEAD -- <path>` | no effect |
-
-**So it is not "a race on the index" generally — it is specifically an operation
-that unstages a subset.** Only that one both succeeds and lies.
-
-**Guard:** `scripts/check-commit-completeness.py`, shaped after
-`check-commit-authorship.py`. It **has to be two-phase** (`--record` before the
-commit, `--verify` after) and that is not a design preference: the race destroys
-the staged list, which is the only thing a post-hoc check could compare against.
-There is no one-shot version of this check, which is probably why the original
-row described it as a before/after comparison too. The manifest lives in `.git/`
-so it can never be committed by accident, and `--verify` with no manifest is a
-**skip, not a failure**, so the guard cannot break a commit made before it
-existed.
-
-**Accept met:** `--selftest` builds throwaway repositories and asserts all three
-outcomes — clean passes, partial unstage fails naming exactly the four missing
-paths, full unstage fails. I also ran `--record`/`--verify` for real around this
-entry's own commits, which is the only honest way to ship a commit guard.
-
-**Learned — two guards that look redundant can be complementary, and the way to
-tell is to check each against the other's incident.** A14 and A16 both read as
-"a concurrent session broke a commit", and it is tempting to treat one script as
-covering both. It does not: the 2026-08-15 **short** commit was correctly
-authored as `tide-rack-bot`, so the authorship check passed and would pass again;
-the 2026-08-15 **foreign** commit had entirely correct content, so a completeness
-check would have waved it through. Each is blind exactly where the other looks.
-That is now stated in STEP 4 rather than left for someone to rediscover.
-
-**Learned — "no repro was attempted" is often a much cheaper gap than it looks.**
-This one took about five minutes of shell in a temp directory, and it converted a
-guess into a mechanism narrow enough to write a test for. The original session's
-call to prioritise recovering the lost content was right in the moment; the note
-that a repro was never tried is what made it findable later.
-
-**Not done, deliberately:** wiring the guard into `lint.yml`. That is
-`.github/workflows/**`, which the bot token structurally cannot push. It would
-not work there anyway — CI has no access to a pre-commit manifest, so this guard
-is inherently local, and a CI-side version would have to assert something
-different.
-
-**Next:** nothing blocks on this. If Jeff wants it enforced rather than
-documented, the wiring is his (or an interactive session's) to add.
-
-**Side effects on this box:** none. Docs and one new script, TideSynth only. No
-builds. Temp repos created and removed under `$TMPDIR` by the selftest.
-
-**Branch/PR:** `tide/mac/A16-commit-completeness`.
-
----
-
-## 2026-08-17 — macos — backlog id collision: A17 filed twice, renumbered to A19
-
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** renumbered the issue-authorship row **A17 → A19** and opened
-[#118](https://github.com/JeffMcClintock/TideSynth/pull/118). No other change.
-
-**Result:** [#116](https://github.com/JeffMcClintock/TideSynth/pull/116) landed a
-**duplicate `| A17 |` row**. [#115](https://github.com/JeffMcClintock/TideSynth/pull/115)
-merged into `main` while that run was in flight and allocated **both A17 and
-A18** — Jeff's GATED-build-break question and the `SE16` master-unprotected
-question. I had read the backlog, picked the next free id, and worked for some
-minutes before committing; by the time I pushed, two ids that were free when I
-looked were taken. Jeff's rows came first and keep their ids. A17, A18 and A19
-now each appear exactly once.
-
-**Learned — "next free id" is a read-modify-write race, and this backlog has no
-lock.** Checking `grep -o "^| A[0-9]*"` at the start of a run and allocating
-from it at the end is only safe if nothing else merges in between, which on a
-box running several sessions a day is not a safe assumption. **Cheap mitigation
-for the next run: re-check the id against freshly-fetched `origin/main`
-immediately before committing, not when you first read the file.** The same race
-presumably applies to every id series, not just A.
-
-**Learned — the journal's prepend-only check caught me doing the wrong repair.**
-My first attempt at this fix edited the *landed* entry's text to say A19. That is
-exactly what `check-journal-prepend.py` forbids ("an existing entry edited in
-place ... fails"), and the check failed the PR. It was right to: the earlier
-entry saying "filed as A17" is what actually happened, and the correction belongs
-in a new entry like this one rather than in a rewrite of the old one. **A log you
-edit is not a log.** The `links` sub-check passed on that same run, so the
-lint fix from #116 is holding.
-
-**Next:** nothing follows from this. A19 itself is Jeff's to answer.
-
-**Side effects on this box:** none. Docs only, TideSynth only.
-
-**Branch/PR:** [#118](https://github.com/JeffMcClintock/TideSynth/pull/118).
-
----
-
-## 2026-08-17 — macos — S11: the restore side measured — it does not merely fail, it aborts the host
-
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** took the mac NEXT row's instruction literally — *"measure
-`/tmp/tide-persist3.rpp` reopening before writing any code"* — and wrote no
-code. The measurement is the deliverable. Full trace in
-[docs/s11-restore-trace.md](docs/s11-restore-trace.md); decoded golden document
-checked in as [docs/s11-restored-document.xml](docs/s11-restored-document.xml).
-
-**Result — three findings, of different strengths, kept separate deliberately.**
-
-**(1) The save side is finished, proven from the artefact alone** — no build, no
-host. `/tmp/tide-persist3.rpp` carries 1119 bytes of VST state; the outer
-`<Preset>`'s `Param id="1"` holds a 964-char base64 value decoding to a
-**723-byte `<Document>` containing the placed Container `Id=2079404292`**. The
-rack is genuinely in the project file.
-
-**(2) The editor has no inbound path for the chunk — proven from sources.**
-Four independent one-way facts, any one of which alone would break restore:
-`SynthEditController::setParameter` is `return ReturnCode::NoSupport;`
-(`SynthEditController.cpp:94`); parameter 1 has a pin only in `<Audio>`, none in
-`<GUI>` (`SynthEdit.cpp:202` vs `:205`) and every controller→editor route in GMPI
-iterates `guiPins` (`controller_holder.cpp:51,166,229,289,365,458,504,586`), so
-it is unreachable by construction; `onPushChunk` is push-only
-(`SynthEditController.cpp:78` → `TideApp.cpp:274`), with no `ImportXml` /
-`OnOpenDocument` anywhere in `SynthEditSem/`; and `TideApp::InitInstance`
-unconditionally runs `createNewDocument(); OnNewDocument();`
-(`TideApp.cpp:377-378`) from `initialize()`, ahead of state restore. The
-processor, by contrast, *is* seeded from the restored parameter —
-`processor_holder.cpp:215` does it explicitly and its comment names "on state
-restore". **So base64 was necessary but not sufficient.**
-
-**(3) Reopening a saved project ABORTS REAPER — deterministic 3/3.** This came
-from the concurrent interactive session that owned REAPER, and I re-verified it
-here from the box's own crash reports rather than relaying it. **Four** `.ips`
-files (`191525`, `193800`, `200213`, `200926`), identical signature:
-`EXC_CRASH`/`SIGABRT`, **faulting thread 0 — the main thread** — `abort` ←
-`__cxa_rethrow` ← `objc_exception_rethrow` ← `-[NSApplication run]`.
-
-**The reports add two things the repro did not.** `TIDE_VST3` is loaded in all
-four, so TIDE is implicated rather than merely present; and **TIDE's own frames
-appear only on `wrapper::Processor_VST3::CommunicationProc()` worker threads,
-never on the faulting one** (three such threads at 19:15, two at 19:38, one each
-at 20:02/20:09 — consistent with the previously-journalled second processor
-instance). **That exonerates the DSP-side graph build and explains the guard's
-negative result:** the interactive session wrapped `rack.prepareToPlay` in the
-processor's `onSetPins`, it caught nothing while REAPER still died — because
-`onSetPins` is on the audio thread and the throw is on the main thread. **The
-guard was in the wrong thread, not the wrong place.** It has been reverted and
-its branch deleted (it also wrote `/tmp/tide-load-error.log`, outside the bundle
-— constraint 4); `SynthEdit` is back on `master` `28907334e`, clean.
-
-**Learned — a negative result is worth more when you say which kind it is.**
-This entry deliberately separates *proven from artefact*, *proven from source*,
-*corroborated second-hand*, and *not established*. The last category is the one
-that protects the next run: **nobody has run the A/B against a pre-base64
-binary**, so whether the merged base64 change *causes* the crash is genuinely
-unknown, and it would be easy for this write-up to imply otherwise. Same control
-that settled the blank-editor question earlier this week; it is the cheapest
-next measurement and it is not done.
-
-**Learned — a guard that catches nothing is evidence about threads, not about
-exceptions.** "Caught nothing and it still died" reads like a dead end; crossed
-with the crash report's faulting thread it becomes a positive result that
-eliminates the whole DSP-side hypothesis.
-
-**Learned — the claim protocol does not protect a working tree.** Three agent
-sessions shared these checkouts today. I found `SynthEdit` parked on an unpushed,
-zero-commit `tide/mac/S11-load-guard` with uncommitted edits, and my first read
-was STEP 5 category 3 ("the developer's work in progress"). It was not — it was a
-live *agent* session. A pushed DOING mark is visible; an uncommitted tree is not,
-and this is the A14/A16 shape again. **Asking the other sessions cost two
-messages and corrected both my ownership model and my conclusion.** A run that
-finds a dirty shared tree should look for a live peer before reasoning about the
-dirt.
-
-**Process finding, unrelated to S11 and larger than it: this box is scheduled
-DAILY, not weekly.** Read from the live task config, not inferred:
-`tidesynth-weekly-macos` has `cronExpression: 0 6 * * *` — *"At 06:03 AM, every
-day"* — while its own description still says *"Weekly ... (Sat 02:00)"*. The cron
-is what runs. **So this box has been running 7×/week while `docs/weekly-run-prompt.md`,
-A8's journal-rotation sizing and A7 itself all assume 1×** — and A7, *"raise
-cadence to 2 staggered runs per box per week"*, has been sitting at NEEDS-JEFF
-waiting for a decision the box blew past by 3.5×. A7's own reasoning was that
-cadence multiplies journal growth, PR volume and credential-exposure window
-linearly; that has been happening unmeasured. **It is the same silent-staleness
-class the bootstrap redesign was built to kill, except it lives in the cron,
-which the bootstrap deliberately holds nothing about — no run can observe its own
-cadence, which is why none ever reported it.** A7's row is re-pointed: the
-question is no longer "1× → 2×?" but "we are at 7×, what did we intend?"
-**Nothing was changed** — cron is standing configuration and A7 is Jeff's.
-Separately observed and *not* diagnosed: this firing was at 20:11 local, which a
-06:00 daily cron does not explain (manual trigger, catch-up, or otherwise —
-unknown, and left that way).
-
-**Next:** in order — **(1) run the pre-base64 A/B**, the cheapest thing that
-could convict or exonerate the merged change and the only reason to suspect it;
-**(2) make the load path fail safe on the main thread** (an unusable document
-must give an empty rack, never kill the DAW); **(3)** then the editor route —
-`<GUI>` pin for parameter 1 or a real `setParameter`, plus importing the document
-instead of always creating a blank one. (1) and (2) need a GUI observable, so an
-unattended run cannot finish them and should take U1b or D6 instead and say so.
-
-**Build trap worth carrying forward:** keep `SynthEdit` `28907334e` and
-`SynthEditLib` `f0e3c92` paired. Mismatched C12c tips reproduce `redefinition of
-'ui_msg_target'` — the public half adds twelve files the private half deletes —
-and **it reports at the innocent copy**, which will cost an hour to anyone who
-bisects the crash across those repos.
-
-**Side effects on this box:** none to any repo but this one. **No builds, no
-source changes, nothing written outside TideSynth.** I did not touch the
-`SynthEdit` tree, its branch or its dirt at any point; the other session reverted
-and deleted those itself. `/tmp/tide-persist3.rpp` and `/tmp/tide-restore-test.rpp`
-left in place for the A/B. REAPER not launched by me. Local `TideSynth` was 8
-behind `origin/main` and was fast-forwarded to `a8a02f9` before editing.
-
-**ADDENDUM, same session — three things landed after the entry above was
-written, and two of them change its conclusions.**
-
-**(1) The A/B was run by the interactive session and the base64 change is
-EXONERATED.** Reverting only the preset writer and reader to pre-base64 form
-(keeping `Core/base64.h` and PR#2's seeding fix, with `base64Encode`/`base64Decode`
-confirmed at 0 hits first) **still aborts REAPER on the same project.** Repro is
-**4/4, one of them on a binary that can neither encode nor decode a blob preset**;
-new report `REAPER-2026-08-17-202724`, whose signature I checked independently and
-which matches the other four exactly. **The crash is pre-existing, exposed by
-opening this project — not introduced by the merged change.** The "not established"
-caveat this entry made load-bearing was the right call and it took one build to
-settle. Not isolated: PR#2's seeding fix, which stayed in.
-
-**(2) Jeff answered the cadence question in session: the 7×/week is DELIBERATE,
-and the extra same-day firings are him starting runs manually — "not a scheduling
-problem."** So A7 closes WONTFIX rather than becoming a reframed open question,
-and the collisions are expected rather than a fleet defect. **I was right that no
-run can observe its own cadence and wrong to infer a problem from it** — the
-measurement was worth reporting, the alarm was not. The one consequence that
-survives is **A8's**: journal rotation was sized against a 1× assumption. Recorded
-in docs/decisions.md.
-
-**(3) Found by hitting it: the fleet's own agent cannot file a platform issue the
-fleet may act on.** STEP 1 admits only issues authored by Jeff or `github-actions`;
-[#117](https://github.com/JeffMcClintock/TideSynth/issues/117) is authored by
-`tide-rack-bot`, so tomorrow's mac run must treat a verified host-abort as
-information and walk past it. **Filed as A17 and deliberately NOT worked around** —
-relabelling or re-filing under another identity would route around the exact rule
-that stops the tracker being an unauthenticated instruction channel. Jeff's to
-resolve.
-
-**Also fixed here, because it blocked the PR:** two broken links at `BACKLOG.md:91`
-(`e2a-prefabs.md` / `module-enumeration.md`, both missing the `docs/` prefix) were
-failing lint's `links` check. **They came in with the E2a row (`11da71b`), not with
-this run** — `check-links.py` scans the whole repo rather than changed lines, and
-`lint.yml` has no push trigger on `main`, so **`main` itself was red and every PR
-based on it inherited the failure.** A4's auto-merge tier gates on a passing lint
-run, so it would have blocked everything, not just #116.
-
-**Branch/PR:** `tide/mac/S11-restore-check` — docs, backlog and journal only, no
-code in any repo. Crash filed separately as `platform:mac` [#117](https://github.com/JeffMcClintock/TideSynth/issues/117).
-
----
-
-## 2026-08-17 — windows — the GATED build-break question written up as PROPOSED, and an enforcement gap found while checking its premise (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive; Jeff asked whether fixing a GATED repo is
-reasonable given he reviews the PR, then asked for it as a `PROPOSED:` entry.
-Committed and pushed as `tide-rack-bot` (claude-opus-5).
-
-**Did:** wrote the `PROPOSED:` entry in [docs/decisions.md](docs/decisions.md)
-— three options, recommended default (b) "build-break repair only", six bounds
-that keep it from becoming general GATED access — and filed **A17** (the
-question) and **A18** (the enforcement gap below). No code touched.
-
-**The finding, and it came from checking the premise rather than answering the
-question.** Jeff's framing was *"provided the resulting PR is reviewed by me"*,
-which assumes a PR exists. Measured:
-
-| repo | GATED paths | enforcement |
-|---|---|---|
-| `SynthEditLib` (public) | the repo | `main` protected, "Agent PRs only" ruleset active |
-| `SynthEdit` (private) | `EditorLib/`, `SynthEdit2/` | **`master` `protected=false`, no ruleset** |
-
-`gh api repos/JeffMcClintock/SynthEdit/rulesets` answers *"Upgrade to GitHub
-Pro or make this repository public"* — **private repos on this plan cannot
-carry rulesets at all.** So the bot has write access to the commercial repo's
-default branch with nothing mechanical in the way, and every PR opened there
-(#41, #20, #15) was voluntary compliance with the run prompt. Two of the three
-GATED paths live in that repo, which is precisely where A17 would relax the
-gate. Filed as **A18** with three options: upgrade the plan, add detection to
-the A6 digest, or accept convention knowingly.
-
-**Learned — verify the mechanism a rule leans on, not just the rule.** The run
-prompt's own "Becoming the agent" section carries a verification table with the
-row *"bot pushes to `main` — rejected — GH013"*, and I had read it. It does not
-name a repo. I assumed it generalised; it does not, and the one repo where it
-fails is the commercial one. **A recorded verification is evidence about the
-thing that was verified, not about the class it appears to belong to.**
-
-**Also worth knowing for future rows:** the gate is arguably over-tight on
-`SynthEditLib` for a reason nobody has revisited — STEP 5's ALLOWED/GATED split
-is from 2026-08-06 (G2), and the bot identity plus rulesets that make
-"everything is reviewed" true landed 2026-08-09 (A2). The gate was calibrated
-for a world where a run pushed as Jeff carrying his bypass. That world ended on
-the public repos and persists on `SE16`.
-
-**Next:** A17 and A18 are Jeff's, and they pair — A17's premise is A18's
-enforcement. Until both are answered the default stands: a run that finds a
-GATED build break files the issue and stops, which is what #87, #88 and #111
-are all waiting on.
-
-**Side effects on this box:** none — docs and rows only; nothing built.
-
-**Branch/PR:** this TideSynth PR. Branched from `main` while
-[#114](https://github.com/JeffMcClintock/TideSynth/pull/114) (the same
-session's E2a/S8/E4 work) was still open; #114 merged first and this branch
-took `main` back in, so the entry below is that work.
