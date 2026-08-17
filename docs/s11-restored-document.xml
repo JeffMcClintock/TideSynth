@@ -1,0 +1,29 @@
+<?xml version="1.0" ?>
+<Document>
+  <DSP>
+    <Module Id="1" Type="Container">
+      <Plugs />
+      <Modules>
+        <Module Id="2079404292" Type="Container" ExpandInline="0">
+          <Plugs>
+            <Plug Default="6" />
+            <Plug Default="" Idx="1" />
+            <Plug Default="" Idx="2" />
+          </Plugs>
+          <Modules />
+          <Lines />
+        </Module>
+      </Modules>
+      <Lines />
+      <PatchManager>
+        <Parameters>
+          <Parameter DataType="28" Handle="1538918352" HostControl="49" Private="1">
+            <patch-list>
+              <s></s>
+            </patch-list>
+          </Parameter>
+        </Parameters>
+      </PatchManager>
+    </Module>
+  </DSP>
+</Document>
