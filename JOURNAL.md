@@ -46,6 +46,81 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — A17 resolved (b), A18 answered: detection instead of prevention
+
+**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** recorded two rulings that turned out to be one decision. **A17 =
+option (b)** — a run may repair a build break whose cause is in a GATED path,
+under the six bounds. **A18 answered by "I'm not upgrading my plan. Let's make a
+best-effort approach."** Shipped the control that "best effort" has to mean:
+`scripts/check-no-direct-commits.py`.
+
+**Why they are one decision.** A17's own entry flagged that its premise — *it
+gets reviewed* — was only two-thirds true: `SynthEditLib` has a protected `main`
+with an active ruleset, but the private `SE16` has an unprotected `master`,
+because private repos cannot carry rulesets without a plan upgrade. Relaxing the
+gate in the one repo where nothing enforces the replacement would have been the
+worst of both. Jeff ruled out the upgrade, so prevention is off the table there
+permanently and detection is what is left.
+
+**The check, and the thing that nearly made it useless.** First draft: flag any
+non-merge commit on the default branch's first-parent chain authored by
+`tide-rack-bot`. Run against `SE16` it reported **eight commits bypassing
+review** — an alarming, headline-shaped result.
+
+**Every one was a false positive, and checking took one command.** All eight are
+author `tide-rack-bot`, **committer `Jeff McClintock`** — Jeff landing agent work
+by rebase, squash or cherry-pick, which preserves authorship and restamps the
+committer. That is not the gate being bypassed; **that is A17's premise being
+satisfied.** The fix is to require the agent in *both* fields, which a scheduled
+run always has, since STEP 0.7 exports all four `GIT_*` variables.
+
+**Corrected baseline, which is the actually useful output: all six repos clean.**
+No agent commit has ever reached a default branch without a PR — including on
+`SE16/master`, where nothing mechanical was stopping it. Two years of "voluntary
+compliance with the run prompt" turns out to have held.
+
+**Learned — a detector's first alarming result is a test of the detector, not of
+the system.** I had a finding shaped exactly like the one this project keeps
+producing (agent bypasses a control, nobody noticed) and I was one `git log`
+away from reporting it. The habit that caught it is the same one that caught the
+A/B earlier today: **before reporting a measurement, check what else could
+produce it.** Author-without-committer produces this signature, and it is the
+*good* case.
+
+**Learned — my own exported `GIT_*` variables silently broke my selftest.** The
+selftest's "human" commits came out authored as the bot, because a run's shell
+exports `GIT_AUTHOR_NAME` and `-c user.name` does not override an environment
+variable. It passed vacuously in the sense that mattered. Fixed by setting the
+env explicitly per commit. **A test that constructs git history must control the
+environment, not just the config** — and this is a general trap for these
+guards, since the very shell that runs them is the one with the overrides set.
+
+**What did NOT change, deliberately:** option (c) — GATED becomes advisory — was
+declined, because review discharges correctness and irreversibility but not the
+reviewer's attention budget. STEP 3's *"never fix a build failure for a platform
+you cannot compile on"* is untouched and orthogonal; it still keeps #88 with the
+linux box.
+
+**Residual risk, stated rather than buried:** detection is after the fact, and a
+run that ignores its own check still pushes. `SE16` is protected by convention
+plus an alarm, by explicit decision. That is what best-effort means here, and it
+should be written down as a choice so nobody later mistakes it for an oversight.
+
+**Next:** [#87](https://github.com/JeffMcClintock/TideSynth/issues/87),
+[#88](https://github.com/JeffMcClintock/TideSynth/issues/88) and
+[#111](https://github.com/JeffMcClintock/TideSynth/issues/111) are now repairable
+by the boxes that own them — linux and windows both have a broken `main` and, as
+of this ruling, permission to fix it.
+
+**Side effects on this box:** none. Docs and one new script, TideSynth only. No
+builds. The repo scans were read-only.
+
+**Branch/PR:** `tide/mac/A17-gated-build-fix`.
+
+---
+
 ## 2026-08-18 — windows — unblocked the macOS A16 PR, filed the duplicate-id gap as A23 (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive; Jeff asked to sync the repos, hear what was
