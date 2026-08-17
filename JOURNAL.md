@@ -46,6 +46,94 @@ Template:
 
 ---
 
+## 2026-08-17 — macos — suspect (a) refuted; the real cause found: the rack exposes no plugs (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session; Jeff said "do suspect (a)". Committed
+and pushed as `tide-rack-bot` (claude-fable-5).
+
+**Did:** chased suspect (a) — the UMP-vs-MIDI-1.0 format theory — and **it is
+wrong**. Instrumenting the chain instead found the actual break, one layer
+lower and much more consequential: **TIDE's rack container exposes no MIDI
+plug and no audio plugs, so `SetupVstIO` never connects the synthetic VST
+Input's MIDI Out to anything.** No code change; the diagnosis is the
+deliverable.
+
+**Suspect (a) is refuted at the source.** `SeAudioMaster::MidiIn` hands the
+bytes to `ug_vst_in::sendMidi`, which calls `MpeConverter::processMidi` — and
+that function opens with `if (gmpi::midi_2_0::isMidi2Message(msg)) { sink(msg,
+timestamp); return; }`. **MIDI 2.0 passes through by design**, comment and
+all. The UMP packets TIDE forwards are exactly what it accepts. Nothing needs
+translating.
+
+**What the chain probe showed, in order:**
+
+```
+SetupVstIO: synthModule=1 plugs=3
+  synth plug: type=0 dir=0        <- DT_ENUM
+  synth plug: type=4 dir=0        <- DT_BOOL
+  synth plug: type=0 dir=0        <- DT_ENUM
+AudioMaster::MidiIn len=8 [40 90 3c] audioIn=1
+  vst_in sink: size=8 inUse=0 mo=1
+```
+
+`EPlugDataType` is `DT_ENUM=0, DT_TEXT=1, DT_MIDI2=2, DT_DOUBLE=3, DT_BOOL=4,
+DT_FSAMPLE=5`. **So the container's three plugs are ENUM, BOOL, ENUM — there
+is no DT_MIDI2 plug and no DT_FSAMPLE plug.** `SetupVstIO` loops over exactly
+those looking for MIDI and audio, finds neither, and connects nothing —
+which is precisely the measured `inUse=0` on `vst_in`'s MIDI Out. **The MIDI
+arrives at the audio master, is converted correctly, and is then sent into a
+plug with no connections.**
+
+**And this explains the asymmetry that made the bug confusing.** Audio works
+(the tone clipped at +10 dB) **not** through the container's plugs but because
+**Sound Out is a special IO module**: `ug_soundcard_out` registers itself via
+`RegisterIoModule` at `Open()` and receives the host's buffers directly. MIDI
+has no equivalent registration, so it depends on the container plumbing that
+does not exist. **A rack that makes sound while ignoring MIDI is exactly what
+those two different mechanisms predict.**
+
+**The fix direction, for the next session to design rather than guess:** the
+inner rack container needs real plugin IO — a `DT_MIDI2` input plug wired to
+the patch's MIDI In module (and, if audio should ever leave via the container
+rather than via Sound Out's registration, `DT_FSAMPLE` outputs too). In SE
+terms that is what an **IO Mod** provides, and `exportDspXml`'s synthetic
+outer container is the natural place to synthesise it. **Whether TIDE should
+instead treat the patch's "MIDI In" module as a registering special IO module
+— the symmetric counterpart of Sound Out — is the design question, and it is
+Jeff's call.**
+
+**Learned — probe the chain, not the theory.** Suspect (a) was a reasonable
+hypothesis and it cost one build to disprove by *reading the consumer*
+(`processMidi`'s first three lines). The chain probe then located the break
+in a single run because it logged **at four points**, so the last successful
+step and the first failing one were adjacent in the output. **Instrumenting
+several points at once beats bisecting one hypothesis at a time.**
+
+**Caught a build-configuration trap of my own making:** the first probe run
+produced *no log at all*, because `cmake --fresh` had also cleared
+`SYNTHEDITLIB_FOLDER_OVERRIDE`, so the build was compiling **SynthEditLib
+fetched from GitHub** (`_deps/syntheditlib-src`) and my local edits were
+invisible. Verified by `strings`-ing the installed binary for the probe's log
+path — zero hits — before believing the silence. **`strings` the artefact when
+a probe does not fire; the code you edited may not be the code that ran.** The
+override is now restored to the local checkout, which is how this box was set
+up before the `--fresh`.
+
+**Next:** design the container-IO fix (S12(a) continues). Everything else in
+S12's remainder is unchanged.
+
+**Side effects on this box:** four TIDE_VST3 builds; all probes reverted and
+the installed plug-in rebuilt clean (verified probe-free with `strings`).
+`SYNTHEDITLIB_FOLDER_OVERRIDE` now points at the local checkout again; GMPI
+and GMPI_Wrappers remain upstream. REAPER restarted twice. **"Optimus HP" was
+never modified — and the guard proved itself:** REAPER reopened that project
+as the active tab and the rig script aborted rather than touch it, after which
+every subsequent script created its own new tab first.
+
+**Branch/PR:** this TideSynth PR (row + entry only; no code).
+
+---
+
 ## 2026-08-17 — macos — S12(a): MIDI reaches the processor but not the graph (interactive session, Jeff directing)
 
 **Prompt:** n/a — interactive session; Jeff said "sync and clean up, then
@@ -408,79 +496,3 @@ implementation session the row is now written to launch.
 REAPER not driven. Only TideSynth committed.
 
 **Branch/PR:** this TideSynth PR (row + entry only; no code).
-
----
-
-## 2026-08-17 — macos — S11's design answered by Jeff; S12 filed: TIDE makes no sound (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive session. Jeff answered S11's three open questions
-and said to keep building. Committed and pushed as `tide-rack-bot`
-(claude-fable-5).
-
-**Did:** recorded Jeff's three rulings into **S11** so they cannot evaporate,
-and filed **S12** — **TIDE's audio processor is a stub that writes silence, so
-the rack makes no sound at all.** Found while reading the DSP path his answers
-pointed at. **No code this entry**, and the reason is the entry's whole point:
-his answers describe rebuilding a DSP graph, and **there is no DSP graph to
-rebuild.**
-
-**Jeff's rulings, verbatim in substance, now in S11's row:**
-
-1. **A new document implies a rebuild of the DSP graph** — and SynthEdit
-   already handles that: **fade-out → teardown → reconstruction → fade-up.**
-   So restore does not need a new mechanism invented; it needs the existing one
-   driven.
-2. **A host preset change may modify the rack.** It is treated as loading a
-   brand-new document — anything can change.
-3. **All state lives in the preset.** That settles the third question (rack in
-   plug-in state vs a referenced user file) in favour of the preset, which is
-   also what makes (2) coherent.
-
-**S12, and why it stops S11 rather than merely accompanying it.**
-`SynthEditSem/SynthEdit.cpp`'s `class SynthEdit final : public Processor` is
-the only DSP class TIDE has, and its `subProcess` is:
-
-```cpp
-// TODO: Signal processing goes here.
-*left = 0.0f;  *right = 0.0f;
-```
-
-`TideApp` never starts a synth runtime — no `prepareToPlay`, no
-`StartBackgroundProcessing`, no generator. **Nothing anywhere instantiates the
-user's placed modules as DSP.** So the rack is an editor with a silent audio
-stub bolted on: the modules exist as documents and views, and their DSP
-counterparts (which ARE registered — `ug_oscillator2` and the rest) are never
-built into a running graph.
-
-**Why this reframes everything above it.** Ruling 1 says restore must rebuild
-the DSP graph; a rebuild of nothing is a no-op, so **S11's restore path can be
-built today and will be correct, but its DSP half cannot be exercised or
-verified until S12 lands.** And for the release question the two are not equal:
-a rack that forgets your patch is a bad synthesiser, but **a rack that makes no
-sound is not a synthesiser at all.** S12 therefore blocks the R-series ahead of
-S11.
-
-**What this does NOT mean, stated so nobody re-derives it in alarm.** This is
-not a regression and nothing broke: the DSP stub has been a `// TODO` since the
-prototype, and every session since has been building the editor — the thing
-constraint 1 is about. Six sessions of host verification never caught it for
-the same reason they never caught S11: **every test drove the UI, and no test
-ever played a note and looked at a meter.** That is now two findings from one
-missing habit.
-
-**Learned — when a ruling arrives, check its premise before building to it.**
-Jeff's answers are exactly right for the system he is describing; they were
-answers about a DSP rebuild, and the honest response was to look at the DSP
-path before writing a line. Two greps did it. **Building S11's restore first
-and discovering the silence afterwards would have produced code whose central
-claim — "the graph rebuilds" — nobody could test.**
-
-**Next:** **S12** is the item, and it is the real v0.1 gate. S11 is fully
-specified now (Jeff's three rulings + the mechanism already in its row) and can
-follow, or land alongside, once there is a graph for its restore path to
-rebuild. Both rows say which comes first and why.
-
-**Side effects on this box:** none — no code changed, nothing rebuilt, REAPER
-not driven. Only TideSynth was committed in.
-
-**Branch/PR:** this TideSynth PR (rows + entry only; no code).

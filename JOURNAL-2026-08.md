@@ -9449,3 +9449,79 @@ test script aborts if it sees that project active, which it checked and
 reported.
 
 **Branch/PR:** this TideSynth PR (row + entry only; no code).
+
+---
+
+## 2026-08-17 — macos — S11's design answered by Jeff; S12 filed: TIDE makes no sound (interactive session, Jeff directing)
+
+**Prompt:** n/a — interactive session. Jeff answered S11's three open questions
+and said to keep building. Committed and pushed as `tide-rack-bot`
+(claude-fable-5).
+
+**Did:** recorded Jeff's three rulings into **S11** so they cannot evaporate,
+and filed **S12** — **TIDE's audio processor is a stub that writes silence, so
+the rack makes no sound at all.** Found while reading the DSP path his answers
+pointed at. **No code this entry**, and the reason is the entry's whole point:
+his answers describe rebuilding a DSP graph, and **there is no DSP graph to
+rebuild.**
+
+**Jeff's rulings, verbatim in substance, now in S11's row:**
+
+1. **A new document implies a rebuild of the DSP graph** — and SynthEdit
+   already handles that: **fade-out → teardown → reconstruction → fade-up.**
+   So restore does not need a new mechanism invented; it needs the existing one
+   driven.
+2. **A host preset change may modify the rack.** It is treated as loading a
+   brand-new document — anything can change.
+3. **All state lives in the preset.** That settles the third question (rack in
+   plug-in state vs a referenced user file) in favour of the preset, which is
+   also what makes (2) coherent.
+
+**S12, and why it stops S11 rather than merely accompanying it.**
+`SynthEditSem/SynthEdit.cpp`'s `class SynthEdit final : public Processor` is
+the only DSP class TIDE has, and its `subProcess` is:
+
+```cpp
+// TODO: Signal processing goes here.
+*left = 0.0f;  *right = 0.0f;
+```
+
+`TideApp` never starts a synth runtime — no `prepareToPlay`, no
+`StartBackgroundProcessing`, no generator. **Nothing anywhere instantiates the
+user's placed modules as DSP.** So the rack is an editor with a silent audio
+stub bolted on: the modules exist as documents and views, and their DSP
+counterparts (which ARE registered — `ug_oscillator2` and the rest) are never
+built into a running graph.
+
+**Why this reframes everything above it.** Ruling 1 says restore must rebuild
+the DSP graph; a rebuild of nothing is a no-op, so **S11's restore path can be
+built today and will be correct, but its DSP half cannot be exercised or
+verified until S12 lands.** And for the release question the two are not equal:
+a rack that forgets your patch is a bad synthesiser, but **a rack that makes no
+sound is not a synthesiser at all.** S12 therefore blocks the R-series ahead of
+S11.
+
+**What this does NOT mean, stated so nobody re-derives it in alarm.** This is
+not a regression and nothing broke: the DSP stub has been a `// TODO` since the
+prototype, and every session since has been building the editor — the thing
+constraint 1 is about. Six sessions of host verification never caught it for
+the same reason they never caught S11: **every test drove the UI, and no test
+ever played a note and looked at a meter.** That is now two findings from one
+missing habit.
+
+**Learned — when a ruling arrives, check its premise before building to it.**
+Jeff's answers are exactly right for the system he is describing; they were
+answers about a DSP rebuild, and the honest response was to look at the DSP
+path before writing a line. Two greps did it. **Building S11's restore first
+and discovering the silence afterwards would have produced code whose central
+claim — "the graph rebuilds" — nobody could test.**
+
+**Next:** **S12** is the item, and it is the real v0.1 gate. S11 is fully
+specified now (Jeff's three rulings + the mechanism already in its row) and can
+follow, or land alongside, once there is a graph for its restore path to
+rebuild. Both rows say which comes first and why.
+
+**Side effects on this box:** none — no code changed, nothing rebuilt, REAPER
+not driven. Only TideSynth was committed in.
+
+**Branch/PR:** this TideSynth PR (rows + entry only; no code).
