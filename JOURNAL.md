@@ -144,6 +144,8 @@ TIDE at all.
 (Jeff's own `SE16\build` untouched); no other repo modified. All five working
 copies were clean before this run and are returned to their default branches.
 
+**Postscript, same session:** Jeff merged both code PRs within minutes of them being opened (07:21 and 07:24 UTC), so C12c has landed on `master` and `main` already. The row stays `IN-REVIEW` regardless — a run does not set `DONE` on its own fresh work — and the next run may flip it.
+
 **Branch/PR:** [SynthEdit#41](https://github.com/JeffMcClintock/SynthEdit/pull/41)
 + [SynthEditLib#18](https://github.com/JeffMcClintock/SynthEditLib/pull/18),
 which must merge together, plus this TideSynth PR.
