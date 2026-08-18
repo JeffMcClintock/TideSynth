@@ -46,6 +46,81 @@ Template:
 
 ---
 
+## 2026-08-19 — macos — E9's sliver was a silence writer, and next door to it was a live host crash (interactive session, Jeff directing)
+
+**Did:** verified the scheduled run's E9 correction independently (it holds, and is
+stronger than it claimed), then measured the two things nobody had measured, and
+shipped TIDE's half of both.
+
+**Result 1 — a malformed saved chunk was a LIVE HOST CRASH.** The previous run filed
+the `SeAudioMaster.cpp:410` deref as latent, reachable only if something prepared
+before a document existed. It is reachable now. A REAPER project whose saved TIDE
+chunk is `<Patch/>` — well-formed XML, wrong root — **segfaulted the render**:
+`EXC_BAD_ACCESS at 0x28`, `TiXmlNode::FirstChildElement` ← `BuildDspGraph` ←
+`prepareToPlay` ← `onSetPins` ← `Processor_VST3::process`, on a REAPER worker thread.
+The trigger is "no `<Document>` root", **not** "empty": `<Patch/>` parses with no
+error, so `RootElement()` is non-null and `SynthRuntime.cpp:76`'s bundle fallback
+never runs — the absent `dsp.se.xml` is irrelevant on that route. Nothing validated
+the bytes anywhere: `gmpi::base64Decode` silently skips anything outside its
+alphabet, so a truncated or hand-edited project file is enough.
+
+**Result 2 — an unprepared TIDE never wrote its output buffers.** `subProcess` was
+installed only at the tail of `onSetPins`, which never runs for a no-chunk instance
+(no audio inputs → no `PinStreamingStart`; outputs skipped; MIDI has no default; the
+empty blob `continue`s at `processor_holder.cpp:226`). A/B measured in REAPER, same
+build except two lines: without the `open()` install the log shows `host MIDI arrived
+BEFORE the rack was prepared` and **no** silence line; with it, `TIDE: unprepared -
+writing silence to the host's output buffers`. **REAPER is not exposed** — its render
+measured identical either way — so this is a contract fix, not an audible bug on this
+host. Other hosts are untested, and VST3 does not guarantee zeroed buffers.
+
+**Shipped, both in `SynthEditSem/SynthEdit.cpp` (TIDE's own, ungated):** a
+`documentIsBuildable` check that refuses a chunk which is not
+`<Document>`/`<DSP>`/`<Module>`-shaped and logs why, and an `open()` override that
+installs the silence writer immediately. `TIDE_VST3` Release builds clean;
+`tests/hosts/v1-rack.rpp` still renders −6.3 dBFS / −17.0 rms / 2 cables, so no
+regression.
+
+**Learned — the honest boundary of TIDE's guard, measured rather than assumed.** A
+`<Document><DSP><Module/></DSP></Document>` skeleton passes everything TIDE can check
+and **still crashes** (a `<Module>` with no `<PatchManager>` reaches
+`ug_container.cpp:1469`). TIDE can refuse the wrong *shape*; it cannot validate the
+engine's schema. My first harness used that skeleton as its positive control and the
+run correctly failed — the real chunk from `tests/hosts/v3-midi-pitch.rpp` is the
+positive control now, and the skeleton is reported as a KNOWN LIMIT so nobody reads it
+as a pass.
+
+**Learned — E10's Accept clause would have passed while the process still crashed.**
+`SynthRuntime.cpp:157` calls `OpenGenerator()` unconditionally after `BuildDspGraph`,
+and `SeAudioMaster::Open()` dereferences `main_container` at `:2330`, which is null
+after ANY early return from the build — including the `:413` return already there. So
+"move the guard one line, rerun the probe, see the return" is a fix that does not fix.
+The row now says so, and E10's real scope is at least three deref sites plus a way for
+`SynthRuntime` to learn the build failed.
+
+**Learned — one trap for the next person measuring this.** A fixture cannot be
+hand-edited to carry a different chunk: REAPER's VST3 state block embeds length fields
+(`header[8] = len(body)`, `body = u32(len(xml)+4), u32(1), u32(len(xml)), xml, 8 zero
+bytes`), so the block has to be *synthesised*. And a hand-written `<VST …>` line with
+no state does not instantiate at all — REAPER says "the following effects … are not
+available", which looks exactly like a passing test if you only read the rendered
+audio. Both are handled in
+[scripts/measure-chunk-robustness.py](scripts/measure-chunk-robustness.py).
+
+**Also corrected in [docs/e9-sample-rate.md](docs/e9-sample-rate.md):** the probe's
+build command (`../TideSynth/…` → `../../TideSynth/…`, since TideSynth is a sibling of
+SynthEditLib, so the command as shipped could not compile) and the
+`BundleInfo.cpp:542` citation, which is the `_WIN32` branch — the mac path these
+measurements ran on is `:581-637`.
+
+**Next:** **E10** (GATED; rewrite its Accept clause first). **E11** filed but wants a
+measurement, not a patch: `processor_holder.cpp:231` publishes a raw pointer into a
+vector another thread may reallocate, flagged unverified by an agent and not chased.
+
+**Branch/PR:** `tide/mac/e10-chunk-guard` in both TideSynth and SynthEdit.
+
+---
+
 ## 2026-08-19 — windows — C12f (and #111 verified closed)
 
 **Prompt:** 397330d1b · Opus 5 (1M context), claude-opus-5[1m] · app version
@@ -364,90 +439,3 @@ should know `reInitialize()` does not update the `AU2_Wrapper::sampleRate` that
 
 ---
 
-## 2026-08-18 — macos — PLAN's v0.1 acceptance test is COMPLETE (interactive session, Jeff directing)
-
-**Did:** merged the last three PRs, synced the fleet, rebuilt against updated
-dependencies and re-measured everything. **Every clause of PLAN's v0.1 acceptance
-test now passes, measured.** V3 and E8 are DONE and archived.
-
-**The acceptance test, clause by clause, all measured rather than argued:**
-
-| clause | evidence |
-|---|---|
-| loads in a DAW, shows the rack | `TIDE: 5 rack prefab(s) seeded from the bundle`, editor opens |
-| drop in an oscillator and an envelope as prefabs | E2a, DONE |
-| cable them to an output | 4 patch cables in `HC_PATCH_CABLES` |
-| **play it from the DAW's MIDI** | **261.6257 Hz for a middle C — +0.001 cents** |
-| patch survives save-and-reload | −6.3 dBFS, 440.0 Hz, cables intact |
-
-Five host fixtures in `tests/hosts/`, E1 **4/4**, all re-run from merged `main`.
-
-**Where this session started:** nobody had ever heard TIDE make a sound after a
-host reload, and V1 had been blocked for weeks behind a circular dependency with
-E2a. It ends with the whole v0.1 bar cleared and four checked-in fixtures anyone
-can re-run in one command. That last part is the real change — this stopped being
-something the project reasons about and became something it measures.
-
-**Rows closed today:** V1, E2a, V3, E8 — all archived. **A25** landed too (the
-NEXT-block check now actually gates `lint`, proven by a two-commit probe).
-
-**Still open, and none of them blocking:** **E9** (TIDE latches its sample rate at
-document-push time with no rate-change path — the nearest thing to a live defect
-left, and the new `mac` NEXT target), **E7** (polyphony cannot escape a container —
-V3 side-stepped it by keeping the MIDI-CV at the root, so it is an
-engine-limitation row now rather than a blocker), **E6**, **S8**, **E2**, and
-**E5**/**A25**-style items needing Jeff.
-
-**Dependency churn checked rather than assumed.** The sync pulled GMPI_Wrappers
-`ea2e357 → ebf8cfe`, GMPI-plugins `5c1c6e5 → 79e3f92` and synthedit-website. TIDE
-builds against local overrides of GMPI and GMPI_Wrappers, so those land in the
-plugin on the next build — which is exactly the kind of thing that silently
-invalidates a measurement. So TIDE was rebuilt against them and every fixture
-re-measured **unchanged**, including the pitch at +0.001 cents. Both deltas were also audited
-and both came back `affects_tide: no` at high confidence, which explains the
-unchanged numbers rather than just corroborating them:
-
-* **GMPI-plugins** deletes one stale unused `FreqAnalyser.xml` that was never a
-  build input (its CMakeLists never passed `HAS_XML`; the plugin registers inline
-  in code under a different id), and GMPI-plugins is not in TIDE's build at all.
-* **GMPI_Wrappers** is 20 files, all under `wrapper/Standalone/` or `mcp/` —
-  nothing under `wrapper/VST3/`, `wrapper/common/` or the shared
-  `GMPI_HOSTING_SRCS`. It teaches the standalone to notice when its audio device
-  dies (`isStreamRunning`/`stoppedReason`) and hardens the Windows named-pipe IPC.
-  `Processor_VST3.cpp` is not in the changed-file list at all, and no added or
-  removed line mentions ump/noteon/pitch/bend — so the class of bug fixed today is
-  not in scope. The one CMake risk was real and is clear: `add_subdirectory(Standalone)`
-  is unconditional, so a configure error there would break TIDE's configure even
-  though the VST3 never links the target; the sole change is one header added to
-  `standalone_mcp_srcs`, and the file exists.
-
-**Two caveats from that audit worth keeping, both confined to `TIDE_STANDALONE` —
-the developer target this project uses for screenshot/click/render work.** (1) The
-MCP `info` reply now gates `sampleRate`/`bufferFrames` on a live driver poll and
-adds an `audioStopped` field, **so a harness that reads `sampleRate` out of `info`
-will find it ABSENT rather than stale once a stream has died** — a JSON-shape
-change in the measurement tooling, not in what TIDE renders. (2) Windows only:
-WASAPI's `Start()` moved inside `open()`, so a device that refuses to start now
-fails the open instead of returning success and playing nothing. Strictly better,
-but a real behaviour change if anyone drives the Windows standalone.
-
-**Learned, and it is the pattern of the whole session.** Six of my own hypotheses
-died today, and every single one failed the same way: **I attributed a silence or
-an error measured at the END of a chain to a component inside it.** The tool (E6),
-the wire (the missing converters), the module (MidiToGate2), the sample rate, the
-convention, the JUCE block. Each time the fix was to measure at the suspected link
-instead — a `Sound Out` inside the container, a trace in the module, the authors'
-own `DMIDI_LOG`. And twice the *instrument* was the thing at fault: the render tap
-cannot see inside a container, and a 0.25 s Goertzel window cannot separate two
-candidates 1.2 Hz apart. **Validate the instrument on a case whose answer you
-already know, before believing what it says about the case you care about.**
-
-**Side effects on this box:** no REAPER this round — every measurement was a
-headless render. TIDE_VST3 rebuilt Release from merged `master`. All fourteen repos
-on their default branches and clean; the three merged feature branches deleted and
-pruned. `AlphaBlender` remains parked on `DrawOnImage`, `VST_SDK` detached at its
-SDK tag, both deliberately.
-
-**Next:** **E9**.
-
-**Branch/PR:** `tide/mac/v3-e8-done`.

@@ -226,8 +226,12 @@ No `dsp.se.xml`. So a `prepareToPlay` from `open()` walks this chain:
    forces `mustReinitilize` (`SynthEditLib/SynthRuntime.cpp:48-53`).
 2. `pendingDocumentXml_` is empty, so `currentDspXml` keeps no root, and the
    fallback reads the bundle resource (`:76-79`).
-3. `BundleInfo::getResource("dsp.se.xml")` finds no file and returns `{}`
-   (`modules/se_sdk3_hosting/BundleInfo.cpp:542-546` — `f.fail()` → `return {}`).
+3. `BundleInfo::getResource("dsp.se.xml")` finds no file and returns an empty
+   string. (Cited as `BundleInfo.cpp:542-546`'s `f.fail()` → `return {}` when this
+   section was written; that is the `#if defined(_WIN32)` branch. The mac path
+   these measurements were taken on is `:581-637` — `std::string result;` at
+   `:584`, never written when `CFBundleCopyResourceURL` fails at `:600`, so
+   `:637 return result;` yields `""`. Same outcome, right platform.)
 4. `currentDspXml.Parse("")` → parse error, `RootElement() == nullptr`.
 5. `BuildDspGraph` is called anyway (`SynthRuntime.cpp:147`), and:
 
@@ -267,7 +271,7 @@ Build and run it with:
 
 ```bash
 clang++ -std=c++17 -I. -o /tmp/e9_probe \
-  ../TideSynth/tests/e9_buildgraph_null_probe.cpp \
+  ../../TideSynth/tests/e9_buildgraph_null_probe.cpp \
   tinyxml.cpp tinyxmlparser.cpp tinyxmlerror.cpp   # from SynthEditLib/tinyxml
 ```
 
@@ -307,3 +311,91 @@ a processor before the controller has any state to push.
   (`prepareToPlay(…, 0 == offLineRenderMode)`) is inside `#if 0`
   (`AU2_Wrapper.cpp:462`), so the offline-render property triggers a rebuild
   whose purpose has been amputated. Tempo/PPQ reporting is `#if 0` too (`:740`).
+
+## Measured on the real plugin, 2026-08-19 — two defects, one fixed here
+
+The sections above were reasoned from source and unit probes. Both of their open
+questions have now been settled in REAPER with the shipped VST3, using
+[`scripts/measure-chunk-robustness.py`](../scripts/measure-chunk-robustness.py),
+which synthesises REAPER VST3 state blocks so a project can carry an arbitrary
+saved chunk (the length fields make hand-editing a fixture impossible — the block
+has to be built).
+
+### 1. A malformed saved chunk was a live host crash, not a latent one
+
+`<Patch/>` as the saved chunk — well-formed XML, wrong root — **segfaulted the
+render**:
+
+```
+exception: EXC_BAD_ACCESS (SIGSEGV), KERN_INVALID_ADDRESS at 0x0000000000000028
+  TiXmlNode::FirstChildElement(char const*) const      <- SeAudioMaster.cpp:410
+  SeAudioMaster::BuildDspGraph(...)
+  SynthRuntime::prepareToPlay(...)
+  SynthEdit::onSetPins()
+  gmpi::Processor::process(int, gmpi::api::Event const*)
+  wrapper::Processor_VST3::process(Steinberg::Vst::ProcessData&)
+  REAPER VST_HostedPlugin::VST3_Process<float> ... MediaTrack::RenderSamples ...
+```
+
+Note what this kills: the framing that the deref only matters *if* something
+prepares before a document exists. It does not need E9 at all. And the trigger is
+**"no `<Document>` root", not "empty"** — `<Patch/>` parses with no error, so
+`RootElement()` is non-null and `SynthRuntime.cpp:76`'s bundle fallback never
+runs; the absent `dsp.se.xml` is irrelevant on this route.
+
+TIDE now refuses such a chunk instead of handing it over. Measured, all four
+shapes, each rendering cleanly with its reason logged:
+
+| saved chunk | before | after |
+|---|---|---|
+| `this is not xml at all` | crash route (via the bundle fallback) | `REFUSED … it does not parse as XML` |
+| `<Patch/>` | **SIGSEGV, measured** | `REFUSED … it has no <Document> root` |
+| `<Document/>` | `:413` returns, then `Open()` nulls `main_container` | `REFUSED … it has no <DSP> section` |
+| `<Document><DSP/></Document>` | `:420` nulls | `REFUSED … it has no <Module> inside <DSP>` |
+
+**The boundary of that guard is measured too, and it is not the whole problem.** A
+`<Document><DSP><Module/></DSP></Document>` skeleton satisfies everything TIDE
+checks and **still crashes** (a `<Module>` with no `<PatchManager>` reaches
+`ug_container.cpp:1469`). TIDE can refuse chunks of the wrong *shape*; it cannot
+validate the engine's schema. The harness reports that case as a KNOWN LIMIT
+rather than a pass, and it is what **E10** still has to fix in `SynthEditLib` —
+where, per the critic's finding, moving the one line is **not enough**:
+`SynthRuntime.cpp:157` calls `OpenGenerator()` unconditionally, so every early
+return from `BuildDspGraph` — including the one already there — leads to
+`SeAudioMaster::Open()` dereferencing a null `main_container` at `:2330`.
+
+### 2. An unprepared TIDE never wrote its output buffers
+
+`subProcess` was installed only at the tail of `onSetPins`, and `onSetPins` runs
+only when a pin is set. A no-chunk instance gets no such event: `PinStreamingStart`
+is emitted only for audio **inputs** (TIDE declares none), output pins are skipped,
+MIDI has no default, and the empty blob `continue`s at `processor_holder.cpp:226`.
+
+A/B measured on a project whose saved chunk is empty, same build except for those
+two lines:
+
+```
+open() install DISABLED:   TIDE: host MIDI arrived BEFORE the rack was prepared, dropped
+                           (no silence line -- subProcess never ran)
+open() install ENABLED:    TIDE: host MIDI arrived BEFORE the rack was prepared, dropped
+                           TIDE: unprepared - writing silence to the host's output buffers
+```
+
+No wrapper clears output buffers for the plugin (`Processor_VST3.cpp:906-941`
+hands them over as-is and its output-`silenceFlags` block is `#if 0`; AU2 and CLAP
+the same), so what a host hears in that state is whatever it left in the buffer.
+**REAPER is not exposed** — its render measured identical either way, so this is a
+contract fix rather than an audible bug on this host, and VST3 does not guarantee
+zeroed buffers so other hosts are untested. The fix is an `open()` override in
+`SynthEditSem/SynthEdit.cpp` that installs the silence writer immediately, which
+also makes `subProcess`'s "silence, exactly as the pre-S12 stub behaved" comment
+true instead of aspirational.
+
+### What E9's remaining sliver turned out to be
+
+Not an early `prepareToPlay`. At `open()` the processor **structurally cannot**
+have a document — `processor_holder.cpp:82` calls `open()`, and the blob is a
+queued `PinSet` seeded at `:215` and drained in the first `process()` — so a
+document-guarded early prepare would no-op every time, and latching the rate there
+buys nothing over reading `host->getSampleRate()` at push time, which is what TIDE
+already does. The sliver was the silence writer, and the crash next door.
