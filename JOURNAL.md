@@ -46,6 +46,104 @@ Template:
 
 ---
 
+## 2026-08-19 — macos — E9 (re-specced; E10 and A26 filed)
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 1.32352.0 · as tide-rack-bot
+
+**Did:** Continued E9 on this branch per STEP 2 (open PR #149 from my own
+platform names it). Before writing the `open()` override the row and the
+research doc both recommended, I checked the one thing neither had: whether the
+precedent actually transfers. **It does not, and implementing it as written
+would have null-dereferenced.** Wrote that up, added the probe that proves it,
+re-specced E9, and filed the two things it exposed.
+
+**Result: the recommended fix would crash, measured with positive controls.**
+`SeGmpiProcessor::open()` may call `prepareToPlay` immediately because an
+exported SynthEdit plugin bakes its graph into the bundle as `dsp.se.xml`. TIDE
+has no such resource — the document arrives at runtime as the blob — confirmed
+against the installed bundle:
+
+    $ ls ~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3/Contents/Resources
+    ControlsXp.xml  Converters.xml  MidiPlayer2.xml  Prefabs  SubControlsXp.xml
+
+So preparing from `open()` walks: `mustReinitilize` is forced by
+`generator == nullptr` (`SynthRuntime.cpp:48-53`) -> no root, so it falls back
+to the bundle resource (`:76-79`) -> `BundleInfo::getResource` finds no file and
+returns `{}` (`BundleInfo.cpp:542-546`) -> `Parse("")` errors, `RootElement()`
+is null -> `BuildDspGraph` runs anyway (`:147`), and:
+
+    document_xml = hDoc.FirstChildElement("Document").Element();   // :409 -> nullptr
+    pElem = document_xml->FirstChildElement("DSP");                // :410 -> DEREFERENCES IT
+    if (!pElem)                                                    // :413 -> one line too late
+        return;
+
+The verification artifact is `tests/e9_buildgraph_null_probe.cpp`, which
+reproduces `SeAudioMaster.cpp:403-413` verbatim against the real
+`SynthEditLib/tinyxml` sources. It ran clean from the committed copy:
+
+    --- EMPTY document  (TIDE with no chunk pushed) ---
+      RootElement()       : NULL
+      document_xml (:409) : NULL
+      -> SeAudioMaster.cpp:410 would dereference this NULL pointer.
+    --- POSITIVE CONTROL: <Document> with no <DSP> ---
+      document_xml (:409) : non-null
+      pElem   (:410)      : NULL  -> guard at :413 returns cleanly
+    --- POSITIVE CONTROL: <Document><DSP/> ---
+      pElem   (:410)      : non-null  -> guard at :413 passes
+
+**The two controls are the point.** The middle case is exactly what the existing
+`if (!pElem)` guard was written for, and it passes — so the NULL in the first
+case is the code's behaviour, not the probe failing to run.
+
+**Learned, and worth not rediscovering:**
+
+1. **"It has an exact precedent to copy" is a claim about TWO call sites, and
+   the 2026-08-18 research only checked one.** The asymmetry that kills it —
+   `SeGmpiProcessor` always has a document at `open()`, TIDE never does — is
+   invisible from the precedent's own source. This is the second time an E9
+   conclusion has been confidently wrong in the same direction: the row's
+   original "silent detune" diagnosis was also an inference nobody had run.
+2. **The guard at `SeAudioMaster.cpp:409-413` is one line short of its own
+   intent.** Its comment ("should always have a valid root but handle gracefully
+   if it does" — garbled in the original) shows defensiveness was meant. Filed
+   as **E10**, GATED, NOT fixed: `SynthEditLib` is gated and this is a latent
+   crash, not a build break, so STEP 5's build-break exception does not apply.
+   It is not live today because every current caller has a document.
+3. **STEP 2's continue-a-branch rule trips STEP 4's authorship check, and I hit
+   it.** This branch was started by an interactive session, so its two commits
+   are authored `Jeff McClintock`; `check-commit-authorship.py` defaults to
+   `origin/main..HEAD`, sees them, and prints **"Do not push"** — for commits
+   already pushed before this run began, which STEP 4 separately forbids
+   rewriting. **My own two commits are clean** (`--range e01bb72..HEAD` ->
+   "all commits authored by tide-rack-bot"). Filed as **A26** with the
+   `--range` workaround. **Being honest about the order I did this in:** the
+   push and the check ran as separate statements, so the push went out before I
+   had read the check's verdict. It happened to be the right outcome, but I did
+   not decide it first. A run that gets used to pushing past "Do not push" on
+   continued branches is exactly the failure A14 wrote that check to catch.
+
+**Not verified, deliberately not claimed:** I did **not** build TIDE or
+SynthEdit this run, so I cannot say whether `main` builds on this box today.
+Nothing I changed is compiled into either — the commits are docs, a standalone
+probe, and BACKLOG rows. The probe itself compiled and ran clean under
+`clang++ -std=c++17` against SynthEditLib's tinyxml, which says the toolchain
+works and nothing more. Whoever takes E10 must build **SynthEdit as well as
+TIDE**: `SeAudioMaster.cpp` ships in both.
+
+**Next:** E9 is `NEEDS-SPEC` and should stay there until someone answers what
+TIDE prepares with before a document exists — a no-op guard restores today's
+behaviour and buys nothing, and a minimal stand-up document is a design call
+(`SeAudioMaster.cpp:421-422` asserts the first `<DSP>` child is a
+`Module`/`Container`, so "empty" is not free). E10 unblocks the safety half and
+is one line, but it is GATED. The mac NEXT block now points at **E2** or the
+per-prefab **E1** cases instead — coverage work with stated acceptance checks.
+
+**Branch/PR:** [#149](https://github.com/JeffMcClintock/TideSynth/pull/149) —
+continued rather than branched fresh, per STEP 2; a fresh branch would have
+conflicted with it on `BACKLOG.md`, `JOURNAL.md` and `docs/e9-sample-rate.md`.
+All four working copies (TideSynth, SynthEdit, SynthEditLib, GMPI) were clean at
+start and are left on their default branches.
+
 ## 2026-08-18 — macos — E9 researched: a rate change is absorbed by REPLACING the plugin, not by re-reading the rate (interactive session, Jeff directing)
 
 **Did:** answered Jeff's question — *how do SynthEdit's AU and VST3 targets handle
@@ -408,67 +506,3 @@ would move every SynthEdit patch, so the prefab is almost certainly what changes
 **E7** stays open as the underlying engine limitation, but nothing now waits on it.
 
 **Branch/PR:** `tide/mac/V3-root-midicv`.
-
-## 2026-08-18 — macos — A25: the NEXT-block check now actually runs, proven by probe (interactive session, Jeff directing)
-
-**Did:** wired `scripts/check-next-block.py` into the `lint` job. It shipped with
-**A20** and nothing ran it, so a NEXT block could send a run at an archived row
-and CI would say nothing.
-
-**All four parts, because three of them is worse than none.** A15's row records
-the trap and this run demonstrates it rather than restating it: the Summary step
-is what turns a red *step* into a red *job*. Wire only the step and it goes red
-while the job still passes — a check that reports and does not gate.
-
-1. the step, after `idrefs` — whole-tree, for the same reason that one is: a
-   take-target goes stale when the row it names is **archived**, which is an edit
-   to a *different* file than the one citing it, so a base-vs-head diff misses
-   exactly the case that matters
-2. `NEXTBLOCK: ${{ steps.nextblock.outcome }}` in the Summary's `env`
-3. `echo "next-block: $NEXTBLOCK"` beside the other five
-4. `"$NEXTBLOCK"` in the `for outcome in …` list that sets `fail=1`
-
-**Result — the two-commit probe A25 asked for, run for real.** Commit 1 pointed
-the `mac` NEXT row at **E2a**, which is archived:
-
-```
-links:      success
-journal:    success
-backlog:    success
-provenance: success
-id-refs:    success
-next-block: failure      <- job FAILED, not merely the step
-```
-
-[run 32105947035](https://github.com/JeffMcClintock/TideSynth/actions/runs/32105947035).
-Commit 2 removed the probe: all six `success`, job green —
-[run 32106036402](https://github.com/JeffMcClintock/TideSynth/actions/runs/32106036402).
-
-**Simulated locally before pushing anything**, by running the three whole-tree
-checks against a clean tree and against a planted probe. That cost nothing and
-meant the CI run confirmed a prediction rather than discovering a surprise.
-
-**The row's access claim is confirmed as well, and it cuts both ways.** A25 said
-only Jeff or an interactive session could push this, because the bot token
-deliberately lacks `workflow` scope. This was an interactive session and the push
-to `.github/workflows/**` was accepted. **So the wall is real and still stands for
-a scheduled run** — the same wall that blocks **A12** and **B1**, which remain
-un-takeable by any agent.
-
-**Learned:** `gh run view --log` interleaves ANSI escapes and tab-separated
-job/step prefixes, so grepping it for a Summary line finds the `echo` command
-rather than its output. `sed 's/\x1b\[[0-9;]*m//g' | awk -F'\t' '$2=="Summary"{print $3}'`
-gets the actual six lines. Worth keeping — reading a Summary block is the normal
-way to check any of these lint steps.
-
-**Next:** unchanged — **E7**, the polyphony question, with Jeff's rulings already
-reducing it to "where do the jacks live". **A12** and **B1** stay blocked on the
-token, and this run is the evidence for why: the push that worked here worked
-*because* a human was driving it.
-
-**Side effects on this box:** no builds, no REAPER, no plugin changes — this was
-a CI-wiring run. Two CI runs consumed on the probe, deliberately.
-
-**Branch/PR:** `tide/mac/A25-nextblock-lint` —
-[#145](https://github.com/JeffMcClintock/TideSynth/pull/145).
-
