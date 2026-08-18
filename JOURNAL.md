@@ -46,6 +46,81 @@ Template:
 
 ---
 
+## 2026-08-19 — macos — E9's sliver was a silence writer, and next door to it was a live host crash (interactive session, Jeff directing)
+
+**Did:** verified the scheduled run's E9 correction independently (it holds, and is
+stronger than it claimed), then measured the two things nobody had measured, and
+shipped TIDE's half of both.
+
+**Result 1 — a malformed saved chunk was a LIVE HOST CRASH.** The previous run filed
+the `SeAudioMaster.cpp:410` deref as latent, reachable only if something prepared
+before a document existed. It is reachable now. A REAPER project whose saved TIDE
+chunk is `<Patch/>` — well-formed XML, wrong root — **segfaulted the render**:
+`EXC_BAD_ACCESS at 0x28`, `TiXmlNode::FirstChildElement` ← `BuildDspGraph` ←
+`prepareToPlay` ← `onSetPins` ← `Processor_VST3::process`, on a REAPER worker thread.
+The trigger is "no `<Document>` root", **not** "empty": `<Patch/>` parses with no
+error, so `RootElement()` is non-null and `SynthRuntime.cpp:76`'s bundle fallback
+never runs — the absent `dsp.se.xml` is irrelevant on that route. Nothing validated
+the bytes anywhere: `gmpi::base64Decode` silently skips anything outside its
+alphabet, so a truncated or hand-edited project file is enough.
+
+**Result 2 — an unprepared TIDE never wrote its output buffers.** `subProcess` was
+installed only at the tail of `onSetPins`, which never runs for a no-chunk instance
+(no audio inputs → no `PinStreamingStart`; outputs skipped; MIDI has no default; the
+empty blob `continue`s at `processor_holder.cpp:226`). A/B measured in REAPER, same
+build except two lines: without the `open()` install the log shows `host MIDI arrived
+BEFORE the rack was prepared` and **no** silence line; with it, `TIDE: unprepared -
+writing silence to the host's output buffers`. **REAPER is not exposed** — its render
+measured identical either way — so this is a contract fix, not an audible bug on this
+host. Other hosts are untested, and VST3 does not guarantee zeroed buffers.
+
+**Shipped, both in `SynthEditSem/SynthEdit.cpp` (TIDE's own, ungated):** a
+`documentIsBuildable` check that refuses a chunk which is not
+`<Document>`/`<DSP>`/`<Module>`-shaped and logs why, and an `open()` override that
+installs the silence writer immediately. `TIDE_VST3` Release builds clean;
+`tests/hosts/v1-rack.rpp` still renders −6.3 dBFS / −17.0 rms / 2 cables, so no
+regression.
+
+**Learned — the honest boundary of TIDE's guard, measured rather than assumed.** A
+`<Document><DSP><Module/></DSP></Document>` skeleton passes everything TIDE can check
+and **still crashes** (a `<Module>` with no `<PatchManager>` reaches
+`ug_container.cpp:1469`). TIDE can refuse the wrong *shape*; it cannot validate the
+engine's schema. My first harness used that skeleton as its positive control and the
+run correctly failed — the real chunk from `tests/hosts/v3-midi-pitch.rpp` is the
+positive control now, and the skeleton is reported as a KNOWN LIMIT so nobody reads it
+as a pass.
+
+**Learned — E10's Accept clause would have passed while the process still crashed.**
+`SynthRuntime.cpp:157` calls `OpenGenerator()` unconditionally after `BuildDspGraph`,
+and `SeAudioMaster::Open()` dereferences `main_container` at `:2330`, which is null
+after ANY early return from the build — including the `:413` return already there. So
+"move the guard one line, rerun the probe, see the return" is a fix that does not fix.
+The row now says so, and E10's real scope is at least three deref sites plus a way for
+`SynthRuntime` to learn the build failed.
+
+**Learned — one trap for the next person measuring this.** A fixture cannot be
+hand-edited to carry a different chunk: REAPER's VST3 state block embeds length fields
+(`header[8] = len(body)`, `body = u32(len(xml)+4), u32(1), u32(len(xml)), xml, 8 zero
+bytes`), so the block has to be *synthesised*. And a hand-written `<VST …>` line with
+no state does not instantiate at all — REAPER says "the following effects … are not
+available", which looks exactly like a passing test if you only read the rendered
+audio. Both are handled in
+[scripts/measure-chunk-robustness.py](scripts/measure-chunk-robustness.py).
+
+**Also corrected in [docs/e9-sample-rate.md](docs/e9-sample-rate.md):** the probe's
+build command (`../TideSynth/…` → `../../TideSynth/…`, since TideSynth is a sibling of
+SynthEditLib, so the command as shipped could not compile) and the
+`BundleInfo.cpp:542` citation, which is the `_WIN32` branch — the mac path these
+measurements ran on is `:581-637`.
+
+**Next:** **E10** (GATED; rewrite its Accept clause first). **E11** filed but wants a
+measurement, not a patch: `processor_holder.cpp:231` publishes a raw pointer into a
+vector another thread may reallocate, flagged unverified by an agent and not chased.
+
+**Branch/PR:** `tide/mac/e10-chunk-guard` in both TideSynth and SynthEdit.
+
+---
+
 ## 2026-08-19 — macos — E9 (re-specced; E10 and A26 filed)
 
 **Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 1.32352.0 · as tide-rack-bot
@@ -305,204 +380,3 @@ SDK tag, both deliberately.
 
 **Branch/PR:** `tide/mac/v3-e8-done`.
 
-## 2026-08-18 — macos — V3: the root MIDI-CV design works, gate and pitch (interactive session, Jeff directing)
-
-**Did:** implemented Jeff's design — every fresh document gets `MIDI In` →
-`SE MIDI to CV 2` → a **facade** rack module at the ROOT — and measured it. Gate
-and pitch both work, and pitch tracking is exact.
-
-**Result.** `tests/hosts/v3-midi-pitch.rpp`:
-
-```
-0.05-0.45 s  silent
-0.60-1.10 s  311.0 Hz          <- the note, and the pitch TRACKS it
-1.35-1.95 s  silent
-```
-
-and a two-note octave fixture settles the tracking question properly:
-
-```
-C4 (note 60)  311.2 Hz
-C5 (note 72)  622.2 Hz
-ratio 1.9994  -> 12 MIDI semitones produce 11.99 semitones of output
-```
-
-So 1 V/octave is right to within 0.05%.
-
-**Why the design works where the obvious one did not.** `SE MIDI to CV 2` is
-`polyphonicSource`/`cloned`, so whatever container holds it becomes a voice
-container — and polyphony cannot escape a container (**E7**). Inside a rack module
-its Gate is correct internally and worth nothing outside, which is what V3
-measured earlier. Jeff's move: keep the real MIDI-CV at the **root**, where the
-root itself is the voice context, and make the rack module a **facade** — a
-container holding nothing but jacks, each fed *inward* from the root MIDI-CV
-through the container's own pins. Carrying CV inward is an ordinary connection,
-not a polyphonic escape. **It side-steps E7 rather than needing it fixed.** And
-one MIDI-CV per project, created and owned by TIDE, means "what if the user adds a
-second" never arises.
-
-**Three implementation facts worth keeping.**
-
-1. **`AddModule` returns −1 for a prefab** because a prefab may hold several
-   top-level modules, so there is no handle to hand back. The fix is a handle
-   snapshot/diff around the call — and
-   `EditorScreenshot/EditorCommandDispatcher.cpp:1399` **already does exactly
-   this**, so TIDE now uses the same idiom rather than a second invention.
-   `dynamic_cast<CUG*>` is the necessary filter, not decoration: a container's
-   child list holds `CLine2` connections alongside modules, and `AddSorted`
-   *prepends* modules while appending lines, so iteration order is
-   reverse-insertion.
-2. **The pin contract.** A container's outer input pin is `7 + jack index` — pins
-   0..6 are the Container's own built-ins (2 is Visible), so 7 is the first
-   synthesised IO pin. Verified for 1, 2 and 4 jacks. `build-prefabs.py` and
-   `TideApp.cpp` both state it; change one and the other changes.
-3. **Coordinates are DOCUMENT space and the canvas is centred near 4000.** A
-   user-dropped prefab lands around X 4024-4288, Y 3944-4008. Seeding at
-   `{40,40}` "works" and puts everything in the far top-left, off the visible
-   rack — which looks *exactly* like the insert having failed. It had not; it was
-   scrolled out of view. Cost one build cycle.
-
-**A measurement I nearly reported as a finding, and the control that stopped
-me.** Before touching TIDE I tried to validate the design headlessly: root
-MIDI-CV → containerised patch point, render the inner jack. It read `0.0000`, and
-so did a monophonic control — which looked like "signals cannot enter a container"
-and would have contradicted the whole design. Then I put source *and* sink both
-INSIDE the container, so nothing crossed a boundary at all: still `0.0000`. **The
-render tap cannot see inside a container**, so all three results were false
-negatives. That is also a live trap for the E1 harness — any future case whose
-`--from` pin sits inside a container will read silence regardless of the audio.
-
-**What is left is a tuning constant, not a design problem.** Note 60 sounds
-311.0 Hz where 261.6 Hz is wanted: a fixed **+3 semitone** offset, 0.25 V between
-`Oscillator`'s V→Hz reference and `SE MIDI to CV 2`'s note→volts (which behaves as
-`note/12 − 0.5`). Filed as **E8** with the measurement that proves it is an offset
-rather than a scale error. Absolute-voltage readings of MIDI-CV 2's Pitch pin are
-NOT in that row, deliberately: I scaled them through a `Multiply` whose Input-2
-units I could not pin down, so those numbers were uncalibrated and I dropped them
-in favour of the frequency ratio, which needs no calibration.
-
-**Jeff asked two questions that each moved a finding, and both are worth keeping.**
-
-**"Does TIDE have the correct sample rate or some hard-coded default?"** Not
-hard-coded — `SynthEdit.cpp` passes `host->getSampleRate()`, and a log confirmed
-real values: **48000 Hz then 44100 Hz**, block 512, in one offline render. But the
-call site matters more than the value: `prepareToPlay` is reached from **exactly
-one place**, the chunk arriving in `onSetPins`, so the rate is latched at
-*document-push* time and nothing handles a rate change. Filed as **E9**, with a
-`preparedSampleRate` guard that logs `TIDE: rack built for N Hz` on a change.
-**And the two rates are two INSTANCES, not one re-preparing** — the guard's "rate
-CHANGED" branch did not fire, which is how that is known rather than assumed. I
-had written the opposite in a comment first and corrected it.
-
-Forcing a different render rate turned out not to be possible headlessly: REAPER
-ignores a project's `SAMPLERATE` line when rendering, and hand-writing
-`RENDER_SRATE` into a `.rpp` makes REAPER **stop on a dialog** — Jeff saw it
-blocking a render before I did. So a genuine rate-change test needs REAPER's own
-dialog, and E9 says so rather than pretending the headless attempt proved
-something.
-
-**"Find SynthEdit's pitch calculation, confirm it's what you think."** It was not
-what I thought, and **E8 is materially different as a result.** I had written that
-`Oscillator`'s V→Hz and `SE MIDI to CV 2`'s note→volts disagreed about the
-convention. They do not — both are correct and they agree:
-
-* `ug_oscillator2.cpp:31` — `440 * powf(2, FSampleToVoltage(v) - MAX_VOLTS/2)`,
-  and the Pitch pin documents itself at `:66`: default `"5"`, *"1 Volt per Octave,
-  5V = Middle A"*. So float 0.5 → 5 V → 440.0 Hz.
-* `CVoiceList.cpp:1930` and `dsp_patch_manager.cpp:52` are the same line —
-  `volts = GetKeyTune(key) * (1/12) - 0.75` — with the comment *"SE convention is
-  Volts, 1V/octave, with MIDI A4 (key 69) = 5.0V"*. Key 60 → 4.25 V → **261.6 Hz,
-  the right answer.**
-
-So the +3 semitones is a **bug against the engine's own stated formula**: something
-supplies key 63 where 60 was sent. That also moves E8's scope from TIDE's prefab
-(ALLOWED) to `SynthEditLib` (GATED), which is the opposite of what I first wrote.
-
-Jeff also supplied the piece that made my voltage readings interpretable and then
-worthless: **5 V is float 0.5 on an audio cable**, hence the `0.1f *` scaling
-everywhere. My `Multiply`-scaled readings of MIDI-CV 2's Pitch pin could not be
-reconciled with that at any assumed factor, which is why E8 rests on the frequency
-ratio — which needs no calibration — and not on them.
-
-**One suspect ruled out rather than left hanging:** a MIDI 2.0 note-on carrying
-`attribute_type::Pitch` retunes the key table (`ug_container.cpp:1206-1215`), which
-would give exactly a wrong-but-musical offset. But the observed packet is
-`40 90 3c 00` and byte 3 **is** the attribute type — `0x00`, none — so that branch
-never fires.
-
-**E8 IS FIXED, and it was a real bug — one line, in MIDI 2.0 per-note bend.**
-[SynthEditLib#20](https://github.com/JeffMcClintock/SynthEditLib/pull/20).
-
-```
-before   311.1270 Hz   (+3.000 semitones, 0.00 cents from 2^(3/12))
-after    261.6257 Hz   (middle C is 261.6256 -- +0.001 cents)
-```
-
-`ug_container.cpp`'s `case PolyBender` passed `decodePolyController`'s value
-straight to `HC_VOICE_PITCH_BEND`. That value is **0..1 with 0.5 = centre**, while
-`MidiToCv2` consumes `pinVoiceBender` as **bipolar around 0**
-(`pinVoiceBender * 0.05f`). The channel-wide `PitchBend` case **twelve lines
-below already does the `[-1,+1]` remap, and carries a comment saying why it is
-required.** `PolyBender` simply never got it.
-
-**Why it read as a convention disagreement for so long.** REAPER emits a
-**centred** per-note bend at note-on, so every note arrived `0.5 * 0.05` = 0.025
-normalised = **0.25 V = exactly three semitones sharp** — a minor third out while
-staying perfectly in tune with itself. Octaves came back at ratio 1.9994 and
-tracking was exact, so everything *except* the reference looked right. That is
-what made me write "the two modules disagree about the convention", which was
-wrong twice over: they agree, and they are both right.
-
-**Two of Jeff's questions did the actual work here.**
-
-*"Find SynthEdit's pitch calculation, confirm it's what you think."* It was not:
-`ug_oscillator2.cpp:31/66` (float 0.5 = 5 V = Middle A) and
-`CVoiceList.cpp:1930` / `dsp_patch_manager.cpp:52`
-(`volts = GetKeyTune(key)/12 - 0.75`, A4=69=5 V) are both correct and agree. Key
-60 → 4.25 V → 261.6 Hz is what the code says it should do. So the +3 semitones had
-to be something *added later* — which is what pointed at the bender.
-
-*"Check the ratio between the two samplerates vs the ratio between the two Hz
-measurements."* This is what made the finding exact rather than plausible. The
-error is 1.189207; 2^(3/12) is 1.189207 — **0.00 cents**; `(48000/44100)²` is
-1.184692 — **6.59 cents away**. Those two candidates are only 1.2 Hz apart, and
-the 0.25 s Goertzel window I had been using **could not have distinguished them**.
-Re-measuring by zero-crossing count over 170 cycles (~0.01 Hz) settled it and
-killed the sample-rate explanation outright.
-
-**Found by enabling instrumentation that already existed.** `debug_midi_log.h` has
-a `DEBUG_CONTAINER_MIDI` gate feeding 12 `DMIDI_LOG` sites across
-`ug_container.cpp`, `CVoiceList.cpp` and `ug_midi_to_cv.cpp`, writing to **stderr**
-— which the render harness already captures. Flipping it on printed the whole
-chain and showed the engine correct until `hc=31` (`HC_VOICE_PITCH_BEND`) arrived
-as `0.5000`. **Look for the authors' own trace before writing your own.** All of
-it, plus one extra `DoNoteOn` line I added, is reverted; only the fix remains.
-
-**A trap that nearly shipped a 3,400-line diff.** `ug_container.cpp` is **CRLF**,
-and Python's `write_text` silently normalised the whole file to LF — `git diff
---stat` showed 1728 insertions / 1718 deletions for a one-line change. Caught it
-before committing; re-applied via `read_bytes`/`write_bytes` with explicit
-`\r\n`, giving the correct 12-insertions/1-deletion diff. **Check the diffstat
-after any scripted edit to a shared-repo source file.**
-
-**Deliberately not changed:** `pinVoiceBender * 0.05f` yields ±6 semitones at full
-scale, while MidiToCv2's own comment says the voice bender is "hard-coded to 48
-semitones (for MPE)". Those disagree — but a centred bend is now correctly zero
-either way, so it is a separate question and not folded into a one-line tuning fix.
-
-**No golden depended on the old behaviour:** E1 is 4/4 including
-`voice_midi_note`, which reaches pitch through `SE Keyboard2` and legacy MIDI
-rather than `PolyBender`.
-
-**Side effects on this box:** REAPER launched three times, quit each time; not
-running. TIDE_VST3 rebuilt Release from `tide/mac/V3-root-midicv`. A four-agent
-recon workflow read SynthEditLib for the presenter/container APIs; its most useful
-finding was the existing handle-diff precedent above.
-
-**Next:** **E8**, the tuning constant — decide which module is the reference
-(`signals.htm`, cited from `ug_midi_to_cv.cpp:117`), then correct whichever is
-wrong; TIDE's own prefab default is ALLOWED, a stock module's mapping is GATED and
-would move every SynthEdit patch, so the prefab is almost certainly what changes.
-**E7** stays open as the underlying engine limitation, but nothing now waits on it.
-
-**Branch/PR:** `tide/mac/V3-root-midicv`.
