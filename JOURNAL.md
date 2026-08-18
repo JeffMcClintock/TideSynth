@@ -46,6 +46,90 @@ Template:
 
 ---
 
+## 2026-08-19 — linux — STEP 1 build break (#153 filed and fixed; #87 closed, #88 half-closed, #156 filed)
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (asserted; `url."https://github.com/".insteadOf` = `git@github.com:`, and every repo remote spot-checked `https://`)
+
+**Did:** No backlog item. STEP 1 took the whole run: this platform's default branch did not build, and the reason was not either of the two issues that say so.
+
+### The headline: Linux `main` was broken by something nobody had filed
+
+Both standing `platform:linux` issues carry a `fix it` from Jeff, so I started there — and re-verified before acting, per STEP 1. **Both were already substantially fixed.** What was not fixed, and what nobody had noticed, is that `SE16` `master` **does not configure at all** on this box:
+
+```
+-- gmpi_plugin(TIDE): STANDALONE skipped -- Standalone_Wrapper cannot be built here, missing: libpipewire-0.3
+CMake Error at SynthEditSem/CMakeLists.txt:370 (target_link_libraries):
+  Cannot specify link libraries for target "TIDE_STANDALONE" which is not built by this project.
+```
+
+Filed as [#153](https://github.com/JeffMcClintock/TideSynth/issues/153), fixed in [SynthEdit#55](https://github.com/JeffMcClintock/SynthEdit/pull/55).
+
+**Cause, and it is a contract the fix's own author wrote.** GMPI [`03dd218`](https://github.com/JeffMcClintock/GMPI/commit/03dd218) (2026-08-18) made `gmpi_plugin()` run the Standalone wrapper's dependency probe and drop `STANDALONE` when a dependency is missing — its message says this is so "a missing pipewire SDK costs the bare app rather than the whole tree." It drops it from **its own parsed copy** (`GMPI_PLUGIN_FORMATS_LIST`). The caller's `FORMATS_LIST` (`SynthEditSem/CMakeLists.txt:59`) is a different variable and still reads `GMPI VST3 STANDALONE` afterwards. So on this box it cost exactly the whole tree.
+
+**The part worth keeping: two of the three loops were already right.** `SynthEditSem/CMakeLists.txt` iterates `FORMATS_LIST` three times. `:219` guards with `if(TARGET …)`; `:247` guards with `if(NOT TARGET …) continue()`; `:361` had nothing. The fix is the third instance of a pattern the file already establishes — so this was a missed edit, not a design question, and that is why it was safe to take in one run.
+
+**Why win/mac cannot see it.** `GMPI_Wrappers/wrapper/Standalone/dependencies.cmake` only reports anything on its Linux arm. Everywhere else the missing-list is empty, `STANDALONE` is never dropped, the target always exists, and the unguarded loop is always correct. Identical shape to #88, and to the 2026-08-14 finding before it: **a path that only executes below a platform gate is only tested below that gate.** That is now three occurrences; it is the fleet's most reliable bug generator.
+
+**Verification — GCC, Ninja, Release, `libpipewire-0.3` absent:**
+
+| check | before | after |
+|---|---|---|
+| configure | **RC=1** at `:370` | **RC=0** (`Configuring done 21.1s`) |
+| `TIDE_VST3` | not reached | **322/322 RC=0**, links `.so`, assembles bundle |
+| `TIDE` | not reached | **30/30 RC=0**, links `TIDE.gmpi` |
+| `SynthEditCL` | not reached | **13/13 RC=0** |
+| `SynthEditWayland` | not reached | **28/28 RC=0** |
+| full tree | not reached | **549/549 RC=0**, zero `error:` |
+| `ctest` | not reached | **67/67** (with the env vars — see below) |
+
+The `STANDALONE skipped` status line still appears after the fix. That was deliberate: tolerate the decline, do not silence it. I also did **not** install the pipewire SDK, which would have made configure pass while leaving the contract violation in place for the next declined dependency.
+
+### #87 — closed, verified by building rather than by reading
+
+Fixed by [`5d6385e`](https://github.com/JeffMcClintock/SynthEditLib/commit/5d6385e). Both Accept clauses met: `grep -rn "/tmp/tide" SynthEditLib` is **empty**, and — the load-bearing bit — **`ModuleView.cpp.o`, the exact TU that failed, compiled at edge 164/322** with zero `error:` in the build. The `fprintf(stderr, …)` diagnostic U2d actually wanted survives at `ModuleView.cpp:669`.
+
+**One hazard that outlived the fix.** `namespace SE2 {` opens at `ModuleView.cpp:38` and does not close until the end of the file, so *any* future `#include` added mid-file re-creates `SE2::std` and breaks GCC while staying invisible on MSVC and Clang. The trace is gone; the trap is not.
+
+### #88 — left open, and the count changed
+
+`SynthEditWayland` is fixed ([`6faf8cff9`](https://github.com/JeffMcClintock/SynthEdit/commit/6faf8cff9)) and **links, 28/28 RC=0, zero `undefined reference`** — its stated Accept, measured. `SynthEditJuce` still lacks the entry, so the title's "two of four" is now **one of four**.
+
+I did not fix the Juce half, and the reason is worth stating because it is not the obvious one: `SE16/SynthEditJuce/` is GATED-by-default, **and** the STEP 5 build-break exception does not reach it either — that exception's trigger is "your platform's default branch does not build", and after #55 it does. The target is deprecated and **not reachable from the root `CMakeLists.txt`** (its own comment, `SynthEditJuce/CMakeLists.txt:49-51`), so there is no build that would fail *and none that would prove a fix correct*. Whoever takes it must say it is by inspection.
+
+### #156 — `ctest` looked catastrophic and was fine
+
+**44 of 67 tests "failed"; the real number is zero.** `tests/projecttests.cpp:78,103` resolve two fixture folders with a two-armed `#ifdef` on a three-platform project — `_WIN32` gets `C:\SE\SE16\…`, and the `#else` is the literal string `/Users/jeffmcclintock/SynthEdit/…`. Linux takes the `#else` and looks for `SynthEditCL` in a macOS developer's home directory; the `32512` in the gtest output is `system()` returning 127.
+
+Both functions prefer an environment variable over the literal, so:
+
+```bash
+SE_BUILD_FOLDER="<build>/" SE_CANCELLATION_FOLDER="$HOME/SE/SE16/UnitTest/" ctest
+100% tests passed out of 67
+```
+
+**Next run: do not spend time on a red ctest here before setting those two variables.** That is the single most useful line in this entry. Filed as [#156](https://github.com/JeffMcClintock/TideSynth/issues/156) with the CMake-side fix suggested (`set_tests_properties … ENVIRONMENT`, which needs no change to `projecttests.cpp` at all); `SE16/tests/` is GATED-by-default and this is not a build break, so the A17 exception does not cover it.
+
+**Learned — the mac box works by coincidence too.** That `#else` is correct on exactly one machine, the one whose home directory it names. A second macOS checkout would fail identically.
+
+### Not verified, and not claimed
+
+**The v0.1 audio harness did not run: REAPER is not installed on this box.** `scripts/render-and-measure.py` needs it, so PLAN's "v0.1 PASSES" table cannot be re-measured from linux. The change here is CMake-only and cannot reach DSP, and the 549/549 + 67/67 evidence is the right artifact for it — but nobody should read this entry as re-confirming v0.1 on linux. **If the fleet wants that table re-measurable on more than one box, REAPER on linux is the missing piece**, and it is currently a silent single point of failure in the only end-to-end check the project has.
+
+**Learned — the A14 shared-tree race did not recur, and I think I know why.** The windows box hit it at 36 seconds after `git checkout -b`. I committed within about a minute of branching and `--record`/`--verify` both reported real content (`1 path(s) staged, 1 in HEAD`), not the empty-manifest signature that means the race already happened. No concurrent session was active. The commit-immediately rule is doing its job; the scripts still cannot *detect* a total-unstage race, which is unchanged from the windows entry.
+
+**Result:** `SE16` configure RC=1 → RC=0 on linux; full tree 549/549; ctest 67/67; `SynthEdit`, `SynthEditCL` and `TIDE` all building on this platform for the first time since 2026-08-17.
+
+**Next:**
+
+1. **Merge [SynthEdit#55](https://github.com/JeffMcClintock/SynthEdit/pull/55).** Until it lands, `SE16` `master` is RC=1 on any Linux box without the pipewire SDK — which is the supported configuration, not an unusual one.
+2. **[#153](https://github.com/JeffMcClintock/TideSynth/issues/153) and [#156](https://github.com/JeffMcClintock/TideSynth/issues/156) are both open**; #88 stays open for the Juce line.
+3. **C12d is still this box's, and is still the last thing between the carve-out and C6** — three `${EDITOR_DIR}` entries. It was not takeable before today because its Accept requires `SynthEditWayland` to link; **it now does (28/28)**, and with #55 the configure works too. So C12d is unblocked in practice for the first time. Its Accept also names `SynthEditJuce`, which cannot link on any box because it is not generated — **that clause wants re-specifying before someone starts, or C12d will deadlock on it the way this row deadlocked on #87/#88.**
+4. Consider a CI job that configures with the pipewire SDK deliberately *absent*. Every finding in this entry is a platform-gated path that only one box executes, and the fleet keeps rediscovering them one run at a time.
+
+**Branch/PR:** [SynthEdit#55](https://github.com/JeffMcClintock/SynthEdit/pull/55) (the fix) + the TideSynth PR carrying this entry. All repos left on their default branches; no working tree left dirty.
+
+---
+
 ## 2026-08-19 — correction to the windows C12f entry: the two PR-less branches are Jeff's (interactive session, Jeff directing)
 
 **Whose finding this is:** the windows run's own, from
@@ -300,175 +384,3 @@ it and the path question wants settling before someone starts.
 must merge together, plus the TideSynth PR carrying this entry. All repos left on
 their default branches; `SE16` retains the concurrent session's one uncommitted
 file, untouched.
-
-## 2026-08-19 — macos — E9 (re-specced; E10 and A26 filed)
-
-**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 1.32352.0 · as tide-rack-bot
-
-**Did:** Continued E9 on this branch per STEP 2 (open PR #149 from my own
-platform names it). Before writing the `open()` override the row and the
-research doc both recommended, I checked the one thing neither had: whether the
-precedent actually transfers. **It does not, and implementing it as written
-would have null-dereferenced.** Wrote that up, added the probe that proves it,
-re-specced E9, and filed the two things it exposed.
-
-**Result: the recommended fix would crash, measured with positive controls.**
-`SeGmpiProcessor::open()` may call `prepareToPlay` immediately because an
-exported SynthEdit plugin bakes its graph into the bundle as `dsp.se.xml`. TIDE
-has no such resource — the document arrives at runtime as the blob — confirmed
-against the installed bundle:
-
-    $ ls ~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3/Contents/Resources
-    ControlsXp.xml  Converters.xml  MidiPlayer2.xml  Prefabs  SubControlsXp.xml
-
-So preparing from `open()` walks: `mustReinitilize` is forced by
-`generator == nullptr` (`SynthRuntime.cpp:48-53`) -> no root, so it falls back
-to the bundle resource (`:76-79`) -> `BundleInfo::getResource` finds no file and
-returns `{}` (`BundleInfo.cpp:542-546`) -> `Parse("")` errors, `RootElement()`
-is null -> `BuildDspGraph` runs anyway (`:147`), and:
-
-    document_xml = hDoc.FirstChildElement("Document").Element();   // :409 -> nullptr
-    pElem = document_xml->FirstChildElement("DSP");                // :410 -> DEREFERENCES IT
-    if (!pElem)                                                    // :413 -> one line too late
-        return;
-
-The verification artifact is `tests/e9_buildgraph_null_probe.cpp`, which
-reproduces `SeAudioMaster.cpp:403-413` verbatim against the real
-`SynthEditLib/tinyxml` sources. It ran clean from the committed copy:
-
-    --- EMPTY document  (TIDE with no chunk pushed) ---
-      RootElement()       : NULL
-      document_xml (:409) : NULL
-      -> SeAudioMaster.cpp:410 would dereference this NULL pointer.
-    --- POSITIVE CONTROL: <Document> with no <DSP> ---
-      document_xml (:409) : non-null
-      pElem   (:410)      : NULL  -> guard at :413 returns cleanly
-    --- POSITIVE CONTROL: <Document><DSP/> ---
-      pElem   (:410)      : non-null  -> guard at :413 passes
-
-**The two controls are the point.** The middle case is exactly what the existing
-`if (!pElem)` guard was written for, and it passes — so the NULL in the first
-case is the code's behaviour, not the probe failing to run.
-
-**Learned, and worth not rediscovering:**
-
-1. **"It has an exact precedent to copy" is a claim about TWO call sites, and
-   the 2026-08-18 research only checked one.** The asymmetry that kills it —
-   `SeGmpiProcessor` always has a document at `open()`, TIDE never does — is
-   invisible from the precedent's own source. This is the second time an E9
-   conclusion has been confidently wrong in the same direction: the row's
-   original "silent detune" diagnosis was also an inference nobody had run.
-2. **The guard at `SeAudioMaster.cpp:409-413` is one line short of its own
-   intent.** Its comment ("should always have a valid root but handle gracefully
-   if it does" — garbled in the original) shows defensiveness was meant. Filed
-   as **E10**, GATED, NOT fixed: `SynthEditLib` is gated and this is a latent
-   crash, not a build break, so STEP 5's build-break exception does not apply.
-   It is not live today because every current caller has a document.
-3. **STEP 2's continue-a-branch rule trips STEP 4's authorship check, and I hit
-   it.** This branch was started by an interactive session, so its two commits
-   are authored `Jeff McClintock`; `check-commit-authorship.py` defaults to
-   `origin/main..HEAD`, sees them, and prints **"Do not push"** — for commits
-   already pushed before this run began, which STEP 4 separately forbids
-   rewriting. **My own two commits are clean** (`--range e01bb72..HEAD` ->
-   "all commits authored by tide-rack-bot"). Filed as **A26** with the
-   `--range` workaround. **Being honest about the order I did this in:** the
-   push and the check ran as separate statements, so the push went out before I
-   had read the check's verdict. It happened to be the right outcome, but I did
-   not decide it first. A run that gets used to pushing past "Do not push" on
-   continued branches is exactly the failure A14 wrote that check to catch.
-
-**Not verified, deliberately not claimed:** I did **not** build TIDE or
-SynthEdit this run, so I cannot say whether `main` builds on this box today.
-Nothing I changed is compiled into either — the commits are docs, a standalone
-probe, and BACKLOG rows. The probe itself compiled and ran clean under
-`clang++ -std=c++17` against SynthEditLib's tinyxml, which says the toolchain
-works and nothing more. Whoever takes E10 must build **SynthEdit as well as
-TIDE**: `SeAudioMaster.cpp` ships in both.
-
-**Next:** E9 is `NEEDS-SPEC` and should stay there until someone answers what
-TIDE prepares with before a document exists — a no-op guard restores today's
-behaviour and buys nothing, and a minimal stand-up document is a design call
-(`SeAudioMaster.cpp:421-422` asserts the first `<DSP>` child is a
-`Module`/`Container`, so "empty" is not free). E10 unblocks the safety half and
-is one line, but it is GATED. The mac NEXT block now points at **E2** or the
-per-prefab **E1** cases instead — coverage work with stated acceptance checks.
-
-**Branch/PR:** [#149](https://github.com/JeffMcClintock/TideSynth/pull/149) —
-continued rather than branched fresh, per STEP 2; a fresh branch would have
-conflicted with it on `BACKLOG.md`, `JOURNAL.md` and `docs/e9-sample-rate.md`.
-All four working copies (TideSynth, SynthEdit, SynthEditLib, GMPI) were clean at
-start and are left on their default branches.
-
-## 2026-08-18 — macos — E9 researched: a rate change is absorbed by REPLACING the plugin, not by re-reading the rate (interactive session, Jeff directing)
-
-**Did:** answered Jeff's question — *how do SynthEdit's AU and VST3 targets handle
-a host sample-rate change, given it requires rebuilding the DSP graph* — by
-reading all four wrappers and then **measuring a live rate change in REAPER**.
-Wrote [docs/e9-sample-rate.md](docs/e9-sample-rate.md), corrected E9's row, and
-fixed two wrong comments in `SynthEditSem/SynthEdit.cpp`.
-
-**Result: the premise is right, E9's diagnosis was wrong, and the correction is
-the finding.** The rebuild Jeff expected already exists and is already
-rate-triggered — `SynthRuntime::prepareToPlay` rebuilds when
-`generator->SampleRate() != sampleRate` (`SynthRuntime.cpp:51`). What no wrapper
-does is *tell a running plugin* about a new rate. `gmpi::api::IProcessor` has
-three methods — `open`, `setBuffer`, `process` (`GMPI/Core/GmpiApiAudio.h:50`) —
-so there is nowhere to put such a callback. Instead
-`gmpi_processor::start_processor` (`GMPI/Hosting/processor_holder.cpp:48`)
-**destroys the IProcessor** (`:55`), **creates a new one** (`:69`), calls `open()`
-(`:82`), and re-seeds the blob parameter from its retained bytes (`:215`) — so
-TIDE's chunk arrives again, `onSetPins` runs again, and the rack is built at the
-new rate. Doorbells: VST3 `setActive(true)`, AU `Initialize()`, CLAP `activate()`,
-standalone `onAudioFormatChanged`.
-
-**The measurement, since this row had never had one.** REAPER launched from a
-shell on `tests/hosts/v3-midi-pitch.rpp`, then **Preferences → Audio → Device →
-Request sample rate** driven by hand 48000 → 44100 → 48000 on the loaded project
-(the GUI route the row said this needs). Eight `TIDE: rack built for N Hz` lines,
-the rate following the device every time, and playback afterwards metering
-**−6.2 dBFS peak / −13.4 RMS** — the level the fixture gives at 48 kHz. Device
-and preference left exactly as found; REAPER quit cleanly.
-
-**Learned — the thing that reframes the row.** **Not one of those eight lines
-carried the `(rate CHANGED)` suffix, and it never can.** `preparedSampleRate` is
-a *member* of the object `start_processor` destroys, so it is re-zeroed with each
-new instance. The guard cannot outlive the rebuild that handles the change. The
-repeated identical `44100` lines are the proof — an instance that survived with an
-unchanged rate would print nothing at all. **My earlier comment drew the wrong
-conclusion from correct evidence** (it inferred "the rack would keep the stale
-rate and everything would be detuned, silently"); the evidence was the absence of
-a line that is structurally impossible.
-
-**Second wrong comment, also fixed:** *"the AsyncRestart path is unreachable in
-the plugin runtime — nothing enters `eRuntimeState::resetting`"*. `resetting` is
-entered via `ug_vst_out.h:65` → `SeAudioMaster::onFadeOutComplete()` (`:1509`) →
-`OnFadeOutComplete()` (`iseshelldsp.h:124`), and `ug_vst_out` **is**
-`audioOutModule` in a plugin (`SetupVstIO()` runs under `!isEditor()`,
-`SeAudioMaster.cpp:502`). `DoAsyncRestart` is reached from
-`dsp_patch_parameter.cpp:773` for any host control with `requiresAsyncRestart()`
-— a set that **includes `HC_PATCH_CABLES`**, i.e. every rack re-cabling. Nothing
-in TIDE calls it *yet*; that is TIDE's wiring, not the runtime's limits.
-
-**What is actually left of E9, and it is smaller:** a fresh instance with **no
-chunk stored never prepares at all** — `processor_holder.cpp:225` `continue`s on
-an empty blob, and TIDE's only `prepareToPlay` call site is that blob arriving.
-The fix has an exact precedent in SynthEdit's own glue: override `open()` like
-`se_gmpi/source/SeGmpiProcessor.cpp:151`, and let the blob be a pure document
-swap. Two caveats for whoever does it: `DoAsyncRestart()` alone cannot absorb a
-rate change (the `resetting` branch rebuilds from the member `sampleRate`,
-`SynthRuntime.cpp:388`, which only `prepareToPlay` writes), and `prepareToPlay`
-never joins `dspBuilderThread`, so its precondition is no concurrent `process()`.
-
-**Not claimed:** AU and CLAP are read, not run — TIDE builds neither
-(`SynthEditSem/CMakeLists.txt:59` is `GMPI VST3 STANDALONE`). Whoever adds AU
-should know `reInitialize()` does not update the `AU2_Wrapper::sampleRate` that
-`getSampleRate()` returns, and that `offLineRenderMode`'s only consumer is inside
-`#if 0`.
-
-**Next:** either take the `open()` latch above, or E2 / the per-prefab E1 cases.
-
-**Branch/PR:** `tide/mac/e9-research` (TideSynth), `tide/mac/e9-comment-fix`
-(SynthEdit).
-
----
-
