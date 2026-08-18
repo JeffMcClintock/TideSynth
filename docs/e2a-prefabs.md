@@ -296,12 +296,46 @@ The browser check and the drop check both pass, **with the
 Placing *and cabling* a closed prefab works with real mouse drags and needed no
 U1 work.
 
-**The E1 audio case does not pass yet, and the reason is a tool bug.**
-`gmpi_render_audio` skips non-scalar parameters when priming its offline
-processor (`CommandDispatcher.cpp:858`); TIDE's whole patch is a blob parameter,
-so that instance runs an empty graph and reports `peak: 0` regardless of the
-rack. Filed as **E6**. The measurement wants the REAPER route
-(`scripts/render-and-measure.py`) instead, which exercises the product path.
+**The audio DOES pass, measured 2026-08-18 later the same day.** A saved REAPER
+project whose TIDE instance carries a cabled Oscillator -> Envelope -> Output
+rack renders **peak −6.3 dBFS, rms −17.0 dBFS**, at **440.0 Hz in the left
+channel only** — the pitch 5 V is meant to give, on the one channel that is
+cabled. The negative control, the same three prefabs with no cables, renders
+digital silence. Fixtures: `tests/hosts/v1-rack.rpp` and
+`tests/hosts/v1-rack-uncabled.rpp`. So E2a's last acceptance bar is met, and
+PLAN's "have the patch survive save-and-reload of the host project" is now
+measured rather than assumed.
+
+**The route matters and the original note here was right about it.**
+`gmpi_render_audio` cannot do this measurement: it skips non-scalar parameters
+when priming its offline processor (`CommandDispatcher.cpp:858`) and TIDE's
+whole patch is a blob parameter, so that instance runs an empty graph and
+reports `peak: 0` regardless of the rack. Filed as **E6**, still open. The
+measurement went through the REAPER route
+(`scripts/render-and-measure.py`), which exercises the product path.
+
+**Where the rack's wiring actually lives, since this is the thing nobody had
+tested.** A patch cable is not a `<Line>` in the saved document. It is an entry
+in a serialised `<Cables>` list held in the patch manager as the
+`HC_PATCH_CABLES` host control (= 49, `SynthEditLib/HostControls.h:14`), written
+by `MfcDocPresenter::AddPatchCable` and turned back into DSP connections at load
+time by `ug_container::ConnectPatchCables` (`SynthEditLib/ug_container.cpp:433`).
+Both cables round-tripped through REAPER's save intact, with their endpoints
+resolving to the right jacks. **The corollary is a trap worth keeping:** a rack
+of three prefabs reports **eight** `<Line>` elements whether or not it is wired,
+because those belong to the containers' insides — so a non-zero `<Line>` count
+proves nothing about the rack. `render-and-measure.py` counted `<Line>`s and
+said exactly that wrong thing until this measurement corrected it.
+
+**Per-prefab E1 cases: two of the three exist, and the third cannot.**
+`tests/cases/prefab_oscillator.json` and `tests/cases/prefab_envelope.json` lock
+the pin defaults V1 depends on — 5 V = 440 Hz, and the ADSR at Overall Level 1
+with the gate open so the VCA is unity gain. **Output gets no standalone case:**
+its whole content is a `Sound Out`, whose job is handing audio to the host, and
+the harness records from a pin with `--render-audio --from`, which is upstream of
+that. The thing that verifies Output is the `.rpp` render above — audio
+appearing in the host's own render *is* the test — so the fixture is Output's E1
+case, not a substitute for one.
 
 ### 9.6 Two rack-UI traps
 

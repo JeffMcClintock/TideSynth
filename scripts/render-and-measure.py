@@ -14,11 +14,26 @@ a GUI.
 What this does NOT tell you
 ---------------------------
 Silence is only evidence about the plugin if the project could have made sound
-in the first place. Every saved TIDE project as of 2026-08-18 has an EMPTY
-<Lines> element in its DSP graph -- no connections -- so it renders silence
-whatever the plugin does. Run --control first: it proves the render-and-measure
-chain detects audio, so a subsequent -inf is a fact about the patch rather than
-about this script.
+in the first place, and the count that answers that is NOT the one you would
+guess.
+
+A TIDE rack's wiring is not in the document's <Line> elements. A patch cable is
+stored in the patch manager as the HC_PATCH_CABLES host control (= 49,
+SynthEditLib/HostControls.h), a serialised <Cables> list written by
+MfcDocPresenter::AddPatchCable, and turned into real DSP connections at load
+time by ug_container::ConnectPatchCables (SynthEditLib/ug_container.cpp:433).
+The <Line> elements that ARE in the document belong to the insides of prefab
+containers, so a rack of three prefabs reports EIGHT of them while being
+completely unwired. This script reports both counts and says which one it
+judged on.
+
+    Corrected 2026-08-18. The first version of this note said a non-zero
+    <Lines> count meant the project could sound, which was true only while
+    saved projects held bare modules. E2a's prefabs carry internal cables and
+    broke that inference.
+
+Run --control first: it proves the render-and-measure chain detects audio, so a
+subsequent -inf is a fact about the patch rather than about this script.
 
     python3 scripts/render-and-measure.py --control
     python3 scripts/render-and-measure.py path/to/project.rpp
@@ -35,6 +50,11 @@ import wave
 
 REAPER = "/Applications/REAPER.app/Contents/MacOS/REAPER"
 RENDER_SECONDS = 2.0
+
+# HC_PATCH_CABLES, counted off the enum in SynthEditLib/HostControls.h:14. This
+# is the patch-manager parameter a rack's patch cables live in, and the only
+# thing in a saved project that says whether the rack is wired.
+HC_PATCH_CABLES = 49
 
 
 def analyse(path):
@@ -121,16 +141,25 @@ def control(workdir):
     return 0 if ok else 1
 
 
-def lines_in_chunk(rpp):
-    """How many DSP connections the embedded TIDE document has, if we can tell.
+def graph_summary(rpp):
+    """(rack_cables, container_lines) for the embedded TIDE document, or None.
 
-    Three layers, each of which cost a wrong guess to find:
+    `rack_cables` is what decides whether the project could sound; see the
+    module docstring for why `container_lines` does not.
+
+    FOUR layers of encoding, each of which cost a wrong guess to find:
       1. The <VST block's body is base64, one stream split over many lines --
          but the FIRST line is REAPER's own header block, separately padded, so
          concatenating everything and decoding truncates at its '='.
       2. The decoded state is the preset XML, whose blob attribute is `val=`,
          not `value=`.
       3. That attribute is base64 again, and yields the <Document>.
+      4. The cable list is base64 a THIRD time, inside the <patch-list><s> of
+         the param whose hostControl is HC_PATCH_CABLES.
+
+    Scoping the cable count to that hostControl matters: a saved document also
+    carries a copy of the same <patch-list> in its editor half, under a param
+    with no hostControl attribute, and counting both doubles every cable.
     """
     try:
         import base64
@@ -151,10 +180,25 @@ def lines_in_chunk(rpp):
         m = re.search(rb'<Param\s+id="1"\s+val="([^"]+)"', raw)
         if not m:
             return None
-        dsp = ET.fromstring(base64.b64decode(m.group(1))).find("DSP")
+        doc = base64.b64decode(m.group(1))
+
+        cables = 0
+        for pm in re.finditer(
+                rb'<param[^>]*hostControl="%d"[^>]*>\s*<patch-list>(.*?)</patch-list>'
+                % HC_PATCH_CABLES, doc, re.S):
+            s = re.search(rb"<s>([^<]+)</s>", pm.group(1))
+            if not s:
+                continue
+            b64 = b"".join(s.group(1).split())
+            cables += base64.b64decode(
+                b64 + b"=" * (-len(b64) % 4), validate=False).count(b"<Cable ")
+
+        dsp = ET.fromstring(doc).find("DSP")
         if dsp is None:
             return None
-        return sum(len(l) for mod in dsp.iter("Module") for l in mod.findall("Lines"))
+        internal = sum(len(l) for mod in dsp.iter("Module")
+                       for l in mod.findall("Lines"))
+        return cables, internal
     except Exception:
         return None
 
@@ -186,15 +230,26 @@ def main():
         print("  %s" % os.path.basename(args.project))
         print("    peak=%7.1f dBFS  rms=%7.1f dBFS  -> %s"
               % (pdb, rdb, "SILENCE" if silent else "AUDIO PRESENT"))
-        if silent:
-            n = lines_in_chunk(args.project)
-            if n == 0:
-                print("    NOTE: this project's DSP graph has ZERO connections")
-                print("    (<Lines> is empty), so silence is expected and says")
-                print("    nothing about the plugin. Not a usable audio test.")
-            elif n is None:
-                print("    NOTE: could not read the embedded TIDE document, so it")
-                print("    is unknown whether this project could make sound at all.")
+        summary = graph_summary(args.project)
+        if summary is None:
+            print("    NOTE: could not read the embedded TIDE document, so it is")
+            print("    unknown whether this project could make sound at all.")
+            return 0
+
+        cables, internal = summary
+        print("    rack: %d patch cable(s) (HC_PATCH_CABLES) joining modules;"
+              % cables)
+        print("          %d <Line>(s) inside prefab containers" % internal)
+        if silent and cables == 0:
+            print("    NOTE: NOTHING joins one rack module to another, so silence is")
+            print("    expected and says nothing about the plugin. Not a usable audio")
+            print("    test. The <Line>s counted above are INSIDE containers and are")
+            print("    NOT evidence the rack is wired -- only the cable count is.")
+        elif silent:
+            print("    NOTE: the rack IS wired, so this silence is a real finding about")
+            print("    the plugin rather than about the project. The cables survived the")
+            print("    save, so look at ug_container::ConnectPatchCables reconstructing")
+            print("    them, not at the prefabs.")
         return 0
 
 
