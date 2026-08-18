@@ -8,6 +8,13 @@ and you should read that before changing a tolerance or seeding a reference.
 
 Stdlib Python only — there is no install step.
 
+**This harness measures the ENGINE, not the plugin inside a host.** It builds a
+graph with SynthEditCL verbs, so it can prove a module set still sounds the way
+it did, but it cannot say whether a patch survives a DAW's save and reload. That
+question has its own fixtures and its own script — see
+[hosts/README.md](hosts/README.md) and
+[`scripts/render-and-measure.py`](../scripts/render-and-measure.py).
+
 ## Run it
 
 ```bash

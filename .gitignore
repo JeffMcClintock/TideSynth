@@ -14,3 +14,9 @@ CMakeCache.txt
 CMakeFiles/
 compile_commands.json
 node_modules/
+
+# REAPER writes these beside a project it opens; the tests/hosts fixtures live in-repo.
+tests/hosts/Backups/
+
+# render_harness.py writes this by default; it is a machine-specific measurement.
+report.json

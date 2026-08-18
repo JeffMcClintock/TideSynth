@@ -46,6 +46,133 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — V1's audio half: THE RACK SOUNDS (interactive session, Jeff directing)
+
+**Did:** measured the audio half of PLAN's v0.1 acceptance test — "have the patch
+survive save-and-reload of the host project" — and it **passes**. Built the one
+input that was missing: a saved REAPER project whose TIDE instance carries a
+wired rack. Then answered the two questions the job hinged on, added the
+per-prefab E1 cases, and corrected `render-and-measure.py`'s now-wrong
+diagnostic.
+
+**Result.**
+
+```
+control (known -6 dBFS 1 kHz sine)   peak=  -6.0 dBFS  rms=  -9.0 dBFS  AUDIO PRESENT
+v1-rack.rpp                          peak=  -6.3 dBFS  rms= -17.0 dBFS  AUDIO PRESENT
+   rack: 2 patch cable(s) (HC_PATCH_CABLES); 8 <Line>(s) inside prefab containers
+v1-rack-uncabled.rpp                 peak=  -inf       rms=  -inf       SILENCE
+   rack: 0 patch cable(s) (HC_PATCH_CABLES); 8 <Line>(s) inside prefab containers
+```
+
+Characterising the render rather than only gating it: **440.0 Hz, left channel
+only, right channel digital silence** — which is precisely the wiring. 5 V at
+1 V/octave is middle A, only the L jack is cabled, and the ADSR sits at its
+sustain after a 3 dB step in the first 100 ms with the gate at its open default.
+Nothing was sequenced; the rack sounds with no MIDI, as designed.
+
+**Question 1 — does the patch-cable wiring survive the save? YES, and here is
+where it lives.** A patch cable is **not** a `<Line>` in the saved document. It
+is an entry in a serialised `<Cables>` list held in the patch manager as the
+**`HC_PATCH_CABLES`** host control — **49**, counted off the enum at
+`SynthEditLib/HostControls.h:14` — written by `MfcDocPresenter::AddPatchCable`
+and turned back into DSP connections at load time by
+`ug_container::ConnectPatchCables` (`SynthEditLib/ug_container.cpp:433`). Decoded
+out of the saved `.rpp`, both cables are there, with their endpoints resolving to
+the right jacks:
+
+```
+cable 1: 'TIDE Oscillator' / SE Patch Point out (panel top=86)  -> 'TIDE Envelope' / SE Patch Point in (top=40)
+cable 2: 'TIDE Envelope'   / SE Patch Point out (panel top=132) -> 'TIDE Output'   / SE Patch Point in (top=40)
+```
+
+So the S11 round-trip inference held. It is now measured twice over — once by
+reading the parameter back out of the file, once by the audio coming back.
+
+**Question 2 — the `<Lines>` message was misleading, and fixing it needed a
+negative control, not an argument.** The old text said a zero `<Lines>` count
+made silence certain, which implied a non-zero count meant a project could
+sound. That was true only while saved projects held bare modules. **A rack of
+three prefabs reports EIGHT `<Line>`s whether or not it is wired**, because
+those belong to the containers' insides. Rather than assert that, I built
+`tests/hosts/v1-rack-uncabled.rpp` — the same three prefabs placed, deliberately
+uncabled — which is exactly the case the old message got wrong: eight `<Line>`s,
+zero cables, silent. Both branches of the rewritten diagnostic are now exercised
+by real artifacts in the repo. The script reports both counts and says which one
+it judged on.
+
+**Per-prefab E1 cases: two of the three, and the third cannot exist.**
+`tests/cases/prefab_oscillator.json` locks 440.0 Hz from the pitch jack's 5 V
+default and the statically-registered `Oscillator` primitive (not the absent
+`OscillatorNaive`, S8). `tests/cases/prefab_envelope.json` locks the audio path
+the prefab exists for — ADSR at Overall Level 1 into `Multiply`, peak **exactly
+0.5** from a 5 V input, sustaining at **0.7**, so the VCA is unity gain and the
+gate is open. Suite is **4/4**. **Output gets no standalone case:** it is a
+`Sound Out`, whose entire job is handing audio to the host, and the harness
+records from a pin with `--render-audio --from`, which is upstream of that. The
+`.rpp` render *is* Output's test — audio appearing in the host's own render is
+the only observation that can prove a Sound Out works.
+
+**Learned — five things, two of them corrections to me.**
+
+1. **A patch point carries VOLTS, and 10 V is full scale.** Setting the envelope
+   case's IN jack to `1` gave a −20.0 dBFS render, which looks like a 14 dB gain
+   bug and is not one: 1 V is 0.1. At 5 V — what the Oscillator prefab actually
+   delivers, measured at 0.49 — the peak is exactly 0.5. This is also why the
+   generator's `--set-pin $gate:Input 10` means "gate fully open". Written into
+   the case description so the number cannot be misread later.
+2. **A DAW lists TIDE under its product name `TIDE Rack`, not its filename.**
+   Filtering REAPER's FX browser for "TIDE" finds
+   `VST3i: TIDE Rack (TIDE Synth)`. REAPER's cache can also still serve a name
+   from an older build — this box's `reaper-vstplugins_arm64.ini` still said
+   `SynthEdit (GMPI)` — in which case a re-scan (Preferences → Plug-ins → VST →
+   Re-scan) is what makes the current name appear.
+3. **Corrected in-session, by Jeff, twice.** I first searched the browser for
+   "SynthEdit" because that is what the stale cache entry said; Jeff pointed out
+   the plugin is TIDE Rack, which is what sent me to the product name at all.
+   Later I reported an empty result list and theorised that the installed
+   bundle's directory mtime does not change when a POST_BUILD copies a new binary
+   into it, so REAPER's startup scan skips TIDE. **That theory was wrong and is
+   not evidence of anything** — Jeff spotted that the filter field actually read
+   "TDE", a dropped keystroke of mine. Recorded because the wrong theory is
+   exactly the sort of thing that gets quoted later as a build-system fact.
+4. **A dropped prefab does not keep the generator's slot size.**
+   `build-prefabs.py` writes `PanelWndPosition` as 100x160, but the properties
+   pane reports **W 20, H 66** for the Oscillator and Output and **H 112** for
+   the three-jack Envelope — the container is sized to its jacks on drop. The
+   size in the file still matters (it is what stops a prefab drawing nothing, the
+   `docs/e2a-prefabs.md` 9.1 trap); it is just not what survives placement.
+5. **The "places but does not draw" intermittency did not appear once**, across
+   six placements in two REAPER sessions. Not a fix, and not evidence it is gone
+   — but worth recording as a data point beside the times it did happen.
+
+**No exception, no crash.** Both REAPER sessions were launched from a shell so an
+uncaught C++ exception would name itself; stderr carried one line of swell
+metal-context noise and TIDE's own
+`TIDE: 3 rack prefab(s) seeded from the bundle` — which incidentally confirms the
+installed bundle's `Resources/Prefabs/` is what supplied the prefabs **in the
+real host**, not only in the standalone. Both instances exited 0.
+
+**Next:** **V3**, filed this run — "play it from the DAW's MIDI" is the one clause
+of PLAN's v0.1 acceptance test that no row in BACKLOG covered, and V1 is
+specifically the save/reload clause. It needs **no GUI session**: a MIDI item is
+plain text inside a `.rpp`, so the fixture can be edited by hand and measured
+with the script that already exists. **E2**'s `BLOCKED(V1)` premise — "no point
+authoring a fuller module library for a plugin that cannot yet keep its patch
+across a host save" — is retired by this measurement. **E6** is untouched and
+still open; nothing here depended on it.
+
+**Side effects on this box:** REAPER was launched twice interactively and four
+times headlessly by the render script, and exited on its own each time; it is not
+running. Its VST plugin cache was re-scanned (Preferences → VST → Re-scan), which
+is a settings change to REAPER, not to any repo. Renders went to a temp dir the
+script cleans up. `tests/hosts/Backups/` — REAPER's own `.rpp-bak` folder,
+created beside the fixtures — was deleted and is now gitignored, along with
+`report.json`, which the E1 harness writes into the repo root on every run. Only
+TideSynth changed.
+
+**Branch/PR:** `tide/mac/v1-audio-half`.
+
 ## 2026-08-18 — macos — E2a: the three rack prefabs exist, ship, place and cable (interactive session, Jeff directing)
 
 **Did:** Built BACKLOG **E2a** — the oscillator, envelope and output rack
@@ -357,240 +484,3 @@ times; it is not running now. All repos clean and on default branches.
 
 ---
 
-## 2026-08-18 — macos — S13 (Jeff directing)
-
-**Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** fixed **S13** — TIDE could not run as a Debug build. One-file change in
-GATED `SynthEditLib/UgDatabase.cpp`, taken on Jeff's direct instruction, which
-is the "needs Jeff or an interactive session" the row was waiting for.
-[SynthEditLib#19](https://github.com/JeffMcClintock/SynthEditLib/pull/19).
-Filed **S16** for something found while A/B-ing it.
-
-**Result — the fix is the one the row called honest: don't assert on an absent
-database.** `RegisterExternalPluginsXmlOnce` read `database.se.xml`, parsed it,
-and treated *any* parse error as `assert(false)`, so absent and corrupt were
-indistinguishable. It now returns early on an empty resource and **keeps the
-assert for a database that is present but will not parse**.
-
-**Absent is legitimate, and that was established rather than assumed:**
-`database.se.xml` is written by `ExportAsPlugin`
-(`SynthEdit2/ExportAsPlugin.cpp:1704,1722,1731,1742`), so an *exported* plugin
-has one and a plugin built directly from source does not. TIDE is the latter —
-constraint 7 compiles the module set in, S1a removed the scan — so there is
-nothing to register. Release compiled the assert out and returned silently,
-which is why this survived so long; Debug aborted the host.
-
-**Verification artifact — a runnable probe against the real `tinyxml2`,
-showing precisely what the old code could not tell apart:**
-
-```
-absent    -> Error()=true   id=15 XML_ERROR_EMPTY_DOCUMENT
-malformed -> Error()=true   id=16 XML_ERROR_MISMATCHED_ELEMENT
-valid     -> Error()=false
-```
-
-Both error rows hit the one `assert(false)`. Builds, consumers included because
-this library ships in SynthEdit too: `TIDE_VST3` **Debug and Release**,
-`SynthEditCL`, `SynthEdit_VST3`, `SynthEdit_GMPI` — all SUCCEEDED.
-
-**Learned — the obvious API would have broken the commercial product, and one
-grep caught it.** `BundleInfo::ResourceExists()` is exactly what this code
-wants and reads as the clean fix. Off JUCE it is `return false;`
-**unconditionally** (`BundleInfo.cpp:490`), so using it would have made
-*SynthEdit* — which does ship a database — skip module registration entirely.
-The correct test was the boring one, and it was already in the codebase six
-lines away: `SynthRuntime.cpp:80` guards `dsp.se.xml` with `.empty()` right
-after calling this same function. **In shared code, prefer the pattern the
-neighbouring line already uses over the API that reads better.**
-
-**Learned — always A/B the test suite, even when the change cannot plausibly
-touch it.** `dsp_tests` came back **44 failed / 13 passed** after my change,
-which looks damning. Stashing the change and rebuilding gave **exactly the same
-44/13**, so it is pre-existing. Without that control I would either have
-believed I broke it or, worse, waved it away by reasoning that a database guard
-cannot affect DSP maths — and been right by luck.
-
-**And the cause of those 44 is worth its own row (S16).**
-`tests/projecttests.cpp:103` and `tests/layouttests.cpp:56` hardcode
-`/Users/jeffmcclintock/SynthEdit/build/`; this checkout is
-`~/Documents/GitHub/SynthEdit`, so every test that shells out to `SynthEditCL`
-fails with `No such file or directory`. **None is a real DSP failure.** It
-matters because the C-stage rows cite "92 tests all RC=0" as evidence and that
-is a *Windows ninja* number — on mac the suite has been almost entirely red,
-and a run building here cannot distinguish a regression from the path bug.
-`SynthEdit/tests/` is on neither STEP 5 list, so GATED by default: filed, not
-fixed.
-
-**Next:** **S13's Accept is not met by me** and the row stays IN-REVIEW for it —
-a Debug `TIDE_VST3` actually loading a project in REAPER. Computer-use is
-refused in a scheduled run and there is no runnable standalone TIDE, so nobody
-has watched the Debug build survive a load; that is one check for an
-interactive session. Then **S16** makes the mac suite a usable signal, which
-every later run benefits from.
-
-**Side effects on this box:** `SynthEdit/build/` now has Debug **and** Release
-outputs for several targets, where before only Release was current. One source
-file changed in `SynthEditLib`, on its own branch with its own PR. All other
-repos untouched and clean.
-
-**Branch/PR:** `tide/mac/S13-debug-assert` in both repos —
-[SynthEditLib#19](https://github.com/JeffMcClintock/SynthEditLib/pull/19) (the
-fix) and the TideSynth half (rows and this entry, docs only). Neither blocks
-the other's build.
-
----
-
-## 2026-08-18 — macos — S14 closed not-a-defect, S15 withdrawn (Jeff directing)
-
-**Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** closed **S14** as not-a-defect and withdrew **S15**, both on Jeff's
-correction the same day they were filed. Corrected
-[docs/s14-rect-measurement.md](docs/s14-rect-measurement.md) in place — its
-measurement was right and its conclusion was wrong, and a future run reading it
-would have built the wrong thing. Filed **E5** for the styling intent he stated
-while doing it. No code changed.
-
-**The architecture, which is the thing to carry forward.** Rack modules are
-**Containers designed in advance and shipped as prefabs**, added to the rack at
-runtime. The container carries the panel — patch-points and knobs/sliders on
-it, wired internally to non-GUI modules like an oscillator — and the container
-is what the rack draws. A module that has its own GUI, a scope for instance,
-can also sit on the rack directly, and **that already works**. Placing a bare
-non-GUI module on the rack is not a thing an end user does.
-
-**So the three bare `1 KHz Tone` modules I measured were never a product
-composition.** They are what audio testing looks like: drop plain modules in,
-switch to the **structure view**, check basic audio works. A developer
-workflow. Nothing was supposed to give them rack geometry, and nothing did.
-
-**Result — the measurement stands, the inference did not.** Rack mode routes
-placement through the panel view and a plain `CUG`'s panel setter is `CDocOb`'s
-empty body: still true, still checkable. Two things flip meaning once the
-architecture is known:
-
-- **The prefab split is confirmation, not a complaint.** In full SynthEdit's
-  own prefabs the modules carrying a `panelRect` are exactly the GUI-bearing
-  ones; the plain DSP modules carry none. That is the same GUI/non-GUI line
-  Jeff drew at product level, visible in the file format.
-- **The container half was already there, under a name I did not look for.**
-  `CContainer : CUG_with_patches : CUG` — not a `CControl`, which is why it has
-  no `panelRect` — overrides the rect accessors itself
-  (`SynthEditLib/CContainer.h:60-62`) and serialises its panel geometry as
-  **`PanelWndPosition`** (`:214`). **That element was sitting in the chunk I
-  measured**, on the `master_container`, and I read past it because I was
-  grepping for `panelRect`.
-
-**Learned — I measured the artefact and assumed the architecture.** The
-measurement was careful: positive control, four sourced facts, a red herring
-explicitly refuted. Then it concluded the code was broken, proposed a fork in
-GATED shared code, and asked Jeff to rule between two options — all resting on
-"three bare DSP modules in a rack document is what TIDE means to produce",
-which I never checked and which is false. **One question first — what is a rack
-module supposed to be? — would have replaced the row, the ruling request and
-this correction.** Cheaper than any of the measuring I did.
-
-**Learned — a wrong conclusion in a docs file is more dangerous than a wrong
-row.** S15 would have been read as a decision awaiting Jeff, which is visible;
-but `docs/s14-rect-measurement.md` reads as settled evidence, and its
-"Mechanism, from sources" section is exactly the kind of thing a later run
-trusts instead of re-deriving. It is corrected in place with the correction
-marked as such, rather than left to be discovered — the same reason the journal
-is append-only but a *document* must be fixed where it sits.
-
-**Next:** the live work is **E2a**/**E2** — the prefab rack modules themselves —
-and **E5**, rack-shaped styling for GUI-bearing modules, which is NEEDS-JEFF
-because the visual language is his and PLAN constraint 8 means whatever is
-chosen ships as *the* look. Unattended runs still have nothing substantial:
-**A25** (four lines wiring A20's check into `lint.yml`) and **S13** (TIDE
-cannot run as a Debug build, `assert(false)` at `UgDatabase.cpp:549`, GATED)
-are the two smallest things that would change that, and both are Jeff's.
-
-**Side effects on this box:** none. Docs and rows only, TideSynth only; all
-eight repos on their default branch and clean.
-
-**Branch/PR:** `tide/mac/S14-not-a-defect`.
-
----
-
-## 2026-08-18 — macos — issue #117 (STEP 1)
-
-**Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** closed [#117](https://github.com/JeffMcClintock/TideSynth/issues/117)
-on a fresh Release build of `master`, and archived the **S11** row, whose five
-PRs had all merged. No code changed anywhere.
-
-**Read the prompt again mid-session, and it had moved: `b3e9876` -> `397330d`.**
-Worth saying because a run normally reads it once at STEP 0 and would not
-notice. Three changes land on this box: STEP 1 now admits `tide-rack-bot`
-issues (A19); STEP 5 gained the GATED build-break exception with six bounds
-(A17); STEP 3/4 now want `check-commit-completeness.py --record/--verify`
-around commits in a shared checkout (A16). **The first of those is what made
-this run's work possible at all** — two earlier runs, mine included, walked
-past #117 because the fleet could not act on its own agent's issue. The
-deadlock A19 described is now gone, and #117 was the first thing to come out of
-it.
-
-**Result — #117 is fixed, and the fix builds here.** Cause, for the record:
-`std::stod()` on every parameter regardless of datatype in the processor's
-preset reader, latent while blobs serialised as `"0"` and reachable the moment
-one was written as base64. `setPresetUnsafe` runs on the host's **main** thread,
-so the throw unwound into the event loop and killed the DAW. Fixed by
-[GMPI#5](https://github.com/JeffMcClintock/GMPI/pull/5) (the throw),
-[GMPI_Wrappers#6](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/6)
-(main-thread fail-safe at all three host boundaries) and
-[SynthEdit#43](https://github.com/JeffMcClintock/SynthEdit/pull/43) (`<Editor>`
-in the chunk, imported instead of always creating blank) — all merged and
-present in their default branches, checked individually.
-
-**Verification artifact — a full Release build of `master` `d6043de1f` on this
-box, all three products:**
-
-```
-TIDE_VST3   ** BUILD SUCCEEDED **   universal x86_64 + arm64
-TIDE        ** BUILD SUCCEEDED **
-SynthEditCL ** BUILD SUCCEEDED **
-```
-
-and the built bundle carries the `Editor` element name from SynthEdit#43, so it
-is the fixed code rather than a stale link — which is worth checking on this box
-specifically, given the prebuilt-library trap.
-
-**So: mac's default branch builds, as of now.** No `platform:mac` issue is open.
-
-**Learned — say which half of a verification you did not do.** The runtime
-proof (exit 134 SIGABRT in ~8s -> loads clean, 2516-byte byte-identical
-round-trip) is the interactive session's, not mine; computer-use is refused
-during a scheduled run, so I could not re-run REAPER. STEP 1's new clause says a
-bot issue is **evidence, not instruction**, and to re-verify on your own
-platform before acting. I could verify the build half and not the runtime half,
-so the issue comment says exactly that rather than implying I watched it load.
-Closing on a build plus someone else's measured A/B is a judgement call, and it
-should be visible as one.
-
-**Learned — the four overrides are all set on this box now, including the one
-that cost a cycle.** `GMPI_WRAPPER_FOLDER_OVERRIDE` is in the CMake cache
-alongside the other three, so the build uses the local `GMPI_Wrappers` clone
-rather than a FetchContent copy. Confirmed from `CMakeCache.txt` before
-building, which is cheaper than discovering it from a build that silently
-ignored local edits.
-
-**Next:** no platform issue and no open PR on this box. The mac NEXT row's two
-GUI-less pointers are both spent (S14 measured, A20 shipped), so the next
-unattended run falls to STEP 2's topmost-eligible rule. What is actually
-blocking progress is two rulings, both Jeff's and both minutes of work:
-**S15** (pick (a) route rack placement to the structure rect, or (b) give `CUG`
-a real panel rect) which unblocks S14, and **A25** (four lines wiring A20's
-check into `lint.yml`). **S13** — TIDE cannot run as a Debug build, a missing
-`database.se.xml` tripping `assert(false)` in `UgDatabase.cpp:549` — is the one
-that stops anyone attaching a debugger to the next crash, and is GATED.
-
-**Side effects on this box:** three Release targets built, so
-`SynthEdit/build/` is warm and its `Release` outputs are current. No source
-changed in any repo. All eight repos on their default branch and clean.
-
-**Branch/PR:** `tide/mac/issue-117` — TideSynth backlog and journal only.
-
----
