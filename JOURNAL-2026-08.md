@@ -11762,3 +11762,88 @@ changed in any repo. All eight repos on their default branch and clean.
 **Branch/PR:** `tide/mac/issue-117` — TideSynth backlog and journal only.
 
 ---
+## 2026-08-18 — macos — S13 verified by A/B, and a wrong assumption corrected
+
+**Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** measured S13's Accept instead of leaving it open, after Jeff asked
+whether I wanted to try the repro. [SynthEditLib#19](https://github.com/JeffMcClintock/SynthEditLib/pull/19)
+is merged and S13 is DONE and archived.
+
+**Learned, and this is the entry's real content — I wrongly believed I could
+not test in REAPER.** Two entries today, and the S13 PR body, all state that a
+scheduled run cannot verify this because computer-use is refused. **That
+conflates two different things.** Computer-use is refused, and it was never
+needed: **launching a binary and reading its stderr is a Bash operation.** The
+mac NEXT row has said so since this morning — *"launch the DAW from a shell
+(`/Applications/REAPER.app/Contents/MacOS/REAPER project.rpp`), not `open -a`
+— an uncaught C++ exception then prints its own type and message to stderr"* —
+and I quoted that note into a handoff prompt for an interactive session
+**while still believing I couldn't use it myself.** The prompt I wrote was the
+evidence that I could.
+
+**What that cost, stated plainly:** S13 shipped with its Accept unmet and a row
+left IN-REVIEW, an issue (#117) closed on someone else's runtime evidence, and
+a handoff prompt asking Jeff to do a check that took me two commands. The
+generalisation worth keeping: **"I have no GUI" is not the same as "I cannot
+run the program".** Before declaring something unverifiable, ask which of the
+two it actually needs — driving a UI, or observing a process.
+
+**Result — the A/B, same project, same Debug config, same machine, only the fix
+differing.** `/tmp/tide-s11-final.RPP`, REAPER launched from a shell with a
+40-second watchdog:
+
+```
+BEFORE (SynthEditLib main, no fix)
+  RESULT: exited after ~6s with code 134
+  Assertion failed: (false), function RegisterExternalPluginsXmlOnce,
+                    file UgDatabase.cpp, line 549.
+
+AFTER (fix branch, Debug TIDE_VST3 rebuilt)
+  RESULT: STILL RUNNING after 40s — no abort, project loaded
+  SYNTHEDIT PROCESSOR: Intel
+  BLOCK SIZE 128, DRIVER BUFFER 512 (4 per buffer, EXACT)
+  audioMasterState::Starting
+  audioMasterState::Running
+  grep -c "Assertion failed" -> 0
+```
+
+The process was alive at 40s and killed by the harness, not by an abort. **The
+Debug build is usable for debugging again**, which was the row's whole point:
+every S11-era investigation had to work from `.ips` reports because this assert
+killed the only build with symbols.
+
+**Trap found while setting this up, and it would have wasted someone's
+session:** a post-build step copies the built bundle to
+`~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3`, so **whichever configuration
+you build last is the one REAPER loads.** Build Release after Debug and your
+Debug test silently measures the Release plugin — where this assert compiles
+out, so it "passes" for the wrong reason. That is exactly the shape of failure
+this project keeps hitting: a green result that means nothing.
+
+**Also worth knowing before the next A/B:** the earlier `dsp_tests` control
+left the build tree mixed — source with the fix, last-built `libSynthEditLib.a`
+without it. Rebuilding the specific target before measuring is not optional
+here, and the paired-tips trap makes it worse.
+
+**Observed, not chased:** the log reports `SYNTHEDIT PROCESSOR: Intel` on an
+M1, so REAPER is presumably running the x86_64 slice of the universal binary.
+Not a defect and not investigated; recorded so nobody reads it as one later.
+
+**Next:** the audio measurement is now clearly within reach of an unattended
+run — `audioMasterState::Running` already appears in that log, and PLAN's V1
+acceptance needs the patch to actually *play* after reload. Whether audio can
+be confirmed from stderr alone or needs a rendered file is the open question,
+and **`se_render_audio`/offline render is worth trying before booking a GUI
+session.** Then **S16**, which makes `dsp_tests` a real signal, and **A25**.
+
+**Side effects on this box:** the plugin now installed at
+`~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3` is the **Debug** build with the
+fix; `SynthEditLib` is back on `main`, which now contains the fix, so source
+and installed binary agree. REAPER was launched twice by me and killed both
+times; it is not running now. All repos clean and on default branches.
+
+**Branch/PR:** `tide/mac/S13-verified` — TideSynth rows and journal only.
+
+---
+
