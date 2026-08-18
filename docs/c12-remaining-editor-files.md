@@ -295,12 +295,43 @@ the specific thing to check here, not a formality.
 `UG2`, `CPlugin` — `.cpp` and `.h` each, ten entries, 6,298 lines. Must move as
 one commit: the first four are a strongly-connected component.
 
-**Accept** Zero `${EDITOR_DIR}` entries remain on the source list — this is the
-stage that satisfies C12's own top-level acceptance check. Fourteen dangling
-edges close, taking the total from the 41 to zero. Full build, three test suites
-green, SynthEdit2 (WinUI3) links. **Also re-check `resource.h` here** if C12f is
-the last stage to move a `.cpp` out of `SynthEdit2`: those TUs switch from the
-private copy to the public one, which is a no-op only while the constants match.
+**Accept** ~~Zero `${EDITOR_DIR}` entries remain on the source list — this is
+the stage that satisfies C12's own top-level acceptance check.~~ **Corrected
+2026-08-19 (windows), on landing C12f: the source list goes 13 -> 3, not to
+zero.** This paragraph was written assuming C12d would have landed first. It has
+not — C12d is marked `linux` on purpose, because `platform_editor.cpp`'s
+static-archive link topology is invisible to MSVC — so its three entries
+(`InterfaceObject_editor.{cpp,h}`, `platform_editor.cpp`) survive C12f.
+**C12's top-level zero-entries check is satisfied by C12d, not by C12f**, and
+C6 must stay blocked until then: three private entries block a clean-clone build
+exactly as forty-one did. The stage table above has the same defect for the same
+reason; read the "Entries" column as this stage's own count, never as a running
+remainder.
+
+Fourteen dangling edges close, taking 21 to 7 — measured, and exactly as
+predicted. The 7 that remain are the ones no sub-stage owns: `ISEAppManaged.h`
+(3), `IMidiDriver.h` (2), `ParseSynthEditArgs.h` (1) — the three listed under
+"What C12 does not cover" — and `SynthEditApp.h` (1), which is C11. Full build
+and three test suites green: **1017/1017 RC=0, ctest 92/92** on a fresh Ninja
+tree, with all five moved TUs verified compiling from `C:\SE\SynthEditLib\`
+rather than the build merely staying green.
+
+**SynthEdit2 (WinUI3) was NOT built, and that gap is real.** Its vcxproj links
+`EditorLib.lib`/`SynthEditLib.lib` out of `$(SolutionDir)build\...`, the
+developer's own Visual Studio tree, which a scheduled run must not write into.
+Verified instead by inspection plus one compiled positive control: the vcxproj
+lists none of the ten (they arrive via `EditorLib.lib`, whose source list still
+compiles all five TUs); its four includers use the plain `"PatchManager.h"` form
+and fall through to `$(SolutionDir)..\SyntheditLib`, present in all four
+configurations; and `ExportAsPlugin.cpp` — still resident in `SynthEdit2/`, and
+including `"UG2.h"` and `"PatchManager.h"` by plain name — compiles clean after
+the move at edge 1016/1017. A future stage that needs a real WinUI3 link is
+asking for something the scratch-Ninja method cannot give it.
+
+**`resource.h` re-checked as this paragraph asks: none of the ten includes it**,
+so no TU switched between the two divergent copies here. C12f is also *not* the
+last stage to move a `.cpp` out of `SynthEdit2` — C12d still moves two — so the
+re-check will need doing once more.
 
 **Size** The largest single stage of the whole carve-out — larger than C3, C4
 and C5 individually. Still one session, because it is a mechanical `git mv` of a
