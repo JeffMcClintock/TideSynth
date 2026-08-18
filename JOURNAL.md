@@ -46,6 +46,85 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — MIDItoGate2 traced: it IS MIDI-2 compatible and DOES set the gate (interactive session, Jeff directing)
+
+**Did:** Jeff asked whether `SE MIDItoGate2` is MIDI 2.0 aware. Answering it
+properly overturned a claim I had already written into **E7**, so this entry is
+mostly a correction.
+
+**E7 said `SE MIDItoGate2` "emits no gate at all". That was wrong** — an inference
+from a silent rack, never a direct measurement. It is fully MIDI 2.0 compatible
+and it does set the gate. Two independent proofs.
+
+**By code.** `MidiConverter2::processMidi` opens with an explicit pass-through for
+MIDI 2.0 input (`modules/se_sdk3/mp_midi.h:966` — *"MIDI 2.0 messages need no
+conversion — pass through and return"*), and `MidiToGate2::onMidi2Message`
+requires `ChannelVoice64`, which is exactly the message type TIDE forwards
+(status `0x40`). So there is no 1.0-versus-2.0 mismatch anywhere in the path.
+
+**By trace**, added to `modules/MidiPlayer2/MidiToGate.cpp` at Jeff's request and
+**reverted unbuilt afterwards** — a temporary trace that got committed is issue
+[#87](https://github.com/JeffMcClintock/TideSynth/issues/87), and this one was
+not going to repeat it:
+
+```
+MTG2: onMidiMessage pin=0 size=8 bytes=40 90 3c 00 isMidi2=1
+MTG2: onMidi2Message msgType=4 status=9 (ChannelVoice64=4 NoteOn=9)
+MTG2: NOTE ON note=60 -> pinGate=true triggerCounter=22
+MTG2: trigger pulse ended at sample 6 -> setSleep(true)
+MTG2: onMidiMessage pin=0 size=8 bytes=40 80 3c 00 isMidi2=1   <- NoteOff, status=8
+```
+
+It receives the UMP, decodes it, reads **note 60** — the fixture's middle C — and
+sets `pinGate = true`. `triggerCounter=22` is the 0.5 ms pulse at 44.1 kHz,
+correct. The intervening `status=6` and `status=0` messages are other MIDI 2.0
+types it correctly ignores.
+
+**So where is the break?** The rack downstream measured **zero for the whole
+render**, peak −inf, including the samples while the gate was set. The gate is set
+on the pin and never arrives at the Envelope's ADSR.
+
+**This does NOT overturn "a monophonic module's cable is live."** The cable
+demonstrably drove the GATE jack from its default of 10 down to 0 — that is why
+the rack went silent rather than droning. **The cable crosses; the VALUE does
+not.** Two concrete suspects, neither tested:
+
+1. `pinGate` is a `BoolOutPin` and the jack is an audio-rate `SE Patch Point in`,
+   so a static/event bool may not drive an audio-rate signal at all. That would
+   also explain why `--connect $mtg:Gate $pp:Input` is *accepted* by SynthEditCL
+   while carrying nothing — the connection is legal and inert.
+2. `setSleep(true)` fires 22 samples after note-on while the gate is still
+   logically HIGH, so a sleeping module may stop driving its output.
+
+**Test (1) first:** it is a datatype question answerable with SynthEditCL alone,
+no GUI — put a bool-to-volts conversion or a `Multiply` between the two and see
+whether the gate arrives. If it does, the interim prefab just needs that module
+inside it.
+
+**Learned — the shape of my own error, because it repeated.** Twice now I have
+turned a *silent downstream* into a claim about an *upstream module*: first
+"`gmpi_render_audio` says the rack is silent" (which was the tool), now
+"MIDItoGate2 emits no gate" (which was the wire). Silence measured at the end of a
+chain names the chain, not a link in it. The fix both times was to measure at the
+suspected link instead — a `Sound Out` inside the container, or a trace in the
+module. **`build-prefabs.py --diagnostics` exists for the first; a throwaway
+`fprintf` is fine for the second, as long as it is reverted.**
+
+**Side effects on this box:** the SynthEditLib trace was reverted and that repo is
+clean on `main`; TIDE_VST3 was rebuilt from the reverted source so the installed
+plugin matches the tree. REAPER was not launched — the fixture was already saved,
+so this was a headless render. GMPI (`9541b1d -> b9e4f92`) and GMPI_Wrappers
+(`e2eeedc -> ea2e357`) arrived in the routine sync, both from
+`tide/win/standalone-correctness-fixes`; TIDE was rebuilt against them and all
+three host fixtures plus E1 4/4 re-measured unchanged, so they disturb nothing
+here.
+
+**Next:** **E7**, unchanged in scope — Jeff's rulings still reduce the design to
+"where do the jacks live". The interim's remaining question is now suspect (1)
+above, which is a 30-second SynthEditCL test rather than an investigation.
+
+**Branch/PR:** `tide/mac/E7-miditogate2-finding`.
+
 ## 2026-08-18 — macos — PROBE D: MIDI does exit the MIDI In module (interactive session, Jeff directing)
 
 **Did:** answered one question Jeff asked of the previous entry's evidence — *did
