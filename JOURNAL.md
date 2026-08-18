@@ -46,6 +46,94 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — PLAN's v0.1 acceptance test is COMPLETE (interactive session, Jeff directing)
+
+**Did:** merged the last three PRs, synced the fleet, rebuilt against updated
+dependencies and re-measured everything. **Every clause of PLAN's v0.1 acceptance
+test now passes, measured.** V3 and E8 are DONE and archived.
+
+**The acceptance test, clause by clause, all measured rather than argued:**
+
+| clause | evidence |
+|---|---|
+| loads in a DAW, shows the rack | `TIDE: 5 rack prefab(s) seeded from the bundle`, editor opens |
+| drop in an oscillator and an envelope as prefabs | E2a, DONE |
+| cable them to an output | 4 patch cables in `HC_PATCH_CABLES` |
+| **play it from the DAW's MIDI** | **261.6257 Hz for a middle C — +0.001 cents** |
+| patch survives save-and-reload | −6.3 dBFS, 440.0 Hz, cables intact |
+
+Five host fixtures in `tests/hosts/`, E1 **4/4**, all re-run from merged `main`.
+
+**Where this session started:** nobody had ever heard TIDE make a sound after a
+host reload, and V1 had been blocked for weeks behind a circular dependency with
+E2a. It ends with the whole v0.1 bar cleared and four checked-in fixtures anyone
+can re-run in one command. That last part is the real change — this stopped being
+something the project reasons about and became something it measures.
+
+**Rows closed today:** V1, E2a, V3, E8 — all archived. **A25** landed too (the
+NEXT-block check now actually gates `lint`, proven by a two-commit probe).
+
+**Still open, and none of them blocking:** **E9** (TIDE latches its sample rate at
+document-push time with no rate-change path — the nearest thing to a live defect
+left, and the new `mac` NEXT target), **E7** (polyphony cannot escape a container —
+V3 side-stepped it by keeping the MIDI-CV at the root, so it is an
+engine-limitation row now rather than a blocker), **E6**, **S8**, **E2**, and
+**E5**/**A25**-style items needing Jeff.
+
+**Dependency churn checked rather than assumed.** The sync pulled GMPI_Wrappers
+`ea2e357 → ebf8cfe`, GMPI-plugins `5c1c6e5 → 79e3f92` and synthedit-website. TIDE
+builds against local overrides of GMPI and GMPI_Wrappers, so those land in the
+plugin on the next build — which is exactly the kind of thing that silently
+invalidates a measurement. So TIDE was rebuilt against them and every fixture
+re-measured **unchanged**, including the pitch at +0.001 cents. Both deltas were also audited
+and both came back `affects_tide: no` at high confidence, which explains the
+unchanged numbers rather than just corroborating them:
+
+* **GMPI-plugins** deletes one stale unused `FreqAnalyser.xml` that was never a
+  build input (its CMakeLists never passed `HAS_XML`; the plugin registers inline
+  in code under a different id), and GMPI-plugins is not in TIDE's build at all.
+* **GMPI_Wrappers** is 20 files, all under `wrapper/Standalone/` or `mcp/` —
+  nothing under `wrapper/VST3/`, `wrapper/common/` or the shared
+  `GMPI_HOSTING_SRCS`. It teaches the standalone to notice when its audio device
+  dies (`isStreamRunning`/`stoppedReason`) and hardens the Windows named-pipe IPC.
+  `Processor_VST3.cpp` is not in the changed-file list at all, and no added or
+  removed line mentions ump/noteon/pitch/bend — so the class of bug fixed today is
+  not in scope. The one CMake risk was real and is clear: `add_subdirectory(Standalone)`
+  is unconditional, so a configure error there would break TIDE's configure even
+  though the VST3 never links the target; the sole change is one header added to
+  `standalone_mcp_srcs`, and the file exists.
+
+**Two caveats from that audit worth keeping, both confined to `TIDE_STANDALONE` —
+the developer target this project uses for screenshot/click/render work.** (1) The
+MCP `info` reply now gates `sampleRate`/`bufferFrames` on a live driver poll and
+adds an `audioStopped` field, **so a harness that reads `sampleRate` out of `info`
+will find it ABSENT rather than stale once a stream has died** — a JSON-shape
+change in the measurement tooling, not in what TIDE renders. (2) Windows only:
+WASAPI's `Start()` moved inside `open()`, so a device that refuses to start now
+fails the open instead of returning success and playing nothing. Strictly better,
+but a real behaviour change if anyone drives the Windows standalone.
+
+**Learned, and it is the pattern of the whole session.** Six of my own hypotheses
+died today, and every single one failed the same way: **I attributed a silence or
+an error measured at the END of a chain to a component inside it.** The tool (E6),
+the wire (the missing converters), the module (MidiToGate2), the sample rate, the
+convention, the JUCE block. Each time the fix was to measure at the suspected link
+instead — a `Sound Out` inside the container, a trace in the module, the authors'
+own `DMIDI_LOG`. And twice the *instrument* was the thing at fault: the render tap
+cannot see inside a container, and a 0.25 s Goertzel window cannot separate two
+candidates 1.2 Hz apart. **Validate the instrument on a case whose answer you
+already know, before believing what it says about the case you care about.**
+
+**Side effects on this box:** no REAPER this round — every measurement was a
+headless render. TIDE_VST3 rebuilt Release from merged `master`. All fourteen repos
+on their default branches and clean; the three merged feature branches deleted and
+pruned. `AlphaBlender` remains parked on `DrawOnImage`, `VST_SDK` detached at its
+SDK tag, both deliberately.
+
+**Next:** **E9**.
+
+**Branch/PR:** `tide/mac/v3-e8-done`.
+
 ## 2026-08-18 — macos — V3: the root MIDI-CV design works, gate and pitch (interactive session, Jeff directing)
 
 **Did:** implemented Jeff's design — every fresh document gets `MIDI In` →
@@ -472,91 +560,4 @@ here.
 above, which is a 30-second SynthEditCL test rather than an investigation.
 
 **Branch/PR:** `tide/mac/E7-miditogate2-finding`.
-
-## 2026-08-18 — macos — PROBE D: MIDI does exit the MIDI In module (interactive session, Jeff directing)
-
-**Did:** answered one question Jeff asked of the previous entry's evidence — *did
-we prove that MIDI exits the `MIDI In` module?* — and the honest answer was **no**.
-Fixed that with one more probe, then tidied the fleet's stale branches.
-
-**First, a bookkeeping failure worth more than the fix.** Several commits from the
-previous session never reached either default branch: I kept pushing to branches
-whose PRs had **already merged**, so `TideSynth/main` stopped at "record the
-confirmed cause" and `SynthEdit/master` stopped at the first commit of the V3
-series. Everything after that — the `MidiToGate` linking, the one-list staging
-fix, `TIDE_STATIC_EXTRAS`, Jeff's rulings, and my own correction of a wrong
-explanation — sat on deleted branches. Recovered here from the branch tips
-(`34503ea21`, `25216c1`, still in the object store). **The lesson: `git push`
-succeeding says nothing about whether a PR is still open to carry it.** Check the
-PR state before pushing a follow-up, or push to a fresh branch.
-
-**One silver lining:** the wrong explanation never reached the repo of record
-either, so `main` was never publishing it. It is re-landed here in corrected form
-only, rather than as a wrong commit followed by a fix.
-
-**The wrong explanation, since it is a plausible trap.** I blamed
-`#if GMPI_IS_PLATFORM_JUCE==1` around `INIT_STATIC_FILE(MIDItoGate)` for
-`SE MIDItoGate2` being absent from TIDE. Wrong twice: `INIT_STATIC_FILE(ADSR)` is
-inside that same block while ADSR works fine (TIDE's ADSR is the legacy
-`ug_adsr.cpp` `REGISTER_MODULE_1` one, reached through the legacy table), and
-adding an unconditional `INIT_STATIC_FILE(MIDItoGate)` **fails to link** —
-`se_static_library_init_MIDItoGate()` undefined, the linker saying the object is
-not in the library. **The real reason:** `modules/MidiPlayer2/MidiToGate.cpp` is
-in a `SynthEditLib/CMakeLists.txt` source list belonging to a **separate
-`MidiPlayer2` target**, so it builds as a loadable module.  `MidiToGate.o` lands
-under `MidiPlayer2.build/`; `MidiToCv2.o`, genuinely in the library, lands under
-`SynthEditLib.build/`. TIDE links statically and has no scan (S1a). Fixed with no
-GATED change by adding the `.cpp` to `SynthEditSem`'s source list — E2a's
-`RectangleGui.cpp` pattern — and **that same layout is what S8 measured**, so S8's
-own "separately-loaded module" suspicion was right all along and its row now says
-so.
-
-**Why the earlier pair was not enough.** PROBE A (MIDI In present **and** cabled
-to MIDI-CV 2) gates on the note; PROBE B (MIDI In absent) never does. That reads
-like proof but changes **two** variables at once, so all it supports is "MIDI In
-plus its cable delivers MIDI". The live alternative was that the module's mere
-**presence** makes the container a MIDI destination and `ug_container`'s
-redirector feeds MIDI-CV 2 directly — `ug_base.cpp:2859` scans for the first
-DT_MIDI2 input pin, so that is not a fanciful reading.
-
-**Result — PROBE D holds the module present and leaves the pin UNCONNECTED.**
-
-```
-A  present + cabled    Gate  0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0
-D  present, uncabled   Gate  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-B  absent              Gate  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-```
-
-A and D differ in **only** the cable, and only A gates. **So MIDI travels through
-the patch cable and does exit the `MIDI Data` output.** The redirector alternative
-is dead.
-
-**What that buys beyond bookkeeping.** `SE MIDItoGate2` is wired from `MIDI In`
-in exactly the way MIDI-CV 2 is, so it **is** being fed MIDI — its silence is
-internal to the module rather than a delivery problem. That removes the whole
-delivery half of the suspect list and leaves two lines: the `setSleep(true)` /
-`subProcessNothing` path in `MidiToGate2::subProcess`, and the cross-class
-`setSubProcess(&MidiToGate::subProcessNothing)` sitting inside `MidiToGate2` —
-both at `modules/MidiPlayer2/MidiToGate.cpp:222`.
-
-**Learned:** an A/B that moves two variables is worth exactly as much as its
-weaker leg. Both earlier probes were real measurements and the conclusion drawn
-from them was still unsupported; it took a third arrangement to make the claim
-true. Cheap, too — one prefab, one placement, one render, no cabling.
-
-**Side effects on this box:** REAPER launched once, exited on its own; not
-running. The diagnostic prefabs were removed from `TideModules/prefabs/` and from
-the installed bundle again, which the `Probe*.synthedit` gitignore rule now makes
-harder to get wrong. Stale merged local branches deleted at Jeff's instruction:
-`TideSynth/tide/mac/e2a-v1-done` and `GMPI/release_1_5`. Everything else on those
-repos was left alone — `SynthEdit`'s `Release_V14`/`Release_V15`, `gmpi_ui`'s
-`release_1_5`, `AlphaBlender`'s `offscreen` and `JUCE`'s `master` are release or
-unmerged branches, not stale.
-
-**Next:** unchanged — **E7**, which Jeff's rulings have already reduced to "where
-do the jacks live". The `MidiToGate2` thread is now a two-line code question
-rather than an investigation.
-
-**Branch/PR:** `tide/mac/E7-probe-d`; SynthEdit
-[#47](https://github.com/JeffMcClintock/SynthEdit/pull/47).
 
