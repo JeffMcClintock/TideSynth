@@ -74,6 +74,14 @@ jobs:
         continue-on-error: true
         run: python3 scripts/check-id-refs.py
 
+      # A20/A25. Whole-tree for the same reason as the step above: a NEXT
+      # take-target goes stale when the row it names is archived, which is an
+      # edit to a DIFFERENT file than the one citing it. Diffing would miss it.
+      - name: NEXT block liveness
+        id: nextblock
+        continue-on-error: true
+        run: python3 scripts/check-next-block.py
+
       - name: Summary
         if: always()
         env:
@@ -82,14 +90,16 @@ jobs:
           BACKLOG: ${{ steps.backlog.outcome }}
           PROVENANCE: ${{ steps.provenance.outcome }}
           ID_REFS: ${{ steps.idrefs.outcome }}
+          NEXTBLOCK: ${{ steps.nextblock.outcome }}
         run: |
           echo "links:      $LINKS"
           echo "journal:    $JOURNAL"
           echo "backlog:    $BACKLOG"
           echo "provenance: $PROVENANCE"
           echo "id-refs:    $ID_REFS"
+          echo "next-block: $NEXTBLOCK"
           fail=0
-          for outcome in "$LINKS" "$JOURNAL" "$BACKLOG" "$PROVENANCE" "$ID_REFS"; do
+          for outcome in "$LINKS" "$JOURNAL" "$BACKLOG" "$PROVENANCE" "$ID_REFS" "$NEXTBLOCK"; do
             if [ "$outcome" != "success" ]; then
               fail=1
             fi
