@@ -46,6 +46,139 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — E2a: the three rack prefabs exist, ship, place and cable (interactive session, Jeff directing)
+
+**Did:** Built BACKLOG **E2a** — the oscillator, envelope and output rack
+prefabs — plus module-enumeration **stage 4** that ships them. Took the
+STANDALONE option the prompt raised, and it paid for itself several times over.
+
+**The STANDALONE decision, and why the stated risk turned out not to exist.**
+Added `STANDALONE` to `SynthEditSem/CMakeLists.txt`'s `FORMATS_LIST`. The
+concern was that it puts a local IPC endpoint in the product. It does not, and
+that is measured rather than argued: `Standalone_Wrapper` is linked PRIVATE into
+the `_STANDALONE` executable only (`GMPI/gmpi_plugin.cmake:373`), and `nm` on
+the Release binaries counts **25** IpcServer/CommandDispatcher symbols in
+`TIDE_STANDALONE` against **0** in both `TIDE_VST3` and `TIDE.gmpi`. Nothing
+copies the app to a Plug-Ins folder either. **The one footgun, written into the
+CMake rather than left implicit:** `GMPI_STANDALONE_COMMAND_CHANNEL` defaults
+**ON**, so if TIDE ever ships a standalone that release must configure
+`-DGMPI_STANDALONE_COMMAND_CHANNEL=OFF`, which removes the code rather than
+merely declining to start it.
+
+**It made the rack scriptable, which is the whole reason E2a got as far as it
+did:** screenshot, click, drag and render-audio over a unix socket, driving the
+real editor. Every visual claim below was verified that way.
+
+**Three real bugs surfaced on the way in, each of which blocked the next step:**
+
+1. **The standalone never instantiated the plugin's Controller subtype.** It
+   created only `Audio` and `Editor`; TIDE's entire UI hangs off its controller,
+   so TIDE came up as a menu bar, a breadcrumb strip and an empty black canvas —
+   no document, no browser, no rack. `TideApp::InitInstance` was never running.
+   The VST3 wrapper has always done this
+   (`wrapper/VST3/Controller_VST3.cpp:347`); the standalone simply did not.
+   Fixed in **GMPI_Wrappers**, its own PR.
+2. **TIDE answered a zero-size `measure()` probe with zero.** The standalone
+   probes at `{0,0}` to ask "what size do you want?", read the zero as "no
+   opinion", and opened a 400x400 window. Below 720 DIPs `recomputeStrips` sets
+   `showSidePanes = false`, so **both** the module browser and properties pane
+   vanish — which is what made TIDE look like it had no module browser at all.
+   400x426 -> 1100x626 with the fix.
+3. **POST_BUILD ordering shipped a correct build tree and a wrong plugin.**
+   `gmpi_plugin`'s `copy_plugin` copies the bundle to `~/Library/Audio/Plug-Ins`
+   as an *earlier* POST_BUILD step than the resource staging added here, so the
+   installed VST3 had `ControlsXp.xml` and no `Prefabs`. Invisible until you
+   wonder why the standalone lists three prefabs and REAPER lists none.
+
+**The prefabs are generated, not hand-written.** `TideModules/build-prefabs.py`
+drives SynthEditCL for the graph (handles, `<lines>`, the `IO Mod`s
+`--containerise` synthesises — the half a human gets wrong silently) and does
+the panel layout itself, because the CLI has no verb that moves a module.
+`TideModules/prefabs/*.synthedit` is its output.
+
+**Two facts that each cost a debugging cycle, now encoded in the generator:**
+
+- **`PanelWndPosition` is what the rack draws** for a Container
+  (`CContainer::getViewObRect`, `CContainer.cpp:3332`) — *not* `panel_rect`.
+  SynthEditCL saves it as `0,0,0,0`, so the first prefabs dropped into the rack
+  **successfully**, reported the right size in the properties pane, and drew
+  nothing. Compare `Controls/LED2.syntheditprefab`, which carries a real one.
+- **Every module in a prefab must be a class TIDE actually LINKS.** In a saved
+  document that is `class="1"`/`class="2"`; an XML-only entry has **no `class`
+  attribute at all**. One such module takes the container's *whole* widget layer
+  down — a blank rack, not a partial failure. `assert_all_modules_linked()` now
+  fails the build on it, with a negative control proving the check fires.
+  **A `strings`/`nm` check is a FALSE POSITIVE here** and cost this run an hour:
+  `"SE Rectangle XP"` is in TIDE's binary via the legacy rename table at
+  `CUG.cpp:301` while having no registration whatsoever.
+
+**No faceplate, and that is the finding rather than an omission.**
+[docs/e2a-prefabs.md](docs/e2a-prefabs.md) §1 asks for `Sine.seprefab`'s idiom
+(`SE Rectangle XP` as a background padding the module out to a rack slot, plus a
+text module). **TIDE links neither** — they are SubControlsXp `.sem` modules,
+the dynamically-loaded kind PLAN constraint 7 excludes, and TIDE's browser
+correspondingly has no Sub-Controls category. Staging `SubControlsXp.xml` does
+**not** help; it only adds the "insertable phantoms" U2e's own comment warns
+about, and that experiment was tried and reverted. Giving these modules a body
+needs a rack-native background primitive in TIDE's static set — **E5**'s
+territory, and Jeff's call, not a run's.
+
+**The Envelope is an envelope AND a VCA**, deliberately. A bare ADSR emits
+control voltage and has no audio path, so oscillator -> envelope -> output would
+render silence however correct each part was. Its Gate jack defaults open so the
+minimal three-module rack — which has nothing to patch a gate from — still
+sounds.
+
+**Result — what is verified, all of it live in `TIDE_STANDALONE` with the
+`~/SynthEdit Projects/Prefabs` copies DELETED, so the bundle path is what was
+exercised (the false-pass trap docs/e2a-prefabs.md §5.3 names):**
+
+- `TIDE: 3 rack prefab(s) seeded from the bundle` at startup, with the scan
+  still absent — S1a's design intact.
+- All three appear under the browser's **Prefabs** group.
+- Each **places** on the rack as a Visible container with its jacks drawn.
+- Jacks **cable** to each other with real mouse drags: oscillator -> envelope ->
+  output, wired and rendered on screen.
+- The **installed** VST3 at `~/Library/Audio/Plug-Ins/VST3` carries
+  `Resources/Prefabs/`, so this is what REAPER will load.
+
+**So E2a's unaudited question is ANSWERED: placing and cabling a CLOSED prefab
+in the rack works today and needs no U1 work.** U1/U1a/U1b/U1c had already
+landed; the rack-mode placing surface they left behind is sufficient. What it
+needed was correct prefab *data*, not more UX.
+
+**NOT DONE, and the reason is specific: the audio has not been measured.**
+`gmpi_render_audio` returns silence for TIDE and **that is an artifact of the
+tool, not of the rack**. It primes a fresh processor from current parameter
+values and skips every non-scalar parameter —
+`if (!is_scalar(param.info->datatype)) continue;`
+(`GMPI_Wrappers/wrapper/Standalone/mcp/CommandDispatcher.cpp:858`). **TIDE's
+entire patch is a blob parameter** (S12's chunk), so the offline instance is
+built with an empty graph and is guaranteed to be silent whatever is on screen.
+The tell is `parametersPrimed: 0` in the result, with TIDE's two parameters both
+blobs. Fixing it needs a non-scalar setter in GMPI's `processor_holder` (only
+`setParameterNormalizedFromDaw` exists) — a third repo, so it was filed rather
+than grabbed at the end of a session.
+
+**The V1 measurement therefore still wants the REAPER route the prompt
+described** (`scripts/render-and-measure.py` against a saved `.rpp`), which
+exercises the product path and does not depend on the standalone's offline
+render at all. That is the next step and it is now unblocked in every other
+respect: the prefabs exist, ship, place and cable.
+
+**Also not done:** the per-prefab E1 harness cases. The generator's
+`assert_all_modules_linked` check is a real regression guard and is green, but
+it is a build-time invariant, not an E1 audio case.
+
+**Two smaller traps worth keeping:**
+- Dragging a second cable *from a jack that already has one* grabs the existing
+  cable rather than making a new one, and it is easy to end up with a cable
+  between one module's own two jacks. Cable each jack once.
+- Two Output prefabs in a rack means two `Sound Out`s competing for the host's
+  buffers. Keep one.
+
+---
+
 ## 2026-08-18 — macos — S13 verified by A/B, and a wrong assumption corrected
 
 **Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot

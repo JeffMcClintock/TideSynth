@@ -4,6 +4,14 @@ Written 2026-08-17 (windows, interactive session, Jeff directing). Everything
 cited here was read or measured from the working trees that day — `SynthEditLib`
 at `f0e3c92`, `SE16` at `28907334e` — not recalled from documentation.
 
+> **BUILT 2026-08-18** (macOS, interactive, Jeff directing). This document is
+> the plan as written on 2026-08-17; it is kept as-is except for this banner and
+> [§9](#9-what-building-it-actually-taught-us), which records where reality
+> differed. **Read §9 before acting on §1–§6.** Two things it got wrong are the
+> kind that cost a cycle each: the rect that makes a rack module visible is
+> `PanelWndPosition`, not the panel geometry §1 implies, and the faceplate idiom
+> §1 asks for is **not available in TIDE at all**.
+
 **The item:** BACKLOG **E2a** — oscillator, envelope, output, each a rack
 prefab, the minimal set V1's acceptance test needs. This doc is the plan the
 row points at; it moves no file and ships no prefab.
@@ -202,3 +210,88 @@ E4 ruling.
   a false pass; test with the Documents copy absent.
 - **The `if(APPLE)` staging gap** — §5.1. A prefab that ships on mac and
   silently not on Windows would be U2e's gap repeated; fix both together.
+
+
+---
+
+## 9. What building it actually taught us
+
+Added 2026-08-18, after the row was built. Everything here was measured on the
+macOS box against a running `TIDE_STANDALONE`.
+
+### 9.1 `PanelWndPosition` is what the rack draws — §1 does not say this
+
+A Container's rect *in its parent's panel view* is `PanelWndPosition`
+(`CContainer::getViewObRect`, `CContainer.cpp:3332`), not `panel_rect`, which is
+its own internal canvas. **SynthEditCL saves `PanelWndPosition` as `0,0,0,0`**
+because no panel window was ever opened at a position — so a prefab authored
+with the CLI drops into the rack *successfully*, is selected, reports the right
+size in the properties pane, and **draws nothing**. `Controls/LED2.syntheditprefab`
+is the reference that carries a real one (`l="70" r="90" t="24" b="44"`).
+
+### 9.2 The faceplate idiom in §1 is not available in TIDE
+
+§1 says to keep `Sine.seprefab`'s faceplate (`SE Rectangle XP` + a text module).
+**TIDE links neither.** They are SubControlsXp `.sem` modules — the
+dynamically-loaded kind PLAN constraint 7 excludes — and TIDE's browser has no
+Sub-Controls category as a result. Staging `SubControlsXp.xml` does **not** fix
+it; it only adds the "insertable phantoms" U2e's own comment warns about. That
+was tried and reverted.
+
+**How to tell, and the check that does NOT work.** In a saved document a linked
+class carries `class="1"` (DSP) or `class="2"` (GUI); an XML-only entry has **no
+`class` attribute at all**. A `strings`/`nm` check on the binary is a **false
+positive** — `"SE Rectangle XP"` is present there via the legacy rename table at
+`CUG.cpp:301` while having no registration. `build-prefabs.py`'s
+`assert_all_modules_linked()` enforces the document-level check.
+
+The failure mode is worth stating because it is not graceful: **one module with
+no class blanks the container's entire widget layer.** Not a missing rectangle —
+a blank rack.
+
+So rack modules have no body today. Giving them one needs a rack-native
+background primitive in TIDE's static set, which is **E5**.
+
+### 9.3 The Envelope has to be a VCA too
+
+§3's table lists the envelope as "the AR/envelope primitive". A bare ADSR emits
+control voltage and has **no audio path**, so oscillator -> envelope -> output
+renders silence however correct each part is — and those three modules existing
+*so that V1's test can pass* is this row's entire purpose. The shipped Envelope
+is ADSR + `Multiply`, with the ADSR's Overall Level at 1 so the VCA is unity
+gain, and its Gate jack defaulting open so the minimal rack still sounds.
+
+### 9.4 §5's three pieces were right, plus one it could not have known
+
+Stage 4 landed as planned — bundle staging, `PrefabFileNames` seeding, and
+resolving drops against the bundle — and the "enumerate the bundle" shape §5
+recommended was the right one. Two additions:
+
+- The `if(APPLE)`/single-target staging gap §5.1 flags is fixed **for every
+  format target**, not just `TIDE_VST3`.
+- **POST_BUILD ordering**: `gmpi_plugin`'s `copy_plugin` copies the bundle to
+  `~/Library/Audio/Plug-Ins` as an *earlier* POST_BUILD step than any staging
+  added afterwards, so the build tree was correct and the installed plugin was
+  not. Staging runs a second time into the install destination.
+
+### 9.5 §6's verification, and the one part still open
+
+The browser check and the drop check both pass, **with the
+`~/SynthEdit Projects/Prefabs` copies deleted** — the false-pass trap §5.3 names.
+Placing *and cabling* a closed prefab works with real mouse drags and needed no
+U1 work.
+
+**The E1 audio case does not pass yet, and the reason is a tool bug.**
+`gmpi_render_audio` skips non-scalar parameters when priming its offline
+processor (`CommandDispatcher.cpp:858`); TIDE's whole patch is a blob parameter,
+so that instance runs an empty graph and reports `peak: 0` regardless of the
+rack. Filed as **E6**. The measurement wants the REAPER route
+(`scripts/render-and-measure.py`) instead, which exercises the product path.
+
+### 9.6 Two rack-UI traps
+
+- Dragging a second cable **from a jack that already has one** grabs the
+  existing cable instead of making a new one, and it is easy to end up with a
+  cable joining one module's own two jacks. Cable each jack once.
+- Two Output prefabs in a rack means two `Sound Out`s competing for the host's
+  buffers. Keep one.
