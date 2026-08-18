@@ -175,11 +175,23 @@ control for the resolution question from the right directory. A `cl /Zs` of the
 three `.xaml.cpp` files was attempted and abandoned: they need CppWinRT generated
 headers, which is a WinUI3 build, not a resolution question.
 
-**Also noted:** two pushed branches carry unmerged commits and have **no PR** —
-`tide/win/competitive-review` (3 commits, this platform) and
-`tide/mac/V3-midi-findings` (2 commits). That is STEP 5's named failure state,
-and this box's tree was parked on the first of them at session start. I opened a
-PR for the win one and left the mac one for its own box.
+**Also noted, and checked before acting rather than after:** two pushed branches
+carry unmerged commits and have no PR — `tide/win/competitive-review` (3 commits)
+and `tide/mac/V3-midi-findings` (2 commits). This box's tree was parked on the
+first at session start, which is what drew attention to them.
+
+**They are NOT STEP 5's failure state, and I opened no PR for either.** Every one
+of the five commits is authored `Jeff McClintock <jef@synthedit.com>`, dated
+2026-08-18 — interactive work, on branches Jeff chose to make. STEP 5's
+two-end-states rule governs what a *run* leaves behind, and a run left neither of
+these. Opening a PR on a developer's own work in progress is not hygiene, it is
+guessing that he is finished. My first instinct was to open one for the win
+branch because it matched the shape; the authorship check is what stopped it, and
+it is worth a future run doing the same check before treating an orphan branch as
+one. Left alone, both of them.
+
+Do note `tide/win/competitive-review` touches `BACKLOG.md` and `JOURNAL.md`, so
+it will conflict with this run's changes whenever it lands.
 
 **Next:** **C12d, on the linux box, finishes C12** — three entries, and it is the
 only thing standing between the carve-out and C6. Nothing else in C12 is left.
