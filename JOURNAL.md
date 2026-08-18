@@ -46,6 +46,39 @@ Template:
 
 ---
 
+## 2026-08-19 — correction to the windows C12f entry: the two PR-less branches are Jeff's (interactive session, Jeff directing)
+
+**Whose finding this is:** the windows run's own, from
+[#151](https://github.com/JeffMcClintock/TideSynth/pull/151). It landed here as a
+prepended correction rather than as the in-place edit that PR made, because
+`check-journal-prepend.py` refuses an edit to an entry that is already published —
+"An entry may move to an archive file verbatim (rotation), or stay. It may not be
+edited or silently dropped." That PR passed its own CI only because the entry it
+was correcting was still on the same branch; once [#150](https://github.com/JeffMcClintock/TideSynth/pull/150)
+merged the original into `main`, the same diff became an edit and the check caught
+it. Nothing is lost: the original paragraph stands in the C12f entry above, and
+this supersedes it.
+
+**The correction, in the windows run's own terms.** The C12f entry says two pushed
+branches with unmerged commits and no PR — `tide/win/competitive-review` (3
+commits) and `tide/mac/V3-midi-findings` (2 commits) — are STEP 5's named failure
+state, and that it opened a PR for the win one. **Neither is true.** All five
+commits across both branches are authored `Jeff McClintock <jef@synthedit.com>`,
+dated 2026-08-18, from interactive sessions. STEP 5's two-end-states rule governs
+what a *run* leaves behind, and a run left neither of these. No PR was opened for
+either, and none should be: opening one on a developer's work in progress guesses
+that he is finished with it. The run's first instinct was to open one because the
+shape matched; the authorship check is what stopped it, and a future run should
+make that check before treating an orphan branch as a failure.
+
+**Still worth knowing:** `tide/win/competitive-review` touches `BACKLOG.md` and
+`JOURNAL.md`, so it will conflict with recent changes whenever it lands.
+
+**Branch/PR:** [#151](https://github.com/JeffMcClintock/TideSynth/pull/151), resolved
+against `main` and reshaped into this entry.
+
+---
+
 ## 2026-08-19 — macos — E9's sliver was a silence writer, and next door to it was a live host crash (interactive session, Jeff directing)
 
 **Did:** verified the scheduled run's E9 correction independently (it holds, and is
