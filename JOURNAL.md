@@ -171,6 +171,70 @@ would give exactly a wrong-but-musical offset. But the observed packet is
 `40 90 3c 00` and byte 3 **is** the attribute type — `0x00`, none — so that branch
 never fires.
 
+**E8 IS FIXED, and it was a real bug — one line, in MIDI 2.0 per-note bend.**
+[SynthEditLib#20](https://github.com/JeffMcClintock/SynthEditLib/pull/20).
+
+```
+before   311.1270 Hz   (+3.000 semitones, 0.00 cents from 2^(3/12))
+after    261.6257 Hz   (middle C is 261.6256 -- +0.001 cents)
+```
+
+`ug_container.cpp`'s `case PolyBender` passed `decodePolyController`'s value
+straight to `HC_VOICE_PITCH_BEND`. That value is **0..1 with 0.5 = centre**, while
+`MidiToCv2` consumes `pinVoiceBender` as **bipolar around 0**
+(`pinVoiceBender * 0.05f`). The channel-wide `PitchBend` case **twelve lines
+below already does the `[-1,+1]` remap, and carries a comment saying why it is
+required.** `PolyBender` simply never got it.
+
+**Why it read as a convention disagreement for so long.** REAPER emits a
+**centred** per-note bend at note-on, so every note arrived `0.5 * 0.05` = 0.025
+normalised = **0.25 V = exactly three semitones sharp** — a minor third out while
+staying perfectly in tune with itself. Octaves came back at ratio 1.9994 and
+tracking was exact, so everything *except* the reference looked right. That is
+what made me write "the two modules disagree about the convention", which was
+wrong twice over: they agree, and they are both right.
+
+**Two of Jeff's questions did the actual work here.**
+
+*"Find SynthEdit's pitch calculation, confirm it's what you think."* It was not:
+`ug_oscillator2.cpp:31/66` (float 0.5 = 5 V = Middle A) and
+`CVoiceList.cpp:1930` / `dsp_patch_manager.cpp:52`
+(`volts = GetKeyTune(key)/12 - 0.75`, A4=69=5 V) are both correct and agree. Key
+60 → 4.25 V → 261.6 Hz is what the code says it should do. So the +3 semitones had
+to be something *added later* — which is what pointed at the bender.
+
+*"Check the ratio between the two samplerates vs the ratio between the two Hz
+measurements."* This is what made the finding exact rather than plausible. The
+error is 1.189207; 2^(3/12) is 1.189207 — **0.00 cents**; `(48000/44100)²` is
+1.184692 — **6.59 cents away**. Those two candidates are only 1.2 Hz apart, and
+the 0.25 s Goertzel window I had been using **could not have distinguished them**.
+Re-measuring by zero-crossing count over 170 cycles (~0.01 Hz) settled it and
+killed the sample-rate explanation outright.
+
+**Found by enabling instrumentation that already existed.** `debug_midi_log.h` has
+a `DEBUG_CONTAINER_MIDI` gate feeding 12 `DMIDI_LOG` sites across
+`ug_container.cpp`, `CVoiceList.cpp` and `ug_midi_to_cv.cpp`, writing to **stderr**
+— which the render harness already captures. Flipping it on printed the whole
+chain and showed the engine correct until `hc=31` (`HC_VOICE_PITCH_BEND`) arrived
+as `0.5000`. **Look for the authors' own trace before writing your own.** All of
+it, plus one extra `DoNoteOn` line I added, is reverted; only the fix remains.
+
+**A trap that nearly shipped a 3,400-line diff.** `ug_container.cpp` is **CRLF**,
+and Python's `write_text` silently normalised the whole file to LF — `git diff
+--stat` showed 1728 insertions / 1718 deletions for a one-line change. Caught it
+before committing; re-applied via `read_bytes`/`write_bytes` with explicit
+`\r\n`, giving the correct 12-insertions/1-deletion diff. **Check the diffstat
+after any scripted edit to a shared-repo source file.**
+
+**Deliberately not changed:** `pinVoiceBender * 0.05f` yields ±6 semitones at full
+scale, while MidiToCv2's own comment says the voice bender is "hard-coded to 48
+semitones (for MPE)". Those disagree — but a centred bend is now correctly zero
+either way, so it is a separate question and not folded into a one-line tuning fix.
+
+**No golden depended on the old behaviour:** E1 is 4/4 including
+`voice_midi_note`, which reaches pitch through `SE Keyboard2` and legacy MIDI
+rather than `PolyBender`.
+
 **Side effects on this box:** REAPER launched three times, quit each time; not
 running. TIDE_VST3 rebuilt Release from `tide/mac/V3-root-midicv`. A four-agent
 recon workflow read SynthEditLib for the presenter/container APIs; its most useful

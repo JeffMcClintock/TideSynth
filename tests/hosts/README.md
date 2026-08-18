@@ -22,7 +22,7 @@ about the script.
 | `v1-rack-uncabled.rpp` | the same three prefabs, **no patch cables** | **−inf, silent** — the negative control |
 | `v1-rack-midi.rpp` | MIDI → Oscillator → Envelope → Output, four cables, **plus a middle-C note** | **−6.3 dBFS, 440.0 Hz, unchanged by the note** — a FAILING fixture, on purpose (BACKLOG **E7**) |
 | `v3-midi-gate.rpp` | the same rack but gated from the MONOPHONIC `SE MIDItoGate2`, plus the note | **silent · 440.0 Hz for the note · silent** — V3's Accept, met |
-| `v3-midi-pitch.rpp` | the auto-seeded **root** MIDI-CV → Oscillator/Envelope/Output, plus the note | **silent · 311.0 Hz for the note · silent** — gate AND pitch track; the 311 vs 261.6 Hz is **E8** |
+| `v3-midi-pitch.rpp` | the auto-seeded **root** MIDI-CV → Oscillator/Envelope/Output, plus the note | **silent · 261.6257 Hz for the note · silent** — middle C to +0.001 cents. Gate, pitch and tuning all correct |
 
 The pair matters more than either one alone. `v1-rack-uncabled.rpp` is what a
 saved rack looks like when nothing joins one module to another, and it reports
