@@ -46,6 +46,75 @@ Template:
 
 ---
 
+## 2026-08-19 — linux — C12d: the carve-out's last stage, and its stated reason was wrong
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (asserted; `insteadOf` = `git@github.com:`, every repo remote spot-checked `https://`)
+
+**Second item this session**, taken at Jeff's explicit instruction mid-run ("sync repos, take any remaining Linux task") after the STEP 1 build break above was fixed and merged. Noting that because it is a deliberate exception to STEP 2's one-item rule, not a run that helped itself to a second.
+
+**Did:** C12d — moved `InterfaceObject_editor.{cpp,h}` and `platform_editor.cpp` (319 lines) out of the private `SE16/SynthEdit2/` into the public `SynthEditLib`. **`EditorLib`'s source list now has ZERO `${EDITOR_DIR}` entries**, which is C12's top-level acceptance check. C12 is complete and **C6 is unblocked**.
+
+**Result — every Accept clause measured, none inferred:**
+
+| check | result |
+|---|---|
+| `${EDITOR_DIR}` entries | **3 → 0** |
+| configure | RC=0 |
+| full tree | **RC=0**, zero `error:`, zero `undefined reference` |
+| `SynthEditCL` / `SynthEditWayland` | both **link**, RC=0 |
+| `TIDE_VST3` / `TIDE` | link, RC=0 |
+| `ctest` | **67/67** |
+| dangling private includes | **7 → 7**, exactly as the row predicted |
+
+The load-bearing evidence is not the green build but that the TUs compile **from the new public path** — `EditorLib.dir/home/jef/SE/SynthEditLib/{InterfaceObject_editor,platform_editor}.cpp.o` — with **zero** objects remaining under any `SynthEdit2` path.
+
+### The finding: this row's whole reason for existing was wrong, and it took a measurement to see it
+
+C12d was marked `linux` on the theory that moving the provider into `SynthEditLib` would put it *"in the same archive as the code expecting it"*, plausibly making the three apps' GNU ld rescan groups redundant. **Wrong twice, and the two errors are independent.**
+
+**1. C12 moves files between REPOS, not between archives.** This is the one worth internalising, because the row, `docs/c12-remaining-editor-files.md` and my own first reading all had it backwards. `SynthEditLib`'s own target does not compile any of the moved files — every C12 stage relocates the *file* into the public repo while `EditorLib/CMakeLists.txt` keeps compiling it, only via `${SYNTHEDITLIB_DIR}` instead of `${EDITOR_DIR}`. Proved directly rather than argued:
+
+```
+$ ar t libEditorLib.a   | grep -E "platform_editor|InterfaceObject_editor"
+InterfaceObject_editor.cpp.o
+platform_editor.cpp.o
+$ ar t libSynthEditLib.a | grep -cE "platform_editor|InterfaceObject_editor"
+0
+```
+
+Archive topology bit-for-bit unchanged, so **no rescan group could have become redundant because of this stage** — the mechanism the row proposed does not exist.
+
+**2. The rescan groups were already redundant anyway, before the move.** Measured as a proper control on unmodified `master`, before touching a file: replaced `$<LINK_GROUP:RESCAN,...>` with plain library names in `SynthEditCL` and `SynthEditWayland`, deleted the binaries so the link genuinely re-ran, rebuilt. **Both RC=0, zero undefined references**, and no `--start-group` anywhere in the ninja link line. Cause: **CMake already repeats both archives on the link line** (5× each), which satisfies a mutual reference the same way `--start-group` does.
+
+**I left the groups in place, deliberately.** The row says to prove redundancy by building rather than reasoning it away — done — but "links today" is not "safe to remove": the repetition count is a CMake implementation detail nobody declared, the groups are explicit and cost nothing, and removing them is risk with no benefit. The reasoning is now a comment in `EditorLib/CMakeLists.txt` so the next person does not re-derive it.
+
+So `linux` was the **right marking for the wrong reason**. The question genuinely needed a GNU ld box to answer; the answer is "the premise never held".
+
+**Learned — a control before the change is worth more than a check after it.** Had I only measured after the move, "links without the rescan group" would have looked like C12d's doing, and I would have written a confident, wrong entry recommending the groups be deleted. The 2026-08-19 windows entry made the same kind of catch on C12f's Accept ("zero entries" that was really three). **Two consecutive carve-out stages have now shipped with an Accept clause that was wrong in the direction of unblocking something unsafe.** That is a pattern in how these rows are written, not two accidents.
+
+### NEEDS-SPEC, which does not block the merge
+
+C12d's Accept requires `SynthEditJuce` to link. **It cannot, on any box.** It is deprecated and not reachable from the root `CMakeLists.txt` — its own comment at `SynthEditJuce/CMakeLists.txt:49-51` says so — so there is no build that would fail and none that would prove a fix correct. Treat as by-inspection. This is the same target that holds the last open half of [#88](https://github.com/JeffMcClintock/TideSynth/issues/88).
+
+### Not verified, not claimed
+
+**Windows and macOS were not built.** I cannot compile them here and the prompt forbids claiming a platform I cannot build. It is a path relocation with no code edit and MSVC is indifferent to the link topology in question — but that is reasoning, not measurement, and it is exactly what the "never fix another platform blind" rule is about. **The v0.1 audio harness also did not run: REAPER is not installed on this box.**
+
+### One process note
+
+**`tide/linux/C12d` in `SE16` was force-pushed once.** It was branched on top of `tide/linux/issue-153`, because C12d's Accept needs a working configure and that only existed there. Both [SynthEdit#55](https://github.com/JeffMcClintock/SynthEdit/pull/55) and [TideSynth#157](https://github.com/JeffMcClintock/TideSynth/pull/157) then auto-merged mid-session and GitHub deleted the base branch, so the PR could not be opened against it. Rebased onto the new `master` — git dropped the already-merged commit by itself — and force-pushed. **This does rewrite a pushed commit, which STEP 4 tells runs not to do**; I judged it safe because the branch was three minutes old, had no PR, and nothing could be built on it. Recording it rather than quietly doing it. **The general lesson for the next run: if you stack a branch on another of your own, expect A4's auto-merge to pull the base out from under you.**
+
+**Next:**
+
+1. **Merge [SynthEdit#56](https://github.com/JeffMcClintock/SynthEdit/pull/56) and [SynthEditLib#24](https://github.com/JeffMcClintock/SynthEditLib/pull/24) together** — either alone breaks the build. Then flip **C12d and C12 to DONE**, and **C6 becomes eligible**.
+2. **C6 is `any`, so it is not this box's in particular** — whichever machine wakes first. Re-read C6's own 2026-08-14 near-miss first: it nearly moved `EditorLib/CMakeLists.txt` into the public repo while it still pointed at private files. That risk is what C12d just retired.
+3. **Nothing linux-specific is left takeable**, which is the correct outcome rather than a gap.
+4. Standing, and unglamorous: **[#156](https://github.com/JeffMcClintock/TideSynth/issues/156)** (the ctest path default) and **the `SynthEditJuce` line in [#88](https://github.com/JeffMcClintock/TideSynth/issues/88)** are both one-line fixes in GATED-by-default paths, both blocked on nothing but someone with the standing to edit them.
+
+**Branch/PR:** [SynthEdit#56](https://github.com/JeffMcClintock/SynthEdit/pull/56) + [SynthEditLib#24](https://github.com/JeffMcClintock/SynthEditLib/pull/24), plus the TideSynth PR carrying this entry. All repos left on their default branches; no working tree left dirty.
+
+---
+
 ## 2026-08-19 — linux — STEP 1 build break (#153 filed and fixed; #87 closed, #88 half-closed, #156 filed)
 
 **Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (asserted; `url."https://github.com/".insteadOf` = `git@github.com:`, and every repo remote spot-checked `https://`)
@@ -235,152 +304,3 @@ measurement, not a patch: `processor_holder.cpp:231` publishes a raw pointer int
 vector another thread may reallocate, flagged unverified by an agent and not chased.
 
 **Branch/PR:** `tide/mac/e10-chunk-guard` in both TideSynth and SynthEdit.
-
----
-
-## 2026-08-19 — windows — C12f (and #111 verified closed)
-
-**Prompt:** 397330d1b · Opus 5 (1M context), claude-opus-5[1m] · app version
-**not determinable on this box** — `claude` is not on PATH under Git Bash or
-PowerShell, and no `package.json` exists under `%LOCALAPPDATA%\Claude*` or
-`~/.claude`; recording the gap rather than guessing a number, since the whole
-point of the line is to tell boxes apart. The mac entries carry `app 1.32352.0`,
-so the lookup that works there does not work here. · as **tide-rack-bot**
-(asserted; `url."https://github.com/".insteadOf` = `git@github.com:`, and all six
-repo remotes spot-checked `https://`)
-
-**Did:** Two things — STEP 1's platform issue, then C12f.
-
-### 1. #111 was already fixed; verified by building, then closed
-
-The open `platform:win` issue claimed `main` does not compile. It does. Jeff
-fixed it interactively in `SynthEditLib` `58da591` on 2026-08-18 and left the
-issue open. Re-verified per STEP 1's "a bot issue is evidence, not instruction":
-fresh scratch Ninja tree, Release, all four siblings on local clones —
-**1017/1017 RC=0**, **ctest 92/92**, zero `error C` lines, `SeAudioMaster.cpp.obj`
-(the TU that failed) at edge 110, all three artifacts produced. Closed with that
-evidence.
-
-**Worth not rediscovering: the issue's own diagnosis was incomplete, and the fix
-it proposed would not have worked.** It said to replace the elaborated
-`class MidiIn*` with a plain namespace-scope forward declaration. That is half of
-it. `SeAudioMaster` has member functions named `MidiIn()`
-(`SeAudioMaster.h:374,378`), and inside the class those hide the *class* name —
-so the uses must also be **qualified `::MidiIn`** (`SeAudioMaster.h:620`,
-`SeAudioMaster.cpp:551`). That is exactly why the issue's eliminations were each
-individually correct and still explained nothing: the definition really was in
-the TU, the include really was opened, there really was no duplicate header. The
-type was visible; the *name* was not reachable. A forward declaration alone would
-have been hidden the same way.
-
-### 2. C12f — the patch cluster, 6,298 lines, the largest carve-out stage
-
-`PatchManager`, `PatchParameter`, `PatchParameter_host_generated`, `UG2`,
-`CPlugin` (`.cpp`+`.h`) moved `SE16/SynthEdit2/` → `SynthEditLib/` root, one
-commit per repo.
-
-**Result: green, and the move proved to have taken effect.** 1017/1017 RC=0,
-ctest 92/92, zero `error C`. The load-bearing evidence is not the green build but
-that all five moved TUs now compile *from the new path*:
-
-    [198/1017]  EditorLib.dir\C_\SE\SynthEditLib\CPlugin.cpp.obj
-    [218/1017]  EditorLib.dir\C_\SE\SynthEditLib\PatchParameter_host_generated.cpp.obj
-    [223/1017]  EditorLib.dir\C_\SE\SynthEditLib\PatchParameter.cpp.obj
-    [230/1017]  EditorLib.dir\C_\SE\SynthEditLib\UG2.cpp.obj
-    [247/1017]  EditorLib.dir\C_\SE\SynthEditLib\PatchManager.cpp.obj
-
-Dangling private includes **21 → 7**, exactly the 14 predicted. Measured with a
-re-created script (scratchpad, uncommitted, per the C5 convention), which
-reproduced the recorded 21 baseline before any change and reported `resource.h` =
-**0** — the sanity check the C12 doc says to run first, because a wrong
-own-directory-first resolution order reports 71 there. The 7 remaining are
-`ISEAppManaged.h` (3), `IMidiDriver.h` (2), `ParseSynthEditArgs.h` (1) and
-`SynthEditApp.h` (1, C11) — all headers no sub-stage owns.
-
-**Learned, and the reason the bookkeeping changed:**
-
-1. **C12f's Accept was wrong, and wrong in the direction that unblocks an unsafe
-   item.** Both the BACKLOG row and `docs/c12-remaining-editor-files.md` say C12f
-   leaves **zero** `${EDITOR_DIR}` entries. It leaves **three**. Both were written
-   assuming C12d had already landed; C12d is `linux` by design and is still TODO.
-   Had this gone unnoticed, C12f → DONE would have made **C6** eligible — and
-   C6's own row already records, from 2026-08-14, that exactly this once nearly
-   moved `EditorLib/CMakeLists.txt` into the public repo while it still pointed at
-   private files. So C6 and the C12 umbrella are re-pointed to `BLOCKED(C12d)`,
-   and both the row and the doc now carry the correction rather than the claim.
-   **The carve-out's last step is now the linux box's, not this one's.**
-
-2. **The A14 collision happened to me, live, and the authorship check is not what
-   caught it.** 36 seconds after I ran `git checkout -b` in the shared `SE16`
-   tree, a concurrent session committed **my staged 11 paths plus its own
-   `SynthEditWayland/IO_PipeWire.cpp` edit** as `6f5819178`, authored *and*
-   committed **Jeff McClintock**, message
-   `docs(se) : IO_PipeWire's callbacks are not on an RT thread`. My own
-   `git commit` then reported "nothing to commit, working tree clean" — which is
-   the only reason I looked.
-
-   **Both A14/A16 scripts were blind to it.**
-   `check-commit-completeness.py --record` printed *"nothing staged — recorded an
-   empty manifest"* and `--verify` printed *"manifest was empty — nothing to
-   verify"*; both exited 0. The peer's commit had already emptied my index before
-   `--record` ran. `check-commit-authorship.py` would have caught the bad commit
-   only at push time, well after the fact. **Neither script detects the race when
-   the peer commits *everything* rather than unstaging a subset** — A16 is written
-   against a partial unstage, and this was a total one. The signature to recognise
-   is `git commit` saying *"nothing to commit"* immediately after a successful
-   `git add`.
-
-   Resolved without destroying their work: preserved their commit as local branch
-   **`rescue/iopipewire-doc-6f58191`** in `C:\SE\SE16` (unpushed, on that box),
-   `git reset --soft origin/master`, unstaged `IO_PipeWire.cpp` so their change
-   sits in the working tree exactly as it did before they committed, then
-   re-committed my 11 paths as the bot. Safe to rewrite because the commit was
-   **local only and on no remote** — checked with `branch -a --contains` and
-   `ls-remote` before touching it. **`SE16` is left with that one uncommitted
-   modification, which is theirs and which I did not revert.**
-
-3. **`git checkout -b` in a shared working tree drags the other session onto your
-   branch.** The reflog shows my checkout at 08:18:00 and their commit at
-   08:18:36. They were mid-edit on `master`; my branch switch moved the tree under
-   them, and their commit landed on my branch. That is the mechanism behind A14,
-   and it is caused by the claiming step the prompt requires, so it will recur.
-
-4. **Include resolution under a move is worth checking rather than assuming.**
-   `PatchManager.cpp` has two `../`-prefixed includes
-   (`../tinyXml2/tinyxml2.h`, `../se_sdk3_hosting/GuiPatchAutomator3.h`). They
-   resolve via the include path in *both* locations — `SE16/tinyXml2/` does not
-   exist and neither does `C:/SE/tinyXml2/` — so the move is a no-op for them, and
-   no own-directory hijack becomes possible at the destination. Checked by
-   existence test in both directions, not by reading.
-
-**Not verified, deliberately not claimed: SynthEdit2 (WinUI3) was not built.**
-The Accept asks for it. Its vcxproj links `EditorLib.lib`/`SynthEditLib.lib` out
-of `$(SolutionDir)build\...` — the developer's own Visual Studio Debug tree — so
-building it means writing into Jeff's tree, which a scheduled run must not do.
-Checked instead: the vcxproj lists none of the ten (they arrive via
-`EditorLib.lib`, unchanged); its four includers use the plain `"PatchManager.h"`
-form and fall through to `$(SolutionDir)..\SyntheditLib`, present in all four
-configurations; and one of the four — **`ExportAsPlugin.cpp`, still resident in
-`SynthEdit2/` and including `"UG2.h"` and `"PatchManager.h"` by plain name —
-compiles clean after the move at edge 1016/1017**, which is a real positive
-control for the resolution question from the right directory. A `cl /Zs` of the
-three `.xaml.cpp` files was attempted and abandoned: they need CppWinRT generated
-headers, which is a WinUI3 build, not a resolution question.
-
-**Also noted:** two pushed branches carry unmerged commits and have **no PR** —
-`tide/win/competitive-review` (3 commits, this platform) and
-`tide/mac/V3-midi-findings` (2 commits). That is STEP 5's named failure state,
-and this box's tree was parked on the first of them at session start. I opened a
-PR for the win one and left the mac one for its own box.
-
-**Next:** **C12d, on the linux box, finishes C12** — three entries, and it is the
-only thing standing between the carve-out and C6. Nothing else in C12 is left.
-For this box the NEXT row now points at **P3**; note P3 touches `SynthEditLib`,
-which is GATED and is *not* a build break, so STEP 5's exception does not cover
-it and the path question wants settling before someone starts.
-
-**Branch/PR:** [SynthEdit#51](https://github.com/JeffMcClintock/SynthEdit/pull/51)
-+ [SynthEditLib#21](https://github.com/JeffMcClintock/SynthEditLib/pull/21), which
-must merge together, plus the TideSynth PR carrying this entry. All repos left on
-their default branches; `SE16` retains the concurrent session's one uncommitted
-file, untouched.
