@@ -46,6 +46,83 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — the audio measurement: harness built, answer is "not yet, and here is exactly why"
+
+**Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** built and proved a headless audio-measurement harness
+(`scripts/render-and-measure.py`), ran it on every saved TIDE project, and
+established that the audio half of V1 **cannot be answered by any artefact that
+currently exists** — for a specific, measured reason rather than for want of
+trying. V1 stays `BLOCKED(E2a)`, now confirmed empirically instead of by
+argument.
+
+**The GUI assumption was wrong twice in one day.** S13 established that running
+a program is not driving a GUI. The same applies here and nobody had tried it:
+`REAPER -renderproject file.rpp` **renders and exits**. So an unattended run can
+measure audio, and the "audio needs a GUI session" line — which I wrote into a
+handoff prompt this morning — was never true.
+
+**Result — the harness, with a positive control, because silence proves nothing
+on its own.**
+
+```
+control (known -6 dBFS 1 kHz sine)  peak=  -6.0 dBFS  rms=  -9.0 dBFS  AUDIO PRESENT
+tide-s11-final.RPP                  peak=  -inf       rms=  -inf       SILENCE
+tide-s11-verify.rpp                 peak=  -inf       rms=  -inf       SILENCE
+tide-persist3.rpp                   peak=  -inf       rms=  -inf       SILENCE
+```
+
+The control lands at exactly -6.0 peak / -9.0 rms, which is what a sine should
+give, so the render-and-measure chain demonstrably detects audio. **The three
+silences are still not evidence about TIDE:** every saved project has **zero
+`<Line>` elements** in its DSP graph, so silence is arithmetically certain
+whatever the plugin does. The script detects and prints that itself rather than
+leaving a future reader to infer it — an -inf with no explanation is exactly the
+kind of result that gets quoted later as "audio is broken".
+
+**What is actually missing is a patch that could sound at all.** TIDE's rack
+prefabs exist — `SE16/TideModules/Sine.seprefab`, `AR.seprefab`,
+`Output.seprefab` — but they are **binary MFC serialisations** like `TIDE.se1`,
+so they can only be placed and wired by the editor. That is E2a, precisely as
+V1's row already said: *"the acceptance test itself needs the
+oscillator/envelope/output prefabs E2a builds before it can even be attempted."*
+**The row was right; this makes it measured rather than reasoned, and leaves the
+tooling ready for the day E2a lands.**
+
+**Considered and rejected: hand-authoring a sounding patch.** The DSP format is
+simple enough — `<Line From="id" To="id" FromPin="n" ToPin="n"/>`, parsed at
+`SynthEditLib/SeAudioMaster.cpp:1198` — and I could have written one. I did not,
+because I do not know the container IO plug conventions, and **a wrong guess
+produces silence that is indistinguishable from a real failure.** That is the
+S14 mistake exactly: measuring carefully against an assumed architecture. The
+format is recorded in V1's row so the next person starts ahead of where I did.
+
+**Learned — three layers of encoding in a `.rpp`, each of which cost a wrong
+guess, written down so nobody re-derives them.** (1) The `<VST` body is one
+base64 stream split over lines, **but the first line is REAPER's own header
+block with its own `=` padding**, so concatenating everything and decoding
+truncates at 44 bytes. (2) The decoded state is preset XML whose blob attribute
+is **`val=`, not `value=`** — my regex was right about everything except the
+attribute name and silently matched nothing. (3) That is base64 again, and
+yields the `<Document>`. All three are in the script's docstring.
+
+**Next:** **E2a** is now the single thing standing between the fleet and V1's
+acceptance test, and it needs the editor, so it is an interactive job. The
+moment those prefabs can be placed and saved, `render-and-measure.py` answers
+the audio question in one command with no GUI. Remaining unattended-friendly
+work is **S16** (make `dsp_tests` a real signal) and **A25** (four lines of lint
+wiring); both are small and both need Jeff.
+
+**Side effects on this box:** REAPER was launched four times headlessly by me
+(three project renders plus the control) and exited on its own each time; it is
+not running. Renders went to a temp dir the script cleans up. No repo but
+TideSynth changed.
+
+**Branch/PR:** `tide/mac/audio-measurement`.
+
+---
+
 ## 2026-08-18 — macos — S13 verified by A/B, and a wrong assumption corrected
 
 **Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
@@ -366,88 +443,5 @@ that stops anyone attaching a debugger to the next crash, and is GATED.
 changed in any repo. All eight repos on their default branch and clean.
 
 **Branch/PR:** `tide/mac/issue-117` — TideSynth backlog and journal only.
-
----
-
-## 2026-08-18 — macos — A20
-
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** shipped **A20** as option (a) — `scripts/check-next-block.py`, a lint
-check that fails when the NEXT block tells a run to take work that is archived
-or absent. Detection rather than convention, matching A17/A18's ruling the same
-day. The lint wiring is `.github/workflows/**`, which this credential
-structurally cannot push, so it is filed as **A25** with the exact four lines.
-
-**Why A20.** The mac NEXT row sends a GUI-less run to S14's measurement or A20;
-S14's measurement landed earlier today ([#132](https://github.com/JeffMcClintock/TideSynth/pull/132)),
-so A20 was what was left. STEP 1.5 first: no open PRs in any repo. #117 is
-still open and still authored by `tide-rack-bot`, so STEP 1 still reads it as
-information (A19 is archived but the underlying rule is unchanged).
-
-**Result — verified with a positive control taken out of git history, not a
-fixture.** The check is run against `4a8154d:BACKLOG.md`, the exact state that
-produced this row:
-
-```
-2 take-target(s) checked across 4 NEXT row(s)
-  BACKLOG.md:12  [mac]  D6  -- archived DONE     matched: 'should take U1b D6'
-  BACKLOG.md:12  [mac]  U1b -- archived DONE     matched: 'should take U1b D6'
-rc=1
-```
-
-and against today's tree: `every NEXT take-target is a live BACKLOG.md row`,
-`rc=0`. **It fails on the bug and passes on the fix**, with no synthetic input
-— the A/B is a real commit. `--selftest` is 13 cases green: ten phrase cases
-plus three end-to-end (archived target fails, live target passes, absent target
-fails).
-
-**Learned — the obvious rule was the wrong rule, and measuring is what showed
-it.** The first draft also treated *every* id in the Take column as a
-take-target, on the reasoning that the column is definitionally what to take.
-Against the real block that produced **seven false alarms**: `E2a`, `S1b`,
-`S5`, `S7`, `S8`, `A12`, `B1` out of *"do not fall back to…"* warnings, and
-`C12c`, `P10`, `A10`, `A14`, `A15`, `A4`, `P9` out of precedent mentions.
-A Take cell in this backlog is a long editorial paragraph, not a field —
-the mac cell alone names eleven ids and instructs on two. So the rule was
-dropped: the trigger set is imperative phrases only, with any clause carrying a
-negation disarmed. **This is A10's trade restated:** a false negative costs a
-run minutes, a false positive costs trust in five other checks, so recall is
-deliberately the side that gives.
-
-**Learned — the recall limit is real and is written into the row rather than
-left to be discovered.** `should take **S14**'s cheap first measurement … or
-**A20** itself` matches `S14` and misses the trailing `A20`, because the
-list-walk stops at the first non-id word (`'s`). It catches
-`take **U1b** or **D6**`, which is the shape that actually occurred. Extending
-it to arbitrary distance is how the seven false alarms come back.
-
-**Learned — "take the next task" surfaced three states the branch listing hid.**
-Before starting I synced all eight repos and classified every `tide/` branch.
-Ancestry alone is misleading here because A4 squash-merges: four local branches
-looked unmerged and all four had landed. `git cherry` proved two by patch-id;
-the other two needed a content check (the A19 row is in BACKLOG-DONE, the
-`std::stod`/`std::get` findings are in main). **Deleting on ancestry alone
-would have been wrong twice, and keeping on ancestry alone leaves permanent
-clutter.**
-
-**Next:** A25 is Jeff's four lines, and A15's precedent says the Summary
-wiring — not the step — is the part that actually fails the job; prove it with
-the same two-commit probe. S14 stays BLOCKED(S15) until Jeff picks (a) or (b).
-The mac NEXT row's remaining GUI-less pointers are now both spent, so the next
-unattended run falls to STEP 2's topmost-eligible rule — which is exactly the
-situation A20 was filed about, and the check now guards the row that describes
-it.
-
-**Side effects on this box:** merged [GMPI_Wrappers#7](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/7)
-at Jeff's explicit request — one docs commit of his own that PR #5 had left
-stranded on a branch with no PR. Then cleaned every stale branch across all
-eight repos at his request: **10 merged remote branches and 12 local ones
-deleted, 0 remaining, local or remote**, each verified merged-or-landed first.
-All eight repos are on their default branch and clean. No builds. Nothing
-written outside `TideSynth` and the scratch dir.
-
-**Branch/PR:** `tide/mac/A20-next-block-check` — TideSynth only, one new
-script plus rows. (Branch name rather than PR number in the row, per A22.)
 
 ---
