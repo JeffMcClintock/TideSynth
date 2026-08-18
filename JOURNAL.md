@@ -46,6 +46,68 @@ Template:
 
 ---
 
+## 2026-08-18 — windows — the Marathon design language, researched from source and revised live by Jeff (interactive session, Jeff directing)
+
+**Prompt:** Jeff asked for research into Bungie *Marathon*'s design language
+for use in 2D audio plugin UIs, then to synthesise it into a design-language
+doc with examples and save it in the repo. Followed by seven rounds of his
+own art direction, each correcting something the research had got wrong or
+had not covered. Then: push.
+
+**Did:** committed [docs/ui-design-language.md](docs/ui-design-language.md)
+and four generated `docs/images/ui-language-*.svg`, which **E6 recorded as an
+uncommitted, branchless working-tree file** — that is no longer true and E6's
+row is appended to accordingly. Added
+[scripts/gen-ui-language-svgs.py](scripts/gen-ui-language-svgs.py), the source
+of truth for those SVGs; they were previously generated from a script living
+only in a temp dir, i.e. 68 KB of committed markup nobody could regenerate.
+Jeff's seven directions, each now a dated rule in the doc: patch cables are
+**fat and curved, not right-angle hairlines** (this contradicts E6's own
+description of proposal (a)); the patched-jack core is **round, not square**;
+units render at **70% of the numeral and one ink tier down**; label ink lifted
+`#8E8E8E` → `#A6A6A6` for long-session legibility; **plate text** and
+**quarter-turn text** added as devices; **corner crosshairs replace section
+borders**; and the doc's earlier "no serifs" confusion resolved.
+
+**Result:** `check-links.py` 363 relative links, no breakage;
+`check-id-refs.py` 700 refs, none stale. All four SVGs verified programmatically
+in-browser for text overlap and out-of-bounds geometry after every change —
+this caught three real defects (a 1px label collision, a caret sitting after
+the unit instead of before it, square plug heads left on round jacks). No
+line-ending churn: every file is a new addition.
+
+**Learned:** four things worth not rediscovering.
+1. **The live site is a far better source than any article.** Reading
+   `marathonthegame.com`'s stylesheets and SVG directly yielded the real
+   tokens — `#C0FE04`, the `21.75px`/`r=1.5` dot pattern, `1px`/butt caps at
+   76 of 76 linecaps, the verified type scale — where the press coverage gave
+   only adjectives. Any future "research a visual identity" task should go to
+   the artefact, not the commentary.
+2. **A rule stated as a ban will outlaw something the source actually does.**
+   "No rotation" killed quarter-turn text; "no curves" killed the cables Jeff
+   wanted. Both had to be reopened as scoped exemptions. Prefer "X only for Y"
+   over "never X".
+3. **Jeff's corrections were consistently about *reading over hours*, not
+   about looking right in a screenshot** — dimmer greys, square-in-circle,
+   unit sizing. That is the axis this language has to be judged on, and it is
+   exactly the axis Marathon's own shipped UI failed on ("fontslop").
+4. Committing a doc that a BACKLOG row describes **as uncommitted** silently
+   falsifies that row. Worth checking for on any first commit of a file that
+   another row already discusses.
+
+**Next:** **E6 is still NEEDS-JEFF and this commit does not resolve it** — it
+commits proposal (a) so it can be read and diffed, nothing more. Two things
+now block cleanly: the `PROPOSED:` entry E6 asks for in
+[docs/decisions.md](docs/decisions.md) still does not exist, and **the crux
+has moved** — E6 framed the conflict as "(a) bans shadows, Jeff likes
+shadows", but Jeff has since directed (a) toward physical cables, which is
+movement toward (b)'s tasteful-realism position. Whoever writes the decisions
+entry should re-read (a) as it now stands rather than as E6 describes it.
+
+**Branch/PR:** `tide/win/competitive-review`.
+
+---
+
 ## 2026-08-18 — windows — the first competitive review, a module set, and a false belief corrected (interactive session, Jeff directing)
 
 **Prompt:** Jeff asked whether a review of TIDE Rack's competition existed and,

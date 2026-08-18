@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="570" viewBox="0 0 720 570" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace">
+<rect width="720" height="570" fill="#000000"/>
+<text x="30.0" y="30.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#A6A6A6" text-anchor="start" letter-spacing="1.5">PALETTE</text>
+<rect x="30" y="44" width="84" height="40" fill="#C0FE04"/>
+<text x="30.0" y="100.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#C0FE04</text>
+<text x="30.0" y="114.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">STATE</text>
+<rect x="126" y="44" width="84" height="40" fill="#000000" stroke="#3A3A3A" stroke-width="1"/>
+<text x="126.0" y="100.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#000000</text>
+<text x="126.0" y="114.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">GROUND</text>
+<rect x="222" y="44" width="84" height="40" fill="#1C1C1C"/>
+<text x="222.0" y="100.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#1C1C1C</text>
+<text x="222.0" y="114.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">PANEL</text>
+<rect x="318" y="44" width="84" height="40" fill="#3A3A3A"/>
+<text x="318.0" y="100.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#3A3A3A</text>
+<text x="318.0" y="114.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">SEAM</text>
+<rect x="414" y="44" width="84" height="40" fill="#A6A6A6"/>
+<text x="414.0" y="100.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#8E8E8E</text>
+<text x="414.0" y="114.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">LABEL</text>
+<rect x="510" y="44" width="84" height="40" fill="#FFFFFF"/>
+<text x="510.0" y="100.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#FFFFFF</text>
+<text x="510.0" y="114.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">VALUE</text>
+<rect x="606" y="44" width="84" height="40" fill="#FF0D1A"/>
+<text x="606.0" y="100.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#FF0D1A</text>
+<text x="606.0" y="114.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">CLIP</text>
+<text x="30.0" y="148.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#A6A6A6" text-anchor="start" letter-spacing="1.5">FAMILY LIVERIES (header block only)</text>
+<rect x="30" y="160" width="26" height="26" fill="#FF9E00"/>
+<rect x="56" y="160" width="10" height="10" fill="#FF9E00"/>
+<rect x="66" y="160" width="5" height="5" fill="#FF9E00"/>
+<text x="30.0" y="200.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#FF9E00</text>
+<text x="30.0" y="214.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">SOURCE</text>
+<rect x="126" y="160" width="26" height="26" fill="#5200FF"/>
+<rect x="152" y="160" width="10" height="10" fill="#5200FF"/>
+<rect x="162" y="160" width="5" height="5" fill="#5200FF"/>
+<text x="126.0" y="200.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#5200FF</text>
+<text x="126.0" y="214.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">FILTER</text>
+<rect x="222" y="160" width="26" height="26" fill="#01FFFF"/>
+<rect x="248" y="160" width="10" height="10" fill="#01FFFF"/>
+<rect x="258" y="160" width="5" height="5" fill="#01FFFF"/>
+<text x="222.0" y="200.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#01FFFF</text>
+<text x="222.0" y="214.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">MOD</text>
+<rect x="318" y="160" width="26" height="26" fill="#FFFFFF"/>
+<rect x="344" y="160" width="10" height="10" fill="#FFFFFF"/>
+<rect x="354" y="160" width="5" height="5" fill="#FFFFFF"/>
+<text x="318.0" y="200.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#FFFFFF</text>
+<text x="318.0" y="214.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">I/O</text>
+<rect x="414" y="160" width="26" height="26" fill="#A6A6A6"/>
+<rect x="440" y="160" width="10" height="10" fill="#A6A6A6"/>
+<rect x="450" y="160" width="5" height="5" fill="#A6A6A6"/>
+<text x="414.0" y="200.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#FFFFFF" text-anchor="start">#8E8E8E</text>
+<text x="414.0" y="214.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">UTILITY</text>
+<text x="30.0" y="246.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#A6A6A6" text-anchor="start" letter-spacing="1.5">DEVICES</text>
+<rect x="30" y="258" width="50" height="20" fill="#C0FE04"/>
+<rect x="80" y="258" width="10" height="10" fill="#C0FE04"/>
+<rect x="90" y="258" width="5" height="5" fill="#C0FE04"/>
+<rect x="95" y="258" width="2.5" height="2.5" fill="#C0FE04"/>
+<text x="30.0" y="294.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">STEPPED EDGE 10/5/2.5</text>
+<path d="M240 254 h-10 v28 h10" fill="none" stroke="#FFFFFF" stroke-width="1"/>
+<path d="M330 254 h10 v28 h-10" fill="none" stroke="#FFFFFF" stroke-width="1"/>
+<text x="255.0" y="272.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="10" fill="#FFFFFF" text-anchor="start" letter-spacing="1.0">FL-03</text>
+<text x="230.0" y="298.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">BRACKETS, NOT BOXES</text>
+<line x1="420" y1="278" x2="560" y2="278" stroke="#A6A6A6" stroke-width="1"/>
+<line x1="420" y1="278" x2="420" y2="270" stroke="#A6A6A6" stroke-width="1"/>
+<line x1="440" y1="278" x2="440" y2="274" stroke="#A6A6A6" stroke-width="1"/>
+<line x1="460" y1="278" x2="460" y2="274" stroke="#A6A6A6" stroke-width="1"/>
+<line x1="480" y1="278" x2="480" y2="270" stroke="#A6A6A6" stroke-width="1"/>
+<line x1="500" y1="278" x2="500" y2="274" stroke="#A6A6A6" stroke-width="1"/>
+<line x1="520" y1="278" x2="520" y2="274" stroke="#A6A6A6" stroke-width="1"/>
+<line x1="540" y1="278" x2="540" y2="270" stroke="#A6A6A6" stroke-width="1"/>
+<line x1="560" y1="278" x2="560" y2="274" stroke="#A6A6A6" stroke-width="1"/>
+<text x="420.0" y="294.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">TICK RAILS EVERYWHERE</text>
+<defs><pattern id="devdots" patternUnits="userSpaceOnUse" width="10.9" height="10.9"><circle cx="5.45" cy="5.45" r="0.75" fill="rgba(255,255,255,0.25)"/></pattern></defs>
+<rect x="600" y="254" width="90" height="28" fill="#1C1C1C"/>
+<rect x="600" y="254" width="90" height="28" fill="url(#devdots)"/>
+<text x="600.0" y="298.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">DOT SCREEN 1.5/21.75</text>
+<rect x="30" y="330" width="96" height="24" fill="#C0FE04"/>
+<text x="78.0" y="348.0" font-family="'Arial Black', 'Archivo Black', Arial, sans-serif" font-size="15" fill="#000000" text-anchor="middle" font-weight="900">SIGNAL</text>
+<rect x="130" y="330" width="24" height="24" fill="#FFFFFF"/>
+<rect x="136" y="336" width="12" height="12" fill="#000000"/>
+<rect x="158" y="339" width="22" height="6" fill="#FFFFFF"/>
+<text x="30.0" y="372.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">PLATE TEXT + END CELLS</text>
+<line x1="268" y1="326" x2="268" y2="358" stroke="#3A3A3A" stroke-width="1"/>
+<text transform="rotate(-90 282 356)" x="282" y="356" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" letter-spacing="1.5">FILTER 08</text>
+<text x="230.0" y="372.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">QUARTER-TURN TEXT</text>
+<path d="M430 326 C430 366, 545 366, 545 326" fill="none" stroke="#C0FE04" stroke-width="5"/>
+<path d="M455 326 C455 356, 570 356, 570 326" fill="none" stroke="#FFFFFF" stroke-width="5" opacity="0.85"/>
+<circle cx="430" cy="326" r="5" fill="#C0FE04"/>
+<circle cx="545" cy="326" r="5" fill="#C0FE04"/>
+<circle cx="455" cy="326" r="5" fill="#FFFFFF"/>
+<circle cx="570" cy="326" r="5" fill="#FFFFFF"/>
+<text x="420.0" y="372.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">CABLES: FAT + CURVED, FLAT COLOUR</text>
+<text x="30.0" y="412.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#A6A6A6" text-anchor="start" letter-spacing="1.5">GROUPING: CORNER MARKS REPLACE THE BOX</text>
+<rect x="40" y="432" width="152" height="76" fill="none" stroke="#3A3A3A" stroke-width="1"/>
+<line x1="65.98" y1="488.02" x2="63.86" y2="490.14" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="62.29" y1="469.49" x2="59.52" y2="468.35" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="78.00" y1="459.00" x2="78.00" y2="456.00" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="93.71" y1="469.49" x2="96.48" y2="468.35" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="90.02" y1="488.02" x2="92.14" y2="490.14" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<path d="M68.10 485.90 A14 14 0 1 1 87.90 485.90" fill="none" stroke="#3A3A3A" stroke-width="2" stroke-linecap="butt"/>
+<line x1="81.75" y1="470.09" x2="85.50" y2="464.18" stroke="#FFFFFF" stroke-width="2" stroke-linecap="butt"/>
+<text x="78.0" y="450.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="middle" letter-spacing="1.2">RATE</text>
+<text x="78.0" y="506.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="10" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">0.8<tspan font-size="7.0" fill="#A6A6A6" dx="1.5">Hz</tspan></text>
+<line x1="135.98" y1="488.02" x2="133.86" y2="490.14" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="132.29" y1="469.49" x2="129.52" y2="468.35" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="148.00" y1="459.00" x2="148.00" y2="456.00" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="163.71" y1="469.49" x2="166.48" y2="468.35" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="160.02" y1="488.02" x2="162.14" y2="490.14" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<path d="M138.10 485.90 A14 14 0 1 1 157.90 485.90" fill="none" stroke="#3A3A3A" stroke-width="2" stroke-linecap="butt"/>
+<line x1="144.82" y1="469.76" x2="141.64" y2="463.53" stroke="#FFFFFF" stroke-width="2" stroke-linecap="butt"/>
+<text x="148.0" y="450.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="middle" letter-spacing="1.2">DEPTH</text>
+<text x="148.0" y="506.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="10" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">40<tspan font-size="7.0" fill="#A6A6A6" dx="1.5">%</tspan></text>
+<text x="40.0" y="526.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#555555" text-anchor="start" letter-spacing="1.0">BORDERED: 4 EDGES OF NOISE</text>
+<line x1="274.0" y1="432.0" x2="286.0" y2="432.0" stroke="#A6A6A6" stroke-width="1" stroke-linecap="butt"/>
+<line x1="280.0" y1="426.0" x2="280.0" y2="438.0" stroke="#A6A6A6" stroke-width="1" stroke-linecap="butt"/>
+<line x1="426.0" y1="432.0" x2="438.0" y2="432.0" stroke="#A6A6A6" stroke-width="1" stroke-linecap="butt"/>
+<line x1="432.0" y1="426.0" x2="432.0" y2="438.0" stroke="#A6A6A6" stroke-width="1" stroke-linecap="butt"/>
+<line x1="274.0" y1="508.0" x2="286.0" y2="508.0" stroke="#A6A6A6" stroke-width="1" stroke-linecap="butt"/>
+<line x1="280.0" y1="502.0" x2="280.0" y2="514.0" stroke="#A6A6A6" stroke-width="1" stroke-linecap="butt"/>
+<line x1="426.0" y1="508.0" x2="438.0" y2="508.0" stroke="#A6A6A6" stroke-width="1" stroke-linecap="butt"/>
+<line x1="432.0" y1="502.0" x2="432.0" y2="514.0" stroke="#A6A6A6" stroke-width="1" stroke-linecap="butt"/>
+<rect x="296" y="427" width="60" height="10" fill="#000000"/>
+<text x="300.0" y="435.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.2">LFO CORE</text>
+<line x1="305.98" y1="488.02" x2="303.86" y2="490.14" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="302.29" y1="469.49" x2="299.52" y2="468.35" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="318.00" y1="459.00" x2="318.00" y2="456.00" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="333.71" y1="469.49" x2="336.48" y2="468.35" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="330.02" y1="488.02" x2="332.14" y2="490.14" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<path d="M308.10 485.90 A14 14 0 1 1 327.90 485.90" fill="none" stroke="#3A3A3A" stroke-width="2" stroke-linecap="butt"/>
+<line x1="321.75" y1="470.09" x2="325.50" y2="464.18" stroke="#FFFFFF" stroke-width="2" stroke-linecap="butt"/>
+<text x="318.0" y="450.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="middle" letter-spacing="1.2">RATE</text>
+<text x="318.0" y="506.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="10" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">0.8<tspan font-size="7.0" fill="#A6A6A6" dx="1.5">Hz</tspan></text>
+<line x1="375.98" y1="488.02" x2="373.86" y2="490.14" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="372.29" y1="469.49" x2="369.52" y2="468.35" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="388.00" y1="459.00" x2="388.00" y2="456.00" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="403.71" y1="469.49" x2="406.48" y2="468.35" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<line x1="400.02" y1="488.02" x2="402.14" y2="490.14" stroke="#555555" stroke-width="1" stroke-linecap="butt"/>
+<path d="M378.10 485.90 A14 14 0 1 1 397.90 485.90" fill="none" stroke="#3A3A3A" stroke-width="2" stroke-linecap="butt"/>
+<line x1="384.82" y1="469.76" x2="381.64" y2="463.53" stroke="#FFFFFF" stroke-width="2" stroke-linecap="butt"/>
+<text x="388.0" y="450.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="middle" letter-spacing="1.2">DEPTH</text>
+<text x="388.0" y="506.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="10" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">40<tspan font-size="7.0" fill="#A6A6A6" dx="1.5">%</tspan></text>
+<text x="280.0" y="526.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">MARKED: 4 CORNERS, LABEL IN THE GAP</text>
+<rect x="534.0" y="444.0" width="12" height="12" fill="#C0FE04"/>
+<line x1="534.0" y1="437.0" x2="534.0" y2="419.0" stroke="#C0FE04" stroke-width="1" stroke-linecap="butt"/>
+<line x1="553.0" y1="456.0" x2="571.0" y2="456.0" stroke="#C0FE04" stroke-width="1" stroke-linecap="butt"/>
+<rect x="594.0" y="484.0" width="12" height="12" fill="#C0FE04"/>
+<line x1="594.0" y1="477.0" x2="594.0" y2="459.0" stroke="#C0FE04" stroke-width="1" stroke-linecap="butt"/>
+<line x1="613.0" y1="496.0" x2="631.0" y2="496.0" stroke="#C0FE04" stroke-width="1" stroke-linecap="butt"/>
+<text x="510.0" y="526.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">REGISTRATION SQUARES:</text>
+<text x="510.0" y="538.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">HEAVIER, FOR ACTIVE ZONES</text>
+</svg>

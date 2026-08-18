@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="300" viewBox="0 0 720 300" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace">
+<rect width="720" height="300" fill="#000000"/>
+<defs><pattern id="carddots" patternUnits="userSpaceOnUse" width="21.75" height="21.75"><circle cx="10.875" cy="10.875" r="1.5" fill="rgba(255,255,255,0.07)"/></pattern></defs>
+<rect x="0" y="0" width="720" height="300" fill="url(#carddots)"/>
+<text x="30.0" y="20.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="9" fill="#A6A6A6" text-anchor="start" letter-spacing="1.5">READING SURFACE // MODULE CARD</text>
+<rect x="30" y="34" width="460" height="240" fill="#1C1C1C"/>
+<rect x="30" y="34" width="460" height="240" fill="none" stroke="#3A3A3A" stroke-width="1"/>
+<rect x="30" y="34" width="460" height="26" fill="#5200FF"/>
+<text x="44.0" y="51.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="10" fill="#FFFFFF" text-anchor="start" letter-spacing="2.0" font-weight="700">FL-03 FILTER</text>
+<text x="476" y="51" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#FFFFFF" text-anchor="end" letter-spacing="1.2" opacity="0.75">12 HP // 3 PORTS</text>
+<text x="46.0" y="120.0" font-family="'Arial Black', 'Archivo Black', Arial, sans-serif" font-size="42" fill="#FFFFFF" text-anchor="start" font-weight="900">LADDER</text>
+<rect x="48" y="140" width="26" height="1" fill="#555555"/>
+<text x="48.0" y="170.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="12" fill="#FFFFFF" text-anchor="start">Four-pole transistor ladder with drive.</text>
+<text x="48.0" y="188.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="12" fill="#FFFFFF" text-anchor="start">Cutoff tracks V/OCT when patched;</text>
+<text x="48.0" y="206.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="12" fill="#FFFFFF" text-anchor="start">resonance self-oscillates past 80%.</text>
+<line x1="498" y1="48" x2="510" y2="48" stroke="#555555" stroke-width="1"/>
+<text x="516.0" y="51.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">EYEBROW: LIVERY PLATE, 2 CAP LEVELS</text>
+<line x1="498" y1="111" x2="510" y2="111" stroke="#555555" stroke-width="1"/>
+<text x="516.0" y="114.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">DISPLAY CAPS, RATIO ~4:1 TO BODY</text>
+<line x1="498" y1="140" x2="510" y2="140" stroke="#555555" stroke-width="1"/>
+<text x="516.0" y="143.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">STUB RULE, 1px, NEVER FULL-WIDTH</text>
+<line x1="498" y1="185" x2="510" y2="185" stroke="#555555" stroke-width="1"/>
+<text x="516.0" y="188.0" font-family="Consolas, 'Cascadia Mono', 'DejaVu Sans Mono', monospace" font-size="8" fill="#A6A6A6" text-anchor="start" letter-spacing="1.0">BODY: MONO, SENTENCE CASE, 150%</text>
+</svg>
