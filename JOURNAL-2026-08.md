@@ -12352,3 +12352,90 @@ noted but not deleted. Only TideSynth changed.
 
 **Branch/PR:** `tide/mac/e2a-v1-done`.
 
+## 2026-08-18 — macos — PROBE D: MIDI does exit the MIDI In module (interactive session, Jeff directing)
+
+**Did:** answered one question Jeff asked of the previous entry's evidence — *did
+we prove that MIDI exits the `MIDI In` module?* — and the honest answer was **no**.
+Fixed that with one more probe, then tidied the fleet's stale branches.
+
+**First, a bookkeeping failure worth more than the fix.** Several commits from the
+previous session never reached either default branch: I kept pushing to branches
+whose PRs had **already merged**, so `TideSynth/main` stopped at "record the
+confirmed cause" and `SynthEdit/master` stopped at the first commit of the V3
+series. Everything after that — the `MidiToGate` linking, the one-list staging
+fix, `TIDE_STATIC_EXTRAS`, Jeff's rulings, and my own correction of a wrong
+explanation — sat on deleted branches. Recovered here from the branch tips
+(`34503ea21`, `25216c1`, still in the object store). **The lesson: `git push`
+succeeding says nothing about whether a PR is still open to carry it.** Check the
+PR state before pushing a follow-up, or push to a fresh branch.
+
+**One silver lining:** the wrong explanation never reached the repo of record
+either, so `main` was never publishing it. It is re-landed here in corrected form
+only, rather than as a wrong commit followed by a fix.
+
+**The wrong explanation, since it is a plausible trap.** I blamed
+`#if GMPI_IS_PLATFORM_JUCE==1` around `INIT_STATIC_FILE(MIDItoGate)` for
+`SE MIDItoGate2` being absent from TIDE. Wrong twice: `INIT_STATIC_FILE(ADSR)` is
+inside that same block while ADSR works fine (TIDE's ADSR is the legacy
+`ug_adsr.cpp` `REGISTER_MODULE_1` one, reached through the legacy table), and
+adding an unconditional `INIT_STATIC_FILE(MIDItoGate)` **fails to link** —
+`se_static_library_init_MIDItoGate()` undefined, the linker saying the object is
+not in the library. **The real reason:** `modules/MidiPlayer2/MidiToGate.cpp` is
+in a `SynthEditLib/CMakeLists.txt` source list belonging to a **separate
+`MidiPlayer2` target**, so it builds as a loadable module.  `MidiToGate.o` lands
+under `MidiPlayer2.build/`; `MidiToCv2.o`, genuinely in the library, lands under
+`SynthEditLib.build/`. TIDE links statically and has no scan (S1a). Fixed with no
+GATED change by adding the `.cpp` to `SynthEditSem`'s source list — E2a's
+`RectangleGui.cpp` pattern — and **that same layout is what S8 measured**, so S8's
+own "separately-loaded module" suspicion was right all along and its row now says
+so.
+
+**Why the earlier pair was not enough.** PROBE A (MIDI In present **and** cabled
+to MIDI-CV 2) gates on the note; PROBE B (MIDI In absent) never does. That reads
+like proof but changes **two** variables at once, so all it supports is "MIDI In
+plus its cable delivers MIDI". The live alternative was that the module's mere
+**presence** makes the container a MIDI destination and `ug_container`'s
+redirector feeds MIDI-CV 2 directly — `ug_base.cpp:2859` scans for the first
+DT_MIDI2 input pin, so that is not a fanciful reading.
+
+**Result — PROBE D holds the module present and leaves the pin UNCONNECTED.**
+
+```
+A  present + cabled    Gate  0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0
+D  present, uncabled   Gate  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+B  absent              Gate  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+```
+
+A and D differ in **only** the cable, and only A gates. **So MIDI travels through
+the patch cable and does exit the `MIDI Data` output.** The redirector alternative
+is dead.
+
+**What that buys beyond bookkeeping.** `SE MIDItoGate2` is wired from `MIDI In`
+in exactly the way MIDI-CV 2 is, so it **is** being fed MIDI — its silence is
+internal to the module rather than a delivery problem. That removes the whole
+delivery half of the suspect list and leaves two lines: the `setSleep(true)` /
+`subProcessNothing` path in `MidiToGate2::subProcess`, and the cross-class
+`setSubProcess(&MidiToGate::subProcessNothing)` sitting inside `MidiToGate2` —
+both at `modules/MidiPlayer2/MidiToGate.cpp:222`.
+
+**Learned:** an A/B that moves two variables is worth exactly as much as its
+weaker leg. Both earlier probes were real measurements and the conclusion drawn
+from them was still unsupported; it took a third arrangement to make the claim
+true. Cheap, too — one prefab, one placement, one render, no cabling.
+
+**Side effects on this box:** REAPER launched once, exited on its own; not
+running. The diagnostic prefabs were removed from `TideModules/prefabs/` and from
+the installed bundle again, which the `Probe*.synthedit` gitignore rule now makes
+harder to get wrong. Stale merged local branches deleted at Jeff's instruction:
+`TideSynth/tide/mac/e2a-v1-done` and `GMPI/release_1_5`. Everything else on those
+repos was left alone — `SynthEdit`'s `Release_V14`/`Release_V15`, `gmpi_ui`'s
+`release_1_5`, `AlphaBlender`'s `offscreen` and `JUCE`'s `master` are release or
+unmerged branches, not stale.
+
+**Next:** unchanged — **E7**, which Jeff's rulings have already reduced to "where
+do the jacks live". The `MidiToGate2` thread is now a two-line code question
+rather than an investigation.
+
+**Branch/PR:** `tide/mac/E7-probe-d`; SynthEdit
+[#47](https://github.com/JeffMcClintock/SynthEdit/pull/47).
+
