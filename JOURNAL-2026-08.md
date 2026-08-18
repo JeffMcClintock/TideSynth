@@ -12439,3 +12439,169 @@ rather than an investigation.
 **Branch/PR:** `tide/mac/E7-probe-d`; SynthEdit
 [#47](https://github.com/JeffMcClintock/SynthEdit/pull/47).
 
+
+---
+
+## 2026-08-18 — macos — MIDItoGate2 traced: it IS MIDI-2 compatible and DOES set the gate (interactive session, Jeff directing)
+
+**Did:** Jeff asked whether `SE MIDItoGate2` is MIDI 2.0 aware. Answering it
+properly overturned a claim I had already written into **E7**, so this entry is
+mostly a correction.
+
+**E7 said `SE MIDItoGate2` "emits no gate at all". That was wrong** — an inference
+from a silent rack, never a direct measurement. It is fully MIDI 2.0 compatible
+and it does set the gate. Two independent proofs.
+
+**By code.** `MidiConverter2::processMidi` opens with an explicit pass-through for
+MIDI 2.0 input (`modules/se_sdk3/mp_midi.h:966` — *"MIDI 2.0 messages need no
+conversion — pass through and return"*), and `MidiToGate2::onMidi2Message`
+requires `ChannelVoice64`, which is exactly the message type TIDE forwards
+(status `0x40`). So there is no 1.0-versus-2.0 mismatch anywhere in the path.
+
+**By trace**, added to `modules/MidiPlayer2/MidiToGate.cpp` at Jeff's request and
+**reverted unbuilt afterwards** — a temporary trace that got committed is issue
+[#87](https://github.com/JeffMcClintock/TideSynth/issues/87), and this one was
+not going to repeat it:
+
+```
+MTG2: onMidiMessage pin=0 size=8 bytes=40 90 3c 00 isMidi2=1
+MTG2: onMidi2Message msgType=4 status=9 (ChannelVoice64=4 NoteOn=9)
+MTG2: NOTE ON note=60 -> pinGate=true triggerCounter=22
+MTG2: trigger pulse ended at sample 6 -> setSleep(true)
+MTG2: onMidiMessage pin=0 size=8 bytes=40 80 3c 00 isMidi2=1   <- NoteOff, status=8
+```
+
+It receives the UMP, decodes it, reads **note 60** — the fixture's middle C — and
+sets `pinGate = true`. `triggerCounter=22` is the 0.5 ms pulse at 44.1 kHz,
+correct. The intervening `status=6` and `status=0` messages are other MIDI 2.0
+types it correctly ignores.
+
+**So where is the break?** The rack downstream measured **zero for the whole
+render**, peak −inf, including the samples while the gate was set. The gate is set
+on the pin and never arrives at the Envelope's ADSR.
+
+**This does NOT overturn "a monophonic module's cable is live."** The cable
+demonstrably drove the GATE jack from its default of 10 down to 0 — that is why
+the rack went silent rather than droning. **The cable crosses; the VALUE does
+not.** Two concrete suspects, neither tested:
+
+1. `pinGate` is a `BoolOutPin` and the jack is an audio-rate `SE Patch Point in`,
+   so a static/event bool may not drive an audio-rate signal at all. That would
+   also explain why `--connect $mtg:Gate $pp:Input` is *accepted* by SynthEditCL
+   while carrying nothing — the connection is legal and inert.
+2. `setSleep(true)` fires 22 samples after note-on while the gate is still
+   logically HIGH, so a sleeping module may stop driving its output.
+
+**Test (1) first:** it is a datatype question answerable with SynthEditCL alone,
+no GUI — put a bool-to-volts conversion or a `Multiply` between the two and see
+whether the gate arrives. If it does, the interim prefab just needs that module
+inside it.
+
+**Learned — the shape of my own error, because it repeated.** Twice now I have
+turned a *silent downstream* into a claim about an *upstream module*: first
+"`gmpi_render_audio` says the rack is silent" (which was the tool), now
+"MIDItoGate2 emits no gate" (which was the wire). Silence measured at the end of a
+chain names the chain, not a link in it. The fix both times was to measure at the
+suspected link instead — a `Sound Out` inside the container, or a trace in the
+module. **`build-prefabs.py --diagnostics` exists for the first; a throwaway
+`fprintf` is fine for the second, as long as it is reverted.**
+
+**Side effects on this box:** the SynthEditLib trace was reverted and that repo is
+clean on `main`; TIDE_VST3 was rebuilt from the reverted source so the installed
+plugin matches the tree. REAPER was not launched — the fixture was already saved,
+so this was a headless render. GMPI (`9541b1d -> b9e4f92`) and GMPI_Wrappers
+(`e2eeedc -> ea2e357`) arrived in the routine sync, both from
+`tide/win/standalone-correctness-fixes`; TIDE was rebuilt against them and all
+three host fixtures plus E1 4/4 re-measured unchanged, so they disturb nothing
+here.
+
+**Next:** **E7**, unchanged in scope — Jeff's rulings still reduce the design to
+"where do the jacks live". The interim's remaining question is now suspect (1)
+above, which is a 30-second SynthEditCL test rather than an investigation.
+
+**Branch/PR:** `tide/mac/E7-miditogate2-finding`.
+
+---
+
+## 2026-08-18 — macos — V3 PASSES: the rack plays the DAW's MIDI, and the bug was missing type converters (interactive session, Jeff directing)
+
+**Did:** found why the MIDI-gated rack was silent, and it was not MIDI. **TIDE had
+no type converters linked**, so a whole class of connections was silently dead.
+Jeff's one-line observation is what located it: *"the library will automatically
+insert converters when needed. So long as the converter is linked in of course."*
+
+**Result — V3's Accept is met.** `tests/hosts/v3-midi-gate.rpp`, one middle-C note
+on at 0.500 s and off at 1.200 s, gate patched from MIDI rather than left at its
+open default:
+
+```
+peak per 100 ms   0.000 x5   0.484  0.345 0.341 ... 0.340   0.044   0.000 x6
+0.05-0.45 s       silent
+0.60-1.10 s       440.0 Hz
+1.35-1.95 s       silent
+```
+
+Silence, note, silence.
+
+**The mechanism, and why it was invisible.** `ug_base.cpp:1751` builds a converter
+id like `SE <From>To<To>` whenever two connected pins differ in datatype, then
+calls `ModuleFactory()->GetById()`. On a miss it does:
+
+```cpp
+assert(false); // invalid connection.
+return;
+```
+
+In a **Release** build the assert compiles out, so the function just returns and
+**the connection is silently abandoned**. The editor still draws the cable. The
+DSP never carries it. There is no warning, no log, and nothing in the saved
+document to distinguish it from a working cable.
+
+`Converters.cpp` builds into a separate `Converters` target as a loadable
+`Converters.sem`, and TIDE links statically with no scan (S1a) — so **`SE
+BoolToVolts` did not exist in TIDE**, and `SE MIDItoGate2`'s `BoolOutPin` gate
+could never reach an audio-rate jack. Fixed the way `MidiToGate` was: the `.cpp`
+joins `SynthEditSem`'s source list and `Converters.xml` is staged.
+`my_type_convert.cpp` has to come with it — `Converters.cpp` instantiates
+`SimpleConverter<From,To>` for every pair and each calls
+`myTypeConvert<From,To>()`, whose specialisations live in that other translation
+unit; without it the link fails on a wall of undefined symbols.
+
+**This is worth more than the row it unblocked.** It was not one module's bug: any
+mixed-datatype cable a user drew in TIDE went quietly dead. Bool to volts, float
+to volts, volts to float — all of it.
+
+**Three of my own hypotheses died on the way, and the pattern in them is the
+lesson.** I blamed, in order: the ADSR's gate threshold (measured false — it opens
+identically at 1 V and 10 V); `MidiToGate2` not being MIDI-2 aware (false — it
+receives the UMP, decodes NoteOn, reads note 60 and sets `pinGate = true`, traced);
+and `setSleep(true)` truncating the gate (plausible, still untested, and now
+irrelevant). **Every one of those put the fault in a module because the silence was
+measured at the end of a chain.** The actual fault was in the *wire*, which is the
+one place I never instrumented. Third time this session that a downstream silence
+got attributed upstream — after `gmpi_render_audio` (E6, the tool) and
+"MIDItoGate2 emits no gate" (the wire again).
+
+**What is still missing: PITCH.** The shipped MIDI prefab is now the monophonic
+`SE MIDItoGate2`, which has no pitch output, so every note sounds at the
+Oscillator's own 5 V default of 440 Hz. Pitch needs `SE MIDI to CV 2`, which is
+`polyphonicSource`/`cloned` and so still blocked by **E7** — kept runnable as
+`PROBE C`. **So "notes start and stop with the DAW's MIDI" is done; "play a tune"
+is not.** V3 is `IN-REVIEW` rather than claimed DONE because whether that satisfies
+PLAN's clause is Jeff's call, not mine.
+
+**No regressions:** all three earlier host fixtures unchanged (−6.3/−17.0, −inf,
+−6.3/−17.0) and E1 4/4 after linking the converters.
+
+**Side effects on this box:** REAPER was not launched — the fixture was already
+saved from the previous round, so every measurement here was a headless render.
+The temporary `MidiToGate2` trace from the previous entry stayed reverted;
+SynthEditLib is untouched and clean. TIDE_VST3 rebuilt Release, universal
+(arm64 + x86_64) — the converter link error surfaced on x86_64 first, so a
+single-arch build would have hidden half of it.
+
+**Next:** **E7**, now purely the polyphony question, with Jeff's rulings already
+reducing it to "where do the jacks live".
+
+**Branch/PR:** `tide/mac/E7-miditogate2-finding`; SynthEdit
+[#48](https://github.com/JeffMcClintock/SynthEdit/pull/48).
