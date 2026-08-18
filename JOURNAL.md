@@ -46,6 +46,69 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — A25: the NEXT-block check now actually runs, proven by probe (interactive session, Jeff directing)
+
+**Did:** wired `scripts/check-next-block.py` into the `lint` job. It shipped with
+**A20** and nothing ran it, so a NEXT block could send a run at an archived row
+and CI would say nothing.
+
+**All four parts, because three of them is worse than none.** A15's row records
+the trap and this run demonstrates it rather than restating it: the Summary step
+is what turns a red *step* into a red *job*. Wire only the step and it goes red
+while the job still passes — a check that reports and does not gate.
+
+1. the step, after `idrefs` — whole-tree, for the same reason that one is: a
+   take-target goes stale when the row it names is **archived**, which is an edit
+   to a *different* file than the one citing it, so a base-vs-head diff misses
+   exactly the case that matters
+2. `NEXTBLOCK: ${{ steps.nextblock.outcome }}` in the Summary's `env`
+3. `echo "next-block: $NEXTBLOCK"` beside the other five
+4. `"$NEXTBLOCK"` in the `for outcome in …` list that sets `fail=1`
+
+**Result — the two-commit probe A25 asked for, run for real.** Commit 1 pointed
+the `mac` NEXT row at **E2a**, which is archived:
+
+```
+links:      success
+journal:    success
+backlog:    success
+provenance: success
+id-refs:    success
+next-block: failure      <- job FAILED, not merely the step
+```
+
+[run 32105947035](https://github.com/JeffMcClintock/TideSynth/actions/runs/32105947035).
+Commit 2 removed the probe: all six `success`, job green —
+[run 32106036402](https://github.com/JeffMcClintock/TideSynth/actions/runs/32106036402).
+
+**Simulated locally before pushing anything**, by running the three whole-tree
+checks against a clean tree and against a planted probe. That cost nothing and
+meant the CI run confirmed a prediction rather than discovering a surprise.
+
+**The row's access claim is confirmed as well, and it cuts both ways.** A25 said
+only Jeff or an interactive session could push this, because the bot token
+deliberately lacks `workflow` scope. This was an interactive session and the push
+to `.github/workflows/**` was accepted. **So the wall is real and still stands for
+a scheduled run** — the same wall that blocks **A12** and **B1**, which remain
+un-takeable by any agent.
+
+**Learned:** `gh run view --log` interleaves ANSI escapes and tab-separated
+job/step prefixes, so grepping it for a Summary line finds the `echo` command
+rather than its output. `sed 's/\x1b\[[0-9;]*m//g' | awk -F'\t' '$2=="Summary"{print $3}'`
+gets the actual six lines. Worth keeping — reading a Summary block is the normal
+way to check any of these lint steps.
+
+**Next:** unchanged — **E7**, the polyphony question, with Jeff's rulings already
+reducing it to "where do the jacks live". **A12** and **B1** stay blocked on the
+token, and this run is the evidence for why: the push that worked here worked
+*because* a human was driving it.
+
+**Side effects on this box:** no builds, no REAPER, no plugin changes — this was
+a CI-wiring run. Two CI runs consumed on the probe, deliberately.
+
+**Branch/PR:** `tide/mac/A25-nextblock-lint` —
+[#145](https://github.com/JeffMcClintock/TideSynth/pull/145).
+
 ## 2026-08-18 — macos — V3 PASSES: the rack plays the DAW's MIDI, and the bug was missing type converters (interactive session, Jeff directing)
 
 **Did:** found why the MIDI-gated rack was silent, and it was not MIDI. **TIDE had
