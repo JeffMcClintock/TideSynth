@@ -112,16 +112,34 @@ the panel layout itself, because the CLI has no verb that moves a module.
   `"SE Rectangle XP"` is in TIDE's binary via the legacy rename table at
   `CUG.cpp:301` while having no registration whatsoever.
 
-**No faceplate, and that is the finding rather than an omission.**
-[docs/e2a-prefabs.md](docs/e2a-prefabs.md) §1 asks for `Sine.seprefab`'s idiom
-(`SE Rectangle XP` as a background padding the module out to a rack slot, plus a
-text module). **TIDE links neither** — they are SubControlsXp `.sem` modules,
-the dynamically-loaded kind PLAN constraint 7 excludes, and TIDE's browser
-correspondingly has no Sub-Controls category. Staging `SubControlsXp.xml` does
-**not** help; it only adds the "insertable phantoms" U2e's own comment warns
-about, and that experiment was tried and reverted. Giving these modules a body
-needs a rack-native background primitive in TIDE's static set — **E5**'s
-territory, and Jeff's call, not a run's.
+**The faceplate needs BOTH halves — corrected in-session after Jeff caught it.**
+This entry first said the `Sine.seprefab` faceplate idiom
+([docs/e2a-prefabs.md](docs/e2a-prefabs.md) §1) was *impossible* in TIDE. Wrong.
+The rule, which is the general one for TIDE's fixed module set (constraint 7):
+**a module needs its `.cpp` in `SynthEditSem/CMakeLists.txt`'s source list AND
+its pin descriptions merged from XML in `TideApp::InitInstance`** — TIDE has no
+module scan to supply the latter (S1a). Either alone fails, and differently:
+XML-only is an insertable phantom with no class behind it; `.cpp`-only is a
+class with no pins, which takes the whole enclosing container's widget layer
+down with it — a blank rack, not one missing module. `SE Rectangle XP` had
+*neither*. Adding `modules/SubControlsXp/RectangleGui.cpp` **and** staging
+`SubControlsXp.xml` makes it real: a **Sub-Controls** category appears in TIDE's
+browser and the rectangle draws on the rack as a proper module body. The merge
+stays safe because its `GetById()` guard is enrichment-only, so an XML listing
+far more modules than TIDE links adds no phantoms.
+
+**How not to test it, since both of my first two methods were wrong:**
+`strings`/`nm` on the binary is a false positive — `"SE Rectangle XP"` is there
+via the legacy rename table at `CUG.cpp:301` with no registration. The `class=`
+attribute in a saved document is better but reflects **SynthEditCL's**
+registration, not TIDE's. The authoritative check is placing the prefab in TIDE
+and looking at it.
+
+**The shipped prefabs are still jacks-only**, deliberately: the rectangle
+covered the jacks on the first attempt and document order did not obviously
+control z-order, and a caption still wants a module (`SE Text Entry` is linked
+but is a patch-memory text field, pin 0 `patchValue`, not a plain label). Rack
+styling as a whole stays **E5**, Jeff's call to set.
 
 **The Envelope is an envelope AND a VCA**, deliberately. A bare ADSR emits
 control voltage and has no audio path, so oscillator -> envelope -> output would

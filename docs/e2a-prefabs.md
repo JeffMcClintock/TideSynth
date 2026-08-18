@@ -229,28 +229,43 @@ with the CLI drops into the rack *successfully*, is selected, reports the right
 size in the properties pane, and **draws nothing**. `Controls/LED2.syntheditprefab`
 is the reference that carries a real one (`l="70" r="90" t="24" b="44"`).
 
-### 9.2 The faceplate idiom in §1 is not available in TIDE
+### 9.2 The faceplate needs BOTH halves — .cpp linked *and* .xml merged
 
-§1 says to keep `Sine.seprefab`'s faceplate (`SE Rectangle XP` + a text module).
-**TIDE links neither.** They are SubControlsXp `.sem` modules — the
-dynamically-loaded kind PLAN constraint 7 excludes — and TIDE's browser has no
-Sub-Controls category as a result. Staging `SubControlsXp.xml` does **not** fix
-it; it only adds the "insertable phantoms" U2e's own comment warns about. That
-was tried and reverted.
+**Corrected 2026-08-18, same session, after Jeff pointed it out.** The first
+write-up of this section said the faceplate idiom §1 asks for was *impossible*
+in TIDE. That was wrong, and the correction is the general rule for TIDE's fixed
+module set (PLAN constraint 7):
 
-**How to tell, and the check that does NOT work.** In a saved document a linked
-class carries `class="1"` (DSP) or `class="2"` (GUI); an XML-only entry has **no
-`class` attribute at all**. A `strings`/`nm` check on the binary is a **false
-positive** — `"SE Rectangle XP"` is present there via the legacy rename table at
-`CUG.cpp:301` while having no registration. `build-prefabs.py`'s
-`assert_all_modules_linked()` enforces the document-level check.
+> **A module needs both halves.** Its `.cpp` in `SynthEditSem/CMakeLists.txt`'s
+> source list supplies the class and its registration; its pin descriptions come
+> from XML merged in `TideApp::InitInstance`, because TIDE has no module scan to
+> supply them (S1a). Either alone fails, and they fail *differently*:
+> **XML-only** is an insertable phantom with no class behind it; **`.cpp`-only**
+> is a class with no pins, which takes the whole enclosing container's widget
+> layer down with it — a blank rack, not one missing module.
 
-The failure mode is worth stating because it is not graceful: **one module with
-no class blanks the container's entire widget layer.** Not a missing rectangle —
-a blank rack.
+`SE Rectangle XP` had *neither* in TIDE, which is why the first faceplate
+attempt produced a container that placed at the right size and drew nothing.
+Adding `modules/SubControlsXp/RectangleGui.cpp` to the source list **and**
+staging/merging `SubControlsXp.xml` makes it a real module: a **Sub-Controls**
+category appears in TIDE's browser, and the rectangle draws on the rack as a
+proper module body. Both are in this PR.
 
-So rack modules have no body today. Giving them one needs a rack-native
-background primitive in TIDE's static set, which is **E5**.
+Merging that XML is safe precisely because the merge is *enrichment-only* — the
+`GetById()` guard skips any entry whose class is not registered, so pointing it
+at a file describing far more modules than TIDE links adds no phantoms.
+
+**Two things still open**, which is why the shipped prefabs are jacks-only
+rather than half-styled: the rectangle covered the jacks on the first attempt
+and document order did not obviously control z-order; and a caption still wants
+a module — `SE Text Entry` is linked but is a patch-memory text field (pin 0 is
+`patchValue`), not a plain label. Rack styling as a whole stays **E5**.
+
+**How NOT to test this:** `strings`/`nm` on the binary is a false positive —
+`"SE Rectangle XP"` is present via the legacy rename table at `CUG.cpp:301`
+while having no registration. The `class=` attribute in a saved document is a
+better signal but reflects **SynthEditCL's** registration, not TIDE's. The
+authoritative check is placing the prefab in TIDE and looking.
 
 ### 9.3 The Envelope has to be a VCA too
 
