@@ -122,6 +122,55 @@ NOT in that row, deliberately: I scaled them through a `Multiply` whose Input-2
 units I could not pin down, so those numbers were uncalibrated and I dropped them
 in favour of the frequency ratio, which needs no calibration.
 
+**Jeff asked two questions that each moved a finding, and both are worth keeping.**
+
+**"Does TIDE have the correct sample rate or some hard-coded default?"** Not
+hard-coded — `SynthEdit.cpp` passes `host->getSampleRate()`, and a log confirmed
+real values: **48000 Hz then 44100 Hz**, block 512, in one offline render. But the
+call site matters more than the value: `prepareToPlay` is reached from **exactly
+one place**, the chunk arriving in `onSetPins`, so the rate is latched at
+*document-push* time and nothing handles a rate change. Filed as **E9**, with a
+`preparedSampleRate` guard that logs `TIDE: rack built for N Hz` on a change.
+**And the two rates are two INSTANCES, not one re-preparing** — the guard's "rate
+CHANGED" branch did not fire, which is how that is known rather than assumed. I
+had written the opposite in a comment first and corrected it.
+
+Forcing a different render rate turned out not to be possible headlessly: REAPER
+ignores a project's `SAMPLERATE` line when rendering, and hand-writing
+`RENDER_SRATE` into a `.rpp` makes REAPER **stop on a dialog** — Jeff saw it
+blocking a render before I did. So a genuine rate-change test needs REAPER's own
+dialog, and E9 says so rather than pretending the headless attempt proved
+something.
+
+**"Find SynthEdit's pitch calculation, confirm it's what you think."** It was not
+what I thought, and **E8 is materially different as a result.** I had written that
+`Oscillator`'s V→Hz and `SE MIDI to CV 2`'s note→volts disagreed about the
+convention. They do not — both are correct and they agree:
+
+* `ug_oscillator2.cpp:31` — `440 * powf(2, FSampleToVoltage(v) - MAX_VOLTS/2)`,
+  and the Pitch pin documents itself at `:66`: default `"5"`, *"1 Volt per Octave,
+  5V = Middle A"*. So float 0.5 → 5 V → 440.0 Hz.
+* `CVoiceList.cpp:1930` and `dsp_patch_manager.cpp:52` are the same line —
+  `volts = GetKeyTune(key) * (1/12) - 0.75` — with the comment *"SE convention is
+  Volts, 1V/octave, with MIDI A4 (key 69) = 5.0V"*. Key 60 → 4.25 V → **261.6 Hz,
+  the right answer.**
+
+So the +3 semitones is a **bug against the engine's own stated formula**: something
+supplies key 63 where 60 was sent. That also moves E8's scope from TIDE's prefab
+(ALLOWED) to `SynthEditLib` (GATED), which is the opposite of what I first wrote.
+
+Jeff also supplied the piece that made my voltage readings interpretable and then
+worthless: **5 V is float 0.5 on an audio cable**, hence the `0.1f *` scaling
+everywhere. My `Multiply`-scaled readings of MIDI-CV 2's Pitch pin could not be
+reconciled with that at any assumed factor, which is why E8 rests on the frequency
+ratio — which needs no calibration — and not on them.
+
+**One suspect ruled out rather than left hanging:** a MIDI 2.0 note-on carrying
+`attribute_type::Pitch` retunes the key table (`ug_container.cpp:1206-1215`), which
+would give exactly a wrong-but-musical offset. But the observed packet is
+`40 90 3c 00` and byte 3 **is** the attribute type — `0x00`, none — so that branch
+never fires.
+
 **Side effects on this box:** REAPER launched three times, quit each time; not
 running. TIDE_VST3 rebuilt Release from `tide/mac/V3-root-midicv`. A four-agent
 recon workflow read SynthEditLib for the presenter/container APIs; its most useful
