@@ -46,6 +46,168 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — V3 PASSES: the rack plays the DAW's MIDI, and the bug was missing type converters (interactive session, Jeff directing)
+
+**Did:** found why the MIDI-gated rack was silent, and it was not MIDI. **TIDE had
+no type converters linked**, so a whole class of connections was silently dead.
+Jeff's one-line observation is what located it: *"the library will automatically
+insert converters when needed. So long as the converter is linked in of course."*
+
+**Result — V3's Accept is met.** `tests/hosts/v3-midi-gate.rpp`, one middle-C note
+on at 0.500 s and off at 1.200 s, gate patched from MIDI rather than left at its
+open default:
+
+```
+peak per 100 ms   0.000 x5   0.484  0.345 0.341 ... 0.340   0.044   0.000 x6
+0.05-0.45 s       silent
+0.60-1.10 s       440.0 Hz
+1.35-1.95 s       silent
+```
+
+Silence, note, silence.
+
+**The mechanism, and why it was invisible.** `ug_base.cpp:1751` builds a converter
+id like `SE <From>To<To>` whenever two connected pins differ in datatype, then
+calls `ModuleFactory()->GetById()`. On a miss it does:
+
+```cpp
+assert(false); // invalid connection.
+return;
+```
+
+In a **Release** build the assert compiles out, so the function just returns and
+**the connection is silently abandoned**. The editor still draws the cable. The
+DSP never carries it. There is no warning, no log, and nothing in the saved
+document to distinguish it from a working cable.
+
+`Converters.cpp` builds into a separate `Converters` target as a loadable
+`Converters.sem`, and TIDE links statically with no scan (S1a) — so **`SE
+BoolToVolts` did not exist in TIDE**, and `SE MIDItoGate2`'s `BoolOutPin` gate
+could never reach an audio-rate jack. Fixed the way `MidiToGate` was: the `.cpp`
+joins `SynthEditSem`'s source list and `Converters.xml` is staged.
+`my_type_convert.cpp` has to come with it — `Converters.cpp` instantiates
+`SimpleConverter<From,To>` for every pair and each calls
+`myTypeConvert<From,To>()`, whose specialisations live in that other translation
+unit; without it the link fails on a wall of undefined symbols.
+
+**This is worth more than the row it unblocked.** It was not one module's bug: any
+mixed-datatype cable a user drew in TIDE went quietly dead. Bool to volts, float
+to volts, volts to float — all of it.
+
+**Three of my own hypotheses died on the way, and the pattern in them is the
+lesson.** I blamed, in order: the ADSR's gate threshold (measured false — it opens
+identically at 1 V and 10 V); `MidiToGate2` not being MIDI-2 aware (false — it
+receives the UMP, decodes NoteOn, reads note 60 and sets `pinGate = true`, traced);
+and `setSleep(true)` truncating the gate (plausible, still untested, and now
+irrelevant). **Every one of those put the fault in a module because the silence was
+measured at the end of a chain.** The actual fault was in the *wire*, which is the
+one place I never instrumented. Third time this session that a downstream silence
+got attributed upstream — after `gmpi_render_audio` (E6, the tool) and
+"MIDItoGate2 emits no gate" (the wire again).
+
+**What is still missing: PITCH.** The shipped MIDI prefab is now the monophonic
+`SE MIDItoGate2`, which has no pitch output, so every note sounds at the
+Oscillator's own 5 V default of 440 Hz. Pitch needs `SE MIDI to CV 2`, which is
+`polyphonicSource`/`cloned` and so still blocked by **E7** — kept runnable as
+`PROBE C`. **So "notes start and stop with the DAW's MIDI" is done; "play a tune"
+is not.** V3 is `IN-REVIEW` rather than claimed DONE because whether that satisfies
+PLAN's clause is Jeff's call, not mine.
+
+**No regressions:** all three earlier host fixtures unchanged (−6.3/−17.0, −inf,
+−6.3/−17.0) and E1 4/4 after linking the converters.
+
+**Side effects on this box:** REAPER was not launched — the fixture was already
+saved from the previous round, so every measurement here was a headless render.
+The temporary `MidiToGate2` trace from the previous entry stayed reverted;
+SynthEditLib is untouched and clean. TIDE_VST3 rebuilt Release, universal
+(arm64 + x86_64) — the converter link error surfaced on x86_64 first, so a
+single-arch build would have hidden half of it.
+
+**Next:** **E7**, now purely the polyphony question, with Jeff's rulings already
+reducing it to "where do the jacks live".
+
+**Branch/PR:** `tide/mac/E7-miditogate2-finding`; SynthEdit
+[#48](https://github.com/JeffMcClintock/SynthEdit/pull/48).
+
+## 2026-08-18 — macos — MIDItoGate2 traced: it IS MIDI-2 compatible and DOES set the gate (interactive session, Jeff directing)
+
+**Did:** Jeff asked whether `SE MIDItoGate2` is MIDI 2.0 aware. Answering it
+properly overturned a claim I had already written into **E7**, so this entry is
+mostly a correction.
+
+**E7 said `SE MIDItoGate2` "emits no gate at all". That was wrong** — an inference
+from a silent rack, never a direct measurement. It is fully MIDI 2.0 compatible
+and it does set the gate. Two independent proofs.
+
+**By code.** `MidiConverter2::processMidi` opens with an explicit pass-through for
+MIDI 2.0 input (`modules/se_sdk3/mp_midi.h:966` — *"MIDI 2.0 messages need no
+conversion — pass through and return"*), and `MidiToGate2::onMidi2Message`
+requires `ChannelVoice64`, which is exactly the message type TIDE forwards
+(status `0x40`). So there is no 1.0-versus-2.0 mismatch anywhere in the path.
+
+**By trace**, added to `modules/MidiPlayer2/MidiToGate.cpp` at Jeff's request and
+**reverted unbuilt afterwards** — a temporary trace that got committed is issue
+[#87](https://github.com/JeffMcClintock/TideSynth/issues/87), and this one was
+not going to repeat it:
+
+```
+MTG2: onMidiMessage pin=0 size=8 bytes=40 90 3c 00 isMidi2=1
+MTG2: onMidi2Message msgType=4 status=9 (ChannelVoice64=4 NoteOn=9)
+MTG2: NOTE ON note=60 -> pinGate=true triggerCounter=22
+MTG2: trigger pulse ended at sample 6 -> setSleep(true)
+MTG2: onMidiMessage pin=0 size=8 bytes=40 80 3c 00 isMidi2=1   <- NoteOff, status=8
+```
+
+It receives the UMP, decodes it, reads **note 60** — the fixture's middle C — and
+sets `pinGate = true`. `triggerCounter=22` is the 0.5 ms pulse at 44.1 kHz,
+correct. The intervening `status=6` and `status=0` messages are other MIDI 2.0
+types it correctly ignores.
+
+**So where is the break?** The rack downstream measured **zero for the whole
+render**, peak −inf, including the samples while the gate was set. The gate is set
+on the pin and never arrives at the Envelope's ADSR.
+
+**This does NOT overturn "a monophonic module's cable is live."** The cable
+demonstrably drove the GATE jack from its default of 10 down to 0 — that is why
+the rack went silent rather than droning. **The cable crosses; the VALUE does
+not.** Two concrete suspects, neither tested:
+
+1. `pinGate` is a `BoolOutPin` and the jack is an audio-rate `SE Patch Point in`,
+   so a static/event bool may not drive an audio-rate signal at all. That would
+   also explain why `--connect $mtg:Gate $pp:Input` is *accepted* by SynthEditCL
+   while carrying nothing — the connection is legal and inert.
+2. `setSleep(true)` fires 22 samples after note-on while the gate is still
+   logically HIGH, so a sleeping module may stop driving its output.
+
+**Test (1) first:** it is a datatype question answerable with SynthEditCL alone,
+no GUI — put a bool-to-volts conversion or a `Multiply` between the two and see
+whether the gate arrives. If it does, the interim prefab just needs that module
+inside it.
+
+**Learned — the shape of my own error, because it repeated.** Twice now I have
+turned a *silent downstream* into a claim about an *upstream module*: first
+"`gmpi_render_audio` says the rack is silent" (which was the tool), now
+"MIDItoGate2 emits no gate" (which was the wire). Silence measured at the end of a
+chain names the chain, not a link in it. The fix both times was to measure at the
+suspected link instead — a `Sound Out` inside the container, or a trace in the
+module. **`build-prefabs.py --diagnostics` exists for the first; a throwaway
+`fprintf` is fine for the second, as long as it is reverted.**
+
+**Side effects on this box:** the SynthEditLib trace was reverted and that repo is
+clean on `main`; TIDE_VST3 was rebuilt from the reverted source so the installed
+plugin matches the tree. REAPER was not launched — the fixture was already saved,
+so this was a headless render. GMPI (`9541b1d -> b9e4f92`) and GMPI_Wrappers
+(`e2eeedc -> ea2e357`) arrived in the routine sync, both from
+`tide/win/standalone-correctness-fixes`; TIDE was rebuilt against them and all
+three host fixtures plus E1 4/4 re-measured unchanged, so they disturb nothing
+here.
+
+**Next:** **E7**, unchanged in scope — Jeff's rulings still reduce the design to
+"where do the jacks live". The interim's remaining question is now suspect (1)
+above, which is a 30-second SynthEditCL test rather than an investigation.
+
+**Branch/PR:** `tide/mac/E7-miditogate2-finding`.
+
 ## 2026-08-18 — macos — PROBE D: MIDI does exit the MIDI In module (interactive session, Jeff directing)
 
 **Did:** answered one question Jeff asked of the previous entry's evidence — *did
@@ -284,131 +446,4 @@ deliberately. `GMPI` has a stale local `release_1_5` fully merged into `main`,
 noted but not deleted. Only TideSynth changed.
 
 **Branch/PR:** `tide/mac/e2a-v1-done`.
-
-## 2026-08-18 — macos — V1's audio half: THE RACK SOUNDS (interactive session, Jeff directing)
-
-**Did:** measured the audio half of PLAN's v0.1 acceptance test — "have the patch
-survive save-and-reload of the host project" — and it **passes**. Built the one
-input that was missing: a saved REAPER project whose TIDE instance carries a
-wired rack. Then answered the two questions the job hinged on, added the
-per-prefab E1 cases, and corrected `render-and-measure.py`'s now-wrong
-diagnostic.
-
-**Result.**
-
-```
-control (known -6 dBFS 1 kHz sine)   peak=  -6.0 dBFS  rms=  -9.0 dBFS  AUDIO PRESENT
-v1-rack.rpp                          peak=  -6.3 dBFS  rms= -17.0 dBFS  AUDIO PRESENT
-   rack: 2 patch cable(s) (HC_PATCH_CABLES); 8 <Line>(s) inside prefab containers
-v1-rack-uncabled.rpp                 peak=  -inf       rms=  -inf       SILENCE
-   rack: 0 patch cable(s) (HC_PATCH_CABLES); 8 <Line>(s) inside prefab containers
-```
-
-Characterising the render rather than only gating it: **440.0 Hz, left channel
-only, right channel digital silence** — which is precisely the wiring. 5 V at
-1 V/octave is middle A, only the L jack is cabled, and the ADSR sits at its
-sustain after a 3 dB step in the first 100 ms with the gate at its open default.
-Nothing was sequenced; the rack sounds with no MIDI, as designed.
-
-**Question 1 — does the patch-cable wiring survive the save? YES, and here is
-where it lives.** A patch cable is **not** a `<Line>` in the saved document. It
-is an entry in a serialised `<Cables>` list held in the patch manager as the
-**`HC_PATCH_CABLES`** host control — **49**, counted off the enum at
-`SynthEditLib/HostControls.h:14` — written by `MfcDocPresenter::AddPatchCable`
-and turned back into DSP connections at load time by
-`ug_container::ConnectPatchCables` (`SynthEditLib/ug_container.cpp:433`). Decoded
-out of the saved `.rpp`, both cables are there, with their endpoints resolving to
-the right jacks:
-
-```
-cable 1: 'TIDE Oscillator' / SE Patch Point out (panel top=86)  -> 'TIDE Envelope' / SE Patch Point in (top=40)
-cable 2: 'TIDE Envelope'   / SE Patch Point out (panel top=132) -> 'TIDE Output'   / SE Patch Point in (top=40)
-```
-
-So the S11 round-trip inference held. It is now measured twice over — once by
-reading the parameter back out of the file, once by the audio coming back.
-
-**Question 2 — the `<Lines>` message was misleading, and fixing it needed a
-negative control, not an argument.** The old text said a zero `<Lines>` count
-made silence certain, which implied a non-zero count meant a project could
-sound. That was true only while saved projects held bare modules. **A rack of
-three prefabs reports EIGHT `<Line>`s whether or not it is wired**, because
-those belong to the containers' insides. Rather than assert that, I built
-`tests/hosts/v1-rack-uncabled.rpp` — the same three prefabs placed, deliberately
-uncabled — which is exactly the case the old message got wrong: eight `<Line>`s,
-zero cables, silent. Both branches of the rewritten diagnostic are now exercised
-by real artifacts in the repo. The script reports both counts and says which one
-it judged on.
-
-**Per-prefab E1 cases: two of the three, and the third cannot exist.**
-`tests/cases/prefab_oscillator.json` locks 440.0 Hz from the pitch jack's 5 V
-default and the statically-registered `Oscillator` primitive (not the absent
-`OscillatorNaive`, S8). `tests/cases/prefab_envelope.json` locks the audio path
-the prefab exists for — ADSR at Overall Level 1 into `Multiply`, peak **exactly
-0.5** from a 5 V input, sustaining at **0.7**, so the VCA is unity gain and the
-gate is open. Suite is **4/4**. **Output gets no standalone case:** it is a
-`Sound Out`, whose entire job is handing audio to the host, and the harness
-records from a pin with `--render-audio --from`, which is upstream of that. The
-`.rpp` render *is* Output's test — audio appearing in the host's own render is
-the only observation that can prove a Sound Out works.
-
-**Learned — five things, two of them corrections to me.**
-
-1. **A patch point carries VOLTS, and 10 V is full scale.** Setting the envelope
-   case's IN jack to `1` gave a −20.0 dBFS render, which looks like a 14 dB gain
-   bug and is not one: 1 V is 0.1. At 5 V — what the Oscillator prefab actually
-   delivers, measured at 0.49 — the peak is exactly 0.5. This is also why the
-   generator's `--set-pin $gate:Input 10` means "gate fully open". Written into
-   the case description so the number cannot be misread later.
-2. **A DAW lists TIDE under its product name `TIDE Rack`, not its filename.**
-   Filtering REAPER's FX browser for "TIDE" finds
-   `VST3i: TIDE Rack (TIDE Synth)`. REAPER's cache can also still serve a name
-   from an older build — this box's `reaper-vstplugins_arm64.ini` still said
-   `SynthEdit (GMPI)` — in which case a re-scan (Preferences → Plug-ins → VST →
-   Re-scan) is what makes the current name appear.
-3. **Corrected in-session, by Jeff, twice.** I first searched the browser for
-   "SynthEdit" because that is what the stale cache entry said; Jeff pointed out
-   the plugin is TIDE Rack, which is what sent me to the product name at all.
-   Later I reported an empty result list and theorised that the installed
-   bundle's directory mtime does not change when a POST_BUILD copies a new binary
-   into it, so REAPER's startup scan skips TIDE. **That theory was wrong and is
-   not evidence of anything** — Jeff spotted that the filter field actually read
-   "TDE", a dropped keystroke of mine. Recorded because the wrong theory is
-   exactly the sort of thing that gets quoted later as a build-system fact.
-4. **A dropped prefab does not keep the generator's slot size.**
-   `build-prefabs.py` writes `PanelWndPosition` as 100x160, but the properties
-   pane reports **W 20, H 66** for the Oscillator and Output and **H 112** for
-   the three-jack Envelope — the container is sized to its jacks on drop. The
-   size in the file still matters (it is what stops a prefab drawing nothing, the
-   `docs/e2a-prefabs.md` 9.1 trap); it is just not what survives placement.
-5. **The "places but does not draw" intermittency did not appear once**, across
-   six placements in two REAPER sessions. Not a fix, and not evidence it is gone
-   — but worth recording as a data point beside the times it did happen.
-
-**No exception, no crash.** Both REAPER sessions were launched from a shell so an
-uncaught C++ exception would name itself; stderr carried one line of swell
-metal-context noise and TIDE's own
-`TIDE: 3 rack prefab(s) seeded from the bundle` — which incidentally confirms the
-installed bundle's `Resources/Prefabs/` is what supplied the prefabs **in the
-real host**, not only in the standalone. Both instances exited 0.
-
-**Next:** **V3**, filed this run — "play it from the DAW's MIDI" is the one clause
-of PLAN's v0.1 acceptance test that no row in BACKLOG covered, and V1 is
-specifically the save/reload clause. It needs **no GUI session**: a MIDI item is
-plain text inside a `.rpp`, so the fixture can be edited by hand and measured
-with the script that already exists. **E2**'s `BLOCKED(V1)` premise — "no point
-authoring a fuller module library for a plugin that cannot yet keep its patch
-across a host save" — is retired by this measurement. **E6** is untouched and
-still open; nothing here depended on it.
-
-**Side effects on this box:** REAPER was launched twice interactively and four
-times headlessly by the render script, and exited on its own each time; it is not
-running. Its VST plugin cache was re-scanned (Preferences → VST → Re-scan), which
-is a settings change to REAPER, not to any repo. Renders went to a temp dir the
-script cleans up. `tests/hosts/Backups/` — REAPER's own `.rpp-bak` folder,
-created beside the fixtures — was deleted and is now gitignored, along with
-`report.json`, which the E1 harness writes into the repo root on every run. Only
-TideSynth changed.
-
-**Branch/PR:** `tide/mac/v1-audio-half`.
 
