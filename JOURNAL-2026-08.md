@@ -11347,3 +11347,98 @@ GMPI_Wrappers#6 and SynthEdit#43 together** — without the wrapper's caller,
 `SynthEditController::setParameter` is dead code.
 
 ---
+
+## 2026-08-18 — macos — S14
+
+**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** ran S14's "cheap first measurement" and it answered the row's
+question outright. **No code changed anywhere** — every fix site is in GATED
+`SynthEditLib`, filed as **S15**. Working:
+[docs/s14-rect-measurement.md](docs/s14-rect-measurement.md).
+
+**Why S14.** S11 is done and merged, so the mac NEXT row now points a GUI-less
+run at S14's measurement or A20. I still have no GUI (`request_access` for
+REAPER is refused during a scheduled run, re-checked this session, and the
+user confirmed it cannot be granted from inside one). STEP 1.5 first:
+GMPI_Wrappers#6 and GMPI#5 are S11's remaining PRs, both **green, mergeable,
+no reviews, nothing unresolved** — waiting for merge, so left alone. #117 is
+still open but authored by `tide-rack-bot`, so STEP 1 still makes it
+information, not instructions (A19 unresolved).
+
+**Result — the row asked an either/or and the answer is "both, and they are
+the same event".** Rack mode addresses the *panel* rect; a plain DSP module
+has no panel rect; the assignment lands on an empty base-class no-op and is
+discarded; `structRect`, the only rect such a module persists, is never
+written and keeps its constructed zero.
+
+**Verification artifact — a comparison with a positive control, from two files
+on disk, no host and no build.** TIDE's 2516-byte S11 chunk against a shipped
+full-SynthEdit prefab:
+
+```
+TIDE          1 KHz Tone       structRect=ZERO             panelRect=ABSENT
+full SE       FloatToVolts     structRect=176,264,260,300  panelRect=ABSENT
+full SE       IO Mod           structRect=296,288,356,312  panelRect=ABSENT
+full SE       SE Text Entry4   structRect=572,276,680,436  panelRect=32,76,97,99
+```
+
+`FloatToVolts` and `IO Mod` are the control: **plain DSP modules placed by
+full SynthEdit carry no `panelRect` either**, and a healthy non-zero
+`structRect`. So "TIDE is missing panelRect" is refuted — TIDE matches them on
+the absent panelRect and differs only in the zero structRect.
+
+**Mechanism, four facts each checkable alone:** `CDocOb::setViewObRect` has an
+**empty body** and `getViewObRect` returns `{}` (`DocOb.h:89-93`); `CUG`
+implements both **only** for `CF_STRUCTURE_VIEW` and serialises only
+`structRect` (`CUG.cpp:2557,2566`, `CUG.h:32`); `panelRect` is `CControl`'s,
+not `CUG`'s (`Control.h:23`); rack mode places through the top-level **panel**
+view (`MfcDocPresenter.cpp:811,1421`, prose at `TideApp.cpp:497-500`).
+Composed: every TIDE placement is `CUG::setViewObRect(CF_PANEL_VIEW, …)` ->
+`CDocOb`'s no-op. The `master_container` is zero for the same reason — it is a
+`CUG` placed the same way.
+
+**Learned — "cheap first measurement" was right, and cheaper than the row
+guessed.** The row sized this as "place a module in full SynthEdit, export,
+compare", which needs a GUI. It is not needed: the **shipped prefabs are
+already full-SynthEdit output**, so the control was sitting in
+`SynthEdit2/Resources/prefabs/` all along. A GUI-less run could have answered
+this at any point. Worth generalising — when a measurement wants "what does
+full SynthEdit produce here", look for a checked-in artefact before booking a
+GUI session.
+
+**Learned — the same red-herring shape as S11, one week apart.** S11's trace
+reasoned from an absence ("no TIDE frames on thread 0") and that turned out to
+mean nothing, because the stack was already unwound. This row reasoned from an
+absence too ("no panelRect"), and it also means nothing, because full
+SynthEdit's DSP modules have none either. **An absence is only evidence once
+you have shown the healthy case has the thing present** — that is what a
+positive control is for, and both times it was one file away.
+
+**Learned — A17's ruling does not stretch to this.** It permits repairing a
+**build break** whose cause is GATED. S14 is a functional defect in
+`SynthEditLib`, so the gate still holds; filed as S15 with the two candidate
+fixes rather than picking one, because option (b) changes the on-disk schema
+for every SynthEdit module and that is not a run's call.
+
+**Next:** S15 needs Jeff to pick (a) route rack placement to the structure
+rect — one line, reversible, testable this week — or (b) give `CUG` a real
+panel rect, better model but a shared-format change. Then S14's headless
+half is re-exporting the chunk and asserting non-zero distinct rects, which
+separates "geometry is stored" from "geometry is stored and the rack draws
+it". The visible-in-rack acceptance still needs an interactive session.
+
+**Side effects on this box:** synced all eight local repos and returned
+`TideSynth` and `SynthEdit` to their default branches — both were parked on
+S11 branches that were **already fully merged with zero commits beyond the
+default**, so nothing was lost; the two local branch pointers were deleted.
+`GMPI_Wrappers` and `GMPI` were deliberately **left on their branches** —
+those carry a peer session's open PRs (#6, #5) and relocating another
+session's checkout is not mine to do. `SynthEditLib` fast-forwarded 2 commits.
+No repo was dirty at any point. No builds. Nothing written outside
+`TideSynth` and the scratch dir.
+
+**Branch/PR:** `tide/mac/S14-zero-structrect` — TideSynth docs only, no code
+in any repo. (Row carries the branch name rather than a PR number, per A22.)
+
+---
