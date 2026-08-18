@@ -20,6 +20,7 @@ about the script.
 |---|---|---|
 | `v1-rack.rpp` | Oscillator → Envelope → Output, cabled jack-to-jack | **peak −6.3 dBFS, rms −17.0 dBFS** — 440.0 Hz, left channel only |
 | `v1-rack-uncabled.rpp` | the same three prefabs, **no patch cables** | **−inf, silent** — the negative control |
+| `v1-rack-midi.rpp` | MIDI → Oscillator → Envelope → Output, four cables, **plus a middle-C note** | **−6.3 dBFS, 440.0 Hz, unchanged by the note** — a FAILING fixture, on purpose (BACKLOG **E7**) |
 
 The pair matters more than either one alone. `v1-rack-uncabled.rpp` is what a
 saved rack looks like when nothing joins one module to another, and it reports
@@ -49,3 +50,28 @@ and cabling rack prefabs is an editor operation. To rebuild one:
 4. Save. The rack needs no MIDI: the oscillator's PITCH jack defaults to 5 V
    (440 Hz) and the envelope's GATE jack defaults open, so three cabled modules
    emit a continuous tone with nothing sequenced.
+
+**Cable each jack by its exact centre.** The jack hit-area is only a few pixels;
+press even 3 px off and you grab the module BODY and *move* it instead, and TIDE
+has no undo (PLAN excludes it from v0.1). Cable in an order that grabs each jack
+**before** any cable is drawn near it, or a later drag picks up the cable rather
+than the jack.
+
+## `v1-rack-midi.rpp` is a fixture for a failure
+
+It is checked in **because** it fails, and because the numbers say precisely
+where. A MIDI item is plain text inside a `.rpp` — `E <delta-ticks> <status>
+<d1> <d2>`, hex, 960 ticks per quarter note, so at TEMPO 120 one quarter note is
+0.5 s — which is why this one was hand-written rather than drawn in the MIDI
+editor.
+
+The note is **middle C, not A4, deliberately**: the Oscillator's own unpatched
+PITCH default is 5 V = 440 Hz, so a fixture using A4 could not distinguish "MIDI
+set the pitch" from "the default did". It renders 440.0 Hz either way, which is
+how we know the MIDI cables contribute nothing.
+
+What is NOT wrong: the fixture (REAPER draws the note), and MIDI delivery — TIDE
+prints `TIDE: host MIDI reaching the rack` when launched from a shell, and
+MIDI-CV 2's gate tracks the note exactly when read from inside its own container.
+See **E7**, and `build-prefabs.py --diagnostics` for the two probes that
+established it.

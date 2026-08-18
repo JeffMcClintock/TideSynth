@@ -46,6 +46,116 @@ Template:
 
 ---
 
+## 2026-08-18 — macos — V3 attempted: MIDI reaches the rack, but does not cross a patch cable (interactive session, Jeff directing)
+
+**Did:** took **V3** — PLAN's last unproven v0.1 clause, "play it from the DAW's
+MIDI". Built the rack module it needed, built the fixture, and measured. **The
+MIDI half works. The rack half does not**, and the finding is precisely located
+rather than "it didn't play".
+
+**Result.**
+
+```
+v1-rack-midi.rpp  (4 cables, middle-C note on 0.500 s, off 1.200 s)
+   peak=  -6.3 dBFS  rms= -17.0 dBFS   440.0 Hz, CONSTANT -- identical to the same rack with NO note
+
+PROBE A  MIDI In -> MIDI-CV 2 -> Sound Out INSIDE the container
+   Gate mean/100ms:  0 0 0 0 0  1 1 1 1 1 1 1  0 0 0 0 0 0 0 0     <-- tracks the note exactly
+PROBE B  same, MIDI In module removed (redirector only)
+   Gate mean/100ms:  0 0 0 0 0  0 0 0 0 0 0 0  0 0 0 0 0 0 0 0     <-- never opens
+```
+
+**The check Jeff asked for, and its answer.** He drilled into the MIDI In module,
+found it structurally correct but apparently inactive, and asked for a check on
+whether it was even receiving MIDI. `SynthEditSem/SynthEdit.cpp` now has one, and
+it says **yes**:
+
+```
+TIDE: host MIDI reaching the rack - first message 8 byte(s), status 0x40
+```
+
+Status `0x40`, 8 bytes, is a **MIDI 2.0 UMP** channel-voice packet — GMPI's
+`DT_MIDI2`, not legacy MIDI bytes. Worth knowing before anyone debugs the
+downstream path expecting three-byte messages. A second line covers the case
+`onMidiMessage` was already dropping in silence: MIDI arriving before the editor
+has pushed the document (`if (rackPrepared)`). One print per instance per
+condition, because that method is the audio thread.
+
+**Why the check mattered more than it looks.** A rack wired to MIDI has FOUR
+failure sites — host doesn't send, the wrapper declares no event input,
+`onMidiMessage` never runs, the rack drops it — and from the outside all four are
+one indistinguishable silence. Two ruled out by code reading (TIDE declares
+`<Pin name="MIDI" datatype="midi"/>` at `SynthEdit.cpp:199`, so
+`Processor_VST3.cpp:315` adds the event input bus), two by that line.
+
+**A theory of mine that was WRONG, killed by its own negative control.** I
+expected the `MIDI In` module to be the culprit: it models a hardware MIDI port
+for the SynthEdit app, and `keyboard2/keyboard.xml:21` says a module needs its
+DT_MIDI2 pin **unconnected** for `CreateMidiRedirector` to feed it, or "voices
+never get allocated". PROBE B tests exactly that and its gate never opens.
+**Jeff's design is right: the MIDI In module is required.** Both probes are kept
+behind `build-prefabs.py --diagnostics` so the comparison re-runs in one command
+instead of being retold.
+
+**So what actually fails.** MIDI-CV 2's Gate is correct *inside its container*
+and worth nothing *outside* it. Filed as **E7**, with the boundary drawn honestly:
+
+- **Proven:** a two-module probe, MIDI PITCH → Output L — a jack with **no**
+  stored default, so it would have passed anything that arrived — renders
+  **−inf**. And the four-cable rack sits at 440.0 Hz, which is the *Oscillator's
+  own* 5 V default, so both MIDI cables contributed exactly nothing.
+- **Inferred, not measured:** that polyphony is the reason.
+  `SE MIDI to CV 2` is `polyphonicSource="true"`/`cloned="true"`
+  (`MidiToCv2.cpp:18`), so its container is a voice container and its outputs are
+  polyphonic — the one structural difference from V1's cables, which do carry
+  audio. **The row says this is a hypothesis and names the experiment that
+  settles it** (cable a NON-polyphonic source out of a container: if that
+  crosses, polyphony is the variable; if it does not, patch cables out of
+  containers are broken more generally and V1's chain works for a reason nobody
+  understands yet). S14's lesson — do not measure carefully against an assumed
+  architecture — is why that is a test to run and not a conclusion to write.
+
+**Learned — four things.**
+
+1. **`MIDI In` is `modules_internal/MidiInGui.cpp`, id `MIDI In`, and its audio
+   output `MIDI Data` is pin 1, not pin 0.** Pin 0 is the GUI `Activity` **input**.
+   The combined plug list interleaves GUI and Audio pins, so the `<Audio>` block's
+   declaration order is NOT the saved pin index. Verified by making SynthEditCL
+   resolve the name and print the index rather than by counting the XML.
+2. **A jack's hit-area is a few pixels, and TIDE has no undo.** A drag starting
+   3 px off centre grabs the module BODY and moves it — that happened, put the
+   Oscillator half off-canvas, and cost a full re-place of the rack. Cable in an
+   order that grabs each jack *before* any cable is drawn near it.
+3. **The prefab staging step copies but never prunes.** Deleting a prefab from
+   `TideModules/prefabs/` leaves it in the bundle, so the two probes kept showing
+   up in the browser after they were removed from the generator. Delete by hand,
+   or a diagnostic ships.
+4. **Every generator run rewrites all the prefab handles** (SynthEditCL assigns
+   fresh ones), so any regeneration dirties files it did not mean to change.
+   Harmless — a placed prefab is copied into the host document — and V1's
+   fixtures were re-measured at −6.3/−17.0 and −inf after the rebuild to confirm.
+
+**Also, in passing:** reopening `v1-rack.rpp` showed both patch cables drawn and
+the mixer at −6.3 / RMS −13.5 with the transport stopped — so V1's result holds
+for **live playback**, not only offline render. That was never explicitly
+observed before.
+
+**Next:** **E7**, and it starts with the one experiment named in its row, not with
+the prefabs or the MIDI path — both are measured good. **V3** is `BLOCKED(E7)`
+with everything it built already landed, so the day E7 clears, V3 is a re-measure
+of a fixture that already exists.
+
+**Side effects on this box:** REAPER launched five times interactively and several
+times headlessly by the render scripts; it is not running. One accidental
+keystroke opened REAPER's "Dynamic split items" dialog (cancelled, undone, MIDI
+item verified intact afterwards) — the startup nag had been covering the FX
+button, which is what sent those clicks astray. The two PROBE prefabs were
+deleted from the installed bundle and from the build tree. The installed VST3 is a
+**Release** build of this branch. No repo but TideSynth and SynthEdit changed.
+
+**Branch/PR:** `tide/mac/V3-midi-findings`; SynthEdit
+[#46](https://github.com/JeffMcClintock/SynthEdit/pull/46).
+
 ## 2026-08-18 — macos — E2a and V1 flipped DONE and archived (state update, interactive)
 
 **Did:** observed that [#140](https://github.com/JeffMcClintock/TideSynth/pull/140)
@@ -363,81 +473,4 @@ it is a build-time invariant, not an E1 audio case.
   between one module's own two jacks. Cable each jack once.
 - Two Output prefabs in a rack means two `Sound Out`s competing for the host's
   buffers. Keep one.
-
-## 2026-08-18 — macos — the audio measurement: harness built, answer is "not yet, and here is exactly why"
-
-**Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** built and proved a headless audio-measurement harness
-(`scripts/render-and-measure.py`), ran it on every saved TIDE project, and
-established that the audio half of V1 **cannot be answered by any artefact that
-currently exists** — for a specific, measured reason rather than for want of
-trying. V1 stays `BLOCKED(E2a)`, now confirmed empirically instead of by
-argument.
-
-**The GUI assumption was wrong twice in one day.** S13 established that running
-a program is not driving a GUI. The same applies here and nobody had tried it:
-`REAPER -renderproject file.rpp` **renders and exits**. So an unattended run can
-measure audio, and the "audio needs a GUI session" line — which I wrote into a
-handoff prompt this morning — was never true.
-
-**Result — the harness, with a positive control, because silence proves nothing
-on its own.**
-
-```
-control (known -6 dBFS 1 kHz sine)  peak=  -6.0 dBFS  rms=  -9.0 dBFS  AUDIO PRESENT
-tide-s11-final.RPP                  peak=  -inf       rms=  -inf       SILENCE
-tide-s11-verify.rpp                 peak=  -inf       rms=  -inf       SILENCE
-tide-persist3.rpp                   peak=  -inf       rms=  -inf       SILENCE
-```
-
-The control lands at exactly -6.0 peak / -9.0 rms, which is what a sine should
-give, so the render-and-measure chain demonstrably detects audio. **The three
-silences are still not evidence about TIDE:** every saved project has **zero
-`<Line>` elements** in its DSP graph, so silence is arithmetically certain
-whatever the plugin does. The script detects and prints that itself rather than
-leaving a future reader to infer it — an -inf with no explanation is exactly the
-kind of result that gets quoted later as "audio is broken".
-
-**What is actually missing is a patch that could sound at all.** TIDE's rack
-prefabs exist — `SE16/TideModules/Sine.seprefab`, `AR.seprefab`,
-`Output.seprefab` — but they are **binary MFC serialisations** like `TIDE.se1`,
-so they can only be placed and wired by the editor. That is E2a, precisely as
-V1's row already said: *"the acceptance test itself needs the
-oscillator/envelope/output prefabs E2a builds before it can even be attempted."*
-**The row was right; this makes it measured rather than reasoned, and leaves the
-tooling ready for the day E2a lands.**
-
-**Considered and rejected: hand-authoring a sounding patch.** The DSP format is
-simple enough — `<Line From="id" To="id" FromPin="n" ToPin="n"/>`, parsed at
-`SynthEditLib/SeAudioMaster.cpp:1198` — and I could have written one. I did not,
-because I do not know the container IO plug conventions, and **a wrong guess
-produces silence that is indistinguishable from a real failure.** That is the
-S14 mistake exactly: measuring carefully against an assumed architecture. The
-format is recorded in V1's row so the next person starts ahead of where I did.
-
-**Learned — three layers of encoding in a `.rpp`, each of which cost a wrong
-guess, written down so nobody re-derives them.** (1) The `<VST` body is one
-base64 stream split over lines, **but the first line is REAPER's own header
-block with its own `=` padding**, so concatenating everything and decoding
-truncates at 44 bytes. (2) The decoded state is preset XML whose blob attribute
-is **`val=`, not `value=`** — my regex was right about everything except the
-attribute name and silently matched nothing. (3) That is base64 again, and
-yields the `<Document>`. All three are in the script's docstring.
-
-**Next:** **E2a** is now the single thing standing between the fleet and V1's
-acceptance test, and it needs the editor, so it is an interactive job. The
-moment those prefabs can be placed and saved, `render-and-measure.py` answers
-the audio question in one command with no GUI. Remaining unattended-friendly
-work is **S16** (make `dsp_tests` a real signal) and **A25** (four lines of lint
-wiring); both are small and both need Jeff.
-
-**Side effects on this box:** REAPER was launched four times headlessly by me
-(three project renders plus the control) and exited on its own each time; it is
-not running. Renders went to a temp dir the script cleans up. No repo but
-TideSynth changed.
-
-**Branch/PR:** `tide/mac/audio-measurement`.
-
----
 

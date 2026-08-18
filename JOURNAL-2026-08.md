@@ -11847,3 +11847,80 @@ times; it is not running now. All repos clean and on default branches.
 
 ---
 
+## 2026-08-18 — macos — the audio measurement: harness built, answer is "not yet, and here is exactly why"
+
+**Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+
+**Did:** built and proved a headless audio-measurement harness
+(`scripts/render-and-measure.py`), ran it on every saved TIDE project, and
+established that the audio half of V1 **cannot be answered by any artefact that
+currently exists** — for a specific, measured reason rather than for want of
+trying. V1 stays `BLOCKED(E2a)`, now confirmed empirically instead of by
+argument.
+
+**The GUI assumption was wrong twice in one day.** S13 established that running
+a program is not driving a GUI. The same applies here and nobody had tried it:
+`REAPER -renderproject file.rpp` **renders and exits**. So an unattended run can
+measure audio, and the "audio needs a GUI session" line — which I wrote into a
+handoff prompt this morning — was never true.
+
+**Result — the harness, with a positive control, because silence proves nothing
+on its own.**
+
+```
+control (known -6 dBFS 1 kHz sine)  peak=  -6.0 dBFS  rms=  -9.0 dBFS  AUDIO PRESENT
+tide-s11-final.RPP                  peak=  -inf       rms=  -inf       SILENCE
+tide-s11-verify.rpp                 peak=  -inf       rms=  -inf       SILENCE
+tide-persist3.rpp                   peak=  -inf       rms=  -inf       SILENCE
+```
+
+The control lands at exactly -6.0 peak / -9.0 rms, which is what a sine should
+give, so the render-and-measure chain demonstrably detects audio. **The three
+silences are still not evidence about TIDE:** every saved project has **zero
+`<Line>` elements** in its DSP graph, so silence is arithmetically certain
+whatever the plugin does. The script detects and prints that itself rather than
+leaving a future reader to infer it — an -inf with no explanation is exactly the
+kind of result that gets quoted later as "audio is broken".
+
+**What is actually missing is a patch that could sound at all.** TIDE's rack
+prefabs exist — `SE16/TideModules/Sine.seprefab`, `AR.seprefab`,
+`Output.seprefab` — but they are **binary MFC serialisations** like `TIDE.se1`,
+so they can only be placed and wired by the editor. That is E2a, precisely as
+V1's row already said: *"the acceptance test itself needs the
+oscillator/envelope/output prefabs E2a builds before it can even be attempted."*
+**The row was right; this makes it measured rather than reasoned, and leaves the
+tooling ready for the day E2a lands.**
+
+**Considered and rejected: hand-authoring a sounding patch.** The DSP format is
+simple enough — `<Line From="id" To="id" FromPin="n" ToPin="n"/>`, parsed at
+`SynthEditLib/SeAudioMaster.cpp:1198` — and I could have written one. I did not,
+because I do not know the container IO plug conventions, and **a wrong guess
+produces silence that is indistinguishable from a real failure.** That is the
+S14 mistake exactly: measuring carefully against an assumed architecture. The
+format is recorded in V1's row so the next person starts ahead of where I did.
+
+**Learned — three layers of encoding in a `.rpp`, each of which cost a wrong
+guess, written down so nobody re-derives them.** (1) The `<VST` body is one
+base64 stream split over lines, **but the first line is REAPER's own header
+block with its own `=` padding**, so concatenating everything and decoding
+truncates at 44 bytes. (2) The decoded state is preset XML whose blob attribute
+is **`val=`, not `value=`** — my regex was right about everything except the
+attribute name and silently matched nothing. (3) That is base64 again, and
+yields the `<Document>`. All three are in the script's docstring.
+
+**Next:** **E2a** is now the single thing standing between the fleet and V1's
+acceptance test, and it needs the editor, so it is an interactive job. The
+moment those prefabs can be placed and saved, `render-and-measure.py` answers
+the audio question in one command with no GUI. Remaining unattended-friendly
+work is **S16** (make `dsp_tests` a real signal) and **A25** (four lines of lint
+wiring); both are small and both need Jeff.
+
+**Side effects on this box:** REAPER was launched four times headlessly by me
+(three project renders plus the control) and exited on its own each time; it is
+not running. Renders went to a temp dir the script cleans up. No repo but
+TideSynth changed.
+
+**Branch/PR:** `tide/mac/audio-measurement`.
+
+---
+
