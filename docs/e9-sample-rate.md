@@ -181,10 +181,10 @@ same PR as this file.**
 - **A fresh instance with no chunk stored never prepares at all.**
   `processor_holder.cpp:225` `continue`s on an empty blob — "nothing stored yet;
   a later change will deliver it" — and TIDE's only `prepareToPlay` call site is
-  that blob arriving. Fixing this is the one clearly worthwhile code change, and
-  it has a precedent to copy exactly: override `open()` like
-  `SeGmpiProcessor.cpp:151` does, and let the blob arrival be a pure document
-  swap.
+  that blob arriving. This is still the one gap worth closing, but **the
+  precedent does NOT transfer, and copying it would crash the host** — see
+  [the section below](#why-the-open-precedent-does-not-transfer), measured
+  2026-08-19.
 - **`DoAsyncRestart()` alone cannot absorb a rate change.** The `resetting`
   branch rebuilds from the *member* `sampleRate` (`SynthRuntime.cpp:388`), which
   is only ever written by `prepareToPlay` (`:33`). A faded rate change would need
@@ -200,6 +200,96 @@ same PR as this file.**
   (`plugin.hxx:349`). The plugin cannot force its own reactivation on the CLAP or
   AU path; `restartComponent` appears only in the VST3 controller, for latency
   (`Controller_VST3.cpp:547`).
+
+## Why the open() precedent does not transfer
+
+Measured 2026-08-19 (macos, scheduled run) before implementing the change this
+doc recommended. **The recommendation was wrong, and following it would have
+null-dereferenced on the audio thread the first time a TIDE instance was
+created.** The reason is one asymmetry the original write-up did not check:
+`SeGmpiProcessor` **always has a document** when `open()` runs, and TIDE
+**never** does.
+
+`SeGmpiProcessor::open()` (`se_gmpi/source/SeGmpiProcessor.cpp:151`) can call
+`prepareToPlay` immediately because an exported SynthEdit plugin bakes its graph
+into the bundle as `dsp.se.xml`. TIDE has no such resource — its whole design is
+that the document arrives at runtime as the blob. Confirmed on the installed
+bundle:
+
+    $ ls ~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3/Contents/Resources
+    ControlsXp.xml   Converters.xml   MidiPlayer2.xml   Prefabs
+    SubControlsXp.xml
+
+No `dsp.se.xml`. So a `prepareToPlay` from `open()` walks this chain:
+
+1. `SynthRuntime::prepareToPlay` reinitialises — `generator == nullptr` alone
+   forces `mustReinitilize` (`SynthEditLib/SynthRuntime.cpp:48-53`).
+2. `pendingDocumentXml_` is empty, so `currentDspXml` keeps no root, and the
+   fallback reads the bundle resource (`:76-79`).
+3. `BundleInfo::getResource("dsp.se.xml")` finds no file and returns `{}`
+   (`modules/se_sdk3_hosting/BundleInfo.cpp:542-546` — `f.fail()` → `return {}`).
+4. `currentDspXml.Parse("")` → parse error, `RootElement() == nullptr`.
+5. `BuildDspGraph` is called anyway (`SynthRuntime.cpp:147`), and:
+
+```cpp
+document_xml = hDoc.FirstChildElement("Document").Element();   // :409 -> nullptr
+pElem = document_xml->FirstChildElement("DSP");                // :410 -> DEREFERENCES IT
+
+// should always have a valid root but handle gracefully if it does
+if (!pElem)                                                    // :413 -> one line too late
+    return;
+```
+
+**The guard is one line later than the dereference it was meant to protect.**
+It correctly handles a `<Document>` that has no `<DSP>` child; it cannot help
+when the *document element itself* is missing, which is exactly the empty case.
+
+### The measurement
+
+[`tests/e9_buildgraph_null_probe.cpp`](../tests/e9_buildgraph_null_probe.cpp)
+reproduces `SeAudioMaster.cpp:403-413` verbatim against the real
+`SynthEditLib/tinyxml` sources, with two positive controls so a null result
+cannot be mistaken for the probe simply not working:
+
+    --- EMPTY document  (TIDE with no chunk pushed) ---
+      Parse error         : yes
+      RootElement()       : NULL
+      document_xml (:409) : NULL
+      -> SeAudioMaster.cpp:410 would dereference this NULL pointer.
+    --- POSITIVE CONTROL: <Document> with no <DSP> ---
+      document_xml (:409) : non-null
+      pElem   (:410)      : NULL  -> guard at :413 returns cleanly
+    --- POSITIVE CONTROL: <Document><DSP/> ---
+      document_xml (:409) : non-null
+      pElem   (:410)      : non-null  -> guard at :413 passes
+
+Build and run it with:
+
+```bash
+clang++ -std=c++17 -I. -o /tmp/e9_probe \
+  ../TideSynth/tests/e9_buildgraph_null_probe.cpp \
+  tinyxml.cpp tinyxmlparser.cpp tinyxmlerror.cpp   # from SynthEditLib/tinyxml
+```
+
+### What this means for whoever takes E9 next
+
+The TIDE-side change cannot be made safely on its own. Two things must be true
+together, and only the first is TIDE's to do:
+
+- **TIDE side (ALLOWED).** Overriding `open()` is only worth doing if there is
+  something to prepare. Preparing an empty rack requires either a guard that
+  makes the override a no-op until the blob arrives — which restores exactly
+  today's behaviour and buys nothing — or a minimal valid document for TIDE to
+  stand up with. The latter is a design decision, not a transcription: note that
+  `BuildDspGraph` immediately asserts the first `<DSP>` child is a
+  `Module`/`Container` (`SeAudioMaster.cpp:421-422`), so "empty" cannot mean
+  "no modules" without more work.
+- **`SynthEditLib` side (GATED).** The null guard at `SeAudioMaster.cpp:409-413`
+  should be moved ahead of the dereference. Filed as **E10**; not fixed here,
+  because `SynthEditLib` is GATED and this is not a build break.
+
+Until E10 lands, an `open()` override is a crash waiting for a host that creates
+a processor before the controller has any state to push.
 
 ## Not established
 
