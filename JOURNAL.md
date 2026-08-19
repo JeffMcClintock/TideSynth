@@ -150,6 +150,35 @@ level change fails it with 11.7 dB to spare**, so level, tuning and filter-respo
 regressions are all still caught; what is given up is localized damage below
 ~12 LSB, which `voice_midi_note` covers at the default gates.
 
+### A finding out of CI, filed as E1c rather than fixed here
+
+The PR's Linux `verify` job renders against these macOS-seeded references, and
+the numbers say the relaxed gates on two cases are far too wide:
+
+```
+prefab_oscillator  null -131.1 dBFS  peakdiff -90.3     declared gates -67 / -62
+prefab_filter      null -121.4 dBFS  peakdiff -90.3     declared gates -67 / -62
+```
+
+Both are **rounding class** — inside even the *default* −100/−86 — leaving ~55 dB
+of margin for a real regression to hide in.
+
+**Where the wide gates came from:** E1a measured a free-running oscillator at
+−73.5 dBFS and sized the gates 6 dB above. Sound measurement, **different
+oscillator**: E1a used `SE Oscillator (naive)`, a separately-loaded module, while
+these two cases use `Oscillator`, the core `ug_oscillator2`. My own new case
+inherited the relaxed gates *by analogy* — I copied `prefab_oscillator`'s reason
+text, which says "same class of residual" — and CI then showed that analogy is
+probably wrong.
+
+I have not tightened them, because the honest fix is a measurement of each case's
+own residual in both directions, not a guess in the other direction — that would
+be the same reasoning-instead-of-measuring the row is about. Filed as **E1c** with
+the Accept clause stating exactly that. Note `voice_midi_note` also contains the
+naive oscillator and passes at *default* gates, so "naive drifts" is not the whole
+story; its pitch is MIDI-derived rather than free-running, which is the variable
+to isolate first.
+
 ### The five prefabs I regenerated and did NOT commit
 
 Running the generator rewrote all six files. The other five are **handle churn
