@@ -183,7 +183,7 @@ default branches at start.
    together) and C14 is filed inside [#165](https://github.com/JeffMcClintock/TideSynth/pull/165), which is also still open. Both
    windows. C7e needs them.
 
-**Branch/PR:** [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59) plus the TideSynth PR carrying this entry.
+**Branch/PR:** [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59) + [#167](https://github.com/JeffMcClintock/TideSynth/pull/167).
 Both working copies returned to their default branches.
 
 ## 2026-08-19 — linux — C6 DONE; C7 and C10 unblocked, and C7's first move is already measured
