@@ -11,6 +11,190 @@ the entries it still holds.
 
 ---
 
+## 2026-08-18 — windows — the Marathon design language, researched from source and revised live by Jeff (interactive session, Jeff directing)
+
+**Prompt:** Jeff asked for research into Bungie *Marathon*'s design language
+for use in 2D audio plugin UIs, then to synthesise it into a design-language
+doc with examples and save it in the repo. Followed by seven rounds of his
+own art direction, each correcting something the research had got wrong or
+had not covered. Then: push.
+
+**Did:** committed [docs/ui-design-language.md](docs/ui-design-language.md)
+and four generated `docs/images/ui-language-*.svg`, which **E6 recorded as an
+uncommitted, branchless working-tree file** — that is no longer true and E6's
+row is appended to accordingly. Added
+[scripts/gen-ui-language-svgs.py](scripts/gen-ui-language-svgs.py), the source
+of truth for those SVGs; they were previously generated from a script living
+only in a temp dir, i.e. 68 KB of committed markup nobody could regenerate.
+Jeff's seven directions, each now a dated rule in the doc: patch cables are
+**fat and curved, not right-angle hairlines** (this contradicts E6's own
+description of proposal (a)); the patched-jack core is **round, not square**;
+units render at **70% of the numeral and one ink tier down**; label ink lifted
+`#8E8E8E` → `#A6A6A6` for long-session legibility; **plate text** and
+**quarter-turn text** added as devices; **corner crosshairs replace section
+borders**; and the doc's earlier "no serifs" confusion resolved.
+
+**Result:** `check-links.py` 363 relative links, no breakage;
+`check-id-refs.py` 700 refs, none stale. All four SVGs verified programmatically
+in-browser for text overlap and out-of-bounds geometry after every change —
+this caught three real defects (a 1px label collision, a caret sitting after
+the unit instead of before it, square plug heads left on round jacks). No
+line-ending churn: every file is a new addition.
+
+**Learned:** four things worth not rediscovering.
+1. **The live site is a far better source than any article.** Reading
+   `marathonthegame.com`'s stylesheets and SVG directly yielded the real
+   tokens — `#C0FE04`, the `21.75px`/`r=1.5` dot pattern, `1px`/butt caps at
+   76 of 76 linecaps, the verified type scale — where the press coverage gave
+   only adjectives. Any future "research a visual identity" task should go to
+   the artefact, not the commentary.
+2. **A rule stated as a ban will outlaw something the source actually does.**
+   "No rotation" killed quarter-turn text; "no curves" killed the cables Jeff
+   wanted. Both had to be reopened as scoped exemptions. Prefer "X only for Y"
+   over "never X".
+3. **Jeff's corrections were consistently about *reading over hours*, not
+   about looking right in a screenshot** — dimmer greys, square-in-circle,
+   unit sizing. That is the axis this language has to be judged on, and it is
+   exactly the axis Marathon's own shipped UI failed on ("fontslop").
+4. Committing a doc that a BACKLOG row describes **as uncommitted** silently
+   falsifies that row. Worth checking for on any first commit of a file that
+   another row already discusses.
+
+**Next:** **E6 is still NEEDS-JEFF and this commit does not resolve it** — it
+commits proposal (a) so it can be read and diffed, nothing more. Two things
+now block cleanly: the `PROPOSED:` entry E6 asks for in
+[docs/decisions.md](docs/decisions.md) still does not exist, and **the crux
+has moved** — E6 framed the conflict as "(a) bans shadows, Jeff likes
+shadows", but Jeff has since directed (a) toward physical cables, which is
+movement toward (b)'s tasteful-realism position. Whoever writes the decisions
+entry should re-read (a) as it now stands rather than as E6 describes it.
+
+**Branch/PR:** `tide/win/competitive-review`.
+
+---
+
+## 2026-08-18 — windows — the first competitive review, a module set, and a false belief corrected (interactive session, Jeff directing)
+
+**Prompt:** Jeff asked whether a review of TIDE Rack's competition existed and,
+if not, to research Eurorack simulators and adjacent patchers (Reaktor Blocks,
+Bitwig's Grid) — price, OS, plugin formats, features, pros and cons — plus a
+comparison of visual design language, and MVP / nice-to-have module lists for
+the backlog. He asked for a design specialist on the UI analysis. Then: mention
+it in PLAN and commit.
+
+**Did:** it did not exist — **this is the project's first competitive review.**
+Added [docs/competitive-review.md](docs/competitive-review.md),
+[docs/module-set.md](docs/module-set.md) and
+[docs/blocks-connection-scheme.md](docs/blocks-connection-scheme.md); filed
+**E5**, **E6** and **A24**; substantially updated **V2**; added a "Competitive
+position" section to PLAN.md. Also published a rendered summary as an artifact.
+
+**Result:** `check-id-refs.py` and `check-links.py` both pass (694 id refs / 352
+relative links). No line-ending churn — `git diff` and
+`git diff --ignore-all-space` are byte-identical in shape.
+
+**Learned:** four things the next run would otherwise rediscover, or worse, not.
+
+1. **A9's standing hypothesis is FALSE as written and two docs reason from it.**
+   *"No open-source modular exists on iOS AUv3"* — **plugdata is GPL-3.0, free,
+   on the iOS App Store, and ships AUv3 instrument and effect plugins.** The
+   narrower claim survives (*no open-source Eurorack-style **rack*** on iOS) and
+   is what to reason from. **Corollary that also needs unlearning:** GPLv3 does
+   not structurally bar VCV or Cardinal from the App Store — the tension is real
+   but enforceable only by copyright holders, and Apple does not audit licences.
+   VCV's obstacle is contributor consent plus its $149 Pro business. **ISC is an
+   advantage, not a moat.** Filed as **A24**.
+2. **V2 has a settled shape and a documented trap, both from precedent.** RNBO,
+   plugdata and Bitwig's Grid expose parameters declaratively from the patch
+   with no panel; Reaktor and M4L make you draw a knob first. Both DAW-hosted
+   racks pre-declare a slot pool (VCV **1024**, Reason **>2000** advertised,
+   ~256 usable) so automation needs no setup — **and both bind positionally, so
+   deleting a module can silently repoint an existing automation lane onto a
+   different parameter.** Bind to module id + param id instead. Cheap now,
+   near-impossible to retrofit once patches exist in the wild.
+3. **The module set is not a DSP job.** `C:\SE\SynthEditLib` carries **75
+   `ug_*` DSP modules** plus a modern SEM set (`EnvelopeAdsr`, `SVFilter2`,
+   `VaFilters`, `Delay3`, `Reverb`, `StepSequencer`, `Waveshapers`, `BPMClock3`,
+   `Arpeggiator`, `Unison`). It is a Container-authoring and panel-art job, and
+   **the schedule risk is per-module panel cost, which nobody has measured.**
+   The measured MVP is three tiers: 3 (E2a's acceptance test) / **12** (the hard
+   intersection present in all five reference sets) / **22** (credible release).
+   **The one place "copy the intersection" gives the wrong answer:** every
+   reference set defers reverb/chorus/compressor to a paid tier or a store, and
+   constraint 7 means TIDE cannot — so it must budget for the FX layer anyway.
+4. **AUv3 extensions are memory-capped at ~300 MB (32-bit) / ~360 MB (64-bit)
+   per instance** ([Apple Developer Forums](https://developer.apple.com/forums/thread/47396)).
+   Via constraint 9 that caps the compiled-in module set, embedded wavetables
+   and rack size on **every** platform. Recorded in PLAN's new section and
+   **flagged for Jeff as a possible tenth constraint — deliberately not added
+   unilaterally.**
+
+Two market facts nothing in the tree recorded: **Native Instruments entered
+preliminary insolvency Jan 2026 and was acquired by inMusic in May** (Reaktor's
+last release: 2023-04-13), and **LANDR acquired Reason Studios Jan 2026** and
+immediately repositioned Reason Rack as a standalone plugin for every DAW — the
+closest precedent to TIDE just got a well-funded owner pushing it.
+
+**Method note, since it affects how much to trust §5:** the design survey was
+done by downloading official screenshots and **viewing them**, not from memory —
+Reaktor Blocks, VCV Rack, Bitwig Grid, Voltage Modular, Audulus, plus TIDE's own
+`p2-tide-editor-release.png`. Blocks' "tasteful realism" is characterised
+precisely enough to implement: the panel is flat/matte/screwless and **all the
+realism is in the knobs** (top-lit gradient, faint sheen, soft low-opacity
+contact shadow reading as ambient occlusion). The most useful negative result is
+Voltage Modular: **thin cables do not save a dense rack** — its panels are
+unreadable under the patch.
+
+**Caveat on the module lists:** ~13 of Blocks Base's 24 block *names* are
+UNVERIFIED — NI's pages refuse automated fetch and no third party enumerates
+them. The functions are well attested; the names are not. Flagged in the doc.
+
+**Collision found at commit time, and it matters more than anything else here:**
+`docs/ui-design-language.md` **already existed in the working tree**, untracked,
+on no branch, with no commit history, alongside three generated
+`docs/images/ui-language-*.svg`. **Another session wrote it and it was left
+completely untouched** — not committed, not edited. It proposes a Marathon /
+Designers Republic language: true-black ground, flat `#1C1C1C` panels, 1px butt
+strokes, acid `#C0FE04` for live state only, family liveries, arcs for knobs,
+polyline cables. **It conflicts with §5 on precisely the point Jeff's brief
+named:** it bans drop shadows, bevels and decorative gradients outright, while
+Jeff asked for Blocks' *"abstract but with some tasteful realism like shadows"*.
+**Do not author panels until E6 is ruled.**
+
+**Corrected within the same session, and the correction is the useful part.**
+This entry and E6 first described that document as "more implementation-ready"
+than §5 and framed the recommended default as *its* palette and geometry with a
+shadow bolted on. **Jeff's response: *"we're spit-balling with the marathon
+stuff. don't discount your recommendations just yet."*** So the framing was
+wrong twice over — the document is **exploratory, not a baseline**, and **being
+more detailed is not being more validated.** E6 now treats the two as **peers**:
+the Marathon doc is more specified on palette/geometry/type (real gaps §5 must
+close whichever way this goes), while §5 carries the evidence — five shipping
+competitor UIs viewed directly, the density failure that sinks dense cabled
+racks, and the authoring-cost argument. Recommended default is now a synthesis
+**led by §5's direction**, harvesting the Marathon doc's no-bitmap drawability,
+1px geometry, restricted palette and accent-as-state. Also newly recorded
+against option (a): **the source language's own shipped UI was widely panned for
+legibility ("fontslop"), and the named failure mode was density on a surface
+read continuously — which is what a plugin is.** The document itself raises this
+and guardrails against it; it is a thing to test before adopting, not a
+disqualifier. **General lesson: deferring to whichever artefact looks more
+finished is a real failure mode when one of them is a sketch.**
+**Lesson for the fleet:** this is A23's hazard in a different costume — two
+sessions producing overlapping work that git will not conflict on, because one
+side is untracked. `git status` before committing is what caught it.
+
+**Next:** **E6 wants a `PROPOSED:` entry in decisions.md, not an agent's pick** —
+it is a genuine design fork and every panel authored before it is rework. **A24
+is minutes and should go early**, because two docs currently state a refuted
+claim. E5 is a ruling, then E2 does the building.
+
+**Branch/PR:** `tide/win/competitive-review`.
+
+---
+
+---
+
 ## 2026-08-13 — windows — A11, win half (interactive session, Jeff directing)
 
 **Did:** Checked this box against the SSH-remote gap the linux run found in

@@ -12,6 +12,10 @@ Companion documents:
 - [docs/agent-setup.md](docs/agent-setup.md) — how the three machines coordinate.
 - [docs/module-enumeration.md](docs/module-enumeration.md) — how modules get into
   the factory without a filesystem scan. Basis for constraint 7.
+- [docs/competitive-review.md](docs/competitive-review.md) — the measured
+  landscape, the design-language survey, and where TIDE actually sits.
+- [docs/module-set.md](docs/module-set.md) — the proposed MVP module set and the
+  ranked nice-to-haves, answering module-enumeration §7.2.
 
 ## Naming — decided 2026-08-08 by Jeff
 
@@ -110,6 +114,51 @@ Website: tidesynth.com. Source: GitHub (see "Open-source status" below).
 **One sentence:** A Eurorack-style rack, built from SynthEdit modules and
 Containers, with the host supplying audio and MIDI — unlock any module to
 rewire it in SynthEdit's structure view.
+
+## Competitive position — first measured 2026-08-18
+
+The first competitive review this project has had is
+[docs/competitive-review.md](docs/competitive-review.md), with the module-set
+proposal it produced in [docs/module-set.md](docs/module-set.md) and the I/O
+conventions extracted from Reaktor Blocks in
+[docs/blocks-connection-scheme.md](docs/blocks-connection-scheme.md). This
+document had cited VCV Rack, Cardinal and Reaktor Blocks as references since
+2026-08-09 without any of them being measured. They are measured now.
+
+**The position, in one sentence:** an open-source, free, Eurorack-style rack
+that is a plugin first and survives an iOS AUv3 sandbox. Nobody occupies that.
+
+Five findings that change how the rest of this document should be read:
+
+1. **VCV Rack Free is standalone-only; its plugin costs $149.** Free *and* a
+   plugin is precisely the combination constraints 2 and the price section
+   already commit TIDE to, and it is the sharpest available statement of what
+   TIDE gives away.
+2. **The iOS gap is narrower than this project believed, and still real.**
+   A9's standing hypothesis — "no open-source modular exists on iOS AUv3" — is
+   **false as written**: plugdata is GPL-3.0, free, on the App Store and ships
+   AUv3. The surviving claim is *no open-source Eurorack-style rack* on iOS
+   AUv3. Relatedly, GPLv3 does **not** structurally bar VCV or Cardinal from the
+   App Store — that licence tension is enforceable only by copyright holders and
+   Apple does not audit licences. **ISC is a real advantage, not a moat; do not
+   build the strategy on "they legally cannot follow us."** BACKLOG **A28**.
+3. **Host automation (V2) has a settled answer and a documented trap.** The
+   field has converged on declaring parameters from the patch rather than from a
+   panel, and both DAW-hosted racks (VCV, Reason) pre-declare a large slot pool
+   so automation needs no user setup. Both then bind those slots *positionally*,
+   so deleting a module can silently repoint an existing automation lane. TIDE
+   should pre-declare a pool but bind to a persistent module id, not to
+   insertion order. Cheap now, near-impossible to retrofit.
+4. **The AUv3 extension memory ceiling is roughly 360 MB per instance.** Via
+   constraint 9 that caps the compiled-in module set, any embedded wavetable or
+   impulse-response data, and how large a rack a user may build — on *every*
+   platform, not just iOS. **This is not currently one of the numbered
+   constraints below, and arguably should be. Flagged for Jeff; not added
+   unilaterally.**
+5. **Nothing about the visual design language is decided**, and every module
+   panel authored before it is decided is rework. The survey and a recommendation
+   are in the review's §5; the ruling is BACKLOG **E17**, and wants a `PROPOSED:`
+   entry in [docs/decisions.md](docs/decisions.md) rather than an agent picking.
 
 ## Design constraints
 
