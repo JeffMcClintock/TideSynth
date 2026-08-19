@@ -93,28 +93,21 @@ Comparison compare(const std::vector<uint8_t>& actual, const std::vector<uint8_t
 	return c;
 }
 
-int runScene(const std::string& name, const std::string& referenceDir,
+int runScene(const tide::demo::SceneDef& def, const std::string& referenceDir,
 	const std::string& failureDir)
 {
 	using namespace tide::render;
 
+	const std::string name = def.name;
+
 	Settings settings;
 	settings.width = tide::demo::kReferenceWidth;
-	settings.height = tide::demo::sceneHeightFor(name, settings.width);
+	settings.height = tide::demo::sceneHeight(def, settings.width);
 	settings.samplesPerPixel = tide::demo::kReferenceSamples;
 
-	Camera camera;
-	Scene scene;
-	if (!tide::demo::buildScene(name, scene, camera))
-	{
-		std::printf("FAIL %-10s unknown scene\n", name.c_str());
-		return 1;
-	}
-
-	const Image image = render(scene, camera, settings);
-
-	std::vector<uint8_t> actual((size_t)image.width * (size_t)image.height * 4);
-	writePixels(image, actual.data(), image.width * 4, PixelOrder::Rgba, false, settings.exposure);
+	// The SAME pipeline the reference generator writes with — see DemoScenes.h.
+	std::vector<uint8_t> actual;
+	const Image image = tide::demo::renderSceneRgba8(def, settings, actual);
 
 	const std::string referencePath = referenceDir + "/" + name + ".png";
 
@@ -169,8 +162,8 @@ int main(int argc, char** argv)
 	const std::string failureDir = (argc > 2) ? argv[2] : ".";
 
 	int failures = 0;
-	for (const char* name : tide::demo::kSceneNames)
-		failures += runScene(name, referenceDir, failureDir);
+	for (const tide::demo::SceneDef& def : tide::demo::kScenes)
+		failures += runScene(def, referenceDir, failureDir);
 
 	if (failures == 0)
 	{

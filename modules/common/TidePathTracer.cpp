@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: ISC
 // Copyright 2007-2026 Jeff McClintock.
 #include "TidePathTracer.h"
+#include <algorithm>
 #include <atomic>
 #include <thread>
 
@@ -371,8 +372,30 @@ Ggx makeGgx(float roughness, float anisotropy)
 	// look — and not a set of concentric rings. Rings are what the inverted
 	// convention produces, and they read as a pressed CD rather than machined
 	// metal.
-	g.ax = maxf(alpha * aspect, 0.0f);
-	g.ay = maxf(alpha / maxf(aspect, 1.0e-4f), 0.0f);
+	g.ax = alpha * aspect;
+	g.ay = alpha / maxf(aspect, 1.0e-4f);
+
+	// Floor each alpha at HALF the smooth threshold, for two reasons.
+	//
+	// Consistency: isSmooth() asks whether BOTH alphas are tiny, so a strongly
+	// anisotropic low-roughness metal can land with ax far below the threshold
+	// while ay sits just above it — a near-delta sliver of a lobe. Nudging the
+	// roughness across that boundary used to flip the material discontinuously
+	// from a plain mirror to a razor-thin streak; with the floor, the lobe on
+	// the rough side of the line is merely tight, and the transition is
+	// invisible.
+	//
+	// Stability: D and the VNDF pdf divide by each alpha, and a 1e-4 alpha
+	// pushes them toward the edge of float32 for no visual gain — at these
+	// widths the smear is fractions of a degree, indistinguishable from a
+	// mirror anyway. (Which is also why an ultra-smooth BRUSHED metal renders
+	// as a mirror rather than brushed: below the threshold the anisotropy is
+	// genuinely subvisible, and dropping it is the honest rendering.)
+	if (!g.isSmooth())
+	{
+		g.ax = maxf(g.ax, kSmoothThreshold * 0.5f);
+		g.ay = maxf(g.ay, kSmoothThreshold * 0.5f);
+	}
 	return g;
 }
 
@@ -515,6 +538,15 @@ float plasticDiffuseScale(float ior) { return 1.0f - dielectricF0(ior); }
 
 // --- diffuse ---------------------------------------------------------------
 
+// Reflect `wo` about the microfacet normal `wh`. One definition on purpose:
+// three BSDFs need it, and the classic transposition bug (wo - wh*2*dot) in a
+// single hand-copied site produces below-horizon directions that the wi.z
+// guards silently reject — one material quietly darker, no error anywhere.
+Vec3 reflectAbout(const Vec3& wo, const Vec3& wh, float dotOh)
+{
+	return wh * (2.0f * dotOh) - wo;
+}
+
 BsdfEval evalDiffuse(const Material& m, const Vec3& wi)
 {
 	BsdfEval e;
@@ -580,7 +612,7 @@ BsdfSample sampleMetal(const Ggx& g, const ConductorIor& ior, const Vec3& wo, fl
 	if (dotOh <= 0.0f)
 		return s;
 
-	const Vec3 wi = wh * (2.0f * dotOh) - wo; // reflect wo about wh
+	const Vec3 wi = reflectAbout(wo, wh, dotOh);
 	if (wi.z <= 0.0f)
 		return s;
 
@@ -595,6 +627,18 @@ BsdfSample sampleMetal(const Ggx& g, const ConductorIor& ior, const Vec3& wo, fl
 }
 
 // --- plastic: a dielectric coat over a diffuse base -------------------------
+
+// Schlick's approximation for the plastic COAT (and only the coat: metals use
+// the exact conductor curve, glass the exact dielectric one). Defined once so
+// evalPlastic and samplePlastic cannot drift apart — the sampled weight is
+// value/pdf against evalPlastic, and two hand-copied Fresnels that disagree by
+// one edit is a silent estimator bias, not a visible error.
+float schlickDielectric(float f0, float cosTheta)
+{
+	const float c = clampf(1.0f - cosTheta, 0.0f, 1.0f);
+	const float c2 = c * c;
+	return f0 + (1.0f - f0) * (c2 * c2 * c);
+}
 
 // The probability of choosing the specular lobe. Weighted by the coat's
 // reflectance so a shinier coat is sampled more often, and clamped away from 0
@@ -626,9 +670,7 @@ BsdfEval evalPlastic(const Material& m, const Ggx& g, const Vec3& wo, const Vec3
 		const float d = ggxD(g, wh);
 		if (d > 0.0f)
 		{
-			const float fr = f0 + (1.0f - f0)
-				* [](float c) { const float c2 = c * c; return c2 * c2 * c; }(
-					clampf(1.0f - dot(wo, wh), 0.0f, 1.0f));
+			const float fr = schlickDielectric(f0, dot(wo, wh));
 			specular = Vec3{ d * ggxG2(g, wo, wi) * fr / (4.0f * wo.z) };
 			pdfSpecular = ggxVndfPdf(g, wo, wh) / (4.0f * dot(wo, wh));
 		}
@@ -655,16 +697,16 @@ BsdfSample samplePlastic(const Material& m, const Ggx& g, const Vec3& wo,
 	{
 		if (g.isSmooth())
 		{
-			// A smooth coat is a mirror. It still has to be combined with the
-			// diffuse base, so this vertex is NOT flagged specular — only the
-			// direction is deterministic.
+			// A smooth coat is a mirror, and this vertex IS flagged specular:
+			// evalPlastic drops the delta lobe entirely, so mirror transport is
+			// reachable only through this branch and must keep MIS weight one.
+			// Down-weighting it against a light-sample pdf would mix a discrete
+			// probability with a solid-angle density and darken every coat
+			// highlight. (The diffuse base still gets NEE as usual — the two
+			// lobes' estimators are disjoint here, not double counted.)
 			wi = { -wo.x, -wo.y, wo.z };
-			const float f0 = dielectricF0(m.ior);
-			const float fr = f0 + (1.0f - f0)
-				* [](float c) { const float c2 = c * c; return c2 * c2 * c; }(
-					clampf(1.0f - wo.z, 0.0f, 1.0f));
 			s.direction = wi;
-			s.weight = Vec3{ fr / pSpec };
+			s.weight = Vec3{ schlickDielectric(dielectricF0(m.ior), wo.z) / pSpec };
 			s.pdf = pSpec;
 			s.specular = true;
 			return s;
@@ -675,7 +717,7 @@ BsdfSample samplePlastic(const Material& m, const Ggx& g, const Vec3& wo,
 		if (dotOh <= 0.0f)
 			return s;
 
-		wi = wh * (2.0f * dotOh) - wo;
+		wi = reflectAbout(wo, wh, dotOh);
 	}
 	else
 	{
@@ -745,7 +787,7 @@ BsdfSample sampleGlass(const Material& m, const Ggx& g, const Vec3& wo,
 
 	if (reflectIt)
 	{
-		const Vec3 wi = wh * (2.0f * dotOh) - wo;
+		const Vec3 wi = reflectAbout(wo, wh, dotOh);
 		if (wi.z <= 0.0f)
 			return s;
 
@@ -833,6 +875,12 @@ struct Hit
 	bool backface = false;  // the ray was travelling inside the object
 	const Material* material = nullptr;
 	const Light* light = nullptr;
+
+	// Which scene entry was struck, so downstream code can identify it without
+	// comparing pointers: the medium tracker needs the OBJECT to negate while
+	// inside it, and the MIS bookkeeping needs to find the matching emitter.
+	int objectIndex = -1;
+	int lightIndex = -1;
 };
 
 // A conservative lower bound on the distance to one object.
@@ -864,7 +912,21 @@ float objectDistance(const Object& o, const Vec3& p)
 }
 
 // The whole scene as one field, plus which object was nearest.
-float sceneDistance(const Scene& scene, const Vec3& p, bool primary, int& nearest)
+//
+// `insideIndex` names the ONE object the ray is currently travelling inside
+// (the glass it refracted into), or -1 for none. That object's distance is
+// negated — turning "how deep am I" into "how far to my exit" — while every
+// OTHER object keeps its ordinary sign.
+//
+// Negating per object rather than negating the combined minimum matters. The
+// first version negated the min of the whole field, which reads plausibly and
+// is wrong whenever anything else sits inside the glass: the min was always the
+// glass's own (most negative) distance, so the march stepped clean through any
+// embedded solid — an LED potted in a glass dome simply never rendered. With
+// the negation applied to the medium alone, the field's minimum is once again a
+// true lower bound on the distance to the nearest SURFACE, whichever object
+// owns it.
+float sceneDistance(const Scene& scene, const Vec3& p, bool primary, int insideIndex, int& nearest)
 {
 	float best = kMaxTraceDistance;
 	nearest = -1;
@@ -875,7 +937,10 @@ float sceneDistance(const Scene& scene, const Vec3& p, bool primary, int& neares
 		if (primary && !o.material.cameraVisible)
 			continue; // marched straight through, as if it were not there
 
-		const float d = objectDistance(o, p);
+		float d = objectDistance(o, p);
+		if ((int)i == insideIndex)
+			d = -d;
+
 		if (d < best)
 		{
 			best = d;
@@ -891,6 +956,12 @@ float sceneDistance(const Scene& scene, const Vec3& p, bool primary, int& neares
 // version is marginally more accurate and 50% more expensive, and since the
 // field is only ever C0 at CSG seams anyway, the extra accuracy buys nothing
 // visible.
+// Always taken on the PLAIN field (insideIndex = -1), even when the march that
+// found the surface ran with a negated medium. The surface is the same surface
+// from either side, and the plain field's gradient is its OUTWARD normal — which
+// is exactly what the backface test downstream expects. Tapping the negated
+// field instead would hand back an inward normal at the medium's boundary, the
+// backface test would read every glass exit as an entry, and eta would invert.
 Vec3 sceneNormal(const Scene& scene, const Vec3& p, bool primary)
 {
 	constexpr float h = 1.5f * kSurfaceEpsilon;
@@ -902,31 +973,32 @@ Vec3 sceneNormal(const Scene& scene, const Vec3& p, bool primary)
 	const Vec3 k3{ 1.0f, 1.0f, 1.0f };
 
 	const Vec3 n =
-		k0 * sceneDistance(scene, p + k0 * h, primary, ignored) +
-		k1 * sceneDistance(scene, p + k1 * h, primary, ignored) +
-		k2 * sceneDistance(scene, p + k2 * h, primary, ignored) +
-		k3 * sceneDistance(scene, p + k3 * h, primary, ignored);
+		k0 * sceneDistance(scene, p + k0 * h, primary, -1, ignored) +
+		k1 * sceneDistance(scene, p + k1 * h, primary, -1, ignored) +
+		k2 * sceneDistance(scene, p + k2 * h, primary, -1, ignored) +
+		k3 * sceneDistance(scene, p + k3 * h, primary, -1, ignored);
 
 	return normalize(n);
 }
 
 // Sphere trace the SDF objects.
 //
-// `insideSolid` tells the tracer that the ray starts within a negative region
-// and should therefore march on the NEGATED field until it exits. That is the
-// case for the interior segment of every refracted path and is what makes
-// glass possible at all.
+// `insideIndex` is the object the ray starts inside (>= 0 for the interior
+// segment of every refracted path — what makes glass possible at all), or -1.
+// `wantNormal` skips the normal estimate — four extra full-scene evaluations —
+// for callers that only need to know WHETHER something was hit: shadow rays and
+// the emissive-object confirmation probe, which between them are most of the
+// rays in a lit scene.
 bool marchObjects(const Scene& scene, const Vec3& origin, const Vec3& direction,
-	float maxDistance, bool primary, bool insideSolid, Hit& hit)
+	float maxDistance, bool primary, int insideIndex, bool wantNormal, Hit& hit)
 {
-	const float sign = insideSolid ? -1.0f : 1.0f;
 	float t = kRayOffset;
 	int nearest = -1;
 
 	for (int step = 0; step < kMaxMarchSteps && t < maxDistance; ++step)
 	{
 		const Vec3 p = origin + direction * t;
-		const float d = sceneDistance(scene, p, primary, nearest) * sign;
+		const float d = sceneDistance(scene, p, primary, insideIndex, nearest);
 
 		// Mostly CONSTANT, unlike the usual advice.
 		//
@@ -946,17 +1018,18 @@ bool marchObjects(const Scene& scene, const Vec3& origin, const Vec3& direction,
 			hit.t = t;
 			hit.position = p;
 			hit.material = &scene.objects[nearest].material;
+			hit.objectIndex = nearest;
 
-			// The RAW outward gradient, deliberately NOT multiplied by `sign`.
-			//
-			// Orienting it here would destroy the only evidence of which side
-			// was hit: a normal that has already been turned to face the ray
-			// always reports dot(n, d) < 0, so the back-face test downstream can
-			// never fire. Glass then treats every EXIT as an entry, uses 1.52
-			// instead of 1/1.52, and refracts and totally-internally-reflects at
-			// all the wrong angles — which reads as glass that is too dark and
-			// muddy rather than as anything obviously broken.
-			hit.normal = sceneNormal(scene, p, primary);
+			// The RAW outward gradient, deliberately NOT oriented against the
+			// ray here. Orienting it would destroy the only evidence of which
+			// side was hit: a normal already turned to face the ray always
+			// reports dot(n, d) < 0, so the back-face test downstream can never
+			// fire. Glass then treats every EXIT as an entry, uses 1.52 instead
+			// of 1/1.52, and refracts and totally-internally-reflects at all the
+			// wrong angles — which reads as glass that is too dark and muddy
+			// rather than as anything obviously broken.
+			if (wantNormal)
+				hit.normal = sceneNormal(scene, p, primary);
 			return true;
 		}
 
@@ -1024,16 +1097,24 @@ bool intersectSphereLight(const Light& l, const Vec3& origin, const Vec3& direct
 
 // The nearest hit against geometry AND lights.
 Hit intersect(const Scene& scene, const Vec3& origin, const Vec3& direction,
-	float maxDistance, bool primary, bool insideSolid)
+	float maxDistance, bool primary, int insideIndex, bool wantNormal = true)
 {
 	Hit hit;
-	marchObjects(scene, origin, direction, maxDistance, primary, insideSolid, hit);
+	marchObjects(scene, origin, direction, maxDistance, primary, insideIndex, wantNormal, hit);
 
 	float closest = hit.valid ? hit.t : maxDistance;
 
-	for (const Light& l : scene.lights)
+	for (size_t i = 0; i < scene.lights.size(); ++i)
 	{
+		const Light& l = scene.lights[i];
 		if (primary && !l.cameraVisible)
+			continue;
+
+		// A light with nothing to emit does not exist. Without this, a studio
+		// preset that zeroes a lamp leaves an INVISIBLE BLACK CARD hanging in
+		// the scene — camera-invisible, radiance zero, yet still opaque — that
+		// silently absorbs every bounce ray unlucky enough to cross it.
+		if (l.emission.isBlack())
 			continue;
 
 		float t = 0.0f;
@@ -1048,7 +1129,9 @@ Hit intersect(const Scene& scene, const Vec3& origin, const Vec3& direction,
 			hit.t = t;
 			hit.position = origin + direction * t;
 			hit.material = nullptr;
+			hit.objectIndex = -1;
 			hit.light = &l;
+			hit.lightIndex = (int)i;
 			hit.normal = (l.shape == LightShape::Rect)
 				? rectNormal(l)
 				: normalize(hit.position - l.position);
@@ -1079,8 +1162,11 @@ Hit intersect(const Scene& scene, const Vec3& origin, const Vec3& direction,
 bool occluded(const Scene& scene, const Vec3& origin, const Vec3& direction, float distance)
 {
 	Hit hit;
+	// wantNormal = false: a shadow ray only asks WHETHER, never WHERE, so the
+	// four-tap gradient at the blocking surface would be pure waste — and
+	// blocked shadow rays are a large share of all rays in a lit scene.
 	return marchObjects(scene, origin, direction, distance - kRayOffset * 4.0f,
-		false, false, hit);
+		false, -1, false, hit);
 }
 
 // ---------------------------------------------------------------------------
@@ -1141,18 +1227,46 @@ SphereCone sphereCone(const Vec3& centre, float radius, const Vec3& from)
 	return cone;
 }
 
-// Uniform direction within a cone about +Z, given its half-angle cosine.
-Vec3 sampleCone(float cosThetaMax, float u1, float u2)
+// Uniform direction within the cone, about +Z.
+//
+// Works in the ONE-MINUS-COSINE domain end to end, which is why it takes the
+// SphereCone rather than a bare cosThetaMax. Recomputing 1 - cosThetaMax here
+// by subtraction would re-introduce the exact cancellation the struct exists to
+// avoid: for a small distant emitter cosThetaMax rounds to 1.0f, the sampled
+// spread collapses onto the axis, and the pdf — built from the exact
+// oneMinusCos — keeps describing the finite cone. Every probe then hits the
+// target instead of the correct cone fraction and its light is overestimated by
+// the cone-to-object solid-angle ratio. sin is taken from the versine identity
+// sin^2 = omc * (2 - omc), which stays exact where cos - 1 does not.
+Vec3 sampleCone(const SphereCone& cone, float u1, float u2)
 {
-	const float cosTheta = 1.0f - u1 * (1.0f - cosThetaMax);
-	const float sinTheta = safeSqrt(1.0f - cosTheta * cosTheta);
+	const float omc = u1 * cone.oneMinusCos;
+	const float cosTheta = 1.0f - omc;
+	const float sinTheta = safeSqrt(omc * (2.0f - omc));
 	const float phi = 2.0f * kPi * u2;
 	return { sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta };
+}
+
+// The matching density, per unit solid angle. Sample and pdf MUST come from
+// this one pair — the formula appearing once is what guarantees MIS stays
+// consistent across the four places that need it.
+float conePdf(const SphereCone& cone)
+{
+	return cone.valid ? (1.0f / (2.0f * kPi * cone.oneMinusCos)) : 0.0f;
+}
+
+// A cone-sampled direction towards a sphere at `centre`, in world space.
+Vec3 sampleSphereConeDirection(const SphereCone& cone, const Vec3& centre,
+	const Vec3& from, float u1, float u2)
+{
+	const Frame frame = makeFrame(normalize(centre - from));
+	return frame.toWorld(sampleCone(cone, u1, u2));
 }
 
 struct Emitter
 {
 	const Light* light = nullptr; // analytic; null for an emissive object
+	int lightIndex = -1;          // index into Scene::lights, or -1
 	int objectIndex = -1;         // index into Scene::objects, or -1
 	Vec3 proxyCentre{};           // bounding sphere, for objectIndex only
 	float proxyRadius = 0.0f;
@@ -1162,10 +1276,20 @@ std::vector<Emitter> buildEmitters(const Scene& scene)
 {
 	std::vector<Emitter> emitters;
 
-	for (const Light& l : scene.lights)
+	for (size_t i = 0; i < scene.lights.size(); ++i)
 	{
+		const Light& l = scene.lights[i];
+
+		// The same rule intersect() applies: a black light does not exist. Left
+		// in the list it would soak up its share of every NEE pick — each one a
+		// full shadow march for a guaranteed zero — which in a scene that zeroes
+		// two of five lights is 40% of all light samples doing nothing.
+		if (l.emission.isBlack())
+			continue;
+
 		Emitter e;
 		e.light = &l;
+		e.lightIndex = (int)i;
 		emitters.push_back(e);
 	}
 
@@ -1202,11 +1326,11 @@ LightSample sampleEmitter(const Emitter& emitter, const Vec3& from, float u1, fl
 		if (!cone.valid)
 			return s;
 
-		const Frame frame = makeFrame(normalize(emitter.proxyCentre - from));
-		s.direction = frame.toWorld(sampleCone(cone.cosThetaMax, u1, u2));
-		// Trace the whole way; the caller confirms what was actually hit.
+		s.direction = sampleSphereConeDirection(cone, emitter.proxyCentre, from, u1, u2);
+		// The farthest any point of the object can be; the caller's probe stops
+		// there and confirms what was actually hit.
 		s.distance = cone.distance + emitter.proxyRadius;
-		s.pdf = 1.0f / (2.0f * kPi * cone.oneMinusCos);
+		s.pdf = conePdf(cone);
 		s.radiance = Vec3{ 1.0f }; // replaced by the caller from the real hit
 		return s;
 	}
@@ -1251,8 +1375,7 @@ LightSample sampleEmitter(const Emitter& emitter, const Vec3& from, float u1, fl
 	if (!cone.valid)
 		return s;
 
-	const Frame frame = makeFrame(normalize(l.position - from));
-	s.direction = frame.toWorld(sampleCone(cone.cosThetaMax, u1, u2));
+	s.direction = sampleSphereConeDirection(cone, l.position, from, u1, u2);
 
 	// Stop the shadow ray at the lamp's surface, not at its centre.
 	float t = 0.0f;
@@ -1260,7 +1383,7 @@ LightSample sampleEmitter(const Emitter& emitter, const Vec3& from, float u1, fl
 		t = cone.distance - l.radius;
 
 	s.distance = t;
-	s.pdf = 1.0f / (2.0f * kPi * cone.oneMinusCos);
+	s.pdf = conePdf(cone);
 	s.radiance = l.emission;
 	return s;
 }
@@ -1270,10 +1393,7 @@ LightSample sampleEmitter(const Emitter& emitter, const Vec3& from, float u1, fl
 float emitterPdf(const Emitter& emitter, const Vec3& from, const Vec3& direction, float hitDistance)
 {
 	if (emitter.objectIndex >= 0)
-	{
-		const SphereCone cone = sphereCone(emitter.proxyCentre, emitter.proxyRadius, from);
-		return cone.valid ? (1.0f / (2.0f * kPi * cone.oneMinusCos)) : 0.0f;
-	}
+		return conePdf(sphereCone(emitter.proxyCentre, emitter.proxyRadius, from));
 
 	const Light& l = *emitter.light;
 
@@ -1290,8 +1410,7 @@ float emitterPdf(const Emitter& emitter, const Vec3& from, const Vec3& direction
 		return (hitDistance * hitDistance) / (cosLight * area);
 	}
 
-	const SphereCone cone = sphereCone(l.position, l.radius, from);
-	return cone.valid ? (1.0f / (2.0f * kPi * cone.oneMinusCos)) : 0.0f;
+	return conePdf(sphereCone(l.position, l.radius, from));
 }
 
 // The power heuristic with beta = 2 (Veach). Squaring pushes the weight harder
@@ -1323,8 +1442,21 @@ float misWeight(float pdfA, float pdfB)
 // ---------------------------------------------------------------------------
 
 // Builds the shading frame, honouring the material's brushing direction.
-Frame shadingFrame(const Material& m, const Vec3& normal, const Vec3& position)
+//
+// `anisoScale` (out, in [0,1]) fades the anisotropy to isotropic where the
+// brush direction degenerates. Concentric and radial grain are undefined ON
+// the brush axis — at the centre of a lathe-turned knob top the tangent
+// direction decorrelates pixel to pixel and the sheen collapses into a smudge
+// that shifts with resolution. Real turned metal does the same thing for the
+// same reason (the groove curvature exceeds the highlight width), and it looks
+// like a small matte dot; the smoothstep here reproduces that instead of the
+// artefact. The fade key is sin of the angle between the axis and the radial
+// arm — a pure direction ratio, so it is scale- and resolution-independent.
+Frame shadingFrame(const Material& m, const Vec3& normal, const Vec3& position,
+	float& anisoScale)
 {
+	anisoScale = 1.0f;
+
 	if (m.brush == BrushMode::None || m.anisotropy == 0.0f)
 		return makeFrame(normal);
 
@@ -1334,18 +1466,31 @@ Frame shadingFrame(const Material& m, const Vec3& normal, const Vec3& position)
 		return makeFrameWithTangent(normal, m.brushAxis);
 
 	case BrushMode::Concentric:
-	{
-		// The tangent runs AROUND the axis: perpendicular both to the axis and
-		// to the radius. On a lathe-turned knob top this is the direction the
-		// tool travelled, so the highlight forms a ring.
-		const Vec3 radial = position - m.brushOrigin;
-		return makeFrameWithTangent(normal, cross(m.brushAxis, radial));
-	}
-
 	case BrushMode::Radial:
 	{
 		const Vec3 radial = position - m.brushOrigin;
-		return makeFrameWithTangent(normal, radial - m.brushAxis * dot(radial, m.brushAxis));
+		const Vec3 axis = normalize(m.brushAxis);
+
+		const float radialLenSq = dot(radial, radial);
+		const Vec3 around = cross(axis, radial);
+
+		// |axis x radial| / |radial| = sin(angle between them): 0 on the axis,
+		// 1 on the equator. Fully anisotropic above 0.15, matte at the centre.
+		const float sinAngle = (radialLenSq > 1.0e-12f)
+			? length(around) / std::sqrt(radialLenSq) : 0.0f;
+		const float t = clampf(sinAngle / 0.15f, 0.0f, 1.0f);
+		anisoScale = t * t * (3.0f - 2.0f * t);
+
+		if (anisoScale <= 0.0f)
+			return makeFrame(normal);
+
+		// Concentric: the tangent runs AROUND the axis — the way the tool
+		// travelled on a lathe, so the highlight forms a ring. Radial: along
+		// the spoke instead, a sunburst finish.
+		const Vec3 preferred = (m.brush == BrushMode::Concentric)
+			? around
+			: radial - axis * dot(radial, axis);
+		return makeFrameWithTangent(normal, preferred);
 	}
 
 	default:
@@ -1385,22 +1530,50 @@ struct PathResult
 	float alpha = 0.0f;
 };
 
+// Constants derivable from a Material alone, computed ONCE PER RENDER instead
+// of at every path vertex. The Gulbrandsen inversion behind ConductorIor and
+// the logs behind the absorption coefficient are pure functions of material
+// fields, and a knob render was re-deriving the same conductor tens of
+// millions of times per frame.
+struct ObjectDerived
+{
+	ConductorIor ior{};
+	Vec3 sigmaA{ 0.0f, 0.0f, 0.0f };
+};
+
+std::vector<ObjectDerived> buildDerived(const Scene& scene)
+{
+	std::vector<ObjectDerived> derived(scene.objects.size());
+	for (size_t i = 0; i < scene.objects.size(); ++i)
+	{
+		const Material& m = scene.objects[i].material;
+		if (m.kind == MaterialKind::Metal)
+			derived[i].ior = makeConductorIor(m.colour, m.edgeTint);
+		if (m.kind == MaterialKind::Glass && m.absorbDistance > 0.0f)
+			derived[i].sigmaA = absorptionCoefficient(m.colour, m.absorbDistance);
+	}
+	return derived;
+}
+
 PathResult tracePath(const Scene& scene, const Settings& settings,
-	const std::vector<Emitter>& emitters, Vec3 origin, Vec3 direction, Rng& rng)
+	const std::vector<Emitter>& emitters, const std::vector<ObjectDerived>& derived,
+	Vec3 origin, Vec3 direction, Rng& rng)
 {
 	PathResult result;
 
 	Vec3 throughput{ 1.0f, 1.0f, 1.0f };
 
-	// Whether the previous vertex was specular, and how likely the direction we
-	// arrived along was. Together these decide the MIS weight applied to any
-	// emission found at the next vertex.
+	// Whether the previous vertex left emission collection to BSDF sampling
+	// alone, and how likely the direction we arrived along was. Together these
+	// decide the MIS weight applied to any emission found at the next vertex.
 	bool previousWasSpecular = true;
 	float previousBsdfPdf = 1.0f;
 
-	// Volume state. Null material means vacuum; otherwise the ray is inside
-	// that glass and accumulating absorption.
-	const Material* medium = nullptr;
+	// Volume state: WHICH object the ray is inside, or -1 for vacuum. An index
+	// rather than a material pointer because the marcher needs to know which
+	// single object's field to negate — negating the whole scene's would step
+	// clean over anything embedded in the glass.
+	int mediumIndex = -1;
 
 	const float emitterCount = (float)emitters.size();
 	const float selectionPdf = (emitterCount > 0.0f) ? (1.0f / emitterCount) : 0.0f;
@@ -1408,9 +1581,8 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 	for (int bounce = 0; bounce < settings.maxBounces; ++bounce)
 	{
 		const bool primary = (bounce == 0);
-		const bool insideSolid = (medium != nullptr);
 
-		const Hit hit = intersect(scene, origin, direction, kMaxTraceDistance, primary, insideSolid);
+		const Hit hit = intersect(scene, origin, direction, kMaxTraceDistance, primary, mediumIndex);
 
 		if (!hit.valid)
 		{
@@ -1424,11 +1596,8 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 
 		// Beer-Lambert over the segment just travelled, applied BEFORE the
 		// vertex is shaded so the light arriving here is already tinted.
-		if (medium && medium->absorbDistance > 0.0f)
-		{
-			const Vec3 sigma = absorptionCoefficient(medium->colour, medium->absorbDistance);
-			throughput *= expv(-(sigma * hit.t));
-		}
+		if (mediumIndex >= 0 && !derived[mediumIndex].sigmaA.isBlack())
+			throughput *= expv(-(derived[mediumIndex].sigmaA * hit.t));
 
 		// Anything a camera ray touches counts as coverage. Glass included: it
 		// is "there" even though you can see through it.
@@ -1473,9 +1642,8 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 					for (const Emitter& e : emitters)
 					{
 						const bool match = isAnalyticLight
-							? (e.light == hit.light)
-							: (e.objectIndex >= 0
-								&& &scene.objects[e.objectIndex].material == hit.material);
+							? (e.lightIndex == hit.lightIndex)
+							: (e.objectIndex == hit.objectIndex);
 						if (!match)
 							continue;
 
@@ -1494,19 +1662,25 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 		const Material& m = *hit.material;
 
 		// --- build the local frame -----------------------------------------
-		const Frame frame = shadingFrame(m, hit.normal, hit.position);
+		float anisoScale = 1.0f;
+		const Frame frame = shadingFrame(m, hit.normal, hit.position, anisoScale);
 		const Vec3 wo = frame.toLocal(-direction);
 		if (wo.z <= 0.0f)
 			break; // shading normal disagrees with the geometry; drop the path
 
-		const Ggx ggx = makeGgx(m.roughness, m.anisotropy);
-		const ConductorIor ior = (m.kind == MaterialKind::Metal)
-			? makeConductorIor(m.colour, m.edgeTint) : ConductorIor{};
+		const Ggx ggx = makeGgx(m.roughness, m.anisotropy * anisoScale);
+		const ConductorIor& ior = derived[hit.objectIndex].ior;
+
+		// Whether next-event estimation runs at THIS vertex. Computed once and
+		// reused for the MIS flag below, because the two must agree: the MIS
+		// down-weight on emission found at the NEXT vertex exists solely to
+		// avoid double counting against a light-sample estimator that ran HERE.
+		const bool neeEligible = !materialIsSpecularOnly(m, ggx) && selectionPdf > 0.0f;
 
 		// --- next event estimation -----------------------------------------
-		if (!materialIsSpecularOnly(m, ggx) && selectionPdf > 0.0f)
+		if (neeEligible)
 		{
-			const int index = (int)minf(rng.next() * emitterCount, emitterCount - 1.0f);
+			const int index = std::min((int)(rng.next() * emitterCount), (int)emitters.size() - 1);
 			const Emitter& emitter = emitters[index];
 
 			LightSample ls = sampleEmitter(emitter, hit.position, rng.next(), rng.next());
@@ -1528,13 +1702,17 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 							// bounding sphere, so the ray has to be confirmed to
 							// have landed on the glowing thing rather than
 							// slipped past a corner or hit something in front.
+							// Bounded at ls.distance — the far side of the
+							// bounds — because nothing beyond it can be the
+							// target; cone samples that miss used to keep
+							// marching to the far room wall before failing.
+							// wantNormal false: only the identity matters here.
 							const Hit probe = intersect(scene, shadowOrigin, ls.direction,
-								kMaxTraceDistance, false, false);
-							const Material* target = &scene.objects[emitter.objectIndex].material;
-							if (probe.valid && probe.material == target)
+								ls.distance + kRayOffset * 4.0f, false, -1, false);
+							if (probe.valid && probe.objectIndex == emitter.objectIndex)
 							{
 								visible = true;
-								ls.radiance = target->emission;
+								ls.radiance = scene.objects[emitter.objectIndex].material.emission;
 							}
 						}
 						else
@@ -1590,9 +1768,16 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 		direction = nextDirection;
 
 		if (bs.transmitted)
-			medium = (medium == nullptr) ? &m : nullptr;
+			mediumIndex = (mediumIndex == hit.objectIndex) ? -1 : hit.objectIndex;
 
-		previousWasSpecular = bs.specular;
+		// NOT plain bs.specular. Rough glass samples are honest about having a
+		// finite pdf (specular = false), but glass NEVER gets NEE — so emission
+		// its rays find has no light-sampling twin to balance against, and
+		// down-weighting it would only delete energy: a lamp seen through
+		// frosted glass rendered 5-50x too dark exactly this way. The rule the
+		// MIS weight actually encodes is COULD-NEE-ALSO-HAVE-FOUND-IT, and that
+		// is neeEligible, not smoothness.
+		previousWasSpecular = bs.specular || !neeEligible;
 		previousBsdfPdf = bs.pdf;
 
 		// --- Russian roulette ----------------------------------------------
@@ -1729,10 +1914,16 @@ void addStudio(Scene& scene, const Studio& studio)
 		scene.add(std::move(room));
 	}
 
-	scene.add(aimedRect(studio.keyPosition, studio.keyHalfWidth, studio.keyHalfHeight,
-		studio.keyEmission));
-	scene.add(aimedRect(studio.fillPosition, studio.fillHalfWidth, studio.fillHalfHeight,
-		studio.fillEmission));
+	// A light set to zero is a light turned OFF, so it is not added at all. The
+	// renderer would also cope (black lights are filtered from emitters and
+	// intersection), but not adding it keeps the scene honest: presets dim a
+	// light to almost-nothing to keep it, and zero it to remove it.
+	if (!studio.keyEmission.isBlack())
+		scene.add(aimedRect(studio.keyPosition, studio.keyHalfWidth, studio.keyHalfHeight,
+			studio.keyEmission));
+	if (!studio.fillEmission.isBlack())
+		scene.add(aimedRect(studio.fillPosition, studio.fillHalfWidth, studio.fillHalfHeight,
+			studio.fillEmission));
 
 	if (studio.enableRim)
 		scene.add(aimedRect(studio.rimPosition, studio.rimHalfWidth, studio.rimHalfHeight,
@@ -1762,7 +1953,9 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 	// Built once, not per path: it holds POINTERS into the scene, so the scene
 	// must not be touched while a render is in flight.
 	const std::vector<Emitter> emitters = buildEmitters(scene);
-	const float invSpp = 1.0f / (float)maxf((float)settings.samplesPerPixel, 1.0f);
+	const std::vector<ObjectDerived> derived = buildDerived(scene);
+	const int samplesPerPixel = std::max(settings.samplesPerPixel, 1);
+	const float invSpp = 1.0f / (float)samplesPerPixel;
 
 	// Tiles rather than scanlines: a tile is a compact region of the image, so
 	// the threads working on it touch nearby geometry and the bounding-sphere
@@ -1776,7 +1969,7 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 	int threadCount = settings.threads;
 	if (threadCount <= 0)
 		threadCount = (int)std::thread::hardware_concurrency();
-	threadCount = (int)clampf((float)threadCount, 1.0f, 64.0f);
+	threadCount = std::clamp(threadCount, 1, 64);
 
 	std::atomic<int> nextTile{ 0 };
 
@@ -1790,8 +1983,8 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 
 			const int x0 = (tile % tilesX) * kTile;
 			const int y0 = (tile / tilesX) * kTile;
-			const int x1 = (int)minf((float)(x0 + kTile), (float)image.width);
-			const int y1 = (int)minf((float)(y0 + kTile), (float)image.height);
+			const int x1 = std::min(x0 + kTile, image.width);
+			const int y1 = std::min(y0 + kTile, image.height);
 
 			for (int y = y0; y < y1; ++y)
 			{
@@ -1800,7 +1993,7 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 					Vec3 sum{ 0.0f };
 					float alphaSum = 0.0f;
 
-					for (int s = 0; s < settings.samplesPerPixel; ++s)
+					for (int s = 0; s < samplesPerPixel; ++s)
 					{
 						// Seeded from the PIXEL, not from a shared counter, so
 						// the image does not depend on how the tiles were
@@ -1823,7 +2016,8 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 						// and they differ only in where they start.
 						const Vec3 origin = basis.origin + basis.right * fx + basis.up * fy;
 
-						const PathResult r = tracePath(scene, settings, emitters, origin, basis.forward, rng);
+						const PathResult r = tracePath(scene, settings, emitters, derived,
+							origin, basis.forward, rng);
 						sum += r.radiance;
 						alphaSum += r.alpha;
 					}

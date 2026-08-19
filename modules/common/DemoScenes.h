@@ -3,6 +3,7 @@
 #pragma once
 #include "TidePathTracer.h"
 #include <string>
+#include <vector>
 
 // The demo scenes, shared by two consumers that must stay in step:
 //
@@ -34,14 +35,24 @@ inline Object makeFloor(float height, Vec3 colour = { 0.66f, 0.66f, 0.68f })
 	return floor;
 }
 
+// Stand a shape up: exchange the SDF's Z (its natural axis, per the library's
+// Z-up convention) with world Y, so a cylinder modelled along Z rests upright
+// on a Y-up floor. Defined ONCE because the two plausible spellings differ in
+// chirality — {x, z, y} is the self-inverse mirror-exchange used throughout,
+// while {x, -z, y} is a true rotation — and a scene mixing them flips
+// asymmetric shapes with nothing to say which was meant.
+constexpr Vec3 upright(const Vec3& p) { return { p.x, p.z, p.y }; }
+
 // A three-quarter orthographic view. Front-on is what a panel bitmap needs, but
 // it is a poor way to JUDGE a material: a flat-on ortho camera sees one normal
 // per flat face and therefore one reflected colour, so everything looks
 // painted. Turning the camera puts a range of angles on every object and lets
-// the grazing behaviour show.
-inline void setThreeQuarterView(Camera& camera, float filmWidth, Vec3 target = { 0.0f, 0.0f, 0.0f })
+// the grazing behaviour show. `offset` is where the camera sits relative to the
+// target; a scene passes its own when the default framing crops it.
+inline void setThreeQuarterView(Camera& camera, float filmWidth,
+	Vec3 target = { 0.0f, 0.0f, 0.0f }, Vec3 offset = { 3.2f, 2.4f, 5.0f })
 {
-	camera.position = target + Vec3{ 3.2f, 2.4f, 5.0f };
+	camera.position = target + offset;
 	camera.target = target;
 	camera.up = { 0.0f, 1.0f, 0.0f };
 	camera.filmWidth = filmWidth;
@@ -177,7 +188,19 @@ inline Scene makeShapesScene(Camera& camera)
 		Object o;
 		o.material = cell.material;
 		o.boundsCentre = centre;
-		o.boundsRadius = 0.72f;
+		// Sized against the WORST reach, which is the round box: its corner is
+		// sqrt(3)*0.36 + 0.10 = 0.7235 from centre. The first pass used 0.72 —
+		// visually fine, silently wrong: a bound the object pokes through stops
+		// being a lower bound, and grazing rays step clean over the corner tips.
+		o.boundsRadius = 0.74f;
+
+		// The knurled knob's grain must run around ITS OWN axis — which after
+		// upright() is world Y through the cell centre. The recipe's defaults
+		// (world Z through the origin) put the lathe somewhere left of the
+		// table: the grain came out running along the knob's axis, brushing it
+		// like a broom instead of turning it.
+		if (cell.shape == Shape::Knurled)
+			o.material = recipes::brushedAluminium(Vec3{ 0.0f, 1.0f, 0.0f }, centre);
 
 		const Shape shape = cell.shape;
 		o.distance = [centre, shape](const Vec3& world)
@@ -192,18 +215,28 @@ inline Scene makeShapesScene(Camera& camera)
 				return sdRoundBox(p, Vec3{ 0.46f, 0.46f, 0.46f }, 0.10f);
 
 			case Shape::ChamferBox:
-				return sdChamferBox(p, Vec3{ 0.46f, 0.46f, 0.46f }, 0.14f);
+			{
+				// Turned 28 degrees so the 3/4 camera sees the chamfer facets
+				// catch light on two faces at once — and, deliberately, through
+				// the library's Transform, which until this had no caller: the
+				// committed reference now pins makeTransform's rotation maths.
+				static const Transform turn =
+					makeTransform(Vec3{ 0.0f, 0.0f, 0.0f }, Vec3{ 0.0f, 1.0f, 0.0f }, 28.0f);
+				return turn.toWorldDistance(
+					sdChamferBox(turn.toLocal(p), Vec3{ 0.46f, 0.46f, 0.46f }, 0.14f));
+			}
 
 			case Shape::Torus:
-				// Laid flat: the SDF's tube lies in XY, so a quarter turn about
-				// X stands it up the way a ring sits on a table.
-				return sdTorus(Vec3{ p.x, p.z, p.y }, 0.36f, 0.16f);
+				// upright() would stand it like a coin; the gold ring instead
+				// lies FLAT on the table, which for a torus means the same
+				// exchange — its natural axis is Z and the table's is Y.
+				return sdTorus(upright(p), 0.36f, 0.16f);
 
 			case Shape::Knurled:
 			{
 				// A knurled control knob: chamfered cylinder, grooves stamped
 				// around the rim by folding the domain into one sector.
-				const Vec3 q{ p.x, p.z, p.y }; // stand the cylinder upright
+				const Vec3 q = upright(p);
 				float d = sdChamferCylinder(q, 0.46f, 0.34f, 0.07f);
 				const Vec3 r = opPolarRepeat(q, 44);
 				const float groove = sdCylinder(Vec3{ r.x - 0.46f, r.y, 0.0f }, 0.014f, 1.0f);
@@ -212,10 +245,10 @@ inline Scene makeShapesScene(Camera& camera)
 			}
 
 			case Shape::Cone:
-				return sdCappedCone(Vec3{ p.x, p.z, p.y }, 0.50f, 0.16f, 0.38f);
+				return sdCappedCone(upright(p), 0.50f, 0.16f, 0.38f);
 
 			case Shape::Capsule:
-				return sdRoundCylinder(Vec3{ p.x, p.z, p.y }, 0.34f, 0.48f, 0.28f);
+				return sdRoundCylinder(upright(p), 0.34f, 0.48f, 0.28f);
 
 			case Shape::Dome:
 			default:
@@ -227,8 +260,7 @@ inline Scene makeShapesScene(Camera& camera)
 		scene.add(std::move(o));
 	}
 
-	setThreeQuarterView(camera, 7.4f, Vec3{ 0.0f, 0.0f, -0.6f });
-	camera.position = Vec3{ 0.0f, 0.0f, -0.6f } + Vec3{ 2.6f, 3.4f, 5.0f };
+	setThreeQuarterView(camera, 7.4f, Vec3{ 0.0f, 0.0f, -0.6f }, Vec3{ 2.6f, 3.4f, 5.0f });
 	return scene;
 }
 
@@ -272,17 +304,23 @@ inline Scene makeGlassScene(Camera& camera)
 	};
 	scene.add(std::move(ball));
 
-	// A standing ring: curved in two directions, so it throws a folded caustic
-	// rather than a single spot, and its own body shows the tint deepening
-	// where the ray path through the glass is longest.
+	// A standing ring, facing the camera: curved in two directions, so it
+	// throws a folded caustic rather than a single spot, and its own body shows
+	// the tint deepening where the ray path through the glass is longest.
+	//
+	// No upright() here — sdTorus's natural axis is Z, which IS the camera
+	// axis, so the bare SDF already stands the ring on edge like a coin. (The
+	// first version swizzled it anyway, out of habit: that laid the ring flat
+	// AND left it levitating — the centre height below was chosen for a
+	// standing ring's reach of major+minor, not a flat one's of minor.)
+	// centre.y - (0.40 + 0.21) = -0.62, exactly the floor plane: it rests.
 	Object ring;
 	ring.material = recipes::tintedGlass({ 0.16f, 0.52f, 0.92f }, 1.1f);
-	ring.boundsCentre = { 0.82f, -0.02f, 0.0f };
+	ring.boundsCentre = { 0.82f, -0.01f, 0.0f };
 	ring.boundsRadius = 0.68f;
 	ring.distance = [](const Vec3& p)
 	{
-		const Vec3 q = p - Vec3{ 0.82f, -0.02f, 0.0f };
-		return sdTorus(Vec3{ q.x, q.z, q.y }, 0.40f, 0.21f);
+		return sdTorus(p - Vec3{ 0.82f, -0.01f, 0.0f }, 0.40f, 0.21f);
 	};
 	scene.add(std::move(ring));
 
@@ -299,8 +337,9 @@ inline Scene makeGlowScene(Camera& camera)
 {
 	Scene scene;
 
-	// The room stays, all the studio lights go. Anything visible here is lit by
-	// the cubes.
+	// The room stays, all the studio lights go — zeroing an emission makes
+	// addStudio not add that light at all. Anything visible here is lit by the
+	// cubes.
 	Studio studio;
 	studio.enableRim = false;
 	studio.enableGlint = false;
@@ -367,10 +406,30 @@ inline Scene makeGlowScene(Camera& camera)
 	return scene;
 }
 
-// Every scene the preview tool and the regression test know about, in a fixed
-// order so a reference set can be regenerated wholesale.
-inline const char* const kSceneNames[] = { "knob", "materials", "shapes", "glass", "glow" };
-inline constexpr int kSceneCount = 5;
+// The scene registry: ONE row per scene, carrying everything the tools need.
+//
+// One table rather than parallel registries (a name list, a build-if-chain, an
+// aspect switch) because parallel registries drift: the first version decided
+// each scene's aspect by string-comparing its NAME in a separate function, so
+// adding a second square scene meant remembering an edit two files away — and
+// forgetting it would have rendered the scene cropped, committed the cropped
+// image as the reference, and then PASSED forever after. A scene that is not a
+// full row here does not exist, which is the point.
+struct SceneDef
+{
+	const char* name;
+	bool square; // knob bitmaps are square; showcase frames are 16:9
+	Scene (*build)(Camera&);
+};
+
+inline constexpr SceneDef kScenes[] = {
+	{ "knob",      true,  &makeKnobScene },
+	{ "materials", false, &makeMaterialsScene },
+	{ "shapes",    false, &makeShapesScene },
+	{ "glass",     false, &makeGlassScene },
+	{ "glow",      false, &makeGlowScene },
+};
+inline constexpr int kSceneCount = (int)(sizeof(kScenes) / sizeof(kScenes[0]));
 
 // The size and sample count the committed reference images are rendered at.
 //
@@ -382,29 +441,39 @@ inline constexpr int kSceneCount = 5;
 inline constexpr int kReferenceWidth = 160;
 inline constexpr int kReferenceSamples = 128;
 
-// Returns false for an unknown name rather than throwing, so the CLI can print
-// a usage message instead of a stack trace.
-inline bool buildScene(const std::string& name, Scene& scene, Camera& camera)
+// Null for an unknown name, so the CLI can print usage instead of a stack trace.
+inline const SceneDef* findScene(const std::string& name)
 {
-	if (name == "knob")
-		scene = makeKnobScene(camera);
-	else if (name == "materials")
-		scene = makeMaterialsScene(camera);
-	else if (name == "shapes")
-		scene = makeShapesScene(camera);
-	else if (name == "glass")
-		scene = makeGlassScene(camera);
-	else if (name == "glow")
-		scene = makeGlowScene(camera);
-	else
-		return false;
+	for (const SceneDef& def : kScenes)
+		if (name == def.name)
+			return &def;
 
-	return true;
+	return nullptr;
 }
 
-// The knob is square because a knob bitmap is; the showcase scenes are 16:9.
-inline int sceneHeightFor(const std::string& name, int width)
+inline int sceneHeight(const SceneDef& def, int width)
 {
-	return (name == "knob") ? width : (width * 9 / 16);
+	return def.square ? width : (width * 9 / 16);
+}
+
+// Render a scene and encode it to straight (NON-premultiplied) 8-bit RGBA —
+// the one pixel pipeline behind both the committed references and the
+// regression comparison. It lives here, used by both tools, because the two
+// must be bit-identical: a premultiply flag or tone-map argument that drifted
+// between them would fail every scene at once with deltas that read as a
+// renderer regression instead of an encoding mismatch.
+inline Image renderSceneRgba8(const SceneDef& def, const Settings& settings,
+	std::vector<uint8_t>& rgba8)
+{
+	Camera camera;
+	Scene scene = def.build(camera);
+
+	// Fully qualified: inside tide::demo, plain `render` is ambiguous between
+	// the tide::render NAMESPACE and the function it contains.
+	Image image = tide::render::render(scene, camera, settings);
+
+	rgba8.assign((size_t)image.width * (size_t)image.height * 4, 0);
+	writePixels(image, rgba8.data(), image.width * 4, PixelOrder::Rgba, false);
+	return image;
 }
 }

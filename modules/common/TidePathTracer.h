@@ -124,7 +124,7 @@ enum class MaterialKind : uint8_t
 	Plastic,     // a dielectric gloss coat over a coloured diffuse base
 	Metal,       // rough conductor; anisotropic when `anisotropy` is non-zero
 	Glass,       // rough dielectric with Beer-Lambert absorption inside
-	Emissive,    // glows, but is NOT importance sampled — see Light below
+	Emissive,    // glows AND is importance sampled via its bounding sphere — see Light below
 };
 
 // How the shading tangent is built, which is what decides which WAY a brushed
@@ -154,6 +154,14 @@ struct Material
 
 	// 0 = isotropic, approaching 1 = strongly directional. Only meaningful when
 	// `brush` is not None.
+	//
+	// KNOWN LIMITATION: single-scattering GGX loses energy as roughness and
+	// anisotropy grow (no Kulla-Conty multiple-scattering compensation — a 2D
+	// table is more machinery than this renderer wants). Measured: ~5% gone by
+	// alpha 0.45, up to ~47% at roughness 0.45 with anisotropy 1.0, tracking
+	// the LARGER of the two anisotropic alphas. The shipped recipes stay near
+	// alpha 0.1 where the loss is a percent or two; push both sliders high and
+	// the metal will read darker than its colour says it should.
 	float anisotropy = 0.0f;
 	BrushMode brush = BrushMode::None;
 	Vec3 brushAxis{ 0.0f, 0.0f, 1.0f };
@@ -418,12 +426,25 @@ inline float sdRoundBox(const Vec3& p, const Vec3& halfExtents, float radius)
 inline float sdChamferBox(const Vec3& p, const Vec3& halfExtents, float chamfer)
 {
 	const float box = sdBox(p, halfExtents);
-	// Intersect with the eight corner-cutting planes at once: the plane normal
-	// is (+/-1,+/-1,+/-1)/sqrt(3) and |p| folds all eight into one test.
+
+	// A chamfer is a cut along the EDGES, so it takes one 45-degree plane per
+	// edge direction: the XY-edge plane has normal (1,1,0)/sqrt(2), and |p|
+	// folds the four parallel edges into one test. Three such planes cover all
+	// twelve edges, and where they meet they trim the corners by themselves.
+	//
+	// The first version of this used the single corner plane
+	// (|x|+|y|+|z| - sum + c)/sqrt(3) instead — which cuts only the EIGHT
+	// CORNERS and leaves every edge knife sharp: at an edge midpoint the third
+	// coordinate is ~0, so that plane sits far below the surface and the max()
+	// always returns the uncut box. A "chamfered" faceplate rendered with no
+	// chamfer highlight anywhere, which is the one job this function has.
 	const Vec3 a = absv(p);
-	const float plane = (a.x + a.y + a.z
-		- (halfExtents.x + halfExtents.y + halfExtents.z) + chamfer) * 0.57735027f;
-	return maxf(box, plane);
+	constexpr float invSqrt2 = 0.70710678f;
+	const float exy = (a.x + a.y - (halfExtents.x + halfExtents.y) + chamfer) * invSqrt2;
+	const float eyz = (a.y + a.z - (halfExtents.y + halfExtents.z) + chamfer) * invSqrt2;
+	const float ezx = (a.z + a.x - (halfExtents.z + halfExtents.x) + chamfer) * invSqrt2;
+
+	return maxf(maxf(box, exy), maxf(eyz, ezx));
 }
 
 // Exact. A cylinder along the Z axis — Z-up matches the orthographic front view
@@ -493,14 +514,17 @@ inline float sdPlane(const Vec3& p, const Vec3& normal, float offset)
 // distance-to-wall or the tracer would believe it had started buried in
 // something and refuse to move.
 //
-// Only valid INSIDE the box; outside it the result is a signed value that no
-// longer bounds the true distance. That is acceptable because the room always
-// encloses the whole scene, and primary rays — the only ones that start outside
-// it — skip the room entirely.
+// Implemented as the exact complement of the solid box, so it is a true
+// Lipschitz-1 field EVERYWHERE — inside the room it equals the min distance to
+// a wall, and outside the box it goes correctly negative (that region is the
+// room's "solid"). An earlier version computed min(halfExtents - |p|) directly,
+// which is identical inside but overstates how deep an outside point is buried;
+// the complement form costs the same and has no invalid region, so a camera
+// accidentally placed outside a visible room fails loudly at the wall instead
+// of undefined-ly.
 inline float sdRoomInterior(const Vec3& p, const Vec3& halfExtents)
 {
-	const Vec3 q = halfExtents - absv(p);
-	return minf(q.x, minf(q.y, q.z));
+	return -sdBox(p, halfExtents);
 }
 
 // --- combination -----------------------------------------------------------
@@ -627,15 +651,18 @@ struct Object
 // Objects. The reason is next-event estimation: at every bounce the integrator
 // wants to pick a point ON a light and connect to it, and there is no general
 // way to pick a uniform point on an arbitrary signed distance field. Restricting
-// the emitters to two shapes that can be sampled in closed form is what turns a
-// noisy renderer into a quiet one, and it costs nothing in practice because a
-// window is a rectangle and a lamp is a sphere.
+// the primary emitters to two shapes that can be sampled in closed form is what
+// turns a noisy renderer into a quiet one, and it costs nothing in practice
+// because a window is a rectangle and a lamp is a sphere.
 //
-// An SDF object with MaterialKind::Emissive still WORKS — it glows and it shows
-// up in reflections — it is simply never aimed at, so it lights the scene only
-// by luck. That is the right trade for a small bright detail such as an LED on
-// a module face, and the wrong one for anything that is meant to do the
-// lighting.
+// An SDF object with MaterialKind::Emissive is ALSO importance sampled, through
+// the one closed-form proxy every object already carries: its bounding sphere.
+// The integrator aims shadow rays at the cone that sphere subtends and keeps
+// only the ones that genuinely land on the object — unbiased, at the cost of
+// the cone samples that miss. So a glowing cube really lights the room, and how
+// WELL it does depends directly on how snug its boundsRadius is: a padded bound
+// inflates the cone and most of its samples miss. A light that is a plain
+// rectangle or sphere should still be a Light — its samples never miss.
 // ---------------------------------------------------------------------------
 
 enum class LightShape : uint8_t
@@ -794,8 +821,11 @@ struct Settings
 	// surface of the object costs two (in and out).
 	int maxBounces = 12;
 
-	// Linear multiplier applied before tone mapping.
-	float exposure = 1.0f;
+	// There is deliberately no exposure here. Exposure is an ENCODE-time knob —
+	// it belongs to writePixels, where it actually acts — and an early version
+	// that also carried the field here shipped the classic trap: render()
+	// ignored it, so setting it did nothing unless the caller separately passed
+	// the same number to writePixels. One owner, no lie.
 
 	// Per-sample radiance clamp, for firefly suppression. This BIASES the
 	// result — it removes energy and will slightly dim genuine caustics — but
