@@ -118,14 +118,28 @@ REJECT_RULES = [
 # surface, so it is flagged, never dropped -- even when a reject rule also
 # matches.
 #
-# `plugdata` is in here as a PRECEDENT, not a competitor: it has already solved
-# the iOS AUv3 packaging, distribution and review problems TIDE will hit. It
-# must stay in step with HYPOTHESIS_QUERIES below -- source_hypothesis() drops
-# any search hit whose TITLE this regex does not match, so a query with no
-# matching term here returns nothing and looks like a quiet week.
+# The named products split into two kinds, and conflating them is what this
+# comment exists to prevent (Jeff, 2026-08-20: "plugdata is not really in the
+# category of eurorack simulators. However mirack is an ios competitor"):
+#
+#   COMPETITORS -- they hold TIDE's actual square, an iOS Eurorack-style rack,
+#   and all three are closed-source. `mirack` is the sharpest: AUv3, 800+
+#   compiled-in modules, $14.99, and it is what the surviving hypothesis is a
+#   claim ABOUT. `drambo` and `audulus` are the same square from other angles.
+#
+#   PRECEDENT -- `plugdata` is a Pd dataflow patcher, NOT a rack, so it is not
+#   a competitor and must not be read as one. It is here because it has already
+#   solved the iOS AUv3 packaging, distribution and App Store review problems
+#   TIDE will hit, and because it is what refuted the broader hypothesis.
+#
+# This regex must stay in step with HYPOTHESIS_QUERIES below --
+# source_hypothesis() drops any search hit whose TITLE this regex does not
+# match, so a query with no matching term here returns nothing and looks like a
+# quiet week. The reverse is fine: a term here with no query still catches
+# mentions that the other sources surface.
 HYPOTHESIS_RE = re.compile(
     r"\bios\b|\bauv3\b|\bipad\b|\biphone\b|audiobus|\baum\b|loopy pro|"
-    r"\bmobile\b|app ?store|touch.?screen|plugdata",
+    r"\bmobile\b|app ?store|touch.?screen|plugdata|mirack|drambo|audulus",
     re.I)
 
 REJECT_RES = [(re.compile(p, re.I), why) for p, why in REJECT_RULES]
@@ -226,10 +240,12 @@ def source_library():
     }]
 
 
-# Keep in step with HYPOTHESIS_RE -- see the note there. `plugdata` added by
-# A28: it is the closest open-source precedent for the iOS AUv3 problems TIDE
-# has ahead of it, so discussion of it is worth surfacing.
-HYPOTHESIS_QUERIES = ["ios auv3", "ipad", "iphone modular", "plugdata"]
+# Keep in step with HYPOTHESIS_RE -- see the two kinds described there.
+# `plugdata` (precedent) and `mirack` (competitor) added by A28; miRack is the
+# one the surviving hypothesis is actually a claim about, so someone announcing
+# an open-source answer to it is the single highest-value thing this routine
+# could surface.
+HYPOTHESIS_QUERIES = ["ios auv3", "ipad", "iphone modular", "plugdata", "mirack"]
 
 
 def source_hypothesis():
@@ -441,9 +457,14 @@ def selftest():
         # rejected under constraint 2, and the hypothesis has to win.
         ("How does plugdata ship a standalone AND an AUv3?", "flag"),
         ("plugdata 0.9.3 released", "flag"),
-        # Negative control for the same term. Without it, "everything is flagged"
-        # would pass the two cases above and nobody would know.
+        # miRack is the COMPETITOR half -- see HYPOTHESIS_RE. Someone shipping an
+        # open-source answer to it is the highest-value item this routine can
+        # find, so a bare mention with no other hypothesis term must still flag.
+        ("miRack 4.6 adds a new sequencer", "flag"),
+        # Negative controls for both halves. Without these, "everything is
+        # flagged" would pass every case above and nobody would know.
         ("Pure Data style dataflow patching in a rack", "keep"),
+        ("Rack-style sequencer module request", "keep"),
         # ordinary signal survives
         ("Polyphonic oscillator aliasing above 8 kHz", "keep"),
         ("Cables are hard to see against a dark background", "keep"),
@@ -469,8 +490,13 @@ def selftest():
         ("plugdata adds AUv3 effects", "", "flag"),
     ]
 
-    # A28: assert that coupling directly, rather than trusting the two cases
-    # above to notice if someone adds a query later.
+    # A28: assert that coupling directly, rather than trusting the cases above
+    # to notice if someone adds a query later. The positive control for THIS
+    # assertion has to be a term that will never legitimately be added -- an
+    # earlier draft used "drambo", which became a real regex term hours later
+    # and would have silently disarmed the control.
+    assert not HYPOTHESIS_RE.search("zzq-not-a-product"), \
+        "the uncoupled-query control needs a term HYPOTHESIS_RE does not match"
     for q in HYPOTHESIS_QUERIES:
         if not HYPOTHESIS_RE.search(q):
             print("FAIL query %r matches no HYPOTHESIS_RE term -- "

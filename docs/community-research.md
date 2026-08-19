@@ -67,13 +67,22 @@ listing says verbatim *"Now ships with AUv3 effect and instrument plugins!"*
 than a rack, which is exactly why the narrower claim survives it. Full evidence:
 [competitive-review.md](competitive-review.md) §4.
 
-**Two things follow, and the second is the one that changes strategy:**
+**The watched names split into two kinds, and conflating them would waste the
+distinction the correction just bought.** Jeff, 2026-08-20: *"plugdata is not
+really in the category of eurorack simulators. However mirack is an ios
+competitor."*
 
-- **plugdata is on the watch list as a precedent, not as a competitor.** It has
-  already solved the iOS AUv3 packaging, distribution and App Store review
-  problems TIDE will hit, so what it does is worth reading before TIDE
-  rediscovers any of it. `plugdata` is now both a search query and a title-match
-  term below.
+| kind | names | why it is watched |
+|---|---|---|
+| **Competitor** | **miRack** ($14.99, AUv3, 800+ compiled-in modules), Drambo, Audulus | they hold TIDE's actual square — an iOS Eurorack-style rack — and all three are closed. **miRack is what the surviving hypothesis is a claim about**, so an open-source answer to it is the single highest-value thing this routine could surface. |
+| **Precedent** | **plugdata** | a Pd dataflow patcher, **not a rack**, so not a competitor and not to be read as one. It is watched because it has already solved the iOS AUv3 packaging, distribution and App Store review problems TIDE will hit — and because it is what refuted the broader hypothesis. |
+
+`plugdata` and `mirack` are search queries **and** title-match terms; `drambo`
+and `audulus` are title-match terms only, which is fine — a term with no query
+still catches mentions the other sources surface. The reverse is what breaks.
+
+**One more thing follows from the refutation, and it changes strategy:**
+
 - **GPLv3 does not structurally bar VCV or Cardinal from the App Store.**
   plugdata is the counter-example: the licence tension is real but enforceable
   only by copyright holders, and Apple does not audit licences. VCV's actual
@@ -98,8 +107,13 @@ iPad?"*.
   searches for each of `HYPOTHESIS_QUERIES`, then discards any hit whose *title*
   does not match `HYPOTHESIS_RE`. Adding a query without adding the same term to
   the regex therefore returns nothing, silently — the exact "working watch that
-  found nothing" shape this whole section exists to prevent. `plugdata` was added
-  to both in A28.
+  found nothing" shape this whole section exists to prevent. `plugdata` and
+  `mirack` were added to both in A28, and `--selftest` now asserts the coupling
+  for **every** query rather than trusting anyone to remember it. **The positive
+  control for that assertion must be a term nobody will ever legitimately add:**
+  A28's first draft used `drambo`, which became a real title-match term hours
+  later on Jeff's note that miRack is the real competitor — a control that a
+  later, correct change silently disarms is worse than no control.
 - **The match must be in the topic TITLE.** Discourse search matches post
   bodies, so the top hits were the forum's megathreads — *"What are you
   listening to?"* (6,135 replies) and *"Member Introductions"* — which merely

@@ -101,33 +101,63 @@ written into `docs/community-research.md`.
 
 ### Verification
 
-**The coupling assertion is proven able to fail**, not merely present: adding a
-`drambo` query with no matching regex term gives
+**The coupling assertion is proven able to fail**, not merely present. It is
+demonstrated with a synthetic sentinel:
 
 ```
-FAIL query 'drambo' matches no HYPOTHESIS_RE term -- source_hypothesis() would
-discard every hit for it
-21 classification case(s), 1 failed
+FAIL query 'zzq-not-a-product' matches no HYPOTHESIS_RE term -- source_hypothesis()
+would discard every hit for it
+23 classification case(s), 1 failed
 ```
 
 exit **1**. Unmodified, exit **0**.
 
-**A/B on the discriminating case**, shipped script vs this branch:
+**That sentinel replaced a real product name, and the reason is the finding.**
+The first version of this control used a `drambo` query — and `drambo` became a
+real title-match term a few hours later, when Jeff pointed out miRack is the
+actual iOS competitor. The control would then have passed **for the wrong
+reason**, silently, while appearing to still test something. `--selftest` now
+asserts the sentinel stays unmatched, so the next person to broaden the regex is
+told rather than left to notice. **A control that a later, correct change
+disarms is worse than no control**, and this one had a half-day lifetime.
+
+#### Jeff's refinement, and why it is more than a wording change
+
+*"plugdata is not really in the category of eurorack simulators. However mirack
+is an ios competitor."*
+
+Correct, and the first version of this change did not encode it — it put plugdata
+on the watch list and left the actual competitor off. The list now splits by
+**kind**, in the regex comment, in the doc, and in the selftest:
+
+| kind | terms | why |
+|---|---|---|
+| **Competitor** | `mirack` (query + title), `drambo`, `audulus` (title) | they hold TIDE's real square — an iOS Eurorack-style rack — and all three are closed. **miRack is the product the surviving hypothesis is a claim about**, so an open-source answer to it is the highest-value item this routine could ever surface. |
+| **Precedent** | `plugdata` (query + title) | a Pd patcher, **not a rack**. Watched because it already solved the iOS AUv3 packaging, distribution and review problems TIDE will hit, and because it refuted the broader claim. |
+
+A query needs a matching title term; a title term needs no query. So `drambo` and
+`audulus` are title-only, which still catches mentions the other sources surface.
+
+**A/B, shipped script vs this branch** — four discriminating positives and two
+negative controls:
 
 | title | shipped | this branch |
 |---|---|---|
+| `miRack 4.6 adds a new sequencer` | `keep` | **`flag`** |
+| `Anyone tried Drambo for generative patches?` | `keep` | **`flag`** |
+| `Audulus 4 module sharing` | `keep` | **`flag`** |
 | `plugdata 0.9.3 released` | `keep` | **`flag`** |
-| `How does plugdata ship a standalone AND an AUv3?` | `flag` | `flag` |
+| `Rack-style sequencer module request` | `keep` | `keep` |
 | `Pure Data style dataflow patching in a rack` | `keep` | `keep` |
 
-**Only the first row discriminates**, and that is stated rather than glossed: the
-second was already flagged by the existing `auv3` term, so it proves the
-hypothesis-beats-reject rule and nothing about plugdata. The third is the
-negative control — without it, "everything is flagged" would pass the other two.
+**Stated rather than glossed:** `How does plugdata ship a standalone AND an
+AUv3?` is `flag` on *both* — the existing `auv3` term already caught it — so it
+is kept as a case for the hypothesis-beats-reject rule and proves nothing about
+the new terms. The two `keep` rows are what rule out "everything is flagged".
 
-`--selftest` **21 cases, 0 failed** (was 17). `check-links.py` goes 418 → **421**
-relative links with the broken count unchanged at 1, so the three new relative
-links resolve.
+`--selftest` **23 cases, 0 failed** (was 17). `check-links.py` goes 418 → **421**
+relative links with the broken count unchanged at 1, so the new relative links
+resolve.
 
 ### Still red, still not mine
 
@@ -155,6 +185,16 @@ link is fixed**, because they are C++ comments and no check reads them.
 2. **"Add it to the watch list" is a two-part change in this script**, and the
    two parts are 100 lines apart with nothing linking them. A prose-only or
    query-only edit would have looked done and watched for nothing.
+3. **Name the *kind* of thing being watched, not just the thing.** The first
+   version of this change watched plugdata — the refutation — and left miRack,
+   the actual competitor, off the list entirely. Nothing in the row or the code
+   would have caught that; it took Jeff reading it. A watch list of bare product
+   names invites exactly this, so the list now says competitor or precedent
+   against each name.
+4. **A test control built from a real name has a shelf life.** The `drambo`
+   sentinel was correct when written and wrong within hours, in the ordinary
+   course of the code getting better. Controls want values that cannot become
+   legitimate.
 
 **Next:**
 
