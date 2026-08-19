@@ -4,6 +4,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <vector>
+// The blur behind the caption's raised edge. This is the same filter
+// gmpi_ui's `cachedBlur` uses (helpers/CachedBlur.h, as seen in
+// Controls/BumpGui.cpp); cachedBlur itself composites a tinted bitmap onto a
+// Graphics, whereas the highlight below needs the blurred MASK to subtract
+// with, so it calls one level down.
+#include "helpers/GinBlur.h"
 
 using namespace gmpi;
 using namespace gmpi::editor;
@@ -47,8 +54,25 @@ constexpr float kCornerRadius = 4.0f;
 constexpr float kNoiseMono = 3.0f;
 constexpr float kNoiseRgb[3] = { 0.0f, 0.0f, 0.0f };
 
-// Opacity of the one-pixel white inner glow on the caption.
+// The caption's raised-paint highlight: a light edge along the TOP and LEFT of
+// every glyph, as if lit from the top-left.
+//
+// Both values are in DIPs and scale to device pixels, so the edge holds its
+// apparent weight at any zoom instead of thinning out on a HiDPI screen.
+// kEdgeOffset is how far the occluding copy of the glyph slides down-right —
+// it decides WHICH edges light. kEdgeBlur is the softness of the falloff — it
+// decides how much the result looks lit rather than outlined.
+// TEMPORARILY HEAVY so the effect can be judged; expect to halve both once the
+// look is settled.
 constexpr float kGlow = 1.0f;
+constexpr float kEdgeOffsetDips = 2.0f;
+constexpr float kEdgeBlurDips = 2.0f;
+// Concentrates the highlight at the edge. Without it a blurred occluder never
+// fully covers the middle of a THIN stroke, so a few percent of lightening
+// lands on every pixel and the whole caption goes milky instead of gaining an
+// edge. Raising this pushes the mid-tones down hard while leaving the lit edge
+// itself untouched.
+constexpr float kEdgeFalloff = 2.5f;
 
 // createTextFormat's default body height is 12; the caption is five times that.
 // Inset from the bottom edge so it starts NEAR the bottom, not on it.
@@ -197,20 +221,27 @@ class TiDEPanelGui final : public PluginEditor
 		}
 	}
 
-	// A one-pixel white inner glow along the inside of every glyph edge.
+	// A white highlight along the TOP and LEFT inside edge of every glyph —
+	// raised paint catching a light from the top-left.
 	//
-	// The rim comes from a 1px EROSION of the glyph's own alpha: a pixel that is
-	// covered but has an uncovered neighbour is on the edge, and the shortfall
-	// (coverage minus the eroded coverage) is how much of the edge it is. Alpha
-	// is only ever READ here — nothing writes it — so a single in-place pass is
-	// safe and no second buffer is needed.
+	// This is BumpGui.cpp's inner-highlight recipe applied to glyphs instead of
+	// a rounded rect: take a copy of the shape, slide it AWAY from the light,
+	// blur it, and light whatever the slid copy fails to cover. Because the copy
+	// moves down-right, the band it vacates is the top-left inside edge, and
+	// because it is blurred the band fades inward instead of stopping dead.
+	//
+	// The first version of this eroded the alpha by one pixel in the up/left
+	// direction and lit the shortfall. That is a hard-edged rim, not lighting —
+	// it aliases along every diagonal and reads as an outline. The blur is what
+	// makes it look like a lit surface, and it is the SAME blur the rest of the
+	// codebase uses (ginSingleChannel, via cachedBlur).
 	//
 	// The blend runs in sRGB space, deliberately. Premultiplied white is simply
 	// "every channel equals alpha", so lerping a channel toward alpha needs no
 	// colour-space conversion at all. Physically it should be done in linear
-	// light, but for a 1px highlight on a glyph the difference is invisible and
-	// the conversion would cost a decode/encode per pixel.
-	static void addInnerGlow(Bitmap& bitmap)
+	// light, but for a highlight on a glyph the difference is invisible and the
+	// conversion would cost a decode/encode per pixel.
+	static void addRaisedEdge(Bitmap& bitmap, float deviceScale)
 	{
 		if constexpr (kGlow <= 0.0f)
 			return;
@@ -225,36 +256,45 @@ class TiDEPanelGui final : public PluginEditor
 		uint8_t* const data = pixels.getAddress();
 		const int32_t bytesPerRow = pixels.getBytesPerRow();
 		const auto size = pixels.getSize();
+		const int32_t w = (int32_t)size.width;
+		const int32_t h = (int32_t)size.height;
 
-		auto alphaAt = [&](int32_t x, int32_t y) -> int32_t
+		const int32_t offset = (std::max)(1, (int32_t)std::lround(kEdgeOffsetDips * deviceScale));
+		const unsigned radius = (unsigned)(std::clamp)(
+			(int32_t)std::lround(kEdgeBlurDips * deviceScale), 1, 254);
+
+		// The occluder: the glyphs' own coverage, slid down-right, away from the
+		// light. Single channel, tightly packed, which is what ginSingleChannel
+		// wants.
+		std::vector<uint8_t> occluder((size_t)w * h, 0);
+		for (int32_t y = offset; y < h; ++y)
 		{
-			if (x < 0 || y < 0 || x >= (int32_t)size.width || y >= (int32_t)size.height)
-				return 0; // off the edge counts as uncovered, so glyphs glow there too
-			return data[(size_t)y * bytesPerRow + (size_t)x * 4 + 3];
-		};
+			const uint8_t* src = data + (size_t)(y - offset) * bytesPerRow + 3;
+			uint8_t* dst = occluder.data() + (size_t)y * w + offset;
+			for (int32_t x = offset; x < w; ++x, ++dst, src += 4)
+				*dst = *src;
+		}
 
-		for (uint32_t y = 0; y < size.height; ++y)
+		ginSingleChannel(occluder.data(), (unsigned)w, (unsigned)h, radius, (unsigned)w);
+
+		for (int32_t y = 0; y < h; ++y)
 		{
 			uint8_t* row = data + (size_t)y * bytesPerRow;
-			for (uint32_t x = 0; x < size.width; ++x)
+			const uint8_t* occ = occluder.data() + (size_t)y * w;
+			for (int32_t x = 0; x < w; ++x)
 			{
 				uint8_t* px = row + (size_t)x * 4;
 				const int32_t a = px[3];
 				if (a == 0)
 					continue;
 
-				const int32_t eroded = (std::min)({
-					a,
-					alphaAt((int32_t)x - 1, (int32_t)y),
-					alphaAt((int32_t)x + 1, (int32_t)y),
-					alphaAt((int32_t)x, (int32_t)y - 1),
-					alphaAt((int32_t)x, (int32_t)y + 1) });
-
-				const int32_t rim = a - eroded;
-				if (rim <= 0)
+				// Uncovered by the slid copy == facing the light.
+				const float exposure = (255 - occ[x]) * (1.0f / 255.0f);
+				if (exposure <= 0.0f)
 					continue;
 
-				const float t = kGlow * (float)rim / (float)a;
+				const float t = kGlow * std::pow(exposure, kEdgeFalloff);
+
 				for (int c = 0; c < 3; ++c)
 					px[c] = (uint8_t)(px[c] + t * (a - px[c]) + 0.5f);
 			}
@@ -339,7 +379,7 @@ class TiDEPanelGui final : public PluginEditor
 		rt.endDraw();
 
 		auto bitmap = rt.getBitmap();
-		addInnerGlow(bitmap);
+		addRaisedEdge(bitmap, deviceScale);
 		return bitmap;
 	}
 
