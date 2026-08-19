@@ -46,6 +46,72 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — C7c answered by removal, and the two questions that answer creates
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Sixth item this session**, on Jeff's instruction. Also closes **S19** — both its
+PRs merged and macOS `ctest` is **100% of 86**; the `continue-on-error` removal
+is still Jeff's and stays on [#178](https://github.com/JeffMcClintock/TideSynth/issues/178).
+
+**Did:** recorded Jeff's C7c ruling and filed the work it implies as **U3**.
+
+C7c asked whether `EditorScreenshot` should become public so a stranger's clone
+can link it. **Jeff answered by deleting the need:** *"let's remove the
+breadcrumb bar from TIDE, it's a bit redundant in a product where you seldom dig
+deeper than 1 level in."*
+
+That is the better answer than either option the row offered. TIDE's only uses of
+`EditorScreenshot` are `SynthEditGui.cpp`'s `ContainerThumbnail.h` include and
+the link line in `SynthEditSem/CMakeLists.txt`, and **both exist solely to draw
+crumb thumbnails** — so the dependency leaves with the feature, nothing has to
+come out of the commercial repo, and **C7e loses its last non-`SynthEditLib`
+blocker.**
+
+### Why the removal is U3 and NEEDS-JEFF rather than something I did
+
+Reading the code before cutting found two things the ruling does not settle, and
+either one guessed wrong ships a worse product than the bar:
+
+1. **The crumbs are the only way back UP a level.**
+   `breadcrumbBar->onNavigate` (`SynthEditGui.cpp:699`) is one of exactly **two**
+   navigation entry points. The other, `seApp->onOpenContainerView` (`:703`),
+   goes only *in*, or to the master via "Goto Structure…". I grepped
+   `SynthEditLib`, `EditorLib` and `SynthEdit2`: **there is no existing
+   go-to-parent affordance.** Remove the crumbs with no replacement and a user
+   who opens a module is stranded in it.
+
+2. **The About pane's only entry point is anchored to the crumb strip.** D6's own
+   comment calls it *"the about pane and the only way in"*
+   (`SynthEditGui.cpp:292-299`), a plain text affordance at the strip's right end.
+
+U3 carries three options and recommends **(a) keep a thin strip with just
+"◀ Back" and "About"** — the only one that changes no interaction the user
+already has, while dropping exactly the part Jeff called redundant: the thumbnail
+trail.
+
+**`SE2::BreadcrumbBar` itself is not being deleted.** It is shared with the
+WinUI3, Wayland, JUCE and Mac frontends; only TIDE stops using it.
+
+**Learned:**
+
+1. **"Remove the feature" can be the right answer to a licensing-boundary
+   question, and it is not one an agent would have proposed.** C7c framed the
+   choice as *which files move*; the cheapest answer was that none do. Worth
+   remembering the next time a row's options list looks exhaustive.
+2. **A one-line product decision can have load-bearing code underneath it.** The
+   bar looked like a widget and is also the navigation model and the About
+   pane's front door. Reading before cutting cost ten minutes.
+
+**Next:**
+
+1. **U3 wants Jeff's answer on Back and About**, then it is one session.
+2. **C7e** is now unblocked from the `EditorScreenshot` direction; **C7b** and
+   **C7d** are unchanged and still the linux box's.
+3. **[#178](https://github.com/JeffMcClintock/TideSynth/issues/178)** — the workflow edit, and the unexplained `TestVoiceAllocation` residual.
+
+**Branch/PR:** `tide/mac/C7c-drop-breadcrumb` — TideSynth only, no code change.
+
 ## 2026-08-20 — macos — a mac build break from the carve-out, and five test failures CI has been hiding for a week
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (Claude Code CLI version not resolvable on this box) · as **tide-rack-bot** (both paths)
@@ -386,190 +452,4 @@ they predate this run and STEP 5 says the developer's dirt is not mine to clean.
 **Merge order matters:** this branch and `tide/mac/A28-community-research` (#175)
 were both cut from `main` and both touch `BACKLOG.md` and `JOURNAL.md`, so
 whichever merges second will want a rebase. No overlap in `docs/`.
-Throwaway worktree; the developer's checkout stayed on `main` and clean.
-
-## 2026-08-20 — macos — A28: the refuted hypothesis, corrected in the four places that state it and the one that originates it
-
-**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI version is not resolvable on this box — `claude --version` is *command not found*) · as **tide-rack-bot**
-
-**Second item this session**, on Jeff's instruction after A27 merged. Claimed
-with a pushed DOING mark before any work, per STEP 2.
-
-**Did:** A9's standing hypothesis — *"no open-source modular exists on iOS AUv3"* —
-is false, refuted by plugdata on 2026-08-18. Every live statement of it now
-states the surviving narrower form instead: **no open-source *Eurorack-style
-rack* on iOS AUv3.**
-
-### The row named two docs. There were four sites, and the fourth is the source
-
-| site | what it was |
-|---|---|
-| `docs/community-research.md:58` | named by the row |
-| `scripts/community-research.py` — `HYPOTHESIS_RE` comment | **not named** |
-| `scripts/community-research.py` — `source_hypothesis()` docstring | **not named** |
-| `docs/process-review-2026-08-09.md:124` | **not named — and it is where the hypothesis originates** |
-
-That last one matters more than its size. The script's own comment reads *"The
-standing product hypothesis from docs/process-review-2026-08-09.md"* — so
-correcting the two docs the row named would have left the **citation pointing at
-the false version**, which is a worse state than before: a corrected doc that
-cites an uncorrected source reads as though the source agrees with it.
-
-**PLAN.md needed no change**, which is worth recording because it looks like it
-should have. `PLAN.md:138` already quotes the hypothesis and calls it *"false as
-written"* in the next line, and already handles this row's other caveat — the
-AUv3 memory ceiling is there as *"Flagged for Jeff; not added unilaterally."* So
-no PLAN amendment was made or needed.
-
-**The review doc is MARKED, not rewritten**, and this is a judgement worth
-overruling if you disagree: `docs/process-review-2026-08-09.md` is the record of
-what the 2026-08-09 review concluded, so its paragraph is left standing with an
-inline ⚠ and a dated correction block underneath, rather than edited to say
-something the review did not say. The inline marker exists so the paragraph
-cannot be read standalone.
-
-### plugdata is on the watch list operationally, not just in prose
-
-The row asked for plugdata on the watch list. Prose alone would not have done it:
-`plugdata` is now in **both** `HYPOTHESIS_QUERIES` and `HYPOTHESIS_RE`.
-
-**They have to move together, and nothing said so before.**
-`source_hypothesis()` searches for each query, then discards any hit whose
-**title** `HYPOTHESIS_RE` does not match. A query with no matching regex term
-therefore returns nothing — silently — which is precisely the *"working watch
-that had simply found nothing"* failure the `watch` source was built to avoid.
-That coupling is now asserted in `--selftest`, documented at both sites, and
-written into `docs/community-research.md`.
-
-### Verification
-
-**The coupling assertion is proven able to fail**, not merely present. It is
-demonstrated with a synthetic sentinel:
-
-```
-FAIL query 'zzq-not-a-product' matches no HYPOTHESIS_RE term -- source_hypothesis()
-would discard every hit for it
-23 classification case(s), 1 failed
-```
-
-exit **1**. Unmodified, exit **0**.
-
-**That sentinel replaced a real product name, and the reason is the finding.**
-The first version of this control used a `drambo` query — and `drambo` became a
-real title-match term a few hours later, when Jeff pointed out miRack is the
-actual iOS competitor. The control would then have passed **for the wrong
-reason**, silently, while appearing to still test something. `--selftest` now
-asserts the sentinel stays unmatched, so the next person to broaden the regex is
-told rather than left to notice. **A control that a later, correct change
-disarms is worse than no control**, and this one had a half-day lifetime.
-
-#### Jeff's refinement, and why it is more than a wording change
-
-*"plugdata is not really in the category of eurorack simulators. However mirack
-is an ios competitor."*
-
-Correct, and the first version of this change did not encode it — it put plugdata
-on the watch list and left the actual competitor off. The list now splits by
-**kind**, in the regex comment, in the doc, and in the selftest:
-
-| kind | terms | why |
-|---|---|---|
-| **Competitor** | `mirack` (query + title), `drambo`, `audulus` (title) | they hold TIDE's real square — an iOS Eurorack-style rack — and all three are closed. **miRack is the product the surviving hypothesis is a claim about**, so an open-source answer to it is the highest-value item this routine could ever surface. |
-| **Precedent** | `plugdata` (query + title) | a Pd patcher, **not a rack**. Watched because it already solved the iOS AUv3 packaging, distribution and review problems TIDE will hit, and because it refuted the broader claim. |
-
-A query needs a matching title term; a title term needs no query. So `drambo` and
-`audulus` are title-only, which still catches mentions the other sources surface.
-
-**A/B, shipped script vs this branch** — four discriminating positives and two
-negative controls:
-
-| title | shipped | this branch |
-|---|---|---|
-| `miRack 4.6 adds a new sequencer` | `keep` | **`flag`** |
-| `Anyone tried Drambo for generative patches?` | `keep` | **`flag`** |
-| `Audulus 4 module sharing` | `keep` | **`flag`** |
-| `plugdata 0.9.3 released` | `keep` | **`flag`** |
-| `Rack-style sequencer module request` | `keep` | `keep` |
-| `Pure Data style dataflow patching in a rack` | `keep` | `keep` |
-
-**Stated rather than glossed:** `How does plugdata ship a standalone AND an
-AUv3?` is `flag` on *both* — the existing `auv3` term already caught it — so it
-is kept as a case for the hypothesis-beats-reject rule and proves nothing about
-the new terms. The two `keep` rows are what rule out "everything is flagged".
-
-`--selftest` **23 cases, 0 failed** (was 17). `check-links.py` goes 418 → **421**
-relative links with the broken count unchanged at 1, so the new relative links
-resolve.
-
-### The lint break cleared mid-run — A29 is DONE
-
-**Jeff pushed `modules/PanelTest/` at
-[`61b4707`](https://github.com/JeffMcClintock/TideSynth/commit/61b4707) while this
-item was in flight, so A29 is closed and `lint` is green end to end.** Re-verified
-here rather than inferred from the commit: `check-links.py` → **418 relative
-links, `no broken links`, rc=0** (was 1 broken), and the `modules/` tree builds
-from a fresh worktree with the new subdirectory — **configure rc=0, build rc=0,
-zero `error` lines**, targets `tide_render`, `tide_render_preview`,
-`tide_render_regression`, `TiDEknob`, `TiDEPanel`, **`PanelTest`**.
-[#174](https://github.com/JeffMcClintock/TideSynth/issues/174) closed, A29 flipped
-to DONE and archived, `win` NEXT re-pointed at P3. **The A4 auto-merge tier is
-live again**, which was the whole cost of the row.
-
-**Measured before the push, since the idea of commenting the module out came up,
-and worth keeping because it settles the question:** there was **nothing to
-comment out and no broken build**. At `41785ea`, `PanelTest` appeared in **no
-CMakeLists anywhere** on `origin/main` — only three prose/comment references — and
-the `modules/` tree configured and built clean without it (**configure rc=0,
-build rc=0, zero `error` lines**). The break was only ever the dangling
-reference, so the push was the whole fix.
-
-**The one thing that survives the fix:** the broken link was **one of three**
-references to that file. The other two are C++ comments at
-`modules/common/TidePathTracer.h:21` and `:883`. All three resolve today, but
-**no check reads the comments**, so if `PanelTest/` ever moves or is unpublished,
-those two dangle silently and only the README's would be caught. Noted rather
-than filed — a one-line risk, not a defect.
-
-**Learned:**
-
-1. **A row that names the files to fix is naming symptoms, not the set.** Two of
-   the four sites here were in a script rather than a doc, and the fourth was the
-   *origin* of the claim. `grep` for the sentence, not for the filenames the row
-   lists — and check whether anything **cites** the file you are correcting.
-2. **"Add it to the watch list" is a two-part change in this script**, and the
-   two parts are 100 lines apart with nothing linking them. A prose-only or
-   query-only edit would have looked done and watched for nothing.
-3. **The A27 check caught this run's own regression, twice.** Re-pointing the
-   `mac` row earlier today left a live *"Take A29"* phrase in the superseded
-   quote, and `check-next-block.py` flagged it. Flipping A29 to DONE just now, I
-   did **the same thing again** in the `win` row — the quoted history still read
-   as an instruction, and the check failed with
-   `BACKLOG.md:11 [win] A29 -- archived DONE`, matched on `'Take A29'`. Both
-   times the fix was to strip the imperative from the quote. That is the check
-   working on exactly the class of mistake it was written for, on a file its own
-   author was editing, within hours of shipping — which is better evidence than
-   any fixture.
-4. **Name the *kind* of thing being watched, not just the thing.** The first
-   version of this change watched plugdata — the refutation — and left miRack,
-   the actual competitor, off the list entirely. Nothing in the row or the code
-   would have caught that; it took Jeff reading it. A watch list of bare product
-   names invites exactly this, so the list now says competitor or precedent
-   against each name.
-5. **A test control built from a real name has a shelf life.** The `drambo`
-   sentinel was correct when written and wrong within hours, in the ordinary
-   course of the code getting better. Controls want values that cannot become
-   legitimate.
-
-**Next:**
-
-1. **A29 / #174 is DONE** — cleared mid-run, verified here, auto-merge live again.
-2. **A21, A22, A23, A24** are the remaining A-series rows — all small, all in this
-   repo, all with stated acceptance checks. A23 is the one with a positive control
-   already specced.
-3. **E17** still gates every E2 module stage; **E10** still needs `SynthEditLib`
-   authority.
-
-**Branch/PR:** [#175](https://github.com/JeffMcClintock/TideSynth/pull/175), branch
-`tide/mac/A28-community-research` — one repo, TideSynth only.
-
 Throwaway worktree; the developer's checkout stayed on `main` and clean.
