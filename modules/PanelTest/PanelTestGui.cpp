@@ -131,11 +131,19 @@ constexpr float kJackOuterDips = 7.0f;   // collar outer radius
 constexpr float kJackInnerDips = 4.4f;   // collar inner radius
 constexpr float kJackBoreDips = 3.5f;    // the socket mouth
 
-// The body stands slightly proud of the pocket floor. Not styling: with its
-// face flush the two were EXACTLY COPLANAR, and a sphere tracer has no way to
-// choose between coincident surfaces -- it speckled the surround with radial
-// dashes. A real moulded body sits proud anyway.
-constexpr float kJackSurroundProudDips = 0.35f;
+// The bezel stands proud of the PANEL FACE, as it does in the Behringer photo
+// -- the moulded body is a part pushed through from behind and done up against
+// the front, so its shoulder rides above the metal. Standing proud also keeps
+// its face clear of every other surface, which matters to a sphere tracer: an
+// earlier flush version was EXACTLY COPLANAR with the pocket floor and
+// speckled the surround with radial dashes (coincident zeros are undecidable).
+constexpr float kJackBezelProudDips = 1.2f;
+
+// The bezel's outer rim is ROUNDED, not sharp. Same load-bearing job as the
+// knob bevel and the collar torus: the curve is the only part of the bezel
+// that sweeps through angles, so it is what catches the key light and draws
+// the bright arc around the plastic that the photo shows.
+constexpr float kJackBezelRoundDips = 0.9f;
 constexpr float kJackSpacingFrac = 0.5f; // of the indent's half height
 
 // The collar is nickel-plated hardware, not a mirror. Some roughness is both
@@ -191,11 +199,13 @@ constexpr float kSwitchHoleOffsetDips = 4.5f;  // above the pocket's centre
 #define PANELTEST_KNOBS 1
 constexpr float kKnobBigRadiusDips = 10.6f;
 constexpr float kKnobSmallRadiusDips = 6.2f;
-// Height drives the SHADOW, which is the main reason to care about it here: a
-// cast shadow is as long as the occluder is tall, and at 0.45 the knobs were
-// barely half as tall as they were wide and threw almost nothing. Behringer's
-// are roughly as tall as their radius.
-constexpr float kKnobHeightFrac = 0.65f; // of the knob's own radius
+// Heights measured off the Behringer 112 photo, and the two sizes are NOT the
+// same proportion: the big knob is squat (height about 0.6 of its diameter)
+// while the small one is nearly as tall as it is wide. One shared fraction made
+// the small knob read as a button. Height also drives the cast shadow, which is
+// as long as the occluder is tall.
+constexpr float kKnobBigHeightFrac = 1.2f;   // of the knob's own radius
+constexpr float kKnobSmallHeightFrac = 1.7f; // ditto
 constexpr float kKnobBevelFrac = 0.18f;  // ditto
 constexpr float kKnobRoughness = 0.25f;
 constexpr float kKnobBigYFrac = 0.15f;   // of halfH, below the ball
@@ -895,8 +905,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 		const float rInner = kJackInnerDips / dipsWide;
 		const float rBore = jackBoreR;
 
-		// The body's face, which the collar sits on rather than on the pocket.
-		const float bodyTop = floorZ + kJackSurroundProudDips / dipsWide;
+		// The bezel's face, which the collar sits on: above the PANEL surface,
+		// not the pocket floor.
+		const float bodyTop = halfZ + kJackBezelProudDips / dipsWide;
+		const float bezelRound = kJackBezelRoundDips / dipsWide;
 
 		for (int i = 0; i < 2; ++i)
 		{
@@ -935,10 +947,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			// collar reads as hardware sitting in something rather than as a
 			// ring lying loose on the aluminium.
 			//
-			// A BARREL, running from just proud of the pocket floor to well
-			// BEHIND the plate. Its front face is the black surround; its length
-			// is what gives the bore somewhere deep to go. Stopping it inside
-			// the plate, as the first version did, capped the bore at the plate
+			// A BARREL, from just proud of the panel face to well BEHIND the
+			// plate. Its front face is the black surround; its length is what
+			// gives the bore somewhere deep to go. Stopping it inside the
+			// plate, as the first version did, capped the bore at the plate
 			// thickness and the mouth stayed light.
 			{
 				const float top = bodyTop;
@@ -957,12 +969,15 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 				body.material = recipes::satinPlastic({ 0.020f, 0.020f, 0.022f });
 				body.boundsCentre = centre;
 				body.boundsRadius = safeSqrt(rSurround * rSurround + hz * hz) + 0.01f;
-				body.distance = [centre, rSurround, rBore, hz, boreDepth](const Vec3& p)
+				// Rounded, not plain: the rim fillet is the visible edge. The
+				// bottom rim gets rounded too, but it is buried behind the
+				// plate where nothing ever sees it.
+				body.distance = [centre, rSurround, rBore, hz, boreDepth, bezelRound](const Vec3& p)
 				{
 					const Vec3 q = p - centre;
 					const float boreHalf = 0.5f * (boreDepth + 0.1f);
 					const float boreZ = hz + 0.1f - boreHalf;
-					return opSubtract(sdCylinder(q, rSurround, hz),
+					return opSubtract(sdRoundCylinder(q, rSurround, hz, bezelRound),
 						sdCylinder(q - Vec3{ 0.0f, 0.0f, boreZ }, rBore, boreHalf));
 				};
 				scene.add(std::move(body));
@@ -975,10 +990,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	// Seated ON the panel face rather than sunk into it: centre offset by its
 	// own half height so the base lands exactly on the front surface.
 	{
-		const auto addKnob = [&](float radiusDips, float yFrac)
+		const auto addKnob = [&](float radiusDips, float heightFrac, float yFrac)
 		{
 			const float r = radiusDips / dipsWide;
-			const float hz = kKnobHeightFrac * r;
+			const float hz = heightFrac * r;
 			const float chamfer = kKnobBevelFrac * r;
 			const Vec3 centre{ 0.0f, yFrac * halfH, halfZ + hz };
 
@@ -993,8 +1008,8 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			scene.add(std::move(knob));
 		};
 
-		addKnob(kKnobBigRadiusDips, kKnobBigYFrac);
-		addKnob(kKnobSmallRadiusDips, kKnobSmallYFrac);
+		addKnob(kKnobBigRadiusDips, kKnobBigHeightFrac, kKnobBigYFrac);
+		addKnob(kKnobSmallRadiusDips, kKnobSmallHeightFrac, kKnobSmallYFrac);
 	}
 #endif
 
