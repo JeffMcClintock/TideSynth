@@ -21,7 +21,9 @@ Three reasons, in order of importance:
    gradients-as-decoration, no bevels, no drop shadows, no blur. Every device
    in it can be drawn with plain rects, lines and arcs in GMPI drawing code.
    No bitmap assets, which suits a plugin that ships its look in resources and
-   writes nothing to disk.
+   writes nothing to disk. Read that as no image *files*: the panel material
+   grain is computed into an offscreen bitmap at runtime, from a hash of the
+   pixel coordinate, so it ships as code and costs no asset.
 
 2. **Its worldview matches a modular.** The in-game rule, per its art
    director, is that *objects announce their use*: access panels are labelled,
@@ -213,8 +215,19 @@ style cohere; every one is verified against Marathon's own vector work.
 
 **Banned outright:** gradients as decoration, drop shadows, blur, glow,
 bevels, blend modes, skew, rotation at any angle other than the quarter-turn,
-round linecaps, textures other than the dot screen. If a mock needs one of
-those to work, the mock is wrong.
+round linecaps, textures other than the dot screen and the panel material
+grain. If a mock needs one of those to work, the mock is wrong.
+
+**The line between material and decoration** (Jeff, 2026-08-19, on building
+`SE TiDE:Panel`). "Flat" here means *not modelled* — no bevel, no drop shadow,
+no glow, nothing pretending the surface has depth. It does **not** mean bare.
+A panel may carry a very subtle grain and a very shallow gradient, enough to
+read as flat plastic or brushed metal rather than as a filled rectangle. The
+test is whether you notice it: material is felt and not seen, so if a viewer
+can point at the gradient or resolve individual noise pixels, it has stopped
+being material and become the decoration this list bans. Everything else above
+stands — a *shallow* gradient across a panel face is material; a gradient used
+to draw the eye, mark state or fake a light source is still banned.
 
 ---
 
@@ -354,7 +367,11 @@ The anti-fontslop guardrails. These outrank aesthetic preference:
    ratio, face and case — never from adding a genuine fourth level. (Worth
    restating; this is the rule Marathon's own UI breaks most.)
 2. Acid on live state only; red on clip only; liveries in headers only.
-3. One texture (the dot screen), on the rack ground only — panels are flat.
+3. One *figurative* texture (the dot screen), on the rack ground only. Panels
+   are flat in the sense of unmodelled — no bevel, shadow or glow — but may
+   carry a material grain and a shallow gradient so they read as plastic or
+   metal. Material is felt, not seen: if you can resolve the noise or point at
+   the gradient, it has become decoration and rule 6 applies.
 4. Stepped edges and plate text are header and state devices — livery
    blocks, module codes, active buttons, the wordmark — never body
    decoration. One plate register per surface; a panel of competing plates
