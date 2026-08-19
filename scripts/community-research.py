@@ -107,13 +107,25 @@ REJECT_RULES = [
     (r"modal dialog|popup dialog", "constraint 5 — minimal dialogs; panes, not dialogs"),
 ]
 
-# The standing product hypothesis from docs/process-review-2026-08-09.md: no
-# open-source modular exists on iOS AUv3. Anything touching that square is the
-# highest-value signal this routine can surface, so it is flagged, never
-# dropped -- even when a reject rule also matches.
+# The standing product hypothesis, CORRECTED 2026-08-20 (BACKLOG A28): no
+# open-source EURORACK-STYLE RACK exists on iOS AUv3. The broader form this
+# comment used to carry -- "no open-source modular" -- is false: plugdata is
+# GPL-3.0, free, on the App Store and ships AUv3. It is a Pd patcher, not a
+# rack, which is why the narrower claim survives. See docs/community-research.md
+# and docs/competitive-review.md section 4.
+#
+# Anything touching that square is the highest-value signal this routine can
+# surface, so it is flagged, never dropped -- even when a reject rule also
+# matches.
+#
+# `plugdata` is in here as a PRECEDENT, not a competitor: it has already solved
+# the iOS AUv3 packaging, distribution and review problems TIDE will hit. It
+# must stay in step with HYPOTHESIS_QUERIES below -- source_hypothesis() drops
+# any search hit whose TITLE this regex does not match, so a query with no
+# matching term here returns nothing and looks like a quiet week.
 HYPOTHESIS_RE = re.compile(
     r"\bios\b|\bauv3\b|\bipad\b|\biphone\b|audiobus|\baum\b|loopy pro|"
-    r"\bmobile\b|app ?store|touch.?screen",
+    r"\bmobile\b|app ?store|touch.?screen|plugdata",
     re.I)
 
 REJECT_RES = [(re.compile(p, re.I), why) for p, why in REJECT_RULES]
@@ -214,15 +226,20 @@ def source_library():
     }]
 
 
-HYPOTHESIS_QUERIES = ["ios auv3", "ipad", "iphone modular"]
+# Keep in step with HYPOTHESIS_RE -- see the note there. `plugdata` added by
+# A28: it is the closest open-source precedent for the iOS AUv3 problems TIDE
+# has ahead of it, so discussion of it is worth surfacing.
+HYPOTHESIS_QUERIES = ["ios auv3", "ipad", "iphone modular", "plugdata"]
 
 
 def source_hypothesis():
     """Actively SEARCH for the standing hypothesis, rather than wait for it.
 
-    The standing hypothesis (docs/process-review-2026-08-09.md) is that no
-    open-source modular exists on iOS AUv3, and A9 says to watch for anyone
-    moving into that gap. **Passive scanning cannot do that**, and this is
+    The standing hypothesis, as corrected by A28 on 2026-08-20, is that no
+    open-source EURORACK-STYLE RACK exists on iOS AUv3, and A9 says to watch for
+    anyone moving into that gap. The broader form -- "no open-source modular" --
+    was refuted by plugdata on 2026-08-18; docs/community-research.md carries
+    the evidence and what follows from it. **Passive scanning cannot do that**, and this is
     measured, not assumed: across 48 real forum topics and Cardinal issues from
     a live run, the hypothesis filter matched **zero**. An iPad thread appears
     on that forum roughly once a year, so a routine reading the 30 newest
@@ -418,6 +435,15 @@ def selftest():
         ("iOS AUv3 build with a module scan folder", "flag"),
         ("Any chance of an iPad version?", "flag"),
         ("Does this run in AUM or Loopy Pro?", "flag"),
+        # A28: plugdata is the closest open-source precedent for the iOS AUv3
+        # problems TIDE has ahead of it, so it is worth surfacing by name. This
+        # case is `reject`-baited on purpose -- "standalone" would normally be
+        # rejected under constraint 2, and the hypothesis has to win.
+        ("How does plugdata ship a standalone AND an AUv3?", "flag"),
+        ("plugdata 0.9.3 released", "flag"),
+        # Negative control for the same term. Without it, "everything is flagged"
+        # would pass the two cases above and nobody would know.
+        ("Pure Data style dataflow patching in a rack", "keep"),
         # ordinary signal survives
         ("Polyphonic oscillator aliasing above 8 kHz", "keep"),
         ("Cables are hard to see against a dark background", "keep"),
@@ -436,9 +462,25 @@ def selftest():
         ("Please add a standalone application version", "", "reject"),
         # the hypothesis still reads the body, deliberately
         ("Cables render oddly", "this only happens on my iPad in AUM", "flag"),
+        # A28: every HYPOTHESIS_QUERIES term must also match a TITLE, because
+        # source_hypothesis() drops hits whose title HYPOTHESIS_RE misses. A
+        # query with no matching term returns nothing and looks like a quiet
+        # week -- the failure shape docs/community-research.md is built around.
+        ("plugdata adds AUv3 effects", "", "flag"),
     ]
 
-    bad = 0
+    # A28: assert that coupling directly, rather than trusting the two cases
+    # above to notice if someone adds a query later.
+    for q in HYPOTHESIS_QUERIES:
+        if not HYPOTHESIS_RE.search(q):
+            print("FAIL query %r matches no HYPOTHESIS_RE term -- "
+                  "source_hypothesis() would discard every hit for it" % q)
+            bad_queries = True
+            break
+    else:
+        bad_queries = False
+
+    bad = 1 if bad_queries else 0
     for title, body, want in body_cases:
         got, why = classify(title, body)
         if got != want:

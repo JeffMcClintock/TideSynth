@@ -46,6 +46,128 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — A28: the refuted hypothesis, corrected in the four places that state it and the one that originates it
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI version is not resolvable on this box — `claude --version` is *command not found*) · as **tide-rack-bot**
+
+**Second item this session**, on Jeff's instruction after A27 merged. Claimed
+with a pushed DOING mark before any work, per STEP 2.
+
+**Did:** A9's standing hypothesis — *"no open-source modular exists on iOS AUv3"* —
+is false, refuted by plugdata on 2026-08-18. Every live statement of it now
+states the surviving narrower form instead: **no open-source *Eurorack-style
+rack* on iOS AUv3.**
+
+### The row named two docs. There were four sites, and the fourth is the source
+
+| site | what it was |
+|---|---|
+| `docs/community-research.md:58` | named by the row |
+| `scripts/community-research.py` — `HYPOTHESIS_RE` comment | **not named** |
+| `scripts/community-research.py` — `source_hypothesis()` docstring | **not named** |
+| `docs/process-review-2026-08-09.md:124` | **not named — and it is where the hypothesis originates** |
+
+That last one matters more than its size. The script's own comment reads *"The
+standing product hypothesis from docs/process-review-2026-08-09.md"* — so
+correcting the two docs the row named would have left the **citation pointing at
+the false version**, which is a worse state than before: a corrected doc that
+cites an uncorrected source reads as though the source agrees with it.
+
+**PLAN.md needed no change**, which is worth recording because it looks like it
+should have. `PLAN.md:138` already quotes the hypothesis and calls it *"false as
+written"* in the next line, and already handles this row's other caveat — the
+AUv3 memory ceiling is there as *"Flagged for Jeff; not added unilaterally."* So
+no PLAN amendment was made or needed.
+
+**The review doc is MARKED, not rewritten**, and this is a judgement worth
+overruling if you disagree: `docs/process-review-2026-08-09.md` is the record of
+what the 2026-08-09 review concluded, so its paragraph is left standing with an
+inline ⚠ and a dated correction block underneath, rather than edited to say
+something the review did not say. The inline marker exists so the paragraph
+cannot be read standalone.
+
+### plugdata is on the watch list operationally, not just in prose
+
+The row asked for plugdata on the watch list. Prose alone would not have done it:
+`plugdata` is now in **both** `HYPOTHESIS_QUERIES` and `HYPOTHESIS_RE`.
+
+**They have to move together, and nothing said so before.**
+`source_hypothesis()` searches for each query, then discards any hit whose
+**title** `HYPOTHESIS_RE` does not match. A query with no matching regex term
+therefore returns nothing — silently — which is precisely the *"working watch
+that had simply found nothing"* failure the `watch` source was built to avoid.
+That coupling is now asserted in `--selftest`, documented at both sites, and
+written into `docs/community-research.md`.
+
+### Verification
+
+**The coupling assertion is proven able to fail**, not merely present: adding a
+`drambo` query with no matching regex term gives
+
+```
+FAIL query 'drambo' matches no HYPOTHESIS_RE term -- source_hypothesis() would
+discard every hit for it
+21 classification case(s), 1 failed
+```
+
+exit **1**. Unmodified, exit **0**.
+
+**A/B on the discriminating case**, shipped script vs this branch:
+
+| title | shipped | this branch |
+|---|---|---|
+| `plugdata 0.9.3 released` | `keep` | **`flag`** |
+| `How does plugdata ship a standalone AND an AUv3?` | `flag` | `flag` |
+| `Pure Data style dataflow patching in a rack` | `keep` | `keep` |
+
+**Only the first row discriminates**, and that is stated rather than glossed: the
+second was already flagged by the existing `auv3` term, so it proves the
+hypothesis-beats-reject rule and nothing about plugdata. The third is the
+negative control — without it, "everything is flagged" would pass the other two.
+
+`--selftest` **21 cases, 0 failed** (was 17). `check-links.py` goes 418 → **421**
+relative links with the broken count unchanged at 1, so the three new relative
+links resolve.
+
+### Still red, still not mine
+
+`check-links.py`'s one failure remains `modules/common/README.md:14` →
+`../PanelTest/PanelTestGui.cpp` — **A29 / [#174](https://github.com/JeffMcClintock/TideSynth/issues/174)**,
+the Windows box's. So `lint` on this PR will be red for that and nothing else.
+
+**Measured this run, since the idea of commenting it out came up:** there is
+**nothing to comment out on `main` and no broken build**. `PanelTest` appears in
+**no CMakeLists anywhere** on `origin/main` — only three prose/comment references
+(`modules/common/README.md:14`, `TidePathTracer.h:21` and `:853`, and lint sees
+only the first). The pushed `modules/` tree configures and builds clean on this
+box from a fresh worktree at `41785ea`: **configure rc=0, build rc=0, zero
+`error` lines**, producing `tide_render`, `tide_render_regression`,
+`TiDEknob.gmpi` and `TiDEPanel.gmpi`. So the fix really is just the push (or a
+prose edit), and **`TidePathTracer.h:21` and `:853` will still dangle after the
+link is fixed**, because they are C++ comments and no check reads them.
+
+**Learned:**
+
+1. **A row that names the files to fix is naming symptoms, not the set.** Two of
+   the four sites here were in a script rather than a doc, and the fourth was the
+   *origin* of the claim. `grep` for the sentence, not for the filenames the row
+   lists — and check whether anything **cites** the file you are correcting.
+2. **"Add it to the watch list" is a two-part change in this script**, and the
+   two parts are 100 lines apart with nothing linking them. A prose-only or
+   query-only edit would have looked done and watched for nothing.
+
+**Next:**
+
+1. **A29 / #174** is the Windows box's and still blocks the whole auto-merge tier.
+2. **A21, A22, A23, A24** are the remaining A-series rows — all small, all in this
+   repo, all with stated acceptance checks. A23 is the one with a positive control
+   already specced.
+3. **E17** still gates every E2 module stage; **E10** still needs `SynthEditLib`
+   authority.
+
+**Branch/PR:** `tide/mac/A28-community-research` — one repo, TideSynth only.
+Throwaway worktree; the developer's checkout stayed on `main` and clean.
+
 ## 2026-08-20 — macos — A27: the NEXT block's Take column is read now, and the docstring stops lying about it
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** — the Claude Code CLI version the previous entries report as "app 2.1.220" was **not resolvable on this box** (`claude --version` → *command not found*; nothing under `~/.claude` or the app bundle carries an unambiguous CLI version), so the measurable number is recorded rather than a guessed one · as **tide-rack-bot**
@@ -537,120 +659,3 @@ change**, though neither breaks the other's build: the E1 case rebuilds the
 recipe from primitives rather than loading `Filter.synthedit`, so it does not
 depend on the SynthEdit half landing first. Work done in a throwaway worktree
 for TideSynth; `SynthEdit` was branched in place and is returned to `master`.
-
-## 2026-08-19 — macos — E12 verified on the merged trees and closed; E13 archived; a mac build trap that survives ZERO_CHECK
-
-**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
-
-**Second item this session**, on Jeff's instruction ("merged. next task"), after
-**E13** merged as [#168](https://github.com/JeffMcClintock/TideSynth/pull/168).
-Claimed with a pushed DOING mark before any work, per STEP 2.
-
-**Did:** Took **E12** — the one row on this box that had a *merged* fix and a
-`TODO` status — verified it on the merged default branches, and closed it. Also
-did the STEP 4 chore E13 left behind and re-pointed the stale `mac` NEXT cell.
-
-### Why E12 rather than the NEXT block's E2
-
-The `mac` NEXT cell named E10 (GATED, no authority, not a build break), then
-"**E2** or the per-prefab **E1** cases". The E1 cases closed an hour earlier as
-E13, so the cell was already one item out of date. **E12 was `TODO` while its own
-fix was merged**, which is the state most likely to be silently wrong: the row's
-"four consecutive shutdowns" was measured **on the branch**, before
-[SynthEditLib#23](https://github.com/JeffMcClintock/SynthEditLib/pull/23) and
-[SynthEdit#54](https://github.com/JeffMcClintock/SynthEdit/pull/54) merged, and
-nothing had re-measured it since. This is also the only box that can. E2 is a
-large open-ended authoring item and is still there; the cell now points at it.
-
-### Result — 4/4 clean shutdowns on the merged defaults
-
-Trees: `SynthEdit` `2f5fca5e3`, `SynthEditLib` `65d55cd`, Release, Xcode.
-
-```
-run 1: alive at 9s, TERM sent, wait rc=0
-run 2: alive at 9s, TERM sent, wait rc=0
-run 3: alive at 9s, TERM sent, wait rc=0
-run 4: alive at 9s, TERM sent, wait rc=0
-TIDE_STANDALONE crash reports: 14 before, 14 after
-```
-
-Three things make that more than an exit code:
-
-- **Each run reached a real working state before being killed**, so this is not
-  four fast failures: `TIDE: 5 rack prefab(s) seeded from the bundle`, root
-  MIDI-CV wired (`MIDI In → MIDI-CV 2 → facade`), and
-  `TIDE: rack built for 48000 Hz, block 512`. All four logs identical.
-- **`wait` returned rc=0, not 143.** The app handles SIGTERM and exits
-  gracefully rather than dying by signal — the same path the row says a user's
-  Quit takes.
-- **No `.ips` from *any* process** after the build, not merely none named
-  `TIDE_STANDALONE`, so the count is not hiding a differently-named crash.
-
-The `ViewBase::setHost` override that severs child views' copied `dialogHost`
-is present on the merged tip at `ViewBase.cpp:2736-2751`.
-
-**What I did NOT re-measure, and will not claim:** the *before* half. The 3/3
-crashes are the original interactive measurement, kept in the archived row.
-Reproducing them would mean reverting a merged fix inside Jeff's shared tree,
-which is not a thing a scheduled run should do to prove a point.
-
-### The build trap, and why it is worth a paragraph
-
-After fast-forwarding the six repos to their merged tips, **the existing Xcode
-build tree would not build**:
-
-```
-error: Build input file cannot be found:
-  '.../SynthEdit/SynthEdit2/InterfaceObject_editor.cpp'
-  (in target 'EditorLib')
-```
-
-C12d moved that file into `SynthEditLib`'s root; the **generated Xcode project
-kept the old path**. The interesting part is that this survives the mechanism
-meant to prevent it — the same build log says
-`Generate CMakeFiles/ZERO_CHECK will be run during every build`, and it did.
-`cmake -S . -B build` clears it in seconds (configure RC=0, and all four folder
-overrides report local, including `Using local GMPI WRAPPERS folder`).
-
-**So: after any carve-out stage that MOVES files, reconfigure before building on
-mac.** Do not read the resulting error as a broken carve-out — C12d, C13 and C6
-are all fine; the generated project was stale. This will recur on C7b and C10,
-both of which move files.
-
-Related and still open: **S17** — the build may compile
-`build/_deps/gmpi_ui-src` rather than the local `gmpi_ui` clone. It does not
-affect this result (E12's fix is in `SynthEditLib`, not `gmpi_ui`) but anyone
-verifying a *gmpi_ui* change here should settle S17 first.
-
-### Bookkeeping done this run
-
-- **E13 → DONE and archived.** [#168](https://github.com/JeffMcClintock/TideSynth/pull/168)
-  merged 03:03:42Z. Worth carrying forward: its CI `verify` job renders on
-  **Linux** against the published engine and returned `null=-inf` — **bit-exact**
-  against the macOS-seeded reference, because that reference contains no
-  floating-point arithmetic to drift.
-- **E12 → DONE and archived**, with the verification above.
-- **The `mac` NEXT cell re-pointed to E2**, since both of its other fallbacks are
-  now closed, with a pointer to `tests/README.md`'s prefab-coverage section.
-
-### Still open, and still nobody's
-
-- **`tide/mac/V3-midi-findings`** remains a pushed branch with no open PR — its
-  PR ([#142](https://github.com/JeffMcClintock/TideSynth/pull/142)) merged, and
-  two commits (`25216c1`, `4e65874`) sit on top of `main`. Reported last run,
-  unchanged. Someone should confirm that content landed elsewhere and delete it.
-- **E10** is the real prize on this platform and needs `SynthEditLib` authority:
-  a live host crash, whose own Accept clause would not fix it.
-
-**Next:**
-
-1. **E2** — the `mac` cell now points there, and it is the larger half of what is
-   left in that area. Read `tests/README.md`'s coverage section first.
-2. **E10**, for anyone who may edit `SynthEditLib`.
-3. **S17**, before anyone tries to verify a `gmpi_ui` change on this box.
-
-**Branch/PR:** `tide/mac/E12-standalone-shutdown` and the TideSynth PR carrying this entry (branch named rather than numbered: this PR is docs-only and therefore A4 auto-merge eligible, so a follow-up commit adding the number could land on a branch whose PR had already merged — **A22** exactly).
-No code changed in any repo this run — the fix was already merged; this run
-measured it and updated the queue. Build tree reconfigured (a build artifact,
-not source). All six working copies clean and on their default branches, fast
--forwarded to their merged tips.

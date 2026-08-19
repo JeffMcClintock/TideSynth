@@ -55,8 +55,31 @@ only to raise the rate limit — every endpoint used works without it.
 
 ## The `watch` source exists because passive scanning cannot work
 
-A9's standing hypothesis is that **no open-source modular exists on iOS AUv3**,
-and the routine should watch for anyone moving into that gap.
+**The hypothesis, in the only form that is still true (corrected 2026-08-20,
+BACKLOG A28): no open-source *Eurorack-style rack* exists on iOS AUv3.** The
+routine watches for anyone moving into that gap.
+
+**The broader form this document used to state — "no open-source modular exists
+on iOS AUv3" — is FALSE, and was refuted on 2026-08-18.**
+[plugdata](https://plugdata.org/) is GPL-3.0, free, on the iOS App Store, and its
+listing says verbatim *"Now ships with AUv3 effect and instrument plugins!"*
+(developer Timothy Schoen, v0.9.3, iOS 12+). It is a Pd dataflow patcher rather
+than a rack, which is exactly why the narrower claim survives it. Full evidence:
+[competitive-review.md](competitive-review.md) §4.
+
+**Two things follow, and the second is the one that changes strategy:**
+
+- **plugdata is on the watch list as a precedent, not as a competitor.** It has
+  already solved the iOS AUv3 packaging, distribution and App Store review
+  problems TIDE will hit, so what it does is worth reading before TIDE
+  rediscovers any of it. `plugdata` is now both a search query and a title-match
+  term below.
+- **GPLv3 does not structurally bar VCV or Cardinal from the App Store.**
+  plugdata is the counter-example: the licence tension is real but enforceable
+  only by copyright holders, and Apple does not audit licences. VCV's actual
+  obstacle is contributor consent plus its $149 Pro business, not law. **So ISC
+  is a real advantage for TIDE and not a moat — do not let this routine's output
+  be read as "they legally cannot follow us."**
 
 **Reading the newest topics cannot do that, and this was measured rather than
 assumed:** across **48 real items** (30 forum topics + 18 Cardinal issues) from
@@ -71,6 +94,12 @@ iPad?"*.
 
 **Two corrections that made it usable**, both from live output:
 
+- **A query and the title filter must be changed TOGETHER.** `source_hypothesis()`
+  searches for each of `HYPOTHESIS_QUERIES`, then discards any hit whose *title*
+  does not match `HYPOTHESIS_RE`. Adding a query without adding the same term to
+  the regex therefore returns nothing, silently — the exact "working watch that
+  found nothing" shape this whole section exists to prevent. `plugdata` was added
+  to both in A28.
 - **The match must be in the topic TITLE.** Discourse search matches post
   bodies, so the top hits were the forum's megathreads — *"What are you
   listening to?"* (6,135 replies) and *"Member Introductions"* — which merely
