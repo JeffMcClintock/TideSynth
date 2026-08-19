@@ -146,7 +146,8 @@ they predate this run and STEP 5 says the developer's dirt is not mine to clean.
 3. **E17** still gates every E2 module stage; **E10** still needs `SynthEditLib`
    authority.
 
-**Branch/PR:** `tide/mac/A21-identity-gate` — one repo, TideSynth only.
+**Branch/PR:** [#176](https://github.com/JeffMcClintock/TideSynth/pull/176), branch
+`tide/mac/A21-identity-gate` — one repo, TideSynth only.
 **Merge order matters:** this branch and `tide/mac/A28-community-research` (#175)
 were both cut from `main` and both touch `BACKLOG.md` and `JOURNAL.md`, so
 whichever merges second will want a rebase. No overlap in `docs/`.
