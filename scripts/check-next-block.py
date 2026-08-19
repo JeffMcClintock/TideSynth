@@ -27,11 +27,31 @@ the sentence is a *warning* ("Do not fall back to E2a", "S13 is GATED and needs
 Jeff"). An archived ID in a "do not take this" clause is fine; an archived ID
 in a "take this" clause is the bug.
 
-So the trigger set is deliberately narrow: the Take column, which is
-definitionally a take-target, plus a short list of imperative phrases. Anything
-else in the prose is left alone. A missed take-phrase is a false negative and
-costs a run some minutes; a false positive costs trust in the other five
-checks, which is the more expensive failure -- the same trade A10 documented.
+So the trigger set is deliberately narrow: a short list of imperative phrases,
+plus -- since A27 -- the one ID a Take cell *begins* with, when it is bolded.
+Anything else in the prose is left alone. A missed take-phrase is a false
+negative and costs a run some minutes; a false positive costs trust in the
+other five checks, which is the more expensive failure -- the same trade A10
+documented.
+
+What went wrong the second time, 2026-08-19 (windows) -- A27
+-----------------------------------------------------------
+The `any` NEXT row's Take cell read `**C6** -- move EditorLib/CMakeLists.txt`
+while C6 had been archived DONE hours earlier, and `lint` was green. The
+sentence above claimed the Take column was part of the trigger set; it was not,
+and had never been -- the loop in run() read only the phrases. A cell that
+names its target by *position* rather than by verb ("**P3** -- the only
+win-marked TODO left") carries no take-phrase at all, so nothing looked at it.
+
+The rule added for it is narrower than "every ID in the Take column counts",
+which was measured and rejected (see the comment in run()): ONLY a bolded ID
+the cell BEGINS with. Take cells in this block come in two shapes -- short
+fields that open with their target, and long editorial paragraphs that open
+with a sentence -- and the leading position is what separates them. Measured
+against the block as it stood when A27 landed, this fires on `win`, `any` and
+`linux`, whose cells open with `**P3**`, `**C14**` and `**C7b**`, and not on
+`mac`, whose cell opens with `**Take E2 -- ...**` and was already covered by
+the take-phrase rule. Zero of the original seven false alarms.
 
     python3 scripts/check-next-block.py [--repo-root DIR] [--show] [--selftest]
 """
@@ -68,6 +88,14 @@ RE_TAKE_VERB = re.compile("|".join(TAKE_VERBS), re.IGNORECASE)
 RE_NEXT_IN_LIST = re.compile(
     r"^\s*(?:(?:,|/|or|and)\s*)?\*{0,2}(%s)\*{0,2}" % ID, re.IGNORECASE)
 
+# A27. A Take cell that BEGINS with a bolded ID names that ID as its target by
+# position, with no verb anywhere -- `**P3** -- the only win-marked TODO left`.
+# Anchored at the start, and requiring the bold markers, is what keeps this from
+# becoming the every-ID-in-the-cell rule that measured seven false alarms. Not
+# subject to the negation rule below, because position is the assertion here:
+# a cell opening `**C6**` is pointing at C6 whatever the rest of it says.
+RE_LEADING_TAKE_ID = re.compile(r"^\s*\*\*(%s)\*\*(?![0-9A-Za-z])" % ID)
+
 # A negative clause disarms the whole sentence it appears in: an archived ID
 # inside "do not fall back to E2a" is not an instruction to take it.
 RE_NEGATED = re.compile(
@@ -98,7 +126,12 @@ def read_ids(path):
 
 
 def next_block_rows(backlog_path):
-    """The NEXT block's data rows, as (line_no, platform, text)."""
+    """The NEXT block's data rows, as (line_no, platform, take_cell, text).
+
+    `take_cell` is the Take column alone, because A27's rule is positional and
+    needs to know where that cell starts; `text` is every cell after the
+    platform, which is what the take-phrase rule reads.
+    """
     rows = []
     in_block = False
     in_fence = False
@@ -122,7 +155,7 @@ def next_block_rows(backlog_path):
                 continue
             if cells[0].lower() in ("platform", "") or set(cells[0]) <= set("-: "):
                 continue  # header or separator
-            rows.append((n, cells[0], " | ".join(cells[1:])))
+            rows.append((n, cells[0], cells[1], " | ".join(cells[1:])))
     return rows
 
 
@@ -153,6 +186,12 @@ def take_targets(text):
     return found
 
 
+def leading_take_id(take_cell):
+    """The bolded ID a Take cell begins with, or None. A27."""
+    m = RE_LEADING_TAKE_ID.match(take_cell or "")
+    return m.group(1) if m else None
+
+
 def run(repo_root, show=False):
     backlog = os.path.join(repo_root, "BACKLOG.md")
     done = os.path.join(repo_root, "BACKLOG-DONE.md")
@@ -170,15 +209,22 @@ def run(repo_root, show=False):
 
     problems = []
     checked = 0
-    for line_no, platform, text in rows:
-        # Note there is deliberately no "every ID in the Take column counts"
-        # rule. Measured against the real block, that flagged seven IDs whose
-        # sentences were warnings and precedent ("do not fall back to E2a",
-        # "C12c is IN-REVIEW", "A4's auto-merge tier") -- the Take cell is a
-        # long editorial paragraph, not a field. Seven false alarms on the
-        # first run is exactly the noise A10 warned erodes trust in the other
-        # checks, so the imperative phrases are the whole trigger set.
+    for line_no, platform, take_cell, text in rows:
+        # Note there is STILL deliberately no "every ID in the Take column
+        # counts" rule. Measured against the real block, that flagged seven IDs
+        # whose sentences were warnings and precedent ("do not fall back to
+        # E2a", "C12c is IN-REVIEW", "A4's auto-merge tier") -- the Take cell is
+        # often a long editorial paragraph, not a field. Seven false alarms on
+        # the first run is exactly the noise A10 warned erodes trust in the
+        # other checks.
+        #
+        # A27 adds one ID from that column and no more: the bolded one the cell
+        # BEGINS with. That is the position a short-field cell puts its target
+        # in, and it is not a position any of the seven occupied.
         targets = take_targets(text)
+        lead = leading_take_id(take_cell)
+        if lead:
+            targets.setdefault(lead, "Take cell begins with **%s**" % lead)
         for rid, phrase in sorted(targets.items()):
             checked += 1
             if rid in live:
@@ -217,9 +263,29 @@ SELFTEST_CASES = [
     ("not an id", "SE16 is the private repo and C1083 is an MSVC code", set()),
 ]
 
+# A27's positional rule, checked on the Take cell alone. The bolded-leading-ID
+# cases are the ones that fire; everything else is a cell shape that must not.
+LEADING_CASES = [
+    ("short field", "**P3** \u2014 the only `win`-marked TODO left", "P3"),
+    ("suffixed id", "**C7b** \u2014 move TIDE's own source into the public repo", "C7b"),
+    ("two ids, lead only", "**C14** \u2014 then **C7b**", "C14"),
+    ("bold sentence", "**Take E2 \u2014 it is the only thing still open.** More prose", None),
+    ("bare leading id", "C6 \u2014 not bolded, so not a field", None),
+    ("mid-cell id", "the previous target **C6** is DONE and archived", None),
+    ("longer word", "**C6ish** is not an ID token", None),
+    ("empty", "", None),
+]
+
 
 def selftest():
     failures = 0
+    for description, take_cell, expected in LEADING_CASES:
+        got = leading_take_id(take_cell)
+        if got != expected:
+            failures += 1
+            print("FAIL  leading/%s\n      cell:     %r\n      expected: %s\n      got:      %s"
+                  % (description, take_cell, expected, got))
+
     for description, text, expected in SELFTEST_CASES:
         got = set(take_targets(text))
         if got != expected:
@@ -229,13 +295,17 @@ def selftest():
 
     # The end-to-end shape: an archived take-target must fail, a live one must not.
     import tempfile
-    for label, take_id, expect_rc in (("archived target", "D6", 1),
-                                      ("live target", "S14", 0),
-                                      ("absent target", "Z9", 1)):
+    for label, cell_fmt, take_id, expect_rc in (
+            ("archived target", "a GUI-less run should take **%s** instead", "D6", 1),
+            ("live target", "a GUI-less run should take **%s** instead", "S14", 0),
+            ("absent target", "a GUI-less run should take **%s** instead", "Z9", 1),
+            # A27's regression: a short-field cell naming an archived row, with
+            # no take-verb anywhere in it. Green before A27, must be red now.
+            ("archived leading id", "**%s** \u2014 move the CMakeLists", "D6", 1)):
         with tempfile.TemporaryDirectory() as d:
             with open(os.path.join(d, "BACKLOG.md"), "w", encoding="utf-8") as fh:
                 fh.write("# B\n\n## NEXT\n\n| Platform | Take | Why |\n|---|---|---|\n")
-                fh.write("| mac | a GUI-less run should take **%s** instead | x |\n" % take_id)
+                fh.write("| mac | %s | x |\n" % (cell_fmt % take_id))
                 fh.write("\n## Ready\n\n| ID | Status | Plat | Item |\n|---|---|---|---|\n")
                 fh.write("| S14 | TODO | any | live row |\n")
             with open(os.path.join(d, "BACKLOG-DONE.md"), "w", encoding="utf-8") as fh:
@@ -247,7 +317,7 @@ def selftest():
                 print("FAIL  %s: expected rc=%d, got %d" % (label, expect_rc, rc))
             print("")
 
-    total = len(SELFTEST_CASES) + 3
+    total = len(SELFTEST_CASES) + len(LEADING_CASES) + 4
     print("%d case(s), %d failed" % (total, failures))
     return 1 if failures else 0
 
