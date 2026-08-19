@@ -183,7 +183,8 @@ from.
 3. **E10** remains the biggest thing on this platform and needs `SynthEditLib`
    authority.
 
-**Branch/PR:** `tide/mac/A27-next-block-take-column` — one repo, TideSynth only.
+**Branch/PR:** [#173](https://github.com/JeffMcClintock/TideSynth/pull/173), branch
+`tide/mac/A27-next-block-take-column` — one repo, TideSynth only.
 Worked in a throwaway worktree; the developer's checkout was left on `main`
 untouched and was clean throughout.
 
