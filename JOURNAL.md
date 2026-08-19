@@ -111,6 +111,28 @@ ENGINE, and TIDE's converter linkage is a property of what `SynthEditSem`
 links.** No case in `tests/cases/` can stand in for it. A guard for E7's
 regression has to live where TIDE's own binary is what renders.
 
+### The reference is bit-exact on Linux CI, first try
+
+Added after the PR went green, because it is a stronger result than this run
+expected. `verify` on the PR renders on **Linux**, against the *published*
+engine, and compares to a reference this box seeded on **macOS**:
+
+```
+PASS  prefab_midi peak=-0.0dBFS null=-infdBFS peakdiff=-infdBFS
+5/5 passed.
+```
+
+`null=-inf` is **bit-exact** — not "inside the gates", identical. That contrasts
+with the two prefab references seeded on macOS on 2026-08-18, whose own case
+files warn that their first CI run is an untested cross-platform comparison.
+The reason is worth keeping rather than treating as luck: this reference contains
+**no floating-point arithmetic to drift**. It is a step and a rectangular pulse,
+both at clipped full scale, so there is no phase increment to integrate and
+E1a's whole class of cross-platform residual cannot arise. A case with this shape
+is expected to be exact everywhere, and a *non*-zero residual here would mean a
+real defect rather than platform drift — which makes this case a sharper
+instrument than the oscillator ones, not a blunter one.
+
 ### Why the other two prefabs get no case — measured, not assumed
 
 **TIDE Output: the harness structurally cannot observe it.** `Sound Out`'s `Out`
