@@ -172,7 +172,7 @@ evidence, so the next run does not re-derive either.
    TIDE binary rendering, which is the REAPER route (`scripts/render-and-measure.py`),
    not this harness. Worth a row if anyone wants that regression caught.
 
-**Branch/PR:** the TideSynth PR carrying this entry. Work done in a throwaway
+**Branch/PR:** [#168](https://github.com/JeffMcClintock/TideSynth/pull/168). Work done in a throwaway
 git worktree, so no shared checkout left its default branch; all six working
 copies were clean and on their defaults at start and at finish.
 
