@@ -445,8 +445,29 @@ The next run knows only what you write down.
 
         python3 {REPO}/scripts/check-commit-authorship.py --repo <repo>
 
-    Every commit must be `tide-rack-bot`. If any is not, **STOP and do not
-    push.**
+    **Every UNPUSHED commit must be `tide-rack-bot`. If the check exits
+    non-zero, STOP and do not push.** No range to work out and nothing to pass
+    by hand -- the command above is the whole rule.
+
+    **A misattributed commit that is ALREADY PUSHED is reported, not failed**,
+    and the distinction is the point (BACKLOG A26). STEP 2 tells you to
+    CONTINUE a branch that has an open PR from your own platform. When an
+    interactive session started that branch, its commits are authored by the
+    developer, by that session's own convention -- and STEP 4 forbids you from
+    rewriting anything already pushed. Failing over them would demand the one
+    action the rules deny you, so the check stopped doing that: it prints them
+    and exits 0.
+
+    **Read what it prints; do not skim past it.** On a branch you are
+    continuing, the developer's commits are expected and you carry on. If you
+    cannot account for who wrote them, stop and say so in the journal rather
+    than pushing on top -- and note the check cannot make that judgement for
+    you, which is exactly why it shows them instead of swallowing them.
+    `--strict` fails on those too, if you want the old behaviour.
+
+    This matters more than it looks. A run that learns to push past
+    "do not push" on a continued branch is a run that will push past it on the
+    day it means what A14 wrote it to mean.
 
     **These are two checks, not one, and each is blind to the other's failure:**
     authorship asserts *who* wrote a commit, completeness asserts *what is in
