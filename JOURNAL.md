@@ -189,6 +189,172 @@ whole change and the TideSynth half is bookkeeping, so neither blocks the other.
 Work done in a throwaway worktree for TideSynth; `SynthEdit` was branched in
 place and is returned to `master`.
 
+## 2026-08-19 — macos — E2b: a Filter rack module, and the linkage check that actually discriminates
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Third item this session**, on Jeff's instruction ("next task"), after E13 and
+E12 merged. Claimed with a pushed DOING mark before any work, per STEP 2.
+
+**Did:** Took **E2**, the `mac` NEXT target. Found it is not one item, split it
+the way C7 and C12 were split, and shipped the first stage as **E2b — a Filter
+rack module**. TIDE now ships **six** prefabs and `tests/cases/` covers four.
+
+### Why E2 had to be split rather than attempted
+
+E2 says: *"Define the naming and I/O conventions for a module Container, then
+build the rest of a first curated set, each with its own E1 test case."* **It
+never says which modules that set contains**, which is a product decision and
+not a run's to invent — so as one item it fails STEP 2's "state the acceptance
+check before starting" bar. The conventions half is also largely *already
+written down*, in `build-prefabs.py`'s header: panel geometry, the
+`PanelWndPosition`-vs-`panel_rect` distinction, faceplate sizing, and the rack
+grid (`hpWidth 15`, `rowHeight 380`, so a slot is a multiple of 15 wide and at
+most 350 tall). E2's remaining content is therefore **modules**, one at a time,
+and a filter is the obvious first: oscillator → filter → envelope → out is the
+canonical subtractive voice.
+
+### The linkage check, which is the transferable part
+
+E2a left a trap: *"every module in a prefab must be a class TIDE links"*, with
+`strings`/`nm` on the module-id string called out as a **false positive**
+(`SE Rectangle XP` is in the binary via the rename table at `CUG.cpp:301`).
+That is true of the *id string*. It is not true of the **static-init symbol**,
+which is a real linkage fact, and that is the check E12's entry recommended:
+
+```
+se_static_library_init_ug_filter_1pole      PRESENT     <- 1 Pole LP
+se_static_library_init_ug_filter_1pole_hp   PRESENT     <- 1 Pole HP
+se_static_library_init_SVFilter4            absent
+se_static_library_init_ButterworthHP        absent
+se_static_library_init_OscillatorNaive      absent      <- S8's module, still absent
+```
+
+**It discriminates, which is the only reason to trust it** — three of the five
+obvious filter candidates come back absent, including the one
+(`OscillatorNaive`) already known absent by independent measurement. So the
+positive result on `1 Pole LP` means something.
+
+**A trap this exposes for anyone scanning `UgDatabase.cpp` for candidates:**
+`INIT_STATIC_FILE(SVFilter4)` and `INIT_STATIC_FILE(ButterworthHP)` are both
+*in that list*, and both are **absent from TIDE**. The list is
+`SynthEditLib`'s, and TIDE links a subset. **Do not read the INIT list as a menu
+of what TIDE can instantiate.** The core `ug_*` entries are the ones that come
+free — `ug_filter_1pole`, `ug_vca`, `ug_pan`, `ug_sample_hold`, `ug_random`,
+`ug_quantiser`, `ug_switch`, `ug_delay` all measured PRESENT, and all are
+plausible future E2 stages.
+
+### The module, and its default
+
+`1 Pole LP`, `ug_filter_1pole_lp.cpp:21`, category Filters. Pins
+`Signal` / `Pitch` / `Output` — the Oscillator prefab's shape with an audio
+input added. `Pitch` is the **cutoff**, 1 V/octave on the same scale the
+oscillator uses, so 5 V = 440 Hz.
+
+Measured on a 440 Hz source, recording the filter output:
+
+| cutoff | peak |
+|---|---|
+| 10 V (14 kHz) | −6.3 dBFS — effectively open |
+| 8 V (3.5 kHz) | −6.6 dBFS |
+| **5 V (440 Hz)** | **−9.5 dBFS — −3 dB AT cutoff, textbook 1-pole** |
+| 2 V (55 Hz) | −22.2 dBFS — ~6 dB/octave beyond |
+
+**The FREQ jack ships defaulted to 10 V, wide open.** That is not a preference,
+it is the rule the Envelope's GATE default already follows and it is worth
+stating as a convention: **an unpatched jack takes the value that lets the
+module pass signal**, because a rack that does not patch everything must still
+sound. A filter defaulting to 0 would render silence on drop-in and look broken.
+
+### Verification
+
+**In TIDE, not merely in the generator:**
+
+```
+TIDE: 6 rack prefab(s) seeded from the bundle     (was 5)
+TIDE: rack built for 48000 Hz, block 512
+shutdown rc=0, no new crash report
+```
+
+**Harness 6/6**, with the new case's reference independently checked rather than
+trusted: 440.0 Hz by zero-crossing count, peak −9.5 dBFS = the −3 dB point.
+Both gates positive-controlled:
+
+```
+control A  cutoff 5V -> 2V (filter-response regression)  FAIL  null=-16.6 dBFS
+control B  reference scaled 0.99 (-0.09 dB level)        FAIL  null=-55.3 dBFS
+full suite                                               6/6 PASS
+```
+
+**Control B matters more than it looks.** This case carries `prefab_oscillator`'s
+*relaxed* gates (−67/−62), because a free-running oscillator is in its signal
+path — and a relaxed gate invites the question of what it still catches. A **1%
+level change fails it with 11.7 dB to spare**, so level, tuning and filter-response
+regressions are all still caught; what is given up is localized damage below
+~12 LSB, which `voice_midi_note` covers at the default gates.
+
+### A finding out of CI, filed as E1c rather than fixed here
+
+The PR's Linux `verify` job renders against these macOS-seeded references, and
+the numbers say the relaxed gates on two cases are far too wide:
+
+```
+prefab_oscillator  null -131.1 dBFS  peakdiff -90.3     declared gates -67 / -62
+prefab_filter      null -121.4 dBFS  peakdiff -90.3     declared gates -67 / -62
+```
+
+Both are **rounding class** — inside even the *default* −100/−86 — leaving ~55 dB
+of margin for a real regression to hide in.
+
+**Where the wide gates came from:** E1a measured a free-running oscillator at
+−73.5 dBFS and sized the gates 6 dB above. Sound measurement, **different
+oscillator**: E1a used `SE Oscillator (naive)`, a separately-loaded module, while
+these two cases use `Oscillator`, the core `ug_oscillator2`. My own new case
+inherited the relaxed gates *by analogy* — I copied `prefab_oscillator`'s reason
+text, which says "same class of residual" — and CI then showed that analogy is
+probably wrong.
+
+I have not tightened them, because the honest fix is a measurement of each case's
+own residual in both directions, not a guess in the other direction — that would
+be the same reasoning-instead-of-measuring the row is about. Filed as **E1c** with
+the Accept clause stating exactly that. Note `voice_midi_note` also contains the
+naive oscillator and passes at *default* gates, so "naive drifts" is not the whole
+story; its pitch is MIDI-derived rather than free-running, which is the variable
+to isolate first.
+
+### The five prefabs I regenerated and did NOT commit
+
+Running the generator rewrote all six files. The other five are **handle churn
+only** — randomised `handle` / `fMod` / `tMod` / `module` / `tiedtomod` values —
+and I proved that rather than asserting it: normalising those five attributes
+makes all five **byte-identical to HEAD**, and MidiCv's `tiedtopin` mapping stays
+**7/8/9/10**, the contract `TideApp` hard-codes. Reverted, not committed, per
+STEP 5.
+
+**Worth knowing before the next E2 stage:** `build-prefabs.py` is not
+reproducible — every run produces a different file for every prefab. So a
+generator change always looks like a six-file diff, and **the only way to see
+what you actually changed is to normalise the handles**. The check is four lines
+of Python and is in this entry's PR body.
+
+**Next:**
+
+1. **E2c and onward** — more modules, one stage each. The measured candidate
+   list is above; a **VCA** (`ug_vca`) and a **Sample & Hold** (`ug_sample_hold`)
+   are the obvious next two, and `tests/README.md` now says how to decide
+   whether a new prefab can have a case at all.
+2. **E10** is still the biggest thing on this platform and needs `SynthEditLib`
+   authority — a live host crash whose own Accept clause would not fix it.
+3. **`tide/mac/V3-midi-findings`** is still a pushed branch with no open PR,
+   reported for the third run running.
+
+**Branch/PR:** [SynthEdit#60](https://github.com/JeffMcClintock/SynthEdit/pull/60)
+plus the TideSynth PR carrying this entry — **two repos, and they are one
+change**, though neither breaks the other's build: the E1 case rebuilds the
+recipe from primitives rather than loading `Filter.synthedit`, so it does not
+depend on the SynthEdit half landing first. Work done in a throwaway worktree
+for TideSynth; `SynthEdit` was branched in place and is returned to `master`.
+
 ## 2026-08-19 — macos — E12 verified on the merged trees and closed; E13 archived; a mac build trap that survives ZERO_CHECK
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
