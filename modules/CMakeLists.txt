@@ -84,6 +84,10 @@ endif()
 include(${syntheditsdk_SOURCE_DIR}/plugin_helper.cmake)
 include(${gmpi_SOURCE_DIR}/gmpi_plugin.cmake)
 
+# The shared path tracer that generates the cached knob/faceplate bitmaps.
+# Listed FIRST because the module folders below may link it.
+add_subdirectory("common")
+
 # Add you own modules here. One folder per module.
 add_subdirectory("TiDEknob")
 add_subdirectory("TiDEPanel")
