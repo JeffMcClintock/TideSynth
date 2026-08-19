@@ -159,22 +159,34 @@ the new terms. The two `keep` rows are what rule out "everything is flagged".
 relative links with the broken count unchanged at 1, so the new relative links
 resolve.
 
-### Still red, still not mine
+### The lint break cleared mid-run — A29 is DONE
 
-`check-links.py`'s one failure remains `modules/common/README.md:14` →
-`../PanelTest/PanelTestGui.cpp` — **A29 / [#174](https://github.com/JeffMcClintock/TideSynth/issues/174)**,
-the Windows box's. So `lint` on this PR will be red for that and nothing else.
+**Jeff pushed `modules/PanelTest/` at
+[`61b4707`](https://github.com/JeffMcClintock/TideSynth/commit/61b4707) while this
+item was in flight, so A29 is closed and `lint` is green end to end.** Re-verified
+here rather than inferred from the commit: `check-links.py` → **418 relative
+links, `no broken links`, rc=0** (was 1 broken), and the `modules/` tree builds
+from a fresh worktree with the new subdirectory — **configure rc=0, build rc=0,
+zero `error` lines**, targets `tide_render`, `tide_render_preview`,
+`tide_render_regression`, `TiDEknob`, `TiDEPanel`, **`PanelTest`**.
+[#174](https://github.com/JeffMcClintock/TideSynth/issues/174) closed, A29 flipped
+to DONE and archived, `win` NEXT re-pointed at P3. **The A4 auto-merge tier is
+live again**, which was the whole cost of the row.
 
-**Measured this run, since the idea of commenting it out came up:** there is
-**nothing to comment out on `main` and no broken build**. `PanelTest` appears in
-**no CMakeLists anywhere** on `origin/main` — only three prose/comment references
-(`modules/common/README.md:14`, `TidePathTracer.h:21` and `:853`, and lint sees
-only the first). The pushed `modules/` tree configures and builds clean on this
-box from a fresh worktree at `41785ea`: **configure rc=0, build rc=0, zero
-`error` lines**, producing `tide_render`, `tide_render_regression`,
-`TiDEknob.gmpi` and `TiDEPanel.gmpi`. So the fix really is just the push (or a
-prose edit), and **`TidePathTracer.h:21` and `:853` will still dangle after the
-link is fixed**, because they are C++ comments and no check reads them.
+**Measured before the push, since the idea of commenting the module out came up,
+and worth keeping because it settles the question:** there was **nothing to
+comment out and no broken build**. At `41785ea`, `PanelTest` appeared in **no
+CMakeLists anywhere** on `origin/main` — only three prose/comment references — and
+the `modules/` tree configured and built clean without it (**configure rc=0,
+build rc=0, zero `error` lines**). The break was only ever the dangling
+reference, so the push was the whole fix.
+
+**The one thing that survives the fix:** the broken link was **one of three**
+references to that file. The other two are C++ comments at
+`modules/common/TidePathTracer.h:21` and `:883`. All three resolve today, but
+**no check reads the comments**, so if `PanelTest/` ever moves or is unpublished,
+those two dangle silently and only the README's would be caught. Noted rather
+than filed — a one-line risk, not a defect.
 
 **Learned:**
 
@@ -185,20 +197,30 @@ link is fixed**, because they are C++ comments and no check reads them.
 2. **"Add it to the watch list" is a two-part change in this script**, and the
    two parts are 100 lines apart with nothing linking them. A prose-only or
    query-only edit would have looked done and watched for nothing.
-3. **Name the *kind* of thing being watched, not just the thing.** The first
+3. **The A27 check caught this run's own regression, twice.** Re-pointing the
+   `mac` row earlier today left a live *"Take A29"* phrase in the superseded
+   quote, and `check-next-block.py` flagged it. Flipping A29 to DONE just now, I
+   did **the same thing again** in the `win` row — the quoted history still read
+   as an instruction, and the check failed with
+   `BACKLOG.md:11 [win] A29 -- archived DONE`, matched on `'Take A29'`. Both
+   times the fix was to strip the imperative from the quote. That is the check
+   working on exactly the class of mistake it was written for, on a file its own
+   author was editing, within hours of shipping — which is better evidence than
+   any fixture.
+4. **Name the *kind* of thing being watched, not just the thing.** The first
    version of this change watched plugdata — the refutation — and left miRack,
    the actual competitor, off the list entirely. Nothing in the row or the code
    would have caught that; it took Jeff reading it. A watch list of bare product
    names invites exactly this, so the list now says competitor or precedent
    against each name.
-4. **A test control built from a real name has a shelf life.** The `drambo`
+5. **A test control built from a real name has a shelf life.** The `drambo`
    sentinel was correct when written and wrong within hours, in the ordinary
    course of the code getting better. Controls want values that cannot become
    legitimate.
 
 **Next:**
 
-1. **A29 / #174** is the Windows box's and still blocks the whole auto-merge tier.
+1. **A29 / #174 is DONE** — cleared mid-run, verified here, auto-merge live again.
 2. **A21, A22, A23, A24** are the remaining A-series rows — all small, all in this
    repo, all with stated acceptance checks. A23 is the one with a positive control
    already specced.
