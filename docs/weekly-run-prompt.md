@@ -148,6 +148,25 @@ not assumed:
 That last row is the one that proves the whole arrangement: the rulesets are
 live, and the bot is genuinely outside them.
 
+**Re-measured on the mac box 2026-08-20 for A21**, which added the second
+identity path. The bottom two rows are the ones that matter — they are why a
+second path is a genuine equivalent rather than a hole:
+
+| Check | Result |
+|---|---|
+| `gh api user --jq .login` with the token | `tide-rack-bot` |
+| `gh api graphql -f query='{ viewer { login databaseId } }'` | `tide-rack-bot` **314850083** |
+| does that `databaseId` match the hard-coded `GIT_AUTHOR_EMAIL`? | **yes** — `314850083+tide-rack-bot@users.noreply.github.com` |
+| REST path with `GH_TOKEN` unset | **`JeffMcClintock`** |
+| GraphQL path with `GH_TOKEN` unset | **`JeffMcClintock`** |
+
+**Both paths fall back to Jeff's keyring credential identically**, so adding the
+GraphQL path cannot launder a missing token — the failure the whole gate exists
+to catch is caught the same way by either. And GraphQL asserts slightly *more*
+than REST: `databaseId` is the number stamped into every commit's author
+address, so it checks the identity your commits will carry rather than only the
+one your API calls will.
+
 **Why not the obvious alternatives:** `gh auth switch` is global state, so it
 would change Jeff's interactive sessions too and a crashed run would strand him
 logged in as the bot; an `env` block in `settings.json` applies to every Claude
@@ -197,7 +216,8 @@ STEP 0.5 — Pause and staleness checks.
     more than 14 days old, stop. Instructions that stale are not safe to act
     on; a run that does nothing is a fine outcome.
   - Record for STEP 4: the prompt sha from STEP 0, plus the model and Claude
-    app version you are running under, and the identity STEP 0.7 asserted.
+    app version you are running under, and the identity STEP 0.7 asserted —
+    **and which of its two paths asserted it.**
     Three boxes can diverge on any of these, and the journal line is the only
     place that divergence is visible.
 
@@ -208,15 +228,78 @@ STEP 0.7 — Become the agent. Do this before any command that touches GitHub.
     export GIT_AUTHOR_EMAIL="314850083+tide-rack-bot@users.noreply.github.com"
     export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
     export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+
+    # assertion 1 — WHO YOU ARE. Two independent paths; see the rules below.
     gh api user --jq .login
+    gh api graphql -f query='{ viewer { login databaseId } }' \
+      --jq '.data.viewer | "\(.login) \(.databaseId)"'
+
+    # assertion 2 — WHICH TRANSPORT git will use.
     git config --global --get url."https://github.com/".insteadOf
 
-**Both commands assert, and both must pass.** The first MUST print
-`tide-rack-bot`; the second MUST print `git@github.com:`. If the second prints
-nothing, this box is missing setup step 3 and any repo with an SSH remote will
-push as Jeff — and the first assertion will pass anyway, because it only
-exercises `gh`'s API path and never git's. Treat a silent second command
-exactly like a wrong first one: STOP, journal what it printed, do nothing else.
+**Two assertions, and both must pass before you touch anything.**
+
+**Assertion 2 — the transport.** `git config …insteadOf` MUST print
+`git@github.com:`. If it prints nothing, this box is missing setup step 3 and
+any repo with an SSH remote will push as Jeff — and **assertion 1 will pass
+anyway**, because it only exercises `gh`'s API path and never git's. A silent
+answer here is as bad as a wrong identity: STOP, journal what it printed, do
+nothing else.
+
+**Assertion 1 — the identity. Read the two paths with these rules, which
+separate *asserted wrong* from *could not assert* (BACKLOG A21).**
+
+  - **Either path answering `tide-rack-bot` is enough to proceed.** They are
+    equivalent assertions, not a primary and a fallback: both read the same
+    `GH_TOKEN`, and **both fall back to Jeff's keyring credential when the token
+    is missing** — measured on the mac box 2026-08-20, `unset GH_TOKEN` gives
+    `JeffMcClintock` from *both*. So the second path cannot launder a missing
+    token, which is the only thing that would make it a weakening.
+  - **GraphQL is the stronger of the two**, and worth preferring when both
+    answer. It returns `databaseId` as well, and `314850083` is exactly the
+    number hard-coded into `GIT_AUTHOR_EMAIL` above — so it checks the identity
+    your *commits* will carry, not merely the one your API calls will.
+  - **ANY wrong login from EITHER path — including `JeffMcClintock` — is a full
+    stop.** Not a retry, not a preference for whichever path agreed with you.
+  - **The two paths DISAGREEING is also a full stop.** One saying `tide-rack-bot`
+    and the other saying anything else means something is wrong that neither
+    answer explains; do not pick the convenient one.
+  - **Neither path answering is NOT the same failure.** A 5xx, a timeout or a
+    DNS error is GitHub being unavailable, not a credential problem. Retry both
+    paths a few times over about a minute. If one then answers `tide-rack-bot`,
+    proceed. If neither ever answers, STOP and journal that you could not
+    assert — do **not** proceed on an unasserted identity.
+  - **Say which path you used**, in the STEP 4 provenance line. A run that
+    proceeded on GraphQL alone had a degraded GitHub, and that is worth seeing
+    from outside.
+
+**You do not have to judge which kind of failure you are looking at — they do
+not look alike.** Measured on the mac box 2026-08-20, running each branch:
+
+| what happened | what the command prints | what you do |
+|---|---|---|
+| healthy | `tide-rack-bot` (GraphQL also `314850083`) | proceed, record `(both)` |
+| one path down | that path: `Get "https://api.github.com/user": …` and **no login**; the other: `tide-rack-bot` | proceed, record `(GraphQL)` or `(REST)` |
+| both down | both: a transport error, **neither prints a login** | retry ~1 min, then **STOP** and journal |
+| credential missing | both print a login, and it is **`JeffMcClintock`** | **STOP**, unconditionally |
+| paths disagree | one `tide-rack-bot`, one something else | **STOP**, unconditionally |
+
+**The distinction is mechanical: a transport failure yields no login at all, a
+credential failure yields a perfectly valid login that is the wrong one.** If you
+are holding a login string, you are in the "asserted" case and the only question
+is whether it says `tide-rack-bot`. If you are holding an error, you are in the
+"could not assert" case and retrying is correct. Never treat an error as a
+licence to continue, and never treat a wrong name as something to retry away.
+
+Why this is two paths rather than one: on **2026-08-18 (macos)** `gh api user`
+returned **HTTP 503** five times over ~50s, and by direct `curl` too, while the
+same token got **200** from `/rate_limit` and from the private
+`/repos/JeffMcClintock/TideSynth`, and GraphQL answered `tide-rack-bot`
+correctly. [githubstatus](https://www.githubstatus.com) read *Partially Degraded
+Service*; only the REST `/user` shard was down. The old rule said STOP on
+anything that was not `tide-rack-bot`, which turned a routine GitHub wobble into
+a lost run on a box that runs daily. **What did not change is the part worth
+keeping: a wrong answer still stops everything.**
 
 Before the first push in any repo, spot-check that repo too — one command,
 and it must answer `https://...`:
@@ -232,10 +315,15 @@ as `author: JeffMcClintock, committer: JeffMcClintock`. Setting them per-run in
 the environment leaves the box's own git config untouched, so Jeff's
 interactive commits stay his.
 
-**That second command MUST print `tide-rack-bot`. If it prints anything else —
+**Assertion 1 MUST answer `tide-rack-bot`. If either path prints anything else —
 including `JeffMcClintock` — STOP.** Write a journal entry saying the identity
-check failed and what it printed, and do nothing else. Do not continue, and do
-not "fix" it by carrying on as whoever you are.
+check failed, which path failed, and what it printed, and do nothing else. Do
+not continue, and do not "fix" it by carrying on as whoever you are.
+
+*(This paragraph used to begin "That second command", from when STEP 0.7 ran one
+identity call and the transport check was second. It named the wrong command for
+as long as that was true, in the one rule where being read correctly matters
+most. Corrected with A21.)*
 
 This is not a formality. Jeff's account sits on every branch ruleset's bypass
 list, so a run that silently falls back to his credential can push straight to a
@@ -419,7 +507,9 @@ The next run knows only what you write down.
     specific: exact error messages, exact file:line, what you tried that did
     not work. "Investigated the view code" helps nobody.
   - Put the run's provenance in that entry, one line:
-    `**Prompt:** <sha> · <model> · app <version> · as <login>` — the sha from STEP 0's
+    `**Prompt:** <sha> · <model> · app <version> · as <login> (<REST|GraphQL|both>)`
+    — the `(<path>)` is A21's, and it is how a degraded-GitHub run is visible
+    from outside; the sha from STEP 0's
     `rev-parse --short origin/main:docs/weekly-run-prompt.md`, plus the model
     and Claude app version from STEP 0.5. It is the only way to tell from the
     outside which instructions, model, and app actually executed; a box still
