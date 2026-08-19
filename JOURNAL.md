@@ -46,6 +46,149 @@ Template:
 
 ---
 
+## 2026-08-19 — macos — E2c: SV Filter4 and Oscillator HD linked into TIDE, and the XML list that is hardcoded twice
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Fourth item this session**, on Jeff's instruction: *"lets get the SVFilter in
+TIDE and also the 'Oscillator HD' these are our go-to MVP modules"*. Claimed
+with a pushed DOING mark before any work, per STEP 2.
+
+**Did:** Linked both into TIDE. `SE SV Filter4` ("StateVar Filter"),
+`SE SV Filter4B` and `SE Oscillator4` ("Oscillator HD") are now registered in
+TIDE's factory with their pins, verified from inside the running app.
+
+### Why they were absent, and the trap in the reason
+
+Both build into **separate loadable targets** (`VaFilters`, `OscillatorHD`)
+rather than into the `SynthEditLib` static library — the same shape as E7's
+converters and S8's `OscillatorNaive`.
+
+**`UgDatabase.cpp` already had `INIT_STATIC_FILE(SVFilter4)` at `:1114`, and the
+class was still absent from TIDE.** That is the thing to carry forward: **the
+INIT list is `SynthEditLib`'s, and TIDE links a subset of it, so it is not a
+menu of what TIDE can instantiate.** E2b's entry said the same from the other
+direction; this is the confirmation, and it means "it is in UgDatabase" is never
+sufficient evidence.
+
+### Three sources, and the third is one only the linker finds
+
+| source | brings |
+|---|---|
+| `modules/VaFilters/SvFilter.cpp` | `SE SV Filter4`, `SE SV Filter4B` |
+| `modules/OscillatorHD/Oscillator.cpp` | `SE Oscillator4` |
+| `modules/shared/real_fft.cpp` | `realft()` |
+
+The link failed first time on exactly one symbol —
+`realft(float*, unsigned int, int)`, referenced from
+`MipMapCalculator::generateWavetable` in `Oscillator.o`. Oscillator HD builds
+mipmapped wavetables with an FFT that lives in another translation unit. **This
+is the same second-TU rule `my_type_convert.cpp` records for Converters**, and
+it is now two for two: a module added to TIDE's source list should be expected
+to drag a helper TU with it.
+
+### The finding worth more than the change: the XML list is hardcoded TWICE
+
+`SE SV Filter4`'s pins live in `VaFilters.xml`, so the file has to be both
+**staged** and **read** — and those are two separate hardcoded lists:
+
+- `_tide_xmls` in `SynthEditSem/CMakeLists.txt` copies it into
+  `Contents/Resources`
+- the loop at `TideApp.cpp:488` is what actually reads it back
+
+Adding it to only one **fails silently in whichever direction you missed**.
+Staged-but-never-read says nothing at all; read-but-never-staged at least prints
+to stderr. The CMake side already carries a comment about a near-identical split
+that "cost a debugging cycle on V3" — that comment is about two *staging* blocks,
+and this is a **third** place the same list is written. Both sites now say they
+must move together.
+
+**A module with only its `.cpp` is worse than a missing module**, per the note
+already in `TideApp.cpp:474`: a class with no pins "takes the whole enclosing
+container's widget layer down with it — a blank rack rather than one missing
+module".
+
+### Making that failure visible for good
+
+The merge loop now reports what it did, which is three lines and is also this
+change's own verification artifact:
+
+```
+TIDE: ControlsXp.xml    enriched  2 of 18 described class(es)
+TIDE: SubControlsXp.xml enriched  1 of 27
+TIDE: MidiPlayer2.xml   enriched  2 of  7
+TIDE: Converters.xml    enriched 26 of 70
+TIDE: VaFilters.xml     enriched  2 of  7
+```
+
+A **zero** means the `.cpp` half was forgotten. The gap between the two numbers
+is expected and harmless — it is the entries TIDE deliberately does not link.
+Flagged in the PR as a behaviour addition beyond the literal ask, so Jeff can
+drop it.
+
+### Verification — from inside TIDE's factory, with negative controls
+
+`VaFilters.xml enriched 2 of 7` is itself proof for the filter: exactly the two
+classes whose `.cpp` is now linked, with RMS / Korg / Moog / SV Filter2 / Moog
+test correctly skipped.
+
+Oscillator HD has no XML to count, so a **temporary probe, since reverted** (the
+issue **#87** lesson — `grep PROBE` on the branch returns nothing):
+
+```
+SE Oscillator4         REGISTERED
+SE SV Filter4          REGISTERED
+SE SV Filter4B         REGISTERED
+1 Pole LP              REGISTERED   <- known-good positive control
+SE Oscillator (naive)  absent       <- S8's module: the probe still discriminates
+SE SV Filter2          absent       <- described in VaFilters.xml, .cpp not linked
+```
+
+**Two positive and two negative controls**, so "everything says REGISTERED" is
+ruled out. The last row is the more interesting one: it shows the enrichment
+guard skipping a described-but-unlinked class rather than creating a phantom
+browser entry, which is the property that makes it safe to point the merge at a
+file describing far more modules than TIDE links.
+
+**TIDE, TIDE_VST3, TIDE_STANDALONE and SynthEditCL all build.** TIDE_STANDALONE
+runs, seeds 6 prefabs, and shuts down clean with no crash report.
+
+### Not done, deliberately
+
+**The prefabs still use the old DSP.** "Go-to" suggests Jeff wants
+`SE Oscillator4` and `SE SV Filter4` to be what TIDE's Oscillator and Filter
+rack modules are built from — but swapping the DSP inside two already-shipped
+prefabs is a product change, and E2b's Filter prefab is still in an open PR. It
+is a small change to `build-prefabs.py` plus re-measuring two E1 cases. Asked
+rather than assumed; noted in both PR bodies.
+
+Also worth knowing before that swap: **SV Filter4's pin defaults are not on the
+same scale as the modules already in the prefabs.** Its `Pitch` defaults to
+`0.5` and it has `Resonance`, `Strength` and `Mode` (LP/HP/BP/BR) pins, where
+`1 Pole LP` has `Signal`/`Pitch`/`Output` and takes 5 V = 440 Hz. Whoever does
+the swap should measure the mapping rather than assume it matches, exactly as
+E2b measured the 1-pole's.
+
+**Next:**
+
+1. **The prefab swap**, if Jeff wants it — see above.
+2. **The over-wide relaxed gates filed earlier this session** — two harness
+   cases declare tolerances ~55 dB wider than their own measured cross-platform
+   residual. The row for it is in [#170](https://github.com/JeffMcClintock/TideSynth/pull/170),
+   still open, so it is deliberately not named by id here: `check-id-refs.py`
+   validates prose mentions against rows that exist ON THIS BRANCH, and naming a
+   row that lives only in another open PR fails `lint`. Worth knowing, because
+   it will catch anyone cross-referencing between two open PRs — the check is
+   right, and the fix is to describe the row rather than cite it.
+3. **E10** remains the biggest thing on this platform and needs `SynthEditLib`
+   authority.
+
+**Branch/PR:** [SynthEdit#61](https://github.com/JeffMcClintock/SynthEdit/pull/61)
+plus the TideSynth PR carrying this entry. Two repos; the SynthEdit half is the
+whole change and the TideSynth half is bookkeeping, so neither blocks the other.
+Work done in a throwaway worktree for TideSynth; `SynthEdit` was branched in
+place and is returned to `master`.
+
 ## 2026-08-19 — macos — E12 verified on the merged trees and closed; E13 archived; a mac build trap that survives ZERO_CHECK
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
@@ -465,123 +608,3 @@ default branches at start.
 
 **Branch/PR:** [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59) + [#167](https://github.com/JeffMcClintock/TideSynth/pull/167).
 Both working copies returned to their default branches.
-
-## 2026-08-19 — windows — C13 filed and shipped; C14 and A27 filed; PLAN's licence claim corrected (interactive session, Jeff directing)
-
-**Did:** Verified C6 on Windows, then took the gap C12 left behind: filed and
-executed **C13**, filed **C14** and **A27**, and corrected two false claims in
-PLAN.md that Jeff spotted.
-
-### C6 verified on Windows — nobody had
-
-C6 landed verified on a **linux** tree only, and it moves a CMakeLists between
-repos, which is exactly the shape MSVC can disagree about. Fresh scratch Ninja
-tree, Release: **1020/1020 RC=0**, zero `error C`, **ctest 92/92**, all three
-artifacts.
-
-**The specific thing worth checking was the build-number injection**, which C6
-moved out of `EditorLib/CMakeLists.txt` into `SE16/CMakeLists.txt` because it
-reads a private path — and which **defaults to 0 and fails silently**. It
-survived: `SE_APP_BUILD_NUMBER=186`, read from the generated ninja rules rather
-than from a configure line scrolling past. Check this on any tree that touches
-that seam.
-
-### C13 — the three headers no stage owned
-
-`ISEAppManaged.h`, `IMidiDriver.h`, `ParseSynthEditArgs.h` → `SynthEditLib` root.
-850 lines, header-only. `docs/c12-remaining-editor-files.md` had listed them
-under "What C12 does not cover" and said they "need their own decision about
-which stage's list grows", left "as an explicit gap". C12 and C6 both completed
-and they were still sitting there.
-
-**Dangling private includes 7 → 1**, measured.
-
-**The finding: C12's non-CMake-build-edit check does not cover `CMakeLists.txt`,
-and this stage needed five build files, not two.** Every prior C-stage grepped
-tracked `*.vcxproj`/`*.filters`/`*.pbxproj` for the moving names and got "none".
-That convention missed three app source lists:
-
-    CMake Error at SynthEditCL/CMakeLists.txt:22 (add_executable):
-      No SOURCES given to target: SynthEditCL
-
-`SynthEditCL`, `SynthEditJuce` and `SynthEditWayland` each carried
-`${EDITOR2_DIR}/ParseSynthEditArgs.h`. **A header on a source list is never
-compiled, so it contributes nothing but its own existence — and its absence
-empties the whole list.** Found by building, not by grepping. **Add
-`CMakeLists.txt` to that grep before C10**, which is the next stage that moves
-files.
-
-**A measurement error I nearly shipped.** The first dangling run after the move
-reported **0 edges** — a better number than predicted, and wrong. The script is
-native Python and had been handed MSYS-style paths (`/c/Users/...`), which it
-cannot resolve, so it walked nothing and truthfully reported nothing found. The
-re-run with Windows paths walks 1338 public and 70 private files and reports the
-correct **1**. **A zero from a walker is worthless without a count of what it
-walked**; assert the walk found files before believing its result. This is the
-same Git-Bash-vs-native-Python path split that bites `/tmp` on this box.
-
-### C14 — the last private include, and it must not move
-
-The 1 that remains is `SynthEditLib/ApplySynthEditConfig.cpp:2` → `SynthEditApp.h`,
-which pulls in **`moonbasepp_Licensing.h`**, the commercial licensing library.
-Moving it would push the licensing surface into the public repo — the exact
-boundary PLAN protects — so it is not a carve-out move. It wants **C11's**
-treatment: narrow to an interface. The shape is easier than C11's was, because
-`ApplySynthEditConfig.h` **already** forward-declares `class SynthEditApp;` and
-both functions take it by reference, so only the `.cpp` needs the complete type.
-
-**C14 is now the single thing between the carve-out and C7**, and C7 gates C10
-and the release track R2–R6. C7 is eligible by status and **cannot pass** until
-C14 lands, because the clean-clone test is precisely what that one include fails.
-C7's row now says so.
-
-### A27 — the NEXT-block lint does not read the Take column
-
-Found the only way it could be: the `any` NEXT row's Take cell said **C6**, C6
-had been archived hours earlier, and `lint` was green.
-
-**This is a stale-comment bug, not a logic bug, and I got it wrong first.** My
-initial read was "implementation bug — the docstring says the Take column is
-checked and it isn't." The code is behaving as intended: the loop at
-`scripts/check-next-block.py:174-180` carries a deliberate note saying there is
-no "every ID in the Take column counts" rule, because measuring it produced
-**seven** false alarms back when Take cells were long editorial paragraphs. That
-measurement was correct. **The module docstring was simply never updated** and
-still claims the opposite, which is what made the behaviour look like a defect.
-
-**What has changed is the shape of the rows.** `win` and `any` Take cells are now
-short fields (`**P3** — the only win-marked TODO left`); `mac` and `linux` are
-still paragraphs. So A27 proposes a narrower rule than the one that failed —
-**only a bolded ID the Take cell *begins* with** — which catches `win` and `any`,
-touches neither `mac` nor `linux`, and should reproduce none of the original
-seven. Accept is a positive control out of git history, as A20 did for itself.
-
-### PLAN.md — two false claims, both Jeff's catch
-
-1. **"`SynthEditLib` is a public repo with no LICENSE file"** and "nobody may
-   legally use or redistribute it" — stated in the present tense, **twelve days
-   after** ISC landed (`a2143a4`, 2026-08-07, both repos, matching GMPI and
-   gmpi_ui; L1 resolved and archived). The most consequential thing in that
-   document to have wrong: it is the first thing a prospective contributor or
-   packager reads, and it told them the project was legally untouchable. Fixed in
-   both places it appeared — the section heading and the closing line of "Price
-   and funding". The rule the section existed to enforce is kept: **an agent must
-   not pick or change a licence.**
-
-2. **"E2 is currently `BLOCKED` on V1"** — checked at Jeff's request and it is
-   invalid: **V1 is DONE** (2026-08-18) and **E2 is TODO**, unblocked that same
-   day. The sentence sits inside a paragraph explicitly preserved as a superseded
-   note, so the record is legitimate; the hazard is the word *"currently"* in
-   preserved text. Left verbatim per this file's convention, with a dated warning
-   **above** it saying the "currently" is 2026-08-13's, not today's.
-
-**Next:** **C14**, then C7. Nothing else in the carve-out is left.
-
-**Branch/PR:** [SynthEdit#58](https://github.com/JeffMcClintock/SynthEdit/pull/58)
-+ [SynthEditLib#26](https://github.com/JeffMcClintock/SynthEditLib/pull/26),
-which must merge together, plus the TideSynth PR carrying this entry. Work done
-in throwaway git worktrees for all three repos, so no shared checkout was ever
-switched off its default branch — the mitigation for this morning's collision.
-All shared trees left clean and on their defaults.
-
----
