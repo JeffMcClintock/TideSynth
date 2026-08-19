@@ -22,7 +22,7 @@ namespace
 {
 auto r = Register<TiDEknob>::withXml(R"XML(
 <?xml version="1.0" encoding="UTF-8"?>
-<Plugin id="SE TiDE:knob" name="TiDE:knob" category="TiDE">
+<Plugin id="SE TiDE:knob" name="knob" category="TiDE">
     <Parameters>
         <Parameter id="0" datatype="float" name="patchValue"/>
     </Parameters>
