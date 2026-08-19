@@ -13359,3 +13359,120 @@ measurement, not a patch: `processor_holder.cpp:231` publishes a raw pointer int
 vector another thread may reallocate, flagged unverified by an agent and not chased.
 
 **Branch/PR:** `tide/mac/e10-chunk-guard` in both TideSynth and SynthEdit.
+
+---
+
+## 2026-08-19 — correction to the windows C12f entry: the two PR-less branches are Jeff's (interactive session, Jeff directing)
+
+**Whose finding this is:** the windows run's own, from
+[#151](https://github.com/JeffMcClintock/TideSynth/pull/151). It landed here as a
+prepended correction rather than as the in-place edit that PR made, because
+`check-journal-prepend.py` refuses an edit to an entry that is already published —
+"An entry may move to an archive file verbatim (rotation), or stay. It may not be
+edited or silently dropped." That PR passed its own CI only because the entry it
+was correcting was still on the same branch; once [#150](https://github.com/JeffMcClintock/TideSynth/pull/150)
+merged the original into `main`, the same diff became an edit and the check caught
+it. Nothing is lost: the original paragraph stands in the C12f entry above, and
+this supersedes it.
+
+**The correction, in the windows run's own terms.** The C12f entry says two pushed
+branches with unmerged commits and no PR — `tide/win/competitive-review` (3
+commits) and `tide/mac/V3-midi-findings` (2 commits) — are STEP 5's named failure
+state, and that it opened a PR for the win one. **Neither is true.** All five
+commits across both branches are authored `Jeff McClintock <jef@synthedit.com>`,
+dated 2026-08-18, from interactive sessions. STEP 5's two-end-states rule governs
+what a *run* leaves behind, and a run left neither of these. No PR was opened for
+either, and none should be: opening one on a developer's work in progress guesses
+that he is finished with it. The run's first instinct was to open one because the
+shape matched; the authorship check is what stopped it, and a future run should
+make that check before treating an orphan branch as a failure.
+
+**Still worth knowing:** `tide/win/competitive-review` touches `BACKLOG.md` and
+`JOURNAL.md`, so it will conflict with recent changes whenever it lands.
+
+**Branch/PR:** [#151](https://github.com/JeffMcClintock/TideSynth/pull/151), resolved
+against `main` and reshaped into this entry.
+
+---
+
+## 2026-08-19 — linux — STEP 1 build break (#153 filed and fixed; #87 closed, #88 half-closed, #156 filed)
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (asserted; `url."https://github.com/".insteadOf` = `git@github.com:`, and every repo remote spot-checked `https://`)
+
+**Did:** No backlog item. STEP 1 took the whole run: this platform's default branch did not build, and the reason was not either of the two issues that say so.
+
+### The headline: Linux `main` was broken by something nobody had filed
+
+Both standing `platform:linux` issues carry a `fix it` from Jeff, so I started there — and re-verified before acting, per STEP 1. **Both were already substantially fixed.** What was not fixed, and what nobody had noticed, is that `SE16` `master` **does not configure at all** on this box:
+
+```
+-- gmpi_plugin(TIDE): STANDALONE skipped -- Standalone_Wrapper cannot be built here, missing: libpipewire-0.3
+CMake Error at SynthEditSem/CMakeLists.txt:370 (target_link_libraries):
+  Cannot specify link libraries for target "TIDE_STANDALONE" which is not built by this project.
+```
+
+Filed as [#153](https://github.com/JeffMcClintock/TideSynth/issues/153), fixed in [SynthEdit#55](https://github.com/JeffMcClintock/SynthEdit/pull/55).
+
+**Cause, and it is a contract the fix's own author wrote.** GMPI [`03dd218`](https://github.com/JeffMcClintock/GMPI/commit/03dd218) (2026-08-18) made `gmpi_plugin()` run the Standalone wrapper's dependency probe and drop `STANDALONE` when a dependency is missing — its message says this is so "a missing pipewire SDK costs the bare app rather than the whole tree." It drops it from **its own parsed copy** (`GMPI_PLUGIN_FORMATS_LIST`). The caller's `FORMATS_LIST` (`SynthEditSem/CMakeLists.txt:59`) is a different variable and still reads `GMPI VST3 STANDALONE` afterwards. So on this box it cost exactly the whole tree.
+
+**The part worth keeping: two of the three loops were already right.** `SynthEditSem/CMakeLists.txt` iterates `FORMATS_LIST` three times. `:219` guards with `if(TARGET …)`; `:247` guards with `if(NOT TARGET …) continue()`; `:361` had nothing. The fix is the third instance of a pattern the file already establishes — so this was a missed edit, not a design question, and that is why it was safe to take in one run.
+
+**Why win/mac cannot see it.** `GMPI_Wrappers/wrapper/Standalone/dependencies.cmake` only reports anything on its Linux arm. Everywhere else the missing-list is empty, `STANDALONE` is never dropped, the target always exists, and the unguarded loop is always correct. Identical shape to #88, and to the 2026-08-14 finding before it: **a path that only executes below a platform gate is only tested below that gate.** That is now three occurrences; it is the fleet's most reliable bug generator.
+
+**Verification — GCC, Ninja, Release, `libpipewire-0.3` absent:**
+
+| check | before | after |
+|---|---|---|
+| configure | **RC=1** at `:370` | **RC=0** (`Configuring done 21.1s`) |
+| `TIDE_VST3` | not reached | **322/322 RC=0**, links `.so`, assembles bundle |
+| `TIDE` | not reached | **30/30 RC=0**, links `TIDE.gmpi` |
+| `SynthEditCL` | not reached | **13/13 RC=0** |
+| `SynthEditWayland` | not reached | **28/28 RC=0** |
+| full tree | not reached | **549/549 RC=0**, zero `error:` |
+| `ctest` | not reached | **67/67** (with the env vars — see below) |
+
+The `STANDALONE skipped` status line still appears after the fix. That was deliberate: tolerate the decline, do not silence it. I also did **not** install the pipewire SDK, which would have made configure pass while leaving the contract violation in place for the next declined dependency.
+
+### #87 — closed, verified by building rather than by reading
+
+Fixed by [`5d6385e`](https://github.com/JeffMcClintock/SynthEditLib/commit/5d6385e). Both Accept clauses met: `grep -rn "/tmp/tide" SynthEditLib` is **empty**, and — the load-bearing bit — **`ModuleView.cpp.o`, the exact TU that failed, compiled at edge 164/322** with zero `error:` in the build. The `fprintf(stderr, …)` diagnostic U2d actually wanted survives at `ModuleView.cpp:669`.
+
+**One hazard that outlived the fix.** `namespace SE2 {` opens at `ModuleView.cpp:38` and does not close until the end of the file, so *any* future `#include` added mid-file re-creates `SE2::std` and breaks GCC while staying invisible on MSVC and Clang. The trace is gone; the trap is not.
+
+### #88 — left open, and the count changed
+
+`SynthEditWayland` is fixed ([`6faf8cff9`](https://github.com/JeffMcClintock/SynthEdit/commit/6faf8cff9)) and **links, 28/28 RC=0, zero `undefined reference`** — its stated Accept, measured. `SynthEditJuce` still lacks the entry, so the title's "two of four" is now **one of four**.
+
+I did not fix the Juce half, and the reason is worth stating because it is not the obvious one: `SE16/SynthEditJuce/` is GATED-by-default, **and** the STEP 5 build-break exception does not reach it either — that exception's trigger is "your platform's default branch does not build", and after #55 it does. The target is deprecated and **not reachable from the root `CMakeLists.txt`** (its own comment, `SynthEditJuce/CMakeLists.txt:49-51`), so there is no build that would fail *and none that would prove a fix correct*. Whoever takes it must say it is by inspection.
+
+### #156 — `ctest` looked catastrophic and was fine
+
+**44 of 67 tests "failed"; the real number is zero.** `tests/projecttests.cpp:78,103` resolve two fixture folders with a two-armed `#ifdef` on a three-platform project — `_WIN32` gets `C:\SE\SE16\…`, and the `#else` is the literal string `/Users/jeffmcclintock/SynthEdit/…`. Linux takes the `#else` and looks for `SynthEditCL` in a macOS developer's home directory; the `32512` in the gtest output is `system()` returning 127.
+
+Both functions prefer an environment variable over the literal, so:
+
+```bash
+SE_BUILD_FOLDER="<build>/" SE_CANCELLATION_FOLDER="$HOME/SE/SE16/UnitTest/" ctest
+100% tests passed out of 67
+```
+
+**Next run: do not spend time on a red ctest here before setting those two variables.** That is the single most useful line in this entry. Filed as [#156](https://github.com/JeffMcClintock/TideSynth/issues/156) with the CMake-side fix suggested (`set_tests_properties … ENVIRONMENT`, which needs no change to `projecttests.cpp` at all); `SE16/tests/` is GATED-by-default and this is not a build break, so the A17 exception does not cover it.
+
+**Learned — the mac box works by coincidence too.** That `#else` is correct on exactly one machine, the one whose home directory it names. A second macOS checkout would fail identically.
+
+### Not verified, and not claimed
+
+**The v0.1 audio harness did not run: REAPER is not installed on this box.** `scripts/render-and-measure.py` needs it, so PLAN's "v0.1 PASSES" table cannot be re-measured from linux. The change here is CMake-only and cannot reach DSP, and the 549/549 + 67/67 evidence is the right artifact for it — but nobody should read this entry as re-confirming v0.1 on linux. **If the fleet wants that table re-measurable on more than one box, REAPER on linux is the missing piece**, and it is currently a silent single point of failure in the only end-to-end check the project has.
+
+**Learned — the A14 shared-tree race did not recur, and I think I know why.** The windows box hit it at 36 seconds after `git checkout -b`. I committed within about a minute of branching and `--record`/`--verify` both reported real content (`1 path(s) staged, 1 in HEAD`), not the empty-manifest signature that means the race already happened. No concurrent session was active. The commit-immediately rule is doing its job; the scripts still cannot *detect* a total-unstage race, which is unchanged from the windows entry.
+
+**Result:** `SE16` configure RC=1 → RC=0 on linux; full tree 549/549; ctest 67/67; `SynthEdit`, `SynthEditCL` and `TIDE` all building on this platform for the first time since 2026-08-17.
+
+**Next:**
+
+1. **Merge [SynthEdit#55](https://github.com/JeffMcClintock/SynthEdit/pull/55).** Until it lands, `SE16` `master` is RC=1 on any Linux box without the pipewire SDK — which is the supported configuration, not an unusual one.
+2. **[#153](https://github.com/JeffMcClintock/TideSynth/issues/153) and [#156](https://github.com/JeffMcClintock/TideSynth/issues/156) are both open**; #88 stays open for the Juce line.
+3. **C12d is still this box's, and is still the last thing between the carve-out and C6** — three `${EDITOR_DIR}` entries. It was not takeable before today because its Accept requires `SynthEditWayland` to link; **it now does (28/28)**, and with #55 the configure works too. So C12d is unblocked in practice for the first time. Its Accept also names `SynthEditJuce`, which cannot link on any box because it is not generated — **that clause wants re-specifying before someone starts, or C12d will deadlock on it the way this row deadlocked on #87/#88.**
+4. Consider a CI job that configures with the pipewire SDK deliberately *absent*. Every finding in this entry is a platform-gated path that only one box executes, and the fleet keeps rediscovering them one run at a time.
+
+**Branch/PR:** [SynthEdit#55](https://github.com/JeffMcClintock/SynthEdit/pull/55) (the fix) + the TideSynth PR carrying this entry. All repos left on their default branches; no working tree left dirty.
