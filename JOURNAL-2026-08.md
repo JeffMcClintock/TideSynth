@@ -13284,3 +13284,78 @@ it and the path question wants settling before someone starts.
 must merge together, plus the TideSynth PR carrying this entry. All repos left on
 their default branches; `SE16` retains the concurrent session's one uncommitted
 file, untouched.
+
+---
+
+## 2026-08-19 — macos — E9's sliver was a silence writer, and next door to it was a live host crash (interactive session, Jeff directing)
+
+**Did:** verified the scheduled run's E9 correction independently (it holds, and is
+stronger than it claimed), then measured the two things nobody had measured, and
+shipped TIDE's half of both.
+
+**Result 1 — a malformed saved chunk was a LIVE HOST CRASH.** The previous run filed
+the `SeAudioMaster.cpp:410` deref as latent, reachable only if something prepared
+before a document existed. It is reachable now. A REAPER project whose saved TIDE
+chunk is `<Patch/>` — well-formed XML, wrong root — **segfaulted the render**:
+`EXC_BAD_ACCESS at 0x28`, `TiXmlNode::FirstChildElement` ← `BuildDspGraph` ←
+`prepareToPlay` ← `onSetPins` ← `Processor_VST3::process`, on a REAPER worker thread.
+The trigger is "no `<Document>` root", **not** "empty": `<Patch/>` parses with no
+error, so `RootElement()` is non-null and `SynthRuntime.cpp:76`'s bundle fallback
+never runs — the absent `dsp.se.xml` is irrelevant on that route. Nothing validated
+the bytes anywhere: `gmpi::base64Decode` silently skips anything outside its
+alphabet, so a truncated or hand-edited project file is enough.
+
+**Result 2 — an unprepared TIDE never wrote its output buffers.** `subProcess` was
+installed only at the tail of `onSetPins`, which never runs for a no-chunk instance
+(no audio inputs → no `PinStreamingStart`; outputs skipped; MIDI has no default; the
+empty blob `continue`s at `processor_holder.cpp:226`). A/B measured in REAPER, same
+build except two lines: without the `open()` install the log shows `host MIDI arrived
+BEFORE the rack was prepared` and **no** silence line; with it, `TIDE: unprepared -
+writing silence to the host's output buffers`. **REAPER is not exposed** — its render
+measured identical either way — so this is a contract fix, not an audible bug on this
+host. Other hosts are untested, and VST3 does not guarantee zeroed buffers.
+
+**Shipped, both in `SynthEditSem/SynthEdit.cpp` (TIDE's own, ungated):** a
+`documentIsBuildable` check that refuses a chunk which is not
+`<Document>`/`<DSP>`/`<Module>`-shaped and logs why, and an `open()` override that
+installs the silence writer immediately. `TIDE_VST3` Release builds clean;
+`tests/hosts/v1-rack.rpp` still renders −6.3 dBFS / −17.0 rms / 2 cables, so no
+regression.
+
+**Learned — the honest boundary of TIDE's guard, measured rather than assumed.** A
+`<Document><DSP><Module/></DSP></Document>` skeleton passes everything TIDE can check
+and **still crashes** (a `<Module>` with no `<PatchManager>` reaches
+`ug_container.cpp:1469`). TIDE can refuse the wrong *shape*; it cannot validate the
+engine's schema. My first harness used that skeleton as its positive control and the
+run correctly failed — the real chunk from `tests/hosts/v3-midi-pitch.rpp` is the
+positive control now, and the skeleton is reported as a KNOWN LIMIT so nobody reads it
+as a pass.
+
+**Learned — E10's Accept clause would have passed while the process still crashed.**
+`SynthRuntime.cpp:157` calls `OpenGenerator()` unconditionally after `BuildDspGraph`,
+and `SeAudioMaster::Open()` dereferences `main_container` at `:2330`, which is null
+after ANY early return from the build — including the `:413` return already there. So
+"move the guard one line, rerun the probe, see the return" is a fix that does not fix.
+The row now says so, and E10's real scope is at least three deref sites plus a way for
+`SynthRuntime` to learn the build failed.
+
+**Learned — one trap for the next person measuring this.** A fixture cannot be
+hand-edited to carry a different chunk: REAPER's VST3 state block embeds length fields
+(`header[8] = len(body)`, `body = u32(len(xml)+4), u32(1), u32(len(xml)), xml, 8 zero
+bytes`), so the block has to be *synthesised*. And a hand-written `<VST …>` line with
+no state does not instantiate at all — REAPER says "the following effects … are not
+available", which looks exactly like a passing test if you only read the rendered
+audio. Both are handled in
+[scripts/measure-chunk-robustness.py](scripts/measure-chunk-robustness.py).
+
+**Also corrected in [docs/e9-sample-rate.md](docs/e9-sample-rate.md):** the probe's
+build command (`../TideSynth/…` → `../../TideSynth/…`, since TideSynth is a sibling of
+SynthEditLib, so the command as shipped could not compile) and the
+`BundleInfo.cpp:542` citation, which is the `_WIN32` branch — the mac path these
+measurements ran on is `:581-637`.
+
+**Next:** **E10** (GATED; rewrite its Accept clause first). **E11** filed but wants a
+measurement, not a patch: `processor_holder.cpp:231` publishes a raw pointer into a
+vector another thread may reallocate, flagged unverified by an agent and not chased.
+
+**Branch/PR:** `tide/mac/e10-chunk-guard` in both TideSynth and SynthEdit.

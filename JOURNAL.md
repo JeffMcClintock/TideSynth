@@ -46,6 +46,56 @@ Template:
 
 ---
 
+## 2026-08-19 — linux — C6: EditorLib's CMakeLists is public, and the plan its own comment left was wrong
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Fourth item this session**, on Jeff's instruction ("take next task"). Claimed properly: DOING mark committed and **pushed before any work**, per STEP 2.
+
+**Did:** Carve-out **stage 6** — moved `EditorLib/CMakeLists.txt` into the public `SynthEditLib`, beside the ~120 sources it already compiles.
+
+**Result — fresh tree, Linux, GCC, Release:** configure RC=0, **935/935 RC=0**, zero `error:`, zero `undefined reference`, **ctest 67/67**, `SE_APP_BUILD_NUMBER` **186** and unchanged.
+
+### What was actually in the way — three kinds of private reference, all measured
+
+| reference | disposition | evidence |
+|---|---|---|
+| `EDITOR_DIR`, `EDITOR2_DIR` | deleted | after C12d, **zero** uses left in the file — both were pure dead weight pointing at `SE16/SynthEdit2` |
+| `../Shared`, `../SynthEdit` include dirs | deleted | `../Shared` **does not exist in the tree at all**; `../SynthEdit` holds only icons and skins. Dropped both and rebuilt clean before trusting it |
+| `../SynthEdit2` include dir | kept, re-added by SE16 | genuinely load-bearing: the 7 public-file includes that resolve nowhere else |
+
+**Do not read C6 as closing those seven.** `ISEAppManaged.h`, `IMidiDriver.h`, `ParseSynthEditArgs.h` and `SynthEditApp.h` are exactly the headers no carve-out stage owns; they are C7's clean-clone problem and are tracked as C11. C6 moves the file; it does not make the private dependency go away, and the include directory being supplied from SE16's root is that dependency made *visible* rather than removed.
+
+### The finding: the plan this file left for its own successor does not work
+
+The pre-C6 comment said, in the file, that when C6 moved it the `SE_APP_BUILD_NUMBER` injection "belongs in each SynthEdit application's own build (SynthEdit2.vcxproj, SynthEditCL, SynthEditMac)". **It cannot.** The definition is `PRIVATE` to EditorLib, so it is baked in when **EditorLib's own** TUs compile — `ModuleFactory_Editor.cpp`, `SkinMgr.cpp`, `Application.cpp` — and this tree builds **one** EditorLib that `SynthEditCL`, `SynthEditWayland`, `SynthEdit2` and TIDE all link. A definition set on an application target cannot reach those TUs. Following that instruction would have silently dropped every consumer to the `0` default, which means "never invalidate the module cache or skin folder on upgrade" — a behaviour regression that nothing would have failed on, because 0 is a legal value and the build stays green.
+
+Kept as **one** injection on the shared EditorLib target, moved to SE16's root immediately after the `add_subdirectory`. Verified it reaches the compiler rather than just the configure log:
+
+```
+-- EditorLib: SE_APP_BUILD_NUMBER=186 (from se_build_number.h)
+$ grep -o '\-DSE_APP_BUILD_NUMBER=[0-9]*' build.ninja | sort -u
+-DSE_APP_BUILD_NUMBER=186
+```
+
+**Learned, and this is the third instance this session:** a comment or Accept clause written by the stage *before* the one doing the work has now been wrong three times in a row — C12f's "zero entries" (was three), C12d's rescan-group premise (twice wrong), and now C6's injection plan. Each was wrong in the direction of "the next stage will be easy", and each was caught only by measuring before implementing. **Treat a predecessor stage's instructions as a hypothesis, not a specification.**
+
+### Does C6's goal hold? Measured, and the answer is precise
+
+C6 exists "so the public repo can build the editor library standalone". Configuring the public `EditorLib` alone, no SE16 anywhere: **RC=0**. A standalone *build* then stops on `GmpiUiDrawing.h`, `RawView.h`, `Hosting/message_queues.h` — and **`grep -c "SE16\|SynthEdit2"` over that build log is 0**.
+
+**Zero private-repo references.** What remains between the public repo and a standalone editor library is the external GMPI / gmpi_ui SDKs, which SE16 fetches and a public consumer must fetch too. That is C7's scope. This is the cleanest evidence available that C6 did its job, and it is worth re-running as C7's starting point rather than re-deriving.
+
+### Not verified, not claimed
+
+**Windows and macOS were not built** — cannot compile them here. `SynthEdit2.vcxproj` and the SynthEditMac Xcode project consume the EditorLib *target*, not `EditorLib/CMakeLists.txt` by path, so neither should notice the move — but that is reasoning, not measurement, and the run prompt is explicit about not claiming a platform I cannot build. **The v0.1 audio harness did not run: REAPER is not installed here.**
+
+**Next:** **C7** — point TIDE at the public repo only, and the clean-clone CI build that is the carve-out's real proof. It is BLOCKED(C6) and stays blocked until these two PRs merge; do not start it before then. Its first concrete task is already measured above: the three external SDK headers, not anything private. **C10** also unblocks on C6.
+
+**Branch/PR:** [SynthEdit#57](https://github.com/JeffMcClintock/SynthEdit/pull/57) + [SynthEditLib#25](https://github.com/JeffMcClintock/SynthEditLib/pull/25), which must merge together, plus the TideSynth PR carrying this entry.
+
+---
+
 ## 2026-08-19 — linux — C12 is COMPLETE; C12d and the umbrella flipped to DONE, C6 unblocked
 
 **Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
@@ -264,78 +314,3 @@ make that check before treating an orphan branch as a failure.
 
 **Branch/PR:** [#151](https://github.com/JeffMcClintock/TideSynth/pull/151), resolved
 against `main` and reshaped into this entry.
-
----
-
-## 2026-08-19 — macos — E9's sliver was a silence writer, and next door to it was a live host crash (interactive session, Jeff directing)
-
-**Did:** verified the scheduled run's E9 correction independently (it holds, and is
-stronger than it claimed), then measured the two things nobody had measured, and
-shipped TIDE's half of both.
-
-**Result 1 — a malformed saved chunk was a LIVE HOST CRASH.** The previous run filed
-the `SeAudioMaster.cpp:410` deref as latent, reachable only if something prepared
-before a document existed. It is reachable now. A REAPER project whose saved TIDE
-chunk is `<Patch/>` — well-formed XML, wrong root — **segfaulted the render**:
-`EXC_BAD_ACCESS at 0x28`, `TiXmlNode::FirstChildElement` ← `BuildDspGraph` ←
-`prepareToPlay` ← `onSetPins` ← `Processor_VST3::process`, on a REAPER worker thread.
-The trigger is "no `<Document>` root", **not** "empty": `<Patch/>` parses with no
-error, so `RootElement()` is non-null and `SynthRuntime.cpp:76`'s bundle fallback
-never runs — the absent `dsp.se.xml` is irrelevant on that route. Nothing validated
-the bytes anywhere: `gmpi::base64Decode` silently skips anything outside its
-alphabet, so a truncated or hand-edited project file is enough.
-
-**Result 2 — an unprepared TIDE never wrote its output buffers.** `subProcess` was
-installed only at the tail of `onSetPins`, which never runs for a no-chunk instance
-(no audio inputs → no `PinStreamingStart`; outputs skipped; MIDI has no default; the
-empty blob `continue`s at `processor_holder.cpp:226`). A/B measured in REAPER, same
-build except two lines: without the `open()` install the log shows `host MIDI arrived
-BEFORE the rack was prepared` and **no** silence line; with it, `TIDE: unprepared -
-writing silence to the host's output buffers`. **REAPER is not exposed** — its render
-measured identical either way — so this is a contract fix, not an audible bug on this
-host. Other hosts are untested, and VST3 does not guarantee zeroed buffers.
-
-**Shipped, both in `SynthEditSem/SynthEdit.cpp` (TIDE's own, ungated):** a
-`documentIsBuildable` check that refuses a chunk which is not
-`<Document>`/`<DSP>`/`<Module>`-shaped and logs why, and an `open()` override that
-installs the silence writer immediately. `TIDE_VST3` Release builds clean;
-`tests/hosts/v1-rack.rpp` still renders −6.3 dBFS / −17.0 rms / 2 cables, so no
-regression.
-
-**Learned — the honest boundary of TIDE's guard, measured rather than assumed.** A
-`<Document><DSP><Module/></DSP></Document>` skeleton passes everything TIDE can check
-and **still crashes** (a `<Module>` with no `<PatchManager>` reaches
-`ug_container.cpp:1469`). TIDE can refuse the wrong *shape*; it cannot validate the
-engine's schema. My first harness used that skeleton as its positive control and the
-run correctly failed — the real chunk from `tests/hosts/v3-midi-pitch.rpp` is the
-positive control now, and the skeleton is reported as a KNOWN LIMIT so nobody reads it
-as a pass.
-
-**Learned — E10's Accept clause would have passed while the process still crashed.**
-`SynthRuntime.cpp:157` calls `OpenGenerator()` unconditionally after `BuildDspGraph`,
-and `SeAudioMaster::Open()` dereferences `main_container` at `:2330`, which is null
-after ANY early return from the build — including the `:413` return already there. So
-"move the guard one line, rerun the probe, see the return" is a fix that does not fix.
-The row now says so, and E10's real scope is at least three deref sites plus a way for
-`SynthRuntime` to learn the build failed.
-
-**Learned — one trap for the next person measuring this.** A fixture cannot be
-hand-edited to carry a different chunk: REAPER's VST3 state block embeds length fields
-(`header[8] = len(body)`, `body = u32(len(xml)+4), u32(1), u32(len(xml)), xml, 8 zero
-bytes`), so the block has to be *synthesised*. And a hand-written `<VST …>` line with
-no state does not instantiate at all — REAPER says "the following effects … are not
-available", which looks exactly like a passing test if you only read the rendered
-audio. Both are handled in
-[scripts/measure-chunk-robustness.py](scripts/measure-chunk-robustness.py).
-
-**Also corrected in [docs/e9-sample-rate.md](docs/e9-sample-rate.md):** the probe's
-build command (`../TideSynth/…` → `../../TideSynth/…`, since TideSynth is a sibling of
-SynthEditLib, so the command as shipped could not compile) and the
-`BundleInfo.cpp:542` citation, which is the `_WIN32` branch — the mac path these
-measurements ran on is `:581-637`.
-
-**Next:** **E10** (GATED; rewrite its Accept clause first). **E11** filed but wants a
-measurement, not a patch: `processor_holder.cpp:231` publishes a raw pointer into a
-vector another thread may reallocate, flagged unverified by an agent and not chased.
-
-**Branch/PR:** `tide/mac/e10-chunk-guard` in both TideSynth and SynthEdit.
