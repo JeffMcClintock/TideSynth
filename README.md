@@ -82,3 +82,24 @@ per platform — coordinating through this repo's backlog, journal and issues.
 [docs/agent-setup.md](docs/agent-setup.md) explains the arrangement, including
 the rules those sessions operate under (never merge, never publish, never guess
 at another platform's build errors).
+
+### Building against local SDK checkouts (library maintainers only)
+
+This section matters only if you also hack on
+[GMPI](https://github.com/JeffMcClintock/GMPI),
+[gmpi_ui](https://github.com/JeffMcClintock/gmpi_ui) or the
+[SynthEdit SDK](https://github.com/JeffMcClintock/SynthEdit_SDK) themselves. A
+typical build fetches those from GitHub automatically and needs none of this.
+
+To make the `modules/` CMake build use your local checkouts instead of
+downloading — uncommitted edits included, since CMake never runs git on an
+overridden dependency — pass `FETCHCONTENT_SOURCE_DIR_<NAME>` for each at
+configure time (absolute paths; adjust to wherever your checkouts live):
+
+```sh
+cmake -S modules -B modules/build -DFETCHCONTENT_SOURCE_DIR_GMPI=C:/SE/GMPI -DFETCHCONTENT_SOURCE_DIR_GMPI_UI=C:/SE/gmpi_ui -DFETCHCONTENT_SOURCE_DIR_SYNTHEDITSDK=C:/SE/SDKs/SynthEdit_SDK
+```
+
+The overrides are cache variables, so they persist across reconfigures. To
+return a dependency to normal GitHub fetching, remove its variable, e.g.
+`cmake -B modules/build -UFETCHCONTENT_SOURCE_DIR_GMPI_UI`.
