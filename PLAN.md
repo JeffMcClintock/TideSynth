@@ -94,7 +94,9 @@ audio routing for the user to solve. That is constraint 2, and it was there
 first.
 
 **None of this is v0.1.** The acceptance test at the bottom of this document is
-unchanged; the modules are **E2** and **E3**, blocked on **V1**. Constraint 7
+unchanged; the modules are **E2** and **E3**, blocked on **V1**. **(V1 is DONE as
+of 2026-08-18 and v0.1 passes — see "v0.1 PASSES" below. E2 is unblocked; E3 is
+not, and neither is in v0.1.)** Constraint 7
 governs how they reach the factory: statically registered at link time, no
 scanning. A Container-based module set is compatible with that — a Container is
 composed of other modules rather than being a scanned binary of its own — but
@@ -139,7 +141,7 @@ Five findings that change how the rest of this document should be read:
    AUv3. Relatedly, GPLv3 does **not** structurally bar VCV or Cardinal from the
    App Store — that licence tension is enforceable only by copyright holders and
    Apple does not audit licences. **ISC is a real advantage, not a moat; do not
-   build the strategy on "they legally cannot follow us."** BACKLOG **A24**.
+   build the strategy on "they legally cannot follow us."** BACKLOG **A28**.
 3. **Host automation (V2) has a settled answer and a documented trap.** The
    field has converged on declaring parameters from the patch rather than from a
    panel, and both DAW-hosted racks (VCV, Reason) pre-declare a large slot pool
@@ -155,7 +157,7 @@ Five findings that change how the rest of this document should be read:
    unilaterally.**
 5. **Nothing about the visual design language is decided**, and every module
    panel authored before it is decided is rework. The survey and a recommendation
-   are in the review's §5; the ruling is BACKLOG **E6**, and wants a `PROPOSED:`
+   are in the review's §5; the ruling is BACKLOG **E17**, and wants a `PROPOSED:`
    entry in [docs/decisions.md](docs/decisions.md) rather than an agent picking.
 
 ## Design constraints
@@ -243,15 +245,25 @@ TIDE is not starting from zero. A working prototype exists:
 The prototype links `SynthEditLib` (public) **and** `EditorLib` (private). That
 split is the central problem the carve-out solves.
 
-## Open-source status — unresolved
+## Open-source status — RESOLVED 2026-08-07
 
-`JeffMcClintock/SynthEditLib` is a public repo with **no LICENSE file**. Public
-is not the same as open source: with no licence, default copyright applies and
-nobody may legally use or redistribute it.
+**Both repos are ISC.** `JeffMcClintock/SynthEditLib` carries an ISC `LICENSE`
+(*Copyright (c) 2007-2026 Jeff McClintock*), added by `a2143a4`, *"Switch LICENSE
+to ISC, matching GMPI and gmpi_ui"*; TideSynth carries the same licence. That is
+the same licence as GMPI and gmpi_ui, so the whole stack is consistent. L1 is
+resolved and archived in [BACKLOG-DONE.md](BACKLOG-DONE.md); the ruling is in
+[docs/decisions.md](docs/decisions.md).
 
-TIDE cannot honestly be called open source until a licence is chosen for both
-`SynthEditLib` and TIDE itself. This is a decision for Jeff alone — a weekly
-agent must **not** pick a licence. See BACKLOG item L1.
+**Corrected 2026-08-19 (windows, Jeff directing).** This section said, in the
+present tense, that `SynthEditLib` was *"a public repo with **no LICENSE file**"*
+and that *"nobody may legally use or redistribute it"* — twelve days after the
+licence landed. It is the most consequential thing in this document to have
+wrong, because it is the sentence a prospective contributor or packager would
+read first, and it told them the project was legally untouchable.
+
+The one part of the old wording still worth keeping is the rule it existed to
+enforce, which has not changed and is not made moot by L1 being answered: **a
+weekly agent must not pick or change a licence.** That is Jeff's alone.
 
 The commercial boundary to preserve: **plugin export stays private.** SynthEdit
 sells the ability to export patches as plugins. TIDE embeds patches instead of
@@ -268,9 +280,16 @@ donating possible. Neither should nag: no splash screen, no countdown, no modal
 reminder, nothing that interrupts making sound. A donation route that a user has
 to go looking for is the intended outcome, not a failure of the design.
 
-Free is **not** the same as open source. This section settles the price; it does
-not settle the licence, which is still L1 and still Jeff's alone. A free binary
-with no LICENSE file is exactly the state `SynthEditLib` is in today.
+Free is **not** the same as open source, and the distinction is still worth
+keeping: this section settles the **price**, and the licence is a separate
+question that stays Jeff's alone.
+
+**Corrected 2026-08-19 (windows, Jeff directing):** the licence question is no
+longer open. It closed on 2026-08-07 — **ISC, both repos** — so the old closing
+sentence here, *"a free binary with no LICENSE file is exactly the state
+`SynthEditLib` is in today"*, describes a state that ended twelve days ago. TIDE
+is a free binary under an ISC licence, and is open source. See
+[Open-source status](#open-source-status--resolved-2026-08-07) above.
 
 Two constraints above already narrow what a donation affordance can be, and they
 narrow it a lot:
@@ -286,6 +305,7 @@ narrow it a lot:
   BACKLOG **D1**.
 
 Timing: none of this is v0.1. v0.1 is the acceptance test below and nothing else.
+**That test passed on 2026-08-18** — see "v0.1 PASSES" below.
 The website side (**W1**) can carry a donation link immediately, because a static
 page has none of the above problems.
 
@@ -313,8 +333,69 @@ the host project. Nothing more.
 Explicitly *not* in v0.1: presets browser, skinning, custom panels, undo,
 plugin export, module authoring.
 
-**This creates a dependency this document had backwards, and it is not yet
-resolved — see the note on E2/V1 in BACKLOG.md.** The acceptance test now
+## v0.1 PASSES — measured 2026-08-18
+
+Every clause of the test above now holds, and each one is a number rather than a
+judgement. All of it is re-runnable from the repo in one command:
+
+```bash
+python3 scripts/render-and-measure.py --control            # proves the chain detects audio
+python3 scripts/render-and-measure.py tests/hosts/v3-midi-pitch.rpp
+```
+
+| clause | evidence |
+|---|---|
+| loads in a DAW, shows the rack | `TIDE: 5 rack prefab(s) seeded from the bundle`, editor opens, rack draws |
+| drop in an oscillator and an envelope, each a prefab Container | **E2a** — three prefabs that place and cable with real mouse drags |
+| cable them to an output | 4 patch cables, endpoints verified in `HC_PATCH_CABLES` |
+| play it from the DAW's MIDI | **261.6257 Hz** for a middle C — **+0.001 cents** |
+| patch survives save-and-reload | **peak −6.3 dBFS, 440.0 Hz**, wiring intact |
+
+Fixtures live in [tests/hosts/](tests/hosts/README.md) — five of them, including a
+deliberately **failing** negative control (the same rack with no patch cables,
+which renders digital silence). The pair matters more than either alone: silence
+only means something about the plugin once you can show the harness detects audio
+when it is there.
+
+Rows closed: **V1**, **E2a**, **V3**, **E8** — all in
+[BACKLOG-DONE.md](BACKLOG-DONE.md).
+
+**Three findings from getting here are worth more than the tick**, because each was
+a silent failure that produced plausible-looking output:
+
+1. **TIDE had no type converters linked.** The DSP graph auto-inserts one for any
+   mixed-datatype connection and, on a miss, `assert(false); return;` — which in a
+   Release build compiles out, so **the connection was silently abandoned**. The
+   editor still drew the cable. Any mixed-datatype cable a user drew was dead.
+2. **A centred MIDI 2.0 per-note pitch bend detuned every note by exactly three
+   semitones** — a minor third out while staying perfectly in tune with itself, so
+   octaves and intervals all measured correct. Fixed in SynthEditLib; it affected
+   MPE controllers generally, not just TIDE.
+3. **Polyphony cannot escape a container.** A polyphonic MIDI-CV inside a rack
+   module is correct internally and worth nothing outside it. v0.1 side-steps this
+   by keeping one MIDI-CV at the document root and making the rack module a facade
+   of jacks fed inward; the underlying limitation is **E7**, still open.
+
+**The dependency this document had backwards is resolved.** The original note
+follows, kept for the record.
+
+**Read the next paragraph as dated, not current — checked 2026-08-19 (windows,
+Jeff directing).** It says *"E2 is currently `BLOCKED` on V1"*, and that
+"currently" is **2026-08-13's**, not today's. As of now **V1 is `DONE`**
+(2026-08-18, its acceptance test measured above) and **E2 is `TODO`, not
+blocked** — its own row records it as unblocked on 2026-08-18 precisely because
+V1 closed. Nothing in the paragraph is true of the present tree.
+
+It is kept verbatim anyway, because this file's convention is that a superseded
+note is preserved rather than rewritten, and because the reasoning error it
+records — a document asserting a cycle between its own acceptance test and the
+work that satisfies it — is the useful part. The hazard is only the word
+"currently" in preserved text, which is why this warning sits above it rather
+than inside it.
+
+**This created a dependency this document had backwards — RESOLVED 2026-08-13 by
+splitting E2a (the three V1-critical prefabs) out of E2, and closed out entirely on
+2026-08-18 when the test above passed.** The acceptance test now
 requires at least an oscillator, envelope and output *prefab* to exist, which
 is E2's job ("the first Eurorack modules, as SynthEdit Containers") — but E2
 is currently `BLOCKED` on V1 ("no point authoring modules for a plugin that

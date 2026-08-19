@@ -8,7 +8,7 @@ measured.
 
 Companion: [module-set.md](module-set.md) — the MVP and nice-to-have module
 lists. Conventions extracted from Blocks: [blocks-connection-scheme.md](blocks-connection-scheme.md).
-**These documents decide nothing**; they are input to E2, E5 and E6.
+**These documents decide nothing**; they are input to E2, E16 and E17.
 
 **Every price, version and format claim carries a source.** Anything not
 confirmed from a primary source is marked **UNVERIFIED**. Prices are as
@@ -245,7 +245,7 @@ Free, GPL-3.0, VST3/AU/CLAP/LV2 on desktop, **and on the iOS App Store with
 AUv3 instrument and effect plugins**. A Pd dataflow patcher rather than a rack,
 so not a direct competitor — but it has already solved the iOS AUv3 packaging,
 distribution and App Store review problems TIDE will hit. **It belongs on the
-community-research watch list** (BACKLOG **A24**).
+community-research watch list** (BACKLOG **A28**).
 
 ---
 
@@ -298,7 +298,7 @@ colour, no branding**; large dead regions; and third-party category names scanne
 from the developer's own machine visible in the tree. It is a developer tool's
 UI. The distance from here to any row in the table above is the real design work.
 
-### Recommendation — filed as BACKLOG E6, for Jeff to rule on
+### Recommendation — filed as BACKLOG E17, for Jeff to rule on
 
 > **A second proposal exists, and it is exploratory.**
 > [ui-design-language.md](ui-design-language.md) — found untracked in the
@@ -311,7 +311,7 @@ UI. The distance from here to any row in the table above is the real design work
 > They conflict on one specific point: it bans drop shadows, bevels and
 > decorative gradients outright, and the recommendation below puts a soft
 > contact shadow on controls because that is the thing Jeff actually named
-> liking in Blocks. **E6 is where the two get reconciled.**
+> liking in Blocks. **E17 is where the two get reconciled.**
 
 **Adopt Blocks' material treatment, the Grid's colour discipline, and a true
 rack layout.**
@@ -416,7 +416,7 @@ business**, not law.
 **So ISC is a real advantage — fewer questions, no consent problem — but not a
 moat. Do not build the strategy on "they legally cannot follow us."**
 
-Filed as BACKLOG **A24**.
+Filed as BACKLOG **A28**.
 
 ---
 

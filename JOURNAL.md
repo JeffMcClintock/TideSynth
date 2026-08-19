@@ -46,767 +46,565 @@ Template:
 
 ---
 
-## 2026-08-18 — windows — the Marathon design language, researched from source and revised live by Jeff (interactive session, Jeff directing)
+## 2026-08-19 — macos — E2c: SV Filter4 and Oscillator HD linked into TIDE, and the XML list that is hardcoded twice
 
-**Prompt:** Jeff asked for research into Bungie *Marathon*'s design language
-for use in 2D audio plugin UIs, then to synthesise it into a design-language
-doc with examples and save it in the repo. Followed by seven rounds of his
-own art direction, each correcting something the research had got wrong or
-had not covered. Then: push.
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
 
-**Did:** committed [docs/ui-design-language.md](docs/ui-design-language.md)
-and four generated `docs/images/ui-language-*.svg`, which **E6 recorded as an
-uncommitted, branchless working-tree file** — that is no longer true and E6's
-row is appended to accordingly. Added
-[scripts/gen-ui-language-svgs.py](scripts/gen-ui-language-svgs.py), the source
-of truth for those SVGs; they were previously generated from a script living
-only in a temp dir, i.e. 68 KB of committed markup nobody could regenerate.
-Jeff's seven directions, each now a dated rule in the doc: patch cables are
-**fat and curved, not right-angle hairlines** (this contradicts E6's own
-description of proposal (a)); the patched-jack core is **round, not square**;
-units render at **70% of the numeral and one ink tier down**; label ink lifted
-`#8E8E8E` → `#A6A6A6` for long-session legibility; **plate text** and
-**quarter-turn text** added as devices; **corner crosshairs replace section
-borders**; and the doc's earlier "no serifs" confusion resolved.
+**Fourth item this session**, on Jeff's instruction: *"lets get the SVFilter in
+TIDE and also the 'Oscillator HD' these are our go-to MVP modules"*. Claimed
+with a pushed DOING mark before any work, per STEP 2.
 
-**Result:** `check-links.py` 363 relative links, no breakage;
-`check-id-refs.py` 700 refs, none stale. All four SVGs verified programmatically
-in-browser for text overlap and out-of-bounds geometry after every change —
-this caught three real defects (a 1px label collision, a caret sitting after
-the unit instead of before it, square plug heads left on round jacks). No
-line-ending churn: every file is a new addition.
+**Did:** Linked both into TIDE. `SE SV Filter4` ("StateVar Filter"),
+`SE SV Filter4B` and `SE Oscillator4` ("Oscillator HD") are now registered in
+TIDE's factory with their pins, verified from inside the running app.
 
-**Learned:** four things worth not rediscovering.
-1. **The live site is a far better source than any article.** Reading
-   `marathonthegame.com`'s stylesheets and SVG directly yielded the real
-   tokens — `#C0FE04`, the `21.75px`/`r=1.5` dot pattern, `1px`/butt caps at
-   76 of 76 linecaps, the verified type scale — where the press coverage gave
-   only adjectives. Any future "research a visual identity" task should go to
-   the artefact, not the commentary.
-2. **A rule stated as a ban will outlaw something the source actually does.**
-   "No rotation" killed quarter-turn text; "no curves" killed the cables Jeff
-   wanted. Both had to be reopened as scoped exemptions. Prefer "X only for Y"
-   over "never X".
-3. **Jeff's corrections were consistently about *reading over hours*, not
-   about looking right in a screenshot** — dimmer greys, square-in-circle,
-   unit sizing. That is the axis this language has to be judged on, and it is
-   exactly the axis Marathon's own shipped UI failed on ("fontslop").
-4. Committing a doc that a BACKLOG row describes **as uncommitted** silently
-   falsifies that row. Worth checking for on any first commit of a file that
-   another row already discusses.
+### Why they were absent, and the trap in the reason
 
-**Next:** **E6 is still NEEDS-JEFF and this commit does not resolve it** — it
-commits proposal (a) so it can be read and diffed, nothing more. Two things
-now block cleanly: the `PROPOSED:` entry E6 asks for in
-[docs/decisions.md](docs/decisions.md) still does not exist, and **the crux
-has moved** — E6 framed the conflict as "(a) bans shadows, Jeff likes
-shadows", but Jeff has since directed (a) toward physical cables, which is
-movement toward (b)'s tasteful-realism position. Whoever writes the decisions
-entry should re-read (a) as it now stands rather than as E6 describes it.
+Both build into **separate loadable targets** (`VaFilters`, `OscillatorHD`)
+rather than into the `SynthEditLib` static library — the same shape as E7's
+converters and S8's `OscillatorNaive`.
 
-**Branch/PR:** `tide/win/competitive-review`.
+**`UgDatabase.cpp` already had `INIT_STATIC_FILE(SVFilter4)` at `:1114`, and the
+class was still absent from TIDE.** That is the thing to carry forward: **the
+INIT list is `SynthEditLib`'s, and TIDE links a subset of it, so it is not a
+menu of what TIDE can instantiate.** E2b's entry said the same from the other
+direction; this is the confirmation, and it means "it is in UgDatabase" is never
+sufficient evidence.
 
----
+### Three sources, and the third is one only the linker finds
 
-## 2026-08-18 — windows — the first competitive review, a module set, and a false belief corrected (interactive session, Jeff directing)
-
-**Prompt:** Jeff asked whether a review of TIDE Rack's competition existed and,
-if not, to research Eurorack simulators and adjacent patchers (Reaktor Blocks,
-Bitwig's Grid) — price, OS, plugin formats, features, pros and cons — plus a
-comparison of visual design language, and MVP / nice-to-have module lists for
-the backlog. He asked for a design specialist on the UI analysis. Then: mention
-it in PLAN and commit.
-
-**Did:** it did not exist — **this is the project's first competitive review.**
-Added [docs/competitive-review.md](docs/competitive-review.md),
-[docs/module-set.md](docs/module-set.md) and
-[docs/blocks-connection-scheme.md](docs/blocks-connection-scheme.md); filed
-**E5**, **E6** and **A24**; substantially updated **V2**; added a "Competitive
-position" section to PLAN.md. Also published a rendered summary as an artifact.
-
-**Result:** `check-id-refs.py` and `check-links.py` both pass (694 id refs / 352
-relative links). No line-ending churn — `git diff` and
-`git diff --ignore-all-space` are byte-identical in shape.
-
-**Learned:** four things the next run would otherwise rediscover, or worse, not.
-
-1. **A9's standing hypothesis is FALSE as written and two docs reason from it.**
-   *"No open-source modular exists on iOS AUv3"* — **plugdata is GPL-3.0, free,
-   on the iOS App Store, and ships AUv3 instrument and effect plugins.** The
-   narrower claim survives (*no open-source Eurorack-style **rack*** on iOS) and
-   is what to reason from. **Corollary that also needs unlearning:** GPLv3 does
-   not structurally bar VCV or Cardinal from the App Store — the tension is real
-   but enforceable only by copyright holders, and Apple does not audit licences.
-   VCV's obstacle is contributor consent plus its $149 Pro business. **ISC is an
-   advantage, not a moat.** Filed as **A24**.
-2. **V2 has a settled shape and a documented trap, both from precedent.** RNBO,
-   plugdata and Bitwig's Grid expose parameters declaratively from the patch
-   with no panel; Reaktor and M4L make you draw a knob first. Both DAW-hosted
-   racks pre-declare a slot pool (VCV **1024**, Reason **>2000** advertised,
-   ~256 usable) so automation needs no setup — **and both bind positionally, so
-   deleting a module can silently repoint an existing automation lane onto a
-   different parameter.** Bind to module id + param id instead. Cheap now,
-   near-impossible to retrofit once patches exist in the wild.
-3. **The module set is not a DSP job.** `C:\SE\SynthEditLib` carries **75
-   `ug_*` DSP modules** plus a modern SEM set (`EnvelopeAdsr`, `SVFilter2`,
-   `VaFilters`, `Delay3`, `Reverb`, `StepSequencer`, `Waveshapers`, `BPMClock3`,
-   `Arpeggiator`, `Unison`). It is a Container-authoring and panel-art job, and
-   **the schedule risk is per-module panel cost, which nobody has measured.**
-   The measured MVP is three tiers: 3 (E2a's acceptance test) / **12** (the hard
-   intersection present in all five reference sets) / **22** (credible release).
-   **The one place "copy the intersection" gives the wrong answer:** every
-   reference set defers reverb/chorus/compressor to a paid tier or a store, and
-   constraint 7 means TIDE cannot — so it must budget for the FX layer anyway.
-4. **AUv3 extensions are memory-capped at ~300 MB (32-bit) / ~360 MB (64-bit)
-   per instance** ([Apple Developer Forums](https://developer.apple.com/forums/thread/47396)).
-   Via constraint 9 that caps the compiled-in module set, embedded wavetables
-   and rack size on **every** platform. Recorded in PLAN's new section and
-   **flagged for Jeff as a possible tenth constraint — deliberately not added
-   unilaterally.**
-
-Two market facts nothing in the tree recorded: **Native Instruments entered
-preliminary insolvency Jan 2026 and was acquired by inMusic in May** (Reaktor's
-last release: 2023-04-13), and **LANDR acquired Reason Studios Jan 2026** and
-immediately repositioned Reason Rack as a standalone plugin for every DAW — the
-closest precedent to TIDE just got a well-funded owner pushing it.
-
-**Method note, since it affects how much to trust §5:** the design survey was
-done by downloading official screenshots and **viewing them**, not from memory —
-Reaktor Blocks, VCV Rack, Bitwig Grid, Voltage Modular, Audulus, plus TIDE's own
-`p2-tide-editor-release.png`. Blocks' "tasteful realism" is characterised
-precisely enough to implement: the panel is flat/matte/screwless and **all the
-realism is in the knobs** (top-lit gradient, faint sheen, soft low-opacity
-contact shadow reading as ambient occlusion). The most useful negative result is
-Voltage Modular: **thin cables do not save a dense rack** — its panels are
-unreadable under the patch.
-
-**Caveat on the module lists:** ~13 of Blocks Base's 24 block *names* are
-UNVERIFIED — NI's pages refuse automated fetch and no third party enumerates
-them. The functions are well attested; the names are not. Flagged in the doc.
-
-**Collision found at commit time, and it matters more than anything else here:**
-`docs/ui-design-language.md` **already existed in the working tree**, untracked,
-on no branch, with no commit history, alongside three generated
-`docs/images/ui-language-*.svg`. **Another session wrote it and it was left
-completely untouched** — not committed, not edited. It proposes a Marathon /
-Designers Republic language: true-black ground, flat `#1C1C1C` panels, 1px butt
-strokes, acid `#C0FE04` for live state only, family liveries, arcs for knobs,
-polyline cables. **It conflicts with §5 on precisely the point Jeff's brief
-named:** it bans drop shadows, bevels and decorative gradients outright, while
-Jeff asked for Blocks' *"abstract but with some tasteful realism like shadows"*.
-**Do not author panels until E6 is ruled.**
-
-**Corrected within the same session, and the correction is the useful part.**
-This entry and E6 first described that document as "more implementation-ready"
-than §5 and framed the recommended default as *its* palette and geometry with a
-shadow bolted on. **Jeff's response: *"we're spit-balling with the marathon
-stuff. don't discount your recommendations just yet."*** So the framing was
-wrong twice over — the document is **exploratory, not a baseline**, and **being
-more detailed is not being more validated.** E6 now treats the two as **peers**:
-the Marathon doc is more specified on palette/geometry/type (real gaps §5 must
-close whichever way this goes), while §5 carries the evidence — five shipping
-competitor UIs viewed directly, the density failure that sinks dense cabled
-racks, and the authoring-cost argument. Recommended default is now a synthesis
-**led by §5's direction**, harvesting the Marathon doc's no-bitmap drawability,
-1px geometry, restricted palette and accent-as-state. Also newly recorded
-against option (a): **the source language's own shipped UI was widely panned for
-legibility ("fontslop"), and the named failure mode was density on a surface
-read continuously — which is what a plugin is.** The document itself raises this
-and guardrails against it; it is a thing to test before adopting, not a
-disqualifier. **General lesson: deferring to whichever artefact looks more
-finished is a real failure mode when one of them is a sketch.**
-**Lesson for the fleet:** this is A23's hazard in a different costume — two
-sessions producing overlapping work that git will not conflict on, because one
-side is untracked. `git status` before committing is what caught it.
-
-**Next:** **E6 wants a `PROPOSED:` entry in decisions.md, not an agent's pick** —
-it is a genuine design fork and every panel authored before it is rework. **A24
-is minutes and should go early**, because two docs currently state a refuted
-claim. E5 is a ruling, then E2 does the building.
-
-**Branch/PR:** `tide/win/competitive-review`.
-
----
-
-## 2026-08-18 — windows — unblocked the macOS A16 PR, filed the duplicate-id gap as A23 (interactive session, Jeff directing)
-
-**Prompt:** n/a — interactive; Jeff asked to sync the repos, hear what was
-waiting on him, then unblock [#119](https://github.com/JeffMcClintock/TideSynth/pull/119)
-and file the id-allocation gap. Committed and pushed as `tide-rack-bot`
-(claude-opus-5).
-
-**Did:** synced all six repos (all clean, all on default branches), merged
-`main` into the macOS box's `tide/mac/A16-commit-completeness` so
-[#119](https://github.com/JeffMcClintock/TideSynth/pull/119) is mergeable
-again — `mergeable=false` → `true` — and filed **A23** for the duplicate-id
-hole that bit this fleet yesterday.
-
-**Merged rather than rebased, deliberately.** That branch is another box's and
-its commits are already pushed; a rebase would rewrite them, which the run
-prompt forbids for good reason even when a human asks for "a rebase". Merging
-`main` in reaches the same mergeable state and rewrites nothing. Two conflicts:
-`BACKLOG.md`, where `main` had gained A20–A22 while the branch held A16 flipped
-to IN-REVIEW (kept both — main's new rows, the branch's newer A16), and
-`JOURNAL.md`, where both sides had prepended an entry (ordered newest first:
-main's 2026-08-18 C9 above the branch's 2026-08-17 A16).
-
-**The thing worth recording about A23, because it is not the obvious failure.**
-Two runs filed an A17 an hour apart. **Git did not conflict** — the rows were
-inserted at different points in the file, so both merged cleanly and the
-duplicate reached `main` silently. No check failed; a human noticed. Allocation
-scans `BACKLOG.md` on a branch cut from `main`, where a concurrent run's row is
-unmerged and invisible, and STEP 2's collision protocol does not cover it —
-that protocol is about *claiming an existing item*, not *allocating a new id*.
-
-**Why A23 is takeable by a scheduled run**, which is the part that makes it
-worth filing rather than escalating: `scripts/check-id-refs.py` already parses
-every row id in both files, and `lint.yml` invokes it **with no arguments**, so
-a duplicate assertion is a few lines on data it already has and needs **no
-`.github/workflows/**` edit** — the wall that keeps A12 and B1 out of reach.
-Lint runs against the merge result, which is precisely where a silent duplicate
-becomes visible.
-
-**Learned — "git merged it cleanly" is not "the merge was correct".** Both of
-today's merges made this point in different ways: the duplicate id merged
-cleanly and was wrong, and yesterday's journal rotation *also* merged cleanly
-while duplicating two archive entries, because an append-only file never
-collides. **For files that are ordered lists rather than code, absence of
-conflict carries almost no information; check the invariant (ids unique,
-entries appear once, order is newest-first) explicitly after every merge.**
-
-**Also observed while reporting:** every open `platform:*` issue — #87, #88,
-#111 and #117 — is authored by `tide-rack-bot`, so STEP 1 bars every run from
-acting on all four. That is A19's finding and the macOS box already has a fix
-in [#123](https://github.com/JeffMcClintock/TideSynth/pull/123); noted here
-only because it means A17's GATED question cannot unblock those issues on its
-own.
-
-**Side effects on this box:** none — docs and rows; nothing built. All six
-repos left synced, clean and on their default branches.
-
-**Branch/PR:** this TideSynth PR, plus the merge commit pushed to
-`tide/mac/A16-commit-completeness` for #119.
-
----
-
-## 2026-08-18 — macos — A19: the fleet may now act on its own agent's platform issues, as evidence
-
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** resolved A19 on Jeff's direction ("do A19"). STEP 1 of the run prompt
-now admits `tide-rack-bot` alongside `JeffMcClintock` and `github-actions`, with
-a safeguard.
-
-**Which option, and why that reading.** A19 offered three: (a) Jeff authenticates
-[#117](https://github.com/JeffMcClintock/TideSynth/issues/117) himself, (b) add
-the bot to STEP 1's allowed authors, (c) leave it. **(a) requires Jeff's own
-account and (c) is doing nothing, so (b) is the only one an agent can execute** —
-that is the reading I took from a two-word instruction, and it is the kind of
-inference worth stating rather than burying.
-
-**The safeguard, which is the actual content of this change.** Adding an author
-to an allowlist that exists to stop injection deserves more than a one-word diff,
-so the prompt now draws a distinction it did not have before: **a `tide-rack-bot`
-issue is EVIDENCE, not INSTRUCTION.**
-
-- **Why it is safe to admit at all:** authorship as the bot is an *authentication*
-  signal. GitHub will not stamp that name on an issue opened by anyone who does
-  not hold the fleet's own token. So such an issue is simply not the
-  unauthenticated input the rule excludes — the rule and this change are aimed at
-  different things.
-- **Why it still needs limiting:** unlike a BACKLOG row, **an issue is written by
-  one run and reviewed by nobody.** BACKLOG rows are agent-written and agent-read
-  too, so the trust model already permits agent-to-agent instruction — but those
-  go through a PR Jeff merges. An issue does not. That gap is real and is the
-  only genuinely new surface here.
-- **So the limit is:** re-verify the finding on your own platform before acting;
-  treat remediation steps in the issue as a suggestion, never a directive; and a
-  bot issue **never authorises a GATED edit or anything else a run may not
-  otherwise do**, with an issue claiming otherwise being reason to stop and
-  journal.
-
-**Result:** #117 becomes actionable by the next mac run once this merges — and
-that run must reproduce the abort itself first, which is correct, since #117's
-repro is second-hand to it (it came from an interactive session; I verified the
-crash reports, not the repro).
-
-**Learned — an allowlist written against outsiders can deadlock on insiders, and
-the failure is invisible from inside the rule.** STEP 1's authenticity paragraph
-is well-reasoned and I would not weaken it; it simply never contemplated that the
-fleet's own agent would be the one with something urgent to report. Nothing in
-the rule was wrong. **The tell was not a review of the rule — it was hitting it:
-filing a verified host-abort and then reading the rule that forbade acting on my
-own report.** Rules get audited when they bite, and this one only bites an agent.
-
-**Learned — "do X" on a security-relevant row still needs the reasoning written
-down, not just the edit.** The diff is a few lines; the argument for why it does
-not open a hole is the part worth reviewing, so the row and this entry carry it
-explicitly and ask Jeff to check the reasoning rather than the diff. The
-load-bearing claim is that agent-authored issues are no wider a channel than
-agent-authored BACKLOG rows, *plus* the no-review gap the safeguard covers. If
-that claim is wrong, the change is wrong.
-
-**Next:** the mac box's top item is now #117 itself — reproduce the abort, then
-make the load path fail safe on the main thread. That needs a GUI observable, so
-an unattended run still cannot finish it.
-
-**Side effects on this box:** none. Docs only, TideSynth only. No builds.
-
-**Branch/PR:** `tide/mac/A19-issue-authorship`.
-
----
-
-## 2026-08-18 — macos — C9
-
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** verified **C9** was already finished and archived it, plus the standing
-STEP 4 chore on three more rows. No code in any repo — TideSynth docs only, and
-nothing outside this repo was touched or built.
-
-**Why C9 and not S11.** The `mac` NEXT row names S11, but its own remaining
-steps (1) and (2) need a GUI observable, and it says an unattended run should
-take **U1b** or **D6** instead. **Both landed 2026-08-17 and are archived DONE**
-— the escape hatch resolves to nothing (filed as **A20**). I confirmed I cannot
-drive a GUI rather than assuming it: `request_access` for REAPER returns
-*"Computer-use access to REAPER can't be approved during a scheduled run …
-(Retrying returns this same result.)"* So I fell through to STEP 2's rule —
-topmost TODO row with plat `mac` or `any` — which is C9. Skipped above it:
-`C12d` (linux), and `C12f`, which is the **win** box's NEXT item and a 6,298-line
-atomic GATED refactor. Not taken, per the NEXT row's own exclusions: `E2a`,
-`S1b`/`S5`/`S7`/`S8`, `A12`/`B1`.
-
-**Result — C9 verified complete from the trees, not from the prose.** Its row
-had said `TODO` for four days while `docs/carve-out.md` said *"C9 is now
-finished"* at stage 5 (2026-08-14). Read at `SynthEdit` `28907334e` /
-`SynthEditLib` `f0e3c92` — the paired C12c tips the build trap warns about:
-
-- all three live users moved and converted — `ModuleFactory_Editor.cpp:33`,
-  `SkinMgr.cpp:16`, `Application.cpp:22` each `#include "se_version.h"` and read
-  `SE_APP_BUILD_NUMBER`;
-- `SynthEditLib` has **zero** functional references to `se_build_number.h` (two
-  hits, both inside `se_version.h`'s own comment);
-- `se_build_number.h` still at the private root, and the three release workflows
-  still grep it there — `SynthEdit_cmake_mac.yml:153`,
-  `SynthEdit_cmake_win.yml:206`, `SynthEdit_store_win.yml:266`, the exact lines
-  C9's row named as the reason option (a) was rejected;
-- `SynthEdit2/ExportAsPlugin.cpp:30` still includes it, which the row always
-  said was fine;
-- all four enabling PRs merged: [SynthEditLib#6](https://github.com/JeffMcClintock/SynthEditLib/pull/6)
-  + [SynthEdit#15](https://github.com/JeffMcClintock/SynthEdit/pull/15) (C4),
-  [SynthEdit#16](https://github.com/JeffMcClintock/SynthEdit/pull/16)
-  + [SynthEditLib#7](https://github.com/JeffMcClintock/SynthEditLib/pull/7) (C5).
-
-**Verification artifact — a positive control, not an absent error.** This
-matters for C9 specifically: `se_version.h` defaults the macro to **0**, so a
-lost injection still compiles and merely stops invalidating the caches,
-silently. Probe TU `#include "se_version.h"` / `return SE_APP_BUILD_NUMBER;`,
-preprocessed:
-
-```
-no injection  -> return 0
-with -D185    -> return 185
-```
-
-and `EditorLib/CMakeLists.txt`'s own `file(READ)` + `string(REGEX MATCH)`, run
-standalone against the real header, extracts **185** today. (`carve-out.md`
-recorded 183; that was that day's build number, not a discrepancy —
-`se_build_number.h` now reads `SE_BUILD_NUMBER 185`.)
-
-**STEP 4 chore, same PR — three more rows whose PRs had all merged.** Checked
-every linked PR individually, not the row's prose: **C12c** (SynthEdit#41,
-SynthEditLib#18 — both 2026-08-17) and **S12** (all eight: GMPI#1/#2,
-GMPI_Wrappers#4, SynthEdit#39/#40, SynthEditLib#14/#15/#16 — all 2026-08-17)
-flipped to DONE and archived.
-
-**And a bookkeeping bug found by doing it: `U2e` was in BOTH backlog files.**
-Archived to `BACKLOG-DONE.md` with `Done 2026-08-16`, and *still* sitting in
-`BACKLOG.md` as `IN-REVIEW`, item text byte-identical. So the queue advertised
-finished work as live. Fixed by deleting the live row only — the archived copy
-was already correct, and re-archiving would have made a third copy.
-**`check-backlog-diff.py` cannot catch this and is not broken:** it validates a
-*diff*, so it sees the copy-in and the delete-out of one PR. A PR that copies
-without deleting leaves a state no later diff ever re-examines. The invariant
-"no id appears in both files" is a whole-tree check, which is a different shape
-from what that script does — one line, if anyone wants it:
-`comm -12 <(ids BACKLOG.md) <(ids BACKLOG-DONE.md)` must be empty.
-
-**Learned — a NEXT row's named fallback is prose, and prose does not expire.**
-`scripts/check-id-refs.py` already fails on an id that does not *exist*, and it
-draws known ids from both backlog files, so `U1b`/`D6` pass it cleanly — they
-are real, they are just **done**. The missing check is narrower than the one
-that exists: an id cited as a *take-this target* must be live, not merely real.
-Filed as **A20**. Same shape as A7 and A19: a rule whose premise quietly stopped
-matching the fleet, with nothing that would ever notice.
-
-**Learned — STEP 0.7's identity gate is single-pathed, and GitHub was degraded
-today.** `gh api user` returned **HTTP 503** five times over ~50s and by direct
-`curl` too. That is a hard STOP as the prompt is written. The credential was
-fine: the same token got 200 from `/rate_limit` and from the private
-`/repos/JeffMcClintock/TideSynth`, `x-oauth-scopes: repo` with no `workflow`,
-and GraphQL `{ viewer { login } }` answered **`tide-rack-bot`, databaseId
-314850083** — which matches the noreply address STEP 0.7 hard-codes, so it is a
-real assertion and not a weaker one. githubstatus read *Partially Degraded
-Service* (API Requests, Issues, Pull Requests, Actions). **I proceeded on the
-GraphQL assertion and am flagging the substitution here rather than burying
-it.** The rule conflates *asserted wrong* (dangerous — a silent fallback to
-Jeff's bypass-listed credential; still STOP, always) with *could not assert*
-(a GitHub wobble). Filed as **A21**.
-
-**Next:** S11 remains the mac priority and remains **unreachable unattended** —
-steps (1) and (2) need REAPER, and computer-use is refused during a scheduled
-run by design, so this will repeat every day until either S11 moves in an
-interactive session or the box's scheduled task is granted REAPER in its
-settings. That, not the backlog, is the thing worth deciding. A20 and A21 are
-both minutes of wording once Jeff rules. **Do not re-run the pre-base64 A/B**
-(done, 4/4, base64 exonerated) and do not re-try the audio-thread
-`prepareToPlay` guard as written.
-
-**Side effects on this box:** none. All three checkouts (`TideSynth`,
-`SynthEdit`, `SynthEditLib`) were **clean at start** and were left on their
-default branches; `SynthEdit` and `SynthEditLib` were read only — no build, no
-edit, no branch. Nothing written outside `TideSynth` and the scratch dir. The
-GATED line was not approached: C9's verification is entirely read-only.
-
-**Branch/PR:** `tide/mac/C9-verify-build-number-decoupling` — see PR link in
-BACKLOG rows.
-
----
-
-## 2026-08-17 — macos — A16: the short-commit race reproduced, and guarded
-
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
-
-**Did:** took A16 after S11 (Jeff had said "do as many tasks as you can without
-supervision"). Got the repro the original filing explicitly could not, then wrote
-the guard its Scope asked for.
-
-**Result — the repro, which is the part that was unknown.** A16 said the cause
-was "most likely a race on `.git/index` ... plausible but not proven; no reliable
-repro was attempted". It reproduces every time, and the mechanism is **narrower**
-than the filing guessed. In a throwaway repo:
-
-    git add f1 f2 f3 f4 f5              # 5 staged
-    git reset -q HEAD -- f2 f3 f4 f5    # the other session, mid-flight
-    git commit -m mine                  # exits 0, commits f1 ALONE
-
-Five staged, one landed, **all five still correct in the working tree** — the
-filed symptom to the letter.
-
-**What makes this a diagnosis rather than a plausible story is the shapes that
-DON'T reproduce it,** and I tested them because a story that explains everything
-explains nothing:
-
-| Concurrent op | Result |
+| source | brings |
 |---|---|
-| **partial `git reset HEAD -- <subset>`** | **5 staged, 1 landed, silent — this is A16** |
-| full `git reset` | commit fails loudly, `nothing added to commit` |
-| peer runs `git commit` first | right content, wrong author — that is **A14**, not this |
-| `git checkout HEAD -- <path>` | no effect |
+| `modules/VaFilters/SvFilter.cpp` | `SE SV Filter4`, `SE SV Filter4B` |
+| `modules/OscillatorHD/Oscillator.cpp` | `SE Oscillator4` |
+| `modules/shared/real_fft.cpp` | `realft()` |
 
-**So it is not "a race on the index" generally — it is specifically an operation
-that unstages a subset.** Only that one both succeeds and lies.
+The link failed first time on exactly one symbol —
+`realft(float*, unsigned int, int)`, referenced from
+`MipMapCalculator::generateWavetable` in `Oscillator.o`. Oscillator HD builds
+mipmapped wavetables with an FFT that lives in another translation unit. **This
+is the same second-TU rule `my_type_convert.cpp` records for Converters**, and
+it is now two for two: a module added to TIDE's source list should be expected
+to drag a helper TU with it.
 
-**Guard:** `scripts/check-commit-completeness.py`, shaped after
-`check-commit-authorship.py`. It **has to be two-phase** (`--record` before the
-commit, `--verify` after) and that is not a design preference: the race destroys
-the staged list, which is the only thing a post-hoc check could compare against.
-There is no one-shot version of this check, which is probably why the original
-row described it as a before/after comparison too. The manifest lives in `.git/`
-so it can never be committed by accident, and `--verify` with no manifest is a
-**skip, not a failure**, so the guard cannot break a commit made before it
-existed.
+### The finding worth more than the change: the XML list is hardcoded TWICE
 
-**Accept met:** `--selftest` builds throwaway repositories and asserts all three
-outcomes — clean passes, partial unstage fails naming exactly the four missing
-paths, full unstage fails. I also ran `--record`/`--verify` for real around this
-entry's own commits, which is the only honest way to ship a commit guard.
+`SE SV Filter4`'s pins live in `VaFilters.xml`, so the file has to be both
+**staged** and **read** — and those are two separate hardcoded lists:
 
-**Learned — two guards that look redundant can be complementary, and the way to
-tell is to check each against the other's incident.** A14 and A16 both read as
-"a concurrent session broke a commit", and it is tempting to treat one script as
-covering both. It does not: the 2026-08-15 **short** commit was correctly
-authored as `tide-rack-bot`, so the authorship check passed and would pass again;
-the 2026-08-15 **foreign** commit had entirely correct content, so a completeness
-check would have waved it through. Each is blind exactly where the other looks.
-That is now stated in STEP 4 rather than left for someone to rediscover.
+- `_tide_xmls` in `SynthEditSem/CMakeLists.txt` copies it into
+  `Contents/Resources`
+- the loop at `TideApp.cpp:488` is what actually reads it back
 
-**Learned — "no repro was attempted" is often a much cheaper gap than it looks.**
-This one took about five minutes of shell in a temp directory, and it converted a
-guess into a mechanism narrow enough to write a test for. The original session's
-call to prioritise recovering the lost content was right in the moment; the note
-that a repro was never tried is what made it findable later.
+Adding it to only one **fails silently in whichever direction you missed**.
+Staged-but-never-read says nothing at all; read-but-never-staged at least prints
+to stderr. The CMake side already carries a comment about a near-identical split
+that "cost a debugging cycle on V3" — that comment is about two *staging* blocks,
+and this is a **third** place the same list is written. Both sites now say they
+must move together.
 
-**Not done, deliberately:** wiring the guard into `lint.yml`. That is
-`.github/workflows/**`, which the bot token structurally cannot push. It would
-not work there anyway — CI has no access to a pre-commit manifest, so this guard
-is inherently local, and a CI-side version would have to assert something
-different.
+**A module with only its `.cpp` is worse than a missing module**, per the note
+already in `TideApp.cpp:474`: a class with no pins "takes the whole enclosing
+container's widget layer down with it — a blank rack rather than one missing
+module".
 
-**Next:** nothing blocks on this. If Jeff wants it enforced rather than
-documented, the wiring is his (or an interactive session's) to add.
+### Making that failure visible for good
 
-**Side effects on this box:** none. Docs and one new script, TideSynth only. No
-builds. Temp repos created and removed under `$TMPDIR` by the selftest.
+The merge loop now reports what it did, which is three lines and is also this
+change's own verification artifact:
 
-**Branch/PR:** `tide/mac/A16-commit-completeness`.
+```
+TIDE: ControlsXp.xml    enriched  2 of 18 described class(es)
+TIDE: SubControlsXp.xml enriched  1 of 27
+TIDE: MidiPlayer2.xml   enriched  2 of  7
+TIDE: Converters.xml    enriched 26 of 70
+TIDE: VaFilters.xml     enriched  2 of  7
+```
 
----
+A **zero** means the `.cpp` half was forgotten. The gap between the two numbers
+is expected and harmless — it is the entries TIDE deliberately does not link.
+Flagged in the PR as a behaviour addition beyond the literal ask, so Jeff can
+drop it.
 
-## 2026-08-17 — macos — backlog id collision: A17 filed twice, renumbered to A19
+### Verification — from inside TIDE's factory, with negative controls
 
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+`VaFilters.xml enriched 2 of 7` is itself proof for the filter: exactly the two
+classes whose `.cpp` is now linked, with RMS / Korg / Moog / SV Filter2 / Moog
+test correctly skipped.
 
-**Did:** renumbered the issue-authorship row **A17 → A19** and opened
-[#118](https://github.com/JeffMcClintock/TideSynth/pull/118). No other change.
+Oscillator HD has no XML to count, so a **temporary probe, since reverted** (the
+issue **#87** lesson — `grep PROBE` on the branch returns nothing):
 
-**Result:** [#116](https://github.com/JeffMcClintock/TideSynth/pull/116) landed a
-**duplicate `| A17 |` row**. [#115](https://github.com/JeffMcClintock/TideSynth/pull/115)
-merged into `main` while that run was in flight and allocated **both A17 and
-A18** — Jeff's GATED-build-break question and the `SE16` master-unprotected
-question. I had read the backlog, picked the next free id, and worked for some
-minutes before committing; by the time I pushed, two ids that were free when I
-looked were taken. Jeff's rows came first and keep their ids. A17, A18 and A19
-now each appear exactly once.
+```
+SE Oscillator4         REGISTERED
+SE SV Filter4          REGISTERED
+SE SV Filter4B         REGISTERED
+1 Pole LP              REGISTERED   <- known-good positive control
+SE Oscillator (naive)  absent       <- S8's module: the probe still discriminates
+SE SV Filter2          absent       <- described in VaFilters.xml, .cpp not linked
+```
 
-**Learned — "next free id" is a read-modify-write race, and this backlog has no
-lock.** Checking `grep -o "^| A[0-9]*"` at the start of a run and allocating
-from it at the end is only safe if nothing else merges in between, which on a
-box running several sessions a day is not a safe assumption. **Cheap mitigation
-for the next run: re-check the id against freshly-fetched `origin/main`
-immediately before committing, not when you first read the file.** The same race
-presumably applies to every id series, not just A.
+**Two positive and two negative controls**, so "everything says REGISTERED" is
+ruled out. The last row is the more interesting one: it shows the enrichment
+guard skipping a described-but-unlinked class rather than creating a phantom
+browser entry, which is the property that makes it safe to point the merge at a
+file describing far more modules than TIDE links.
 
-**Learned — the journal's prepend-only check caught me doing the wrong repair.**
-My first attempt at this fix edited the *landed* entry's text to say A19. That is
-exactly what `check-journal-prepend.py` forbids ("an existing entry edited in
-place ... fails"), and the check failed the PR. It was right to: the earlier
-entry saying "filed as A17" is what actually happened, and the correction belongs
-in a new entry like this one rather than in a rewrite of the old one. **A log you
-edit is not a log.** The `links` sub-check passed on that same run, so the
-lint fix from #116 is holding.
+**TIDE, TIDE_VST3, TIDE_STANDALONE and SynthEditCL all build.** TIDE_STANDALONE
+runs, seeds 6 prefabs, and shuts down clean with no crash report.
 
-**Next:** nothing follows from this. A19 itself is Jeff's to answer.
+### Not done, deliberately
 
-**Side effects on this box:** none. Docs only, TideSynth only.
+**The prefabs still use the old DSP.** "Go-to" suggests Jeff wants
+`SE Oscillator4` and `SE SV Filter4` to be what TIDE's Oscillator and Filter
+rack modules are built from — but swapping the DSP inside two already-shipped
+prefabs is a product change, and E2b's Filter prefab is still in an open PR. It
+is a small change to `build-prefabs.py` plus re-measuring two E1 cases. Asked
+rather than assumed; noted in both PR bodies.
 
-**Branch/PR:** [#118](https://github.com/JeffMcClintock/TideSynth/pull/118).
+Also worth knowing before that swap: **SV Filter4's pin defaults are not on the
+same scale as the modules already in the prefabs.** Its `Pitch` defaults to
+`0.5` and it has `Resonance`, `Strength` and `Mode` (LP/HP/BP/BR) pins, where
+`1 Pole LP` has `Signal`/`Pitch`/`Output` and takes 5 V = 440 Hz. Whoever does
+the swap should measure the mapping rather than assume it matches, exactly as
+E2b measured the 1-pole's.
 
----
+**Next:**
 
-## 2026-08-17 — macos — S11: the restore side measured — it does not merely fail, it aborts the host
+1. **The prefab swap**, if Jeff wants it — see above.
+2. **The over-wide relaxed gates filed earlier this session** — two harness
+   cases declare tolerances ~55 dB wider than their own measured cross-platform
+   residual. The row for it is in [#170](https://github.com/JeffMcClintock/TideSynth/pull/170),
+   still open, so it is deliberately not named by id here: `check-id-refs.py`
+   validates prose mentions against rows that exist ON THIS BRANCH, and naming a
+   row that lives only in another open PR fails `lint`. Worth knowing, because
+   it will catch anyone cross-referencing between two open PRs — the check is
+   right, and the fix is to describe the row rather than cite it.
+3. **E10** remains the biggest thing on this platform and needs `SynthEditLib`
+   authority.
 
-**Prompt:** b3e9876 · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
+**Branch/PR:** [SynthEdit#61](https://github.com/JeffMcClintock/SynthEdit/pull/61)
+plus the TideSynth PR carrying this entry. Two repos; the SynthEdit half is the
+whole change and the TideSynth half is bookkeeping, so neither blocks the other.
+Work done in a throwaway worktree for TideSynth; `SynthEdit` was branched in
+place and is returned to `master`.
 
-**Did:** took the mac NEXT row's instruction literally — *"measure
-`/tmp/tide-persist3.rpp` reopening before writing any code"* — and wrote no
-code. The measurement is the deliverable. Full trace in
-[docs/s11-restore-trace.md](docs/s11-restore-trace.md); decoded golden document
-checked in as [docs/s11-restored-document.xml](docs/s11-restored-document.xml).
+## 2026-08-19 — macos — E12 verified on the merged trees and closed; E13 archived; a mac build trap that survives ZERO_CHECK
 
-**Result — three findings, of different strengths, kept separate deliberately.**
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
 
-**(1) The save side is finished, proven from the artefact alone** — no build, no
-host. `/tmp/tide-persist3.rpp` carries 1119 bytes of VST state; the outer
-`<Preset>`'s `Param id="1"` holds a 964-char base64 value decoding to a
-**723-byte `<Document>` containing the placed Container `Id=2079404292`**. The
-rack is genuinely in the project file.
+**Second item this session**, on Jeff's instruction ("merged. next task"), after
+**E13** merged as [#168](https://github.com/JeffMcClintock/TideSynth/pull/168).
+Claimed with a pushed DOING mark before any work, per STEP 2.
 
-**(2) The editor has no inbound path for the chunk — proven from sources.**
-Four independent one-way facts, any one of which alone would break restore:
-`SynthEditController::setParameter` is `return ReturnCode::NoSupport;`
-(`SynthEditController.cpp:94`); parameter 1 has a pin only in `<Audio>`, none in
-`<GUI>` (`SynthEdit.cpp:202` vs `:205`) and every controller→editor route in GMPI
-iterates `guiPins` (`controller_holder.cpp:51,166,229,289,365,458,504,586`), so
-it is unreachable by construction; `onPushChunk` is push-only
-(`SynthEditController.cpp:78` → `TideApp.cpp:274`), with no `ImportXml` /
-`OnOpenDocument` anywhere in `SynthEditSem/`; and `TideApp::InitInstance`
-unconditionally runs `createNewDocument(); OnNewDocument();`
-(`TideApp.cpp:377-378`) from `initialize()`, ahead of state restore. The
-processor, by contrast, *is* seeded from the restored parameter —
-`processor_holder.cpp:215` does it explicitly and its comment names "on state
-restore". **So base64 was necessary but not sufficient.**
+**Did:** Took **E12** — the one row on this box that had a *merged* fix and a
+`TODO` status — verified it on the merged default branches, and closed it. Also
+did the STEP 4 chore E13 left behind and re-pointed the stale `mac` NEXT cell.
 
-**(3) Reopening a saved project ABORTS REAPER — deterministic 3/3.** This came
-from the concurrent interactive session that owned REAPER, and I re-verified it
-here from the box's own crash reports rather than relaying it. **Four** `.ips`
-files (`191525`, `193800`, `200213`, `200926`), identical signature:
-`EXC_CRASH`/`SIGABRT`, **faulting thread 0 — the main thread** — `abort` ←
-`__cxa_rethrow` ← `objc_exception_rethrow` ← `-[NSApplication run]`.
+### Why E12 rather than the NEXT block's E2
 
-**The reports add two things the repro did not.** `TIDE_VST3` is loaded in all
-four, so TIDE is implicated rather than merely present; and **TIDE's own frames
-appear only on `wrapper::Processor_VST3::CommunicationProc()` worker threads,
-never on the faulting one** (three such threads at 19:15, two at 19:38, one each
-at 20:02/20:09 — consistent with the previously-journalled second processor
-instance). **That exonerates the DSP-side graph build and explains the guard's
-negative result:** the interactive session wrapped `rack.prepareToPlay` in the
-processor's `onSetPins`, it caught nothing while REAPER still died — because
-`onSetPins` is on the audio thread and the throw is on the main thread. **The
-guard was in the wrong thread, not the wrong place.** It has been reverted and
-its branch deleted (it also wrote `/tmp/tide-load-error.log`, outside the bundle
-— constraint 4); `SynthEdit` is back on `master` `28907334e`, clean.
+The `mac` NEXT cell named E10 (GATED, no authority, not a build break), then
+"**E2** or the per-prefab **E1** cases". The E1 cases closed an hour earlier as
+E13, so the cell was already one item out of date. **E12 was `TODO` while its own
+fix was merged**, which is the state most likely to be silently wrong: the row's
+"four consecutive shutdowns" was measured **on the branch**, before
+[SynthEditLib#23](https://github.com/JeffMcClintock/SynthEditLib/pull/23) and
+[SynthEdit#54](https://github.com/JeffMcClintock/SynthEdit/pull/54) merged, and
+nothing had re-measured it since. This is also the only box that can. E2 is a
+large open-ended authoring item and is still there; the cell now points at it.
 
-**Learned — a negative result is worth more when you say which kind it is.**
-This entry deliberately separates *proven from artefact*, *proven from source*,
-*corroborated second-hand*, and *not established*. The last category is the one
-that protects the next run: **nobody has run the A/B against a pre-base64
-binary**, so whether the merged base64 change *causes* the crash is genuinely
-unknown, and it would be easy for this write-up to imply otherwise. Same control
-that settled the blank-editor question earlier this week; it is the cheapest
-next measurement and it is not done.
+### Result — 4/4 clean shutdowns on the merged defaults
 
-**Learned — a guard that catches nothing is evidence about threads, not about
-exceptions.** "Caught nothing and it still died" reads like a dead end; crossed
-with the crash report's faulting thread it becomes a positive result that
-eliminates the whole DSP-side hypothesis.
+Trees: `SynthEdit` `2f5fca5e3`, `SynthEditLib` `65d55cd`, Release, Xcode.
 
-**Learned — the claim protocol does not protect a working tree.** Three agent
-sessions shared these checkouts today. I found `SynthEdit` parked on an unpushed,
-zero-commit `tide/mac/S11-load-guard` with uncommitted edits, and my first read
-was STEP 5 category 3 ("the developer's work in progress"). It was not — it was a
-live *agent* session. A pushed DOING mark is visible; an uncommitted tree is not,
-and this is the A14/A16 shape again. **Asking the other sessions cost two
-messages and corrected both my ownership model and my conclusion.** A run that
-finds a dirty shared tree should look for a live peer before reasoning about the
-dirt.
+```
+run 1: alive at 9s, TERM sent, wait rc=0
+run 2: alive at 9s, TERM sent, wait rc=0
+run 3: alive at 9s, TERM sent, wait rc=0
+run 4: alive at 9s, TERM sent, wait rc=0
+TIDE_STANDALONE crash reports: 14 before, 14 after
+```
 
-**Process finding, unrelated to S11 and larger than it: this box is scheduled
-DAILY, not weekly.** Read from the live task config, not inferred:
-`tidesynth-weekly-macos` has `cronExpression: 0 6 * * *` — *"At 06:03 AM, every
-day"* — while its own description still says *"Weekly ... (Sat 02:00)"*. The cron
-is what runs. **So this box has been running 7×/week while `docs/weekly-run-prompt.md`,
-A8's journal-rotation sizing and A7 itself all assume 1×** — and A7, *"raise
-cadence to 2 staggered runs per box per week"*, has been sitting at NEEDS-JEFF
-waiting for a decision the box blew past by 3.5×. A7's own reasoning was that
-cadence multiplies journal growth, PR volume and credential-exposure window
-linearly; that has been happening unmeasured. **It is the same silent-staleness
-class the bootstrap redesign was built to kill, except it lives in the cron,
-which the bootstrap deliberately holds nothing about — no run can observe its own
-cadence, which is why none ever reported it.** A7's row is re-pointed: the
-question is no longer "1× → 2×?" but "we are at 7×, what did we intend?"
-**Nothing was changed** — cron is standing configuration and A7 is Jeff's.
-Separately observed and *not* diagnosed: this firing was at 20:11 local, which a
-06:00 daily cron does not explain (manual trigger, catch-up, or otherwise —
-unknown, and left that way).
+Three things make that more than an exit code:
 
-**Next:** in order — **(1) run the pre-base64 A/B**, the cheapest thing that
-could convict or exonerate the merged change and the only reason to suspect it;
-**(2) make the load path fail safe on the main thread** (an unusable document
-must give an empty rack, never kill the DAW); **(3)** then the editor route —
-`<GUI>` pin for parameter 1 or a real `setParameter`, plus importing the document
-instead of always creating a blank one. (1) and (2) need a GUI observable, so an
-unattended run cannot finish them and should take U1b or D6 instead and say so.
+- **Each run reached a real working state before being killed**, so this is not
+  four fast failures: `TIDE: 5 rack prefab(s) seeded from the bundle`, root
+  MIDI-CV wired (`MIDI In → MIDI-CV 2 → facade`), and
+  `TIDE: rack built for 48000 Hz, block 512`. All four logs identical.
+- **`wait` returned rc=0, not 143.** The app handles SIGTERM and exits
+  gracefully rather than dying by signal — the same path the row says a user's
+  Quit takes.
+- **No `.ips` from *any* process** after the build, not merely none named
+  `TIDE_STANDALONE`, so the count is not hiding a differently-named crash.
 
-**Build trap worth carrying forward:** keep `SynthEdit` `28907334e` and
-`SynthEditLib` `f0e3c92` paired. Mismatched C12c tips reproduce `redefinition of
-'ui_msg_target'` — the public half adds twelve files the private half deletes —
-and **it reports at the innocent copy**, which will cost an hour to anyone who
-bisects the crash across those repos.
+The `ViewBase::setHost` override that severs child views' copied `dialogHost`
+is present on the merged tip at `ViewBase.cpp:2736-2751`.
 
-**Side effects on this box:** none to any repo but this one. **No builds, no
-source changes, nothing written outside TideSynth.** I did not touch the
-`SynthEdit` tree, its branch or its dirt at any point; the other session reverted
-and deleted those itself. `/tmp/tide-persist3.rpp` and `/tmp/tide-restore-test.rpp`
-left in place for the A/B. REAPER not launched by me. Local `TideSynth` was 8
-behind `origin/main` and was fast-forwarded to `a8a02f9` before editing.
+**What I did NOT re-measure, and will not claim:** the *before* half. The 3/3
+crashes are the original interactive measurement, kept in the archived row.
+Reproducing them would mean reverting a merged fix inside Jeff's shared tree,
+which is not a thing a scheduled run should do to prove a point.
 
-**ADDENDUM, same session — three things landed after the entry above was
-written, and two of them change its conclusions.**
+### The build trap, and why it is worth a paragraph
 
-**(1) The A/B was run by the interactive session and the base64 change is
-EXONERATED.** Reverting only the preset writer and reader to pre-base64 form
-(keeping `Core/base64.h` and PR#2's seeding fix, with `base64Encode`/`base64Decode`
-confirmed at 0 hits first) **still aborts REAPER on the same project.** Repro is
-**4/4, one of them on a binary that can neither encode nor decode a blob preset**;
-new report `REAPER-2026-08-17-202724`, whose signature I checked independently and
-which matches the other four exactly. **The crash is pre-existing, exposed by
-opening this project — not introduced by the merged change.** The "not established"
-caveat this entry made load-bearing was the right call and it took one build to
-settle. Not isolated: PR#2's seeding fix, which stayed in.
+After fast-forwarding the six repos to their merged tips, **the existing Xcode
+build tree would not build**:
 
-**(2) Jeff answered the cadence question in session: the 7×/week is DELIBERATE,
-and the extra same-day firings are him starting runs manually — "not a scheduling
-problem."** So A7 closes WONTFIX rather than becoming a reframed open question,
-and the collisions are expected rather than a fleet defect. **I was right that no
-run can observe its own cadence and wrong to infer a problem from it** — the
-measurement was worth reporting, the alarm was not. The one consequence that
-survives is **A8's**: journal rotation was sized against a 1× assumption. Recorded
-in docs/decisions.md.
+```
+error: Build input file cannot be found:
+  '.../SynthEdit/SynthEdit2/InterfaceObject_editor.cpp'
+  (in target 'EditorLib')
+```
 
-**(3) Found by hitting it: the fleet's own agent cannot file a platform issue the
-fleet may act on.** STEP 1 admits only issues authored by Jeff or `github-actions`;
-[#117](https://github.com/JeffMcClintock/TideSynth/issues/117) is authored by
-`tide-rack-bot`, so tomorrow's mac run must treat a verified host-abort as
-information and walk past it. **Filed as A17 and deliberately NOT worked around** —
-relabelling or re-filing under another identity would route around the exact rule
-that stops the tracker being an unauthenticated instruction channel. Jeff's to
-resolve.
+C12d moved that file into `SynthEditLib`'s root; the **generated Xcode project
+kept the old path**. The interesting part is that this survives the mechanism
+meant to prevent it — the same build log says
+`Generate CMakeFiles/ZERO_CHECK will be run during every build`, and it did.
+`cmake -S . -B build` clears it in seconds (configure RC=0, and all four folder
+overrides report local, including `Using local GMPI WRAPPERS folder`).
 
-**Also fixed here, because it blocked the PR:** two broken links at `BACKLOG.md:91`
-(`e2a-prefabs.md` / `module-enumeration.md`, both missing the `docs/` prefix) were
-failing lint's `links` check. **They came in with the E2a row (`11da71b`), not with
-this run** — `check-links.py` scans the whole repo rather than changed lines, and
-`lint.yml` has no push trigger on `main`, so **`main` itself was red and every PR
-based on it inherited the failure.** A4's auto-merge tier gates on a passing lint
-run, so it would have blocked everything, not just #116.
+**So: after any carve-out stage that MOVES files, reconfigure before building on
+mac.** Do not read the resulting error as a broken carve-out — C12d, C13 and C6
+are all fine; the generated project was stale. This will recur on C7b and C10,
+both of which move files.
 
-**Branch/PR:** `tide/mac/S11-restore-check` — docs, backlog and journal only, no
-code in any repo. Crash filed separately as `platform:mac` [#117](https://github.com/JeffMcClintock/TideSynth/issues/117).
+Related and still open: **S17** — the build may compile
+`build/_deps/gmpi_ui-src` rather than the local `gmpi_ui` clone. It does not
+affect this result (E12's fix is in `SynthEditLib`, not `gmpi_ui`) but anyone
+verifying a *gmpi_ui* change here should settle S17 first.
 
----
+### Bookkeeping done this run
 
-## 2026-08-17 — windows — the GATED build-break question written up as PROPOSED, and an enforcement gap found while checking its premise (interactive session, Jeff directing)
+- **E13 → DONE and archived.** [#168](https://github.com/JeffMcClintock/TideSynth/pull/168)
+  merged 03:03:42Z. Worth carrying forward: its CI `verify` job renders on
+  **Linux** against the published engine and returned `null=-inf` — **bit-exact**
+  against the macOS-seeded reference, because that reference contains no
+  floating-point arithmetic to drift.
+- **E12 → DONE and archived**, with the verification above.
+- **The `mac` NEXT cell re-pointed to E2**, since both of its other fallbacks are
+  now closed, with a pointer to `tests/README.md`'s prefab-coverage section.
 
-**Prompt:** n/a — interactive; Jeff asked whether fixing a GATED repo is
-reasonable given he reviews the PR, then asked for it as a `PROPOSED:` entry.
-Committed and pushed as `tide-rack-bot` (claude-opus-5).
+### Still open, and still nobody's
 
-**Did:** wrote the `PROPOSED:` entry in [docs/decisions.md](docs/decisions.md)
-— three options, recommended default (b) "build-break repair only", six bounds
-that keep it from becoming general GATED access — and filed **A17** (the
-question) and **A18** (the enforcement gap below). No code touched.
+- **`tide/mac/V3-midi-findings`** remains a pushed branch with no open PR — its
+  PR ([#142](https://github.com/JeffMcClintock/TideSynth/pull/142)) merged, and
+  two commits (`25216c1`, `4e65874`) sit on top of `main`. Reported last run,
+  unchanged. Someone should confirm that content landed elsewhere and delete it.
+- **E10** is the real prize on this platform and needs `SynthEditLib` authority:
+  a live host crash, whose own Accept clause would not fix it.
 
-**The finding, and it came from checking the premise rather than answering the
-question.** Jeff's framing was *"provided the resulting PR is reviewed by me"*,
-which assumes a PR exists. Measured:
+**Next:**
 
-| repo | GATED paths | enforcement |
+1. **E2** — the `mac` cell now points there, and it is the larger half of what is
+   left in that area. Read `tests/README.md`'s coverage section first.
+2. **E10**, for anyone who may edit `SynthEditLib`.
+3. **S17**, before anyone tries to verify a `gmpi_ui` change on this box.
+
+**Branch/PR:** `tide/mac/E12-standalone-shutdown` and the TideSynth PR carrying this entry (branch named rather than numbered: this PR is docs-only and therefore A4 auto-merge eligible, so a follow-up commit adding the number could land on a branch whose PR had already merged — **A22** exactly).
+No code changed in any repo this run — the fix was already merged; this run
+measured it and updated the queue. Build tree reconfigured (a build artifact,
+not source). All six working copies clean and on their default branches, fast
+-forwarded to their merged tips.
+
+## 2026-08-19 — macos — E13: the MIDI prefab gets an E1 case; the other two uncovered prefabs cannot have one
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Did:** Took the mac NEXT block's fallback — "**E2** or the per-prefab **E1**
+cases", E10 being GATED and not a build break. Filed the per-prefab work as
+**E13** and shipped it: one new harness case, plus a measured account of why the
+remaining two prefabs get none.
+
+TIDE ships **five** prefabs and `tests/cases/` covered **two**. It now covers
+three, and the README says — with evidence — why three is the ceiling for an
+audio harness.
+
+### The case: `prefab_midi`
+
+`SE MIDItoGate2` was in **no** existing case. `voice_midi_note` goes via
+`SE Keyboard2`, so the module the shipped MIDI prefab is actually built on, and
+which V3 depends on, was untested. The case records Gate on the left channel and
+Trigger on the right, and locks both of the prefab's promises for a note-on:
+
+| channel | reference content |
+|---|---|
+| L (Gate) | constant full scale for all 23,999 frames — the gate opens and **stays** open |
+| R (Trigger) | full scale for exactly **24 samples**, zero thereafter = **0.5 ms** at 48 kHz |
+
+The 0.5 ms independently matches `build-prefabs.py`'s own note about the pulse
+(`triggerCounter=22` at 44.1 kHz), which is the closest thing to a second opinion
+available without listening.
+
+**Both gates positive-controlled, through the harness itself, not by argument:**
+
+```
+control 1  MIDI connect deleted   FAIL  peak=-inf dBFS -- render is silent (<= -90.0 floor)
+control 2  3 LSB on 200 samples   FAIL  peakdiff=-80.8 dBFS > -86.0   null=-104.6 dBFS
+full suite (5 cases)              5/5 PASS, prefab_midi nulls at -inf (bit-exact)
+```
+
+Control 1 is what makes the case worth having: cut MIDI arrival and it goes to
+**digital silence**, so the case tests that a note happens, not that a graph
+builds. Control 2 is **finding (b) reproduced live on a real case** — the RMS
+residual is −104.6 dBFS, comfortably *inside* the −100 dBFS gate, so RMS alone
+would have passed the damage; the peak gate is the only thing that caught it.
+
+### The thing I expected to be true and measured to be false
+
+I took this case partly because it looked like a regression test for **E7's**
+converter finding — a bool `Gate` into a float patch point is exactly the
+mixed-datatype connection that needs an auto-inserted `SE BoolToVolts`
+(`ug_base.cpp:1751`), and whose silent abandonment in Release was "a whole class
+of silent failure".
+
+**It is not, and nobody should re-derive this.** Removing **both**
+`Converters.sem` and `Converters2.gmpi` from the engine's module folder leaves
+the render **byte-identical** — same sha256, `a99c6714…` — with no
+`==== MISSING MODULES ====` and no error. Nothing on this box declares
+`SE BoolToVolts` at all: not the CLI binary (checked as ASCII *and* UTF-32LE,
+because wide-string ids are invisible to `strings` — the false negative E2a
+warned about) and not any of the 59 module files. SynthEditCL resolves that
+conversion some other way.
+
+The general point is worth more than the detail: **this harness measures the
+ENGINE, and TIDE's converter linkage is a property of what `SynthEditSem`
+links.** No case in `tests/cases/` can stand in for it. A guard for E7's
+regression has to live where TIDE's own binary is what renders.
+
+### The reference is bit-exact on Linux CI, first try
+
+Added after the PR went green, because it is a stronger result than this run
+expected. `verify` on the PR renders on **Linux**, against the *published*
+engine, and compares to a reference this box seeded on **macOS**:
+
+```
+PASS  prefab_midi peak=-0.0dBFS null=-infdBFS peakdiff=-infdBFS
+5/5 passed.
+```
+
+`null=-inf` is **bit-exact** — not "inside the gates", identical. That contrasts
+with the two prefab references seeded on macOS on 2026-08-18, whose own case
+files warn that their first CI run is an untested cross-platform comparison.
+The reason is worth keeping rather than treating as luck: this reference contains
+**no floating-point arithmetic to drift**. It is a step and a rectangular pulse,
+both at clipped full scale, so there is no phase increment to integrate and
+E1a's whole class of cross-platform residual cannot arise. A case with this shape
+is expected to be exact everywhere, and a *non*-zero residual here would mean a
+real defect rather than platform drift — which makes this case a sharper
+instrument than the oscillator ones, not a blunter one.
+
+### Why the other two prefabs get no case — measured, not assumed
+
+**TIDE Output: the harness structurally cannot observe it.** `Sound Out`'s `Out`
+pin is an **input**, so the recorder has nothing to attach to:
+
+```
+{"cmd":"render-audio","ok":false,"error":"could not connect --from source to recorder"}
+```
+
+Recording the patch points feeding it would test the patch points. The prefab's
+real promise — that L and R become **two** channels because the input is
+`IO_AUTODUPLICATE` — is visible in the connect commands (`to:[…,0]` then
+`to:[…,1]`, a *new* pin), which is a graph-shape assertion, not an audio one.
+End-to-end it is already covered by the v0.1 fixture pair in `tests/hosts/`.
+
+**TIDE MIDI-CV: there is nothing to render.** It is a facade — four jacks and a
+faceplate, every jack fed from *outside* by the root `SE MIDI to CV 2` (E7).
+Rendered alone it reproduces its own scaffolding.
+
+Both are now written down in [tests/README.md](tests/README.md) with the
+evidence, so the next run does not re-derive either.
+
+### Notes for whoever is next
+
+- **A stale row, observed and deliberately not changed: E12 reads `TODO`, but
+  both of its PRs are MERGED** — [SynthEditLib#23](https://github.com/JeffMcClintock/SynthEditLib/pull/23)
+  (2026-08-18T23:30Z) and [SynthEdit#54](https://github.com/JeffMcClintock/SynthEdit/pull/54)
+  (2026-08-18T23:07Z) — and its own row says the fix is verified at four clean
+  shutdowns. I did not flip it: it is not my item, and I did not re-run its
+  Accept clause on this box. It is a one-line repro
+  (`TIDE_STANDALONE & sleep 9; kill -TERM $!`, then read
+  `~/Library/Logs/DiagnosticReports`) and this is the box that can do it.
+- **A pushed branch with no open PR:** `tide/mac/V3-midi-findings` sits 2 commits
+  ahead of `main` with its PR ([#142](https://github.com/JeffMcClintock/TideSynth/pull/142))
+  already **merged** — STEP 5's forbidden third state, left by an earlier run.
+  The two commits are `25216c1` and `4e65874`, both E7/S8 findings. Someone
+  should confirm whether that content reached `main` by another route and then
+  delete the branch.
+- **Harness baseline on this box before I touched anything: 4/4 PASS**, engine
+  `SynthEditCL V1.6.186`. So the additions did not paper over a red suite.
+- **The foreign-scan warning fires on this box** (`/Library/Audio/Plug-Ins/GMPI`),
+  which finding (d) says is normal for a developer machine — but it does mean
+  none of these local runs *prove* the named module set is what rendered. CI is
+  where that gets proven, and CI is still skipped (**B1**/**C7d**).
+- **Not built and not claimed this run:** TIDE itself, `SynthEditCL` and
+  `SynthEdit`. This item touches only `tests/` and needed no rebuild; the engine
+  used was the Release `SynthEditCL` already on disk from earlier today. So I
+  have **no evidence either way** about whether mac's default branches build, and
+  am not claiming any.
+
+**Next:**
+
+1. **E2** — the rest of the first Eurorack module set. It is the mac NEXT
+   block's other named target and is now the larger half of that row. Each new
+   prefab should arrive with its own case, and this run's README section is the
+   guide to whether one is even possible for it.
+2. **E12 wants five minutes from this box** to flip it DONE honestly — see above.
+3. **A guard for E7's converter linkage** has nowhere to live today. It needs the
+   TIDE binary rendering, which is the REAPER route (`scripts/render-and-measure.py`),
+   not this harness. Worth a row if anyone wants that regression caught.
+
+**Branch/PR:** [#168](https://github.com/JeffMcClintock/TideSynth/pull/168). Work done in a throwaway
+git worktree, so no shared checkout left its default branch; all six working
+copies were clean and on their defaults at start and at finish.
+
+## 2026-08-19 — linux — C7 is four separate problems, not one; C7a done, the other three scoped
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Did:** Took **C7**, the topmost eligible row and the one the linux NEXT block
+points at. Measured it before implementing it, found it is not one session, and
+did what the C12 scoping run did: **split it, and shipped the one stage that was
+completable and verifiable today.**
+
+- **C7a — shipped.** [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59): TIDE's dead private-repo
+  references removed from `SynthEditSem/CMakeLists.txt`, the one real one named in place.
+- **C7b, C7c, C7d, C7e — filed**, each with Scope / Accept / Size. Inventory and
+  reasoning: [docs/c7-clean-clone.md](docs/c7-clean-clone.md).
+- **S18 — filed**, a public-repo defect found while inventorying.
+
+### C7's row was wrong about what C7 contains
+
+The row and the last four journal entries all say C7's content is "the 7 public
+-file includes resolving only in `SynthEdit2`". **That is one of four things, and
+it is the one this box does not own** — it is C13 (in review, windows) and C14
+(filed, windows). The other three had never been named:
+
+| # | The dependency | Measured size |
 |---|---|---|
-| `SynthEditLib` (public) | the repo | `main` protected, "Agent PRs only" ruleset active |
-| `SynthEdit` (private) | `EditorLib/`, `SynthEdit2/` | **`master` `protected=false`, no ruleset** |
+| 1 | TIDE's CMake listed five private include paths | **four were DEAD** — C7a |
+| 2 | TIDE's own source lives in the private repo | 16 + 10 files, **blast radius 3 files** — C7b |
+| 3 | TIDE links `EditorScreenshot` = `SE16/EditorScreenshot/` | on **neither** STEP 5 list — C7c |
+| 4 | **`SynthEditLib` cannot configure standalone** | needs a root CMakeLists here — C7d |
 
-`gh api repos/JeffMcClintock/SynthEdit/rulesets` answers *"Upgrade to GitHub
-Pro or make this repository public"* — **private repos on this plan cannot
-carry rulesets at all.** So the bot has write access to the commercial repo's
-default branch with nothing mechanical in the way, and every PR opened there
-(#41, #20, #15) was voluntary compliance with the run prompt. Two of the three
-GATED paths live in that repo, which is precisely where A17 would relax the
-gate. Filed as **A18** with three options: upgrade the plan, add detection to
-the A6 digest, or accept convention knowingly.
+**(4) is the one nobody had named and it is the structural gap.**
+`SynthEditLib/CMakeLists.txt` consumes `${GMPI_SDK}`, `${GMPI_UI_SDK}` and
+`${VST3_SDK}` and **never sets them** — `SE16/CMakeLists.txt:78-161` does, via
+the override-or-fetch pattern. So "a stranger can build TIDE" needs a
+superproject root `CMakeLists.txt` in *this* repo playing SE16's role for TIDE's
+subset. **It is also free CI:** `build.yml`'s guard job (B1) gates the
+three-platform matrix on a root `CMakeLists.txt` existing, so C7d turns the
+matrix from *skipped* to *running* **with no `.github/workflows/**` edit** — which
+matters, because the fleet's token deliberately has no `workflow` scope.
 
-**Learned — verify the mechanism a rule leans on, not just the rule.** The run
-prompt's own "Becoming the agent" section carries a verification table with the
-row *"bot pushes to `main` — rejected — GH013"*, and I had read it. It does not
-name a repo. I assumed it generalised; it does not, and the one repo where it
-fails is the commercial one. **A recorded verification is evidence about the
-thing that was verified, not about the class it appears to belong to.**
+### C7a — four of five private include paths were dead
 
-**Also worth knowing for future rows:** the gate is arguably over-tight on
-`SynthEditLib` for a reason nobody has revisited — STEP 5's ALLOWED/GATED split
-is from 2026-08-06 (G2), and the bot identity plus rulesets that make
-"everything is reviewed" true landed 2026-08-09 (A2). The gate was calibrated
-for a world where a run pushed as Jeff carrying his bypass. That world ended on
-the public repos and persists on `SE16`.
+Each measured separately, not swept:
 
-**Next:** A17 and A18 are Jeff's, and they pair — A17's premise is A18's
-enforcement. Until both are answered the default stands: a run that finds a
-GATED build break files the issue and stops, which is what #87, #88 and #111
-are all waiting on.
+| Entry | Verdict | Evidence |
+|---|---|---|
+| `EDITOR_DIR` (`../SynthEdit`) | dead | `set()` once, referenced nowhere in the file |
+| `EDITOR2_DIR` (`../SynthEdit2`) | dead | same — the identical pair C6 deleted from `EditorLib/CMakeLists.txt` |
+| `../Shared` | dead | **the directory does not exist in the tree** |
+| `../SynthEdit` | dead | icons, skins, `.chm`; no headers. `SynthEdit.rc` includes `resource.h` + `windows.h` only |
+| `../SynthEdit2` | **REAL** | one consumer: `TideAppStubs.cpp:31` → `SynthEditApp.h` |
 
-**Side effects on this box:** none — docs and rows only; nothing built.
+Also dropped a stray `PRIVATE` keyword — `include_directories()` is the
+*directory*-scoped command and takes paths only, so CMake was adding a relative
+directory literally named `PRIVATE`. Harmless, but it made the block read as if
+it were `target_include_directories()`.
 
-**Branch/PR:** this TideSynth PR. Branched from `main` while
-[#114](https://github.com/JeffMcClintock/TideSynth/pull/114) (the same
-session's E2a/S8/E4 work) was still open; #114 merged first and this branch
-took `main` back in, so the entry below is that work.
+**Result — fresh Ninja/GCC/Release tree, and a baseline taken in the same tree
+immediately before the change so the comparison means something:**
+
+```
+baseline   configure RC=0   928/928 RC=0   ctest 67/67
+after C7a  configure RC=0   928/928 RC=0   ctest 67/67
+```
+
+Zero `error:`, zero `undefined reference`, both runs. `TIDE.gmpi`,
+`TIDE_VST3.vst3`, `SynthEditCL` and `SynthEditWayland` all built — so the
+standing "leave SynthEdit, SynthEditCL and TIDE building" rule holds on this
+platform. **`SynthEdit2` (WinUI3) was not built; it is Windows-only.**
+
+### Two measurements the next stage should not re-derive
+
+**TIDE's own sources have exactly TWO private includes.** Every `#include "..."`
+in `SynthEditSem/*.{cpp,h,mm}` resolved against the public repo first, then
+`SE16`:
+
+```
+SynthEditGui.cpp   "ContainerThumbnail.h"  ->  SE16/EditorScreenshot/   (C7c)
+TideAppStubs.cpp   "SynthEditApp.h"        ->  SE16/SynthEdit2/         (C14)
+```
+
+**Moving TIDE's source out of `SE16` has a blast radius of three files.**
+`grep -rl 'SynthEditSem\|TideModules'` over `SE16`'s build files returns
+`CMakeLists.txt` (one `add_subdirectory` at `:409`), `SynthEditSem/CMakeLists.txt`
+itself, and `se_gmpi/vst3/CMakeLists.txt` where **both hits are comments**. No
+`.vcxproj`, no `.pbxproj`, no `.sln`. That is why C7b is sized at one session.
+
+### A correction to C14's framing, measured rather than inherited
+
+[#165](https://github.com/JeffMcClintock/TideSynth/pull/165) files C14 on the grounds that `SynthEditApp.h` "pulls in
+**`moonbasepp_Licensing.h`**". It does — **inside `#ifdef SE_MOONBASE_SUPPORT`**
+(`SE16/SynthEdit2/SynthEditApp.h:6-11`), and **that header is not tracked by git
+at all**: its own comment says to copy `moonbase_lib/` in from `SynthEdit_Azure`,
+and `find` over `~/SE` returns only two workflow files. So "it drags the
+licensing surface into the public repo" holds only for a moonbase build. **That
+narrows C14 rather than blocking it.** The header is still a private one
+declaring a private app class, and that is the real reason it cannot simply move.
+
+### S18 — and why the committed script could not have found it
+
+Three public files include `soundpipe.h`, which resolves only in
+`SE16/SDKs/Soundpipe/`: `modules/SoundPipe/ReverbChowning.cpp:4`,
+`ReverbSp.cpp:4`, `ReverbZita.cpp:4`. **Not a C7 blocker** — `modules/` is added
+by `SE16`'s root (`:416`), never by `SynthEditLib`'s own, and TIDE links none of
+it. It is a defect in the public repo *as a public repo*.
+
+`scripts/dangling_private_includes.py` skips `SDKs` by design (`SKIP_DIRS`,
+`:57-63`) because vendored SDK headers are not carve-out edges. **That rule is
+correct for what the script measures and is exactly why this was invisible.**
+Cross-checked both ways this run: script and hand scan agree exactly on the
+**seven** carve-out edges across four headers, and differ only here. Use the
+script — it is right, and a naive grep is wrong by ~3x for the reason its
+docstring gives.
+
+### STEP 1 / STEP 1.5
+
+Two open `platform:linux` issues, both authored by `tide-rack-bot`, **neither
+actionable and neither a build break** — so no STEP 1 override:
+[#88](https://github.com/JeffMcClintock/TideSynth/issues/88)'s remaining half is `SynthEditJuce`, which its own
+CMakeLists calls deprecated and which nothing adds to the build, and
+[#156](https://github.com/JeffMcClintock/TideSynth/issues/156) is the ctest path default. Both are GATED-by-default paths
+(`SE16/SynthEditJuce/`, `SE16/tests/`), so A17's exception does not reach them.
+No open `tide/linux/**` PRs. All six working copies were clean and on their
+default branches at start.
+
+**Next:**
+
+1. **C7b** — move `SynthEditSem/` and `TideModules/` into this repo, `SE16`
+   consuming them via `TIDESYNTH_FOLDER_OVERRIDE` + `FetchContent`. Both are
+   ALLOWED paths, so **no ruling needed**, and it does not depend on C13/C14.
+2. **C7c is NEEDS-JEFF** — `EditorScreenshot` is on neither STEP 5 list. G3 is
+   the precedent; the answer took one day last time.
+3. **C7d after C7b**, and do not expect it to *pass* until C13 and C14 land — a
+   clean clone is precisely what those two dangling headers fail.
+4. **C13 and [#165](https://github.com/JeffMcClintock/TideSynth/pull/165) merged while this run was working**, which is why this entry's
+   branch needed a merge from `main`. Re-measured afterwards rather than assumed:
+   `scripts/dangling_private_includes.py` on the merged defaults reports **1**
+   dangling private include, down from **7** — and the survivor,
+   `ApplySynthEditConfig.cpp:2` → `SynthEditApp.h`, is **the same header TIDE's
+   own `TideAppStubs.cpp:31` includes**. So **C14 is now the entire remaining
+   private-include debt, and it closes two consumers at once**, one of them
+   TIDE's. C7e needs it; C7b does not.
+
+   Note the C7a build numbers above were measured against `SE16` `5ae7fbc67`,
+   i.e. **before** C13 merged. C13 moved three headers into `SynthEditLib` and
+   did not touch `SynthEditSem/`, so the two changes are orthogonal — but that is
+   reasoning, and the re-verification against the post-C13 tip is recorded
+   separately on [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59).
+
+**Branch/PR:** [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59) + [#167](https://github.com/JeffMcClintock/TideSynth/pull/167).
+Both working copies returned to their default branches.

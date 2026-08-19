@@ -291,6 +291,11 @@ run filed a correctly-labelled `platform:mac` issue describing a reproducible
 host abort, and no run was permitted to pick it up. The rule was right and the
 gap was real; this closes the gap without weakening what the rule protects.
 
+**If the cause is in a GATED path, you may now repair it** — see STEP 5's
+exception and its six bounds, ruled 2026-08-18. Until then this step and STEP 5
+pointed opposite ways, and three platform breaks sat unfixed while each box
+rediscovered the standoff.
+
 The fix protocol: work on the branch named in the issue if one is named,
 otherwise create `tide/{PLATFORM}/issue-<number>`. Push, open a PR, and comment
 on the issue with what was wrong and a link to the PR. Close the issue only if
@@ -440,8 +445,29 @@ The next run knows only what you write down.
 
         python3 {REPO}/scripts/check-commit-authorship.py --repo <repo>
 
-    Every commit must be `tide-rack-bot`. If any is not, **STOP and do not
-    push.**
+    **Every UNPUSHED commit must be `tide-rack-bot`. If the check exits
+    non-zero, STOP and do not push.** No range to work out and nothing to pass
+    by hand -- the command above is the whole rule.
+
+    **A misattributed commit that is ALREADY PUSHED is reported, not failed**,
+    and the distinction is the point (BACKLOG A26). STEP 2 tells you to
+    CONTINUE a branch that has an open PR from your own platform. When an
+    interactive session started that branch, its commits are authored by the
+    developer, by that session's own convention -- and STEP 4 forbids you from
+    rewriting anything already pushed. Failing over them would demand the one
+    action the rules deny you, so the check stopped doing that: it prints them
+    and exits 0.
+
+    **Read what it prints; do not skim past it.** On a branch you are
+    continuing, the developer's commits are expected and you carry on. If you
+    cannot account for who wrote them, stop and say so in the journal rather
+    than pushing on top -- and note the check cannot make that judgement for
+    you, which is exactly why it shows them instead of swallowing them.
+    `--strict` fails on those too, if you want the old behaviour.
+
+    This matters more than it looks. A run that learns to push past
+    "do not push" on a continued branch is a run that will push past it on the
+    day it means what A14 wrote it to mean.
 
     **These are two checks, not one, and each is blind to the other's failure:**
     authorship asserts *who* wrote a commit, completeness asserts *what is in
@@ -550,15 +576,87 @@ What you may edit outside this repo:
     - SE16/SynthEdit2/
     - the SynthEditLib repo
 
-  If the fix you need is in a GATED path, do the TIDE-side part, then file the
-  gated part as its own BACKLOG item naming the exact file and why. Do not
-  reach across the line because the fix looks small — that is precisely when
-  it is tempting and precisely when it breaks someone else's build.
+  **ONE EXCEPTION, ruled 2026-08-18 (BACKLOG A17, option b): you MAY repair a
+  build break whose cause is in a GATED path** — because you cannot merge your
+  own PR, so Jeff still reviews everything that lands. This is narrow, and the
+  six bounds are what keep it narrow:
+
+    1. **Trigger only.** Your platform's default branch does not build, and the
+       cause is in a GATED path. Not "I noticed something in EditorLib."
+    2. **Minimal restoration.** Prefer reverting the named commit. Forward-fix
+       only where a revert would remove working functionality.
+    3. **Nothing the break did not force.** No refactoring, no cleanup, no
+       behaviour change, no "while I was in there."
+    4. **Its own PR**, GATED-only, never bundled with backlog work, naming the
+       breaking commit and the verification.
+    5. **State which consumers you built.** `SynthEditLib` ships in SynthEdit as
+       well as TIDE, so "TIDE builds now" is not evidence the commercial product
+       is safe.
+    6. **Fall back to filing** whenever the minimal fix is not obvious. If you
+       cannot state the fix in one sentence, file the issue and stop.
+
+  **What did NOT change:** STEP 3's *"do not fix build failures for a platform
+  you cannot compile on"* is untouched and orthogonal — it is the rule least
+  worth relaxing. And this is build-break repair only; it is not a general
+  licence to edit shared code, which was considered as option (c) and declined,
+  because review discharges the correctness risk but not the reviewer's
+  attention budget.
+
+  **The honest gap in this, which you should know rather than be shielded from.**
+  The exception rests on "it gets reviewed", and that is enforced mechanically
+  in `SynthEditLib` (protected `main`, ruleset active) but **not in `SE16`,
+  whose `master` is unprotected** — private repos cannot carry rulesets on the
+  current plan, and **Jeff decided 2026-08-18 not to upgrade**. So in `SE16` the
+  discipline is convention plus detection, not prevention. The detection is
+  yours to run:
+
+        python3 {REPO}/scripts/check-no-direct-commits.py --repo <repo>
+
+  Run it on every GATED repo you touched, before you finish. It flags any
+  agent-authored *and* agent-committed commit sitting on the default branch's
+  first-parent chain — i.e. one that arrived without a PR. Baseline measured
+  2026-08-18: all six repos clean, including `SE16`.
+
+  If the fix you need is in a GATED path and is NOT a build break, do the
+  TIDE-side part, then file the gated part as its own BACKLOG item naming the
+  exact file and why. Do not reach across the line because the fix looks small —
+  that is precisely when it is tempting and precisely when it breaks someone
+  else's build.
 
   Shared build files stay GATED even when they configure a TIDE target. In
   particular SE16/SE_IOS_APP/SE_IOS_APP.xcodeproj/project.pbxproj is shared
   with the non-TIDE iOS and macOS targets, so a TIDE build phase living there
   is still a risk to SynthEdit's own builds. File it rather than editing it.
+
+  PR-GATED — the GMPI repo. Ruled by Jeff 2026-08-18: **"GMPI is our most
+  highly curated repo, changing it is not to be done lightly. I would prefer
+  that modifications to GMPI go via a human-approved PR."**
+
+  This is its own category because neither of the other two fits. GMPI is not
+  ALLOWED — you do not change it as ordinary backlog work, and "the fix is only
+  four lines" is not a reason to. It is not GATED either — you are not required
+  to file a ruling question and stop, because the route exists.
+
+  What you may do: **propose a change as a PR against GMPI, and never merge it.**
+  What that costs you, and it is deliberate:
+
+    - **Raise the bar before you touch it, not after.** GMPI is the lowest
+      layer, shared by SynthEdit and every other GMPI plug-in, so a change here
+      is not TIDE's to get wrong. Keep it minimal, comment the reasoning, and
+      say in the PR body what you did NOT verify.
+    - **A GMPI PR is a proposal, not a fix.** Do not mark a BACKLOG row DONE on
+      the strength of one, and do not build later work on top of it as though
+      it had landed.
+    - **If the same change can be made on the TIDE side instead, make it there.**
+      Reaching into GMPI because it is the tidier place is exactly the reflex
+      this category exists to slow down.
+    - Rebuild `SynthEditCL` as well as TIDE, and stage only the files you
+      actually changed (`git add <path>`, never `git add -A`) — the same care
+      gmpi_ui and GMPI_Wrappers already carry, for the same reason.
+
+  Note this rule is about *modifications*. Reading GMPI, and tracing a bug into
+  it, has never needed permission and still does not — the 2026-08-18 `std::stod`
+  finding was found that way and filed without touching a line.
 
   Any repo or path on NEITHER list is GATED by default. Do the allowed-side
   part if one exists, and file the scope question as a BACKLOG row naming the

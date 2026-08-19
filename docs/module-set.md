@@ -8,7 +8,7 @@ Produced 2026-08-18 (windows, interactive) alongside
 in TIDE's list? Neither existing arm is right"*, and BACKLOG **E2**'s first job
 is *"define the naming and I/O conventions for a module Container, then build
 the rest of a first curated set"*. This document proposes both. **It decides
-nothing** — E2 and E5 are where the work is agreed.
+nothing** — E2 and E16 are where the work is agreed.
 
 ---
 

@@ -1,0 +1,17 @@
+{
+  "description": "E2a's Oscillator rack prefab, built from the same primitives its generator uses (SE16/TideModules/build-prefabs.py). Locks the two things V1's acceptance test depends on: that the statically-registered 'Oscillator' primitive is the one in the binary (NOT 'OscillatorNaive', which S8 measured as absent), and that a PITCH jack left unpatched sits at 5 V = 440 Hz. Without the --set-pin the module free-runs at 13.75 Hz, below hearing and indistinguishable from a broken oscillator. Keep this case's script in step with the Oscillator entry in PREFABS in build-prefabs.py. REFERENCE SEEDED ON macOS, 2026-08-18 -- unlike the other two, which came from Linux. CI is Linux, so the first CI run is this reference's first cross-platform comparison; a null-test failure there is more likely to be platform drift than a regression, and E1a's numbers are the yardstick for telling them apart.",
+  "script": [
+    "--new",
+    "--add-module \"SE Patch Point in\" 60,80  --as pitch",
+    "--add-module \"Oscillator\"        260,80 --as osc",
+    "--connect $pitch:Output $osc:Pitch",
+    "--set-pin $pitch:Input 5"
+  ],
+  "source": "$osc:\"Audio Out\"",
+  "duration": 2.0,
+  "rate": 48000,
+
+  "null_tolerance_dbfs": -67.0,
+  "peak_diff_tolerance_dbfs": -62.0,
+  "tolerance_reason": "Free-running oscillator, same class of residual as osc_naive_sine and the same gates for the same reason: a cross-platform difference in the phase increment integrates into phase error, so the residual grows linearly with render time rather than staying inside a per-sample rounding budget (E1a, 2026-08-14). THESE NUMBERS ARE BOUND TO duration: 2.0 -- changing it invalidates them by 20*log10(new/old) dB. Level, waveform and tuning regressions still fail this case; localized damage below ~12 LSB does not, and voice_midi_note covers that at the default gates over the same oscillator."
+}
