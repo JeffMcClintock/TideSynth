@@ -165,7 +165,8 @@ link is fixed**, because they are C++ comments and no check reads them.
 3. **E17** still gates every E2 module stage; **E10** still needs `SynthEditLib`
    authority.
 
-**Branch/PR:** `tide/mac/A28-community-research` — one repo, TideSynth only.
+**Branch/PR:** [#175](https://github.com/JeffMcClintock/TideSynth/pull/175), branch
+`tide/mac/A28-community-research` — one repo, TideSynth only.
 Throwaway worktree; the developer's checkout stayed on `main` and clean.
 
 ## 2026-08-20 — macos — A27: the NEXT block's Take column is read now, and the docstring stops lying about it
