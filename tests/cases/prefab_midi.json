@@ -1,0 +1,19 @@
+{
+  "description": "E2a/V3's MIDI rack prefab -- the only prefab through which MIDI reaches the rack, and until this case the only shipped prefab whose module was untested (no other case uses 'SE MIDItoGate2'; voice_midi_note goes via 'SE Keyboard2'). Locks the two things the prefab promises its GATE and TRIG jacks will do for a note-on: the gate OPENS and STAYS open, and the trigger emits a pulse of exactly 24 samples at 48 kHz = 0.5 ms. Keep this case's script in step with the 'TIDE MIDI' entry in PREFABS in SE16/TideModules/build-prefabs.py. THE ONE DELIBERATE DIVERGENCE FROM THE PREFAB: the prefab's source is the 'MIDI In' module, which takes MIDI from the host and delivers nothing under a headless CLI; 'SE MidiMessage' stands in for the host, exactly as voice_midi_note does. It fires once, when its Trigger pin goes true (MidiMessage.cpp:21), so the render is one note-on at t=0 and no note-off -- which is why the gate is a step rather than a pulse, and why there is no note-off edge in the reference to regress against. NEGATIVE CONTROL, measured 2026-08-19 (macos): delete the '$src:\"MIDI Out\" -> $mtg:\"MIDI In\"' connect and the render is DIGITAL SILENCE, peak -inf dBFS, which fails the harness's own -90 dBFS silence gate. So this case really does test that MIDI arrives and becomes a note, not merely that a graph builds. WHAT THIS CASE DOES NOT GUARD, measured rather than assumed, because the obvious reading of E7 says otherwise: it is NOT a regression test for TIDE's type-converter linkage. E7's finding was that a bool->float connection needs an auto-inserted 'SE BoolToVolts' (ug_base.cpp:1751) that TIDE lacked, and the gate here is exactly such a connection -- but removing BOTH Converters.sem and Converters2.gmpi from the engine's module folder leaves this render BYTE-IDENTICAL (same sha256), and no module file or engine binary on this box declares 'SE BoolToVolts' at all. SynthEditCL resolves it some other way. TIDE's converter linkage is a property of what SynthEditSem links, and this harness measures the ENGINE, so no case here can stand in for it. LIMIT: the gate is recorded raw and a patch point carries volts, so 10 V clips to full scale -- a gate-LEVEL regression is invisible to this case, while gate presence, gate duration and the trigger pulse width are not. DURATION IS 0.5 s, not the 2.0 s every other case uses, and that is deliberate: there is no free-running oscillator here, so E1a's duration-binding argument -- a phase-increment difference integrating into a residual that grows with render time -- does not apply and the gates below are the plain defaults. The render is a step plus a 24-sample pulse; 0.5 s already proves the gate stays open for 23,976 samples after the pulse ends, while 2.0 s would make this the largest checked-in reference (384 KB) without adding evidence. Lengthening it is harmless, unlike osc_naive_sine, but pointless.",
+  "script": [
+    "--new",
+    "--add-module \"SE MidiMessage\"     0,0     --as src",
+    "--set-pin $src:\"Hex Bytes\" \"90 3C 64\"",
+    "--set-pin $src:Trigger 1",
+    "--add-module \"SE MIDItoGate2\"     260,80  --as mtg",
+    "--add-module \"SE Patch Point out\" 520,80  --as gate",
+    "--add-module \"SE Patch Point out\" 520,200 --as trig",
+    "--connect $src:\"MIDI Out\" $mtg:\"MIDI In\"",
+    "--connect $mtg:Gate    $gate:Input",
+    "--connect $mtg:Trigger $trig:Input"
+  ],
+  "source": "$gate:Output",
+  "source_right": "$trig:Output",
+  "duration": 0.5,
+  "rate": 48000
+}

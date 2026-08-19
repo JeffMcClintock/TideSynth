@@ -13580,3 +13580,97 @@ C12d's Accept requires `SynthEditJuce` to link. **It cannot, on any box.** It is
 **Next:** **C6**, by any box, after re-reading its 2026-08-14 near-miss. Then C7 and C10, which C6 unblocks in turn.
 
 **Branch/PR:** the TideSynth PR carrying this entry. All six repos on their default branches, clean; merged `main`/`master` re-verified building on this platform.
+
+## 2026-08-19 — linux — A26: the authorship check fails on what you can fix, and reports the rest
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Fifth item this session**, on Jeff's instruction ("if all good take the next task"). Claimed with a pushed DOING mark first. Topmost eligible TODO/`any` row; C7 and C10 were skipped correctly — they are `BLOCKED(C6)` and C6's two code PRs are still open, and STEP 2 says never start a BLOCKED item.
+
+**Did:** Fixed the STEP 2 / STEP 4 contradiction. `scripts/check-commit-authorship.py` plus the STEP 4 wording in `docs/weekly-run-prompt.md`.
+
+### The fix is not the one the row proposed, and the difference matters
+
+A26 suggested passing `--range <pre-run tip>..HEAD`, or defaulting to the upstream. **Both narrow the range, and narrowing the range is wrong** — the old docstring already explained why, and it was right: a branch pushed once has an upstream, so comparing against it hides a foreign commit that an *earlier attempt of this same run* had already pushed. Whoever wrote that comment had thought about it.
+
+The range was never the problem. **The verdict was.** So severity is now decided per commit, by whether the run can still act on it:
+
+| commit | verdict | why |
+|---|---|---|
+| misattributed, **not yet pushed** | **BLOCKING**, exit 1, "do not push" | A14's case exactly. `--amend --reset-author` is available. **Unchanged.** |
+| misattributed, **already pushed** | **ADVISORY**, exit 0, printed in full | the run cannot rewrite it — STEP 4 forbids that — so failing demands the one forbidden action |
+
+Nothing is hidden either way; only the verdict moves. `--strict` restores the old fail-on-everything behaviour, so nothing is lost.
+
+**Result — A/B on a real branch, not just the synthetic cases.** `tide/win/competitive-review` is genuinely three Jeff-authored interactive commits, which is precisely A26's scenario:
+
+```
+old (--strict):  rc=1   "Do not push"        <- the deadlock, reproduced
+new (default):   rc=0   all three listed as ALREADY PUSHED -- not blocking
+```
+
+### The selftest earned itself inside five minutes, and the bug is the interesting part
+
+Added `--selftest`, which builds throwaway repos and pins five cases. It failed on first run — and the bug was mine, in this change, and it was **silent and in the dangerous direction**.
+
+`unpushed()` set-matches SHAs against `git rev-list` output, which is always full 40-char. `FORMAT` used `%h`. **No commit ever matched, so every commit was classified "already pushed", so nothing ever blocked.** The check would have exited 0 on the exact A14 scenario it exists to catch — a concurrent session's local commit — while printing a confident, reasonable-looking report. Every one of my real-repo spot checks still passed, because they had no misattributed commits to misclassify.
+
+`FORMAT` now uses `%H`, with the reason recorded beside it. **The general lesson: a check that can only fail open needs a test that makes it fail.** Three of this session's five items have now turned on measuring something instead of reasoning about it; this is the one where the thing being measured was my own work.
+
+**Learned — the five cases are worth keeping in this shape.** Case 5 (a pushed foreign commit *and* an unpushed one on the same branch) is the one that would catch a future regression collapsing the two categories: it must report one and block on the other in the same run.
+
+**Next:** **C7** — point TIDE at the public repo only, plus the clean-clone CI build that is the carve-out's real proof. Still `BLOCKED(C6)` until [SynthEdit#57](https://github.com/JeffMcClintock/SynthEdit/pull/57) and [SynthEditLib#25](https://github.com/JeffMcClintock/SynthEditLib/pull/25) merge. **C7's starting point is already measured** — see the C6 entry: the public `EditorLib` configures standalone RC=0 and stops only on `GmpiUiDrawing.h` / `RawView.h` / `Hosting/message_queues.h`, with zero private-repo references. **C10** also unblocks on C6.
+
+**Also worth someone's eye:** A21, A22, A23 and A24 are all process rows of the same family as A26 — each one a rule that contradicts another rule or a check that misfires. They are cheap, they are `any`, and every one of them was filed by a run that lost time to it.
+
+**Branch/PR:** the TideSynth PR carrying this entry.
+
+---
+
+## 2026-08-19 — linux — C6: EditorLib's CMakeLists is public, and the plan its own comment left was wrong
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Fourth item this session**, on Jeff's instruction ("take next task"). Claimed properly: DOING mark committed and **pushed before any work**, per STEP 2.
+
+**Did:** Carve-out **stage 6** — moved `EditorLib/CMakeLists.txt` into the public `SynthEditLib`, beside the ~120 sources it already compiles.
+
+**Result — fresh tree, Linux, GCC, Release:** configure RC=0, **935/935 RC=0**, zero `error:`, zero `undefined reference`, **ctest 67/67**, `SE_APP_BUILD_NUMBER` **186** and unchanged.
+
+### What was actually in the way — three kinds of private reference, all measured
+
+| reference | disposition | evidence |
+|---|---|---|
+| `EDITOR_DIR`, `EDITOR2_DIR` | deleted | after C12d, **zero** uses left in the file — both were pure dead weight pointing at `SE16/SynthEdit2` |
+| `../Shared`, `../SynthEdit` include dirs | deleted | `../Shared` **does not exist in the tree at all**; `../SynthEdit` holds only icons and skins. Dropped both and rebuilt clean before trusting it |
+| `../SynthEdit2` include dir | kept, re-added by SE16 | genuinely load-bearing: the 7 public-file includes that resolve nowhere else |
+
+**Do not read C6 as closing those seven.** `ISEAppManaged.h`, `IMidiDriver.h`, `ParseSynthEditArgs.h` and `SynthEditApp.h` are exactly the headers no carve-out stage owns; they are C7's clean-clone problem and are tracked as C11. C6 moves the file; it does not make the private dependency go away, and the include directory being supplied from SE16's root is that dependency made *visible* rather than removed.
+
+### The finding: the plan this file left for its own successor does not work
+
+The pre-C6 comment said, in the file, that when C6 moved it the `SE_APP_BUILD_NUMBER` injection "belongs in each SynthEdit application's own build (SynthEdit2.vcxproj, SynthEditCL, SynthEditMac)". **It cannot.** The definition is `PRIVATE` to EditorLib, so it is baked in when **EditorLib's own** TUs compile — `ModuleFactory_Editor.cpp`, `SkinMgr.cpp`, `Application.cpp` — and this tree builds **one** EditorLib that `SynthEditCL`, `SynthEditWayland`, `SynthEdit2` and TIDE all link. A definition set on an application target cannot reach those TUs. Following that instruction would have silently dropped every consumer to the `0` default, which means "never invalidate the module cache or skin folder on upgrade" — a behaviour regression that nothing would have failed on, because 0 is a legal value and the build stays green.
+
+Kept as **one** injection on the shared EditorLib target, moved to SE16's root immediately after the `add_subdirectory`. Verified it reaches the compiler rather than just the configure log:
+
+```
+-- EditorLib: SE_APP_BUILD_NUMBER=186 (from se_build_number.h)
+$ grep -o '\-DSE_APP_BUILD_NUMBER=[0-9]*' build.ninja | sort -u
+-DSE_APP_BUILD_NUMBER=186
+```
+
+**Learned, and this is the third instance this session:** a comment or Accept clause written by the stage *before* the one doing the work has now been wrong three times in a row — C12f's "zero entries" (was three), C12d's rescan-group premise (twice wrong), and now C6's injection plan. Each was wrong in the direction of "the next stage will be easy", and each was caught only by measuring before implementing. **Treat a predecessor stage's instructions as a hypothesis, not a specification.**
+
+### Does C6's goal hold? Measured, and the answer is precise
+
+C6 exists "so the public repo can build the editor library standalone". Configuring the public `EditorLib` alone, no SE16 anywhere: **RC=0**. A standalone *build* then stops on `GmpiUiDrawing.h`, `RawView.h`, `Hosting/message_queues.h` — and **`grep -c "SE16\|SynthEdit2"` over that build log is 0**.
+
+**Zero private-repo references.** What remains between the public repo and a standalone editor library is the external GMPI / gmpi_ui SDKs, which SE16 fetches and a public consumer must fetch too. That is C7's scope. This is the cleanest evidence available that C6 did its job, and it is worth re-running as C7's starting point rather than re-deriving.
+
+### Not verified, not claimed
+
+**Windows and macOS were not built** — cannot compile them here. `SynthEdit2.vcxproj` and the SynthEditMac Xcode project consume the EditorLib *target*, not `EditorLib/CMakeLists.txt` by path, so neither should notice the move — but that is reasoning, not measurement, and the run prompt is explicit about not claiming a platform I cannot build. **The v0.1 audio harness did not run: REAPER is not installed here.**
+
+**Next:** **C7** — point TIDE at the public repo only, and the clean-clone CI build that is the carve-out's real proof. It is BLOCKED(C6) and stays blocked until these two PRs merge; do not start it before then. Its first concrete task is already measured above: the three external SDK headers, not anything private. **C10** also unblocks on C6.
+
+**Branch/PR:** [SynthEdit#57](https://github.com/JeffMcClintock/SynthEdit/pull/57) + [SynthEditLib#25](https://github.com/JeffMcClintock/SynthEditLib/pull/25), which must merge together, plus the TideSynth PR carrying this entry.
