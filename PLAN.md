@@ -196,15 +196,25 @@ TIDE is not starting from zero. A working prototype exists:
 The prototype links `SynthEditLib` (public) **and** `EditorLib` (private). That
 split is the central problem the carve-out solves.
 
-## Open-source status — unresolved
+## Open-source status — RESOLVED 2026-08-07
 
-`JeffMcClintock/SynthEditLib` is a public repo with **no LICENSE file**. Public
-is not the same as open source: with no licence, default copyright applies and
-nobody may legally use or redistribute it.
+**Both repos are ISC.** `JeffMcClintock/SynthEditLib` carries an ISC `LICENSE`
+(*Copyright (c) 2007-2026 Jeff McClintock*), added by `a2143a4`, *"Switch LICENSE
+to ISC, matching GMPI and gmpi_ui"*; TideSynth carries the same licence. That is
+the same licence as GMPI and gmpi_ui, so the whole stack is consistent. L1 is
+resolved and archived in [BACKLOG-DONE.md](BACKLOG-DONE.md); the ruling is in
+[docs/decisions.md](docs/decisions.md).
 
-TIDE cannot honestly be called open source until a licence is chosen for both
-`SynthEditLib` and TIDE itself. This is a decision for Jeff alone — a weekly
-agent must **not** pick a licence. See BACKLOG item L1.
+**Corrected 2026-08-19 (windows, Jeff directing).** This section said, in the
+present tense, that `SynthEditLib` was *"a public repo with **no LICENSE file**"*
+and that *"nobody may legally use or redistribute it"* — twelve days after the
+licence landed. It is the most consequential thing in this document to have
+wrong, because it is the sentence a prospective contributor or packager would
+read first, and it told them the project was legally untouchable.
+
+The one part of the old wording still worth keeping is the rule it existed to
+enforce, which has not changed and is not made moot by L1 being answered: **a
+weekly agent must not pick or change a licence.** That is Jeff's alone.
 
 The commercial boundary to preserve: **plugin export stays private.** SynthEdit
 sells the ability to export patches as plugins. TIDE embeds patches instead of
@@ -221,9 +231,16 @@ donating possible. Neither should nag: no splash screen, no countdown, no modal
 reminder, nothing that interrupts making sound. A donation route that a user has
 to go looking for is the intended outcome, not a failure of the design.
 
-Free is **not** the same as open source. This section settles the price; it does
-not settle the licence, which is still L1 and still Jeff's alone. A free binary
-with no LICENSE file is exactly the state `SynthEditLib` is in today.
+Free is **not** the same as open source, and the distinction is still worth
+keeping: this section settles the **price**, and the licence is a separate
+question that stays Jeff's alone.
+
+**Corrected 2026-08-19 (windows, Jeff directing):** the licence question is no
+longer open. It closed on 2026-08-07 — **ISC, both repos** — so the old closing
+sentence here, *"a free binary with no LICENSE file is exactly the state
+`SynthEditLib` is in today"*, describes a state that ended twelve days ago. TIDE
+is a free binary under an ISC licence, and is open source. See
+[Open-source status](#open-source-status--resolved-2026-08-07) above.
 
 Two constraints above already narrow what a donation affordance can be, and they
 narrow it a lot:
@@ -312,6 +329,20 @@ a silent failure that produced plausible-looking output:
 
 **The dependency this document had backwards is resolved.** The original note
 follows, kept for the record.
+
+**Read the next paragraph as dated, not current — checked 2026-08-19 (windows,
+Jeff directing).** It says *"E2 is currently `BLOCKED` on V1"*, and that
+"currently" is **2026-08-13's**, not today's. As of now **V1 is `DONE`**
+(2026-08-18, its acceptance test measured above) and **E2 is `TODO`, not
+blocked** — its own row records it as unblocked on 2026-08-18 precisely because
+V1 closed. Nothing in the paragraph is true of the present tree.
+
+It is kept verbatim anyway, because this file's convention is that a superseded
+note is preserved rather than rewritten, and because the reasoning error it
+records — a document asserting a cycle between its own acceptance test and the
+work that satisfies it — is the useful part. The hazard is only the word
+"currently" in preserved text, which is why this warning sits above it rather
+than inside it.
 
 **This created a dependency this document had backwards — RESOLVED 2026-08-13 by
 splitting E2a (the three V1-critical prefabs) out of E2, and closed out entirely on

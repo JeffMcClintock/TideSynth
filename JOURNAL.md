@@ -179,12 +179,143 @@ default branches at start.
    the precedent; the answer took one day last time.
 3. **C7d after C7b**, and do not expect it to *pass* until C13 and C14 land — a
    clean clone is precisely what those two dangling headers fail.
-4. **C13 is still open** ([SynthEdit#58](https://github.com/JeffMcClintock/SynthEdit/pull/58) + [SynthEditLib#26](https://github.com/JeffMcClintock/SynthEditLib/pull/26), must merge
-   together) and C14 is filed inside [#165](https://github.com/JeffMcClintock/TideSynth/pull/165), which is also still open. Both
-   windows. C7e needs them.
+4. **C13 and [#165](https://github.com/JeffMcClintock/TideSynth/pull/165) merged while this run was working**, which is why this entry's
+   branch needed a merge from `main`. Re-measured afterwards rather than assumed:
+   `scripts/dangling_private_includes.py` on the merged defaults reports **1**
+   dangling private include, down from **7** — and the survivor,
+   `ApplySynthEditConfig.cpp:2` → `SynthEditApp.h`, is **the same header TIDE's
+   own `TideAppStubs.cpp:31` includes**. So **C14 is now the entire remaining
+   private-include debt, and it closes two consumers at once**, one of them
+   TIDE's. C7e needs it; C7b does not.
+
+   Note the C7a build numbers above were measured against `SE16` `5ae7fbc67`,
+   i.e. **before** C13 merged. C13 moved three headers into `SynthEditLib` and
+   did not touch `SynthEditSem/`, so the two changes are orthogonal — but that is
+   reasoning, and the re-verification against the post-C13 tip is recorded
+   separately on [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59).
 
 **Branch/PR:** [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59) + [#167](https://github.com/JeffMcClintock/TideSynth/pull/167).
 Both working copies returned to their default branches.
+
+## 2026-08-19 — windows — C13 filed and shipped; C14 and A27 filed; PLAN's licence claim corrected (interactive session, Jeff directing)
+
+**Did:** Verified C6 on Windows, then took the gap C12 left behind: filed and
+executed **C13**, filed **C14** and **A27**, and corrected two false claims in
+PLAN.md that Jeff spotted.
+
+### C6 verified on Windows — nobody had
+
+C6 landed verified on a **linux** tree only, and it moves a CMakeLists between
+repos, which is exactly the shape MSVC can disagree about. Fresh scratch Ninja
+tree, Release: **1020/1020 RC=0**, zero `error C`, **ctest 92/92**, all three
+artifacts.
+
+**The specific thing worth checking was the build-number injection**, which C6
+moved out of `EditorLib/CMakeLists.txt` into `SE16/CMakeLists.txt` because it
+reads a private path — and which **defaults to 0 and fails silently**. It
+survived: `SE_APP_BUILD_NUMBER=186`, read from the generated ninja rules rather
+than from a configure line scrolling past. Check this on any tree that touches
+that seam.
+
+### C13 — the three headers no stage owned
+
+`ISEAppManaged.h`, `IMidiDriver.h`, `ParseSynthEditArgs.h` → `SynthEditLib` root.
+850 lines, header-only. `docs/c12-remaining-editor-files.md` had listed them
+under "What C12 does not cover" and said they "need their own decision about
+which stage's list grows", left "as an explicit gap". C12 and C6 both completed
+and they were still sitting there.
+
+**Dangling private includes 7 → 1**, measured.
+
+**The finding: C12's non-CMake-build-edit check does not cover `CMakeLists.txt`,
+and this stage needed five build files, not two.** Every prior C-stage grepped
+tracked `*.vcxproj`/`*.filters`/`*.pbxproj` for the moving names and got "none".
+That convention missed three app source lists:
+
+    CMake Error at SynthEditCL/CMakeLists.txt:22 (add_executable):
+      No SOURCES given to target: SynthEditCL
+
+`SynthEditCL`, `SynthEditJuce` and `SynthEditWayland` each carried
+`${EDITOR2_DIR}/ParseSynthEditArgs.h`. **A header on a source list is never
+compiled, so it contributes nothing but its own existence — and its absence
+empties the whole list.** Found by building, not by grepping. **Add
+`CMakeLists.txt` to that grep before C10**, which is the next stage that moves
+files.
+
+**A measurement error I nearly shipped.** The first dangling run after the move
+reported **0 edges** — a better number than predicted, and wrong. The script is
+native Python and had been handed MSYS-style paths (`/c/Users/...`), which it
+cannot resolve, so it walked nothing and truthfully reported nothing found. The
+re-run with Windows paths walks 1338 public and 70 private files and reports the
+correct **1**. **A zero from a walker is worthless without a count of what it
+walked**; assert the walk found files before believing its result. This is the
+same Git-Bash-vs-native-Python path split that bites `/tmp` on this box.
+
+### C14 — the last private include, and it must not move
+
+The 1 that remains is `SynthEditLib/ApplySynthEditConfig.cpp:2` → `SynthEditApp.h`,
+which pulls in **`moonbasepp_Licensing.h`**, the commercial licensing library.
+Moving it would push the licensing surface into the public repo — the exact
+boundary PLAN protects — so it is not a carve-out move. It wants **C11's**
+treatment: narrow to an interface. The shape is easier than C11's was, because
+`ApplySynthEditConfig.h` **already** forward-declares `class SynthEditApp;` and
+both functions take it by reference, so only the `.cpp` needs the complete type.
+
+**C14 is now the single thing between the carve-out and C7**, and C7 gates C10
+and the release track R2–R6. C7 is eligible by status and **cannot pass** until
+C14 lands, because the clean-clone test is precisely what that one include fails.
+C7's row now says so.
+
+### A27 — the NEXT-block lint does not read the Take column
+
+Found the only way it could be: the `any` NEXT row's Take cell said **C6**, C6
+had been archived hours earlier, and `lint` was green.
+
+**This is a stale-comment bug, not a logic bug, and I got it wrong first.** My
+initial read was "implementation bug — the docstring says the Take column is
+checked and it isn't." The code is behaving as intended: the loop at
+`scripts/check-next-block.py:174-180` carries a deliberate note saying there is
+no "every ID in the Take column counts" rule, because measuring it produced
+**seven** false alarms back when Take cells were long editorial paragraphs. That
+measurement was correct. **The module docstring was simply never updated** and
+still claims the opposite, which is what made the behaviour look like a defect.
+
+**What has changed is the shape of the rows.** `win` and `any` Take cells are now
+short fields (`**P3** — the only win-marked TODO left`); `mac` and `linux` are
+still paragraphs. So A27 proposes a narrower rule than the one that failed —
+**only a bolded ID the Take cell *begins* with** — which catches `win` and `any`,
+touches neither `mac` nor `linux`, and should reproduce none of the original
+seven. Accept is a positive control out of git history, as A20 did for itself.
+
+### PLAN.md — two false claims, both Jeff's catch
+
+1. **"`SynthEditLib` is a public repo with no LICENSE file"** and "nobody may
+   legally use or redistribute it" — stated in the present tense, **twelve days
+   after** ISC landed (`a2143a4`, 2026-08-07, both repos, matching GMPI and
+   gmpi_ui; L1 resolved and archived). The most consequential thing in that
+   document to have wrong: it is the first thing a prospective contributor or
+   packager reads, and it told them the project was legally untouchable. Fixed in
+   both places it appeared — the section heading and the closing line of "Price
+   and funding". The rule the section existed to enforce is kept: **an agent must
+   not pick or change a licence.**
+
+2. **"E2 is currently `BLOCKED` on V1"** — checked at Jeff's request and it is
+   invalid: **V1 is DONE** (2026-08-18) and **E2 is TODO**, unblocked that same
+   day. The sentence sits inside a paragraph explicitly preserved as a superseded
+   note, so the record is legitimate; the hazard is the word *"currently"* in
+   preserved text. Left verbatim per this file's convention, with a dated warning
+   **above** it saying the "currently" is 2026-08-13's, not today's.
+
+**Next:** **C14**, then C7. Nothing else in the carve-out is left.
+
+**Branch/PR:** [SynthEdit#58](https://github.com/JeffMcClintock/SynthEdit/pull/58)
++ [SynthEditLib#26](https://github.com/JeffMcClintock/SynthEditLib/pull/26),
+which must merge together, plus the TideSynth PR carrying this entry. Work done
+in throwaway git worktrees for all three repos, so no shared checkout was ever
+switched off its default branch — the mitigation for this morning's collision.
+All shared trees left clean and on their defaults.
+
+---
 
 ## 2026-08-19 — linux — C6 DONE; C7 and C10 unblocked, and C7's first move is already measured
 
@@ -310,39 +441,4 @@ C6 exists "so the public repo can build the editor library standalone". Configur
 **Next:** **C7** — point TIDE at the public repo only, and the clean-clone CI build that is the carve-out's real proof. It is BLOCKED(C6) and stays blocked until these two PRs merge; do not start it before then. Its first concrete task is already measured above: the three external SDK headers, not anything private. **C10** also unblocks on C6.
 
 **Branch/PR:** [SynthEdit#57](https://github.com/JeffMcClintock/SynthEdit/pull/57) + [SynthEditLib#25](https://github.com/JeffMcClintock/SynthEditLib/pull/25), which must merge together, plus the TideSynth PR carrying this entry.
-
----
-
-## 2026-08-19 — linux — C12 is COMPLETE; C12d and the umbrella flipped to DONE, C6 unblocked
-
-**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
-
-**Third and last item this session**, again at Jeff's explicit instruction ("merged. sync repos. any additional Linux tasks?") after he merged C12d's two PRs. Bookkeeping plus the verification that makes the bookkeeping mean something.
-
-**Did:** Flipped **C12d** (IN-REVIEW → DONE) and the **C12 umbrella** (BLOCKED(C12d) → DONE) into [BACKLOG-DONE.md](BACKLOG-DONE.md), and unblocked **C6** (BLOCKED(C12d) → TODO). Precedent for flipping my own work in the same session is C12f on 2026-08-18, which the windows run flipped at Jeff's request the same way.
-
-**Result — verified on the MERGED default branches, from scratch, not from the PRs.** This is the check that matters for a two-repo change, because merging one without the other was the stated breakage risk and nothing before this moment had built the combination:
-
-| check | result |
-|---|---|
-| `${EDITOR_DIR}` entries in `EditorLib/CMakeLists.txt` | **0** |
-| three files present in `SynthEditLib`, absent from `SE16/SynthEdit2/` | yes / yes |
-| configure, fresh tree | RC=0 |
-| full build | **935/935 RC=0**, zero `error:`, zero `undefined reference` |
-| `ctest` | **67/67** |
-| moved TUs' objects | both from `.../SynthEditLib/`, **zero** under any `SynthEdit2` path |
-
-935 edges rather than the 549 measured pre-merge, because this tree was configured from scratch after the merges rather than reusing a warm one — worth knowing so nobody reads the two numbers as a regression.
-
-**Learned — `check-backlog-diff.py` caught a real rewrite of mine, and it was right to.** My first C6 edit **replaced** the row's leading sentence instead of growing it. The script's rule is that an existing row's Item text must still be present *verbatim* somewhere inside the new text; a replacement is a rewrite, which needs a human rather than an auto-merge. Rebuilt the row as `<new note> + <original Item verbatim>` and it passed. **The general shape: prepend to an Item, never edit inside it.** The three earlier runs that hit this are why the check exists; add this one.
-
-**State of the queue, which is the actual answer to "any additional Linux tasks?":**
-
-- **The `linux` column is empty of takeable work.** C12d was the last one. `X1`, `X2` and `R4` are the only other `linux`-marked rows and all three are BLOCKED. That is the correct state, not a gap.
-- **C6 is next and is `any`** — move `EditorLib/CMakeLists.txt` itself into `SynthEditLib`. Whichever box wakes first. It is not linux's in particular, and there is no reason to hold it for this one.
-- **Two one-line jobs remain open and belong to no platform:** the `SynthEditJuce` entry in [#88](https://github.com/JeffMcClintock/TideSynth/issues/88) and the ctest path default in [#156](https://github.com/JeffMcClintock/TideSynth/issues/156). Both are in GATED-by-default paths (`SE16/SynthEditJuce/`, `SE16/tests/`) and **neither is a build break**, so STEP 5's A17 exception does not reach either. They need Jeff or a ruling — they are not blocked on capacity.
-
-**Next:** **C6**, by any box, after re-reading its 2026-08-14 near-miss. Then C7 and C10, which C6 unblocks in turn.
-
-**Branch/PR:** the TideSynth PR carrying this entry. All six repos on their default branches, clean; merged `main`/`master` re-verified building on this platform.
 

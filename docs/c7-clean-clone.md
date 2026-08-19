@@ -30,8 +30,16 @@ being discussed as one. Three of them are not about `SynthEditLib` at all.
 | 4 | `SynthEditLib` cannot configure standalone — no root superproject exists | new file in this repo | C7d |
 
 Plus the public-file→private-header includes, already owned elsewhere: **C13**
-(in review) and **C14** (filed). Those are the only part of C7 that the
-`SynthEditLib` repo itself has to change, and they are not this stage's to do.
+and **C14**. Those are the only part of C7 that the `SynthEditLib` repo itself
+has to change, and they are not this stage's to do.
+
+**C13 merged mid-run** (SynthEdit#58 + SynthEditLib#26, 2026-08-19). Re-measured
+afterwards with `scripts/dangling_private_includes.py` on the merged defaults:
+**7 dangling includes across 4 headers → 1 across 1**. The survivor is
+`ApplySynthEditConfig.cpp:2` → `SynthEditApp.h`, which is C14 — and it is the
+same header TIDE's own `TideAppStubs.cpp:31` includes. **One header is now the
+whole of the carve-out's remaining private-include debt, and it has two
+consumers.**
 
 ## 1. TIDE's include paths — measured, and mostly dead (C7a, done)
 
@@ -136,9 +144,9 @@ Sequential. Each must leave SynthEdit, SynthEditCL and TIDE building.
 | **C7d** | any | Root `CMakeLists.txt` in this repo: the override-or-fetch block for `GMPI`, `gmpi_ui`, `GMPI_Wrappers`, the VST3 SDK and `SynthEditLib`, then `add_subdirectory` for `SynthEditLib`, `EditorLib` and TIDE. Model it on `SE16/CMakeLists.txt:1-230` and take only TIDE's subset | `cmake` + `ninja` in a **fresh clone of this repo alone**, with `SE16` absent from the disk, produces `TIDE.gmpi` | one session, after C7b |
 | **C7e** | any | The proof. CI green on the public matrix from a checkout with no access to `SynthEdit` | `build.yml`'s three platforms run (not skip) and pass on a PR | needs C7b, C7c, C7d, **C13** and **C14** |
 
-**C7d cannot pass before C13 and C14 land**, because a clean clone is exactly
-what those two dangling private headers fail. C7b does not depend on them, so it
-is the next thing to take.
+**C7d cannot pass before C14 lands** — C13 merged mid-run, so `SynthEditApp.h`
+is the only header left that a clean clone fails. C7b does not depend on it, so
+it is the next thing to take.
 
 ## What this stage did not verify
 
