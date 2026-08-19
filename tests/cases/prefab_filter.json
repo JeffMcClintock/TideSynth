@@ -1,0 +1,22 @@
+{
+  "description": "E2b's Filter rack prefab, built from the same primitives its generator uses (SE16/TideModules/build-prefabs.py). Keep this case's script in step with the 'TIDE Filter' entry in PREFABS there. UNLIKE the other prefab cases this one needs a SOURCE as well as the module under test: a filter fed DC measures nothing, so the Oscillator prefab's own recipe drives it. That makes this a two-module case in the same way voice_midi_note is a whole-chain case -- an oscillator regression fails it too, which is a deliberate trade for measuring the filter on a real signal. WHAT IT LOCKS is the filter's defining number: the cutoff jack sits at 5 V, which on the 1 V/octave scale the oscillator shares is 440 Hz, i.e. EXACTLY the source frequency, so the render is the textbook -3 dB AT CUTOFF point of a 1-pole filter. That single number moves if the coefficient math, the sample-rate scaling or the 1 V/octave mapping regresses. Measured 2026-08-19 (macos) across the whole control range on a 440 Hz source, which is why 5 V was chosen as the most informative point rather than an arbitrary one: cutoff 10 V (14 kHz) peak -6.3 dBFS, effectively open; 8 V (3.5 kHz) -6.6 dBFS; 5 V (440 Hz) -9.5 dBFS, the -3 dB point; 2 V (55 Hz) -22.2 dBFS, ~6 dB/octave beyond cutoff. NOTE THE PREFAB ITSELF DEFAULTS THIS JACK TO 10, NOT 5 -- an unpatched rack module must pass signal, the same rule the Envelope's GATE default follows -- so this case deliberately drives the jack to a value the shipped prefab does not default to. It is testing the filter, not the default. POSITIVE CONTROL, measured: change the cutoff --set-pin from 5 to 2 and the case FAILS the null test loudly, so it is sensitive to what the filter actually does rather than merely to audio being present. The relaxed gates below are prefab_oscillator's, verbatim and for its reason, because the same free-running oscillator is in this signal path.",
+  "script": [
+    "--new",
+    "--add-module \"SE Patch Point in\"  60,80   --as pitch",
+    "--add-module \"Oscillator\"         260,80  --as osc",
+    "--add-module \"SE Patch Point in\"  60,240  --as cutoff",
+    "--add-module \"1 Pole LP\"          460,80  --as filt",
+    "--connect $pitch:Output    $osc:Pitch",
+    "--connect $osc:\"Audio Out\" $filt:Signal",
+    "--connect $cutoff:Output   $filt:Pitch",
+    "--set-pin $pitch:Input 5",
+    "--set-pin $cutoff:Input 5"
+  ],
+  "source": "$filt:Output",
+  "duration": 2.0,
+  "rate": 48000,
+
+  "null_tolerance_dbfs": -67.0,
+  "peak_diff_tolerance_dbfs": -62.0,
+  "tolerance_reason": "Free-running oscillator in the signal path, so this is prefab_oscillator's residual class and takes its gates verbatim: a cross-platform difference in the phase increment integrates into phase error, and the residual grows linearly with render time rather than staying inside a per-sample rounding budget (E1a, 2026-08-14). THESE NUMBERS ARE BOUND TO duration: 2.0 -- changing it invalidates them by 20*log10(new/old) dB, which is also why this case uses 2.0 rather than the 1.0 the cutoff sweep was measured at. Level, waveform, tuning and FILTER-RESPONSE regressions still fail this case; localized damage below ~12 LSB does not, and voice_midi_note covers that at the default gates."
+}

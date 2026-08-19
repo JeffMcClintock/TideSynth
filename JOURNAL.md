@@ -46,6 +46,143 @@ Template:
 
 ---
 
+## 2026-08-19 — macos — E2b: a Filter rack module, and the linkage check that actually discriminates
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Third item this session**, on Jeff's instruction ("next task"), after E13 and
+E12 merged. Claimed with a pushed DOING mark before any work, per STEP 2.
+
+**Did:** Took **E2**, the `mac` NEXT target. Found it is not one item, split it
+the way C7 and C12 were split, and shipped the first stage as **E2b — a Filter
+rack module**. TIDE now ships **six** prefabs and `tests/cases/` covers four.
+
+### Why E2 had to be split rather than attempted
+
+E2 says: *"Define the naming and I/O conventions for a module Container, then
+build the rest of a first curated set, each with its own E1 test case."* **It
+never says which modules that set contains**, which is a product decision and
+not a run's to invent — so as one item it fails STEP 2's "state the acceptance
+check before starting" bar. The conventions half is also largely *already
+written down*, in `build-prefabs.py`'s header: panel geometry, the
+`PanelWndPosition`-vs-`panel_rect` distinction, faceplate sizing, and the rack
+grid (`hpWidth 15`, `rowHeight 380`, so a slot is a multiple of 15 wide and at
+most 350 tall). E2's remaining content is therefore **modules**, one at a time,
+and a filter is the obvious first: oscillator → filter → envelope → out is the
+canonical subtractive voice.
+
+### The linkage check, which is the transferable part
+
+E2a left a trap: *"every module in a prefab must be a class TIDE links"*, with
+`strings`/`nm` on the module-id string called out as a **false positive**
+(`SE Rectangle XP` is in the binary via the rename table at `CUG.cpp:301`).
+That is true of the *id string*. It is not true of the **static-init symbol**,
+which is a real linkage fact, and that is the check E12's entry recommended:
+
+```
+se_static_library_init_ug_filter_1pole      PRESENT     <- 1 Pole LP
+se_static_library_init_ug_filter_1pole_hp   PRESENT     <- 1 Pole HP
+se_static_library_init_SVFilter4            absent
+se_static_library_init_ButterworthHP        absent
+se_static_library_init_OscillatorNaive      absent      <- S8's module, still absent
+```
+
+**It discriminates, which is the only reason to trust it** — three of the five
+obvious filter candidates come back absent, including the one
+(`OscillatorNaive`) already known absent by independent measurement. So the
+positive result on `1 Pole LP` means something.
+
+**A trap this exposes for anyone scanning `UgDatabase.cpp` for candidates:**
+`INIT_STATIC_FILE(SVFilter4)` and `INIT_STATIC_FILE(ButterworthHP)` are both
+*in that list*, and both are **absent from TIDE**. The list is
+`SynthEditLib`'s, and TIDE links a subset. **Do not read the INIT list as a menu
+of what TIDE can instantiate.** The core `ug_*` entries are the ones that come
+free — `ug_filter_1pole`, `ug_vca`, `ug_pan`, `ug_sample_hold`, `ug_random`,
+`ug_quantiser`, `ug_switch`, `ug_delay` all measured PRESENT, and all are
+plausible future E2 stages.
+
+### The module, and its default
+
+`1 Pole LP`, `ug_filter_1pole_lp.cpp:21`, category Filters. Pins
+`Signal` / `Pitch` / `Output` — the Oscillator prefab's shape with an audio
+input added. `Pitch` is the **cutoff**, 1 V/octave on the same scale the
+oscillator uses, so 5 V = 440 Hz.
+
+Measured on a 440 Hz source, recording the filter output:
+
+| cutoff | peak |
+|---|---|
+| 10 V (14 kHz) | −6.3 dBFS — effectively open |
+| 8 V (3.5 kHz) | −6.6 dBFS |
+| **5 V (440 Hz)** | **−9.5 dBFS — −3 dB AT cutoff, textbook 1-pole** |
+| 2 V (55 Hz) | −22.2 dBFS — ~6 dB/octave beyond |
+
+**The FREQ jack ships defaulted to 10 V, wide open.** That is not a preference,
+it is the rule the Envelope's GATE default already follows and it is worth
+stating as a convention: **an unpatched jack takes the value that lets the
+module pass signal**, because a rack that does not patch everything must still
+sound. A filter defaulting to 0 would render silence on drop-in and look broken.
+
+### Verification
+
+**In TIDE, not merely in the generator:**
+
+```
+TIDE: 6 rack prefab(s) seeded from the bundle     (was 5)
+TIDE: rack built for 48000 Hz, block 512
+shutdown rc=0, no new crash report
+```
+
+**Harness 6/6**, with the new case's reference independently checked rather than
+trusted: 440.0 Hz by zero-crossing count, peak −9.5 dBFS = the −3 dB point.
+Both gates positive-controlled:
+
+```
+control A  cutoff 5V -> 2V (filter-response regression)  FAIL  null=-16.6 dBFS
+control B  reference scaled 0.99 (-0.09 dB level)        FAIL  null=-55.3 dBFS
+full suite                                               6/6 PASS
+```
+
+**Control B matters more than it looks.** This case carries `prefab_oscillator`'s
+*relaxed* gates (−67/−62), because a free-running oscillator is in its signal
+path — and a relaxed gate invites the question of what it still catches. A **1%
+level change fails it with 11.7 dB to spare**, so level, tuning and filter-response
+regressions are all still caught; what is given up is localized damage below
+~12 LSB, which `voice_midi_note` covers at the default gates.
+
+### The five prefabs I regenerated and did NOT commit
+
+Running the generator rewrote all six files. The other five are **handle churn
+only** — randomised `handle` / `fMod` / `tMod` / `module` / `tiedtomod` values —
+and I proved that rather than asserting it: normalising those five attributes
+makes all five **byte-identical to HEAD**, and MidiCv's `tiedtopin` mapping stays
+**7/8/9/10**, the contract `TideApp` hard-codes. Reverted, not committed, per
+STEP 5.
+
+**Worth knowing before the next E2 stage:** `build-prefabs.py` is not
+reproducible — every run produces a different file for every prefab. So a
+generator change always looks like a six-file diff, and **the only way to see
+what you actually changed is to normalise the handles**. The check is four lines
+of Python and is in this entry's PR body.
+
+**Next:**
+
+1. **E2c and onward** — more modules, one stage each. The measured candidate
+   list is above; a **VCA** (`ug_vca`) and a **Sample & Hold** (`ug_sample_hold`)
+   are the obvious next two, and `tests/README.md` now says how to decide
+   whether a new prefab can have a case at all.
+2. **E10** is still the biggest thing on this platform and needs `SynthEditLib`
+   authority — a live host crash whose own Accept clause would not fix it.
+3. **`tide/mac/V3-midi-findings`** is still a pushed branch with no open PR,
+   reported for the third run running.
+
+**Branch/PR:** [SynthEdit#60](https://github.com/JeffMcClintock/SynthEdit/pull/60)
+plus the TideSynth PR carrying this entry — **two repos, and they are one
+change**, though neither breaks the other's build: the E1 case rebuilds the
+recipe from primitives rather than loading `Filter.synthedit`, so it does not
+depend on the SynthEdit half landing first. Work done in a throwaway worktree
+for TideSynth; `SynthEdit` was branched in place and is returned to `master`.
+
 ## 2026-08-19 — macos — E12 verified on the merged trees and closed; E13 archived; a mac build trap that survives ZERO_CHECK
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
@@ -465,123 +602,3 @@ default branches at start.
 
 **Branch/PR:** [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59) + [#167](https://github.com/JeffMcClintock/TideSynth/pull/167).
 Both working copies returned to their default branches.
-
-## 2026-08-19 — windows — C13 filed and shipped; C14 and A27 filed; PLAN's licence claim corrected (interactive session, Jeff directing)
-
-**Did:** Verified C6 on Windows, then took the gap C12 left behind: filed and
-executed **C13**, filed **C14** and **A27**, and corrected two false claims in
-PLAN.md that Jeff spotted.
-
-### C6 verified on Windows — nobody had
-
-C6 landed verified on a **linux** tree only, and it moves a CMakeLists between
-repos, which is exactly the shape MSVC can disagree about. Fresh scratch Ninja
-tree, Release: **1020/1020 RC=0**, zero `error C`, **ctest 92/92**, all three
-artifacts.
-
-**The specific thing worth checking was the build-number injection**, which C6
-moved out of `EditorLib/CMakeLists.txt` into `SE16/CMakeLists.txt` because it
-reads a private path — and which **defaults to 0 and fails silently**. It
-survived: `SE_APP_BUILD_NUMBER=186`, read from the generated ninja rules rather
-than from a configure line scrolling past. Check this on any tree that touches
-that seam.
-
-### C13 — the three headers no stage owned
-
-`ISEAppManaged.h`, `IMidiDriver.h`, `ParseSynthEditArgs.h` → `SynthEditLib` root.
-850 lines, header-only. `docs/c12-remaining-editor-files.md` had listed them
-under "What C12 does not cover" and said they "need their own decision about
-which stage's list grows", left "as an explicit gap". C12 and C6 both completed
-and they were still sitting there.
-
-**Dangling private includes 7 → 1**, measured.
-
-**The finding: C12's non-CMake-build-edit check does not cover `CMakeLists.txt`,
-and this stage needed five build files, not two.** Every prior C-stage grepped
-tracked `*.vcxproj`/`*.filters`/`*.pbxproj` for the moving names and got "none".
-That convention missed three app source lists:
-
-    CMake Error at SynthEditCL/CMakeLists.txt:22 (add_executable):
-      No SOURCES given to target: SynthEditCL
-
-`SynthEditCL`, `SynthEditJuce` and `SynthEditWayland` each carried
-`${EDITOR2_DIR}/ParseSynthEditArgs.h`. **A header on a source list is never
-compiled, so it contributes nothing but its own existence — and its absence
-empties the whole list.** Found by building, not by grepping. **Add
-`CMakeLists.txt` to that grep before C10**, which is the next stage that moves
-files.
-
-**A measurement error I nearly shipped.** The first dangling run after the move
-reported **0 edges** — a better number than predicted, and wrong. The script is
-native Python and had been handed MSYS-style paths (`/c/Users/...`), which it
-cannot resolve, so it walked nothing and truthfully reported nothing found. The
-re-run with Windows paths walks 1338 public and 70 private files and reports the
-correct **1**. **A zero from a walker is worthless without a count of what it
-walked**; assert the walk found files before believing its result. This is the
-same Git-Bash-vs-native-Python path split that bites `/tmp` on this box.
-
-### C14 — the last private include, and it must not move
-
-The 1 that remains is `SynthEditLib/ApplySynthEditConfig.cpp:2` → `SynthEditApp.h`,
-which pulls in **`moonbasepp_Licensing.h`**, the commercial licensing library.
-Moving it would push the licensing surface into the public repo — the exact
-boundary PLAN protects — so it is not a carve-out move. It wants **C11's**
-treatment: narrow to an interface. The shape is easier than C11's was, because
-`ApplySynthEditConfig.h` **already** forward-declares `class SynthEditApp;` and
-both functions take it by reference, so only the `.cpp` needs the complete type.
-
-**C14 is now the single thing between the carve-out and C7**, and C7 gates C10
-and the release track R2–R6. C7 is eligible by status and **cannot pass** until
-C14 lands, because the clean-clone test is precisely what that one include fails.
-C7's row now says so.
-
-### A27 — the NEXT-block lint does not read the Take column
-
-Found the only way it could be: the `any` NEXT row's Take cell said **C6**, C6
-had been archived hours earlier, and `lint` was green.
-
-**This is a stale-comment bug, not a logic bug, and I got it wrong first.** My
-initial read was "implementation bug — the docstring says the Take column is
-checked and it isn't." The code is behaving as intended: the loop at
-`scripts/check-next-block.py:174-180` carries a deliberate note saying there is
-no "every ID in the Take column counts" rule, because measuring it produced
-**seven** false alarms back when Take cells were long editorial paragraphs. That
-measurement was correct. **The module docstring was simply never updated** and
-still claims the opposite, which is what made the behaviour look like a defect.
-
-**What has changed is the shape of the rows.** `win` and `any` Take cells are now
-short fields (`**P3** — the only win-marked TODO left`); `mac` and `linux` are
-still paragraphs. So A27 proposes a narrower rule than the one that failed —
-**only a bolded ID the Take cell *begins* with** — which catches `win` and `any`,
-touches neither `mac` nor `linux`, and should reproduce none of the original
-seven. Accept is a positive control out of git history, as A20 did for itself.
-
-### PLAN.md — two false claims, both Jeff's catch
-
-1. **"`SynthEditLib` is a public repo with no LICENSE file"** and "nobody may
-   legally use or redistribute it" — stated in the present tense, **twelve days
-   after** ISC landed (`a2143a4`, 2026-08-07, both repos, matching GMPI and
-   gmpi_ui; L1 resolved and archived). The most consequential thing in that
-   document to have wrong: it is the first thing a prospective contributor or
-   packager reads, and it told them the project was legally untouchable. Fixed in
-   both places it appeared — the section heading and the closing line of "Price
-   and funding". The rule the section existed to enforce is kept: **an agent must
-   not pick or change a licence.**
-
-2. **"E2 is currently `BLOCKED` on V1"** — checked at Jeff's request and it is
-   invalid: **V1 is DONE** (2026-08-18) and **E2 is TODO**, unblocked that same
-   day. The sentence sits inside a paragraph explicitly preserved as a superseded
-   note, so the record is legitimate; the hazard is the word *"currently"* in
-   preserved text. Left verbatim per this file's convention, with a dated warning
-   **above** it saying the "currently" is 2026-08-13's, not today's.
-
-**Next:** **C14**, then C7. Nothing else in the carve-out is left.
-
-**Branch/PR:** [SynthEdit#58](https://github.com/JeffMcClintock/SynthEdit/pull/58)
-+ [SynthEditLib#26](https://github.com/JeffMcClintock/SynthEditLib/pull/26),
-which must merge together, plus the TideSynth PR carrying this entry. Work done
-in throwaway git worktrees for all three repos, so no shared checkout was ever
-switched off its default branch — the mitigation for this morning's collision.
-All shared trees left clean and on their defaults.
-
----
