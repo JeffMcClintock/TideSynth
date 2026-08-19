@@ -13476,3 +13476,72 @@ SE_BUILD_FOLDER="<build>/" SE_CANCELLATION_FOLDER="$HOME/SE/SE16/UnitTest/" ctes
 4. Consider a CI job that configures with the pipewire SDK deliberately *absent*. Every finding in this entry is a platform-gated path that only one box executes, and the fleet keeps rediscovering them one run at a time.
 
 **Branch/PR:** [SynthEdit#55](https://github.com/JeffMcClintock/SynthEdit/pull/55) (the fix) + the TideSynth PR carrying this entry. All repos left on their default branches; no working tree left dirty.
+
+---
+
+## 2026-08-19 — linux — C12d: the carve-out's last stage, and its stated reason was wrong
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (asserted; `insteadOf` = `git@github.com:`, every repo remote spot-checked `https://`)
+
+**Second item this session**, taken at Jeff's explicit instruction mid-run ("sync repos, take any remaining Linux task") after the STEP 1 build break above was fixed and merged. Noting that because it is a deliberate exception to STEP 2's one-item rule, not a run that helped itself to a second.
+
+**Did:** C12d — moved `InterfaceObject_editor.{cpp,h}` and `platform_editor.cpp` (319 lines) out of the private `SE16/SynthEdit2/` into the public `SynthEditLib`. **`EditorLib`'s source list now has ZERO `${EDITOR_DIR}` entries**, which is C12's top-level acceptance check. C12 is complete and **C6 is unblocked**.
+
+**Result — every Accept clause measured, none inferred:**
+
+| check | result |
+|---|---|
+| `${EDITOR_DIR}` entries | **3 → 0** |
+| configure | RC=0 |
+| full tree | **RC=0**, zero `error:`, zero `undefined reference` |
+| `SynthEditCL` / `SynthEditWayland` | both **link**, RC=0 |
+| `TIDE_VST3` / `TIDE` | link, RC=0 |
+| `ctest` | **67/67** |
+| dangling private includes | **7 → 7**, exactly as the row predicted |
+
+The load-bearing evidence is not the green build but that the TUs compile **from the new public path** — `EditorLib.dir/home/jef/SE/SynthEditLib/{InterfaceObject_editor,platform_editor}.cpp.o` — with **zero** objects remaining under any `SynthEdit2` path.
+
+### The finding: this row's whole reason for existing was wrong, and it took a measurement to see it
+
+C12d was marked `linux` on the theory that moving the provider into `SynthEditLib` would put it *"in the same archive as the code expecting it"*, plausibly making the three apps' GNU ld rescan groups redundant. **Wrong twice, and the two errors are independent.**
+
+**1. C12 moves files between REPOS, not between archives.** This is the one worth internalising, because the row, `docs/c12-remaining-editor-files.md` and my own first reading all had it backwards. `SynthEditLib`'s own target does not compile any of the moved files — every C12 stage relocates the *file* into the public repo while `EditorLib/CMakeLists.txt` keeps compiling it, only via `${SYNTHEDITLIB_DIR}` instead of `${EDITOR_DIR}`. Proved directly rather than argued:
+
+```
+$ ar t libEditorLib.a   | grep -E "platform_editor|InterfaceObject_editor"
+InterfaceObject_editor.cpp.o
+platform_editor.cpp.o
+$ ar t libSynthEditLib.a | grep -cE "platform_editor|InterfaceObject_editor"
+0
+```
+
+Archive topology bit-for-bit unchanged, so **no rescan group could have become redundant because of this stage** — the mechanism the row proposed does not exist.
+
+**2. The rescan groups were already redundant anyway, before the move.** Measured as a proper control on unmodified `master`, before touching a file: replaced `$<LINK_GROUP:RESCAN,...>` with plain library names in `SynthEditCL` and `SynthEditWayland`, deleted the binaries so the link genuinely re-ran, rebuilt. **Both RC=0, zero undefined references**, and no `--start-group` anywhere in the ninja link line. Cause: **CMake already repeats both archives on the link line** (5× each), which satisfies a mutual reference the same way `--start-group` does.
+
+**I left the groups in place, deliberately.** The row says to prove redundancy by building rather than reasoning it away — done — but "links today" is not "safe to remove": the repetition count is a CMake implementation detail nobody declared, the groups are explicit and cost nothing, and removing them is risk with no benefit. The reasoning is now a comment in `EditorLib/CMakeLists.txt` so the next person does not re-derive it.
+
+So `linux` was the **right marking for the wrong reason**. The question genuinely needed a GNU ld box to answer; the answer is "the premise never held".
+
+**Learned — a control before the change is worth more than a check after it.** Had I only measured after the move, "links without the rescan group" would have looked like C12d's doing, and I would have written a confident, wrong entry recommending the groups be deleted. The 2026-08-19 windows entry made the same kind of catch on C12f's Accept ("zero entries" that was really three). **Two consecutive carve-out stages have now shipped with an Accept clause that was wrong in the direction of unblocking something unsafe.** That is a pattern in how these rows are written, not two accidents.
+
+### NEEDS-SPEC, which does not block the merge
+
+C12d's Accept requires `SynthEditJuce` to link. **It cannot, on any box.** It is deprecated and not reachable from the root `CMakeLists.txt` — its own comment at `SynthEditJuce/CMakeLists.txt:49-51` says so — so there is no build that would fail and none that would prove a fix correct. Treat as by-inspection. This is the same target that holds the last open half of [#88](https://github.com/JeffMcClintock/TideSynth/issues/88).
+
+### Not verified, not claimed
+
+**Windows and macOS were not built.** I cannot compile them here and the prompt forbids claiming a platform I cannot build. It is a path relocation with no code edit and MSVC is indifferent to the link topology in question — but that is reasoning, not measurement, and it is exactly what the "never fix another platform blind" rule is about. **The v0.1 audio harness also did not run: REAPER is not installed on this box.**
+
+### One process note
+
+**`tide/linux/C12d` in `SE16` was force-pushed once.** It was branched on top of `tide/linux/issue-153`, because C12d's Accept needs a working configure and that only existed there. Both [SynthEdit#55](https://github.com/JeffMcClintock/SynthEdit/pull/55) and [TideSynth#157](https://github.com/JeffMcClintock/TideSynth/pull/157) then auto-merged mid-session and GitHub deleted the base branch, so the PR could not be opened against it. Rebased onto the new `master` — git dropped the already-merged commit by itself — and force-pushed. **This does rewrite a pushed commit, which STEP 4 tells runs not to do**; I judged it safe because the branch was three minutes old, had no PR, and nothing could be built on it. Recording it rather than quietly doing it. **The general lesson for the next run: if you stack a branch on another of your own, expect A4's auto-merge to pull the base out from under you.**
+
+**Next:**
+
+1. **Merge [SynthEdit#56](https://github.com/JeffMcClintock/SynthEdit/pull/56) and [SynthEditLib#24](https://github.com/JeffMcClintock/SynthEditLib/pull/24) together** — either alone breaks the build. Then flip **C12d and C12 to DONE**, and **C6 becomes eligible**.
+2. **C6 is `any`, so it is not this box's in particular** — whichever machine wakes first. Re-read C6's own 2026-08-14 near-miss first: it nearly moved `EditorLib/CMakeLists.txt` into the public repo while it still pointed at private files. That risk is what C12d just retired.
+3. **Nothing linux-specific is left takeable**, which is the correct outcome rather than a gap.
+4. Standing, and unglamorous: **[#156](https://github.com/JeffMcClintock/TideSynth/issues/156)** (the ctest path default) and **the `SynthEditJuce` line in [#88](https://github.com/JeffMcClintock/TideSynth/issues/88)** are both one-line fixes in GATED-by-default paths, both blocked on nothing but someone with the standing to edit them.
+
+**Branch/PR:** [SynthEdit#56](https://github.com/JeffMcClintock/SynthEdit/pull/56) + [SynthEditLib#24](https://github.com/JeffMcClintock/SynthEditLib/pull/24), plus the TideSynth PR carrying this entry. All repos left on their default branches; no working tree left dirty.

@@ -46,6 +46,146 @@ Template:
 
 ---
 
+## 2026-08-19 — linux — C7 is four separate problems, not one; C7a done, the other three scoped
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Did:** Took **C7**, the topmost eligible row and the one the linux NEXT block
+points at. Measured it before implementing it, found it is not one session, and
+did what the C12 scoping run did: **split it, and shipped the one stage that was
+completable and verifiable today.**
+
+- **C7a — shipped.** [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59): TIDE's dead private-repo
+  references removed from `SynthEditSem/CMakeLists.txt`, the one real one named in place.
+- **C7b, C7c, C7d, C7e — filed**, each with Scope / Accept / Size. Inventory and
+  reasoning: [docs/c7-clean-clone.md](docs/c7-clean-clone.md).
+- **S18 — filed**, a public-repo defect found while inventorying.
+
+### C7's row was wrong about what C7 contains
+
+The row and the last four journal entries all say C7's content is "the 7 public
+-file includes resolving only in `SynthEdit2`". **That is one of four things, and
+it is the one this box does not own** — it is C13 (in review, windows) and C14
+(filed, windows). The other three had never been named:
+
+| # | The dependency | Measured size |
+|---|---|---|
+| 1 | TIDE's CMake listed five private include paths | **four were DEAD** — C7a |
+| 2 | TIDE's own source lives in the private repo | 16 + 10 files, **blast radius 3 files** — C7b |
+| 3 | TIDE links `EditorScreenshot` = `SE16/EditorScreenshot/` | on **neither** STEP 5 list — C7c |
+| 4 | **`SynthEditLib` cannot configure standalone** | needs a root CMakeLists here — C7d |
+
+**(4) is the one nobody had named and it is the structural gap.**
+`SynthEditLib/CMakeLists.txt` consumes `${GMPI_SDK}`, `${GMPI_UI_SDK}` and
+`${VST3_SDK}` and **never sets them** — `SE16/CMakeLists.txt:78-161` does, via
+the override-or-fetch pattern. So "a stranger can build TIDE" needs a
+superproject root `CMakeLists.txt` in *this* repo playing SE16's role for TIDE's
+subset. **It is also free CI:** `build.yml`'s guard job (B1) gates the
+three-platform matrix on a root `CMakeLists.txt` existing, so C7d turns the
+matrix from *skipped* to *running* **with no `.github/workflows/**` edit** — which
+matters, because the fleet's token deliberately has no `workflow` scope.
+
+### C7a — four of five private include paths were dead
+
+Each measured separately, not swept:
+
+| Entry | Verdict | Evidence |
+|---|---|---|
+| `EDITOR_DIR` (`../SynthEdit`) | dead | `set()` once, referenced nowhere in the file |
+| `EDITOR2_DIR` (`../SynthEdit2`) | dead | same — the identical pair C6 deleted from `EditorLib/CMakeLists.txt` |
+| `../Shared` | dead | **the directory does not exist in the tree** |
+| `../SynthEdit` | dead | icons, skins, `.chm`; no headers. `SynthEdit.rc` includes `resource.h` + `windows.h` only |
+| `../SynthEdit2` | **REAL** | one consumer: `TideAppStubs.cpp:31` → `SynthEditApp.h` |
+
+Also dropped a stray `PRIVATE` keyword — `include_directories()` is the
+*directory*-scoped command and takes paths only, so CMake was adding a relative
+directory literally named `PRIVATE`. Harmless, but it made the block read as if
+it were `target_include_directories()`.
+
+**Result — fresh Ninja/GCC/Release tree, and a baseline taken in the same tree
+immediately before the change so the comparison means something:**
+
+```
+baseline   configure RC=0   928/928 RC=0   ctest 67/67
+after C7a  configure RC=0   928/928 RC=0   ctest 67/67
+```
+
+Zero `error:`, zero `undefined reference`, both runs. `TIDE.gmpi`,
+`TIDE_VST3.vst3`, `SynthEditCL` and `SynthEditWayland` all built — so the
+standing "leave SynthEdit, SynthEditCL and TIDE building" rule holds on this
+platform. **`SynthEdit2` (WinUI3) was not built; it is Windows-only.**
+
+### Two measurements the next stage should not re-derive
+
+**TIDE's own sources have exactly TWO private includes.** Every `#include "..."`
+in `SynthEditSem/*.{cpp,h,mm}` resolved against the public repo first, then
+`SE16`:
+
+```
+SynthEditGui.cpp   "ContainerThumbnail.h"  ->  SE16/EditorScreenshot/   (C7c)
+TideAppStubs.cpp   "SynthEditApp.h"        ->  SE16/SynthEdit2/         (C14)
+```
+
+**Moving TIDE's source out of `SE16` has a blast radius of three files.**
+`grep -rl 'SynthEditSem\|TideModules'` over `SE16`'s build files returns
+`CMakeLists.txt` (one `add_subdirectory` at `:409`), `SynthEditSem/CMakeLists.txt`
+itself, and `se_gmpi/vst3/CMakeLists.txt` where **both hits are comments**. No
+`.vcxproj`, no `.pbxproj`, no `.sln`. That is why C7b is sized at one session.
+
+### A correction to C14's framing, measured rather than inherited
+
+[#165](https://github.com/JeffMcClintock/TideSynth/pull/165) files C14 on the grounds that `SynthEditApp.h` "pulls in
+**`moonbasepp_Licensing.h`**". It does — **inside `#ifdef SE_MOONBASE_SUPPORT`**
+(`SE16/SynthEdit2/SynthEditApp.h:6-11`), and **that header is not tracked by git
+at all**: its own comment says to copy `moonbase_lib/` in from `SynthEdit_Azure`,
+and `find` over `~/SE` returns only two workflow files. So "it drags the
+licensing surface into the public repo" holds only for a moonbase build. **That
+narrows C14 rather than blocking it.** The header is still a private one
+declaring a private app class, and that is the real reason it cannot simply move.
+
+### S18 — and why the committed script could not have found it
+
+Three public files include `soundpipe.h`, which resolves only in
+`SE16/SDKs/Soundpipe/`: `modules/SoundPipe/ReverbChowning.cpp:4`,
+`ReverbSp.cpp:4`, `ReverbZita.cpp:4`. **Not a C7 blocker** — `modules/` is added
+by `SE16`'s root (`:416`), never by `SynthEditLib`'s own, and TIDE links none of
+it. It is a defect in the public repo *as a public repo*.
+
+`scripts/dangling_private_includes.py` skips `SDKs` by design (`SKIP_DIRS`,
+`:57-63`) because vendored SDK headers are not carve-out edges. **That rule is
+correct for what the script measures and is exactly why this was invisible.**
+Cross-checked both ways this run: script and hand scan agree exactly on the
+**seven** carve-out edges across four headers, and differ only here. Use the
+script — it is right, and a naive grep is wrong by ~3x for the reason its
+docstring gives.
+
+### STEP 1 / STEP 1.5
+
+Two open `platform:linux` issues, both authored by `tide-rack-bot`, **neither
+actionable and neither a build break** — so no STEP 1 override:
+[#88](https://github.com/JeffMcClintock/TideSynth/issues/88)'s remaining half is `SynthEditJuce`, which its own
+CMakeLists calls deprecated and which nothing adds to the build, and
+[#156](https://github.com/JeffMcClintock/TideSynth/issues/156) is the ctest path default. Both are GATED-by-default paths
+(`SE16/SynthEditJuce/`, `SE16/tests/`), so A17's exception does not reach them.
+No open `tide/linux/**` PRs. All six working copies were clean and on their
+default branches at start.
+
+**Next:**
+
+1. **C7b** — move `SynthEditSem/` and `TideModules/` into this repo, `SE16`
+   consuming them via `TIDESYNTH_FOLDER_OVERRIDE` + `FetchContent`. Both are
+   ALLOWED paths, so **no ruling needed**, and it does not depend on C13/C14.
+2. **C7c is NEEDS-JEFF** — `EditorScreenshot` is on neither STEP 5 list. G3 is
+   the precedent; the answer took one day last time.
+3. **C7d after C7b**, and do not expect it to *pass* until C13 and C14 land — a
+   clean clone is precisely what those two dangling headers fail.
+4. **C13 is still open** ([SynthEdit#58](https://github.com/JeffMcClintock/SynthEdit/pull/58) + [SynthEditLib#26](https://github.com/JeffMcClintock/SynthEditLib/pull/26), must merge
+   together) and C14 is filed inside [#165](https://github.com/JeffMcClintock/TideSynth/pull/165), which is also still open. Both
+   windows. C7e needs them.
+
+**Branch/PR:** [SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59) plus the TideSynth PR carrying this entry.
+Both working copies returned to their default branches.
+
 ## 2026-08-19 — linux — C6 DONE; C7 and C10 unblocked, and C7's first move is already measured
 
 **Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
@@ -206,71 +346,3 @@ C6 exists "so the public repo can build the editor library standalone". Configur
 
 **Branch/PR:** the TideSynth PR carrying this entry. All six repos on their default branches, clean; merged `main`/`master` re-verified building on this platform.
 
----
-
-## 2026-08-19 — linux — C12d: the carve-out's last stage, and its stated reason was wrong
-
-**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (asserted; `insteadOf` = `git@github.com:`, every repo remote spot-checked `https://`)
-
-**Second item this session**, taken at Jeff's explicit instruction mid-run ("sync repos, take any remaining Linux task") after the STEP 1 build break above was fixed and merged. Noting that because it is a deliberate exception to STEP 2's one-item rule, not a run that helped itself to a second.
-
-**Did:** C12d — moved `InterfaceObject_editor.{cpp,h}` and `platform_editor.cpp` (319 lines) out of the private `SE16/SynthEdit2/` into the public `SynthEditLib`. **`EditorLib`'s source list now has ZERO `${EDITOR_DIR}` entries**, which is C12's top-level acceptance check. C12 is complete and **C6 is unblocked**.
-
-**Result — every Accept clause measured, none inferred:**
-
-| check | result |
-|---|---|
-| `${EDITOR_DIR}` entries | **3 → 0** |
-| configure | RC=0 |
-| full tree | **RC=0**, zero `error:`, zero `undefined reference` |
-| `SynthEditCL` / `SynthEditWayland` | both **link**, RC=0 |
-| `TIDE_VST3` / `TIDE` | link, RC=0 |
-| `ctest` | **67/67** |
-| dangling private includes | **7 → 7**, exactly as the row predicted |
-
-The load-bearing evidence is not the green build but that the TUs compile **from the new public path** — `EditorLib.dir/home/jef/SE/SynthEditLib/{InterfaceObject_editor,platform_editor}.cpp.o` — with **zero** objects remaining under any `SynthEdit2` path.
-
-### The finding: this row's whole reason for existing was wrong, and it took a measurement to see it
-
-C12d was marked `linux` on the theory that moving the provider into `SynthEditLib` would put it *"in the same archive as the code expecting it"*, plausibly making the three apps' GNU ld rescan groups redundant. **Wrong twice, and the two errors are independent.**
-
-**1. C12 moves files between REPOS, not between archives.** This is the one worth internalising, because the row, `docs/c12-remaining-editor-files.md` and my own first reading all had it backwards. `SynthEditLib`'s own target does not compile any of the moved files — every C12 stage relocates the *file* into the public repo while `EditorLib/CMakeLists.txt` keeps compiling it, only via `${SYNTHEDITLIB_DIR}` instead of `${EDITOR_DIR}`. Proved directly rather than argued:
-
-```
-$ ar t libEditorLib.a   | grep -E "platform_editor|InterfaceObject_editor"
-InterfaceObject_editor.cpp.o
-platform_editor.cpp.o
-$ ar t libSynthEditLib.a | grep -cE "platform_editor|InterfaceObject_editor"
-0
-```
-
-Archive topology bit-for-bit unchanged, so **no rescan group could have become redundant because of this stage** — the mechanism the row proposed does not exist.
-
-**2. The rescan groups were already redundant anyway, before the move.** Measured as a proper control on unmodified `master`, before touching a file: replaced `$<LINK_GROUP:RESCAN,...>` with plain library names in `SynthEditCL` and `SynthEditWayland`, deleted the binaries so the link genuinely re-ran, rebuilt. **Both RC=0, zero undefined references**, and no `--start-group` anywhere in the ninja link line. Cause: **CMake already repeats both archives on the link line** (5× each), which satisfies a mutual reference the same way `--start-group` does.
-
-**I left the groups in place, deliberately.** The row says to prove redundancy by building rather than reasoning it away — done — but "links today" is not "safe to remove": the repetition count is a CMake implementation detail nobody declared, the groups are explicit and cost nothing, and removing them is risk with no benefit. The reasoning is now a comment in `EditorLib/CMakeLists.txt` so the next person does not re-derive it.
-
-So `linux` was the **right marking for the wrong reason**. The question genuinely needed a GNU ld box to answer; the answer is "the premise never held".
-
-**Learned — a control before the change is worth more than a check after it.** Had I only measured after the move, "links without the rescan group" would have looked like C12d's doing, and I would have written a confident, wrong entry recommending the groups be deleted. The 2026-08-19 windows entry made the same kind of catch on C12f's Accept ("zero entries" that was really three). **Two consecutive carve-out stages have now shipped with an Accept clause that was wrong in the direction of unblocking something unsafe.** That is a pattern in how these rows are written, not two accidents.
-
-### NEEDS-SPEC, which does not block the merge
-
-C12d's Accept requires `SynthEditJuce` to link. **It cannot, on any box.** It is deprecated and not reachable from the root `CMakeLists.txt` — its own comment at `SynthEditJuce/CMakeLists.txt:49-51` says so — so there is no build that would fail and none that would prove a fix correct. Treat as by-inspection. This is the same target that holds the last open half of [#88](https://github.com/JeffMcClintock/TideSynth/issues/88).
-
-### Not verified, not claimed
-
-**Windows and macOS were not built.** I cannot compile them here and the prompt forbids claiming a platform I cannot build. It is a path relocation with no code edit and MSVC is indifferent to the link topology in question — but that is reasoning, not measurement, and it is exactly what the "never fix another platform blind" rule is about. **The v0.1 audio harness also did not run: REAPER is not installed on this box.**
-
-### One process note
-
-**`tide/linux/C12d` in `SE16` was force-pushed once.** It was branched on top of `tide/linux/issue-153`, because C12d's Accept needs a working configure and that only existed there. Both [SynthEdit#55](https://github.com/JeffMcClintock/SynthEdit/pull/55) and [TideSynth#157](https://github.com/JeffMcClintock/TideSynth/pull/157) then auto-merged mid-session and GitHub deleted the base branch, so the PR could not be opened against it. Rebased onto the new `master` — git dropped the already-merged commit by itself — and force-pushed. **This does rewrite a pushed commit, which STEP 4 tells runs not to do**; I judged it safe because the branch was three minutes old, had no PR, and nothing could be built on it. Recording it rather than quietly doing it. **The general lesson for the next run: if you stack a branch on another of your own, expect A4's auto-merge to pull the base out from under you.**
-
-**Next:**
-
-1. **Merge [SynthEdit#56](https://github.com/JeffMcClintock/SynthEdit/pull/56) and [SynthEditLib#24](https://github.com/JeffMcClintock/SynthEditLib/pull/24) together** — either alone breaks the build. Then flip **C12d and C12 to DONE**, and **C6 becomes eligible**.
-2. **C6 is `any`, so it is not this box's in particular** — whichever machine wakes first. Re-read C6's own 2026-08-14 near-miss first: it nearly moved `EditorLib/CMakeLists.txt` into the public repo while it still pointed at private files. That risk is what C12d just retired.
-3. **Nothing linux-specific is left takeable**, which is the correct outcome rather than a gap.
-4. Standing, and unglamorous: **[#156](https://github.com/JeffMcClintock/TideSynth/issues/156)** (the ctest path default) and **the `SynthEditJuce` line in [#88](https://github.com/JeffMcClintock/TideSynth/issues/88)** are both one-line fixes in GATED-by-default paths, both blocked on nothing but someone with the standing to edit them.
-
-**Branch/PR:** [SynthEdit#56](https://github.com/JeffMcClintock/SynthEdit/pull/56) + [SynthEditLib#24](https://github.com/JeffMcClintock/SynthEditLib/pull/24), plus the TideSynth PR carrying this entry. All repos left on their default branches; no working tree left dirty.
