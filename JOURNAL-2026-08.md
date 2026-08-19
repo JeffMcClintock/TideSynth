@@ -15107,3 +15107,110 @@ than filed — a one-line risk, not a defect.
 `tide/mac/A28-community-research` — one repo, TideSynth only.
 
 Throwaway worktree; the developer's checkout stayed on `main` and clean.
+
+## 2026-08-20 — macos — A21: the identity gate stops on a wrong answer, not on no answer
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI version is not resolvable on this box — `claude --version` is *command not found*) · as **tide-rack-bot** (both paths, and this entry is the first to say so — see below)
+
+**Third item this session**, on Jeff's instruction, after syncing the repos.
+Claimed with a pushed DOING mark before any work.
+
+**Did:** STEP 0.7 now runs **two identity paths** — `gh api user` and
+`gh api graphql '{ viewer { login databaseId } }'` — and reads them with rules
+that separate **asserted wrong** (STOP, always) from **could not assert** (retry,
+then STOP and journal). Wording only; no code.
+
+### All four branches were exercised, not reasoned about
+
+| scenario | REST | GraphQL | rule |
+|---|---|---|---|
+| healthy | `tide-rack-bot` | `tide-rack-bot 314850083` | proceed, record `(both)` |
+| **one path down** — REST forced through a dead proxy | `Get "https://api.github.com/user": proxyconnect …` | `tide-rack-bot` | proceed, record `(GraphQL)` |
+| both down | transport error | transport error | retry ~1 min, then **STOP** |
+| **credential missing** — `unset GH_TOKEN` | **`JeffMcClintock`** | **`JeffMcClintock`** | **STOP**, unconditionally |
+
+**Row 4 is the one that decides whether any of this is safe, and it is the good
+news.** The GraphQL path falls back to Jeff's keyring credential *identically* to
+the REST path, so it **cannot launder a missing token**. Adding it is therefore a
+second equivalent assertion, not a bypass — which is the only thing that would
+have made A21 a weakening of the gate rather than a fix to it.
+
+### The finding worth more than the change
+
+**The two failure kinds are textually distinguishable, so a run never has to
+judge which one it is in.**
+
+- A **transport** failure yields **no login at all** — an error string.
+- A **credential** failure yields a **perfectly valid login that is the wrong
+  one**.
+
+So: *if you are holding a login string, you are in the asserted case, and the
+only question is whether it says `tide-rack-bot`. If you are holding an error,
+you are in the could-not-assert case, and retrying is correct.* Never treat an
+error as licence to continue; never try to retry a wrong name away. That is now a
+table in the prompt rather than a judgement call, which matters because the run
+making the call is the one whose credentials are in question.
+
+### Two things the row did not anticipate
+
+**GraphQL is the STRONGER assertion, not a lesser fallback.** It returns
+`databaseId` = **314850083**, which is exactly the number hard-coded into
+`GIT_AUTHOR_EMAIL` (`314850083+tide-rack-bot@users.noreply.github.com`). So it
+checks the identity the run's **commits** will carry, where REST only checks the
+one its API calls will. Prefer it when both answer.
+
+**A latent documentation bug, in the one rule where being read correctly matters
+most.** The paragraph beginning *"That second command MUST print
+`tide-rack-bot`"* named the **wrong command**: the second command was the
+`insteadOf` transport check, and the identity call was the first. It had said
+that ever since the transport check was added, and every run since has had to
+silently repair it while reading. Fixed, with a note saying so.
+
+**Also updated:** STEP 0.5's record line, and STEP 4's provenance template, which
+now reads `as <login> (<REST|GraphQL|both>)`. This entry's own `**Prompt:**` line
+is the first to carry it.
+
+### Repos synced first, per the instruction
+
+Five advanced, five already current, three skipped:
+
+| skipped | why |
+|---|---|
+| `JUCE` | untracked `modules/juce_audio_processors/format_types/VST3_SDK/` |
+| `gimpi_ui_tests` | untracked `build-bench/` |
+| `VST_SDK` | detached HEAD, no upstream, untracked `build/` |
+
+All three are build artefacts or a vendored SDK rather than work in progress, but
+they predate this run and STEP 5 says the developer's dirt is not mine to clean.
+`SynthEdit` `2f5fca5e3 → 6c7e90053`, `SynthEditLib` `65d55cd → 5af259e`,
+`TideSynth` `8917c04 → 61b4707`, `gmpi_ui` `6700070 → ad5b681`,
+`synthedit-website` `83771db → e51a7c3`; all fast-forwards, none ahead.
+
+**Learned:**
+
+1. **"Add a fallback" was the wrong frame and the row's own wording carried it.**
+   The question that decides safety is not *is the second path good enough*, it is
+   *does the second path fail the same way the first does when the credential is
+   missing*. Measured: it does. Had it not, the correct answer would have been to
+   leave the gate alone and accept the lost runs.
+2. **A rule that requires the reader to classify a failure will eventually be
+   classified wrong**, by whoever is most motivated to continue — which is the
+   run itself. Giving the classification a mechanical tell (login string vs error
+   string) is what makes it a rule rather than an appeal to judgement.
+
+**Next:**
+
+1. **A22, A23, A24** are the remaining A-series rows. A23 is the best-specced —
+   duplicate-id detection in `check-id-refs.py`, with a positive control already
+   written into the row.
+2. **A22 pairs with this one** — both are rules whose premise stopped matching how
+   the fleet runs.
+3. **E17** still gates every E2 module stage; **E10** still needs `SynthEditLib`
+   authority.
+
+**Branch/PR:** [#176](https://github.com/JeffMcClintock/TideSynth/pull/176), branch
+`tide/mac/A21-identity-gate` — one repo, TideSynth only.
+**Merge order matters:** this branch and `tide/mac/A28-community-research` (#175)
+were both cut from `main` and both touch `BACKLOG.md` and `JOURNAL.md`, so
+whichever merges second will want a rebase. No overlap in `docs/`.
+Throwaway worktree; the developer's checkout stayed on `main` and clean.

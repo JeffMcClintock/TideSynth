@@ -46,6 +46,94 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — the mac test drift is FMA contraction, and my own diagnosis was wrong first
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Seventh and eighth items this session**, on Jeff's instruction. Also closes
+**U3** (shipped as [SynthEdit#65](https://github.com/JeffMcClintock/SynthEdit/pull/65)).
+
+**Did:** diagnosed the four `TestVoiceAllocation` failures that S19 papered over
+this morning with raised gates, and reverted those gates because they turned out
+to be unnecessary. [SynthEdit#66](https://github.com/JeffMcClintock/SynthEdit/pull/66).
+
+### The hypothesis I wrote into three documents was wrong
+
+This morning's row, issue and PR all said the error shape — max −68 dB against an
+average −150 dB — looked like **a one-sample timing difference at voice
+transitions**. Measured against the reference `.wav`, every part of that is false:
+
+| claim | measurement |
+|---|---|
+| a handful of samples | **81.9% of all samples**, continuous from 0.127 s |
+| a one-sample shift | shift 0 = −68.73 dB, shift ±1 = **−22.69 dB** — zero wins by 46 dB |
+| (unstated) a gain error | best scalar fit **0.999999192**, residual unchanged |
+
+It was a plausible story fitted to one summary statistic, and it survived into
+three places because nobody had opened the file. **The average/max ratio I
+reasoned from was the cancellation utility's own metric, not something I had
+computed.**
+
+### The actual cause
+
+**FMA contraction.** clang defaults `-ffp-contract` to *on*, fusing `a*b+c` into
+one `fma`. arm64 always has FMA; x86-64 under MSVC or GCC does not emit it by
+default — **which is exactly why Windows and Linux reproduce the references and
+macOS does not.**
+
+It is *not* the Apple fast-math subset that was already in `CMakeLists.txt`. That
+was the obvious suspect and it was eliminated this morning: with
+`-fassociative-math` and `-freciprocal-math` removed, the four residuals were
+**bit-identical**. Only contraction moved them.
+
+```
+test                        contract=on   contract=off
+Unterminated_Poly_Modules   -80.77 dB     -90.31 dB
+Voice_Allocation_Mono_High  -68.73 dB     -90.31 dB
+Voice_Allocation_Mono_Last  -68.73 dB     -90.31 dB
+Voice_Allocation_Mono_Off   -73.41 dB     -90.31 dB
+```
+
+**−90.31 dB is exactly 1 LSB at 16 bits** (`20·log10(1/32768)`), i.e. bit-identical
+within the file format. Full suite with the strict gates restored: **3 failures
+with contraction on, 86/86 with it off.**
+
+So there was never a voice-allocation defect, and **the four gates raised this
+morning are reverted to 85/75/75/75.**
+
+### Checked rather than assumed
+
+[SynthEditLib#28](https://github.com/JeffMcClintock/SynthEditLib/pull/28)'s
+soundfont scoping is **still load-bearing**: rebuilt with it reverted *and*
+contraction off, `SoundfontOsc` still fails. Reassociation and contraction are
+different mechanisms and neither fix makes the other redundant.
+
+**Learned:**
+
+1. **A hypothesis that explains the summary statistic is not a diagnosis.** Max
+   ≫ average genuinely does suggest sparse differences — and the differences were
+   dense. Ten minutes of `numpy` against the two files would have prevented three
+   documents asserting it. **Open the artifact.**
+2. **Eliminating the obvious suspect is worth more than confirming it.** This
+   morning's A/B on `-fassociative-math` looked like a dead end — the figures were
+   bit-identical, so the flags "weren't it". That negative result is what pointed
+   at a *different* FP mechanism rather than a DSP bug, and it is why the second
+   experiment was aimed correctly.
+3. **`-ffp-contract` is invisible in a fast-math discussion.** It is not part of
+   `-ffast-math`, is not mentioned by the flags this project already reasons
+   about, and is on by default. On any arm64 target it is the first thing to check
+   when a render differs from an x86-baked reference.
+
+**Next:**
+
+1. **[#178](https://github.com/JeffMcClintock/TideSynth/issues/178) can close once [SynthEdit#66](https://github.com/JeffMcClintock/SynthEdit/pull/66) merges** — except for the
+   `continue-on-error` removal, which stays Jeff's.
+2. **U3's click path is unverified** — one right-click on the rack background.
+3. **A22, A23, A24** are the remaining A-series rows; **C7e** is unblocked from
+   the `EditorScreenshot` direction now C7c is closed.
+
+**Branch/PR:** `tide/mac/s19-fma-record` (this) + [SynthEdit#66](https://github.com/JeffMcClintock/SynthEdit/pull/66) (the code).
+
 ## 2026-08-20 — macos — C7c answered by removal, and the two questions that answer creates
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
@@ -346,110 +434,3 @@ C7a's and C14's own CMake comments both predicted the two would "want ONE fix". 
 **Branch/PR:** [SynthEditLib#27](https://github.com/JeffMcClintock/SynthEditLib/pull/27) + [SynthEdit#62](https://github.com/JeffMcClintock/SynthEdit/pull/62) + [#177](https://github.com/JeffMcClintock/TideSynth/pull/177), all on branch `tide/win/C14-licensing-seam`. **Merging any one without the other two breaks the build**, and it is said in each body.
 
 **Machine state.** All three repos were worked in **throwaway worktrees**; Jeff's own checkouts were never switched and are on their default branches. **`C:\SE\SynthEditLib` was already dirty** with his work in progress — `CUG.cpp`, real content (`git diff --ignore-all-space` shows it, so not CRLF churn) — and was left exactly as found, per STEP 5's third dirt category. `check-commit-authorship.py` clean in all three repos; `check-commit-completeness.py` recorded and verified on every commit; `check-no-direct-commits.py` clean on both GATED repos.
-
-## 2026-08-20 — macos — A21: the identity gate stops on a wrong answer, not on no answer
-
-**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI version is not resolvable on this box — `claude --version` is *command not found*) · as **tide-rack-bot** (both paths, and this entry is the first to say so — see below)
-
-**Third item this session**, on Jeff's instruction, after syncing the repos.
-Claimed with a pushed DOING mark before any work.
-
-**Did:** STEP 0.7 now runs **two identity paths** — `gh api user` and
-`gh api graphql '{ viewer { login databaseId } }'` — and reads them with rules
-that separate **asserted wrong** (STOP, always) from **could not assert** (retry,
-then STOP and journal). Wording only; no code.
-
-### All four branches were exercised, not reasoned about
-
-| scenario | REST | GraphQL | rule |
-|---|---|---|---|
-| healthy | `tide-rack-bot` | `tide-rack-bot 314850083` | proceed, record `(both)` |
-| **one path down** — REST forced through a dead proxy | `Get "https://api.github.com/user": proxyconnect …` | `tide-rack-bot` | proceed, record `(GraphQL)` |
-| both down | transport error | transport error | retry ~1 min, then **STOP** |
-| **credential missing** — `unset GH_TOKEN` | **`JeffMcClintock`** | **`JeffMcClintock`** | **STOP**, unconditionally |
-
-**Row 4 is the one that decides whether any of this is safe, and it is the good
-news.** The GraphQL path falls back to Jeff's keyring credential *identically* to
-the REST path, so it **cannot launder a missing token**. Adding it is therefore a
-second equivalent assertion, not a bypass — which is the only thing that would
-have made A21 a weakening of the gate rather than a fix to it.
-
-### The finding worth more than the change
-
-**The two failure kinds are textually distinguishable, so a run never has to
-judge which one it is in.**
-
-- A **transport** failure yields **no login at all** — an error string.
-- A **credential** failure yields a **perfectly valid login that is the wrong
-  one**.
-
-So: *if you are holding a login string, you are in the asserted case, and the
-only question is whether it says `tide-rack-bot`. If you are holding an error,
-you are in the could-not-assert case, and retrying is correct.* Never treat an
-error as licence to continue; never try to retry a wrong name away. That is now a
-table in the prompt rather than a judgement call, which matters because the run
-making the call is the one whose credentials are in question.
-
-### Two things the row did not anticipate
-
-**GraphQL is the STRONGER assertion, not a lesser fallback.** It returns
-`databaseId` = **314850083**, which is exactly the number hard-coded into
-`GIT_AUTHOR_EMAIL` (`314850083+tide-rack-bot@users.noreply.github.com`). So it
-checks the identity the run's **commits** will carry, where REST only checks the
-one its API calls will. Prefer it when both answer.
-
-**A latent documentation bug, in the one rule where being read correctly matters
-most.** The paragraph beginning *"That second command MUST print
-`tide-rack-bot`"* named the **wrong command**: the second command was the
-`insteadOf` transport check, and the identity call was the first. It had said
-that ever since the transport check was added, and every run since has had to
-silently repair it while reading. Fixed, with a note saying so.
-
-**Also updated:** STEP 0.5's record line, and STEP 4's provenance template, which
-now reads `as <login> (<REST|GraphQL|both>)`. This entry's own `**Prompt:**` line
-is the first to carry it.
-
-### Repos synced first, per the instruction
-
-Five advanced, five already current, three skipped:
-
-| skipped | why |
-|---|---|
-| `JUCE` | untracked `modules/juce_audio_processors/format_types/VST3_SDK/` |
-| `gimpi_ui_tests` | untracked `build-bench/` |
-| `VST_SDK` | detached HEAD, no upstream, untracked `build/` |
-
-All three are build artefacts or a vendored SDK rather than work in progress, but
-they predate this run and STEP 5 says the developer's dirt is not mine to clean.
-`SynthEdit` `2f5fca5e3 → 6c7e90053`, `SynthEditLib` `65d55cd → 5af259e`,
-`TideSynth` `8917c04 → 61b4707`, `gmpi_ui` `6700070 → ad5b681`,
-`synthedit-website` `83771db → e51a7c3`; all fast-forwards, none ahead.
-
-**Learned:**
-
-1. **"Add a fallback" was the wrong frame and the row's own wording carried it.**
-   The question that decides safety is not *is the second path good enough*, it is
-   *does the second path fail the same way the first does when the credential is
-   missing*. Measured: it does. Had it not, the correct answer would have been to
-   leave the gate alone and accept the lost runs.
-2. **A rule that requires the reader to classify a failure will eventually be
-   classified wrong**, by whoever is most motivated to continue — which is the
-   run itself. Giving the classification a mechanical tell (login string vs error
-   string) is what makes it a rule rather than an appeal to judgement.
-
-**Next:**
-
-1. **A22, A23, A24** are the remaining A-series rows. A23 is the best-specced —
-   duplicate-id detection in `check-id-refs.py`, with a positive control already
-   written into the row.
-2. **A22 pairs with this one** — both are rules whose premise stopped matching how
-   the fleet runs.
-3. **E17** still gates every E2 module stage; **E10** still needs `SynthEditLib`
-   authority.
-
-**Branch/PR:** [#176](https://github.com/JeffMcClintock/TideSynth/pull/176), branch
-`tide/mac/A21-identity-gate` — one repo, TideSynth only.
-**Merge order matters:** this branch and `tide/mac/A28-community-research` (#175)
-were both cut from `main` and both touch `BACKLOG.md` and `JOURNAL.md`, so
-whichever merges second will want a rebase. No overlap in `docs/`.
-Throwaway worktree; the developer's checkout stayed on `main` and clean.
