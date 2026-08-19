@@ -91,4 +91,5 @@ add_subdirectory("common")
 # Add you own modules here. One folder per module.
 add_subdirectory("TiDEknob")
 add_subdirectory("TiDEPanel")
+add_subdirectory("PanelTest")
 

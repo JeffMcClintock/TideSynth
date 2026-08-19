@@ -15,6 +15,10 @@
 //   tide_render_preview --references <dir>
 //
 // The scenes themselves live in DemoScenes.h, shared with the regression test.
+//
+// Exit codes: 0 success, 1 render/write failure, 2 usage error. Distinct on
+// purpose — a script that regenerates references needs to tell "you typed the
+// scene name wrong" apart from "the output directory is missing".
 using namespace tide::render;
 
 namespace
@@ -25,28 +29,23 @@ int usage()
 	std::printf("usage: tide_render_preview <scene> [--size N] [--spp N] [--out F]\n");
 	std::printf("       tide_render_preview --references <dir>\n");
 	std::printf("scenes:");
-	for (const char* name : tide::demo::kSceneNames)
-		std::printf(" %s", name);
+	for (const tide::demo::SceneDef& def : tide::demo::kScenes)
+		std::printf(" %s", def.name);
 	std::printf("\n");
 	return 2;
 }
 
-bool renderToPng(const std::string& sceneName, const Settings& settings, const std::string& outPath)
+bool renderToPng(const tide::demo::SceneDef& def, const Settings& settings,
+	const std::string& outPath)
 {
-	Camera camera;
-	Scene scene;
-	if (!tide::demo::buildScene(sceneName, scene, camera))
-		return false;
-
 	const auto start = std::chrono::steady_clock::now();
-	const Image image = render(scene, camera, settings);
+
+	// The SAME pipeline the regression test compares with — see DemoScenes.h.
+	std::vector<uint8_t> pixels;
+	const Image image = tide::demo::renderSceneRgba8(def, settings, pixels);
+
 	const auto elapsed = std::chrono::duration<double>(
 		std::chrono::steady_clock::now() - start).count();
-
-	// PNG stores UNASSOCIATED alpha, so this is the one consumer that must not
-	// premultiply. The GMPI path passes true instead.
-	std::vector<uint8_t> pixels((size_t)image.width * (size_t)image.height * 4);
-	writePixels(image, pixels.data(), image.width * 4, PixelOrder::Rgba, false, settings.exposure);
 
 	if (!tide::png::write(outPath, pixels.data(), image.width, image.height))
 	{
@@ -54,7 +53,7 @@ bool renderToPng(const std::string& sceneName, const Settings& settings, const s
 		return false;
 	}
 
-	std::printf("%-10s %4dx%-4d %5d spp  %6.2fs  -> %s\n", sceneName.c_str(),
+	std::printf("%-10s %4dx%-4d %5d spp  %6.2fs  -> %s\n", def.name,
 		image.width, image.height, settings.samplesPerPixel, elapsed, outPath.c_str());
 	return true;
 }
@@ -69,11 +68,10 @@ int writeReferences(const std::string& directory)
 	settings.width = tide::demo::kReferenceWidth;
 	settings.samplesPerPixel = tide::demo::kReferenceSamples;
 
-	for (const char* name : tide::demo::kSceneNames)
+	for (const tide::demo::SceneDef& def : tide::demo::kScenes)
 	{
-		settings.height = tide::demo::sceneHeightFor(name, settings.width);
-		const std::string path = directory + "/" + name + ".png";
-		if (!renderToPng(name, settings, path))
+		settings.height = tide::demo::sceneHeight(def, settings.width);
+		if (!renderToPng(def, settings, directory + "/" + def.name + ".png"))
 			return 1;
 	}
 
@@ -92,8 +90,12 @@ int main(int argc, char** argv)
 	if (first == "--references")
 		return (argc > 2) ? writeReferences(argv[2]) : usage();
 
+	const tide::demo::SceneDef* def = tide::demo::findScene(first);
+	if (!def)
+		return usage();
+
 	Settings settings;
-	settings.width = settings.height = 384;
+	settings.width = 384;
 	settings.samplesPerPixel = 128;
 
 	std::string outPath = first + ".png";
@@ -114,7 +116,7 @@ int main(int argc, char** argv)
 	if (settings.width < 1 || settings.samplesPerPixel < 1)
 		return usage();
 
-	settings.height = tide::demo::sceneHeightFor(first, settings.width);
+	settings.height = tide::demo::sceneHeight(*def, settings.width);
 
-	return renderToPng(first, settings, outPath) ? 0 : usage();
+	return renderToPng(*def, settings, outPath) ? 0 : 1;
 }

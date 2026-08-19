@@ -83,6 +83,20 @@ inline void putChunk(std::vector<uint8_t>& out, const char type[4], const std::v
 }
 
 inline const uint8_t kSignature[8] = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
+
+// The one place that knows how to open a file portably. MSVC deprecates plain
+// fopen; keeping the #ifdef in a single helper means a future fix (wide-char
+// paths, error reporting) cannot land in the writer and miss the reader.
+inline FILE* openFile(const std::string& path, const char* mode)
+{
+	FILE* f = nullptr;
+#ifdef _MSC_VER
+	fopen_s(&f, path.c_str(), mode);
+#else
+	f = std::fopen(path.c_str(), mode);
+#endif
+	return f;
+}
 }
 
 // `rgba` is 8-bit, NON-premultiplied, width*height*4 bytes, top row first.
@@ -153,12 +167,7 @@ inline bool write(const std::string& path, const uint8_t* rgba, int width, int h
 	putChunk(file, "IDAT", zlib);
 	putChunk(file, "IEND", {});
 
-	FILE* f = nullptr;
-#ifdef _MSC_VER
-	fopen_s(&f, path.c_str(), "wb");
-#else
-	f = std::fopen(path.c_str(), "wb");
-#endif
+	FILE* f = detail::openFile(path, "wb");
 	if (!f)
 		return false;
 
@@ -174,12 +183,7 @@ inline bool read(const std::string& path, std::vector<uint8_t>& rgba,
 {
 	using namespace detail;
 
-	FILE* f = nullptr;
-#ifdef _MSC_VER
-	fopen_s(&f, path.c_str(), "rb");
-#else
-	f = std::fopen(path.c_str(), "rb");
-#endif
+	FILE* f = detail::openFile(path, "rb");
 	if (!f)
 	{
 		error = "cannot open " + path;
@@ -278,7 +282,12 @@ inline bool read(const std::string& path, std::vector<uint8_t>& rgba,
 		return false;
 	}
 
-	rgba.assign((size_t)w * (size_t)h * 4, 0);
+	// Decoded into a LOCAL buffer and swapped in only on success. The contract
+	// above says failure leaves the outputs untouched, and an earlier version
+	// broke it on exactly one path: a bad filter byte fired after rgba had
+	// already been resized and partly filled, leaving the caller's buffer sized
+	// for the FAILED file while width/height still described the old contents.
+	std::vector<uint8_t> pixels((size_t)w * (size_t)h * 4);
 	for (int y = 0; y < h; ++y)
 	{
 		const uint8_t* row = &raw[(size_t)y * stride];
@@ -287,9 +296,10 @@ inline bool read(const std::string& path, std::vector<uint8_t>& rgba,
 			error = path + ": only filter type 0 is supported";
 			return false;
 		}
-		std::memcpy(&rgba[(size_t)y * (size_t)w * 4], row + 1, (size_t)w * 4);
+		std::memcpy(&pixels[(size_t)y * (size_t)w * 4], row + 1, (size_t)w * 4);
 	}
 
+	rgba = std::move(pixels);
 	width = w;
 	height = h;
 	return true;

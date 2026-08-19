@@ -72,7 +72,7 @@ Then write it into a GMPI bitmap. The image is **linear, premultiplied, HDR**;
 target wants:
 
 ```cpp
-auto pixels = bitmap.lockPixels(BitmapLockFlags::WriteOnly);
+auto pixels = bitmap.lockPixels(BitmapLockFlags::ReadWrite);
 const auto order = (pixels.channelLayout() == 1) ? PixelOrder::Rgba : PixelOrder::Bgra;
 writePixels(image, pixels.getAddress(), pixels.getBytesPerRow(), order, /*premultiply*/ true);
 ```
