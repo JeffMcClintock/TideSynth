@@ -46,6 +46,142 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — a mac build break from the carve-out, and five test failures CI has been hiding for a week
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (Claude Code CLI version not resolvable on this box) · as **tide-rack-bot** (both paths)
+
+**Fourth and fifth items this session**, on Jeff's instruction — he pointed at a
+failing Actions run rather than the backlog. Repos synced first.
+
+## 1. The build break: [SynthEdit#63](https://github.com/JeffMcClintock/SynthEdit/pull/63)
+
+`cmake_mac` had been red on `master` since `6c7e90053` while `cmake_win` and
+`cmake_linux` were green at the same sha.
+
+**The first thing to get right was WHICH step failed.** The 5 test failures in
+that log are a decoy: `ctest` is `continue-on-error: true`, so **step 6 is marked
+success**. The run failed at **step 20, the Xcode build**:
+
+```
+SynthEditMac/SynthEditMac/MidiAutomationWindowController.mm:3:10:
+  fatal error: '../../SynthEdit2/PatchParameter.h' file not found
+```
+
+Two headers left `SynthEdit2/` during the carve-out and the Xcode consumer was
+never re-pointed:
+
+| header | moved by | now at |
+|---|---|---|
+| `PatchParameter.h` | `9a53a4882` — C12f, the patch cluster | `SynthEditLib/` |
+| `IMidiDriver.h` | `4f6f5b1ca` — C13, the three orphan headers | `SynthEditLib/` |
+
+CMake follows them because SE16's `CMakeLists` hands EditorLib the include
+directories; the Xcode project quotes the paths literally. **This is exactly the
+hazard C10's row already names** — *"Non-CMake consumers still need checking by
+hand: `SynthEdit2.vcxproj` and the SynthEditMac Xcode project"* — so the carve-out
+stages should treat that line as a checklist item, not a footnote.
+
+**I fixed both files although CI named only one.** Xcode stops at the first fatal
+error. Reverting both edits and rebuilding — with the `.mm` already compiled —
+gives `CoreMidiDriver.h:6:10: fatal error: '../../SynthEdit2/IMidiDriver.h' file
+not found`. Fixing only what CI printed would have turned one red run into two.
+
+**Verified by building, twice**: at the original tip, and again after merging the
+current `master` (`61eaf744b`, C14 landed, which changes EditorLib's include
+directories so it was worth re-checking rather than assuming). Both times:
+`cmake --build` **1064/1064 rc=0**, then `xcodebuild -scheme SynthEdit -arch
+arm64 -configuration Release` → ***\*\* BUILD SUCCEEDED\****.
+
+### A dev-box trap found on the way to that link
+
+Reaching the link first produced
+`Undefined symbols: ApplyConfigPreInit(SynthEditApp&, ...)`. Cause:
+`libEditorLib.a` is built from `build/_deps/syntheditlib-src` (FetchContent,
+**`GIT_TAG origin/main`** — a live ref), while the Xcode project resolves
+`ApplySynthEditConfig.h` from the **sibling** `../SynthEditLib` clone. The clone
+was behind C14, so the library exported the new `CSynthEditAppBase&` signature
+and the header still declared `SynthEditApp&`.
+
+**CI cannot hit this**: its *"Symlink CMake-fetched deps for Xcode"* step points
+`../SynthEditLib` at `build/_deps/syntheditlib-src`, so header and library are one
+tree by construction. On a developer box they are two trees tracking a moving
+ref. Fixed by fast-forwarding the clone to `86ab11c`. **This is S17's shape one
+level up** and worth knowing before it costs someone an afternoon.
+
+## 2. The five test failures — filed as S19 / [#178](https://github.com/JeffMcClintock/TideSynth/issues/178)
+
+**They are not a regression, and they are not one bug.**
+
+`94% tests passed, 5 tests failed out of 86` appears in *every* mac run I
+checked, including 2026-08-13, 08-14 and 08-18 — **all of which are marked
+success**. `continue-on-error: true` is why nobody knew.
+
+| platform | at `6c7e90053` |
+|---|---|
+| Windows | 92/92 |
+| Linux | 86/86 |
+| **macOS** | **5 of 86 fail** |
+
+Reproduced locally with figures **identical to CI's to four decimal places**, so
+deterministic rather than flaky.
+
+**The A/B that splits them.** `SynthEdit/CMakeLists.txt:281` adds, on Apple only,
+`-fno-math-errno -fno-trapping-math -fno-signed-zeros -fassociative-math
+-freciprocal-math`. Windows gets `/fp:fast`; **Linux gets no fast-math at all**,
+which is consistent with Linux being the platform that passes. Rebuilding the
+whole tree with the two reassociating flags removed and nothing else changed:
+
+| test | with | without |
+|---|---|---|
+| `TestSoundfont.SoundfontOsc` | FAIL | **PASS** |
+| `Unterminated_Poly_Modules` | −80.7666 dB | **−80.7666 dB** |
+| `Voice_Allocation_Mono_High` | −68.7254 dB | **−68.7254 dB** |
+| `Voice_Allocation_Mono_Last` | −68.7254 dB | **−68.7254 dB** |
+| `Voice_Allocation_Mono_Off` | −73.407 dB | **−73.407 dB** |
+
+So `SoundfontOsc` is FP reassociation, and **the four `TestVoiceAllocation` cases
+are something else entirely** — bit-identical output either way, i.e. a real
+deterministic mac-vs-reference difference the flags do not touch.
+
+**Hypothesis, and labelled as one:** max −68 dB against an average of −150 dB
+means a handful of samples differ, not a level or timbre — a constant offset
+would put the average near the max. That is the shape of a one-sample timing
+difference at voice transitions, which fits tests whose whole subject is voice
+allocation. Unconfirmed.
+
+**Not fixed on purpose.** Bumping four tolerances would turn the suite green and
+throw the finding away, and whether −68 dB is acceptable in this product is not
+an agent's call. The reporting half — removing `continue-on-error` — is a
+`.github/workflows/**` edit the token structurally cannot push.
+
+**Learned:**
+
+1. **A `continue-on-error` step turns a failing suite into a decoy twice over.**
+   It hid five real failures for a week, *and* it put a wall of red test output
+   at the top of a log whose actual failure was fourteen steps later. Read the
+   per-step conclusions before reading the log.
+2. **"Last green run" is not a baseline when a step can fail without failing the
+   run.** My first instinct was to bisect `9674bbfc7..6c7e90053`; the tests were
+   already failing at `9674bbfc7` and in every run before it. Checking the older
+   *green* runs' logs cost one command and saved a bisect that would have found
+   nothing.
+3. **An A/B that changes one flag is worth more than a plausible story.** The
+   mac-only fast-math subset explained all five failures beautifully. It explains
+   exactly one.
+
+**Next:**
+
+1. **S19 / [#178](https://github.com/JeffMcClintock/TideSynth/issues/178)** — diagnose the four, rule on SoundfontOsc's tolerance, and
+   Jeff removes `continue-on-error`.
+2. **[SynthEdit#63](https://github.com/JeffMcClintock/SynthEdit/pull/63) is open and green** — mac `master` stays broken until it merges.
+3. **A22, A23, A24** are the remaining A-series rows; A23 is the best-specced.
+
+**Branch/PR:** `tide/mac/mac-ci-findings` (this bookkeeping) plus
+[SynthEdit#63](https://github.com/JeffMcClintock/SynthEdit/pull/63) (the code).
+Two repos; the SynthEdit half is the whole fix and this half is the record, so
+neither blocks the other. Throwaway worktrees; every checkout left on its default
+branch and clean.
+
 ## 2026-08-20 — windows — C14: the last private include was never needed, and it was hiding an ODR violation
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI is not resolvable on this box either — `claude --version` is *command not found*, same as the mac entries report) · as **tide-rack-bot** (both paths: REST `gh api user` and GraphQL `viewer { login databaseId }` → `tide-rack-bot` / `314850083`) · transport check `git config --global --get url."https://github.com/".insteadOf` → `git@github.com:`
@@ -437,186 +573,3 @@ than filed — a one-line risk, not a defect.
 `tide/mac/A28-community-research` — one repo, TideSynth only.
 
 Throwaway worktree; the developer's checkout stayed on `main` and clean.
-
-## 2026-08-20 — macos — A27: the NEXT block's Take column is read now, and the docstring stops lying about it
-
-**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** — the Claude Code CLI version the previous entries report as "app 2.1.220" was **not resolvable on this box** (`claude --version` → *command not found*; nothing under `~/.claude` or the app bundle carries an unambiguous CLI version), so the measurable number is recorded rather than a guessed one · as **tide-rack-bot**
-
-**Did:** `scripts/check-next-block.py` now treats **a bolded ID that a Take cell
-*begins* with** as a take-target, which is exactly the narrowed rule A27 specced.
-Also filed **A29** (`lint` is red on `main`), archived four IN-REVIEW rows whose
-PRs have all merged, and re-pointed the `mac` NEXT row, which was sending runs at
-an item that cannot be taken.
-
-### The bug was a stale comment, and that is the whole reason it survived
-
-The module docstring said the trigger set was *"the Take column, which is
-definitionally a take-target, plus a short list of imperative phrases"*. The Take
-column was **never** in the trigger set — `run()` read only the phrases, and the
-loop carried the opposite note. So on 2026-08-19 the `any` row read
-`**C6** — move EditorLib/CMakeLists.txt` with C6 archived DONE hours earlier, and
-`lint` was green. Nobody was going to find that by reading the code, because the
-code's own description of itself was wrong.
-
-`RE_LEADING_TAKE_ID` is anchored at the start of the cell and **requires the bold
-markers**. It is deliberately *not* subject to the negation rule the phrase
-matcher uses: position is the assertion. A cell opening `**C6**` points at C6
-whatever the rest of the paragraph says.
-
-### Verification — the positive control, and an A/B on a fixture
-
-**Positive control out of git history**, as the row demanded. `781ecbb` is the
-commit that filed A27; `781ecbb^` is the state it was filed about:
-
-| script | on `781ecbb^` | on this tree |
-|---|---|---|
-| shipped (`origin/main`) | 3 checked, **rc=0** | 5 checked, rc=0 |
-| fixed | 5 checked, **rc=1**, `C6 -- archived DONE` | 9 checked, rc=0 |
-
-The failure names C6 **alone** out of five take-targets and quotes what matched
-(`Take cell begins with **C6**`), so it is not a blanket alarm.
-
-**Zero false alarms on the live block**, which was the risk the original author
-measured and declined to take. The new rule adds exactly three take-targets —
-`win`/**P3**, `linux`/**C7b**, `any`/**C14** — and all three are live rows. None
-of the original seven false alarms is among them: they were mid-paragraph IDs in
-warning clauses, and the leading position is not a position any of them occupied.
-
-**A standalone A/B fixture**, because a check that has only ever been run on real
-files is hard to trust. A Take cell reading `**D6** — move the CMakeLists`, with
-D6 archived and **no take-verb anywhere in the cell**: shipped script *0 checked,
-rc=0*; fixed script *1 checked, rc=1*. That case is now `archived leading id` in
-`--selftest`, which is **22 cases, 0 failed** (was 13).
-
-**One thing A27 predicted wrong, worth correcting rather than quietly passing:**
-the row said the rule "catches `win` and `any` and touches neither `mac` nor
-`linux`". `linux`'s Take cell has since become a short field too, so it fires on
-**three** rows. Still no false alarm — C7b is live — but the prediction was made
-against a block that has already changed shape once since, which is itself the
-argument for the check.
-
-### `lint` is RED on `main` — filed as A29, deliberately not fixed
-
-`python3 scripts/check-links.py` on `origin/main`: **1 BROKEN** of 418 relative
-links — `modules/common/README.md:14` → `../PanelTest/PanelTestGui.cpp`, no such
-file. Introduced by `41785ea`, the current tip of `main`, which is a direct
-(interactive) commit.
-
-It is **not a typo**: `PanelTestGui.cpp` has never existed in this repo
-(`git log --all --diff-filter=A -- '*PanelTest*'` is empty) and nothing matching
-`*PanelTest*` exists anywhere under this box's `~/Documents/GitHub`, across all
-fifteen checkouts. The reference is to a tree that is not public, or to a file
-not yet committed.
-
-**Why it is worth an entry rather than a footnote:** `auto-merge.yml` fires only
-on a `lint` run whose conclusion is `success`, so **the entire A4 auto-merge tier
-is dead** until this is cleared, and every PR from every box shows a red check
-that is nobody's. **This PR's `lint` will be red for that reason and no other** —
-the five checks that read what this branch changed (`check-backlog-diff`,
-`check-id-refs`, `check-next-block`, `check-journal-prepend`,
-`check-prompt-provenance`) all pass locally.
-
-Not fixed here because STEP 3 says file, do not fix, and because the fix is a
-judgement only `41785ea`'s author can make: add the file, repoint the link, or
-de-link the prose. Guessing puts a false statement in a README.
-
-#### ANSWERED BY JEFF, mid-run: the file is on the Windows box
-
-*"Maybe forgot to push it … it's on the windows machine."* So the link is
-**correct in intent** and `modules/PanelTest/` simply never reached `origin/main`.
-A29 is re-pointed from `any` to **`win`** — the fix is a push only that box can
-make — and filed as [#174](https://github.com/JeffMcClintock/TideSynth/issues/174)
-(`platform:win`) so the Windows run takes it at STEP 1 instead of waiting for
-file order. The `win` NEXT row now says A29 before P3.
-
-**This is the run's most useful negative result, so it is recorded rather than
-quietly dropped.** Before Jeff answered, this run had assembled what looked like
-a conclusive repoint target: `modules/TiDEPanel/TiDEPanelGui.cpp`. The evidence
-was not thin —
-
-- same `modules/` parent, so `../<Module>/` resolves;
-- same `<Module>Gui.cpp` naming, and it is **one of only two** `*Gui.cpp` files
-  in the entire repo (`git ls-tree -r origin/main | grep -i 'gui\.cpp$'`);
-- the other one, `TiDEknobGui.cpp`, greps **zero** hits for `cache`, so the
-  discrimination looked clean;
-- `TiDEPanelGui.cpp`'s own header comment says **"TWO CACHED BITMAPS"** and it
-  has a `renderFace()` that procedurally generates the face — which is the
-  README sentence (*"already caches its procedurally generated faces"*) almost
-  word for word;
-- both files were authored the same day by the same author, `20fa184` … `41785ea`.
-
-**Every one of those is true and the conclusion is still wrong.** The lesson is
-not "check harder" — the evidence would not have improved. It is that STEP 3's
-*file, do not fix* is doing real work precisely when the fix looks obvious: a
-repoint would have merged green, closed the lint failure, and left a README
-citing the wrong file with nothing left to notice it. Cheap to avoid, expensive
-to detect later.
-
-### Bookkeeping done this run
-
-- **Archived, PRs all merged:** **A26** ([#163](https://github.com/JeffMcClintock/TideSynth/pull/163)),
-  **C7a** ([SynthEdit#59](https://github.com/JeffMcClintock/SynthEdit/pull/59) + [#167](https://github.com/JeffMcClintock/TideSynth/pull/167)),
-  **E2b** ([SynthEdit#60](https://github.com/JeffMcClintock/SynthEdit/pull/60) + [#170](https://github.com/JeffMcClintock/TideSynth/pull/170)),
-  **E2c** ([SynthEdit#61](https://github.com/JeffMcClintock/SynthEdit/pull/61) + [#171](https://github.com/JeffMcClintock/TideSynth/pull/171)).
-  Moved verbatim; `check-backlog-diff` confirms all four.
-- **`tide/mac/V3-midi-findings` is a pushed branch with no open PR** — its PR
-  ([#142](https://github.com/JeffMcClintock/TideSynth/pull/142)) merged
-  2026-08-18 and **two commits were pushed to it afterwards**, `25216c1` and
-  `4e65874`. That is A22's failure mode, still live on this platform's branch.
-  Left alone rather than force-tidied; STEP 4 forbids rewriting pushed commits.
-
-### Why this run took a process row and not E2 — read this before re-deriving it
-
-The `mac` NEXT cell said "Take E2". **E2 is not takeable and its own row says so**
-— it never names which modules a "first curated set" contains, so its acceptance
-check cannot be stated before starting. Its two live stages, E2b and E2c, are
-both finished and archived above.
-
-**The next E2 stage would be a new module prefab, and that is blocked by E17, not
-by anything technical.** E17 is open `NEEDS-JEFF` on TIDE's visual design
-language, and its own `Decide-by` reads *"before E2 authors the curated set"*.
-STEP 2 forbids work an open NEEDS-JEFF answer would change. The blocker is a
-ruling, not a missing measurement.
-
-Checked and rejected, so the next run need not repeat it: **C14** and **C10** are
-`SynthEditLib`; **P3**, **E10**, **S1b**, **S5**, **S7**, **S8** are GATED and
-none is a build break, so A17's exception does not reach them; **C7b** is the
-`linux` row's own NEXT target; **C7d** says *"after C7b"* and its Accept cannot
-pass before C14; **A12** and **B1** are `.github/workflows/**` the bot token
-structurally cannot push. What is left is the A-series, which is where A27 came
-from.
-
-**Learned:**
-
-1. **A comment that contradicts the code is a bug with no test that can fail.**
-   Both A20's original measurement and this fix are correct; what rotted between
-   them is the *shape of the data* — Take cells turned from paragraphs into short
-   fields — and only the prose recorded the assumption that shape broke.
-2. **The fleet's CI gate can be down without anyone noticing**, because a red
-   check on your own PR reads as your own problem. Run `check-links.py` against
-   `origin/main`, not just your branch, if you want to know whose red it is.
-3. **Superseded text in a NEXT cell must lose its imperative, not just its
-   position.** Re-pointing the `mac` row this run left the old *"Take A29"*
-   wording quoted underneath, and `check-next-block.py` — the very check this
-   run shipped — read it as the `mac` row still naming A29, a `win` item. The
-   phrase rule matches mid-cell by design, so a preserved quote is
-   indistinguishable from a live instruction. Reworded the quote instead of
-   widening the rule: the fleet's habit of keeping previous text is worth more
-   than a byte-exact quote of an instruction that no longer holds.
-4. `git checkout origin/main -- .` inside a worktree will silently revert your
-   own uncommitted work. Recovered here via `git stash`; the cheap habit is to
-   commit as soon as a coherent change exists, which STEP 3 already says.
-
-**Next:**
-
-1. **A29 is the Windows box's**, not mac's — [#174](https://github.com/JeffMcClintock/TideSynth/issues/174),
-   `platform:win`. It is a push, and it revives auto-merge for all three boxes.
-2. **E17** needs Jeff. Until it is answered, E2 has no takeable stage, and the
-   `mac` column's real queue is the A-series.
-3. **E10** remains the biggest thing on this platform and needs `SynthEditLib`
-   authority.
-
-**Branch/PR:** [#173](https://github.com/JeffMcClintock/TideSynth/pull/173), branch
-`tide/mac/A27-next-block-take-column` — one repo, TideSynth only.
-Worked in a throwaway worktree; the developer's checkout was left on `main`
-untouched and was clean throughout.
