@@ -5,12 +5,20 @@
 #include <cmath>
 #include <cstdint>
 #include <vector>
+// BACKLOG E15 - the caption's raised edge is NOT APPROVED (Jeff, 2026-08-19).
+// Switched off rather than deleted: the mechanism is sound and the finding
+// behind it is worth keeping, but the look is not signed off. Set to 1 to
+// bring it back, then tune kEdgeOffsetDips / kEdgeBlurDips / kEdgeGain.
+#define TIDE_PANEL_RAISED_EDGE 0
+
+#if TIDE_PANEL_RAISED_EDGE
 // The blur behind the caption's raised edge. This is the same filter
 // gmpi_ui's `cachedBlur` uses (helpers/CachedBlur.h, as seen in
 // Controls/BumpGui.cpp); cachedBlur itself composites a tinted bitmap onto a
 // Graphics, whereas the highlight below needs the blurred MASK to subtract
 // with, so it calls one level down.
 #include "helpers/GinBlur.h"
+#endif
 
 using namespace gmpi;
 using namespace gmpi::editor;
@@ -54,6 +62,7 @@ constexpr float kCornerRadius = 4.0f;
 constexpr float kNoiseMono = 3.0f;
 constexpr float kNoiseRgb[3] = { 0.0f, 0.0f, 0.0f };
 
+#if TIDE_PANEL_RAISED_EDGE
 // The caption's raised-paint highlight: a light edge along the TOP and LEFT of
 // every glyph, as if lit from the top-left.
 //
@@ -65,14 +74,22 @@ constexpr float kNoiseRgb[3] = { 0.0f, 0.0f, 0.0f };
 // TEMPORARILY HEAVY so the effect can be judged; expect to halve both once the
 // look is settled.
 constexpr float kGlow = 1.0f;
-constexpr float kEdgeOffsetDips = 2.0f;
-constexpr float kEdgeBlurDips = 2.0f;
-// Concentrates the highlight at the edge. Without it a blurred occluder never
-// fully covers the middle of a THIN stroke, so a few percent of lightening
-// lands on every pixel and the whole caption goes milky instead of gaining an
-// edge. Raising this pushes the mid-tones down hard while leaving the lit edge
-// itself untouched.
-constexpr float kEdgeFalloff = 2.5f;
+constexpr float kEdgeOffsetDips = 0.25f;
+constexpr float kEdgeBlurDips = 1.0f;
+// Scales the peak of the difference-of-blurs. The difference never reaches
+// full scale on its own -- two blurs of the same shape only diverge by so much
+// -- so without a gain the edge is a faint smudge. This replaced an earlier
+// falloff EXPONENT, which existed only to tame a saturating highlight; the
+// difference does not saturate, so it needs lifting rather than taming.
+constexpr float kEdgeGain = 2.5f;
+#endif
+
+// The caption's fill is a diagonal gradient rather than a flat colour: the pin
+// colour exactly at the bottom-right, lifted toward white at the top-left, so
+// the letterform agrees with the same light the raised edge implies. 0 = flat
+// fill, 1 = white at the top-left corner. Linear, so a small number goes a
+// long way from a dark fill — 0.10 is already a clear lift.
+constexpr float kTextGradientLift = 0.10f;
 
 // createTextFormat's default body height is 12; the caption is five times that.
 // Inset from the bottom edge so it starts NEAR the bottom, not on it.
@@ -139,6 +156,23 @@ class TiDEPanelGui final : public PluginEditor
 	Color getTextColor() const
 	{
 		return pinTextColor.value.empty() ? Colors::Black : colorFromHexString(pinTextColor.value);
+	}
+
+	// Toward white, keeping the colour's own alpha — interpolateColor would drag
+	// alpha to opaque along with the channels.
+	//
+	// Linear, like every colour calculation here: a Color is linear light and
+	// stays that way. Note that makes the mix STRONGER than the number reads —
+	// a linear blend from a near-black fill lightens fast — so the amount is
+	// small by design. Tune kTextGradientLift; do not move the maths into sRGB
+	// to make a larger number behave.
+	static Color liftedTowardWhite(Color c, float amount)
+	{
+		return Color{
+			c.r + (1.0f - c.r) * amount,
+			c.g + (1.0f - c.g) * amount,
+			c.b + (1.0f - c.b) * amount,
+			c.a };
 	}
 
 	static float cornerRadius(const Size& size)
@@ -221,6 +255,7 @@ class TiDEPanelGui final : public PluginEditor
 		}
 	}
 
+#if TIDE_PANEL_RAISED_EDGE
 	// A white highlight along the TOP and LEFT inside edge of every glyph —
 	// raised paint catching a light from the top-left.
 	//
@@ -263,24 +298,41 @@ class TiDEPanelGui final : public PluginEditor
 		const unsigned radius = (unsigned)(std::clamp)(
 			(int32_t)std::lround(kEdgeBlurDips * deviceScale), 1, 254);
 
-		// The occluder: the glyphs' own coverage, slid down-right, away from the
-		// light. Single channel, tightly packed, which is what ginSingleChannel
-		// wants.
+		// TWO blurred copies of the glyph coverage: one in place, one slid
+		// down-right away from the light. The highlight is their DIFFERENCE.
+		//
+		// Lighting from the slid copy alone -- (255 - occluder) -- SATURATES:
+		// every pixel the slid copy misses gets full white, so the band is a flat
+		// plateau with a hard inner shoulder, and the blur only ever softens the
+		// shoulder. That still reads as an eroded rim, which is why adding the
+		// blur alone did not fix the look. A difference of two blurs has no
+		// plateau: it peaks at the edge and falls away smoothly on both sides,
+		// which is what actually looks lit.
+		std::vector<uint8_t> base((size_t)w * h, 0);
 		std::vector<uint8_t> occluder((size_t)w * h, 0);
-		for (int32_t y = offset; y < h; ++y)
+		for (int32_t y = 0; y < h; ++y)
 		{
-			const uint8_t* src = data + (size_t)(y - offset) * bytesPerRow + 3;
-			uint8_t* dst = occluder.data() + (size_t)y * w + offset;
-			for (int32_t x = offset; x < w; ++x, ++dst, src += 4)
+			const uint8_t* src = data + (size_t)y * bytesPerRow + 3;
+			uint8_t* dst = base.data() + (size_t)y * w;
+			for (int32_t x = 0; x < w; ++x, ++dst, src += 4)
 				*dst = *src;
 		}
+		for (int32_t y = offset; y < h; ++y)
+		{
+			const uint8_t* src = base.data() + (size_t)(y - offset) * w;
+			uint8_t* dst = occluder.data() + (size_t)y * w + offset;
+			for (int32_t x = offset; x < w; ++x)
+				*dst++ = *src++;
+		}
 
+		ginSingleChannel(base.data(), (unsigned)w, (unsigned)h, radius, (unsigned)w);
 		ginSingleChannel(occluder.data(), (unsigned)w, (unsigned)h, radius, (unsigned)w);
 
 		for (int32_t y = 0; y < h; ++y)
 		{
 			uint8_t* row = data + (size_t)y * bytesPerRow;
 			const uint8_t* occ = occluder.data() + (size_t)y * w;
+			const uint8_t* bas = base.data() + (size_t)y * w;
 			for (int32_t x = 0; x < w; ++x)
 			{
 				uint8_t* px = row + (size_t)x * 4;
@@ -288,18 +340,22 @@ class TiDEPanelGui final : public PluginEditor
 				if (a == 0)
 					continue;
 
-				// Uncovered by the slid copy == facing the light.
-				const float exposure = (255 - occ[x]) * (1.0f / 255.0f);
-				if (exposure <= 0.0f)
+				// How much more the glyph covers here than its slid copy does.
+				// Zero deep inside (both blurs saturated), zero outside (both zero),
+				// zero on the bottom-right edge (the slid copy covers MORE there).
+				const int32_t lit = (int32_t)bas[x] - (int32_t)occ[x];
+				if (lit <= 0)
 					continue;
 
-				const float t = kGlow * std::pow(exposure, kEdgeFalloff);
+				const float t = (std::min)(1.0f,
+					kGlow * kEdgeGain * (float)lit * (1.0f / 255.0f));
 
 				for (int c = 0; c < 3; ++c)
 					px[c] = (uint8_t)(px[c] + t * (a - px[c]) + 0.5f);
 			}
 		}
 	}
+#endif
 
 	// `size` is LOGICAL (DIPs) and `pixels` is PHYSICAL. Everything below draws
 	// in DIPs and lets the scale transform map it to device pixels, so the corner
@@ -362,8 +418,6 @@ class TiDEPanelGui final : public PluginEditor
 			textFormat.setTextAlignment(TextAlignment::Leading);        // start at the bottom
 			textFormat.setParagraphAlignment(ParagraphAlignment::Near); // sit on the left edge
 
-			auto brush = rt.createSolidColorBrush(getTextColor());
-
 			// The panel, transposed about its own centre.
 			const Rect rotatedBounds{
 				centre.x - size.height * 0.5f + kCaptionInset,
@@ -373,13 +427,32 @@ class TiDEPanelGui final : public PluginEditor
 			};
 
 			constexpr float quarterTurnAntiClockwise = -1.57079632679489661923f;
-			TempTransform rotate(rt, makeRotation(quarterTurnAntiClockwise, centre));
+			const Matrix3x2 rotation = makeRotation(quarterTurnAntiClockwise, centre);
+
+			// A brush's coordinates live in the space in force when it is USED,
+			// which here is the rotated one — so a gradient specified corner to
+			// corner would run along the baseline and tilt with the text. Pull
+			// the two SCREEN corners back through the inverse rotation instead,
+			// and the gradient stays put while the glyphs turn.
+			const Matrix3x2 toLocal = invert(rotation);
+			const Point gradientFrom = transformPoint(toLocal, Point{ 0.0f, 0.0f });
+			const Point gradientTo = transformPoint(toLocal, Point{ size.width, size.height });
+
+			const auto fill = getTextColor();
+			auto brush = rt.createLinearGradientBrush(
+				gradientFrom, gradientTo,
+				liftedTowardWhite(fill, kTextGradientLift), // top-left
+				fill);                                      // bottom-right
+
+			TempTransform rotate(rt, rotation);
 			rt.drawTextU(pinText.value.c_str(), textFormat, rotatedBounds, brush);
 		}
 		rt.endDraw();
 
 		auto bitmap = rt.getBitmap();
+#if TIDE_PANEL_RAISED_EDGE
 		addRaisedEdge(bitmap, deviceScale);
+#endif
 		return bitmap;
 	}
 
