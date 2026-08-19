@@ -46,6 +46,41 @@ Template:
 
 ---
 
+## 2026-08-19 — linux — C12 is COMPLETE; C12d and the umbrella flipped to DONE, C6 unblocked
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Third and last item this session**, again at Jeff's explicit instruction ("merged. sync repos. any additional Linux tasks?") after he merged C12d's two PRs. Bookkeeping plus the verification that makes the bookkeeping mean something.
+
+**Did:** Flipped **C12d** (IN-REVIEW → DONE) and the **C12 umbrella** (BLOCKED(C12d) → DONE) into [BACKLOG-DONE.md](BACKLOG-DONE.md), and unblocked **C6** (BLOCKED(C12d) → TODO). Precedent for flipping my own work in the same session is C12f on 2026-08-18, which the windows run flipped at Jeff's request the same way.
+
+**Result — verified on the MERGED default branches, from scratch, not from the PRs.** This is the check that matters for a two-repo change, because merging one without the other was the stated breakage risk and nothing before this moment had built the combination:
+
+| check | result |
+|---|---|
+| `${EDITOR_DIR}` entries in `EditorLib/CMakeLists.txt` | **0** |
+| three files present in `SynthEditLib`, absent from `SE16/SynthEdit2/` | yes / yes |
+| configure, fresh tree | RC=0 |
+| full build | **935/935 RC=0**, zero `error:`, zero `undefined reference` |
+| `ctest` | **67/67** |
+| moved TUs' objects | both from `.../SynthEditLib/`, **zero** under any `SynthEdit2` path |
+
+935 edges rather than the 549 measured pre-merge, because this tree was configured from scratch after the merges rather than reusing a warm one — worth knowing so nobody reads the two numbers as a regression.
+
+**Learned — `check-backlog-diff.py` caught a real rewrite of mine, and it was right to.** My first C6 edit **replaced** the row's leading sentence instead of growing it. The script's rule is that an existing row's Item text must still be present *verbatim* somewhere inside the new text; a replacement is a rewrite, which needs a human rather than an auto-merge. Rebuilt the row as `<new note> + <original Item verbatim>` and it passed. **The general shape: prepend to an Item, never edit inside it.** The three earlier runs that hit this are why the check exists; add this one.
+
+**State of the queue, which is the actual answer to "any additional Linux tasks?":**
+
+- **The `linux` column is empty of takeable work.** C12d was the last one. `X1`, `X2` and `R4` are the only other `linux`-marked rows and all three are BLOCKED. That is the correct state, not a gap.
+- **C6 is next and is `any`** — move `EditorLib/CMakeLists.txt` itself into `SynthEditLib`. Whichever box wakes first. It is not linux's in particular, and there is no reason to hold it for this one.
+- **Two one-line jobs remain open and belong to no platform:** the `SynthEditJuce` entry in [#88](https://github.com/JeffMcClintock/TideSynth/issues/88) and the ctest path default in [#156](https://github.com/JeffMcClintock/TideSynth/issues/156). Both are in GATED-by-default paths (`SE16/SynthEditJuce/`, `SE16/tests/`) and **neither is a build break**, so STEP 5's A17 exception does not reach either. They need Jeff or a ruling — they are not blocked on capacity.
+
+**Next:** **C6**, by any box, after re-reading its 2026-08-14 near-miss. Then C7 and C10, which C6 unblocks in turn.
+
+**Branch/PR:** the TideSynth PR carrying this entry. All six repos on their default branches, clean; merged `main`/`master` re-verified building on this platform.
+
+---
+
 ## 2026-08-19 — linux — C12d: the carve-out's last stage, and its stated reason was wrong
 
 **Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (asserted; `insteadOf` = `git@github.com:`, every repo remote spot-checked `https://`)
