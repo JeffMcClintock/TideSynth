@@ -46,6 +46,112 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — A21: the identity gate stops on a wrong answer, not on no answer
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI version is not resolvable on this box — `claude --version` is *command not found*) · as **tide-rack-bot** (both paths, and this entry is the first to say so — see below)
+
+**Third item this session**, on Jeff's instruction, after syncing the repos.
+Claimed with a pushed DOING mark before any work.
+
+**Did:** STEP 0.7 now runs **two identity paths** — `gh api user` and
+`gh api graphql '{ viewer { login databaseId } }'` — and reads them with rules
+that separate **asserted wrong** (STOP, always) from **could not assert** (retry,
+then STOP and journal). Wording only; no code.
+
+### All four branches were exercised, not reasoned about
+
+| scenario | REST | GraphQL | rule |
+|---|---|---|---|
+| healthy | `tide-rack-bot` | `tide-rack-bot 314850083` | proceed, record `(both)` |
+| **one path down** — REST forced through a dead proxy | `Get "https://api.github.com/user": proxyconnect …` | `tide-rack-bot` | proceed, record `(GraphQL)` |
+| both down | transport error | transport error | retry ~1 min, then **STOP** |
+| **credential missing** — `unset GH_TOKEN` | **`JeffMcClintock`** | **`JeffMcClintock`** | **STOP**, unconditionally |
+
+**Row 4 is the one that decides whether any of this is safe, and it is the good
+news.** The GraphQL path falls back to Jeff's keyring credential *identically* to
+the REST path, so it **cannot launder a missing token**. Adding it is therefore a
+second equivalent assertion, not a bypass — which is the only thing that would
+have made A21 a weakening of the gate rather than a fix to it.
+
+### The finding worth more than the change
+
+**The two failure kinds are textually distinguishable, so a run never has to
+judge which one it is in.**
+
+- A **transport** failure yields **no login at all** — an error string.
+- A **credential** failure yields a **perfectly valid login that is the wrong
+  one**.
+
+So: *if you are holding a login string, you are in the asserted case, and the
+only question is whether it says `tide-rack-bot`. If you are holding an error,
+you are in the could-not-assert case, and retrying is correct.* Never treat an
+error as licence to continue; never try to retry a wrong name away. That is now a
+table in the prompt rather than a judgement call, which matters because the run
+making the call is the one whose credentials are in question.
+
+### Two things the row did not anticipate
+
+**GraphQL is the STRONGER assertion, not a lesser fallback.** It returns
+`databaseId` = **314850083**, which is exactly the number hard-coded into
+`GIT_AUTHOR_EMAIL` (`314850083+tide-rack-bot@users.noreply.github.com`). So it
+checks the identity the run's **commits** will carry, where REST only checks the
+one its API calls will. Prefer it when both answer.
+
+**A latent documentation bug, in the one rule where being read correctly matters
+most.** The paragraph beginning *"That second command MUST print
+`tide-rack-bot`"* named the **wrong command**: the second command was the
+`insteadOf` transport check, and the identity call was the first. It had said
+that ever since the transport check was added, and every run since has had to
+silently repair it while reading. Fixed, with a note saying so.
+
+**Also updated:** STEP 0.5's record line, and STEP 4's provenance template, which
+now reads `as <login> (<REST|GraphQL|both>)`. This entry's own `**Prompt:**` line
+is the first to carry it.
+
+### Repos synced first, per the instruction
+
+Five advanced, five already current, three skipped:
+
+| skipped | why |
+|---|---|
+| `JUCE` | untracked `modules/juce_audio_processors/format_types/VST3_SDK/` |
+| `gimpi_ui_tests` | untracked `build-bench/` |
+| `VST_SDK` | detached HEAD, no upstream, untracked `build/` |
+
+All three are build artefacts or a vendored SDK rather than work in progress, but
+they predate this run and STEP 5 says the developer's dirt is not mine to clean.
+`SynthEdit` `2f5fca5e3 → 6c7e90053`, `SynthEditLib` `65d55cd → 5af259e`,
+`TideSynth` `8917c04 → 61b4707`, `gmpi_ui` `6700070 → ad5b681`,
+`synthedit-website` `83771db → e51a7c3`; all fast-forwards, none ahead.
+
+**Learned:**
+
+1. **"Add a fallback" was the wrong frame and the row's own wording carried it.**
+   The question that decides safety is not *is the second path good enough*, it is
+   *does the second path fail the same way the first does when the credential is
+   missing*. Measured: it does. Had it not, the correct answer would have been to
+   leave the gate alone and accept the lost runs.
+2. **A rule that requires the reader to classify a failure will eventually be
+   classified wrong**, by whoever is most motivated to continue — which is the
+   run itself. Giving the classification a mechanical tell (login string vs error
+   string) is what makes it a rule rather than an appeal to judgement.
+
+**Next:**
+
+1. **A22, A23, A24** are the remaining A-series rows. A23 is the best-specced —
+   duplicate-id detection in `check-id-refs.py`, with a positive control already
+   written into the row.
+2. **A22 pairs with this one** — both are rules whose premise stopped matching how
+   the fleet runs.
+3. **E17** still gates every E2 module stage; **E10** still needs `SynthEditLib`
+   authority.
+
+**Branch/PR:** `tide/mac/A21-identity-gate` — one repo, TideSynth only.
+**Merge order matters:** this branch and `tide/mac/A28-community-research` (#175)
+were both cut from `main` and both touch `BACKLOG.md` and `JOURNAL.md`, so
+whichever merges second will want a rebase. No overlap in `docs/`.
+Throwaway worktree; the developer's checkout stayed on `main` and clean.
+
 ## 2026-08-20 — macos — A27: the NEXT block's Take column is read now, and the docstring stops lying about it
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** — the Claude Code CLI version the previous entries report as "app 2.1.220" was **not resolvable on this box** (`claude --version` → *command not found*; nothing under `~/.claude` or the app bundle carries an unambiguous CLI version), so the measurable number is recorded rather than a guessed one · as **tide-rack-bot**
@@ -537,120 +643,3 @@ change**, though neither breaks the other's build: the E1 case rebuilds the
 recipe from primitives rather than loading `Filter.synthedit`, so it does not
 depend on the SynthEdit half landing first. Work done in a throwaway worktree
 for TideSynth; `SynthEdit` was branched in place and is returned to `master`.
-
-## 2026-08-19 — macos — E12 verified on the merged trees and closed; E13 archived; a mac build trap that survives ZERO_CHECK
-
-**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
-
-**Second item this session**, on Jeff's instruction ("merged. next task"), after
-**E13** merged as [#168](https://github.com/JeffMcClintock/TideSynth/pull/168).
-Claimed with a pushed DOING mark before any work, per STEP 2.
-
-**Did:** Took **E12** — the one row on this box that had a *merged* fix and a
-`TODO` status — verified it on the merged default branches, and closed it. Also
-did the STEP 4 chore E13 left behind and re-pointed the stale `mac` NEXT cell.
-
-### Why E12 rather than the NEXT block's E2
-
-The `mac` NEXT cell named E10 (GATED, no authority, not a build break), then
-"**E2** or the per-prefab **E1** cases". The E1 cases closed an hour earlier as
-E13, so the cell was already one item out of date. **E12 was `TODO` while its own
-fix was merged**, which is the state most likely to be silently wrong: the row's
-"four consecutive shutdowns" was measured **on the branch**, before
-[SynthEditLib#23](https://github.com/JeffMcClintock/SynthEditLib/pull/23) and
-[SynthEdit#54](https://github.com/JeffMcClintock/SynthEdit/pull/54) merged, and
-nothing had re-measured it since. This is also the only box that can. E2 is a
-large open-ended authoring item and is still there; the cell now points at it.
-
-### Result — 4/4 clean shutdowns on the merged defaults
-
-Trees: `SynthEdit` `2f5fca5e3`, `SynthEditLib` `65d55cd`, Release, Xcode.
-
-```
-run 1: alive at 9s, TERM sent, wait rc=0
-run 2: alive at 9s, TERM sent, wait rc=0
-run 3: alive at 9s, TERM sent, wait rc=0
-run 4: alive at 9s, TERM sent, wait rc=0
-TIDE_STANDALONE crash reports: 14 before, 14 after
-```
-
-Three things make that more than an exit code:
-
-- **Each run reached a real working state before being killed**, so this is not
-  four fast failures: `TIDE: 5 rack prefab(s) seeded from the bundle`, root
-  MIDI-CV wired (`MIDI In → MIDI-CV 2 → facade`), and
-  `TIDE: rack built for 48000 Hz, block 512`. All four logs identical.
-- **`wait` returned rc=0, not 143.** The app handles SIGTERM and exits
-  gracefully rather than dying by signal — the same path the row says a user's
-  Quit takes.
-- **No `.ips` from *any* process** after the build, not merely none named
-  `TIDE_STANDALONE`, so the count is not hiding a differently-named crash.
-
-The `ViewBase::setHost` override that severs child views' copied `dialogHost`
-is present on the merged tip at `ViewBase.cpp:2736-2751`.
-
-**What I did NOT re-measure, and will not claim:** the *before* half. The 3/3
-crashes are the original interactive measurement, kept in the archived row.
-Reproducing them would mean reverting a merged fix inside Jeff's shared tree,
-which is not a thing a scheduled run should do to prove a point.
-
-### The build trap, and why it is worth a paragraph
-
-After fast-forwarding the six repos to their merged tips, **the existing Xcode
-build tree would not build**:
-
-```
-error: Build input file cannot be found:
-  '.../SynthEdit/SynthEdit2/InterfaceObject_editor.cpp'
-  (in target 'EditorLib')
-```
-
-C12d moved that file into `SynthEditLib`'s root; the **generated Xcode project
-kept the old path**. The interesting part is that this survives the mechanism
-meant to prevent it — the same build log says
-`Generate CMakeFiles/ZERO_CHECK will be run during every build`, and it did.
-`cmake -S . -B build` clears it in seconds (configure RC=0, and all four folder
-overrides report local, including `Using local GMPI WRAPPERS folder`).
-
-**So: after any carve-out stage that MOVES files, reconfigure before building on
-mac.** Do not read the resulting error as a broken carve-out — C12d, C13 and C6
-are all fine; the generated project was stale. This will recur on C7b and C10,
-both of which move files.
-
-Related and still open: **S17** — the build may compile
-`build/_deps/gmpi_ui-src` rather than the local `gmpi_ui` clone. It does not
-affect this result (E12's fix is in `SynthEditLib`, not `gmpi_ui`) but anyone
-verifying a *gmpi_ui* change here should settle S17 first.
-
-### Bookkeeping done this run
-
-- **E13 → DONE and archived.** [#168](https://github.com/JeffMcClintock/TideSynth/pull/168)
-  merged 03:03:42Z. Worth carrying forward: its CI `verify` job renders on
-  **Linux** against the published engine and returned `null=-inf` — **bit-exact**
-  against the macOS-seeded reference, because that reference contains no
-  floating-point arithmetic to drift.
-- **E12 → DONE and archived**, with the verification above.
-- **The `mac` NEXT cell re-pointed to E2**, since both of its other fallbacks are
-  now closed, with a pointer to `tests/README.md`'s prefab-coverage section.
-
-### Still open, and still nobody's
-
-- **`tide/mac/V3-midi-findings`** remains a pushed branch with no open PR — its
-  PR ([#142](https://github.com/JeffMcClintock/TideSynth/pull/142)) merged, and
-  two commits (`25216c1`, `4e65874`) sit on top of `main`. Reported last run,
-  unchanged. Someone should confirm that content landed elsewhere and delete it.
-- **E10** is the real prize on this platform and needs `SynthEditLib` authority:
-  a live host crash, whose own Accept clause would not fix it.
-
-**Next:**
-
-1. **E2** — the `mac` cell now points there, and it is the larger half of what is
-   left in that area. Read `tests/README.md`'s coverage section first.
-2. **E10**, for anyone who may edit `SynthEditLib`.
-3. **S17**, before anyone tries to verify a `gmpi_ui` change on this box.
-
-**Branch/PR:** `tide/mac/E12-standalone-shutdown` and the TideSynth PR carrying this entry (branch named rather than numbered: this PR is docs-only and therefore A4 auto-merge eligible, so a follow-up commit adding the number could land on a branch whose PR had already merged — **A22** exactly).
-No code changed in any repo this run — the fix was already merged; this run
-measured it and updated the queue. Build tree reconfigured (a build artifact,
-not source). All six working copies clean and on their default branches, fast
--forwarded to their merged tips.
