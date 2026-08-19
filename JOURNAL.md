@@ -46,6 +46,37 @@ Template:
 
 ---
 
+## 2026-08-19 — linux — C6 DONE; C7 and C10 unblocked, and C7's first move is already measured
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Did:** STEP 4 bookkeeping after Jeff merged C6's two PRs. **C6 → DONE** and archived; **C7 and C10 → TODO**.
+
+**Result — verified on the MERGED default branches from a fresh tree**, not from the PRs, because a two-repo change is only really tested once both halves are on their default branches:
+
+| check | result |
+|---|---|
+| `EditorLib/CMakeLists.txt` | present in `SynthEditLib`, **gone** from `SE16` |
+| configure | RC=0 |
+| full build | **935/935 RC=0**, zero `error:`, zero `undefined reference` |
+| `ctest` | **67/67** |
+| `SE_APP_BUILD_NUMBER` | **186**, unchanged |
+
+**The carve-out now has exactly two stages left, C7 and C10, and C7's opening move is already measured — do not re-derive it.** Configuring the public `EditorLib` standalone with no SE16 anywhere is **RC=0**. A standalone *build* stops on `GmpiUiDrawing.h`, `RawView.h` and `Hosting/message_queues.h`, and **`grep -c "SE16\|SynthEdit2"` over that log is 0**. So the gap between the public repo and a clean-clone build is the external GMPI/gmpi_ui SDKs — packaging, not privacy.
+
+**The one genuinely private dependency that remains** is the include directory SE16 re-adds to EditorLib: the 7 public-file includes that resolve only in `SynthEdit2` (`ISEAppManaged.h`, `IMidiDriver.h`, `ParseSynthEditArgs.h`, `SynthEditApp.h`). C6 did not close them and never claimed to — it made them *visible* by moving them from an invisible include path inside the moved file to an explicit line in SE16's root. **That is the real content of C7's clean-clone test**, and it is C11's territory. Anyone starting C7 should read this paragraph before scoping it.
+
+**Learned — a bookkeeping trap worth naming, because the next run will meet it.** `BACKLOG.md` on `main` currently says **A26 is `TODO`**, and it is not — it is IN-REVIEW with [#163](https://github.com/JeffMcClintock/TideSynth/pull/163) open. The IN-REVIEW mark lives *in that PR*, so it is invisible until the PR merges. **This is BACKLOG A22 exactly.** The protection that still works is STEP 2's claim check: `git ls-remote --heads origin` and `gh pr list --state open` both show `tide/linux/A26-authorship-range` and #163, and STEP 2 says a branch or open PR naming the id from a different platform means the item is taken. **Trust the branch/PR check over the status column when they disagree** — the status column lags by exactly one merge.
+
+**Next:**
+
+1. **C7** — point TIDE at the public repo only, plus the clean-clone CI build that is the carve-out's real proof. `any`. Its scope is the 7 private includes above plus SDK packaging, not a search for what is left.
+2. **C10** also just unblocked. `any`.
+3. **[#163](https://github.com/JeffMcClintock/TideSynth/pull/163) (A26) is still open** and deliberately so — it changes a rule in `docs/weekly-run-prompt.md`, which reaches all three boxes on their next run. It wants Jeff's eye rather than an auto-merge.
+4. Still open and nobody's platform: the `SynthEditJuce` line in [#88](https://github.com/JeffMcClintock/TideSynth/issues/88) and the ctest path default in [#156](https://github.com/JeffMcClintock/TideSynth/issues/156). Both GATED-by-default, neither a build break, so A17's exception does not reach them.
+
+**Branch/PR:** the TideSynth PR carrying this entry. All six repos on their default branches, clean.
+
 ## 2026-08-19 — linux — A26: the authorship check fails on what you can fix, and reports the rest
 
 **Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
