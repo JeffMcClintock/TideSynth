@@ -172,8 +172,14 @@ E2b measured the 1-pole's.
 **Next:**
 
 1. **The prefab swap**, if Jeff wants it — see above.
-2. **E1c**, filed this session: two cases carry relaxed gates ~55 dB wider than
-   their measured residual.
+2. **The over-wide relaxed gates filed earlier this session** — two harness
+   cases declare tolerances ~55 dB wider than their own measured cross-platform
+   residual. The row for it is in [#170](https://github.com/JeffMcClintock/TideSynth/pull/170),
+   still open, so it is deliberately not named by id here: `check-id-refs.py`
+   validates prose mentions against rows that exist ON THIS BRANCH, and naming a
+   row that lives only in another open PR fails `lint`. Worth knowing, because
+   it will catch anyone cross-referencing between two open PRs — the check is
+   right, and the fix is to describe the row rather than cite it.
 3. **E10** remains the biggest thing on this platform and needs `SynthEditLib`
    authority.
 
