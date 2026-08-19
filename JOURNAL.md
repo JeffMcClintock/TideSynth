@@ -195,6 +195,50 @@ All shared trees left clean and on their defaults.
 
 **Branch/PR:** the TideSynth PR carrying this entry. All six repos on their default branches, clean.
 
+## 2026-08-19 — linux — A26: the authorship check fails on what you can fix, and reports the rest
+
+**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Fifth item this session**, on Jeff's instruction ("if all good take the next task"). Claimed with a pushed DOING mark first. Topmost eligible TODO/`any` row; C7 and C10 were skipped correctly — they are `BLOCKED(C6)` and C6's two code PRs are still open, and STEP 2 says never start a BLOCKED item.
+
+**Did:** Fixed the STEP 2 / STEP 4 contradiction. `scripts/check-commit-authorship.py` plus the STEP 4 wording in `docs/weekly-run-prompt.md`.
+
+### The fix is not the one the row proposed, and the difference matters
+
+A26 suggested passing `--range <pre-run tip>..HEAD`, or defaulting to the upstream. **Both narrow the range, and narrowing the range is wrong** — the old docstring already explained why, and it was right: a branch pushed once has an upstream, so comparing against it hides a foreign commit that an *earlier attempt of this same run* had already pushed. Whoever wrote that comment had thought about it.
+
+The range was never the problem. **The verdict was.** So severity is now decided per commit, by whether the run can still act on it:
+
+| commit | verdict | why |
+|---|---|---|
+| misattributed, **not yet pushed** | **BLOCKING**, exit 1, "do not push" | A14's case exactly. `--amend --reset-author` is available. **Unchanged.** |
+| misattributed, **already pushed** | **ADVISORY**, exit 0, printed in full | the run cannot rewrite it — STEP 4 forbids that — so failing demands the one forbidden action |
+
+Nothing is hidden either way; only the verdict moves. `--strict` restores the old fail-on-everything behaviour, so nothing is lost.
+
+**Result — A/B on a real branch, not just the synthetic cases.** `tide/win/competitive-review` is genuinely three Jeff-authored interactive commits, which is precisely A26's scenario:
+
+```
+old (--strict):  rc=1   "Do not push"        <- the deadlock, reproduced
+new (default):   rc=0   all three listed as ALREADY PUSHED -- not blocking
+```
+
+### The selftest earned itself inside five minutes, and the bug is the interesting part
+
+Added `--selftest`, which builds throwaway repos and pins five cases. It failed on first run — and the bug was mine, in this change, and it was **silent and in the dangerous direction**.
+
+`unpushed()` set-matches SHAs against `git rev-list` output, which is always full 40-char. `FORMAT` used `%h`. **No commit ever matched, so every commit was classified "already pushed", so nothing ever blocked.** The check would have exited 0 on the exact A14 scenario it exists to catch — a concurrent session's local commit — while printing a confident, reasonable-looking report. Every one of my real-repo spot checks still passed, because they had no misattributed commits to misclassify.
+
+`FORMAT` now uses `%H`, with the reason recorded beside it. **The general lesson: a check that can only fail open needs a test that makes it fail.** Three of this session's five items have now turned on measuring something instead of reasoning about it; this is the one where the thing being measured was my own work.
+
+**Learned — the five cases are worth keeping in this shape.** Case 5 (a pushed foreign commit *and* an unpushed one on the same branch) is the one that would catch a future regression collapsing the two categories: it must report one and block on the other in the same run.
+
+**Next:** **C7** — point TIDE at the public repo only, plus the clean-clone CI build that is the carve-out's real proof. Still `BLOCKED(C6)` until [SynthEdit#57](https://github.com/JeffMcClintock/SynthEdit/pull/57) and [SynthEditLib#25](https://github.com/JeffMcClintock/SynthEditLib/pull/25) merge. **C7's starting point is already measured** — see the C6 entry: the public `EditorLib` configures standalone RC=0 and stops only on `GmpiUiDrawing.h` / `RawView.h` / `Hosting/message_queues.h`, with zero private-repo references. **C10** also unblocks on C6.
+
+**Also worth someone's eye:** A21, A22, A23 and A24 are all process rows of the same family as A26 — each one a rule that contradicts another rule or a check that misfires. They are cheap, they are `any`, and every one of them was filed by a run that lost time to it.
+
+**Branch/PR:** the TideSynth PR carrying this entry.
+
 ---
 
 ## 2026-08-19 — linux — C6: EditorLib's CMakeLists is public, and the plan its own comment left was wrong
