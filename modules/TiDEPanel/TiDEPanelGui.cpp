@@ -149,23 +149,16 @@ class TiDEPanelGui final : public PluginEditor
 	}
 
 	// The hex-string -> Color conversion is gmpi_ui's own (Drawing.h:654). It
-	// already implements SynthEdit's convention exactly: AARRGGBB, alpha taken
-	// from the high byte only when the string is longer than 6 digits, and RGB
-	// decoded through the sRGB transfer function. That matches what
-	// SubControlsXp/RectangleGui.cpp does by hand with FastGamma.
+	// already implements SynthEdit's convention exactly: AARRGGBB, with alpha
+	// taken from the high byte only when the string is longer than 6 digits.
 	Color getTextColor() const
 	{
 		return pinTextColor.value.empty() ? Colors::Black : colorFromHexString(pinTextColor.value);
 	}
 
 	// Toward white, keeping the colour's own alpha — interpolateColor would drag
-	// alpha to opaque along with the channels.
-	//
-	// Linear, like every colour calculation here: a Color is linear light and
-	// stays that way. Note that makes the mix STRONGER than the number reads —
-	// a linear blend from a near-black fill lightens fast — so the amount is
-	// small by design. Tune kTextGradientLift; do not move the maths into sRGB
-	// to make a larger number behave.
+	// alpha to opaque along with the channels. A small amount goes a long way
+	// from a dark fill, which is why kTextGradientLift is low.
 	static Color liftedTowardWhite(Color c, float amount)
 	{
 		return Color{
@@ -271,11 +264,8 @@ class TiDEPanelGui final : public PluginEditor
 	// makes it look like a lit surface, and it is the SAME blur the rest of the
 	// codebase uses (ginSingleChannel, via cachedBlur).
 	//
-	// The blend runs in sRGB space, deliberately. Premultiplied white is simply
-	// "every channel equals alpha", so lerping a channel toward alpha needs no
-	// colour-space conversion at all. Physically it should be done in linear
-	// light, but for a highlight on a glyph the difference is invisible and the
-	// conversion would cost a decode/encode per pixel.
+	// Premultiplied white is simply "every channel equals alpha", so lighting a
+	// pixel is a lerp of each channel toward its own alpha.
 	static void addRaisedEdge(Bitmap& bitmap, float deviceScale)
 	{
 		if constexpr (kGlow <= 0.0f)
