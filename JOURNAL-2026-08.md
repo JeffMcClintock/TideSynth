@@ -14595,3 +14595,146 @@ change**, though neither breaks the other's build: the E1 case rebuilds the
 recipe from primitives rather than loading `Filter.synthedit`, so it does not
 depend on the SynthEdit half landing first. Work done in a throwaway worktree
 for TideSynth; `SynthEdit` was branched in place and is returned to `master`.
+
+## 2026-08-19 — macos — E2c: SV Filter4 and Oscillator HD linked into TIDE, and the XML list that is hardcoded twice
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Fourth item this session**, on Jeff's instruction: *"lets get the SVFilter in
+TIDE and also the 'Oscillator HD' these are our go-to MVP modules"*. Claimed
+with a pushed DOING mark before any work, per STEP 2.
+
+**Did:** Linked both into TIDE. `SE SV Filter4` ("StateVar Filter"),
+`SE SV Filter4B` and `SE Oscillator4` ("Oscillator HD") are now registered in
+TIDE's factory with their pins, verified from inside the running app.
+
+### Why they were absent, and the trap in the reason
+
+Both build into **separate loadable targets** (`VaFilters`, `OscillatorHD`)
+rather than into the `SynthEditLib` static library — the same shape as E7's
+converters and S8's `OscillatorNaive`.
+
+**`UgDatabase.cpp` already had `INIT_STATIC_FILE(SVFilter4)` at `:1114`, and the
+class was still absent from TIDE.** That is the thing to carry forward: **the
+INIT list is `SynthEditLib`'s, and TIDE links a subset of it, so it is not a
+menu of what TIDE can instantiate.** E2b's entry said the same from the other
+direction; this is the confirmation, and it means "it is in UgDatabase" is never
+sufficient evidence.
+
+### Three sources, and the third is one only the linker finds
+
+| source | brings |
+|---|---|
+| `modules/VaFilters/SvFilter.cpp` | `SE SV Filter4`, `SE SV Filter4B` |
+| `modules/OscillatorHD/Oscillator.cpp` | `SE Oscillator4` |
+| `modules/shared/real_fft.cpp` | `realft()` |
+
+The link failed first time on exactly one symbol —
+`realft(float*, unsigned int, int)`, referenced from
+`MipMapCalculator::generateWavetable` in `Oscillator.o`. Oscillator HD builds
+mipmapped wavetables with an FFT that lives in another translation unit. **This
+is the same second-TU rule `my_type_convert.cpp` records for Converters**, and
+it is now two for two: a module added to TIDE's source list should be expected
+to drag a helper TU with it.
+
+### The finding worth more than the change: the XML list is hardcoded TWICE
+
+`SE SV Filter4`'s pins live in `VaFilters.xml`, so the file has to be both
+**staged** and **read** — and those are two separate hardcoded lists:
+
+- `_tide_xmls` in `SynthEditSem/CMakeLists.txt` copies it into
+  `Contents/Resources`
+- the loop at `TideApp.cpp:488` is what actually reads it back
+
+Adding it to only one **fails silently in whichever direction you missed**.
+Staged-but-never-read says nothing at all; read-but-never-staged at least prints
+to stderr. The CMake side already carries a comment about a near-identical split
+that "cost a debugging cycle on V3" — that comment is about two *staging* blocks,
+and this is a **third** place the same list is written. Both sites now say they
+must move together.
+
+**A module with only its `.cpp` is worse than a missing module**, per the note
+already in `TideApp.cpp:474`: a class with no pins "takes the whole enclosing
+container's widget layer down with it — a blank rack rather than one missing
+module".
+
+### Making that failure visible for good
+
+The merge loop now reports what it did, which is three lines and is also this
+change's own verification artifact:
+
+```
+TIDE: ControlsXp.xml    enriched  2 of 18 described class(es)
+TIDE: SubControlsXp.xml enriched  1 of 27
+TIDE: MidiPlayer2.xml   enriched  2 of  7
+TIDE: Converters.xml    enriched 26 of 70
+TIDE: VaFilters.xml     enriched  2 of  7
+```
+
+A **zero** means the `.cpp` half was forgotten. The gap between the two numbers
+is expected and harmless — it is the entries TIDE deliberately does not link.
+Flagged in the PR as a behaviour addition beyond the literal ask, so Jeff can
+drop it.
+
+### Verification — from inside TIDE's factory, with negative controls
+
+`VaFilters.xml enriched 2 of 7` is itself proof for the filter: exactly the two
+classes whose `.cpp` is now linked, with RMS / Korg / Moog / SV Filter2 / Moog
+test correctly skipped.
+
+Oscillator HD has no XML to count, so a **temporary probe, since reverted** (the
+issue **#87** lesson — `grep PROBE` on the branch returns nothing):
+
+```
+SE Oscillator4         REGISTERED
+SE SV Filter4          REGISTERED
+SE SV Filter4B         REGISTERED
+1 Pole LP              REGISTERED   <- known-good positive control
+SE Oscillator (naive)  absent       <- S8's module: the probe still discriminates
+SE SV Filter2          absent       <- described in VaFilters.xml, .cpp not linked
+```
+
+**Two positive and two negative controls**, so "everything says REGISTERED" is
+ruled out. The last row is the more interesting one: it shows the enrichment
+guard skipping a described-but-unlinked class rather than creating a phantom
+browser entry, which is the property that makes it safe to point the merge at a
+file describing far more modules than TIDE links.
+
+**TIDE, TIDE_VST3, TIDE_STANDALONE and SynthEditCL all build.** TIDE_STANDALONE
+runs, seeds 6 prefabs, and shuts down clean with no crash report.
+
+### Not done, deliberately
+
+**The prefabs still use the old DSP.** "Go-to" suggests Jeff wants
+`SE Oscillator4` and `SE SV Filter4` to be what TIDE's Oscillator and Filter
+rack modules are built from — but swapping the DSP inside two already-shipped
+prefabs is a product change, and E2b's Filter prefab is still in an open PR. It
+is a small change to `build-prefabs.py` plus re-measuring two E1 cases. Asked
+rather than assumed; noted in both PR bodies.
+
+Also worth knowing before that swap: **SV Filter4's pin defaults are not on the
+same scale as the modules already in the prefabs.** Its `Pitch` defaults to
+`0.5` and it has `Resonance`, `Strength` and `Mode` (LP/HP/BP/BR) pins, where
+`1 Pole LP` has `Signal`/`Pitch`/`Output` and takes 5 V = 440 Hz. Whoever does
+the swap should measure the mapping rather than assume it matches, exactly as
+E2b measured the 1-pole's.
+
+**Next:**
+
+1. **The prefab swap**, if Jeff wants it — see above.
+2. **The over-wide relaxed gates filed earlier this session** — two harness
+   cases declare tolerances ~55 dB wider than their own measured cross-platform
+   residual. The row for it is in [#170](https://github.com/JeffMcClintock/TideSynth/pull/170),
+   still open, so it is deliberately not named by id here: `check-id-refs.py`
+   validates prose mentions against rows that exist ON THIS BRANCH, and naming a
+   row that lives only in another open PR fails `lint`. Worth knowing, because
+   it will catch anyone cross-referencing between two open PRs — the check is
+   right, and the fix is to describe the row rather than cite it.
+3. **E10** remains the biggest thing on this platform and needs `SynthEditLib`
+   authority.
+
+**Branch/PR:** [SynthEdit#61](https://github.com/JeffMcClintock/SynthEdit/pull/61)
+plus the TideSynth PR carrying this entry. Two repos; the SynthEdit half is the
+whole change and the TideSynth half is bookkeeping, so neither blocks the other.
+Work done in a throwaway worktree for TideSynth; `SynthEdit` was branched in
+place and is returned to `master`.

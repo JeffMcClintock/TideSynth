@@ -46,6 +46,105 @@ Template:
 
 ---
 
+## 2026-08-20 — windows — C14: the last private include was never needed, and it was hiding an ODR violation
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI is not resolvable on this box either — `claude --version` is *command not found*, same as the mac entries report) · as **tide-rack-bot** (both paths: REST `gh api user` and GraphQL `viewer { login databaseId }` → `tide-rack-bot` / `314850083`) · transport check `git config --global --get url."https://github.com/".insteadOf` → `git@github.com:`
+
+**The prompt changed under this run.** It started at **`eba799e`** and `origin/main` is now at **`2ce10c7`** — A21 landed mid-run and rewrote STEP 0.7 and STEP 4's provenance template. The sha above is what actually executed; the line is written in the *new* format because the new format is strictly more informative and this run had both paths' answers anyway. Nothing else in the diff changed what this run did.
+
+**Did:** narrowed `ApplyConfigPreInit` / `ApplyConfigPostInit` from `SynthEditApp&` to `CSynthEditAppBase&`, which took the public repo's dangling private includes **1 → 0** and let `SE16`'s root `CMakeLists.txt` drop the `../SynthEdit2` include directory it was adding on `EditorLib`'s behalf. Also flipped and archived **A28**, filed **C15**, and re-pointed the `win` and `any` NEXT rows.
+
+### It never needed the private type, and that is the whole fix
+
+C14's row expected C11's treatment — invent a public interface. **No new interface was needed: `CSynthEditAppBase` already is one.** Every member the two functions touch is declared in the public repo:
+
+| used | declared |
+|---|---|
+| `SetQuiet()` | `SynthEditAppBase.h:201` — `CSynthEditAppBase` |
+| `setTemporaryRegistration()` | `SynthEditAppBase.h:270` — `CSynthEditAppBase` |
+| `rescanIncludesVsts` | `Application.h:144` — `ApplicationBase` |
+| `overrideSamplesFolder` | `Application.h:45` — `ApplicationBase` |
+| `RefreshModuleData()` | `Application.h:138` — `ApplicationBase` |
+
+`CSynthEditAppBase : public gmpi::hosting::interThreadQueUser, public ApplicationBase`, so one name covers all five. Derived-to-base reference conversion is implicit, so **no caller changed** — `MainWindow.xaml.cpp:500`, `SynthEditCL/main.cpp:128,138` and `SynthEditMac/.../AppDelegate.mm:175,279` compile unmodified. The header got *lighter*: it now forward-declares `class CSynthEditAppBase;` and the `.cpp` includes `SynthEditAppBase.h`.
+
+**One premise in the row was true but was never the operative reason.** It says `SynthEditApp.h` "pulls in `moonbasepp_Licensing.h`, the commercial licensing library". C7a had already measured that the include sits inside `#ifdef SE_MOONBASE_SUPPORT`, and `SynthEditSem/CMakeLists.txt:56-62` says so in place. What actually blocked a move is simpler and was never written down: **`SynthEditApp` is a private application class**. The licensing framing made C14 look like a policy problem; it was a plain layering one.
+
+### The finding worth more than the change: this was a live ODR violation
+
+There are **two unrelated classes named `SynthEditApp` in the global namespace**:
+
+- `SE16/SynthEdit2/SynthEditApp.h:14` — `: public CSynthEditAppBase, public ILicenseState`
+- `SE16/SynthEditCL/SynthEditAppCl.h:16` — `: public CSynthEditAppBase`
+
+**Both were passed to these functions**, which are compiled **exactly once**, into `EditorLib`, against the first. `SynthEditCL` then links that object and calls it with the other class. That is an ODR violation. It linked and ran only because `CSynthEditAppBase` is the **first** base of both, so the subobject the bodies actually touch sits at offset 0 in each — change either class's base order and it becomes a silent memory bug, not a link error.
+
+**Positive control**, because "the mangled name ignores the definition" is the load-bearing claim. A four-file MSVC repro — two headers each defining a different `class SynthEditApp`, one defining TU, one calling TU — `dumpbin /symbols`:
+
+```
+OLD  definition (class A) : ?ApplyConfigPreInit@@YAXAEAVSynthEditApp@@@Z   SECT3 External
+OLD  reference  (class B) : ?ApplyConfigPreInit@@YAXAEAVSynthEditApp@@@Z   UNDEF External
+NEW  definition           : ?ApplyConfigPreInit@@YAXAEAUAppBase@@@Z
+NEW  reference            : ?ApplyConfigPreInit@@YAXAEAUAppBase@@@Z
+```
+
+Identical symbol, different types, no diagnostic. And on the real build, definition and reference now agree on one type that both sides actually have:
+
+```
+EditorLib/.../ApplySynthEditConfig.cpp.obj  SECT22 External
+  ?ApplyConfigPreInit@@YAXAEAVCSynthEditAppBase@@AEBUSynthEditConfig@@@Z
+SynthEditCL/.../main.cpp.obj                UNDEF  External
+  ?ApplyConfigPreInit@@YAXAEAVCSynthEditAppBase@@AEBUSynthEditConfig@@@Z
+```
+
+**Result:**
+
+- `python3 scripts/dangling_private_includes.py` — **1 → 0**. Positive control: the same script against the untouched `C:\SE` checkouts still reports **1**, so the zero is the change and not a broken measurement.
+- Fresh Ninja tree, Release, MSVC: **1029/1029 RC=0**, **zero `error C` lines**, all four folder overrides local, `SE_APP_BUILD_NUMBER=187`.
+- **`ctest`: 92/92 passed, 0 failed** (93 listed, 1 disabled upstream) — the known-green figure.
+- Linked: `SynthEdit_VST3.vst3`, `SynthEdit_GMPI.gmpi`, `SynthEditCL.exe`, `EditorScreenshot.lib`, `TIDE.gmpi`, `TIDE_VST3.vst3`, `TIDE_STANDALONE.exe`, `synth_ui_tests.exe`, `dsp_tests.exe`.
+- **`EditorLib` now compiles with ZERO private include directories.**
+
+**The edge count is 1029, not the 1017 the last win entry recorded.** Upstream growth (`SynthEditLib` gained `--set-plugin-info` and more), not a regression — which is exactly what the baseline note says to check rather than assume.
+
+### One consumer broke, and its breaking is the correct outcome
+
+```
+C:\SE\_c14\SE16\tests\layouttests.cpp(9): fatal error C1083:
+  Cannot open include file: 'SynthEditApp.h': No such file or directory
+```
+
+`synth_ui_tests` was reaching the private header through `EditorLib`'s **PUBLIC** include directory. It already compiles `../SynthEdit2/SynthEditApp.cpp`, so the dependency was never new — only the route. It now names `../SynthEdit2` in its own `target_include_directories`, which is where a private target's private dependency belongs.
+
+**Nothing else in the tree was exposed, and that was measured, not hoped.** Enumerated every SE16 source outside `SynthEdit2/` that includes a `SynthEdit2`-only header: **23 file/include pairs** across `SynthEditCL`, `SynthEditJuce`, `SynthEditMac`, `SynthEditSem`, `SynthEditWayland` and `tests`. Every consuming target names the directory in its own build file — `SynthEditCL/CMakeLists.txt:18`, `SynthEditWayland/CMakeLists.txt:190`, `SynthEditJuce/CMakeLists.txt:59`, `SynthEditSem/CMakeLists.txt:74` — and `SynthEditMac` is an Xcode project that never saw the CMake variable at all. **So mac and linux are structurally safe here, not lucky**, which is the only honest thing a win box can say about them.
+
+**Not verified, stated rather than glossed:** `SynthEdit2` (WinUI3) cannot be built without writing into Jeff's Visual Studio tree. Checked by inspection instead — it does not compile `ApplySynthEditConfig.cpp` (it links `EditorLib.lib`), its `AdditionalIncludeDirectories` already names `..\SyntheditLib`, and `MainWindow.xaml.cpp` sits in `SynthEdit2/` so its own include resolves own-directory-first.
+
+### Filed, not fixed: C15 — TIDE's private include is now dead weight
+
+`SynthEditSem/TideAppStubs.cpp:31` includes `"SynthEditApp.h"` to define `SynthEditApp* theApp`, `SynthEditApp::isMoonbaseEnabled()` and `SynthEditApp::licenseIsActive()`. **Grepping the whole public repo for those three names returns 0 hits** — C11 removed the last consumer when `MfcDocPresenter.cpp:1316` moved to `GetLicenseState()`.
+
+C7a's and C14's own CMake comments both predicted the two would "want ONE fix". **They were wrong, and that is worth recording:** narrowing a *signature* cannot remove a *definition of someone else's member function*. The two halves are independent, and the second is a deletion with a link test for an acceptance check. Filed as C15 rather than done here, because `SynthEditSem` is outside C14's stated Scope and STEP 3 says file, do not fix.
+
+**Learned:**
+
+1. **"It needs a private header" and "it needs the private type" are different claims, and only the second is a real dependency.** C14 sat as the carve-out's last blocker for a day with the fix being *delete one include and widen one parameter to a base class that was already there*. Before designing an interface, check what the code actually touches — the answer here was five members, all already public.
+2. **A same-named class in two apps is an ODR violation the toolchain will never report.** MSVC's mangling carries the *name*, not the definition, so the linker binds them silently and the program works exactly as long as the used members happen to live at the same offsets. `SynthEditApp` is not a unique name in this tree; anything taking one by reference across the `EditorLib` boundary has the same latent bug.
+3. **A `PUBLIC` include directory is a dependency you have loaned to every consumer.** Removing `EditorLib`'s did not break `EditorLib` — it broke `synth_ui_tests`, three levels away, which had been silently borrowing it. The general form: when a shared target exports a path, you cannot tell from that target who is relying on it.
+4. **Do not build in the session scratchpad on Windows.** Ninja embeds the absolute *source* path inside object paths (`CMakeFiles/EditorLib.dir/C_/SE/…/foo.cpp.obj`), so a scratchpad path is over the 260-character limit before the first TU compiles. `git worktree move` relocates a worktree after the fact, which is how this run recovered without re-cloning.
+5. **The mac run's "C14 and C10 are `SynthEditLib`, rejected as GATED" reads the gate too widely.** STEP 5 gates that repo *unless the item is an approved carve-out stage*, C0 is approved, and C11/C12/C13 all landed there by PR on exactly that basis — C13 from this box. What the 2026-08-11 C8 ruling forbids is a **non**-carve-out item reaching in. That distinction is what rules out **P3**, and it is why the `any` cell now says so in place.
+6. **`origin/main` moved three times while this run built.** A21, A28 and A29's archive all landed. Measuring `check-backlog-diff` against a *freshly fetched* base rather than the branch point is what caught it — the first run of that check reported "A21: Item column differs" for a row this session never touched, which is the tell that the base is stale, not that the edit is wrong.
+
+**Next:**
+
+1. **`win` has no eligible item of its own.** `P3` is the only `win`-marked TODO and it is GATED, not a carve-out stage, not a build break — so this platform falls through to `any` every week. **That wants a ruling from Jeff, not another run re-deriving it**: either P3 escalates as a `PROPOSED:` entry, or it is re-marked.
+2. **C15** is small, ALLOWED, and has a link test for an acceptance check. It is the `win` cell's new target and the `any` cell's fallback.
+3. **C7d still cannot pass**, and the reason has changed: not C14's dangling header any more, but that C14 has not *merged*.
+
+**Branch/PR:** [SynthEditLib#27](https://github.com/JeffMcClintock/SynthEditLib/pull/27) + [SynthEdit#62](https://github.com/JeffMcClintock/SynthEdit/pull/62) + [#177](https://github.com/JeffMcClintock/TideSynth/pull/177), all on branch `tide/win/C14-licensing-seam`. **Merging any one without the other two breaks the build**, and it is said in each body.
+
+**Machine state.** All three repos were worked in **throwaway worktrees**; Jeff's own checkouts were never switched and are on their default branches. **`C:\SE\SynthEditLib` was already dirty** with his work in progress — `CUG.cpp`, real content (`git diff --ignore-all-space` shows it, so not CRLF churn) — and was left exactly as found, per STEP 5's third dirt category. `check-commit-authorship.py` clean in all three repos; `check-commit-completeness.py` recorded and verified on every commit; `check-no-direct-commits.py` clean on both GATED repos.
+
 ## 2026-08-20 — macos — A21: the identity gate stops on a wrong answer, not on no answer
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI version is not resolvable on this box — `claude --version` is *command not found*) · as **tide-rack-bot** (both paths, and this entry is the first to say so — see below)
@@ -521,146 +620,3 @@ from.
 `tide/mac/A27-next-block-take-column` — one repo, TideSynth only.
 Worked in a throwaway worktree; the developer's checkout was left on `main`
 untouched and was clean throughout.
-
-## 2026-08-19 — macos — E2c: SV Filter4 and Oscillator HD linked into TIDE, and the XML list that is hardcoded twice
-
-**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
-
-**Fourth item this session**, on Jeff's instruction: *"lets get the SVFilter in
-TIDE and also the 'Oscillator HD' these are our go-to MVP modules"*. Claimed
-with a pushed DOING mark before any work, per STEP 2.
-
-**Did:** Linked both into TIDE. `SE SV Filter4` ("StateVar Filter"),
-`SE SV Filter4B` and `SE Oscillator4` ("Oscillator HD") are now registered in
-TIDE's factory with their pins, verified from inside the running app.
-
-### Why they were absent, and the trap in the reason
-
-Both build into **separate loadable targets** (`VaFilters`, `OscillatorHD`)
-rather than into the `SynthEditLib` static library — the same shape as E7's
-converters and S8's `OscillatorNaive`.
-
-**`UgDatabase.cpp` already had `INIT_STATIC_FILE(SVFilter4)` at `:1114`, and the
-class was still absent from TIDE.** That is the thing to carry forward: **the
-INIT list is `SynthEditLib`'s, and TIDE links a subset of it, so it is not a
-menu of what TIDE can instantiate.** E2b's entry said the same from the other
-direction; this is the confirmation, and it means "it is in UgDatabase" is never
-sufficient evidence.
-
-### Three sources, and the third is one only the linker finds
-
-| source | brings |
-|---|---|
-| `modules/VaFilters/SvFilter.cpp` | `SE SV Filter4`, `SE SV Filter4B` |
-| `modules/OscillatorHD/Oscillator.cpp` | `SE Oscillator4` |
-| `modules/shared/real_fft.cpp` | `realft()` |
-
-The link failed first time on exactly one symbol —
-`realft(float*, unsigned int, int)`, referenced from
-`MipMapCalculator::generateWavetable` in `Oscillator.o`. Oscillator HD builds
-mipmapped wavetables with an FFT that lives in another translation unit. **This
-is the same second-TU rule `my_type_convert.cpp` records for Converters**, and
-it is now two for two: a module added to TIDE's source list should be expected
-to drag a helper TU with it.
-
-### The finding worth more than the change: the XML list is hardcoded TWICE
-
-`SE SV Filter4`'s pins live in `VaFilters.xml`, so the file has to be both
-**staged** and **read** — and those are two separate hardcoded lists:
-
-- `_tide_xmls` in `SynthEditSem/CMakeLists.txt` copies it into
-  `Contents/Resources`
-- the loop at `TideApp.cpp:488` is what actually reads it back
-
-Adding it to only one **fails silently in whichever direction you missed**.
-Staged-but-never-read says nothing at all; read-but-never-staged at least prints
-to stderr. The CMake side already carries a comment about a near-identical split
-that "cost a debugging cycle on V3" — that comment is about two *staging* blocks,
-and this is a **third** place the same list is written. Both sites now say they
-must move together.
-
-**A module with only its `.cpp` is worse than a missing module**, per the note
-already in `TideApp.cpp:474`: a class with no pins "takes the whole enclosing
-container's widget layer down with it — a blank rack rather than one missing
-module".
-
-### Making that failure visible for good
-
-The merge loop now reports what it did, which is three lines and is also this
-change's own verification artifact:
-
-```
-TIDE: ControlsXp.xml    enriched  2 of 18 described class(es)
-TIDE: SubControlsXp.xml enriched  1 of 27
-TIDE: MidiPlayer2.xml   enriched  2 of  7
-TIDE: Converters.xml    enriched 26 of 70
-TIDE: VaFilters.xml     enriched  2 of  7
-```
-
-A **zero** means the `.cpp` half was forgotten. The gap between the two numbers
-is expected and harmless — it is the entries TIDE deliberately does not link.
-Flagged in the PR as a behaviour addition beyond the literal ask, so Jeff can
-drop it.
-
-### Verification — from inside TIDE's factory, with negative controls
-
-`VaFilters.xml enriched 2 of 7` is itself proof for the filter: exactly the two
-classes whose `.cpp` is now linked, with RMS / Korg / Moog / SV Filter2 / Moog
-test correctly skipped.
-
-Oscillator HD has no XML to count, so a **temporary probe, since reverted** (the
-issue **#87** lesson — `grep PROBE` on the branch returns nothing):
-
-```
-SE Oscillator4         REGISTERED
-SE SV Filter4          REGISTERED
-SE SV Filter4B         REGISTERED
-1 Pole LP              REGISTERED   <- known-good positive control
-SE Oscillator (naive)  absent       <- S8's module: the probe still discriminates
-SE SV Filter2          absent       <- described in VaFilters.xml, .cpp not linked
-```
-
-**Two positive and two negative controls**, so "everything says REGISTERED" is
-ruled out. The last row is the more interesting one: it shows the enrichment
-guard skipping a described-but-unlinked class rather than creating a phantom
-browser entry, which is the property that makes it safe to point the merge at a
-file describing far more modules than TIDE links.
-
-**TIDE, TIDE_VST3, TIDE_STANDALONE and SynthEditCL all build.** TIDE_STANDALONE
-runs, seeds 6 prefabs, and shuts down clean with no crash report.
-
-### Not done, deliberately
-
-**The prefabs still use the old DSP.** "Go-to" suggests Jeff wants
-`SE Oscillator4` and `SE SV Filter4` to be what TIDE's Oscillator and Filter
-rack modules are built from — but swapping the DSP inside two already-shipped
-prefabs is a product change, and E2b's Filter prefab is still in an open PR. It
-is a small change to `build-prefabs.py` plus re-measuring two E1 cases. Asked
-rather than assumed; noted in both PR bodies.
-
-Also worth knowing before that swap: **SV Filter4's pin defaults are not on the
-same scale as the modules already in the prefabs.** Its `Pitch` defaults to
-`0.5` and it has `Resonance`, `Strength` and `Mode` (LP/HP/BP/BR) pins, where
-`1 Pole LP` has `Signal`/`Pitch`/`Output` and takes 5 V = 440 Hz. Whoever does
-the swap should measure the mapping rather than assume it matches, exactly as
-E2b measured the 1-pole's.
-
-**Next:**
-
-1. **The prefab swap**, if Jeff wants it — see above.
-2. **The over-wide relaxed gates filed earlier this session** — two harness
-   cases declare tolerances ~55 dB wider than their own measured cross-platform
-   residual. The row for it is in [#170](https://github.com/JeffMcClintock/TideSynth/pull/170),
-   still open, so it is deliberately not named by id here: `check-id-refs.py`
-   validates prose mentions against rows that exist ON THIS BRANCH, and naming a
-   row that lives only in another open PR fails `lint`. Worth knowing, because
-   it will catch anyone cross-referencing between two open PRs — the check is
-   right, and the fix is to describe the row rather than cite it.
-3. **E10** remains the biggest thing on this platform and needs `SynthEditLib`
-   authority.
-
-**Branch/PR:** [SynthEdit#61](https://github.com/JeffMcClintock/SynthEdit/pull/61)
-plus the TideSynth PR carrying this entry. Two repos; the SynthEdit half is the
-whole change and the TideSynth half is bookkeeping, so neither blocks the other.
-Work done in a throwaway worktree for TideSynth; `SynthEdit` was branched in
-place and is returned to `master`.
