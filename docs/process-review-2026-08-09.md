@@ -120,10 +120,28 @@ decides. Best-fit process prior art: Surge XT (issues as backlog of record,
 nightly builds); copy Cardinal's move of writing the product philosophy in 2–3
 sentences as an explicit auto-reject filter.
 
-**Standing product hypothesis (evidence-backed, decision is Jeff's):** no
+**Standing product hypothesis (evidence-backed, decision is Jeff's)
+— ⚠ REFUTED AS WRITTEN 2026-08-20; read the correction directly below before
+reasoning from this paragraph:** no
 open-source modular synth exists on iOS AUv3. Cardinal ships every format
 except iOS; miRack is closed-source; VCV Rack has no iOS story. TIDE Rack's
 target square is empty. A9's routine should watch for anyone moving into it.
+
+> **CORRECTION 2026-08-20 (BACKLOG A28) — the paragraph above is refuted as
+> written. Its claim is MARKED rather than rewritten, because this document is
+> the record of what the 2026-08-09 review concluded and that record is worth
+> keeping intact.** [plugdata](https://plugdata.org/) is GPL-3.0,
+> free, on the iOS App Store and ships AUv3 instrument and effect plugins, so
+> "no open-source modular synth exists on iOS AUv3" is false. **The surviving
+> claim is narrower and still holds: no open-source *Eurorack-style rack* on iOS
+> AUv3** — miRack ($14.99), Drambo ($19.99–24.99) and Audulus (free + $19.99
+> unlock) hold that space and are all closed-source. Relatedly, GPLv3 does not
+> structurally bar VCV or Cardinal from the App Store; that tension is
+> enforceable only by copyright holders and Apple does not audit licences, so
+> **ISC is an advantage for TIDE but not a moat.** Evidence:
+> [competitive-review.md](competitive-review.md) §4. Everything downstream of
+> this paragraph — [community-research.md](community-research.md) and
+> `scripts/community-research.py` — now states the narrower form.
 
 ## What the reviewers themselves missed (red-team additions, now tracked)
 

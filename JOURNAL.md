@@ -153,6 +153,192 @@ were both cut from `main` and both touch `BACKLOG.md` and `JOURNAL.md`, so
 whichever merges second will want a rebase. No overlap in `docs/`.
 Throwaway worktree; the developer's checkout stayed on `main` and clean.
 
+## 2026-08-20 — macos — A28: the refuted hypothesis, corrected in the four places that state it and the one that originates it
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI version is not resolvable on this box — `claude --version` is *command not found*) · as **tide-rack-bot**
+
+**Second item this session**, on Jeff's instruction after A27 merged. Claimed
+with a pushed DOING mark before any work, per STEP 2.
+
+**Did:** A9's standing hypothesis — *"no open-source modular exists on iOS AUv3"* —
+is false, refuted by plugdata on 2026-08-18. Every live statement of it now
+states the surviving narrower form instead: **no open-source *Eurorack-style
+rack* on iOS AUv3.**
+
+### The row named two docs. There were four sites, and the fourth is the source
+
+| site | what it was |
+|---|---|
+| `docs/community-research.md:58` | named by the row |
+| `scripts/community-research.py` — `HYPOTHESIS_RE` comment | **not named** |
+| `scripts/community-research.py` — `source_hypothesis()` docstring | **not named** |
+| `docs/process-review-2026-08-09.md:124` | **not named — and it is where the hypothesis originates** |
+
+That last one matters more than its size. The script's own comment reads *"The
+standing product hypothesis from docs/process-review-2026-08-09.md"* — so
+correcting the two docs the row named would have left the **citation pointing at
+the false version**, which is a worse state than before: a corrected doc that
+cites an uncorrected source reads as though the source agrees with it.
+
+**PLAN.md needed no change**, which is worth recording because it looks like it
+should have. `PLAN.md:138` already quotes the hypothesis and calls it *"false as
+written"* in the next line, and already handles this row's other caveat — the
+AUv3 memory ceiling is there as *"Flagged for Jeff; not added unilaterally."* So
+no PLAN amendment was made or needed.
+
+**The review doc is MARKED, not rewritten**, and this is a judgement worth
+overruling if you disagree: `docs/process-review-2026-08-09.md` is the record of
+what the 2026-08-09 review concluded, so its paragraph is left standing with an
+inline ⚠ and a dated correction block underneath, rather than edited to say
+something the review did not say. The inline marker exists so the paragraph
+cannot be read standalone.
+
+### plugdata is on the watch list operationally, not just in prose
+
+The row asked for plugdata on the watch list. Prose alone would not have done it:
+`plugdata` is now in **both** `HYPOTHESIS_QUERIES` and `HYPOTHESIS_RE`.
+
+**They have to move together, and nothing said so before.**
+`source_hypothesis()` searches for each query, then discards any hit whose
+**title** `HYPOTHESIS_RE` does not match. A query with no matching regex term
+therefore returns nothing — silently — which is precisely the *"working watch
+that had simply found nothing"* failure the `watch` source was built to avoid.
+That coupling is now asserted in `--selftest`, documented at both sites, and
+written into `docs/community-research.md`.
+
+### Verification
+
+**The coupling assertion is proven able to fail**, not merely present. It is
+demonstrated with a synthetic sentinel:
+
+```
+FAIL query 'zzq-not-a-product' matches no HYPOTHESIS_RE term -- source_hypothesis()
+would discard every hit for it
+23 classification case(s), 1 failed
+```
+
+exit **1**. Unmodified, exit **0**.
+
+**That sentinel replaced a real product name, and the reason is the finding.**
+The first version of this control used a `drambo` query — and `drambo` became a
+real title-match term a few hours later, when Jeff pointed out miRack is the
+actual iOS competitor. The control would then have passed **for the wrong
+reason**, silently, while appearing to still test something. `--selftest` now
+asserts the sentinel stays unmatched, so the next person to broaden the regex is
+told rather than left to notice. **A control that a later, correct change
+disarms is worse than no control**, and this one had a half-day lifetime.
+
+#### Jeff's refinement, and why it is more than a wording change
+
+*"plugdata is not really in the category of eurorack simulators. However mirack
+is an ios competitor."*
+
+Correct, and the first version of this change did not encode it — it put plugdata
+on the watch list and left the actual competitor off. The list now splits by
+**kind**, in the regex comment, in the doc, and in the selftest:
+
+| kind | terms | why |
+|---|---|---|
+| **Competitor** | `mirack` (query + title), `drambo`, `audulus` (title) | they hold TIDE's real square — an iOS Eurorack-style rack — and all three are closed. **miRack is the product the surviving hypothesis is a claim about**, so an open-source answer to it is the highest-value item this routine could ever surface. |
+| **Precedent** | `plugdata` (query + title) | a Pd patcher, **not a rack**. Watched because it already solved the iOS AUv3 packaging, distribution and review problems TIDE will hit, and because it refuted the broader claim. |
+
+A query needs a matching title term; a title term needs no query. So `drambo` and
+`audulus` are title-only, which still catches mentions the other sources surface.
+
+**A/B, shipped script vs this branch** — four discriminating positives and two
+negative controls:
+
+| title | shipped | this branch |
+|---|---|---|
+| `miRack 4.6 adds a new sequencer` | `keep` | **`flag`** |
+| `Anyone tried Drambo for generative patches?` | `keep` | **`flag`** |
+| `Audulus 4 module sharing` | `keep` | **`flag`** |
+| `plugdata 0.9.3 released` | `keep` | **`flag`** |
+| `Rack-style sequencer module request` | `keep` | `keep` |
+| `Pure Data style dataflow patching in a rack` | `keep` | `keep` |
+
+**Stated rather than glossed:** `How does plugdata ship a standalone AND an
+AUv3?` is `flag` on *both* — the existing `auv3` term already caught it — so it
+is kept as a case for the hypothesis-beats-reject rule and proves nothing about
+the new terms. The two `keep` rows are what rule out "everything is flagged".
+
+`--selftest` **23 cases, 0 failed** (was 17). `check-links.py` goes 418 → **421**
+relative links with the broken count unchanged at 1, so the new relative links
+resolve.
+
+### The lint break cleared mid-run — A29 is DONE
+
+**Jeff pushed `modules/PanelTest/` at
+[`61b4707`](https://github.com/JeffMcClintock/TideSynth/commit/61b4707) while this
+item was in flight, so A29 is closed and `lint` is green end to end.** Re-verified
+here rather than inferred from the commit: `check-links.py` → **418 relative
+links, `no broken links`, rc=0** (was 1 broken), and the `modules/` tree builds
+from a fresh worktree with the new subdirectory — **configure rc=0, build rc=0,
+zero `error` lines**, targets `tide_render`, `tide_render_preview`,
+`tide_render_regression`, `TiDEknob`, `TiDEPanel`, **`PanelTest`**.
+[#174](https://github.com/JeffMcClintock/TideSynth/issues/174) closed, A29 flipped
+to DONE and archived, `win` NEXT re-pointed at P3. **The A4 auto-merge tier is
+live again**, which was the whole cost of the row.
+
+**Measured before the push, since the idea of commenting the module out came up,
+and worth keeping because it settles the question:** there was **nothing to
+comment out and no broken build**. At `41785ea`, `PanelTest` appeared in **no
+CMakeLists anywhere** on `origin/main` — only three prose/comment references — and
+the `modules/` tree configured and built clean without it (**configure rc=0,
+build rc=0, zero `error` lines**). The break was only ever the dangling
+reference, so the push was the whole fix.
+
+**The one thing that survives the fix:** the broken link was **one of three**
+references to that file. The other two are C++ comments at
+`modules/common/TidePathTracer.h:21` and `:883`. All three resolve today, but
+**no check reads the comments**, so if `PanelTest/` ever moves or is unpublished,
+those two dangle silently and only the README's would be caught. Noted rather
+than filed — a one-line risk, not a defect.
+
+**Learned:**
+
+1. **A row that names the files to fix is naming symptoms, not the set.** Two of
+   the four sites here were in a script rather than a doc, and the fourth was the
+   *origin* of the claim. `grep` for the sentence, not for the filenames the row
+   lists — and check whether anything **cites** the file you are correcting.
+2. **"Add it to the watch list" is a two-part change in this script**, and the
+   two parts are 100 lines apart with nothing linking them. A prose-only or
+   query-only edit would have looked done and watched for nothing.
+3. **The A27 check caught this run's own regression, twice.** Re-pointing the
+   `mac` row earlier today left a live *"Take A29"* phrase in the superseded
+   quote, and `check-next-block.py` flagged it. Flipping A29 to DONE just now, I
+   did **the same thing again** in the `win` row — the quoted history still read
+   as an instruction, and the check failed with
+   `BACKLOG.md:11 [win] A29 -- archived DONE`, matched on `'Take A29'`. Both
+   times the fix was to strip the imperative from the quote. That is the check
+   working on exactly the class of mistake it was written for, on a file its own
+   author was editing, within hours of shipping — which is better evidence than
+   any fixture.
+4. **Name the *kind* of thing being watched, not just the thing.** The first
+   version of this change watched plugdata — the refutation — and left miRack,
+   the actual competitor, off the list entirely. Nothing in the row or the code
+   would have caught that; it took Jeff reading it. A watch list of bare product
+   names invites exactly this, so the list now says competitor or precedent
+   against each name.
+5. **A test control built from a real name has a shelf life.** The `drambo`
+   sentinel was correct when written and wrong within hours, in the ordinary
+   course of the code getting better. Controls want values that cannot become
+   legitimate.
+
+**Next:**
+
+1. **A29 / #174 is DONE** — cleared mid-run, verified here, auto-merge live again.
+2. **A21, A22, A23, A24** are the remaining A-series rows — all small, all in this
+   repo, all with stated acceptance checks. A23 is the one with a positive control
+   already specced.
+3. **E17** still gates every E2 module stage; **E10** still needs `SynthEditLib`
+   authority.
+
+**Branch/PR:** [#175](https://github.com/JeffMcClintock/TideSynth/pull/175), branch
+`tide/mac/A28-community-research` — one repo, TideSynth only.
+
+Throwaway worktree; the developer's checkout stayed on `main` and clean.
+
 ## 2026-08-20 — macos — A27: the NEXT block's Take column is read now, and the docstring stops lying about it
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** — the Claude Code CLI version the previous entries report as "app 2.1.220" was **not resolvable on this box** (`claude --version` → *command not found*; nothing under `~/.claude` or the app bundle carries an unambiguous CLI version), so the measurable number is recorded rather than a guessed one · as **tide-rack-bot**
@@ -478,169 +664,3 @@ plus the TideSynth PR carrying this entry. Two repos; the SynthEdit half is the
 whole change and the TideSynth half is bookkeeping, so neither blocks the other.
 Work done in a throwaway worktree for TideSynth; `SynthEdit` was branched in
 place and is returned to `master`.
-
-## 2026-08-19 — macos — E2b: a Filter rack module, and the linkage check that actually discriminates
-
-**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
-
-**Third item this session**, on Jeff's instruction ("next task"), after E13 and
-E12 merged. Claimed with a pushed DOING mark before any work, per STEP 2.
-
-**Did:** Took **E2**, the `mac` NEXT target. Found it is not one item, split it
-the way C7 and C12 were split, and shipped the first stage as **E2b — a Filter
-rack module**. TIDE now ships **six** prefabs and `tests/cases/` covers four.
-
-### Why E2 had to be split rather than attempted
-
-E2 says: *"Define the naming and I/O conventions for a module Container, then
-build the rest of a first curated set, each with its own E1 test case."* **It
-never says which modules that set contains**, which is a product decision and
-not a run's to invent — so as one item it fails STEP 2's "state the acceptance
-check before starting" bar. The conventions half is also largely *already
-written down*, in `build-prefabs.py`'s header: panel geometry, the
-`PanelWndPosition`-vs-`panel_rect` distinction, faceplate sizing, and the rack
-grid (`hpWidth 15`, `rowHeight 380`, so a slot is a multiple of 15 wide and at
-most 350 tall). E2's remaining content is therefore **modules**, one at a time,
-and a filter is the obvious first: oscillator → filter → envelope → out is the
-canonical subtractive voice.
-
-### The linkage check, which is the transferable part
-
-E2a left a trap: *"every module in a prefab must be a class TIDE links"*, with
-`strings`/`nm` on the module-id string called out as a **false positive**
-(`SE Rectangle XP` is in the binary via the rename table at `CUG.cpp:301`).
-That is true of the *id string*. It is not true of the **static-init symbol**,
-which is a real linkage fact, and that is the check E12's entry recommended:
-
-```
-se_static_library_init_ug_filter_1pole      PRESENT     <- 1 Pole LP
-se_static_library_init_ug_filter_1pole_hp   PRESENT     <- 1 Pole HP
-se_static_library_init_SVFilter4            absent
-se_static_library_init_ButterworthHP        absent
-se_static_library_init_OscillatorNaive      absent      <- S8's module, still absent
-```
-
-**It discriminates, which is the only reason to trust it** — three of the five
-obvious filter candidates come back absent, including the one
-(`OscillatorNaive`) already known absent by independent measurement. So the
-positive result on `1 Pole LP` means something.
-
-**A trap this exposes for anyone scanning `UgDatabase.cpp` for candidates:**
-`INIT_STATIC_FILE(SVFilter4)` and `INIT_STATIC_FILE(ButterworthHP)` are both
-*in that list*, and both are **absent from TIDE**. The list is
-`SynthEditLib`'s, and TIDE links a subset. **Do not read the INIT list as a menu
-of what TIDE can instantiate.** The core `ug_*` entries are the ones that come
-free — `ug_filter_1pole`, `ug_vca`, `ug_pan`, `ug_sample_hold`, `ug_random`,
-`ug_quantiser`, `ug_switch`, `ug_delay` all measured PRESENT, and all are
-plausible future E2 stages.
-
-### The module, and its default
-
-`1 Pole LP`, `ug_filter_1pole_lp.cpp:21`, category Filters. Pins
-`Signal` / `Pitch` / `Output` — the Oscillator prefab's shape with an audio
-input added. `Pitch` is the **cutoff**, 1 V/octave on the same scale the
-oscillator uses, so 5 V = 440 Hz.
-
-Measured on a 440 Hz source, recording the filter output:
-
-| cutoff | peak |
-|---|---|
-| 10 V (14 kHz) | −6.3 dBFS — effectively open |
-| 8 V (3.5 kHz) | −6.6 dBFS |
-| **5 V (440 Hz)** | **−9.5 dBFS — −3 dB AT cutoff, textbook 1-pole** |
-| 2 V (55 Hz) | −22.2 dBFS — ~6 dB/octave beyond |
-
-**The FREQ jack ships defaulted to 10 V, wide open.** That is not a preference,
-it is the rule the Envelope's GATE default already follows and it is worth
-stating as a convention: **an unpatched jack takes the value that lets the
-module pass signal**, because a rack that does not patch everything must still
-sound. A filter defaulting to 0 would render silence on drop-in and look broken.
-
-### Verification
-
-**In TIDE, not merely in the generator:**
-
-```
-TIDE: 6 rack prefab(s) seeded from the bundle     (was 5)
-TIDE: rack built for 48000 Hz, block 512
-shutdown rc=0, no new crash report
-```
-
-**Harness 6/6**, with the new case's reference independently checked rather than
-trusted: 440.0 Hz by zero-crossing count, peak −9.5 dBFS = the −3 dB point.
-Both gates positive-controlled:
-
-```
-control A  cutoff 5V -> 2V (filter-response regression)  FAIL  null=-16.6 dBFS
-control B  reference scaled 0.99 (-0.09 dB level)        FAIL  null=-55.3 dBFS
-full suite                                               6/6 PASS
-```
-
-**Control B matters more than it looks.** This case carries `prefab_oscillator`'s
-*relaxed* gates (−67/−62), because a free-running oscillator is in its signal
-path — and a relaxed gate invites the question of what it still catches. A **1%
-level change fails it with 11.7 dB to spare**, so level, tuning and filter-response
-regressions are all still caught; what is given up is localized damage below
-~12 LSB, which `voice_midi_note` covers at the default gates.
-
-### A finding out of CI, filed as E1c rather than fixed here
-
-The PR's Linux `verify` job renders against these macOS-seeded references, and
-the numbers say the relaxed gates on two cases are far too wide:
-
-```
-prefab_oscillator  null -131.1 dBFS  peakdiff -90.3     declared gates -67 / -62
-prefab_filter      null -121.4 dBFS  peakdiff -90.3     declared gates -67 / -62
-```
-
-Both are **rounding class** — inside even the *default* −100/−86 — leaving ~55 dB
-of margin for a real regression to hide in.
-
-**Where the wide gates came from:** E1a measured a free-running oscillator at
-−73.5 dBFS and sized the gates 6 dB above. Sound measurement, **different
-oscillator**: E1a used `SE Oscillator (naive)`, a separately-loaded module, while
-these two cases use `Oscillator`, the core `ug_oscillator2`. My own new case
-inherited the relaxed gates *by analogy* — I copied `prefab_oscillator`'s reason
-text, which says "same class of residual" — and CI then showed that analogy is
-probably wrong.
-
-I have not tightened them, because the honest fix is a measurement of each case's
-own residual in both directions, not a guess in the other direction — that would
-be the same reasoning-instead-of-measuring the row is about. Filed as **E1c** with
-the Accept clause stating exactly that. Note `voice_midi_note` also contains the
-naive oscillator and passes at *default* gates, so "naive drifts" is not the whole
-story; its pitch is MIDI-derived rather than free-running, which is the variable
-to isolate first.
-
-### The five prefabs I regenerated and did NOT commit
-
-Running the generator rewrote all six files. The other five are **handle churn
-only** — randomised `handle` / `fMod` / `tMod` / `module` / `tiedtomod` values —
-and I proved that rather than asserting it: normalising those five attributes
-makes all five **byte-identical to HEAD**, and MidiCv's `tiedtopin` mapping stays
-**7/8/9/10**, the contract `TideApp` hard-codes. Reverted, not committed, per
-STEP 5.
-
-**Worth knowing before the next E2 stage:** `build-prefabs.py` is not
-reproducible — every run produces a different file for every prefab. So a
-generator change always looks like a six-file diff, and **the only way to see
-what you actually changed is to normalise the handles**. The check is four lines
-of Python and is in this entry's PR body.
-
-**Next:**
-
-1. **E2c and onward** — more modules, one stage each. The measured candidate
-   list is above; a **VCA** (`ug_vca`) and a **Sample & Hold** (`ug_sample_hold`)
-   are the obvious next two, and `tests/README.md` now says how to decide
-   whether a new prefab can have a case at all.
-2. **E10** is still the biggest thing on this platform and needs `SynthEditLib`
-   authority — a live host crash whose own Accept clause would not fix it.
-3. **`tide/mac/V3-midi-findings`** is still a pushed branch with no open PR,
-   reported for the third run running.
-
-**Branch/PR:** [SynthEdit#60](https://github.com/JeffMcClintock/SynthEdit/pull/60)
-plus the TideSynth PR carrying this entry — **two repos, and they are one
-change**, though neither breaks the other's build: the E1 case rebuilds the
-recipe from primitives rather than loading `Filter.synthedit`, so it does not
-depend on the SynthEdit half landing first. Work done in a throwaway worktree
-for TideSynth; `SynthEdit` was branched in place and is returned to `master`.
