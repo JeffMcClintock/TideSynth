@@ -46,6 +46,123 @@ Template:
 
 ---
 
+## 2026-08-19 — macos — E12 verified on the merged trees and closed; E13 archived; a mac build trap that survives ZERO_CHECK
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
+
+**Second item this session**, on Jeff's instruction ("merged. next task"), after
+**E13** merged as [#168](https://github.com/JeffMcClintock/TideSynth/pull/168).
+Claimed with a pushed DOING mark before any work, per STEP 2.
+
+**Did:** Took **E12** — the one row on this box that had a *merged* fix and a
+`TODO` status — verified it on the merged default branches, and closed it. Also
+did the STEP 4 chore E13 left behind and re-pointed the stale `mac` NEXT cell.
+
+### Why E12 rather than the NEXT block's E2
+
+The `mac` NEXT cell named E10 (GATED, no authority, not a build break), then
+"**E2** or the per-prefab **E1** cases". The E1 cases closed an hour earlier as
+E13, so the cell was already one item out of date. **E12 was `TODO` while its own
+fix was merged**, which is the state most likely to be silently wrong: the row's
+"four consecutive shutdowns" was measured **on the branch**, before
+[SynthEditLib#23](https://github.com/JeffMcClintock/SynthEditLib/pull/23) and
+[SynthEdit#54](https://github.com/JeffMcClintock/SynthEdit/pull/54) merged, and
+nothing had re-measured it since. This is also the only box that can. E2 is a
+large open-ended authoring item and is still there; the cell now points at it.
+
+### Result — 4/4 clean shutdowns on the merged defaults
+
+Trees: `SynthEdit` `2f5fca5e3`, `SynthEditLib` `65d55cd`, Release, Xcode.
+
+```
+run 1: alive at 9s, TERM sent, wait rc=0
+run 2: alive at 9s, TERM sent, wait rc=0
+run 3: alive at 9s, TERM sent, wait rc=0
+run 4: alive at 9s, TERM sent, wait rc=0
+TIDE_STANDALONE crash reports: 14 before, 14 after
+```
+
+Three things make that more than an exit code:
+
+- **Each run reached a real working state before being killed**, so this is not
+  four fast failures: `TIDE: 5 rack prefab(s) seeded from the bundle`, root
+  MIDI-CV wired (`MIDI In → MIDI-CV 2 → facade`), and
+  `TIDE: rack built for 48000 Hz, block 512`. All four logs identical.
+- **`wait` returned rc=0, not 143.** The app handles SIGTERM and exits
+  gracefully rather than dying by signal — the same path the row says a user's
+  Quit takes.
+- **No `.ips` from *any* process** after the build, not merely none named
+  `TIDE_STANDALONE`, so the count is not hiding a differently-named crash.
+
+The `ViewBase::setHost` override that severs child views' copied `dialogHost`
+is present on the merged tip at `ViewBase.cpp:2736-2751`.
+
+**What I did NOT re-measure, and will not claim:** the *before* half. The 3/3
+crashes are the original interactive measurement, kept in the archived row.
+Reproducing them would mean reverting a merged fix inside Jeff's shared tree,
+which is not a thing a scheduled run should do to prove a point.
+
+### The build trap, and why it is worth a paragraph
+
+After fast-forwarding the six repos to their merged tips, **the existing Xcode
+build tree would not build**:
+
+```
+error: Build input file cannot be found:
+  '.../SynthEdit/SynthEdit2/InterfaceObject_editor.cpp'
+  (in target 'EditorLib')
+```
+
+C12d moved that file into `SynthEditLib`'s root; the **generated Xcode project
+kept the old path**. The interesting part is that this survives the mechanism
+meant to prevent it — the same build log says
+`Generate CMakeFiles/ZERO_CHECK will be run during every build`, and it did.
+`cmake -S . -B build` clears it in seconds (configure RC=0, and all four folder
+overrides report local, including `Using local GMPI WRAPPERS folder`).
+
+**So: after any carve-out stage that MOVES files, reconfigure before building on
+mac.** Do not read the resulting error as a broken carve-out — C12d, C13 and C6
+are all fine; the generated project was stale. This will recur on C7b and C10,
+both of which move files.
+
+Related and still open: **S17** — the build may compile
+`build/_deps/gmpi_ui-src` rather than the local `gmpi_ui` clone. It does not
+affect this result (E12's fix is in `SynthEditLib`, not `gmpi_ui`) but anyone
+verifying a *gmpi_ui* change here should settle S17 first.
+
+### Bookkeeping done this run
+
+- **E13 → DONE and archived.** [#168](https://github.com/JeffMcClintock/TideSynth/pull/168)
+  merged 03:03:42Z. Worth carrying forward: its CI `verify` job renders on
+  **Linux** against the published engine and returned `null=-inf` — **bit-exact**
+  against the macOS-seeded reference, because that reference contains no
+  floating-point arithmetic to drift.
+- **E12 → DONE and archived**, with the verification above.
+- **The `mac` NEXT cell re-pointed to E2**, since both of its other fallbacks are
+  now closed, with a pointer to `tests/README.md`'s prefab-coverage section.
+
+### Still open, and still nobody's
+
+- **`tide/mac/V3-midi-findings`** remains a pushed branch with no open PR — its
+  PR ([#142](https://github.com/JeffMcClintock/TideSynth/pull/142)) merged, and
+  two commits (`25216c1`, `4e65874`) sit on top of `main`. Reported last run,
+  unchanged. Someone should confirm that content landed elsewhere and delete it.
+- **E10** is the real prize on this platform and needs `SynthEditLib` authority:
+  a live host crash, whose own Accept clause would not fix it.
+
+**Next:**
+
+1. **E2** — the `mac` cell now points there, and it is the larger half of what is
+   left in that area. Read `tests/README.md`'s coverage section first.
+2. **E10**, for anyone who may edit `SynthEditLib`.
+3. **S17**, before anyone tries to verify a `gmpi_ui` change on this box.
+
+**Branch/PR:** `tide/mac/E12-standalone-shutdown` and the TideSynth PR carrying this entry (branch named rather than numbered: this PR is docs-only and therefore A4 auto-merge eligible, so a follow-up commit adding the number could land on a branch whose PR had already merged — **A22** exactly).
+No code changed in any repo this run — the fix was already merged; this run
+measured it and updated the queue. Build tree reconfigured (a build artifact,
+not source). All six working copies clean and on their default branches, fast
+-forwarded to their merged tips.
+
 ## 2026-08-19 — macos — E13: the MIDI prefab gets an E1 case; the other two uncovered prefabs cannot have one
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
@@ -468,34 +585,3 @@ switched off its default branch — the mitigation for this morning's collision.
 All shared trees left clean and on their defaults.
 
 ---
-
-## 2026-08-19 — linux — C6 DONE; C7 and C10 unblocked, and C7's first move is already measured
-
-**Prompt:** 397330d · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
-
-**Did:** STEP 4 bookkeeping after Jeff merged C6's two PRs. **C6 → DONE** and archived; **C7 and C10 → TODO**.
-
-**Result — verified on the MERGED default branches from a fresh tree**, not from the PRs, because a two-repo change is only really tested once both halves are on their default branches:
-
-| check | result |
-|---|---|
-| `EditorLib/CMakeLists.txt` | present in `SynthEditLib`, **gone** from `SE16` |
-| configure | RC=0 |
-| full build | **935/935 RC=0**, zero `error:`, zero `undefined reference` |
-| `ctest` | **67/67** |
-| `SE_APP_BUILD_NUMBER` | **186**, unchanged |
-
-**The carve-out now has exactly two stages left, C7 and C10, and C7's opening move is already measured — do not re-derive it.** Configuring the public `EditorLib` standalone with no SE16 anywhere is **RC=0**. A standalone *build* stops on `GmpiUiDrawing.h`, `RawView.h` and `Hosting/message_queues.h`, and **`grep -c "SE16\|SynthEdit2"` over that log is 0**. So the gap between the public repo and a clean-clone build is the external GMPI/gmpi_ui SDKs — packaging, not privacy.
-
-**The one genuinely private dependency that remains** is the include directory SE16 re-adds to EditorLib: the 7 public-file includes that resolve only in `SynthEdit2` (`ISEAppManaged.h`, `IMidiDriver.h`, `ParseSynthEditArgs.h`, `SynthEditApp.h`). C6 did not close them and never claimed to — it made them *visible* by moving them from an invisible include path inside the moved file to an explicit line in SE16's root. **That is the real content of C7's clean-clone test**, and it is C11's territory. Anyone starting C7 should read this paragraph before scoping it.
-
-**Learned — a bookkeeping trap worth naming, because the next run will meet it.** `BACKLOG.md` on `main` currently says **A26 is `TODO`**, and it is not — it is IN-REVIEW with [#163](https://github.com/JeffMcClintock/TideSynth/pull/163) open. The IN-REVIEW mark lives *in that PR*, so it is invisible until the PR merges. **This is BACKLOG A22 exactly.** The protection that still works is STEP 2's claim check: `git ls-remote --heads origin` and `gh pr list --state open` both show `tide/linux/A26-authorship-range` and #163, and STEP 2 says a branch or open PR naming the id from a different platform means the item is taken. **Trust the branch/PR check over the status column when they disagree** — the status column lags by exactly one merge.
-
-**Next:**
-
-1. **C7** — point TIDE at the public repo only, plus the clean-clone CI build that is the carve-out's real proof. `any`. Its scope is the 7 private includes above plus SDK packaging, not a search for what is left.
-2. **C10** also just unblocked. `any`.
-3. **[#163](https://github.com/JeffMcClintock/TideSynth/pull/163) (A26) is still open** and deliberately so — it changes a rule in `docs/weekly-run-prompt.md`, which reaches all three boxes on their next run. It wants Jeff's eye rather than an auto-merge.
-4. Still open and nobody's platform: the `SynthEditJuce` line in [#88](https://github.com/JeffMcClintock/TideSynth/issues/88) and the ctest path default in [#156](https://github.com/JeffMcClintock/TideSynth/issues/156). Both GATED-by-default, neither a build break, so A17's exception does not reach them.
-
-**Branch/PR:** the TideSynth PR carrying this entry. All six repos on their default branches, clean.
