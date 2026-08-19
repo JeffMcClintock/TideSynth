@@ -46,6 +46,113 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — A21: the identity gate stops on a wrong answer, not on no answer
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI version is not resolvable on this box — `claude --version` is *command not found*) · as **tide-rack-bot** (both paths, and this entry is the first to say so — see below)
+
+**Third item this session**, on Jeff's instruction, after syncing the repos.
+Claimed with a pushed DOING mark before any work.
+
+**Did:** STEP 0.7 now runs **two identity paths** — `gh api user` and
+`gh api graphql '{ viewer { login databaseId } }'` — and reads them with rules
+that separate **asserted wrong** (STOP, always) from **could not assert** (retry,
+then STOP and journal). Wording only; no code.
+
+### All four branches were exercised, not reasoned about
+
+| scenario | REST | GraphQL | rule |
+|---|---|---|---|
+| healthy | `tide-rack-bot` | `tide-rack-bot 314850083` | proceed, record `(both)` |
+| **one path down** — REST forced through a dead proxy | `Get "https://api.github.com/user": proxyconnect …` | `tide-rack-bot` | proceed, record `(GraphQL)` |
+| both down | transport error | transport error | retry ~1 min, then **STOP** |
+| **credential missing** — `unset GH_TOKEN` | **`JeffMcClintock`** | **`JeffMcClintock`** | **STOP**, unconditionally |
+
+**Row 4 is the one that decides whether any of this is safe, and it is the good
+news.** The GraphQL path falls back to Jeff's keyring credential *identically* to
+the REST path, so it **cannot launder a missing token**. Adding it is therefore a
+second equivalent assertion, not a bypass — which is the only thing that would
+have made A21 a weakening of the gate rather than a fix to it.
+
+### The finding worth more than the change
+
+**The two failure kinds are textually distinguishable, so a run never has to
+judge which one it is in.**
+
+- A **transport** failure yields **no login at all** — an error string.
+- A **credential** failure yields a **perfectly valid login that is the wrong
+  one**.
+
+So: *if you are holding a login string, you are in the asserted case, and the
+only question is whether it says `tide-rack-bot`. If you are holding an error,
+you are in the could-not-assert case, and retrying is correct.* Never treat an
+error as licence to continue; never try to retry a wrong name away. That is now a
+table in the prompt rather than a judgement call, which matters because the run
+making the call is the one whose credentials are in question.
+
+### Two things the row did not anticipate
+
+**GraphQL is the STRONGER assertion, not a lesser fallback.** It returns
+`databaseId` = **314850083**, which is exactly the number hard-coded into
+`GIT_AUTHOR_EMAIL` (`314850083+tide-rack-bot@users.noreply.github.com`). So it
+checks the identity the run's **commits** will carry, where REST only checks the
+one its API calls will. Prefer it when both answer.
+
+**A latent documentation bug, in the one rule where being read correctly matters
+most.** The paragraph beginning *"That second command MUST print
+`tide-rack-bot`"* named the **wrong command**: the second command was the
+`insteadOf` transport check, and the identity call was the first. It had said
+that ever since the transport check was added, and every run since has had to
+silently repair it while reading. Fixed, with a note saying so.
+
+**Also updated:** STEP 0.5's record line, and STEP 4's provenance template, which
+now reads `as <login> (<REST|GraphQL|both>)`. This entry's own `**Prompt:**` line
+is the first to carry it.
+
+### Repos synced first, per the instruction
+
+Five advanced, five already current, three skipped:
+
+| skipped | why |
+|---|---|
+| `JUCE` | untracked `modules/juce_audio_processors/format_types/VST3_SDK/` |
+| `gimpi_ui_tests` | untracked `build-bench/` |
+| `VST_SDK` | detached HEAD, no upstream, untracked `build/` |
+
+All three are build artefacts or a vendored SDK rather than work in progress, but
+they predate this run and STEP 5 says the developer's dirt is not mine to clean.
+`SynthEdit` `2f5fca5e3 → 6c7e90053`, `SynthEditLib` `65d55cd → 5af259e`,
+`TideSynth` `8917c04 → 61b4707`, `gmpi_ui` `6700070 → ad5b681`,
+`synthedit-website` `83771db → e51a7c3`; all fast-forwards, none ahead.
+
+**Learned:**
+
+1. **"Add a fallback" was the wrong frame and the row's own wording carried it.**
+   The question that decides safety is not *is the second path good enough*, it is
+   *does the second path fail the same way the first does when the credential is
+   missing*. Measured: it does. Had it not, the correct answer would have been to
+   leave the gate alone and accept the lost runs.
+2. **A rule that requires the reader to classify a failure will eventually be
+   classified wrong**, by whoever is most motivated to continue — which is the
+   run itself. Giving the classification a mechanical tell (login string vs error
+   string) is what makes it a rule rather than an appeal to judgement.
+
+**Next:**
+
+1. **A22, A23, A24** are the remaining A-series rows. A23 is the best-specced —
+   duplicate-id detection in `check-id-refs.py`, with a positive control already
+   written into the row.
+2. **A22 pairs with this one** — both are rules whose premise stopped matching how
+   the fleet runs.
+3. **E17** still gates every E2 module stage; **E10** still needs `SynthEditLib`
+   authority.
+
+**Branch/PR:** [#176](https://github.com/JeffMcClintock/TideSynth/pull/176), branch
+`tide/mac/A21-identity-gate` — one repo, TideSynth only.
+**Merge order matters:** this branch and `tide/mac/A28-community-research` (#175)
+were both cut from `main` and both touch `BACKLOG.md` and `JOURNAL.md`, so
+whichever merges second will want a rebase. No overlap in `docs/`.
+Throwaway worktree; the developer's checkout stayed on `main` and clean.
+
 ## 2026-08-20 — macos — A28: the refuted hypothesis, corrected in the four places that state it and the one that originates it
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI version is not resolvable on this box — `claude --version` is *command not found*) · as **tide-rack-bot**
@@ -229,6 +336,7 @@ than filed — a one-line risk, not a defect.
 
 **Branch/PR:** [#175](https://github.com/JeffMcClintock/TideSynth/pull/175), branch
 `tide/mac/A28-community-research` — one repo, TideSynth only.
+
 Throwaway worktree; the developer's checkout stayed on `main` and clean.
 
 ## 2026-08-20 — macos — A27: the NEXT block's Take column is read now, and the docstring stops lying about it
@@ -556,169 +664,3 @@ plus the TideSynth PR carrying this entry. Two repos; the SynthEdit half is the
 whole change and the TideSynth half is bookkeeping, so neither blocks the other.
 Work done in a throwaway worktree for TideSynth; `SynthEdit` was branched in
 place and is returned to `master`.
-
-## 2026-08-19 — macos — E2b: a Filter rack module, and the linkage check that actually discriminates
-
-**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot**
-
-**Third item this session**, on Jeff's instruction ("next task"), after E13 and
-E12 merged. Claimed with a pushed DOING mark before any work, per STEP 2.
-
-**Did:** Took **E2**, the `mac` NEXT target. Found it is not one item, split it
-the way C7 and C12 were split, and shipped the first stage as **E2b — a Filter
-rack module**. TIDE now ships **six** prefabs and `tests/cases/` covers four.
-
-### Why E2 had to be split rather than attempted
-
-E2 says: *"Define the naming and I/O conventions for a module Container, then
-build the rest of a first curated set, each with its own E1 test case."* **It
-never says which modules that set contains**, which is a product decision and
-not a run's to invent — so as one item it fails STEP 2's "state the acceptance
-check before starting" bar. The conventions half is also largely *already
-written down*, in `build-prefabs.py`'s header: panel geometry, the
-`PanelWndPosition`-vs-`panel_rect` distinction, faceplate sizing, and the rack
-grid (`hpWidth 15`, `rowHeight 380`, so a slot is a multiple of 15 wide and at
-most 350 tall). E2's remaining content is therefore **modules**, one at a time,
-and a filter is the obvious first: oscillator → filter → envelope → out is the
-canonical subtractive voice.
-
-### The linkage check, which is the transferable part
-
-E2a left a trap: *"every module in a prefab must be a class TIDE links"*, with
-`strings`/`nm` on the module-id string called out as a **false positive**
-(`SE Rectangle XP` is in the binary via the rename table at `CUG.cpp:301`).
-That is true of the *id string*. It is not true of the **static-init symbol**,
-which is a real linkage fact, and that is the check E12's entry recommended:
-
-```
-se_static_library_init_ug_filter_1pole      PRESENT     <- 1 Pole LP
-se_static_library_init_ug_filter_1pole_hp   PRESENT     <- 1 Pole HP
-se_static_library_init_SVFilter4            absent
-se_static_library_init_ButterworthHP        absent
-se_static_library_init_OscillatorNaive      absent      <- S8's module, still absent
-```
-
-**It discriminates, which is the only reason to trust it** — three of the five
-obvious filter candidates come back absent, including the one
-(`OscillatorNaive`) already known absent by independent measurement. So the
-positive result on `1 Pole LP` means something.
-
-**A trap this exposes for anyone scanning `UgDatabase.cpp` for candidates:**
-`INIT_STATIC_FILE(SVFilter4)` and `INIT_STATIC_FILE(ButterworthHP)` are both
-*in that list*, and both are **absent from TIDE**. The list is
-`SynthEditLib`'s, and TIDE links a subset. **Do not read the INIT list as a menu
-of what TIDE can instantiate.** The core `ug_*` entries are the ones that come
-free — `ug_filter_1pole`, `ug_vca`, `ug_pan`, `ug_sample_hold`, `ug_random`,
-`ug_quantiser`, `ug_switch`, `ug_delay` all measured PRESENT, and all are
-plausible future E2 stages.
-
-### The module, and its default
-
-`1 Pole LP`, `ug_filter_1pole_lp.cpp:21`, category Filters. Pins
-`Signal` / `Pitch` / `Output` — the Oscillator prefab's shape with an audio
-input added. `Pitch` is the **cutoff**, 1 V/octave on the same scale the
-oscillator uses, so 5 V = 440 Hz.
-
-Measured on a 440 Hz source, recording the filter output:
-
-| cutoff | peak |
-|---|---|
-| 10 V (14 kHz) | −6.3 dBFS — effectively open |
-| 8 V (3.5 kHz) | −6.6 dBFS |
-| **5 V (440 Hz)** | **−9.5 dBFS — −3 dB AT cutoff, textbook 1-pole** |
-| 2 V (55 Hz) | −22.2 dBFS — ~6 dB/octave beyond |
-
-**The FREQ jack ships defaulted to 10 V, wide open.** That is not a preference,
-it is the rule the Envelope's GATE default already follows and it is worth
-stating as a convention: **an unpatched jack takes the value that lets the
-module pass signal**, because a rack that does not patch everything must still
-sound. A filter defaulting to 0 would render silence on drop-in and look broken.
-
-### Verification
-
-**In TIDE, not merely in the generator:**
-
-```
-TIDE: 6 rack prefab(s) seeded from the bundle     (was 5)
-TIDE: rack built for 48000 Hz, block 512
-shutdown rc=0, no new crash report
-```
-
-**Harness 6/6**, with the new case's reference independently checked rather than
-trusted: 440.0 Hz by zero-crossing count, peak −9.5 dBFS = the −3 dB point.
-Both gates positive-controlled:
-
-```
-control A  cutoff 5V -> 2V (filter-response regression)  FAIL  null=-16.6 dBFS
-control B  reference scaled 0.99 (-0.09 dB level)        FAIL  null=-55.3 dBFS
-full suite                                               6/6 PASS
-```
-
-**Control B matters more than it looks.** This case carries `prefab_oscillator`'s
-*relaxed* gates (−67/−62), because a free-running oscillator is in its signal
-path — and a relaxed gate invites the question of what it still catches. A **1%
-level change fails it with 11.7 dB to spare**, so level, tuning and filter-response
-regressions are all still caught; what is given up is localized damage below
-~12 LSB, which `voice_midi_note` covers at the default gates.
-
-### A finding out of CI, filed as E1c rather than fixed here
-
-The PR's Linux `verify` job renders against these macOS-seeded references, and
-the numbers say the relaxed gates on two cases are far too wide:
-
-```
-prefab_oscillator  null -131.1 dBFS  peakdiff -90.3     declared gates -67 / -62
-prefab_filter      null -121.4 dBFS  peakdiff -90.3     declared gates -67 / -62
-```
-
-Both are **rounding class** — inside even the *default* −100/−86 — leaving ~55 dB
-of margin for a real regression to hide in.
-
-**Where the wide gates came from:** E1a measured a free-running oscillator at
-−73.5 dBFS and sized the gates 6 dB above. Sound measurement, **different
-oscillator**: E1a used `SE Oscillator (naive)`, a separately-loaded module, while
-these two cases use `Oscillator`, the core `ug_oscillator2`. My own new case
-inherited the relaxed gates *by analogy* — I copied `prefab_oscillator`'s reason
-text, which says "same class of residual" — and CI then showed that analogy is
-probably wrong.
-
-I have not tightened them, because the honest fix is a measurement of each case's
-own residual in both directions, not a guess in the other direction — that would
-be the same reasoning-instead-of-measuring the row is about. Filed as **E1c** with
-the Accept clause stating exactly that. Note `voice_midi_note` also contains the
-naive oscillator and passes at *default* gates, so "naive drifts" is not the whole
-story; its pitch is MIDI-derived rather than free-running, which is the variable
-to isolate first.
-
-### The five prefabs I regenerated and did NOT commit
-
-Running the generator rewrote all six files. The other five are **handle churn
-only** — randomised `handle` / `fMod` / `tMod` / `module` / `tiedtomod` values —
-and I proved that rather than asserting it: normalising those five attributes
-makes all five **byte-identical to HEAD**, and MidiCv's `tiedtopin` mapping stays
-**7/8/9/10**, the contract `TideApp` hard-codes. Reverted, not committed, per
-STEP 5.
-
-**Worth knowing before the next E2 stage:** `build-prefabs.py` is not
-reproducible — every run produces a different file for every prefab. So a
-generator change always looks like a six-file diff, and **the only way to see
-what you actually changed is to normalise the handles**. The check is four lines
-of Python and is in this entry's PR body.
-
-**Next:**
-
-1. **E2c and onward** — more modules, one stage each. The measured candidate
-   list is above; a **VCA** (`ug_vca`) and a **Sample & Hold** (`ug_sample_hold`)
-   are the obvious next two, and `tests/README.md` now says how to decide
-   whether a new prefab can have a case at all.
-2. **E10** is still the biggest thing on this platform and needs `SynthEditLib`
-   authority — a live host crash whose own Accept clause would not fix it.
-3. **`tide/mac/V3-midi-findings`** is still a pushed branch with no open PR,
-   reported for the third run running.
-
-**Branch/PR:** [SynthEdit#60](https://github.com/JeffMcClintock/SynthEdit/pull/60)
-plus the TideSynth PR carrying this entry — **two repos, and they are one
-change**, though neither breaks the other's build: the E1 case rebuilds the
-recipe from primitives rather than loading `Filter.synthedit`, so it does not
-depend on the SynthEdit half landing first. Work done in a throwaway worktree
-for TideSynth; `SynthEdit` was branched in place and is returned to `master`.
