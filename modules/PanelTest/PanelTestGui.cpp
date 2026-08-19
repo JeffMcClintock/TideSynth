@@ -105,20 +105,101 @@ constexpr float kGrooveSlope = 0.22f;
 // its apparent size instead of scaling with the panel.
 #define PANELTEST_VENT 1
 constexpr float kVentCentreYFrac = 0.90f; // of halfH: centred in the top 10%
-constexpr float kVentPitchDips = 5.4f;
-constexpr float kVentHoleRadiusDips = 1.25f;
-constexpr int kVentCols = 7;
-constexpr int kVentRows = 5;
+constexpr float kVentPitchDips = 7.5f;
+constexpr float kVentHoleRadiusDips = 1.9f;
+constexpr int kVentCols = 5;
+constexpr int kVentRows = 4;
+
+// A SECOND vent below the indent, slotted instead of punched, so the two styles
+// can be compared on one panel. A slot is just a rounded rectangle whose corner
+// radius is half its thickness -- a stadium -- so it reuses the same 2D helper
+// the faceplate and the pocket do.
+#define PANELTEST_SLOT_VENT 1
+constexpr float kSlotCentreYFrac = -0.93f; // of halfH, below the indent
+constexpr float kSlotHalfLenDips = 13.0f;
+constexpr float kSlotHalfThickDips = 1.6f;
+constexpr float kSlotPitchDips = 5.5f;
+constexpr int kSlotRows = 3;
 
 // Two jack sockets stacked in the indent: a shiny turned collar around a duller
 // black plastic body, with a blind bore down the middle. Radii are in DIPs so
 // the hardware stays the size it would really be, rather than growing with the
 // panel.
 #define PANELTEST_JACKS 1
-constexpr float kJackOuterDips = 6.6f;   // collar outer radius
-constexpr float kJackInnerDips = 3.4f;   // collar inner radius = the plastic showing through
-constexpr float kJackBoreDips = 2.0f;    // the socket mouth
+constexpr float kJackSurroundDips = 10.5f; // black plastic body, OUTSIDE the collar
+constexpr float kJackOuterDips = 7.0f;   // collar outer radius
+constexpr float kJackInnerDips = 4.4f;   // collar inner radius
+constexpr float kJackBoreDips = 3.5f;    // the socket mouth
+
+// The body stands slightly proud of the pocket floor. Not styling: with its
+// face flush the two were EXACTLY COPLANAR, and a sphere tracer has no way to
+// choose between coincident surfaces -- it speckled the surround with radial
+// dashes. A real moulded body sits proud anyway.
+constexpr float kJackSurroundProudDips = 0.35f;
 constexpr float kJackSpacingFrac = 0.5f; // of the indent's half height
+
+// The collar is nickel-plated hardware, not a mirror. Some roughness is both
+// more realistic and much quieter to render: a near-mirror finds the small
+// bright sources mostly by luck, so it speckles.
+constexpr float kJackMetalRoughness = 0.14f;
+
+// Knobs: plain black plastic cylinders with a bevelled rim, in the two sizes
+// Behringer's modules use. No flutes and no indicator -- the pointer is drawn
+// over the top in vector later, so baking one into the bitmap would fight it.
+//
+// The bevel is doing real work, not decoration. A flat cylinder top facing an
+// orthographic camera is one flat colour, exactly like the unbrushed faceplate;
+// the chamfer is the only part of the knob that sweeps through angles, so it is
+// what separates the knob from the panel behind it.
+// DIAGNOSTIC ONLY. Swings the camera off to one side so the hardware's HEIGHT
+// becomes visible: head-on, a tall knob and a flat disc are the same picture and
+// only the shading tells them apart. Leave at 0 -- the panel bitmap is wrong
+// while it is on.
+//
+// Still an ORTHOGRAPHIC camera, just rotated. tide::render has no perspective
+// mode, deliberately: a perspective knob only looks right from the exact spot
+// the camera was pointed, and panel art has to tile. For judging height that
+// costs nothing, since an axonometric view is what a technical drawing uses for
+// precisely this reason.
+#define PANELTEST_DIAGNOSTIC_VIEW 0
+
+// The switch, or rather its SLOT -- the moving part gets drawn over the top in
+// vector later. A shallow pocket holding a plate of aluminium that is NOT
+// brushed, with a square hole punched through it into the void behind.
+//
+// The plate is a separate object because it is a different finish, and a
+// Material carries one of those. Isotropic against the panel's grain is the
+// whole point: the two read as different pieces of metal.
+#define PANELTEST_SWITCH 1
+constexpr float kSwitchCentreYFrac = -0.2875f; // of halfH, between knob and indent
+constexpr float kSwitchHalfWidthDips = 7.7f;
+constexpr float kSwitchHalfHeightDips = 13.4f;
+constexpr float kSwitchCornerDips = 2.0f;
+constexpr float kSwitchDepth = 0.030f;         // world units, into the plate
+constexpr float kSwitchPlateRoughness = 0.38f; // duller than the panel, and unbrushed
+
+// The inset plate is a shade SMALLER than the pocket it sits in. Sized to match
+// exactly, its walls would be coincident with the pocket's and the tracer would
+// speckle the seam -- the same coincident-surface trap the jack surround fell
+// into. A real inset has a seam anyway.
+constexpr float kSwitchPlateGapDips = 0.4f;
+
+constexpr float kSwitchHoleHalfDips = 4.3f;
+constexpr float kSwitchHoleCornerDips = 0.35f; // a punch leaves a slight radius
+constexpr float kSwitchHoleOffsetDips = 4.5f;  // above the pocket's centre
+
+#define PANELTEST_KNOBS 1
+constexpr float kKnobBigRadiusDips = 10.6f;
+constexpr float kKnobSmallRadiusDips = 6.2f;
+// Height drives the SHADOW, which is the main reason to care about it here: a
+// cast shadow is as long as the occluder is tall, and at 0.45 the knobs were
+// barely half as tall as they were wide and threw almost nothing. Behringer's
+// are roughly as tall as their radius.
+constexpr float kKnobHeightFrac = 0.65f; // of the knob's own radius
+constexpr float kKnobBevelFrac = 0.18f;  // ditto
+constexpr float kKnobRoughness = 0.25f;
+constexpr float kKnobBigYFrac = 0.15f;   // of halfH, below the ball
+constexpr float kKnobSmallYFrac = -0.125f;
 
 // How far the collar's ring sits above the pocket floor, as a fraction of its
 // own tube radius. Above ~0.5 it starts to look like a washer balanced on the
@@ -167,6 +248,19 @@ constexpr float kIndentFillet = 0.02f;       // radius where the pocket meets th
 // under a sky, standing on a wooden floor" from "inside a grey box".
 constexpr tide::render::Vec3 kWallColour{ 0.55f, 0.55f, 0.58f };
 constexpr tide::render::Vec3 kCeilingColour{ 0.33f, 0.55f, 0.86f }; // sky
+
+// The ceiling also EMITS, as a broad soft skylight rather than a painted
+// surface. Painted, it only ever showed what the room's own lamps bounced onto
+// it, which was very little -- the blue barely reached the metal.
+//
+// It is a RECT LIGHT under the ceiling rather than an emissive ceiling slab.
+// An emissive object is importance sampled through its bounding sphere, and a
+// slab spanning the whole room has an enormous one, so nearly every shadow ray
+// aimed at it would miss and the image would be filthy. A rectangle is sampled
+// in closed form and every sample lands.
+constexpr float kSkyHalfWidth = 12.0f;  // scaled by k, like everything else
+constexpr float kSkyHalfDepth = 8.0f;
+constexpr tide::render::Vec3 kSkyEmission{ 0.70f, 1.15f, 2.00f };
 constexpr tide::render::Vec3 kFloorColour{ 0.30f, 0.19f, 0.11f };   // mid brown
 
 // The key is a FOUR-PANE window rather than one rectangle. A single rect smears
@@ -297,19 +391,27 @@ float sdRoundRect2D(float px, float py, float cx, float cy,
 	return safeSqrt(qx * qx + qy * qy) + minf(maxf(ax, ay), 0.0f) - cornerR;
 }
 
-float sdFaceplate(const Vec3& p, float halfW, float halfH, float halfZ,
-	float cornerR, float chamfer)
+// Sweeps a 2D field along Z into a slab. Standard extrusion: the two distances
+// combine as a right triangle outside the solid and as the nearer face inside.
+float extrudeZ(float d2, float dz)
 {
 	using tide::render::maxf;
 	using tide::render::minf;
 	using tide::render::safeSqrt;
 
-	const float d2 = sdRoundRect2D(p.x, p.y, 0.0f, 0.0f, halfW, halfH, cornerR);
+	const float a = maxf(d2, 0.0f);
+	const float b = maxf(dz, 0.0f);
+	return minf(maxf(d2, dz), 0.0f) + safeSqrt(a * a + b * b);
+}
 
+float sdFaceplate(const Vec3& p, float halfW, float halfH, float halfZ,
+	float cornerR, float chamfer)
+{
+	using tide::render::maxf;
+
+	const float d2 = sdRoundRect2D(p.x, p.y, 0.0f, 0.0f, halfW, halfH, cornerR);
 	const float dz = std::fabs(p.z) - halfZ;
-	const float outR = maxf(d2, 0.0f);
-	const float outZ = maxf(dz, 0.0f);
-	const float d = minf(maxf(d2, dz), 0.0f) + safeSqrt(outR * outR + outZ * outZ);
+	const float d = extrudeZ(d2, dz);
 
 	constexpr float invSqrt2 = 0.70710678f;
 	return maxf(d, (d2 + std::fabs(p.z) - halfZ + chamfer) * invSqrt2);
@@ -452,6 +554,12 @@ void addPanelStudio(tide::render::Scene& scene, float k)
 		}
 	}
 
+	// SKY: a broad, dim, blue source directly overhead. Aimed at the subject
+	// like the rest, which for something straight above resolves to pointing
+	// straight down.
+	scene.add(aimedRect({ 0.0f, 14.0f * k, 0.0f },
+		kSkyHalfWidth * k, kSkyHalfDepth * k, kSkyEmission));
+
 	// FILL: dimmer, warmer, opposite the key.
 	scene.add(aimedRect({ 5.6f * k, -2.4f * k, 3.8f * k }, 3.2f * k, 5.5f * k,
 		Vec3{ 1.45f, 1.30f, 1.10f }));
@@ -535,6 +643,24 @@ float sdVentHoles(const Vec3& p, float centreY, float pitchX, float pitchY,
 }
 #endif
 
+#if PANELTEST_SLOT_VENT
+// The slotted vent's cutter: a stack of horizontal stadiums, limited-repeated
+// down y exactly as the punched grill is across x and y.
+float sdSlotVents(const Vec3& p, float centreY, float pitchY, float halfLen,
+	float halfThick, int rows)
+{
+	using tide::render::clampf;
+
+	const float yTop = centreY + 0.5f * pitchY * (float)rows;
+	const float rowF = std::floor((yTop - p.y) / pitchY);
+	const float row = clampf(rowF, 0.0f, (float)(rows - 1));
+	const float cy = (yTop - p.y) - (row + 0.5f) * pitchY;
+
+	// cornerR == halfThick is what turns the rectangle into a stadium.
+	return sdRoundRect2D(p.x, cy, 0.0f, 0.0f, halfLen, halfThick, halfThick);
+}
+#endif
+
 #if PANELTEST_INDENT
 // The solid that gets SUBTRACTED to leave the pocket: a rounded rectangle in
 // plan, running from the floor depth forward and out of the panel entirely.
@@ -575,6 +701,20 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	const float grooves = kGroovesPerDip * dipsWide; // per world unit; world width is 1
 	const float amp = kGrooveSlope / (grooves * 2.0f);
 
+#if PANELTEST_JACKS && PANELTEST_INDENT
+	// Hoisted above the plate because the plate has to be DRILLED for them: a
+	// bore sunk only into the plastic just exposes the aluminium the body is
+	// embedded in, and the socket mouth comes out panel-coloured. Both parts
+	// need the same hole.
+	const float jackIndentCentreY = kIndentCentreYFrac * halfH;
+	const float jackIndentHalfH = kIndentHalfHeightFrac * halfH;
+	const float jackBoreR = kJackBoreDips / dipsWide;
+	const float jackY[2] = {
+		jackIndentCentreY + kJackSpacingFrac * jackIndentHalfH,
+		jackIndentCentreY - kJackSpacingFrac * jackIndentHalfH
+	};
+#endif
+
 #if PANELTEST_VENT
 	const float ventPitchX = kVentPitchDips / dipsWide;
 	const float ventPitchY = ventPitchX * 0.86602540f; // hexagonal row spacing
@@ -604,6 +744,81 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	}
 #endif
 
+#if PANELTEST_SWITCH
+	const float swCentreY = kSwitchCentreYFrac * halfH;
+	const float swHalfW = kSwitchHalfWidthDips / dipsWide;
+	const float swHalfH = kSwitchHalfHeightDips / dipsWide;
+	const float swCorner = kSwitchCornerDips / dipsWide;
+	const float swFloorZ = halfZ - kSwitchDepth;
+
+	const float swHoleHalf = kSwitchHoleHalfDips / dipsWide;
+	const float swHoleCorner = kSwitchHoleCornerDips / dipsWide;
+	const float swHoleY = swCentreY + kSwitchHoleOffsetDips / dipsWide;
+
+	// The void the hole looks into.
+	{
+		const Vec3 centre{ 0.0f, swHoleY, -halfZ - 0.12f };
+		const Vec3 half{ swHoleHalf + 0.04f, swHoleHalf + 0.04f, 0.08f };
+
+		Object backing;
+		backing.material = recipes::paint({ 0.020f, 0.020f, 0.024f });
+		backing.boundsCentre = centre;
+		backing.boundsRadius = length(half) + 0.01f;
+		backing.distance = [centre, half](const Vec3& p) { return sdBox(p - centre, half); };
+		scene.add(std::move(backing));
+	}
+
+	// The inset plate: unbrushed, and buried well below the pocket floor so its
+	// underside never becomes a surface anything can see.
+	{
+		const float gap = kSwitchPlateGapDips / dipsWide;
+		const float top = swFloorZ + 0.010f;
+		const float bottom = swFloorZ - 0.05f;
+		const float hz = 0.5f * (top - bottom);
+		const float cz = 0.5f * (top + bottom);
+
+		Object plate;
+		plate.material = recipes::polishedAluminium(kSwitchPlateRoughness);
+		plate.boundsCentre = { 0.0f, swCentreY, cz };
+		plate.boundsRadius = safeSqrt(swHalfW * swHalfW + swHalfH * swHalfH + hz * hz) + 0.01f;
+		plate.distance = [=](const Vec3& p)
+		{
+			const float rect = sdRoundRect2D(p.x, p.y, 0.0f, swCentreY,
+				swHalfW - gap, swHalfH - gap, swCorner);
+			const float d = extrudeZ(rect, std::fabs(p.z - cz) - hz);
+
+			// The punched hole, straight through the plate.
+			return opSubtract(d, sdRoundRect2D(p.x, p.y, 0.0f, swHoleY,
+				swHoleHalf, swHoleHalf, swHoleCorner));
+		};
+		scene.add(std::move(plate));
+	}
+#endif
+
+#if PANELTEST_SLOT_VENT
+	const float slotCentreY = kSlotCentreYFrac * halfH;
+	const float slotPitchY = kSlotPitchDips / dipsWide;
+	const float slotHalfLen = kSlotHalfLenDips / dipsWide;
+	const float slotHalfThick = kSlotHalfThickDips / dipsWide;
+
+	// Same dark interior the punched grill needs, and for the same reason.
+	{
+		const Vec3 centre{ 0.0f, slotCentreY, -halfZ - 0.12f };
+		const Vec3 half{
+			slotHalfLen + 0.04f,
+			0.5f * slotPitchY * (float)kSlotRows + 0.04f,
+			0.08f
+		};
+
+		Object backing;
+		backing.material = recipes::paint({ 0.020f, 0.020f, 0.024f });
+		backing.boundsCentre = centre;
+		backing.boundsRadius = length(half) + 0.01f;
+		backing.distance = [centre, half](const Vec3& p) { return sdBox(p - centre, half); };
+		scene.add(std::move(backing));
+	}
+#endif
+
 	Object panel;
 	// Brushed HORIZONTALLY: the grain axis and the groove geometry have to agree,
 	// so this axis and the argument order into brushGrain below are one decision
@@ -619,6 +834,29 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 #if PANELTEST_VENT
 		d = opSubtract(d, sdVentHoles(p, ventCentreY, ventPitchX, ventPitchY,
 			ventRadius, kVentCols, kVentRows));
+#endif
+
+#if PANELTEST_SWITCH
+		// The pocket, then the same square hole again -- the plate alone is not
+		// enough, because behind it is the panel, and a hole in one part only
+		// exposes the other. Same lesson as the jack bore.
+		d = opSmoothSubtract(d, sdIndentTool(p, swCentreY, swHalfW, swHalfH,
+			swCorner, swFloorZ), kIndentFillet);
+		d = opSubtract(d, sdRoundRect2D(p.x, p.y, 0.0f, swHoleY,
+			swHoleHalf, swHoleHalf, swHoleCorner));
+#endif
+
+#if PANELTEST_SLOT_VENT
+		d = opSubtract(d, sdSlotVents(p, slotCentreY, slotPitchY, slotHalfLen,
+			slotHalfThick, kSlotRows));
+#endif
+
+#if PANELTEST_JACKS && PANELTEST_INDENT
+		// Clean through the plate. What the eye ends up looking down is the
+		// plastic barrel behind it, which is blind -- so the mouth goes dark
+		// without the hole becoming a see-through gap.
+		for (const float y : jackY)
+			d = opSubtract(d, sdCylinder(p - Vec3{ 0.0f, y, 0.0f }, jackBoreR, 1.0f));
 #endif
 
 #if PANELTEST_INDENT
@@ -650,18 +888,19 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	// objects is a plain union, so the collar and the body simply overlap and
 	// each keeps its own surface.
 	{
-		const float indentCentreY = kIndentCentreYFrac * halfH;
-		const float indentHalfH = kIndentHalfHeightFrac * halfH;
 		const float floorZ = halfZ - kIndentDepth; // the pocket's floor
 
+		const float rSurround = kJackSurroundDips / dipsWide;
 		const float rOuter = kJackOuterDips / dipsWide;
 		const float rInner = kJackInnerDips / dipsWide;
-		const float rBore = kJackBoreDips / dipsWide;
+		const float rBore = jackBoreR;
+
+		// The body's face, which the collar sits on rather than on the pocket.
+		const float bodyTop = floorZ + kJackSurroundProudDips / dipsWide;
 
 		for (int i = 0; i < 2; ++i)
 		{
-			const float jy = indentCentreY
-				+ (i ? -1.0f : 1.0f) * kJackSpacingFrac * indentHalfH;
+			const float jy = jackY[i];
 
 			// The collar: a TORUS, not a flat washer.
 			//
@@ -676,10 +915,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			{
 				const float minor = 0.5f * (rOuter - rInner);
 				const float major = 0.5f * (rOuter + rInner);
-				const Vec3 centre{ 0.0f, jy, floorZ + kJackProudFrac * minor };
+				const Vec3 centre{ 0.0f, jy, bodyTop + kJackProudFrac * minor };
 
 				Object collar;
-				collar.material = recipes::chrome(0.06f);
+				collar.material = recipes::chrome(kJackMetalRoughness);
 				collar.boundsCentre = centre;
 				collar.boundsRadius = major + minor + 0.01f;
 				collar.distance = [centre, major, minor](const Vec3& p)
@@ -689,39 +928,73 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 				scene.add(std::move(collar));
 			}
 
-			// The body: its face sits at the pocket floor, so the collar stands
-			// proud of it and the two read as separate parts rather than as one
-			// disc with a painted circle on it. Slightly wider than the collar's
-			// hole so no sliver of aluminium shows between them.
+			// The body: ONE piece of black plastic running right under the
+			// collar, so it shows both OUTSIDE the metal ring as a surround and
+			// INSIDE it around the mouth. That is how the real part is made --
+			// a moulded body with a plated ring set into it -- and it is why the
+			// collar reads as hardware sitting in something rather than as a
+			// ring lying loose on the aluminium.
+			//
+			// A BARREL, running from just proud of the pocket floor to well
+			// BEHIND the plate. Its front face is the black surround; its length
+			// is what gives the bore somewhere deep to go. Stopping it inside
+			// the plate, as the first version did, capped the bore at the plate
+			// thickness and the mouth stayed light.
 			{
-				const float top = floorZ;
-				const float bottom = floorZ - 0.06f;
+				const float top = bodyTop;
+				const float bottom = -halfZ - 0.10f;
 				const float hz = 0.5f * (top - bottom);
 				const Vec3 centre{ 0.0f, jy, 0.5f * (top + bottom) };
 
-				// A BLIND bore, stopping short of the bottom. Drilling straight
-				// through would put the pocket's bright aluminium at the end of
-				// it; leaving a floor of black plastic is what keeps the socket
-				// mouth dark.
-				const float boreDepth = 1.5f * hz;
-
-				const float bodyRadius = rInner + 0.35f / dipsWide;
+				// A BLIND bore, but a DEEP one. Drilling straight through would
+				// put the pocket's bright aluminium at the end of it; stopping
+				// just short leaves a floor of black plastic, and going deep
+				// enough that almost nothing reaches the bottom is what makes
+				// the mouth read as an actual hole rather than a dark disc.
+				const float boreDepth = 1.85f * hz;
 
 				Object body;
 				body.material = recipes::satinPlastic({ 0.020f, 0.020f, 0.022f });
 				body.boundsCentre = centre;
-				body.boundsRadius = safeSqrt(bodyRadius * bodyRadius + hz * hz) + 0.01f;
-				body.distance = [centre, bodyRadius, rBore, hz, boreDepth](const Vec3& p)
+				body.boundsRadius = safeSqrt(rSurround * rSurround + hz * hz) + 0.01f;
+				body.distance = [centre, rSurround, rBore, hz, boreDepth](const Vec3& p)
 				{
 					const Vec3 q = p - centre;
 					const float boreHalf = 0.5f * (boreDepth + 0.1f);
 					const float boreZ = hz + 0.1f - boreHalf;
-					return opSubtract(sdCylinder(q, bodyRadius, hz),
+					return opSubtract(sdCylinder(q, rSurround, hz),
 						sdCylinder(q - Vec3{ 0.0f, 0.0f, boreZ }, rBore, boreHalf));
 				};
 				scene.add(std::move(body));
 			}
 		}
+	}
+#endif
+
+#if PANELTEST_KNOBS
+	// Seated ON the panel face rather than sunk into it: centre offset by its
+	// own half height so the base lands exactly on the front surface.
+	{
+		const auto addKnob = [&](float radiusDips, float yFrac)
+		{
+			const float r = radiusDips / dipsWide;
+			const float hz = kKnobHeightFrac * r;
+			const float chamfer = kKnobBevelFrac * r;
+			const Vec3 centre{ 0.0f, yFrac * halfH, halfZ + hz };
+
+			Object knob;
+			knob.material = recipes::plastic({ 0.022f, 0.022f, 0.025f }, kKnobRoughness);
+			knob.boundsCentre = centre;
+			knob.boundsRadius = safeSqrt(r * r + hz * hz) + 0.01f;
+			knob.distance = [centre, r, hz, chamfer](const Vec3& p)
+			{
+				return sdChamferCylinder(p - centre, r, hz, chamfer);
+			};
+			scene.add(std::move(knob));
+		};
+
+		addKnob(kKnobBigRadiusDips, kKnobBigYFrac);
+		addKnob(kKnobSmallRadiusDips, kKnobSmallYFrac);
 	}
 #endif
 
@@ -744,6 +1017,12 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	camera.position = { 0.0f, 0.0f, 6.0f };
 	camera.target = { 0.0f, 0.0f, 0.0f };
 	camera.filmWidth = halfW * 2.0f;
+
+#if PANELTEST_DIAGNOSTIC_VIEW
+	camera.position = normalize(Vec3{ 0.85f, 0.28f, 1.0f }) * 9.0f;
+	camera.target = { 0.0f, 0.0f, 0.0f };
+	camera.filmWidth = 1.45f; // the plate foreshortens, so leave margin
+#endif
 
 	Settings settings;
 	settings.width = (int)pixelWidth;
