@@ -128,6 +128,38 @@ Not fixed here because STEP 3 says file, do not fix, and because the fix is a
 judgement only `41785ea`'s author can make: add the file, repoint the link, or
 de-link the prose. Guessing puts a false statement in a README.
 
+#### ANSWERED BY JEFF, mid-run: the file is on the Windows box
+
+*"Maybe forgot to push it … it's on the windows machine."* So the link is
+**correct in intent** and `modules/PanelTest/` simply never reached `origin/main`.
+A29 is re-pointed from `any` to **`win`** — the fix is a push only that box can
+make — and filed as [#174](https://github.com/JeffMcClintock/TideSynth/issues/174)
+(`platform:win`) so the Windows run takes it at STEP 1 instead of waiting for
+file order. The `win` NEXT row now says A29 before P3.
+
+**This is the run's most useful negative result, so it is recorded rather than
+quietly dropped.** Before Jeff answered, this run had assembled what looked like
+a conclusive repoint target: `modules/TiDEPanel/TiDEPanelGui.cpp`. The evidence
+was not thin —
+
+- same `modules/` parent, so `../<Module>/` resolves;
+- same `<Module>Gui.cpp` naming, and it is **one of only two** `*Gui.cpp` files
+  in the entire repo (`git ls-tree -r origin/main | grep -i 'gui\.cpp$'`);
+- the other one, `TiDEknobGui.cpp`, greps **zero** hits for `cache`, so the
+  discrimination looked clean;
+- `TiDEPanelGui.cpp`'s own header comment says **"TWO CACHED BITMAPS"** and it
+  has a `renderFace()` that procedurally generates the face — which is the
+  README sentence (*"already caches its procedurally generated faces"*) almost
+  word for word;
+- both files were authored the same day by the same author, `20fa184` … `41785ea`.
+
+**Every one of those is true and the conclusion is still wrong.** The lesson is
+not "check harder" — the evidence would not have improved. It is that STEP 3's
+*file, do not fix* is doing real work precisely when the fix looks obvious: a
+repoint would have merged green, closed the lint failure, and left a README
+citing the wrong file with nothing left to notice it. Cheap to avoid, expensive
+to detect later.
+
 ### Bookkeeping done this run
 
 - **Archived, PRs all merged:** **A26** ([#163](https://github.com/JeffMcClintock/TideSynth/pull/163)),
@@ -171,13 +203,22 @@ from.
 2. **The fleet's CI gate can be down without anyone noticing**, because a red
    check on your own PR reads as your own problem. Run `check-links.py` against
    `origin/main`, not just your branch, if you want to know whose red it is.
-3. `git checkout origin/main -- .` inside a worktree will silently revert your
+3. **Superseded text in a NEXT cell must lose its imperative, not just its
+   position.** Re-pointing the `mac` row this run left the old *"Take A29"*
+   wording quoted underneath, and `check-next-block.py` — the very check this
+   run shipped — read it as the `mac` row still naming A29, a `win` item. The
+   phrase rule matches mid-cell by design, so a preserved quote is
+   indistinguishable from a live instruction. Reworded the quote instead of
+   widening the rule: the fleet's habit of keeping previous text is worth more
+   than a byte-exact quote of an instruction that no longer holds.
+4. `git checkout origin/main -- .` inside a worktree will silently revert your
    own uncommitted work. Recovered here via `git stash`; the cheap habit is to
    commit as soon as a coherent change exists, which STEP 3 already says.
 
 **Next:**
 
-1. **A29** — minutes, and it revives auto-merge for all three boxes.
+1. **A29 is the Windows box's**, not mac's — [#174](https://github.com/JeffMcClintock/TideSynth/issues/174),
+   `platform:win`. It is a push, and it revives auto-merge for all three boxes.
 2. **E17** needs Jeff. Until it is answered, E2 has no takeable stage, and the
    `mac` column's real queue is the A-series.
 3. **E10** remains the biggest thing on this platform and needs `SynthEditLib`
