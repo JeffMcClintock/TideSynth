@@ -74,6 +74,89 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — C7b: TIDE's own source leaves the private repo
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Twelfth item this session.**
+
+**Did:** `SynthEditSem/` (16 files) and `TideModules/` (11) now live in
+**TideSynth**. SE16 consumes them through a `TIDESYNTH_FOLDER_OVERRIDE` +
+`FetchContent` pair mirroring `SYNTHEDITLIB_FOLDER_OVERRIDE` line for line — one
+pattern to learn, and anyone who already sets the SynthEditLib override knows
+what to do with this one.
+
+### Accept, met exactly as the row wrote it
+
+| clause | result |
+|---|---|
+| `git ls-files` in SE16 shows zero `SynthEditSem/` / `TideModules/` | **0 and 0** |
+| SE16 still produces `TIDE.gmpi` **and** `TIDE_VST3.vst3` | both |
+| same object count | **943, identical** to the baseline taken in the same tree immediately before |
+| ctest green | **86/86** |
+
+Plus: `TIDE_STANDALONE` runs, seeds **6** prefabs from the moved `TideModules`,
+and the bundle stages all six.
+
+### Only ONE of the three `../` paths actually broke
+
+The row predicted three. Both `../TideModules/prefabs` entries **still resolve**,
+because the two folders moved *together* — `TideSynth/SynthEditSem/../TideModules`
+is `TideSynth/TideModules`. Only `../SynthEdit2` broke, and it is now
+`${SE16_SYNTHEDIT2_DIR}`, set by SE16's root before `add_subdirectory` and empty
+when TideSynth builds standalone.
+
+**`SOURCE_SUBDIR docs` in the FetchContent block is deliberate**, the same trick
+the SynthEditLib block uses: it points at a folder with no `CMakeLists.txt` so
+FetchContent does not add the fetched tree as a subproject. It also survives C7d
+adding a root `CMakeLists.txt` to TideSynth, which would otherwise start being
+configured twice.
+
+### Taken on mac, not linux
+
+The NEXT block nominated linux. Linux has not run since 2026-08-19 and left **no
+branch and no claim**, the row is platform `any`, and it gates C7e → C7 → C10 →
+R2–R6. STEP 2's collision test is a remote branch or open PR naming the id, and
+there was neither. The `linux` NEXT row now says so and points at C7d.
+
+### The residual, filed as C16
+
+`SynthEditSem/TideAppStubs.cpp:31` still includes the private `SynthEditApp.h`.
+**C14's twin**, and the row records the asymmetry that matters: two of the three
+symbols are **member definitions** (`isMoonbaseEnabled`, `licenseIsActive`, both
+`return false`) which need the complete type, but the third — `SynthEditApp*
+theApp = nullptr` — needs **only a forward declaration**, because a pointer
+definition does not require a complete type and a global's mangled name carries
+no type in the Itanium ABI. So the symbol is unchanged either way.
+
+Until C16 lands, a *standalone* TideSynth build still cannot compile this target.
+That is expected and is C7d/C7e's business, not a regression: C7b's Accept never
+claimed otherwise.
+
+**Also this run:** flipped **C14, A22, A23, A24** to DONE on their merged PRs;
+re-specced **E5** and closed **S20** on Jeff's answers.
+
+**Learned:**
+
+1. **Moving two folders together is cheaper than moving one.** Every relative
+   path *between* them survives untouched. The row's "three `../` paths" became
+   one purely because `TideModules` travelled with `SynthEditSem`.
+2. **A "same object count" acceptance clause is worth more than it looks.** 943
+   before and 943 after says no target silently stopped being built — which a
+   green build and a green ctest would both have tolerated, since a dropped
+   optional target breaks neither.
+
+**Next:**
+
+1. **C16** — the last private include; after it, C7d and then the clean-clone
+   test. Mac is taking it.
+2. **A12** is the only A-series row left and is `.github/workflows/**`.
+
+**Branch/PR:** `tide/mac/C7b-tide-source` in TideSynth and SynthEdit — **two
+repos, and they MUST merge together.** SE16's default (no override) fetches
+TideSynth's `origin/main`; until the TideSynth half is on `main`, that fetch
+returns a tree with no `SynthEditSem/` and SE16's configure fails.
+
 ## 2026-08-20 — macos — A24: the journal floor is one DATE, because seven days measures 651 KB
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
