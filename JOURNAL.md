@@ -94,7 +94,7 @@ which reading was used.
 | clause | evidence |
 |---|---|
 | MIDI-CV rebuilt on `SE TiDE:Panel` | regenerated via SynthEditCL; `assert_all_modules_linked` clean, its note naming the id |
-| drawn in TIDE with legible captions | [docs/images/e15-midicv-tidepanel.png](images/e15-midicv-tidepanel.png) — heading + PITCH/GATE/VEL/TRIG black on the light plate |
+| drawn in TIDE with legible captions | [docs/images/e15-midicv-tidepanel.png](docs/images/e15-midicv-tidepanel.png) — heading + PITCH/GATE/VEL/TRIG black on the light plate |
 | Rectangle gone, build green | build rc=0; `__GLOBAL__sub_I_RectangleGui.cpp` **0** and `__GLOBAL__sub_I_TiDEPanelGui.cpp` **1** in BOTH `TIDE.gmpi` and `TIDE_VST3` |
 
 ### The two breaks the swap flushed out
