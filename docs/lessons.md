@@ -39,6 +39,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**macos — C10: 104 editor files leave the root, and the reference count fell as it was measured**
+
+- A reference count taken without word boundaries is an upper bound, not a work list.
+- "Same object count" needs the same instrument on both sides.
+
 **macos — A32: the umbrella advisory, and the measurement that was already done**
 
 - A row that carries its own false-positive measurement is a different kind of spec: the build step is obedience, not design.
