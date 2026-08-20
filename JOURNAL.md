@@ -74,6 +74,84 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — C7d: TideSynth builds on its own
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Fourteenth item this session.** C7b and C16 merged first.
+
+**Did:** wrote TideSynth's root `CMakeLists.txt`. **The repo now configures and
+builds TIDE without SE16.**
+
+```
+cmake -B build -G Ninja        rc=0
+cmake --build build            rc=0, 460 edges, 456 objects
+                               TIDE.gmpi, TIDE_VST3.vst3, TIDE_STANDALONE.app
+TIDE_STANDALONE                runs, seeds 6 prefabs, builds the rack
+grep for SE16 paths            ZERO, in both the configure and build logs
+```
+
+That is C7's whole point, reached: a stranger with this repo and a compiler gets
+a plugin.
+
+### The one thing the row did not predict, and it cost the first configure
+
+TIDE's `FORMATS_LIST` is `GMPI VST3 STANDALONE` — no AU, no CLAP. But
+**`GMPI_Wrappers` configures its AU2 and CLAP wrappers unconditionally**, and
+CMake needs those SDK sources to exist even for a target nothing links:
+
+```
+CMake Error at build/_deps/gmpi_wrappers-src/wrapper/AU2/CMakeLists.txt:95:
+  Cannot find source file: /include/AudioUnitSDK/AUBase.h
+```
+
+So the AudioUnit and CLAP fetches are in TIDE's root purely to satisfy
+configure. Copied from SE16 verbatim, with a comment saying why — the temptation
+next time will be to delete them as "TIDE doesn't ship AU".
+
+**More generally: the SDK fetches and the CPM bootstrap are copied close to
+verbatim rather than reworked.** They are fiddly, not TIDE-specific, and
+divergence between the two roots is the likeliest way to break a build here
+without breaking one there.
+
+### What is deliberately absent
+
+`se_vst3` / `se_gmpi` / `se_au` (SynthEdit's own plugin engine), `EditorScreenshot`
+(dropped by U3 with the breadcrumb bar), `SynthEditCL`, `SynthEditWayland`,
+`tests`, and the desktop apps. TIDE's subset is SynthEditLib + EditorLib +
+SynthEditSem, and that is all.
+
+### This turns the CI matrix ON, and that is the point
+
+`build.yml`'s guard job keys on a root `CMakeLists.txt` existing — *"the moment
+C7 adds a root CMakeLists.txt the matrix starts running again with nobody having
+to remember to remove anything"*. So all three platforms begin building on
+`tide/**` pushes and PRs, **with no `.github/workflows/**` edit**, which the
+fleet's token could never have made.
+
+**macOS is proven. Windows and Linux are unproven and may go red on first
+contact.** That is the mechanism working rather than a regression, and
+`build.yml` files a platform issue automatically on the push run.
+
+**Learned:**
+
+1. **A subproject you do not use can still block configure.** Nothing links AU2
+   or CLAP, and both had to be fetched anyway. "Which formats do I ship" and
+   "which SDKs must exist for CMake to generate" are different questions.
+2. **Copying a fiddly block verbatim beats improving it.** The CPM bootstrap and
+   SDK fetches are near-duplicates of SE16's on purpose; the failure mode of a
+   tidied-up copy is a divergence nobody notices until one root builds and the
+   other does not.
+
+**Next:**
+
+1. **C7e** — the clean-clone test, now genuinely runnable. After it C7 closes,
+   and C10 plus the release track R2–R6 unblock.
+2. Watch the first three-platform matrix run: win/linux may need work, and the
+   issues will file themselves.
+
+**Branch/PR:** `tide/mac/C7d-root-cmake` — TideSynth only.
+
 ## 2026-08-20 — macos — C16: the last private include was three dead symbols
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
