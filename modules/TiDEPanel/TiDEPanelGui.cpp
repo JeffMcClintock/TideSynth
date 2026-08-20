@@ -600,7 +600,23 @@ float sdRoundRect2D(float px, float py, float cx, float cy,
 // geometrically instead of staying pinned, and the far side arrives in about a
 // hundred steps. It is also what a punched hole really looks like: the
 // break-out side is wider than the punch side.
-constexpr float kThroughCutTaper = 0.09f; // about 5 degrees
+// HALF what it started at, and the number is measured rather than judged. The
+// taper is not free: a cone is visible from straight above where a vertical
+// wall is not, so every bit of slope shows as a bright bevel ring around the
+// hole -- Jeff spotted it as "a bevel on the hole the jack peeks through".
+// Bevel width is slope x the depth below the visible surface, so slope is the
+// only lever on it.
+//
+// Armed with TIDE_PANEL_ALPHA_DEBUG, on a jack and an LED at 2 and 8 units:
+//
+//     slope 0        1652 leaked pixels at the jack, 353 at the LED
+//     slope 0.0225   0
+//     slope 0.045    0
+//
+// So a quarter is already enough and this is double it, for margin against
+// scenes we have not tried. Do not tune it below 0.0225 without re-running
+// that test -- and run the zero case too, or a broken test reads as a pass.
+constexpr float kThroughCutTaper = 0.045f; // about 2.5 degrees
 
 // `d2` is the cut's cross-section, `frontZ` the panel's front face. Widening
 // only BEHIND the front face leaves the visible opening exactly as authored.
@@ -1534,6 +1550,21 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 				swHoleHalfW, swHoleHalfH, swHoleCorner), p.z, halfZ));
 		}
 
+		// POCKETS BEFORE HOLES, and the order is the whole difference between a
+		// punched hole and a moulded dimple.
+		//
+		// opSmoothSubtract blends with whatever is already in the field, so
+		// cutting the holes first let the pocket's fillet round their edges too:
+		// a hole in a pocket floor came out with a bevel about 1.9 DIPs wide,
+		// roughly two thirds of it fillet and the rest the through-cut taper.
+		// Cutting the pocket first and then punching through it with a HARD
+		// subtract leaves the hole's edge as sharp as the taper allows, which is
+		// what a punched panel looks like -- you fillet the pressing, then you
+		// punch it. The switch above has always done it in this order.
+		for (const auto& po : pockets)
+			d = opSmoothSubtract(d, sdIndentTool(p, po.cx, po.cy, po.hw, po.hh,
+				po.cr, halfZ - kIndentDepth), kIndentFillet);
+
 		// Jack bores and LED punch-outs: clean through the plate. What the eye
 		// looks down is the dark thing behind -- the jack's blind barrel, the
 		// LED's backing box -- so the hole goes dark without becoming a
@@ -1547,10 +1578,6 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			const float radial = safeSqrt(dx * dx + dy * dy) - h.r;
 			d = opSubtract(d, taperedCut(radial, p.z, halfZ));
 		}
-
-		for (const auto& po : pockets)
-			d = opSmoothSubtract(d, sdIndentTool(p, po.cx, po.cy, po.hw, po.hh,
-				po.cr, halfZ - kIndentDepth), kIndentFillet);
 
 		if (grain)
 		{
