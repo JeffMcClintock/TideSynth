@@ -74,6 +74,33 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — STEP 4 bookkeeping: seven rows flipped on merged PRs
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** flipped **A31, A32, C10, E5, E15, S24, E6** from IN-REVIEW to DONE.
+Every PR behind them merged today, and each state was **queried rather than
+assumed** — thirteen PRs across four repos, all `MERGED`.
+
+This is STEP 4's own instruction (*"If you see an IN-REVIEW row whose PRs have
+all merged, flip it as part of your STEP 4"*), done in one pass because the
+whole mac chain landed at once rather than one row at a time.
+
+**Learned:**
+
+1. **A day that merges thirteen PRs leaves the backlog lying by seven rows.**
+   IN-REVIEW is accurate for about as long as it takes the PR to merge, and
+   nothing flips it automatically — so a summary taken off the status column
+   mid-merge-run understates what shipped.
+
+**Next:** the queue's remaining TODOs are the S-series GATED rows, the linux
+platform issues, and E2 — which now has a ruled nine-module list and no open
+questions.
+
+**Branch/PR:** `tide/mac/flip-merged-rows-0821` — TideSynth only, bookkeeping.
+
+---
+
 ## 2026-08-21 — macos — E16 ruled Tier 1, and four conventions came with it
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
