@@ -25,10 +25,14 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "AboutPane.h" // D6 — the about pane, now opened from the context menu
 #include "helpers/ContextMenuHelper.h" // U3 — Goto Parent / Goto Rack / About
 #include "helpers/Timer.h" // gmpi::TimerClient — deferred navigation (U1b)
+#if defined(__linux__)
+#include "modules/se_sdk3/TimerManager.h" // S26 — the se_sdk timer pump below
+#endif
 #include "helpers/NativeUi.h" // gmpi::api::IDialogHost
 #include "helpers/unicode_conversion.h" // JmUnicodeConversions::Utf8ToWstring
 #include "RefCountMacros.h"
 #include <algorithm>
+#include <chrono> // S26 — elapsed time for the se_sdk timer pump
 #ifdef _WIN32
 #include <windows.h> // SetCursor / LoadCursor / IDC_CROSS — drag-affordance cursor
 #endif
@@ -263,12 +267,61 @@ using namespace gmpi::editor;
 // — SynthEditGui itself is a Notifiable, so the click ends up in
 // view->DragNewModule(id), and the next click on the editor strip drops
 // the module via ViewBase's existing onPointerDown drag-receive path.
+#if defined(__linux__)
+// S26 — pump the se_sdk timers, which otherwise NEVER FIRE on Linux.
+//
+// MfcDocPresenter is its own se_sdk::TimerClient: setView() does StartTimer(50),
+// and each tick services viewDirty -> RefreshView() -> re-export the container
+// to JSON and rebuild the view. That is the "refresh" half of the two
+// mechanisms — reconstructing the view from the document, not repainting the
+// pixels — and it is how an inserted module becomes visible.
+//
+// On Windows/macOS the se_sdk TimerManager rides native timers. On Linux it
+// has no source at all: TimerManager.h:94 says the host "must call
+// [Pump(elapsedMs)] periodically", and SynthEditWayland's main loop does
+// exactly that (Main.cpp:190). TIDE is a plugin with no main loop of its own,
+// so nothing pumped it — measured 2026-08-20 by Jeff, with real hardware:
+// click-placing a module inserted it into the DOCUMENT (the properties pane
+// proved that) but the VIEW never rebuilt until switching views forced a
+// setView(), whose "OnTimer(); // intial refresh" is the one refresh that does
+// not need a timer.
+//
+// This rides a gmpi_ui TimerClient because that system IS serviced here —
+// StandaloneApp.cpp:332 pumps it on Linux, and SynthEditGui's own heartbeat
+// below already depends on it. 30ms sits under the presenter's 50ms interval;
+// Pump() takes real elapsed time, so longer-interval clients (scopes) still
+// fire on their own schedule. Not folded into SynthEditGui's heartbeat because
+// that ticks at 500ms for S12's document sync, which serialises the whole
+// document per tick — too heavy to run at refresh rate.
+struct SeSdkTimerPump final : public gmpi::TimerClient
+{
+	std::chrono::steady_clock::time_point last = std::chrono::steady_clock::now();
+	SeSdkTimerPump() { startTimer(30); }
+	~SeSdkTimerPump() { stopTimer(); }
+	bool onTimer() override
+	{
+		const auto now = std::chrono::steady_clock::now();
+		const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count();
+		last = now;
+		// Global-scope qualifier: the se_sdk class is ambiguous with
+		// gmpi::TimerManager here, which is exactly the collision its header
+		// warns about ("prevent ambiguity with GMPI-UI TimerClient").
+		::TimerManager::Instance()->Pump(static_cast<int>(ms));
+		return true;
+	}
+};
+#endif
+
 class SynthEditGui final : public PluginEditor, public Notifiable, public gmpi::TimerClient
 {
 	ISeApp* seApp{};
 	Pin<Blob> controllerPtr;
 	gmpi::shared_ptr<gmpi::api::IUnknown> hostUnknown;
 	gmpi::shared_ptr<SE2::TopView> view;
+#if defined(__linux__)
+	// S26 — lives and dies with the editor, like the presenter timers it drives.
+	SeSdkTimerPump seSdkTimerPump;
+#endif
 
 	// Per-pane host wrappers — translate IDialogHost rects into plugin-local
 	// coords so popups / text-edits land next to the control that requested
