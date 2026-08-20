@@ -9,6 +9,7 @@
 #include <mutex>
 #include <vector>
 #include <atomic>
+#include <condition_variable>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
@@ -117,8 +118,13 @@ constexpr uint32_t kMaxTracedWidth = 96;
 constexpr uint32_t kPreviewDivisor = 6;
 constexpr int kPreviewSamples = 48;
 
-// How often the UI thread asks whether the worker has finished.
+// How often the UI thread asks whether the worker has produced anything new.
 constexpr int kPollMs = 100;
+
+// What the panel is until an image exists. Roughly the traced panel's own mean
+// tone, so the swap when the first image lands is a sharpening rather than a
+// jump in brightness. Given as sRGB; colorFromHex decodes to linear.
+constexpr uint32_t kPlaceholderGrey = 0x8E8E92u;
 
 // --- the physical scale ------------------------------------------------------
 //
@@ -1384,31 +1390,38 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	return render(scene, camera, settings);
 }
 
-// One trace per (pixel size, panel configuration), shared by every instance
-// and every redraw.
+// The face, and how it gets made.
 //
-// PROGRESSIVE, because a full trace is seconds and a redraw cannot wait. The
-// PREVIEW is traced synchronously at a fraction of the size — cost is linear in
-// pixels, so at 1/6 on a side it is ~1/36th of the work and does not show — and
-// the full-size trace runs on a worker. Until that lands the preview is
-// stretched over the panel: soft, but already the right material under the
-// right lights, which a flat grey placeholder is not.
+// NOTHING HERE RUNS ON THE UI THREAD. An earlier version traced the preview
+// synchronously "because it is only ~1/36th of the work", which is true and
+// still wrong: during a resize drag every frame is a new pixel size, so the UI
+// thread paid for a trace per frame AND spawned a full-size worker per frame,
+// and a dozen multi-second workers fighting for cores janked everything else.
+//
+// So the UI thread only ever ASKS. If no image exists yet it draws flat grey
+// (see kPlaceholderGrey) and tries again on the next tick.
 struct FaceTrace
 {
-	tide::render::Image preview;              // ready when the object is
-	tide::render::Image full;                 // written by the worker only
-	std::atomic<bool> fullReady{ false };     // release/acquire handoff for `full`
+	// stage: 0 nothing, 1 preview usable, 2 full-size ready. Written by the
+	// worker with release, read by the UI with acquire; the images behind it
+	// are only touched by the worker before the store that publishes them.
+	std::atomic<int> stage{ 0 };
+	tide::render::Image preview;
+	tide::render::Image full;
 	uint32_t previewWidth = 0, previewHeight = 0;
 	uint32_t fullWidth = 0, fullHeight = 0;
 };
 
-// Workers are JOINED before their thread objects are destroyed. A detached
-// thread still running inside this DLL when the host unloads it is a crash
-// with no usable stack, and a trace takes long enough to make that a real race
-// rather than a theoretical one. Finished workers are also reaped as new work
-// arrives, so live-editing the Layout pin does not accumulate dead threads.
-struct FaceTraceCache
+// ONE worker, with a "most recently wanted" slot rather than a queue.
+//
+// A queue would be wrong for this: during a drag the intermediate sizes are
+// garbage the moment the next frame arrives, and a queue would faithfully
+// render every one of them. The slot COALESCES -- overwriting it discards the
+// sizes nobody is waiting for any more -- so a drag of any length costs at
+// most the trace already in flight plus one more.
+class FaceRenderer
 {
+public:
 	struct Key
 	{
 		uint32_t width = 0, height = 0;
@@ -1417,84 +1430,154 @@ struct FaceTraceCache
 		{
 			return std::tie(width, height, config) < std::tie(o.width, o.height, o.config);
 		}
+		bool operator==(const Key& o) const
+		{
+			return width == o.width && height == o.height && config == o.config;
+		}
 	};
 
-	std::mutex mutex;
-	std::map<Key, std::shared_ptr<FaceTrace>> traces;
-	std::vector<Key> insertOrder; // for eviction, oldest first
-	std::vector<std::pair<std::thread, std::shared_ptr<FaceTrace>>> workers;
-
-	~FaceTraceCache()
+	// UI thread. Returns the trace for `key` -- possibly still empty -- and
+	// makes it the thing the worker is working toward. Never blocks on a
+	// render; the only lock held is around the bookkeeping.
+	std::shared_ptr<FaceTrace> request(const Key& key, const PanelSpec& spec)
 	{
-		for (auto& worker : workers)
+		std::unique_lock<std::mutex> lock(mutex);
+
+		if (!started)
 		{
-			if (worker.first.joinable())
-				worker.first.join();
+			worker = std::thread([this] { run(); });
+			started = true;
+		}
+
+		auto it = cache.find(key);
+		if (it == cache.end())
+		{
+			evictLocked();
+			it = cache.emplace(key, std::make_shared<FaceTrace>()).first;
+			order.push_back(key);
+		}
+
+		// Even a cached-but-incomplete trace is re-declared as wanted: it may
+		// have been abandoned half-done when the size changed away and back.
+		if (it->second->stage.load(std::memory_order_acquire) < 2)
+		{
+			wantedKey = key;
+			wantedSpec = spec;
+			haveWanted = true;
+			lock.unlock();
+			cv.notify_one();
+		}
+		return it->second;
+	}
+
+	~FaceRenderer()
+	{
+		{
+			std::lock_guard<std::mutex> lock(mutex);
+			quit = true;
+		}
+		cv.notify_one();
+		if (worker.joinable())
+			worker.join();
+	}
+
+private:
+	// Keep a few finished traces so flicking back to a previous size or layout
+	// is instant. Only COMPLETE ones are evicted -- an in-flight trace is
+	// still owned by the worker.
+	void evictLocked()
+	{
+		constexpr size_t kMaxCached = 8;
+		for (size_t i = 0; i < order.size() && cache.size() >= kMaxCached; )
+		{
+			const auto old = cache.find(order[i]);
+			if (old != cache.end() && old->second->stage.load(std::memory_order_acquire) == 2)
+			{
+				cache.erase(old);
+				order.erase(order.begin() + i);
+			}
+			else
+				++i;
 		}
 	}
+
+	void run()
+	{
+		for (;;)
+		{
+			Key key;
+			PanelSpec spec;
+			std::shared_ptr<FaceTrace> trace;
+			{
+				std::unique_lock<std::mutex> lock(mutex);
+				cv.wait(lock, [this] { return haveWanted || quit; });
+				if (quit)
+					return;
+
+				key = wantedKey;
+				spec = wantedSpec;
+				haveWanted = false;
+
+				const auto it = cache.find(key);
+				if (it == cache.end())
+					continue; // evicted while we waited; nothing to fill
+				trace = it->second;
+			}
+
+			if (trace->stage.load(std::memory_order_relaxed) >= 2)
+				continue;
+
+			// PREVIEW first, at a fraction of the size. Cost is linear in
+			// pixels, so 1/6 on a side is ~1/36th of the work: it lands in
+			// well under a second and gives the panel the right material under
+			// the right lights long before the full trace is done.
+			if (trace->stage.load(std::memory_order_relaxed) < 1)
+			{
+				trace->previewWidth = (std::max)(1u, (key.width + kPreviewDivisor - 1) / kPreviewDivisor);
+				trace->previewHeight = (std::max)(1u, (key.height + kPreviewDivisor - 1) / kPreviewDivisor);
+				trace->preview = traceFaceplate(trace->previewWidth, trace->previewHeight,
+					spec, kPreviewSamples);
+				trace->stage.store(1, std::memory_order_release);
+			}
+
+			// A cancellation point, and the one that matters: if the panel has
+			// been resized again while the preview was rendering, the seconds
+			// the full trace would cost are seconds spent on a size nobody is
+			// looking at. Drop it and go round for the newer one.
+			if (wantedElsewhere(key))
+				continue;
+
+			trace->fullWidth = key.width;
+			trace->fullHeight = key.height;
+			trace->full = traceFaceplate(key.width, key.height, spec, kSamplesPerPixel);
+			trace->stage.store(2, std::memory_order_release);
+		}
+	}
+
+	bool wantedElsewhere(const Key& key)
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		return (haveWanted && !(wantedKey == key)) || quit;
+	}
+
+	std::mutex mutex;
+	std::condition_variable cv;
+	std::map<Key, std::shared_ptr<FaceTrace>> cache;
+	std::vector<Key> order;
+	Key wantedKey{};
+	PanelSpec wantedSpec;
+	bool haveWanted = false;
+	bool quit = false;
+	bool started = false;
+	std::thread worker; // joined in the destructor: a detached thread still
+	                    // tracing inside this DLL when the host unloads it is
+	                    // a crash with no usable stack
 };
 
-std::shared_ptr<FaceTrace> faceTraceFor(uint32_t width, uint32_t height,
-	const PanelSpec& spec, uint64_t configHash)
+FaceRenderer& faceRenderer()
 {
-	static FaceTraceCache cache;
-
-	std::lock_guard<std::mutex> lock(cache.mutex);
-
-	// Reap finished workers: their trace is complete, so join returns at once.
-	for (size_t i = 0; i < cache.workers.size(); )
-	{
-		if (cache.workers[i].second->fullReady.load(std::memory_order_acquire))
-		{
-			cache.workers[i].first.join();
-			cache.workers.erase(cache.workers.begin() + i);
-		}
-		else
-			++i;
-	}
-
-	const FaceTraceCache::Key key{ width, height, configHash };
-	const auto it = cache.traces.find(key);
-	if (it != cache.traces.end())
-		return it->second;
-
-	// Evict the oldest COMPLETE traces beyond a small budget. The images are a
-	// couple of megabytes each and the Layout pin is edited live, so an
-	// unbounded cache would quietly grow by one render per edit. In-flight
-	// traces are exempt: their worker still owns a reference anyway.
-	constexpr size_t kMaxCached = 8;
-	for (size_t i = 0; i < cache.insertOrder.size() && cache.traces.size() >= kMaxCached; )
-	{
-		const auto old = cache.traces.find(cache.insertOrder[i]);
-		if (old != cache.traces.end()
-			&& old->second->fullReady.load(std::memory_order_acquire))
-		{
-			cache.traces.erase(old);
-			cache.insertOrder.erase(cache.insertOrder.begin() + i);
-		}
-		else
-			++i;
-	}
-
-	auto trace = std::make_shared<FaceTrace>();
-
-	trace->previewWidth = (std::max)(1u, (width + kPreviewDivisor - 1) / kPreviewDivisor);
-	trace->previewHeight = (std::max)(1u, (height + kPreviewDivisor - 1) / kPreviewDivisor);
-	trace->preview = traceFaceplate(trace->previewWidth, trace->previewHeight,
-		spec, kPreviewSamples);
-
-	trace->fullWidth = width;
-	trace->fullHeight = height;
-	std::thread worker([trace, width, height, spec]
-	{
-		trace->full = traceFaceplate(width, height, spec, kSamplesPerPixel);
-		trace->fullReady.store(true, std::memory_order_release);
-	});
-	cache.workers.emplace_back(std::move(worker), trace);
-
-	cache.traces.emplace(key, trace);
-	cache.insertOrder.push_back(key);
-	return trace;
+	static FaceRenderer instance;
+	return instance;
 }
 }
 
@@ -1514,11 +1597,11 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 	bool faceDirty = true;
 	bool captionDirty = true;
 
-	// The progressive face: a shared trace, which of its two images is currently
-	// in `faceBitmap`, and that bitmap's own pixel size.
+	// The progressive face: a shared trace, which stage of it is currently in
+	// `faceBitmap`, and that bitmap's own pixel size.
 	std::shared_ptr<FaceTrace> faceTrace;
 	SizeU faceSize{};
-	bool faceIsFull = false;
+	int faceStage = 0;      // 0 nothing drawn yet, 1 preview, 2 full
 	bool timerRunning = false;
 
 	// CpuReadable is what makes lockPixels() work at all, and SRGBPixels is what
@@ -1853,28 +1936,36 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 			const uint32_t height = (std::max)(1u, (uint32_t)std::lround(
 				(double)pixels.height * (double)width / (double)pixels.width));
 
-			faceTrace = faceTraceFor(width, height, buildSpec(), specConfigHash());
+			// ASKS for a render; never performs one. Returns immediately, with
+			// an empty trace if nothing has been rendered at this size yet.
+			faceTrace = faceRenderer().request(
+				{ width, height, specConfigHash() }, buildSpec());
 			faceBitmap = {};
-			faceIsFull = false;
+			faceStage = 0;
 			faceDirty = false;
 		}
 
-		// Take the full-size trace the moment it lands; show the preview until
-		// then. Both go through the same blit, stretched to `bounds`.
+		// Pick up whatever the worker has published since the last frame, and
+		// never go backwards. Both stages go through the same blit, stretched
+		// to `bounds`.
 		if (faceTrace)
 		{
-			if (faceTrace->fullReady.load(std::memory_order_acquire) && !faceIsFull)
+			const int stage = faceTrace->stage.load(std::memory_order_acquire);
+			if (stage > faceStage)
 			{
-				faceBitmap = bitmapFromImage(g, faceTrace->full,
-					faceTrace->fullWidth, faceTrace->fullHeight);
-				faceSize = { faceTrace->fullWidth, faceTrace->fullHeight };
-				faceIsFull = true;
-			}
-			else if (!faceBitmap)
-			{
-				faceBitmap = bitmapFromImage(g, faceTrace->preview,
-					faceTrace->previewWidth, faceTrace->previewHeight);
-				faceSize = { faceTrace->previewWidth, faceTrace->previewHeight };
+				if (stage >= 2)
+				{
+					faceBitmap = bitmapFromImage(g, faceTrace->full,
+						faceTrace->fullWidth, faceTrace->fullHeight);
+					faceSize = { faceTrace->fullWidth, faceTrace->fullHeight };
+				}
+				else
+				{
+					faceBitmap = bitmapFromImage(g, faceTrace->preview,
+						faceTrace->previewWidth, faceTrace->previewHeight);
+					faceSize = { faceTrace->previewWidth, faceTrace->previewHeight };
+				}
+				faceStage = stage;
 			}
 		}
 
@@ -1911,10 +2002,19 @@ public:
 	// touches nothing but its own FaceTrace, which outlives both.
 	bool onTimer() override
 	{
-		if (!faceTrace || faceTrace->fullReady.load(std::memory_order_acquire))
+		// Repaint whenever the worker has moved on a stage, and keep polling
+		// until the full-size image for the CURRENT size is the one on screen.
+		// Keyed on faceStage rather than on the trace being complete, because
+		// a resize starts a fresh trace and this has to follow it.
+		const int stage = faceTrace
+			? faceTrace->stage.load(std::memory_order_acquire) : 0;
+
+		if (stage != faceStage)
+			invalidate();
+
+		if (faceTrace && stage >= 2 && faceStage >= 2)
 		{
 			timerRunning = false;
-			invalidate();
 			return false; // returning false unregisters this client
 		}
 		return true;
@@ -1936,8 +2036,18 @@ public:
 			const Rect faceSource{ 0.0f, 0.0f, (float)faceSize.width, (float)faceSize.height };
 			g.drawBitmap(faceBitmap, bounds, faceSource);
 		}
+		else
+		{
+			// Nothing rendered yet. Flat grey in the panel's own silhouette --
+			// the cheapest thing that is still the right SHAPE, so a resize
+			// drag stays responsive and the panel does not flash its
+			// background through.
+			const float radius = cornerRadius(size);
+			auto brush = g.createSolidColorBrush(colorFromHex(kPlaceholderGrey));
+			g.fillRoundedRectangle(RoundedRect{ bounds, radius, radius }, brush);
+		}
 
-		if (!faceIsFull && !timerRunning)
+		if (faceStage < 2 && !timerRunning)
 		{
 			startTimer(kPollMs);
 			timerRunning = true;
