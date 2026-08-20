@@ -39,6 +39,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**macos — A32: the umbrella advisory, and the measurement that was already done**
+
+- A row that carries its own false-positive measurement is a different kind of spec: the build step is obedience, not design.
+- "Advisory" needs the reason printed with it, or it decays into noise.
+
 **macos — A31: the granularity was the whole design, and three measurements chose it**
 
 - A check's granularity is not a style choice — each candidate tier had a measurable false-alarm rate (14, 0, 6) and only one was shippable.
