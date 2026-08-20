@@ -3,6 +3,7 @@
 #include "helpers/GmpiPluginEditor.h"
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 using namespace gmpi;
 using namespace gmpi::editor;
@@ -11,6 +12,8 @@ using namespace gmpi::drawing;
 namespace
 {
 constexpr float kPi = 3.14159265358979323846f;
+// Where the pointer line starts, as a fraction of the radius out from the center.
+constexpr float kPointerInnerFraction = 0.25f;
 }
 
 // Knob look ported from VectorKnob_VCV (SynthEditLib/modules/SubControlsXp/VectorRingGui.cpp):
@@ -19,11 +22,24 @@ class TiDEknobGui final : public PluginEditor
 {
  	Pin<float> pinpatchValue;
  	Pin<std::wstring> pinHint;
+ 	// Pins are auto-indexed in declaration order, so these must stay in the same
+ 	// order as the <GUI> pins in TiDEknob.cpp.
+ 	Pin<std::string> pinBackgroundColor;
+ 	Pin<std::string> pinStrokeColor;
 
  	void onSetpatchValue()
 	{
 		if (drawingHost)
 			drawingHost->invalidateRect(nullptr);
+	}
+
+	// An unconnected colour pin arrives empty, which would decode as black —
+	// fall back to the built-in look instead. colorFromHexString is gmpi_ui's
+	// own (Drawing.h:654) and already implements SynthEdit's AARRGGBB
+	// convention, alpha taken from the high byte only when present.
+	static Color colorOrDefault(const std::string& hex, Color fallback)
+	{
+		return hex.empty() ? fallback : colorFromHexString(hex);
 	}
 
 	void calcDimensions(Point& center, float& radius, float& thickness)
@@ -47,6 +63,8 @@ public:
 	TiDEknobGui()
 	{
 		pinpatchValue.onUpdate = [this](PinBase*) { onSetpatchValue(); };
+		pinBackgroundColor.onUpdate = [this](PinBase*) { onSetpatchValue(); };
+		pinStrokeColor.onUpdate = [this](PinBase*) { onSetpatchValue(); };
 	}
 
 	ReturnCode hitTest(Point point, int32_t flags) override
@@ -133,8 +151,8 @@ public:
 		float thickness;
 		calcDimensions(center, radius, thickness);
 
-		auto brushForeground = g.createSolidColorBrush(Colors::White);
-		auto brushBackground = g.createSolidColorBrush(Colors::Gray);
+		auto brushForeground = g.createSolidColorBrush(colorOrDefault(pinStrokeColor.value, Colors::White));
+		auto brushBackground = g.createSolidColorBrush(colorOrDefault(pinBackgroundColor.value, Colors::Gray));
 
 		const float startAngleRadians = 35.0f * kPi / 180.0f; // gap between "straight down" and each end of the arc.
 		const float quarterTurnClockwise = kPi * 0.5f;
@@ -142,7 +160,11 @@ public:
 		const float normalized = std::clamp(pinpatchValue.value, 0.0f, 1.0f);
 		const float sweepAngle = normalized * (kPi * 2.0f - startAngleRadians * 2.0f);
 		const float angle = quarterTurnClockwise + startAngleRadians + sweepAngle;
-		const Point movingPoint{ center.x + radius * cosf(angle), center.y + radius * sinf(angle) };
+		const float dirX = cosf(angle);
+		const float dirY = sinf(angle);
+		// The pointer stops short of the center, leaving the hub uncovered.
+		const Point innerPoint{ center.x + radius * kPointerInnerFraction * dirX, center.y + radius * kPointerInnerFraction * dirY };
+		const Point movingPoint{ center.x + radius * dirX, center.y + radius * dirY };
 
 		auto strokeStyle = g.getFactory().createStrokeStyle(CapStyle::Round);
 
@@ -150,7 +172,7 @@ public:
 		g.fillCircle(center, radius + thickness * 0.5f, brushBackground);
 
 		// Pointer line.
-		g.drawLine(center, movingPoint, brushForeground, thickness, strokeStyle);
+		g.drawLine(innerPoint, movingPoint, brushForeground, thickness, strokeStyle);
 
 		return ReturnCode::Ok;
 	}
