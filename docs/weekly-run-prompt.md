@@ -523,13 +523,43 @@ The next run knows only what you write down.
     claim without an artifact must say "unverified" in the backlog row. Jeff
     merges on this evidence; without it, verified and unverified work are
     indistinguishable at merge time.
-  - Update BACKLOG.md: mark the item IN-REVIEW with links to every PR you
-    opened, or back to TODO with a note on what stopped you. IN-REVIEW means
-    "work complete, PRs open"; DONE means "landed". You never set DONE on your
-    own fresh work — a later run (or Jeff) flips IN-REVIEW to DONE and moves
-    the row to the Done section after observing that every linked PR merged.
-    If you see an IN-REVIEW row whose PRs have all merged, flip it as part of
-    your STEP 4.
+  - Update BACKLOG.md: mark the item IN-REVIEW, or back to TODO with a note on
+    what stopped you. IN-REVIEW means "work complete, PRs open"; DONE means
+    "landed". You never set DONE on your own fresh work — a later run (or Jeff)
+    flips IN-REVIEW to DONE and moves the row to the Done section after
+    observing that every linked PR merged. If you see an IN-REVIEW row whose
+    PRs have all merged, flip it as part of your STEP 4.
+
+    **The row must name your BRANCH, and the PR link is a best-effort extra
+    (BACKLOG A22).** The branch name is knowable before you push; a PR number is
+    not, because the PR does not exist until after the commit that would cite it.
+    The old wording said "with links to every PR you opened", which cannot be
+    satisfied in the same commit and so guaranteed a follow-up.
+
+    So: write the branch when you mark the row, push, open the PR, then push
+    **one more commit to the SAME branch** adding the number. That follow-up is
+    normal and costs nothing — you already own the branch and its PR is open.
+
+    **Check the PR is still open before you push that follow-up, and if it has
+    already merged, DROP it — do not push, and do not open a second PR.** The row
+    already names the branch, which is enough to find the work, and the merge
+    commit names the PR anyway. One command:
+
+        gh pr view <n> --json state --jq .state
+
+    The trap is specific and has been hit. On 2026-08-18 A4 auto-merged
+    [#120](https://github.com/JeffMcClintock/TideSynth/pull/120) **two minutes**
+    after it opened, while the follow-up was being pushed — so the follow-up
+    landed on a branch whose PR had already merged, which is **a pushed branch
+    with no PR, the one end state STEP 5 forbids.** Unwinding it took a second
+    branch and a second PR ([#121](https://github.com/JeffMcClintock/TideSynth/pull/121)),
+    and that PR's first attempt also edited the journal entry #120 had just
+    landed, which `check-journal-prepend.py` correctly rejected.
+
+    Pushing nothing is always safe here; pushing a commit whose only content is a
+    link is not worth a second PR. **The branch name in the row is what makes the
+    follow-up optional rather than load-bearing** — that is the whole point of
+    naming it.
   - **Before the first push in each repo, check who authored what you are about
     to push.** One command, and it must come back clean:
 
