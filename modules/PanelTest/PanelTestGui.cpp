@@ -9,8 +9,13 @@
 #include <mutex>
 #include <vector>
 #include <atomic>
+#include <cstdlib>
+#include <cstring>
+#include <functional>
 #include <memory>
+#include <string_view>
 #include <thread>
+#include <tuple>
 #include "helpers/Timer.h"
 // BACKLOG E15 - the caption's raised edge is NOT APPROVED (Jeff, 2026-08-19).
 // Switched off rather than deleted: the mechanism is sound and the finding
@@ -97,35 +102,43 @@ constexpr float kGrooveSlope = 0.22f;
 // in pixels, so without a ceiling a high-DPI or zoomed-in panel would quietly
 // become a ten-second stall. Above the cap the face is traced at the cap and
 // stretched, which costs a little sharpness and nothing else.
-// A punched ventilation grill across the top of the panel, staggered so the
-// holes pack hexagonally -- which is what a real punched sheet does, since it
-// fits more open area between the same web thickness.
-//
-// Pitch and hole size are in DIPs, like the corner radius, so the grill keeps
-// its apparent size instead of scaling with the panel.
-#define PANELTEST_VENT 1
-constexpr float kVentCentreYFrac = 0.90f; // of halfH: centred in the top 10%
+constexpr int kSamplesPerPixel = 128;
+constexpr uint32_t kMaxTracedWidth = 96;
+
+// The progressive preview: how much smaller it is on a side, and how few paths
+// it gets. Both are deliberately crude — it exists to be replaced within a
+// second or two, and being stretched over the panel hides most of its noise.
+constexpr uint32_t kPreviewDivisor = 6;
+constexpr int kPreviewSamples = 48;
+
+// How often the UI thread asks whether the worker has finished.
+constexpr int kPollMs = 100;
+
+// One rack unit of panel width. The Rack Units pin scales the panel in these,
+// and every layout coordinate and hardware size below is authored in the same
+// DIPs, so a "10.6 DIP knob" is the same physical knob on any width of module.
+constexpr float kRackUnitDips = 48.0f;
+
+// --- hardware, all sizes in DIPs ---------------------------------------------
+// WHERE things go now comes from the Layout pin; only WHAT they look like is
+// compiled in, per the one-look rule (PLAN constraint 8).
+
+// Punched vent: staggered so the holes pack hexagonally, which is what a real
+// punched sheet does — more open area between the same web thickness.
 constexpr float kVentPitchDips = 7.5f;
 constexpr float kVentHoleRadiusDips = 1.9f;
-constexpr int kVentCols = 5;
-constexpr int kVentRows = 4;
+constexpr int kVentColsDefault = 5;
+constexpr int kVentRowsDefault = 4;
 
-// A SECOND vent below the indent, slotted instead of punched, so the two styles
-// can be compared on one panel. A slot is just a rounded rectangle whose corner
-// radius is half its thickness -- a stadium -- so it reuses the same 2D helper
-// the faceplate and the pocket do.
-#define PANELTEST_SLOT_VENT 1
-constexpr float kSlotCentreYFrac = -0.93f; // of halfH, below the indent
+// Slotted vent: stadium slots (a rounded rect whose corner radius is half its
+// thickness), sharing the faceplate's own 2D rounded-rect field.
 constexpr float kSlotHalfLenDips = 13.0f;
 constexpr float kSlotHalfThickDips = 1.6f;
 constexpr float kSlotPitchDips = 5.5f;
-constexpr int kSlotRows = 3;
+constexpr int kSlotRowsDefault = 3;
 
-// Two jack sockets stacked in the indent: a shiny turned collar around a duller
-// black plastic body, with a blind bore down the middle. Radii are in DIPs so
-// the hardware stays the size it would really be, rather than growing with the
-// panel.
-#define PANELTEST_JACKS 1
+// Jack sockets: a plated collar set in a black moulded body, blind bore down
+// the middle.
 constexpr float kJackSurroundDips = 10.5f; // black plastic body, OUTSIDE the collar
 constexpr float kJackOuterDips = 7.0f;   // collar outer radius
 constexpr float kJackInnerDips = 4.4f;   // collar inner radius
@@ -144,42 +157,38 @@ constexpr float kJackBezelProudDips = 1.2f;
 // that sweeps through angles, so it is what catches the key light and draws
 // the bright arc around the plastic that the photo shows.
 constexpr float kJackBezelRoundDips = 0.9f;
-constexpr float kJackSpacingFrac = 0.5f; // of the indent's half height
 
 // The collar is nickel-plated hardware, not a mirror. Some roughness is both
 // more realistic and much quieter to render: a near-mirror finds the small
 // bright sources mostly by luck, so it speckles.
 constexpr float kJackMetalRoughness = 0.14f;
 
-// Knobs: plain black plastic cylinders with a bevelled rim, in the two sizes
-// Behringer's modules use. No flutes and no indicator -- the pointer is drawn
-// over the top in vector later, so baking one into the bitmap would fight it.
-//
-// The bevel is doing real work, not decoration. A flat cylinder top facing an
-// orthographic camera is one flat colour, exactly like the unbrushed faceplate;
-// the chamfer is the only part of the knob that sweeps through angles, so it is
-// what separates the knob from the panel behind it.
-// DIAGNOSTIC ONLY. Swings the camera off to one side so the hardware's HEIGHT
-// becomes visible: head-on, a tall knob and a flat disc are the same picture and
-// only the shading tells them apart. Leave at 0 -- the panel bitmap is wrong
-// while it is on.
-//
-// Still an ORTHOGRAPHIC camera, just rotated. tide::render has no perspective
-// mode, deliberately: a perspective knob only looks right from the exact spot
-// the camera was pointed, and panel art has to tile. For judging height that
-// costs nothing, since an axonometric view is what a technical drawing uses for
-// precisely this reason.
-#define PANELTEST_DIAGNOSTIC_VIEW 0
+// How far the collar's ring sits above the bezel's face, as a fraction of its
+// own tube radius. Above ~0.5 it starts to look like a washer balanced on the
+// surface rather than a nut done up against it.
+constexpr float kJackProudFrac = 0.25f;
 
-// The switch, or rather its SLOT -- the moving part gets drawn over the top in
-// vector later. A shallow pocket holding a plate of aluminium that is NOT
-// brushed, with a square hole punched through it into the void behind.
-//
-// The plate is a separate object because it is a different finish, and a
-// Material carries one of those. Isotropic against the panel's grain is the
-// whole point: the two read as different pieces of metal.
-#define PANELTEST_SWITCH 1
-constexpr float kSwitchCentreYFrac = -0.2875f; // of halfH, between knob and indent
+// The automatic indent. Jacks are grouped by proximity — centres within
+// kJackClusterDips share one pocket — and each group gets a pocket padded out
+// from the group's extent. The pocket then SHRINKS away from any other
+// component it would swallow, down to the minimum pad, because a pocket is a
+// jack feature: a knob half-in half-out of a pocket is a drawing error on a
+// real panel too.
+constexpr float kJackClusterDips = 46.0f;
+constexpr float kIndentPadDips = 5.0f;
+constexpr float kIndentMinPadDips = 2.0f;
+constexpr float kIndentCornerDips = 6.7f;
+constexpr float kIndentDepth = 0.035f;   // world units, from the front face
+constexpr float kIndentFillet = 0.02f;   // radius where the pocket meets the face
+
+// LED punch-outs: a plain small hole into a dark void. The lens and its light
+// get drawn over the top in vector later, like the knob pointer.
+constexpr float kLedHoleRadiusDips = 1.6f;
+
+// The switch slot: a shallow pocket holding an UNBRUSHED aluminium plate with
+// a square hole punched into a dark void. The moving part gets drawn over the
+// top in vector later. Isotropic against the panel's grain on purpose: the
+// two read as different pieces of metal.
 constexpr float kSwitchHalfWidthDips = 7.7f;
 constexpr float kSwitchHalfHeightDips = 13.4f;
 constexpr float kSwitchCornerDips = 2.0f;
@@ -196,59 +205,50 @@ constexpr float kSwitchHoleHalfDips = 4.3f;
 constexpr float kSwitchHoleCornerDips = 0.35f; // a punch leaves a slight radius
 constexpr float kSwitchHoleOffsetDips = 4.5f;  // above the pocket's centre
 
-#define PANELTEST_KNOBS 1
+// Knobs: plain black plastic cylinders with a bevelled rim, in the two sizes
+// Behringer's modules use. No flutes and no indicator -- the pointer is drawn
+// over the top in vector later, so baking one into the bitmap would fight it.
+//
+// The bevel is doing real work, not decoration: a flat cylinder top facing an
+// orthographic camera is one flat colour, exactly like the unbrushed faceplate;
+// the chamfer is the only part of the knob that sweeps through angles.
 constexpr float kKnobBigRadiusDips = 10.6f;
 constexpr float kKnobSmallRadiusDips = 6.2f;
 // Heights measured off the Behringer 112 photo, and the two sizes are NOT the
 // same proportion: the big knob is squat (height about 0.6 of its diameter)
-// while the small one is nearly as tall as it is wide. One shared fraction made
-// the small knob read as a button. Height also drives the cast shadow, which is
-// as long as the occluder is tall.
+// while the small one is nearly as tall as it is wide.
 constexpr float kKnobBigHeightFrac = 1.2f;   // of the knob's own radius
 constexpr float kKnobSmallHeightFrac = 1.7f; // ditto
-constexpr float kKnobBevelFrac = 0.18f;  // ditto
+constexpr float kKnobBevelFrac = 0.18f;
 constexpr float kKnobRoughness = 0.25f;
-constexpr float kKnobBigYFrac = 0.15f;   // of halfH, below the ball
-constexpr float kKnobSmallYFrac = -0.125f;
 
-// How far the collar's ring sits above the pocket floor, as a fraction of its
-// own tube radius. Above ~0.5 it starts to look like a washer balanced on the
-// surface rather than a nut done up against it.
-constexpr float kJackProudFrac = 0.25f;
+// --- the panel material, per the Material pin ---------------------------------
+constexpr float kFlatRoughness = 0.34f;   // flat aluminium: like the switch plate
+constexpr float kPowderRoughness = 0.45f; // powder coat: a satin dielectric skin
 
-constexpr int kSamplesPerPixel = 128;
-constexpr uint32_t kMaxTracedWidth = 96;
-
-// The progressive preview: how much smaller it is on a side, and how few paths
-// it gets. Both are deliberately crude — it exists to be replaced within a
-// second or two, and being stretched over the panel hides most of its noise.
-constexpr uint32_t kPreviewDivisor = 6;
-constexpr int kPreviewSamples = 48;
-
-// How often the UI thread asks whether the worker has finished.
-constexpr int kPollMs = 100;
-
-// --- EXPERIMENTS. Temporary, PanelTest only. --------------------------------
+// DIAGNOSTIC ONLY. Swings the camera off to one side so the hardware's HEIGHT
+// becomes visible: head-on, a tall knob and a flat disc are the same picture and
+// only the shading tells them apart. Leave at 0 -- the panel bitmap is wrong
+// while it is on.
+//
+// Still an ORTHOGRAPHIC camera, just rotated. tide::render has no perspective
+// mode, deliberately: a perspective knob only looks right from the exact spot
+// the camera was pointed, and panel art has to tile. For judging height that
+// costs nothing, since an axonometric view is what a technical drawing uses for
+// precisely this reason.
+#define PANELTEST_DIAGNOSTIC_VIEW 0
 
 // A mirrored ball floating in front of the panel, to SEE the environment the
 // faceplate is reflecting. The studio is procedural and invisible to the camera
 // (that is what keeps the panel's background transparent), so without something
 // specular in the scene there is no way to look at it directly.
-#define PANELTEST_MIRROR_BALL 1
+// OFF now the studio is settled -- it was a diagnostic, not part of the panel.
+// Set to 1 to put it back when the lighting next needs looking at.
+#define PANELTEST_MIRROR_BALL 0
+#if PANELTEST_MIRROR_BALL
 constexpr float kBallRadius = 0.42f;      // world units; the panel is 1.0 wide
 constexpr float kBallCentreYFrac = 0.45f; // of halfH, up from the middle
-
-// A shallow milled pocket in the bottom third. Every dimension is a FRACTION of
-// the panel's own half-extents, so it keeps its proportions if the panel is
-// resized or its aspect changes -- an absolute half-height would not even fit a
-// short panel.
-#define PANELTEST_INDENT 1
-constexpr float kIndentCentreYFrac = -0.65f; // of halfH; negative is down the panel
-constexpr float kIndentHalfWidthFrac = 0.68f; // of halfW
-constexpr float kIndentHalfHeightFrac = 0.21f; // of halfH
-constexpr float kIndentCornerFrac = 0.28f;   // of halfW
-constexpr float kIndentDepth = 0.035f;       // world units, from the front face
-constexpr float kIndentFillet = 0.02f;       // radius where the pocket meets the face
+#endif
 
 // --- the room -----------------------------------------------------------
 //
@@ -616,7 +616,283 @@ void addPanelStudio(tide::render::Scene& scene, float k)
 	}
 }
 
-#if PANELTEST_VENT
+// --- the layout specification -------------------------------------------------
+//
+// The Layout pin holds a tiny textual spec: one component per statement,
+// statements separated by newlines OR semicolons — semicolons because XML
+// attribute-value normalisation turns newlines into spaces, so a default
+// carrying real newlines would arrive as one long line. '#' starts a comment.
+//
+//   knob [big|small] X Y
+//   jack X Y
+//   switch X Y
+//   grill X Y [COLS ROWS]
+//   slots X Y [ROWS]
+//   led X Y
+//
+// X and Y are DIPs from the panel's TOP-LEFT, y downward — GUI coordinates, so
+// the vector overlays drawn later (knob pointers, switch levers, LED lenses)
+// can reuse the same numbers unchanged. The panel is RackUnits x 48 DIPs wide.
+//
+// Unparseable statements are SKIPPED, never errors: this text is edited live
+// in a pin, and a half-typed line must not blank the panel.
+struct PanelComponent
+{
+	enum class Kind : uint8_t { Knob, Jack, Switch, Grill, Slots, Led };
+	Kind kind{};
+	float x = 0.0f, y = 0.0f; // DIPs from panel top-left
+	bool big = false;         // knobs only
+	int cols = 0, rows = 0;   // grill / slots only
+};
+
+struct PanelSpec
+{
+	int units = 1;
+	int material = 0;               // Material pin: 0 brushed, 1 flat, 2 powder
+	Vec3 colour{ 0.5f, 0.5f, 0.5f };// powder coat albedo, LINEAR
+	std::vector<PanelComponent> components;
+};
+
+// strtof via a bounded copy rather than std::from_chars<float>, which is still
+// missing from some of the standard libraries this file has to build under.
+bool parseFloatToken(std::string_view t, float& out)
+{
+	char buf[32];
+	const size_t n = (std::min)(t.size(), sizeof(buf) - 1);
+	std::memcpy(buf, t.data(), n);
+	buf[n] = 0;
+	char* end = nullptr;
+	out = std::strtof(buf, &end);
+	return end != buf;
+}
+
+std::vector<PanelComponent> parsePanelLayout(const std::string& text)
+{
+	std::vector<PanelComponent> out;
+
+	size_t pos = 0;
+	while (pos <= text.size())
+	{
+		size_t end = text.find_first_of(";\n\r", pos);
+		if (end == std::string::npos)
+			end = text.size();
+		std::string_view line(text.data() + pos, end - pos);
+		pos = end + 1;
+
+		if (const auto hash = line.find('#'); hash != std::string_view::npos)
+			line = line.substr(0, hash);
+
+		// whitespace-split
+		std::vector<std::string_view> tok;
+		size_t i = 0;
+		while (i < line.size())
+		{
+			while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
+			size_t j = i;
+			while (j < line.size() && line[j] != ' ' && line[j] != '\t') ++j;
+			if (j > i)
+				tok.push_back(line.substr(i, j - i));
+			i = j;
+		}
+		if (tok.empty())
+			continue;
+
+		PanelComponent c{};
+		size_t coordAt = 1;
+		if (tok[0] == "knob")
+		{
+			c.kind = PanelComponent::Kind::Knob;
+			// Size keyword optional; a bare "knob X Y" is a small one.
+			if (tok.size() > 1 && (tok[1] == "big" || tok[1] == "small"))
+			{
+				c.big = (tok[1] == "big");
+				coordAt = 2;
+			}
+		}
+		else if (tok[0] == "jack")   c.kind = PanelComponent::Kind::Jack;
+		else if (tok[0] == "switch") c.kind = PanelComponent::Kind::Switch;
+		else if (tok[0] == "grill")  { c.kind = PanelComponent::Kind::Grill; c.cols = kVentColsDefault; c.rows = kVentRowsDefault; }
+		else if (tok[0] == "slots")  { c.kind = PanelComponent::Kind::Slots; c.rows = kSlotRowsDefault; }
+		else if (tok[0] == "led")    c.kind = PanelComponent::Kind::Led;
+		else
+			continue;
+
+		if (tok.size() < coordAt + 2)
+			continue;
+		if (!parseFloatToken(tok[coordAt], c.x) || !parseFloatToken(tok[coordAt + 1], c.y))
+			continue;
+
+		float v = 0.0f;
+		if (c.kind == PanelComponent::Kind::Grill && tok.size() >= coordAt + 4)
+		{
+			if (parseFloatToken(tok[coordAt + 2], v)) c.cols = (std::max)(1, (int)v);
+			if (parseFloatToken(tok[coordAt + 3], v)) c.rows = (std::max)(1, (int)v);
+		}
+		if (c.kind == PanelComponent::Kind::Slots && tok.size() >= coordAt + 3)
+		{
+			if (parseFloatToken(tok[coordAt + 2], v)) c.rows = (std::max)(1, (int)v);
+		}
+
+		out.push_back(c);
+	}
+	return out;
+}
+
+// --- the automatic indent ------------------------------------------------------
+
+struct DipRect { float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f; };
+
+// The keep-out footprint of a non-jack component, as a circle. Used only to
+// push pocket edges back, so generous-and-round beats tight-and-exact.
+float componentKeepOut(const PanelComponent& c)
+{
+	using tide::render::safeSqrt;
+	switch (c.kind)
+	{
+	case PanelComponent::Kind::Knob:
+		return (c.big ? kKnobBigRadiusDips : kKnobSmallRadiusDips) + 1.5f;
+	case PanelComponent::Kind::Switch:
+		return safeSqrt(kSwitchHalfWidthDips * kSwitchHalfWidthDips
+			+ kSwitchHalfHeightDips * kSwitchHalfHeightDips) + 1.5f;
+	case PanelComponent::Kind::Grill:
+	{
+		const float hw = 0.5f * kVentPitchDips * (float)c.cols;
+		const float hh = 0.5f * kVentPitchDips * 0.866f * (float)c.rows;
+		return safeSqrt(hw * hw + hh * hh) + 2.0f;
+	}
+	case PanelComponent::Kind::Slots:
+	{
+		const float hh = 0.5f * kSlotPitchDips * (float)c.rows;
+		return safeSqrt(kSlotHalfLenDips * kSlotHalfLenDips + hh * hh) + 2.0f;
+	}
+	case PanelComponent::Kind::Led:
+		return kLedHoleRadiusDips + 2.0f;
+	default:
+		return 0.0f;
+	}
+}
+
+// Shrink `rect` just enough to clear the circle, never past `minRect`, by
+// moving the ONE edge that costs the least area. One edge rather than all
+// four: the intruder sits on one side of the jacks, and that is the side the
+// pocket should give up.
+void shrinkPocketClear(DipRect& rect, const DipRect& minRect, float cx, float cy, float r)
+{
+	using tide::render::clampf;
+
+	const float px = clampf(cx, rect.x0, rect.x1);
+	const float py = clampf(cy, rect.y0, rect.y1);
+	const float dx = cx - px;
+	const float dy = cy - py;
+	if (dx * dx + dy * dy >= r * r)
+		return; // already clear
+
+	const float w = rect.x1 - rect.x0;
+	const float h = rect.y1 - rect.y0;
+
+	int bestEdge = -1;
+	float bestPos = 0.0f, bestCost = 0.0f;
+	const auto consider = [&](int edge, float pos, bool valid, float cost)
+	{
+		if (valid && cost >= 0.0f && (bestEdge < 0 || cost < bestCost))
+		{
+			bestEdge = edge;
+			bestPos = pos;
+			bestCost = cost;
+		}
+	};
+	consider(0, cx - r, cx - r >= minRect.x1, (rect.x1 - (cx - r)) * h); // pull right edge in
+	consider(1, cx + r, cx + r <= minRect.x0, ((cx + r) - rect.x0) * h); // pull left edge in
+	consider(2, cy - r, cy - r >= minRect.y1, (rect.y1 - (cy - r)) * w); // pull bottom edge up
+	consider(3, cy + r, cy + r <= minRect.y0, ((cy + r) - rect.y0) * w); // pull top edge down
+
+	switch (bestEdge)
+	{
+	case 0: rect.x1 = bestPos; break;
+	case 1: rect.x0 = bestPos; break;
+	case 2: rect.y1 = bestPos; break;
+	case 3: rect.y0 = bestPos; break;
+	default: break; // boxed in on every side: leave it; the layout is the error
+	}
+}
+
+// Jacks grouped by proximity (single linkage), one pocket per group, each
+// pocket shrunk away from anything that is not a jack.
+std::vector<DipRect> computeJackPockets(const std::vector<PanelComponent>& comps)
+{
+	std::vector<size_t> jacks;
+	for (size_t i = 0; i < comps.size(); ++i)
+		if (comps[i].kind == PanelComponent::Kind::Jack)
+			jacks.push_back(i);
+	if (jacks.empty())
+		return {};
+
+	// Label propagation until settled. A handful of jacks; O(n^2) is nothing.
+	std::vector<int> label(jacks.size());
+	for (size_t i = 0; i < label.size(); ++i)
+		label[i] = (int)i;
+
+	for (bool changed = true; changed; )
+	{
+		changed = false;
+		for (size_t a = 0; a < jacks.size(); ++a)
+		{
+			for (size_t b = a + 1; b < jacks.size(); ++b)
+			{
+				const auto& ca = comps[jacks[a]];
+				const auto& cb = comps[jacks[b]];
+				const float dx = ca.x - cb.x;
+				const float dy = ca.y - cb.y;
+				if (dx * dx + dy * dy <= kJackClusterDips * kJackClusterDips
+					&& label[a] != label[b])
+				{
+					const int merged = (std::min)(label[a], label[b]);
+					label[a] = label[b] = merged;
+					changed = true;
+				}
+			}
+		}
+	}
+
+	std::vector<DipRect> pockets;
+	for (size_t seed = 0; seed < jacks.size(); ++seed)
+	{
+		if (label[seed] != (int)seed)
+			continue; // not a cluster representative
+
+		DipRect bbox{ 1.0e9f, 1.0e9f, -1.0e9f, -1.0e9f };
+		for (size_t m = 0; m < jacks.size(); ++m)
+		{
+			if (label[m] != (int)seed)
+				continue;
+			const auto& c = comps[jacks[m]];
+			bbox.x0 = (std::min)(bbox.x0, c.x);
+			bbox.y0 = (std::min)(bbox.y0, c.y);
+			bbox.x1 = (std::max)(bbox.x1, c.x);
+			bbox.y1 = (std::max)(bbox.y1, c.y);
+		}
+
+		const float pad = kJackSurroundDips + kIndentPadDips;
+		const float minPad = kJackSurroundDips + kIndentMinPadDips;
+		DipRect pocket{ bbox.x0 - pad, bbox.y0 - pad, bbox.x1 + pad, bbox.y1 + pad };
+		const DipRect minRect{ bbox.x0 - minPad, bbox.y0 - minPad, bbox.x1 + minPad, bbox.y1 + minPad };
+
+		for (const auto& c : comps)
+		{
+			if (c.kind == PanelComponent::Kind::Jack)
+				continue;
+			const float r = componentKeepOut(c);
+			if (r > 0.0f)
+				shrinkPocketClear(pocket, minRect, c.x, c.y, r);
+		}
+
+		pockets.push_back(pocket);
+	}
+	return pockets;
+}
+
+// --- the cutter fields -----------------------------------------------------
+
 // The grill's holes, as one infinite-in-Z cylinder per hole, to be SUBTRACTED
 // from the plate so they go right through it.
 //
@@ -626,8 +902,8 @@ void addPanelStudio(tide::render::Scene& scene, float k)
 // yields a finite grid. Clamping is also why there are no half-holes: masking
 // an infinite hole field with a rectangle would slice through whichever holes
 // straddled the edge, which is exactly what a punched sheet never looks like.
-float sdVentHoles(const Vec3& p, float centreY, float pitchX, float pitchY,
-	float radius, int cols, int rows)
+float sdVentHoles(const Vec3& p, float centreX, float centreY, float pitchX,
+	float pitchY, float radius, int cols, int rows)
 {
 	using tide::render::clampf;
 	using tide::render::safeSqrt;
@@ -644,20 +920,18 @@ float sdVentHoles(const Vec3& p, float centreY, float pitchX, float pitchY,
 	const float offset = odd ? pitchX * 0.5f : 0.0f;
 	const int rowCols = odd ? cols - 1 : cols;
 
-	const float u = p.x + 0.5f * pitchX * (float)cols - offset;
+	const float u = (p.x - centreX) + 0.5f * pitchX * (float)cols - offset;
 	const float colF = std::floor(u / pitchX);
 	const float col = clampf(colF, 0.0f, (float)(rowCols - 1));
 	const float cx = u - (col + 0.5f) * pitchX;
 
 	return safeSqrt(cx * cx + cy * cy) - radius;
 }
-#endif
 
-#if PANELTEST_SLOT_VENT
 // The slotted vent's cutter: a stack of horizontal stadiums, limited-repeated
 // down y exactly as the punched grill is across x and y.
-float sdSlotVents(const Vec3& p, float centreY, float pitchY, float halfLen,
-	float halfThick, int rows)
+float sdSlotVents(const Vec3& p, float centreX, float centreY, float pitchY,
+	float halfLen, float halfThick, int rows)
 {
 	using tide::render::clampf;
 
@@ -667,12 +941,10 @@ float sdSlotVents(const Vec3& p, float centreY, float pitchY, float halfLen,
 	const float cy = (yTop - p.y) - (row + 0.5f) * pitchY;
 
 	// cornerR == halfThick is what turns the rectangle into a stadium.
-	return sdRoundRect2D(p.x, cy, 0.0f, 0.0f, halfLen, halfThick, halfThick);
+	return sdRoundRect2D(p.x, cy, centreX, 0.0f, halfLen, halfThick, halfThick);
 }
-#endif
 
-#if PANELTEST_INDENT
-// The solid that gets SUBTRACTED to leave the pocket: a rounded rectangle in
+// The solid that gets SUBTRACTED to leave a pocket: a rounded rectangle in
 // plan, running from the floor depth forward and out of the panel entirely.
 //
 // Open-ended forward on purpose. A closed box would need its front face placed
@@ -680,25 +952,34 @@ float sdSlotVents(const Vec3& p, float centreY, float pitchY, float halfLen,
 // making the "pocket" a dish; cutting with a half-space instead leaves a FLAT
 // floor, and the only fillet is the one opSmoothSubtract puts where the pocket
 // meets the face -- which is the edge you actually see.
-float sdIndentTool(const Vec3& p, float centreY, float halfW, float halfH,
-	float cornerR, float zFloor)
+float sdIndentTool(const Vec3& p, float centreX, float centreY, float halfW,
+	float halfH, float cornerR, float zFloor)
 {
-	const float d2 = sdRoundRect2D(p.x, p.y, 0.0f, centreY, halfW, halfH, cornerR);
+	const float d2 = sdRoundRect2D(p.x, p.y, centreX, centreY, halfW, halfH, cornerR);
 	return tide::render::maxf(d2, zFloor - p.z);
 }
-#endif
 
-// `dipsWide` is the panel's width in DIPs. It is what ties the groove density
-// and the corner radius — both authored in DIPs — to a scene whose width is
-// always exactly 1.0 world unit, so the look is resolution independent.
+// --- the spec-driven trace ---------------------------------------------------
+
 tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
-	float dipsWide, int samplesPerPixel)
+	const PanelSpec& spec, int samplesPerPixel)
 {
 	using namespace tide::render;
+
+	// The spec decides the panel's width in DIPs; the pin, not the on-screen
+	// size, because the module can be zoomed or resized without the hardware
+	// changing physical size.
+	const float dipsWide = kRackUnitDips * (float)(std::max)(1, spec.units);
 
 	const float halfW = 0.5f;
 	const float halfH = 0.5f * (float)pixelHeight / (float)pixelWidth;
 	const float halfZ = kPanelThickness;
+
+	// DIP space -> world space. The panel is dipsWide DIPs and exactly 1.0
+	// world units across. DIP y runs DOWN from the top-left (GUI space);
+	// world y runs UP from the centre.
+	const auto toWorldX = [dipsWide](float xDips) { return xDips / dipsWide - 0.5f; };
+	const auto toWorldY = [dipsWide, halfH](float yDips) { return halfH - yDips / dipsWide; };
 
 	Scene scene;
 
@@ -711,177 +992,172 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	const float grooves = kGroovesPerDip * dipsWide; // per world unit; world width is 1
 	const float amp = kGrooveSlope / (grooves * 2.0f);
 
-#if PANELTEST_JACKS && PANELTEST_INDENT
-	// Hoisted above the plate because the plate has to be DRILLED for them: a
-	// bore sunk only into the plastic just exposes the aluminium the body is
-	// embedded in, and the socket mouth comes out panel-coloured. Both parts
-	// need the same hole.
-	const float jackIndentCentreY = kIndentCentreYFrac * halfH;
-	const float jackIndentHalfH = kIndentHalfHeightFrac * halfH;
-	const float jackBoreR = kJackBoreDips / dipsWide;
-	const float jackY[2] = {
-		jackIndentCentreY + kJackSpacingFrac * jackIndentHalfH,
-		jackIndentCentreY - kJackSpacingFrac * jackIndentHalfH
-	};
-#endif
+	// Everything cut out of or behind the plate, gathered as WORLD-space PODs
+	// the panel's distance lambda can capture by value.
+	struct PocketW { float cx, cy, hw, hh, cr; };
+	struct GrillW { float cx, cy, pitchX, pitchY, r; int cols, rows; };
+	struct SlotW { float cx, cy, pitchY, halfLen, halfThick; int rows; };
+	struct HoleW { float x, y, r; };
+	struct SwitchW { float cx, cy, holeY; };
 
-#if PANELTEST_VENT
-	const float ventPitchX = kVentPitchDips / dipsWide;
-	const float ventPitchY = ventPitchX * 0.86602540f; // hexagonal row spacing
-	const float ventRadius = kVentHoleRadiusDips / dipsWide;
-	const float ventCentreY = kVentCentreYFrac * halfH;
+	std::vector<PocketW> pockets;
+	std::vector<GrillW> grills;
+	std::vector<SlotW> slotBanks;
+	std::vector<HoleW> holes; // jack bores and LED punch-outs
+	std::vector<SwitchW> switches;
 
-	// Something dark behind the holes. They are drilled RIGHT THROUGH, and the
-	// room is hidden from the camera so the panel keeps a transparent
-	// background -- which would make every hole a see-through gap onto the
-	// host's canvas. A backing plate gives them an interior to be dark against.
-	// It is deliberately narrower than the panel so it never shows past the
-	// silhouette and spoils that transparency.
+	for (const DipRect& r : computeJackPockets(spec.components))
 	{
-		const Vec3 centre{ 0.0f, ventCentreY, -halfZ - 0.12f };
-		const Vec3 half{
-			0.5f * ventPitchX * (float)kVentCols + 0.04f,
-			0.5f * ventPitchY * (float)kVentRows + 0.04f,
-			0.08f
-		};
+		pockets.push_back({
+			toWorldX(0.5f * (r.x0 + r.x1)),
+			toWorldY(0.5f * (r.y0 + r.y1)),
+			0.5f * (r.x1 - r.x0) / dipsWide,
+			0.5f * (r.y1 - r.y0) / dipsWide,
+			kIndentCornerDips / dipsWide });
+	}
 
+	// A dark interior behind every through-cut. Holes are drilled RIGHT
+	// THROUGH, and the room is hidden from the camera so the panel keeps a
+	// transparent background -- without a backing every hole would be a
+	// see-through gap onto the host's canvas.
+	const auto addBacking = [&scene](const Vec3& centre, const Vec3& half)
+	{
 		Object backing;
 		backing.material = recipes::paint({ 0.020f, 0.020f, 0.024f });
 		backing.boundsCentre = centre;
 		backing.boundsRadius = length(half) + 0.01f;
 		backing.distance = [centre, half](const Vec3& p) { return sdBox(p - centre, half); };
 		scene.add(std::move(backing));
-	}
-#endif
+	};
 
-#if PANELTEST_SWITCH
-	const float swCentreY = kSwitchCentreYFrac * halfH;
+	const float jackBoreR = kJackBoreDips / dipsWide;
+
+	for (const auto& c : spec.components)
+	{
+		const float wx = toWorldX(c.x);
+		const float wy = toWorldY(c.y);
+
+		switch (c.kind)
+		{
+		case PanelComponent::Kind::Jack:
+			holes.push_back({ wx, wy, jackBoreR });
+			break;
+
+		case PanelComponent::Kind::Led:
+			holes.push_back({ wx, wy, kLedHoleRadiusDips / dipsWide });
+			addBacking({ wx, wy, -halfZ - 0.12f },
+				{ (kLedHoleRadiusDips + 1.5f) / dipsWide, (kLedHoleRadiusDips + 1.5f) / dipsWide, 0.08f });
+			break;
+
+		case PanelComponent::Kind::Grill:
+		{
+			const float pitchX = kVentPitchDips / dipsWide;
+			const float pitchY = pitchX * 0.86602540f; // hexagonal row spacing
+			grills.push_back({ wx, wy, pitchX, pitchY,
+				kVentHoleRadiusDips / dipsWide, c.cols, c.rows });
+			addBacking({ wx, wy, -halfZ - 0.12f },
+				{ 0.5f * pitchX * (float)c.cols + 0.04f,
+				  0.5f * pitchY * (float)c.rows + 0.04f, 0.08f });
+			break;
+		}
+
+		case PanelComponent::Kind::Slots:
+		{
+			const float pitchY = kSlotPitchDips / dipsWide;
+			const float halfLen = kSlotHalfLenDips / dipsWide;
+			slotBanks.push_back({ wx, wy, pitchY, halfLen,
+				kSlotHalfThickDips / dipsWide, c.rows });
+			addBacking({ wx, wy, -halfZ - 0.12f },
+				{ halfLen + 0.04f, 0.5f * pitchY * (float)c.rows + 0.04f, 0.08f });
+			break;
+		}
+
+		case PanelComponent::Kind::Switch:
+		{
+			const float holeY = toWorldY(c.y - kSwitchHoleOffsetDips);
+			switches.push_back({ wx, wy, holeY });
+			const float hh = kSwitchHoleHalfDips / dipsWide;
+			addBacking({ wx, holeY, -halfZ - 0.12f }, { hh + 0.04f, hh + 0.04f, 0.08f });
+			break;
+		}
+
+		default:
+			break;
+		}
+	}
+
+	// --- the plate itself ----------------------------------------------------
+
+	Material faceMaterial;
+	bool grain = false;
+	switch (spec.material)
+	{
+	case 1: // flat aluminium: isotropic, like the switch plate
+		faceMaterial = recipes::polishedAluminium(kFlatRoughness);
+		break;
+	case 2: // powder-coated steel: a satin dielectric skin over the pin's colour
+		faceMaterial = recipes::plastic(spec.colour, kPowderRoughness);
+		break;
+	default: // brushed HORIZONTALLY: material axis and groove axis are one
+	         // decision in two places -- here and the brushGrain call below.
+		faceMaterial = recipes::brushed(recipes::polishedAluminium(kRoughness),
+			BrushMode::Fixed, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, kAnisotropy);
+		grain = true;
+		break;
+	}
+
 	const float swHalfW = kSwitchHalfWidthDips / dipsWide;
 	const float swHalfH = kSwitchHalfHeightDips / dipsWide;
 	const float swCorner = kSwitchCornerDips / dipsWide;
 	const float swFloorZ = halfZ - kSwitchDepth;
-
 	const float swHoleHalf = kSwitchHoleHalfDips / dipsWide;
 	const float swHoleCorner = kSwitchHoleCornerDips / dipsWide;
-	const float swHoleY = swCentreY + kSwitchHoleOffsetDips / dipsWide;
-
-	// The void the hole looks into.
-	{
-		const Vec3 centre{ 0.0f, swHoleY, -halfZ - 0.12f };
-		const Vec3 half{ swHoleHalf + 0.04f, swHoleHalf + 0.04f, 0.08f };
-
-		Object backing;
-		backing.material = recipes::paint({ 0.020f, 0.020f, 0.024f });
-		backing.boundsCentre = centre;
-		backing.boundsRadius = length(half) + 0.01f;
-		backing.distance = [centre, half](const Vec3& p) { return sdBox(p - centre, half); };
-		scene.add(std::move(backing));
-	}
-
-	// The inset plate: unbrushed, and buried well below the pocket floor so its
-	// underside never becomes a surface anything can see.
-	{
-		const float gap = kSwitchPlateGapDips / dipsWide;
-		const float top = swFloorZ + 0.010f;
-		const float bottom = swFloorZ - 0.05f;
-		const float hz = 0.5f * (top - bottom);
-		const float cz = 0.5f * (top + bottom);
-
-		Object plate;
-		plate.material = recipes::polishedAluminium(kSwitchPlateRoughness);
-		plate.boundsCentre = { 0.0f, swCentreY, cz };
-		plate.boundsRadius = safeSqrt(swHalfW * swHalfW + swHalfH * swHalfH + hz * hz) + 0.01f;
-		plate.distance = [=](const Vec3& p)
-		{
-			const float rect = sdRoundRect2D(p.x, p.y, 0.0f, swCentreY,
-				swHalfW - gap, swHalfH - gap, swCorner);
-			const float d = extrudeZ(rect, std::fabs(p.z - cz) - hz);
-
-			// The punched hole, straight through the plate.
-			return opSubtract(d, sdRoundRect2D(p.x, p.y, 0.0f, swHoleY,
-				swHoleHalf, swHoleHalf, swHoleCorner));
-		};
-		scene.add(std::move(plate));
-	}
-#endif
-
-#if PANELTEST_SLOT_VENT
-	const float slotCentreY = kSlotCentreYFrac * halfH;
-	const float slotPitchY = kSlotPitchDips / dipsWide;
-	const float slotHalfLen = kSlotHalfLenDips / dipsWide;
-	const float slotHalfThick = kSlotHalfThickDips / dipsWide;
-
-	// Same dark interior the punched grill needs, and for the same reason.
-	{
-		const Vec3 centre{ 0.0f, slotCentreY, -halfZ - 0.12f };
-		const Vec3 half{
-			slotHalfLen + 0.04f,
-			0.5f * slotPitchY * (float)kSlotRows + 0.04f,
-			0.08f
-		};
-
-		Object backing;
-		backing.material = recipes::paint({ 0.020f, 0.020f, 0.024f });
-		backing.boundsCentre = centre;
-		backing.boundsRadius = length(half) + 0.01f;
-		backing.distance = [centre, half](const Vec3& p) { return sdBox(p - centre, half); };
-		scene.add(std::move(backing));
-	}
-#endif
 
 	Object panel;
-	// Brushed HORIZONTALLY: the grain axis and the groove geometry have to agree,
-	// so this axis and the argument order into brushGrain below are one decision
-	// in two places.
-	panel.material = recipes::brushed(recipes::polishedAluminium(kRoughness),
-		BrushMode::Fixed, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, kAnisotropy);
+	panel.material = faceMaterial;
 	panel.boundsCentre = { 0.0f, 0.0f, 0.0f };
 	panel.boundsRadius = safeSqrt(halfW * halfW + halfH * halfH + halfZ * halfZ) + 0.05f;
 	panel.distance = [=](const Vec3& p)
 	{
 		float d = sdFaceplate(p, halfW, halfH, halfZ, cornerR, chamfer);
 
-#if PANELTEST_VENT
-		d = opSubtract(d, sdVentHoles(p, ventCentreY, ventPitchX, ventPitchY,
-			ventRadius, kVentCols, kVentRows));
-#endif
+		for (const auto& gr : grills)
+			d = opSubtract(d, sdVentHoles(p, gr.cx, gr.cy, gr.pitchX, gr.pitchY,
+				gr.r, gr.cols, gr.rows));
 
-#if PANELTEST_SWITCH
-		// The pocket, then the same square hole again -- the plate alone is not
-		// enough, because behind it is the panel, and a hole in one part only
-		// exposes the other. Same lesson as the jack bore.
-		d = opSmoothSubtract(d, sdIndentTool(p, swCentreY, swHalfW, swHalfH,
-			swCorner, swFloorZ), kIndentFillet);
-		d = opSubtract(d, sdRoundRect2D(p.x, p.y, 0.0f, swHoleY,
-			swHoleHalf, swHoleHalf, swHoleCorner));
-#endif
+		for (const auto& sl : slotBanks)
+			d = opSubtract(d, sdSlotVents(p, sl.cx, sl.cy, sl.pitchY,
+				sl.halfLen, sl.halfThick, sl.rows));
 
-#if PANELTEST_SLOT_VENT
-		d = opSubtract(d, sdSlotVents(p, slotCentreY, slotPitchY, slotHalfLen,
-			slotHalfThick, kSlotRows));
-#endif
+		for (const auto& sw : switches)
+		{
+			// The pocket, then the same square hole the plate gets -- the plate
+			// alone is not enough, because behind it is the panel, and a hole
+			// in one part only exposes the other. Same lesson as the jack bore.
+			d = opSmoothSubtract(d, sdIndentTool(p, sw.cx, sw.cy, swHalfW, swHalfH,
+				swCorner, swFloorZ), kIndentFillet);
+			d = opSubtract(d, sdRoundRect2D(p.x, p.y, sw.cx, sw.holeY,
+				swHoleHalf, swHoleHalf, swHoleCorner));
+		}
 
-#if PANELTEST_JACKS && PANELTEST_INDENT
-		// Clean through the plate. What the eye ends up looking down is the
-		// plastic barrel behind it, which is blind -- so the mouth goes dark
-		// without the hole becoming a see-through gap.
-		for (const float y : jackY)
-			d = opSubtract(d, sdCylinder(p - Vec3{ 0.0f, y, 0.0f }, jackBoreR, 1.0f));
-#endif
+		// Jack bores and LED punch-outs: clean through the plate. What the eye
+		// looks down is the dark thing behind -- the jack's blind barrel, the
+		// LED's backing box -- so the hole goes dark without becoming a
+		// see-through gap.
+		for (const auto& h : holes)
+			d = opSubtract(d, sdCylinder(p - Vec3{ h.x, h.y, 0.0f }, h.r, 1.0f));
 
-#if PANELTEST_INDENT
-		d = opSmoothSubtract(d, sdIndentTool(p,
-			kIndentCentreYFrac * halfH,
-			kIndentHalfWidthFrac * halfW,
-			kIndentHalfHeightFrac * halfH,
-			kIndentCornerFrac * halfW,
-			halfZ - kIndentDepth), kIndentFillet);
-#endif
+		for (const auto& po : pockets)
+			d = opSmoothSubtract(d, sdIndentTool(p, po.cx, po.cy, po.hw, po.hh,
+				po.cr, halfZ - kIndentDepth), kIndentFillet);
 
-		// ACROSS the grain is y now, so y is the fast axis. Swapping these two
-		// is the whole difference between a horizontally and a vertically
-		// brushed panel.
-		d -= amp * brushGrain(p.y * grooves, p.x * grooves);
+		if (grain)
+		{
+			// ACROSS the grain is y (horizontal brushing), so y is the fast
+			// axis. Swapping these two arguments is the whole difference
+			// between a horizontally and a vertically brushed panel.
+			d -= amp * brushGrain(p.y * grooves, p.x * grooves);
+		}
 
 		// Displacing a field inflates its gradient, and sphere tracing needs
 		// that gradient <= 1 or it steps straight through the surface. The
@@ -892,42 +1168,38 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	};
 	scene.add(std::move(panel));
 
-#if PANELTEST_JACKS && PANELTEST_INDENT
-	// Two jacks down the middle of the pocket. Each is TWO objects because it is
-	// two materials, which is also the cheapest way to say it: CSG between
-	// objects is a plain union, so the collar and the body simply overlap and
-	// each keeps its own surface.
+	// --- the hardware --------------------------------------------------------
+
+	for (const auto& c : spec.components)
 	{
-		const float floorZ = halfZ - kIndentDepth; // the pocket's floor
+		const float wx = toWorldX(c.x);
+		const float wy = toWorldY(c.y);
 
-		const float rSurround = kJackSurroundDips / dipsWide;
-		const float rOuter = kJackOuterDips / dipsWide;
-		const float rInner = kJackInnerDips / dipsWide;
-		const float rBore = jackBoreR;
-
-		// The bezel's face, which the collar sits on: above the PANEL surface,
-		// not the pocket floor.
-		const float bodyTop = halfZ + kJackBezelProudDips / dipsWide;
-		const float bezelRound = kJackBezelRoundDips / dipsWide;
-
-		for (int i = 0; i < 2; ++i)
+		switch (c.kind)
 		{
-			const float jy = jackY[i];
+		case PanelComponent::Kind::Jack:
+		{
+			// Two objects because it is two materials: CSG between objects is a
+			// plain union, so the collar and the body simply overlap and each
+			// keeps its own surface.
+			const float rSurround = kJackSurroundDips / dipsWide;
+			const float rOuter = kJackOuterDips / dipsWide;
+			const float rInner = kJackInnerDips / dipsWide;
 
-			// The collar: a TORUS, not a flat washer.
-			//
-			// The flat annulus this started as rendered nearly black, and for
-			// the same reason the faceplate itself does not work unbrushed: a
-			// flat mirror facing an orthographic camera reflects one direction,
-			// straight back past the camera at whatever happens to be behind it
-			// -- here a dim far wall. Nothing about being chrome helps. A round
-			// tube sweeps through every angle instead, so some part of it is
-			// always aimed at the key window, and that is what puts the bright
-			// ring around a real jack.
+			// The bezel's face, which the collar sits on: above the PANEL
+			// surface, not the pocket floor.
+			const float bodyTop = halfZ + kJackBezelProudDips / dipsWide;
+			const float bezelRound = kJackBezelRoundDips / dipsWide;
+
+			// The collar: a TORUS, not a flat washer. A flat annulus facing an
+			// orthographic camera reflects one direction -- a dim far wall --
+			// and renders nearly black no matter how chrome it is. A round
+			// tube sweeps through every angle, so some part of it is always
+			// aimed at the key window: that is the bright ring on a real jack.
 			{
 				const float minor = 0.5f * (rOuter - rInner);
 				const float major = 0.5f * (rOuter + rInner);
-				const Vec3 centre{ 0.0f, jy, bodyTop + kJackProudFrac * minor };
+				const Vec3 centre{ wx, wy, bodyTop + kJackProudFrac * minor };
 
 				Object collar;
 				collar.material = recipes::chrome(kJackMetalRoughness);
@@ -941,37 +1213,30 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			}
 
 			// The body: ONE piece of black plastic running right under the
-			// collar, so it shows both OUTSIDE the metal ring as a surround and
-			// INSIDE it around the mouth. That is how the real part is made --
-			// a moulded body with a plated ring set into it -- and it is why the
-			// collar reads as hardware sitting in something rather than as a
-			// ring lying loose on the aluminium.
+			// collar, so it shows both OUTSIDE the ring as a surround and
+			// INSIDE it around the mouth -- a moulded body with a plated ring
+			// set into it, which is how the real part is made.
 			//
 			// A BARREL, from just proud of the panel face to well BEHIND the
 			// plate. Its front face is the black surround; its length is what
-			// gives the bore somewhere deep to go. Stopping it inside the
-			// plate, as the first version did, capped the bore at the plate
-			// thickness and the mouth stayed light.
+			// gives the bore somewhere deep to go, and its rounded rim is the
+			// visible edge.
 			{
 				const float top = bodyTop;
 				const float bottom = -halfZ - 0.10f;
 				const float hz = 0.5f * (top - bottom);
-				const Vec3 centre{ 0.0f, jy, 0.5f * (top + bottom) };
+				const Vec3 centre{ wx, wy, 0.5f * (top + bottom) };
 
-				// A BLIND bore, but a DEEP one. Drilling straight through would
-				// put the pocket's bright aluminium at the end of it; stopping
-				// just short leaves a floor of black plastic, and going deep
-				// enough that almost nothing reaches the bottom is what makes
-				// the mouth read as an actual hole rather than a dark disc.
+				// A BLIND bore, but a DEEP one: deep enough that almost nothing
+				// reaches the bottom is what makes the mouth read as an actual
+				// hole rather than a dark disc.
 				const float boreDepth = 1.85f * hz;
+				const float rBore = jackBoreR;
 
 				Object body;
 				body.material = recipes::satinPlastic({ 0.020f, 0.020f, 0.022f });
 				body.boundsCentre = centre;
 				body.boundsRadius = safeSqrt(rSurround * rSurround + hz * hz) + 0.01f;
-				// Rounded, not plain: the rim fillet is the visible edge. The
-				// bottom rim gets rounded too, but it is buried behind the
-				// plate where nothing ever sees it.
 				body.distance = [centre, rSurround, rBore, hz, boreDepth, bezelRound](const Vec3& p)
 				{
 					const Vec3 q = p - centre;
@@ -982,36 +1247,64 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 				};
 				scene.add(std::move(body));
 			}
+			break;
 		}
-	}
-#endif
 
-#if PANELTEST_KNOBS
-	// Seated ON the panel face rather than sunk into it: centre offset by its
-	// own half height so the base lands exactly on the front surface.
-	{
-		const auto addKnob = [&](float radiusDips, float heightFrac, float yFrac)
+		case PanelComponent::Kind::Knob:
 		{
-			const float r = radiusDips / dipsWide;
-			const float hz = heightFrac * r;
-			const float chamfer = kKnobBevelFrac * r;
-			const Vec3 centre{ 0.0f, yFrac * halfH, halfZ + hz };
+			// Seated ON the panel face: centre offset by its own half height so
+			// the base lands exactly on the front surface.
+			const float r = (c.big ? kKnobBigRadiusDips : kKnobSmallRadiusDips) / dipsWide;
+			const float hz = (c.big ? kKnobBigHeightFrac : kKnobSmallHeightFrac) * r;
+			const float bevel = kKnobBevelFrac * r;
+			const Vec3 centre{ wx, wy, halfZ + hz };
 
 			Object knob;
 			knob.material = recipes::plastic({ 0.022f, 0.022f, 0.025f }, kKnobRoughness);
 			knob.boundsCentre = centre;
 			knob.boundsRadius = safeSqrt(r * r + hz * hz) + 0.01f;
-			knob.distance = [centre, r, hz, chamfer](const Vec3& p)
+			knob.distance = [centre, r, hz, bevel](const Vec3& p)
 			{
-				return sdChamferCylinder(p - centre, r, hz, chamfer);
+				return sdChamferCylinder(p - centre, r, hz, bevel);
 			};
 			scene.add(std::move(knob));
-		};
+			break;
+		}
 
-		addKnob(kKnobBigRadiusDips, kKnobBigHeightFrac, kKnobBigYFrac);
-		addKnob(kKnobSmallRadiusDips, kKnobSmallHeightFrac, kKnobSmallYFrac);
+		case PanelComponent::Kind::Switch:
+		{
+			// The inset plate: unbrushed, a shade smaller than its pocket (see
+			// kSwitchPlateGapDips), buried well below the pocket floor so its
+			// underside never becomes a surface anything can see.
+			const float holeY = toWorldY(c.y - kSwitchHoleOffsetDips);
+			const float gap = kSwitchPlateGapDips / dipsWide;
+			const float top = swFloorZ + 0.010f;
+			const float bottom = swFloorZ - 0.05f;
+			const float hz = 0.5f * (top - bottom);
+			const float cz = 0.5f * (top + bottom);
+
+			Object plate;
+			plate.material = recipes::polishedAluminium(kSwitchPlateRoughness);
+			plate.boundsCentre = { wx, wy, cz };
+			plate.boundsRadius = safeSqrt(swHalfW * swHalfW + swHalfH * swHalfH + hz * hz) + 0.01f;
+			plate.distance = [=](const Vec3& p)
+			{
+				const float rect = sdRoundRect2D(p.x, p.y, wx, wy,
+					swHalfW - gap, swHalfH - gap, swCorner);
+				const float d = extrudeZ(rect, std::fabs(p.z - cz) - hz);
+
+				// The punched hole, straight through the plate.
+				return opSubtract(d, sdRoundRect2D(p.x, p.y, wx, holeY,
+					swHoleHalf, swHoleHalf, swHoleCorner));
+			};
+			scene.add(std::move(plate));
+			break;
+		}
+
+		default:
+			break;
+		}
 	}
-#endif
 
 #if PANELTEST_MIRROR_BALL
 	// Sits in FRONT of the panel so nothing clips it. Chrome rather than
@@ -1048,7 +1341,8 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	return render(scene, camera, settings);
 }
 
-// One trace per pixel size, shared by every instance and every redraw.
+// One trace per (pixel size, panel configuration), shared by every instance
+// and every redraw.
 //
 // PROGRESSIVE, because a full trace is seconds and a redraw cannot wait. The
 // PREVIEW is traced synchronously at a fraction of the size — cost is linear in
@@ -1065,53 +1359,98 @@ struct FaceTrace
 	uint32_t fullWidth = 0, fullHeight = 0;
 };
 
-// Workers are JOINED at shutdown rather than detached. A detached thread still
-// running inside this DLL when the host unloads it is a crash with no usable
-// stack, and a trace takes long enough to make that a real race rather than a
-// theoretical one.
+// Workers are JOINED before their thread objects are destroyed. A detached
+// thread still running inside this DLL when the host unloads it is a crash
+// with no usable stack, and a trace takes long enough to make that a real race
+// rather than a theoretical one. Finished workers are also reaped as new work
+// arrives, so live-editing the Layout pin does not accumulate dead threads.
 struct FaceTraceCache
 {
+	struct Key
+	{
+		uint32_t width = 0, height = 0;
+		uint64_t config = 0;
+		bool operator<(const Key& o) const
+		{
+			return std::tie(width, height, config) < std::tie(o.width, o.height, o.config);
+		}
+	};
+
 	std::mutex mutex;
-	std::map<std::pair<uint32_t, uint32_t>, std::shared_ptr<FaceTrace>> traces;
-	std::vector<std::thread> workers;
+	std::map<Key, std::shared_ptr<FaceTrace>> traces;
+	std::vector<Key> insertOrder; // for eviction, oldest first
+	std::vector<std::pair<std::thread, std::shared_ptr<FaceTrace>>> workers;
 
 	~FaceTraceCache()
 	{
 		for (auto& worker : workers)
 		{
-			if (worker.joinable())
-				worker.join();
+			if (worker.first.joinable())
+				worker.first.join();
 		}
 	}
 };
 
-std::shared_ptr<FaceTrace> faceTraceFor(uint32_t width, uint32_t height, float dipsWide)
+std::shared_ptr<FaceTrace> faceTraceFor(uint32_t width, uint32_t height,
+	const PanelSpec& spec, uint64_t configHash)
 {
 	static FaceTraceCache cache;
 
 	std::lock_guard<std::mutex> lock(cache.mutex);
 
-	const auto key = std::make_pair(width, height);
+	// Reap finished workers: their trace is complete, so join returns at once.
+	for (size_t i = 0; i < cache.workers.size(); )
+	{
+		if (cache.workers[i].second->fullReady.load(std::memory_order_acquire))
+		{
+			cache.workers[i].first.join();
+			cache.workers.erase(cache.workers.begin() + i);
+		}
+		else
+			++i;
+	}
+
+	const FaceTraceCache::Key key{ width, height, configHash };
 	const auto it = cache.traces.find(key);
 	if (it != cache.traces.end())
 		return it->second;
+
+	// Evict the oldest COMPLETE traces beyond a small budget. The images are a
+	// couple of megabytes each and the Layout pin is edited live, so an
+	// unbounded cache would quietly grow by one render per edit. In-flight
+	// traces are exempt: their worker still owns a reference anyway.
+	constexpr size_t kMaxCached = 8;
+	for (size_t i = 0; i < cache.insertOrder.size() && cache.traces.size() >= kMaxCached; )
+	{
+		const auto old = cache.traces.find(cache.insertOrder[i]);
+		if (old != cache.traces.end()
+			&& old->second->fullReady.load(std::memory_order_acquire))
+		{
+			cache.traces.erase(old);
+			cache.insertOrder.erase(cache.insertOrder.begin() + i);
+		}
+		else
+			++i;
+	}
 
 	auto trace = std::make_shared<FaceTrace>();
 
 	trace->previewWidth = (std::max)(1u, (width + kPreviewDivisor - 1) / kPreviewDivisor);
 	trace->previewHeight = (std::max)(1u, (height + kPreviewDivisor - 1) / kPreviewDivisor);
 	trace->preview = traceFaceplate(trace->previewWidth, trace->previewHeight,
-		dipsWide, kPreviewSamples);
+		spec, kPreviewSamples);
 
 	trace->fullWidth = width;
 	trace->fullHeight = height;
-	cache.workers.emplace_back([trace, width, height, dipsWide]
+	std::thread worker([trace, width, height, spec]
 	{
-		trace->full = traceFaceplate(width, height, dipsWide, kSamplesPerPixel);
+		trace->full = traceFaceplate(width, height, spec, kSamplesPerPixel);
 		trace->fullReady.store(true, std::memory_order_release);
 	});
+	cache.workers.emplace_back(std::move(worker), trace);
 
 	cache.traces.emplace(key, trace);
+	cache.insertOrder.push_back(key);
 	return trace;
 }
 }
@@ -1120,6 +1459,10 @@ class PanelTestGui final : public PluginEditor, public gmpi::TimerClient
 {
 	Pin<std::string> pinText;
 	Pin<std::string> pinTextColor;
+	Pin<int32_t> pinRackUnits;
+	Pin<std::string> pinLayout;
+	Pin<int32_t> pinMaterial;
+	Pin<std::string> pinPanelColor;
 
 	Bitmap faceBitmap;
 	Bitmap captionBitmap;
@@ -1153,6 +1496,43 @@ class PanelTestGui final : public PluginEditor, public gmpi::TimerClient
 	{
 		captionDirty = true;
 		invalidate();
+	}
+
+	void onFaceChanged()
+	{
+		faceDirty = true;
+		invalidate();
+	}
+
+	// The face is fully described by four pins; this is that description as a
+	// value, plus a hash of it to key the trace cache. A collision would need
+	// two different pin states hashing identically AND sharing a pixel size.
+	PanelSpec buildSpec() const
+	{
+		PanelSpec spec;
+		spec.units = (std::clamp)(pinRackUnits.value, 1, 16);
+		spec.material = (std::clamp)(pinMaterial.value, 0, 2);
+
+		// colorFromHexString decodes sRGB to LINEAR (Drawing.h,
+		// SRGBPixelToLinear), which is exactly what the tracer wants an albedo
+		// to be -- no second conversion here.
+		const Color c = pinPanelColor.value.empty()
+			? colorFromHex(0x2E3238u)
+			: colorFromHexString(pinPanelColor.value);
+		spec.colour = { c.r, c.g, c.b };
+
+		spec.components = parsePanelLayout(pinLayout.value);
+		return spec;
+	}
+
+	uint64_t specConfigHash() const
+	{
+		std::string all;
+		all += pinLayout.value;         all += '\x1f';
+		all += std::to_string(pinRackUnits.value); all += '\x1f';
+		all += std::to_string(pinMaterial.value);  all += '\x1f';
+		all += pinPanelColor.value;
+		return (uint64_t)std::hash<std::string>{}(all);
 	}
 
 	// Magnitude of a transform's linear (scale) part.
@@ -1430,7 +1810,7 @@ class PanelTestGui final : public PluginEditor, public gmpi::TimerClient
 			const uint32_t height = (std::max)(1u, (uint32_t)std::lround(
 				(double)pixels.height * (double)width / (double)pixels.width));
 
-			faceTrace = faceTraceFor(width, height, size.width);
+			faceTrace = faceTraceFor(width, height, buildSpec(), specConfigHash());
 			faceBitmap = {};
 			faceIsFull = false;
 			faceDirty = false;
@@ -1469,6 +1849,12 @@ public:
 	{
 		pinText.onUpdate      = [this](PinBase*) { onCaptionChanged(); };
 		pinTextColor.onUpdate = [this](PinBase*) { onCaptionChanged(); };
+
+		const auto faceChanged = [this](PinBase*) { onFaceChanged(); };
+		pinRackUnits.onUpdate  = faceChanged;
+		pinLayout.onUpdate     = faceChanged;
+		pinMaterial.onUpdate   = faceChanged;
+		pinPanelColor.onUpdate = faceChanged;
 	}
 
 	~PanelTestGui()
@@ -1530,8 +1916,12 @@ auto r = Register<PanelTestGui>::withXml(R"XML(
 <?xml version="1.0" encoding="UTF-8"?>
 <Plugin id="SE TiDE:PanelTest" name="Panel Test" category="TiDE">
     <GUI graphicsApi="GmpiUi">
-        <Pin name="Text"       datatype="string_utf8" default=""/>
-        <Pin name="Text Color" datatype="string_utf8" default="FF101010"/>
+        <Pin name="Text"        datatype="string_utf8" default=""/>
+        <Pin name="Text Color"  datatype="string_utf8" default="FF101010"/>
+        <Pin name="Rack Units"  datatype="int" default="1"/>
+        <Pin name="Layout"      datatype="string_utf8" default="grill 24 20; knob big 24 163; knob small 24 216; switch 24 247; led 14 272; led 34 272; jack 24 297; jack 24 337; slots 24 371"/>
+        <Pin name="Material"    datatype="enum" default="0" metadata="Brushed Aluminium, Flat Aluminium, Powder-coated Steel"/>
+        <Pin name="Panel Color" datatype="string_utf8" default="FF2E3238"/>
     </GUI>
 </Plugin>
 )XML");
