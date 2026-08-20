@@ -543,6 +543,33 @@ float sdRoundRect2D(float px, float py, float cx, float cy,
 	return safeSqrt(qx * qx + qy * qy) + minf(maxf(ax, ay), 0.0f) - cornerR;
 }
 
+// Every through-cut WIDENS behind the front face, and this is not styling.
+//
+// A ray heading down a hole exactly parallel to its wall crawls: sphere tracing
+// steps by the distance to the nearest surface, that distance stays ~0 all the
+// way down, and the marcher hits kMaxMarchSteps (320) before it reaches the far
+// side. A ray that runs out of steps is reported as hitting NOTHING -- so the
+// pixel gets alpha 0 and the host's background shows through. Not a gap in the
+// geometry; the plate is solid. The ray never arrives to be stopped by it.
+//
+// Our own safety factor makes it worse: the panel returns d * 0.55 to stay
+// conservative about the groove displacement, which shortens every step by 45%.
+// The failing sliver works out about a TENTH of a pixel wide -- invisible at
+// 1:1 and a fat coloured ring the moment the panel view magnifies it.
+//
+// Tapering the cut makes the wall RECEDE from the ray, so the step size grows
+// geometrically instead of staying pinned, and the far side arrives in about a
+// hundred steps. It is also what a punched hole really looks like: the
+// break-out side is wider than the punch side.
+constexpr float kThroughCutTaper = 0.09f; // about 5 degrees
+
+// `d2` is the cut's cross-section, `frontZ` the panel's front face. Widening
+// only BEHIND the front face leaves the visible opening exactly as authored.
+float taperedCut(float d2, float pz, float frontZ)
+{
+	return d2 - kThroughCutTaper * tide::render::maxf(0.0f, frontZ - pz);
+}
+
 // Sweeps a 2D field along Z into a slab. Standard extrusion: the two distances
 // combine as a right triangle outside the solid and as the nearer face inside.
 float extrudeZ(float d2, float dz)
@@ -1277,7 +1304,7 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	const auto addBacking = [&scene](const Vec3& centre, const Vec3& half)
 	{
 		Object backing;
-		backing.material = recipes::paint({ 0.020f, 0.020f, 0.024f });
+		backing.material = recipes::paint({ 0.012f, 0.012f, 0.012f });
 		backing.boundsCentre = centre;
 		backing.boundsRadius = length(half) + 0.01f;
 		backing.distance = [centre, half](const Vec3& p) { return sdBox(p - centre, half); };
@@ -1376,6 +1403,34 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	const float swHoleHalfH = kSwitchHoleHalfHeightDips / dipsWide;
 	const float swHoleCorner = kSwitchHoleCornerDips / dipsWide;
 
+	// ONE backing plate behind the WHOLE panel, rather than a box per hole.
+	//
+	// Per-hole boxes each covered their own hole and still left blue rims,
+	// because a hole's edge is antialiased: the sub-pixel samples that go down
+	// the hole have to land on something, and anything they miss is scored as
+	// background -- which is transparent, so the host's canvas showed through
+	// at partial alpha. A plate that spans everything cannot be missed.
+	//
+	// Inset by a DIP so it can never poke past the panel's own silhouette and
+	// spoil the transparent surround, and given the panel's corner radius so
+	// the inset holds at the corners too.
+	{
+		const float inset = 1.0f / dipsWide;
+		const float backZ = -halfZ - 0.06f;
+
+		Object backplate;
+		backplate.material = recipes::paint({ 0.012f, 0.012f, 0.012f });
+		backplate.boundsCentre = { 0.0f, 0.0f, backZ };
+		backplate.boundsRadius = safeSqrt(halfW * halfW + halfH * halfH) + 0.1f;
+		backplate.distance = [halfW, halfH, cornerR, inset, backZ](const Vec3& p)
+		{
+			const float d2 = sdRoundRect2D(p.x, p.y, 0.0f, 0.0f,
+				halfW - inset, halfH - inset, cornerR);
+			return extrudeZ(d2, std::fabs(p.z - backZ) - 0.05f);
+		};
+		scene.add(std::move(backplate));
+	}
+
 	Object panel;
 	panel.material = faceMaterial;
 	panel.boundsCentre = { 0.0f, 0.0f, 0.0f };
@@ -1385,12 +1440,12 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 		float d = sdFaceplate(p, halfW, halfH, halfZ, cornerR, chamfer);
 
 		for (const auto& gr : grills)
-			d = opSubtract(d, sdVentHoles(p, gr.cx, gr.cy, gr.pitchX, gr.pitchY,
-				gr.r, gr.cols, gr.rows));
+			d = opSubtract(d, taperedCut(sdVentHoles(p, gr.cx, gr.cy,
+				gr.pitchX, gr.pitchY, gr.r, gr.cols, gr.rows), p.z, halfZ));
 
 		for (const auto& sl : slotBanks)
-			d = opSubtract(d, sdSlotVents(p, sl.cx, sl.cy, sl.pitchY,
-				sl.halfLen, sl.halfThick, sl.rows));
+			d = opSubtract(d, taperedCut(sdSlotVents(p, sl.cx, sl.cy, sl.pitchY,
+				sl.halfLen, sl.halfThick, sl.rows), p.z, halfZ));
 
 		for (const auto& sw : switches)
 		{
@@ -1399,16 +1454,23 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			// in one part only exposes the other. Same lesson as the jack bore.
 			d = opSmoothSubtract(d, sdIndentTool(p, sw.cx, sw.cy, swHalfW, swHalfH,
 				swCorner, swFloorZ), kIndentFillet);
-			d = opSubtract(d, sdRoundRect2D(p.x, p.y, sw.cx, sw.cy,
-				swHoleHalfW, swHoleHalfH, swHoleCorner));
+			d = opSubtract(d, taperedCut(sdRoundRect2D(p.x, p.y, sw.cx, sw.cy,
+				swHoleHalfW, swHoleHalfH, swHoleCorner), p.z, halfZ));
 		}
 
 		// Jack bores and LED punch-outs: clean through the plate. What the eye
 		// looks down is the dark thing behind -- the jack's blind barrel, the
 		// LED's backing box -- so the hole goes dark without becoming a
 		// see-through gap.
+		// Radial cross-section rather than sdCylinder, so the same taper
+		// applies: these are the deepest cuts and the worst offenders.
 		for (const auto& h : holes)
-			d = opSubtract(d, sdCylinder(p - Vec3{ h.x, h.y, 0.0f }, h.r, 1.0f));
+		{
+			const float dx = p.x - h.x;
+			const float dy = p.y - h.y;
+			const float radial = safeSqrt(dx * dx + dy * dy) - h.r;
+			d = opSubtract(d, taperedCut(radial, p.z, halfZ));
+		}
 
 		for (const auto& po : pockets)
 			d = opSmoothSubtract(d, sdIndentTool(p, po.cx, po.cy, po.hw, po.hh,
@@ -1500,7 +1562,7 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 				// Darker and matter than the knobs. It has to read as a VOID
 				// down the middle, and a glossy wall at grazing incidence is a
 				// near-perfect mirror -- which is how the sky got in there.
-				body.material = recipes::plastic({ 0.015f, 0.015f, 0.017f }, 0.42f);
+				body.material = recipes::plastic({ 0.015f, 0.015f, 0.015f }, 0.42f);
 				body.boundsCentre = centre;
 				body.boundsRadius = safeSqrt(rSurround * rSurround + hz * hz) + 0.01f;
 				body.distance = [centre, rSurround, rBore, hz, boreDepth, bezelRound](const Vec3& p)
@@ -1526,7 +1588,7 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			const Vec3 centre{ wx, wy, halfZ + hz };
 
 			Object knob;
-			knob.material = recipes::plastic({ 0.022f, 0.022f, 0.025f }, kKnobRoughness);
+			knob.material = recipes::plastic({ 0.023f, 0.023f, 0.023f }, kKnobRoughness);
 			knob.boundsCentre = centre;
 			knob.boundsRadius = safeSqrt(r * r + hz * hz) + 0.01f;
 			knob.distance = [centre, r, hz, bevel](const Vec3& p)
@@ -1559,8 +1621,8 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 				const float d = extrudeZ(rect, std::fabs(p.z - cz) - hz);
 
 				// The punched slot, straight through the plate.
-				return opSubtract(d, sdRoundRect2D(p.x, p.y, wx, wy,
-					swHoleHalfW, swHoleHalfH, swHoleCorner));
+				return opSubtract(d, taperedCut(sdRoundRect2D(p.x, p.y, wx, wy,
+					swHoleHalfW, swHoleHalfH, swHoleCorner), p.z, swFloorZ));
 			};
 			scene.add(std::move(plate));
 			break;
