@@ -376,6 +376,21 @@ a silent failure that produced plausible-looking output:
    by keeping one MIDI-CV at the document root and making the rack module a facade
    of jacks fed inward; the underlying limitation is **E7**, still open.
 
+   **AMENDED 2026-08-21 by Jeff, and the word to distrust here is "side-steps".**
+   Root-placement plus a Container that presents the module as patch-points is
+   **the intended architecture, not an evasion of a limitation**: *"conceptually
+   they are rack modules, but in reality we place the MIDI-CV2 at the root level
+   and route it into the Container (which represents it on the GUI as
+   patch-points). This is already solved. MIDI-CV as rack module [is] how the
+   end-user thinks of it, not how it is implemented."*
+
+   So E7's engine observation stands as a fact and **is not a blocker on
+   anything**, and *"rack module"* in this document should be read as a
+   statement about the user's model wherever it meets a question about
+   implementation. The polyphony model itself — modules always monophonic, the
+   runtime cloning them per voice — is ruled in
+   [docs/decisions.md](docs/decisions.md).
+
 **The dependency this document had backwards is resolved.** The original note
 follows, kept for the record.
 

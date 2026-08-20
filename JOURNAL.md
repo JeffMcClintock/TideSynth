@@ -74,6 +74,130 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — E16 ruled Tier 1, and four conventions came with it
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** recorded Jeff's E16 ruling — **TIDE ships Tier 1** — plus four
+conventions and seven corrections he gave alongside it, and verified the four
+claims that were checkable rather than transcribing them.
+
+### The ruling is a sequencing argument, not a size preference
+
+*"we need a testable, installable MVP first"* — Tier 1 is what lets installers,
+the website and the release track move, while the full set is developed in
+parallel by Jeff. The risk being managed is stated plainly: *"I wouldn't want
+to spend a lot of time on a full set only to find we got the design language
+wrong or something that requires a lot of redesign."* Every authored panel is
+hostage to E17 until an installable build has been tested.
+
+**The doc's own argument for Tier 2 was rejected as false.** It said that below
+Tier 2 a user *"can make a sound but not music"*; Jeff: *"Tier 1 absolutely can
+make music. Plenty of real hardware products ship with only this type of
+functionality."* Corrected in place.
+
+### Four claims checked against the tree, because each changes what is blocked
+
+| claim | verified |
+|---|---|
+| Oscillator HD is the oscillator TIDE ships | **already compiled in** by E2c (`SynthEditSem/CMakeLists.txt:299`) |
+| glide is already in MIDI-CV2 | **yes** — `CVoiceList.cpp` drives constant-rate glide via `HC_GLIDE_START_PITCH` into `MidiToCv2`'s `pitchInterpolator` |
+| pitch 0.5 = 440 Hz, 0.6 = 880 Hz | **exactly** — `ug_oscillator2.cpp:375` is `440.0 * pow(2.0, volts - 5.0)`, and `ULookup.h:9` agrees |
+| volts are display-only | consistent — `CVoiceList.cpp:980` records the "SE volts (0-10 V)" convention on the MIDI-CV host controls |
+
+**The first of those unblocks the MVP.** S8 has been carried as the oscillator's
+blocker since 2026-08-18, and its measurement is still true — but it is about
+`OscillatorNaive`, and TIDE ships `SE Oscillator4`. The row stays open for the
+packaging fault it found; it no longer gates E2.
+
+### The set is trimmed by three, each for a mechanism
+
+**Sample & Hold** out (*"not critical"*). **Slew/Glide** out — it is in MIDI-CV2,
+verified above. **Mixer** out, ruled minutes later once the question was put
+plainly: *"let's leave mixer out of MVP to reduce the critical path."* TIDE's
+cables fan in with automatic summing, so a mixer is convenience rather than
+capability.
+
+**So the MVP is NINE modules** — Oscillator HD, Envelope, Output, I/O modules,
+Filter, VCA, LFO, Noise, Attenuverter+Offset — and **nothing in the set is
+open**. Worth noting that the first pass of this entry recorded the Mixer as
+undecided rather than guessing which way *"quite useful though i guess"* fell;
+asking cost one line and got a ruling that also names its reason.
+
+### I flagged a critical-path risk that does not exist, and Jeff corrected it inside the hour
+
+Polyphony is ruled to be SynthEdit's existing model — modules always
+monophonic, the runtime clones them per voice on the DSP graph, voice count set
+on the MIDI-CV rack module, *"essentially free"*. The I/O modules are ruled to
+be rack modules, mandatory but movable. **I read those two together as putting
+MIDI-CV back inside a Container** — E7's measured failure — and wrote it up as
+newly on the MVP's critical path.
+
+**It is not, and the error is worth keeping.** Jeff: *"conceptually they are
+rack modules, but in reality we place the MIDI-CV2 at the root level and route
+it into the Container (which represents it on the GUI as patch-points). This is
+already solved. MIDI-CV as rack module [is] how the end-user thinks of it, not
+how it is implemented."*
+
+So root-placement-plus-facade **is the architecture**, and PLAN.md's word for it
+— *"v0.1 side-steps this"* — is what made it read as a temporary evasion of an
+open limitation. All four places that carried my inference are corrected:
+`decisions.md`, `module-set.md` §9.3, E7's row, and PLAN.md itself. **S28 turned out to be wrong too, and is closed** — see below.
+
+### S28: I filed a row without asking why two modules differed
+
+I had sharpened S28 to *"the root implementation modules should not render on
+the rack canvas"*. Jeff: *"if they have no GUI class (which MIDI-CV2 does not),
+they already don't render on the rack canvas (only on the structure-view).
+That's already implemented and working."*
+
+**Verified, and it splits the two modules the row had lumped together:**
+
+| module | GUI class | saved rect | rendered? |
+|---|---|---|---|
+| `SE MIDI to CV 2` | **none** — no `*Gui*` registration in SynthEditLib | **0,0,0,0** | no — the probe already skipped it as *"zero rect"* |
+| `MIDI In` | **yes** — `modules_internal/MidiInGui.cpp:123` | 8x14 | yes, because it is meant to |
+
+So the self-exclusion the row asked for **already exists by mechanism**, and the
+one module that does render has a GUI class and is *supposed* to. Under the same
+day's I/O-modules ruling it is a rack module that has not been authored to rack
+proportions yet — **E2's work on item #4, not a defect**. S28 is closed WONTFIX,
+and the probe's docstring now carries the discriminator so the next reader does
+not re-derive it or, worse, add a name-based exception list.
+
+**Learned:**
+
+1. **A correction that removes a blocker is worth checking hardest, not
+   least.** "We ship Oscillator HD" reads like a preference; it retired a
+   three-day-old blocker, and one grep proved the module was already in the
+   binary.
+2. **"Rack module" was a statement about the USER'S MODEL and I read it as one
+   about implementation** — then reasoned confidently from it to a critical-path
+   risk that does not exist. The tell I missed was available: V3 had already
+   built root-placement-plus-facade and it works. **A vocabulary that describes
+   the product can look exactly like one that describes the code**, and PLAN.md
+   calling the arrangement a *"side-step"* of a *"still open"* limitation is
+   what made the wrong reading the natural one.
+3. **Corrections are cheapest when the work is still unmerged.** These touched
+   four documents, a probe, a row and this entry; none had landed, so the
+   record shows the rulings rather than the rulings plus retractions.
+4. **Two wrong calls this session died to one habit: reasoning from a
+   measurement without asking what produced it.** S28 came from a probe line
+   listing two root modules, one measuring and one not — and I never asked why
+   they differed. One grep for a GUI class answers it. The probe was right both
+   times; the interpretation was not.
+
+**Next:**
+
+1. **E2 is unblocked** and now has a ruled list to author from.
+2. **E2 has everything it needs**: the Mixer is ruled out, and E7's container
+   boundary turned out to be already solved. Nothing in the set is open.
+3. The release track (R2-R6) has an MVP to package.
+
+**Branch/PR:** `tide/mac/E16-tier1-ruled` — TideSynth only, rulings and docs.
+
+---
+
 ## 2026-08-21 — macos — E5: the rack grid ruled, and the snap is gcd(12, 15)
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing

@@ -37,6 +37,21 @@ against a constant that does not govern. Corrected 2026-08-21 on Jeff's ruling.
 Pass --hp / --snap / --row / --rail if those ever move; the defaults are not
 guesses -- they are `RackLayout`'s.
 
+WHY A GUI-LESS MODULE NEEDS NO EXCEPTION HERE, measured 2026-08-21 after this
+probe reported TIDE's root plumbing and a row (S28) was filed for it in error.
+A module with no GUI class does not render on the rack at all -- only in the
+structure view -- and it self-excludes from this check by mechanism, because
+its saved panel rect is 0,0,0,0 and the zero-rect skip below already drops it.
+`SE MIDI to CV 2` is exactly that case: no `*Gui*` registration anywhere in
+SynthEditLib, zero rect, skipped, correct.
+
+So do NOT add a name-based exception list. If something appears here that you
+think should not, check whether it has a GUI class before concluding anything:
+`MIDI In` DOES (`modules_internal/MidiInGui.cpp`), which is why it measures
+8x14 and is reported -- it renders because it is meant to. Under the
+2026-08-21 I/O-modules ruling it is a rack module that simply has not been
+authored to rack proportions yet, which is E2's work and not a probe defect.
+
 WHAT IS DELIBERATELY NOT CHECKED: whether a module's LEFT EDGE sits on a
 column boundary. That needs `RackLayout::origin`, which is the master
 container's panel rect and is not in the saved document -- and it is not in

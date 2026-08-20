@@ -143,26 +143,38 @@ every competitor defers to a paid tier.
 
 | # | Module | Function | Primitive | Notes |
 |---|---|---|---|---|
-| 1 | **Oscillator** | the sound source | `ug_oscillator2` / `OscillatorNaive` | **blocked** — S8 measured zero `OscillatorNaive` symbols |
+| 1 | **Oscillator** | the sound source | **`SE Oscillator4` ("Oscillator HD")** | **RULED 2026-08-21: Oscillator HD is the one TIDE ships.** Already compiled into the plugin by E2c (`SynthEditSem/CMakeLists.txt`), so this is **not blocked** — S8's zero-symbol finding is about `OscillatorNaive`, a different module, and does not gate the MVP |
 | 2 | **Envelope (ADSR)** | shapes it | `ug_adsr`, `EnvelopeAdsr` | exists |
 | 3 | **Output** | reaches the host | `ug_soundcard_out` seam | authored from scratch — existing `Output.seprefab` has **no Sound Out** |
 
-### Tier 1 — the hard intersection (+9 → 12 total)
+### Tier 1 — the hard intersection (+9 → 12 as surveyed; **+6 → 9 as RULED**)
 
-Everything here appears in all five reference sets. Below this line a user can
-make a sound but not music.
+> **THE RULED MVP SET, 2026-08-21 — nine modules.** Tier 0's three (Oscillator
+> HD, Envelope, Output) plus **I/O modules, Filter, VCA, LFO, Noise,
+> Attenuverter+Offset**. Three of the surveyed nine are cut, each for a
+> mechanism rather than taste: **Mixer** and **Slew/Glide** because TIDE already
+> does the job (cables fan in with automatic summing; glide is inside MIDI-CV2),
+> and **Sample & Hold** as not critical. All three go to the second wave.
+
+Everything here appears in all five reference sets.
+
+**CORRECTED 2026-08-21 by Jeff.** This paragraph used to say that below this
+line a user *"can make a sound but not music"*. That is wrong, and it was the
+sentence arguing for Tier 2: *"Tier 1 absolutely can make music. Plenty of real
+hardware products ship with only this type of functionality."* **Tier 1 is the
+ruled MVP set** — see [decisions.md](decisions.md).
 
 | # | Module | Function | Primitive | Note |
 |---|---|---|---|---|
-| 4 | **Host I/O strip** (fixed) | Pitch/Gate/Velocity/CC in, audio in/out | `MidiToCv2`, soundcard seams | **not a placeable module** — see §2 |
+| 4 | **I/O modules** | Trigger/Gate/Pitch/Velocity in, audio in/out | `MidiToCv2`, soundcard seams | **RULED 2026-08-21: mandatory and not deletable, but they ARE rack modules** — placed and movable like any other. Supersedes this row's old "not a placeable module". Four separate signals, not a combined gate — see the gate convention in [decisions.md](decisions.md) |
 | 5 | **Filter (SVF)** | multimode, all outputs exposed | `ug_filter_sv`, `SVFilter2`, `VaFilters` | |
 | 6 | **VCA** | level by CV | `ug_vca` | **must have a lin/exp switch** — see §7 |
 | 7 | **LFO** | cyclic modulation | `ug_oscillator2` at low rate | host-tempo sync + reset input |
-| 8 | **Mixer** (audio + CV) | sum several signals | `ug_adder2` | make the CV path exact |
+| ~~8~~ | ~~Mixer~~ (audio + CV) | sum several signals | `ug_adder2` | **CUT from the MVP 2026-08-21** — *"let's leave mixer out of MVP to reduce the critical path."* TIDE's patch cables **fan in with automatic summing**, so a mixer is convenience rather than capability. Second-wave expansion |
 | 9 | **Noise** | white/pink | `ug_random` | pairs with S&H — a canonical compound |
-| 10 | **Sample & Hold** | stepped random | `ug_sample_hold` | include an internal noise source |
+| ~~10~~ | ~~Sample & Hold~~ | stepped random | `ug_sample_hold` | **CUT from the MVP 2026-08-21** — *"not critical"*. Second-wave expansion |
 | 11 | **Attenuverter + Offset** | scale, invert, offset CV | `ug_multiplier`, `ug_adder2` | **one module, not two** — every set bundles them |
-| 12 | **Slew / Glide** | portamento, smooth CV | `ug_filter_1pole_lp` | 5/5 sets |
+| ~~12~~ | ~~Slew / Glide~~ | portamento, smooth CV | `ug_filter_1pole_lp` | **CUT from the MVP 2026-08-21 — already built into MIDI-CV2**, verified: `CVoiceList.cpp` drives its constant-rate glide via `HC_GLIDE_START_PITCH` into `MidiToCv2`'s `pitchInterpolator`. Not needed standalone |
 
 ### Tier 2 — the credible first release (+10 → 22 total)
 
@@ -265,10 +277,18 @@ E2 authors anything.
 
 ## 9. What this document does not settle
 
-1. **The pitch convention** (§2.5) — measure SynthEdit first, then rule.
+1. ~~The pitch convention~~ — **ANSWERED 2026-08-21**: the signal is SynthEdit
+   pitch (0.5 = 440 Hz, 0.6 = 880 Hz) and volts are a **display convention
+   only**. Verified in `ug_oscillator2.cpp:375`. See [decisions.md](decisions.md).
 2. **Whether `Mod A`/`Mod B` is adoptable** in SynthEdit's Container model at
    acceptable cost. The MVP list's shape depends on the answer.
-3. **The polyphony model** (§8).
+3. ~~The polyphony model~~ — **ANSWERED 2026-08-21**: SynthEdit's existing one.
+   Modules are always monophonic and the runtime clones them per voice on the
+   DSP graph only; the user sets a voice count on the MIDI-CV rack module.
+   **And the container question is already answered, not open**: MIDI-CV2 is
+   placed at the ROOT and routed into the Container, which presents it on the
+   GUI as patch-points. "Rack module" is how the user thinks of it, not how it
+   is built — so nothing needs polyphony to cross a Container boundary.
 4. **Which primitives are actually linked** per module in the shipped binary.
    S8 has one measurement (`OscillatorNaive`: zero); nobody has done the rest.
 5. **Panel authoring cost per module** — unknown until the first few are built,
