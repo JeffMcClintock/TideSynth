@@ -46,6 +46,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A per-target compile option is the wrong tool when a requirement belongs to one file.
 - `pkill -f <name>` matches the shell running it
 
+**linux — S17: name the folder, not the decision**
+
+- A message that names a DECISION cannot catch a wrong RESOLUTION.
+- Check whether the bug you were sent to fix is present in the tree you are fixing.
+- `set(PARENT_SCOPE)` from a function called in a subdirectory reaches that subdirectory, not the top level.
+- Dependencies here come from three places, not two
+
 **linux — A30: the lessons digest, and why the literal spec would have backfired**
 
 - A spec that says "copy X into a file every run reads" is a size decision in disguise, and it should be measured before it is implemented.

@@ -17,9 +17,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(gmpi_wrappers)
 set(GMPI_ADAPTORS ${gmpi_wrappers_SOURCE_DIR})
+tide_report_dependency(GMPI_Wrappers "${GMPI_ADAPTORS}" "fetched")
 else()
 message(STATUS "Using local GMPI WRAPPERS folder")
 set(GMPI_ADAPTORS ${GMPI_WRAPPER_FOLDER_OVERRIDE})
+# S17 names this override as the original of the trap -- everything looks local
+# and one dependency silently is not. Same check as the root's four.
+tide_check_not_shadowed(gmpi_wrappers "${GMPI_WRAPPER_FOLDER_OVERRIDE}")
+tide_report_dependency(GMPI_Wrappers "${GMPI_ADAPTORS}" "local override")
 endif()
 
 project(TIDE)

@@ -172,6 +172,106 @@ actually does something.
 
 ---
 
+---
+
+## 2026-08-20 — linux — S17: name the folder, not the decision
+
+**Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
+
+**Fourth item this session**, continued at Jeff's direction. TIDE-side half only;
+the SE16 half is filed as **S22**, per STEP 5's rule for a fix spanning the gate.
+
+**Did:** made TIDE's configure name the **resolved path** of every dependency,
+and made a shadowed override fail loudly.
+
+### The thing this row assumed, that nobody had checked
+
+**TideSynth's own build does not have the defect.** Configured with
+`-DGMPI_UI_FOLDER_OVERRIDE=~/SE/gmpi_ui` and read the compile flags rather than
+the message: they are **`-I/home/jef/SE/gmpi_ui`**, and **no `_deps/gmpi_ui-src`
+is created at all**. The shadowing is SE16's, not C7d's root — so a run that
+"fixes" TideSynth expecting E12's symptom to move will be chasing nothing.
+
+Accept clause 2 (*"editing the local clone changes the binary"*) therefore
+already held here. Clause 1 (*"a build log line naming the resolved path per
+dependency"*) did not, and is what landed.
+
+### What the log says now
+
+All **8** dependencies, in one block after every `add_subdirectory`:
+
+```
+-- TIDE dependency provenance -- 8 resolved:
+--   vst3_sdk <- /home/jef/.cache/CPM/vst3_sdk/2df5ae7.../vst3_sdk [CPM cache]
+--   SynthEditLib <- <tree>/build/_deps/syntheditlib-src [fetched]
+--   GMPI <- <tree>/build/_deps/gmpi-src [fetched]
+--   gmpi_ui <- <tree>/build/_deps/gmpi_ui-src [fetched]
+--   CLAP, clap_helpers, harfbuzz, GMPI_Wrappers ...
+```
+
+`cmake -B build 2>&1 | grep "dep "` is the whole diagnostic.
+
+**Two of the eight were never announced at all**, which I did not expect:
+`vst3_sdk` and `harfbuzz` resolve out of **`~/.cache/CPM/`** — a *third* source,
+mentioned neither by the old messages nor by S17's own text. A stale entry there
+is invisible in exactly the way S17 describes, and it is shared across every
+build on the box.
+
+### The check is proven by a positive control, not by reading it
+
+`tide_check_not_shadowed` fires when an override is set *and* a fetched copy
+exists. Creating `build/_deps/gmpi_ui-src` by hand with the override set makes
+configure exit **1**, naming both paths. Without that control it would be
+untested code that always passes — the same class of thing as a probe that never
+fails.
+
+**Result:** configure rc=0; reconfigure holds at **8** rather than doubling; full
+Release build **rc=0, zero error lines**; artifacts produced; and S21's probe
+still passes on the same tree.
+
+**One live bug found while building it:** the first version printed **7 of 8**.
+`SynthEditSem/` resolves `GMPI_Wrappers` in its own directory scope, and
+`set(... PARENT_SCOPE)` from a function called there reaches *that* directory,
+never the root. Fixed by accumulating in a `CACHE INTERNAL` variable
+`FORCE`-cleared at the top of each configure, so reconfigures rebuild the list
+rather than doubling it.
+
+**Learned:**
+
+1. **A message that names a DECISION cannot catch a wrong RESOLUTION.** "Using
+   local X" was true and useless — the override was read, and something else
+   still won. Print the path, not the branch you took.
+2. **Check whether the bug you were sent to fix is present in the tree you are
+   fixing.** S17 is written about SynthEdit's build; TideSynth's turned out to be
+   correct, and only reading the compile flags rather than the log showed it.
+3. **`set(PARENT_SCOPE)` from a function called in a subdirectory reaches that
+   subdirectory, not the top level.** The symptom was a count of 8 beside 7
+   printed lines — arithmetic that looks self-consistent until you count twice.
+4. **Dependencies here come from three places, not two:** an override,
+   `build/_deps/`, and the shared `~/.cache/CPM/`. Any reasoning about "is this
+   local?" that considers only the first two is incomplete.
+
+**Next:**
+
+1. **S22** carries the same ~30 lines into `SE16/CMakeLists.txt`, where the
+   defect was actually observed. GATED and not a build break, so it needs Jeff or
+   an approved stage — a run cannot take it.
+2. **`VST3_SDK_FOLDER_OVERRIDE` is read but never declared** as a cache variable
+   (`CMakeLists.txt:99` reads it; `:36` declares `VST3_SDK_USE_MIDI_UMP`
+   instead), so unlike the other four it is settable only with `-D`. Left unfixed
+   as outside this row, and recorded on S22 — SE16 is what this file was copied
+   from and may share it.
+3. **This branch predates A30's merge, so `docs/lessons.md` is not regenerated
+   here.** Nothing enforces that it is; A30's own entry says so. Whoever merges
+   both should run `python3 scripts/extract-lessons.py --write`.
+4. Unchanged: **the `apt-get` in `build.yml`** is still the only thing between
+   C7e and closed. CI has now filed six issues for it (#189, #190, #191, #193,
+   #195, #197).
+
+**Branch/PR:** `tide/linux/S17-dependency-provenance` — TideSynth only.
+
+---
+
 ## 2026-08-20 — linux — A30: the lessons digest, and why the literal spec would have backfired
 
 **Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
@@ -259,10 +359,6 @@ the system ` `` was a real output line. This journal is full of `.pc` and
    and closed**, and CI filed a fifth issue (#195) for it while this ran.
 
 **Branch/PR:** `tide/linux/A30-lessons-digest` — TideSynth only.
-
----
-
----
 
 ---
 
