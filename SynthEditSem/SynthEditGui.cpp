@@ -36,6 +36,10 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #ifdef _WIN32
 #include <windows.h> // SetCursor / LoadCursor / IDC_CROSS — drag-affordance cursor
 #endif
+#ifdef __APPLE__
+// S24 — the AppKit analogue of the Win32 shortcut above; TideCursorMac.mm.
+void tideShowCrossCursor(bool show);
+#endif
 
 // ---------------------------------------------------------------------------
 // PaneHostWrapper — translates IDialogHost rect args from form-local-from-zero
@@ -605,8 +609,14 @@ public:
 			// ending. ViewBase::DragNewModule handles both cases (null clears
 			// the drag-receive flag).
 			view->DragNewModule(static_cast<const char*>(pHint));
-			// Track for the cross-cursor effect in onPointerMove (Win32-only).
+			// Track for the cross-cursor effect in onPointerMove.
 			dragInProgress = (pHint != nullptr);
+#ifdef __APPLE__
+			// S24: change at the browser click itself, and restore the arrow
+			// the moment the arm ends — the per-move re-assert below only
+			// runs while armed, so it can never un-set the cross.
+			tideShowCrossCursor(dragInProgress);
+#endif
 		}
 		else if (lHint == OM_INSERT_MODULE_AT_VIEW_CENTER && view && pHint)
 		{
@@ -1062,13 +1072,20 @@ public:
 	ReturnCode onPointerMove(gmpi::drawing::Point point, int32_t flags) override
 	{
 		// Cross cursor while drag-from-browser is in progress. GMPI doesn't
-		// expose setCursor on IInputHost, so we go straight to Win32 here.
+		// expose setCursor on IInputHost, so we go straight to the OS here
+		// (Win32 / AppKit; linux still has no path — S24 notes why).
 		// Re-set every move because the host's WM_SETCURSOR handler will
 		// otherwise revert to the default arrow between events. Crude, but
 		// the simplest thing that works for our one-off drag affordance.
 #ifdef _WIN32
 		if (dragInProgress)
 			::SetCursor(::LoadCursor(nullptr, IDC_CROSS));
+#endif
+#ifdef __APPLE__
+		// S24: same re-assert for AppKit — cursor rects (window edges, text
+		// fields) reset the cursor on their own schedule, like WM_SETCURSOR.
+		if (dragInProgress)
+			tideShowCrossCursor(true);
 #endif
 
 		// Scrollbar drag wins over pane routing while it's active.

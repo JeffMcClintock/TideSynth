@@ -132,6 +132,7 @@ gmpi_plugin(
 
 	  SynthEdit.cpp
 	  SynthEditGui.cpp
+	  $<$<PLATFORM_ID:Darwin>:${CMAKE_CURRENT_SOURCE_DIR}/TideCursorMac.mm>  # S24 cross cursor
 	  SynthEditController.cpp
 	  TideApp.h
 	  TideApp.cpp

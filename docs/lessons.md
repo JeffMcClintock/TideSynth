@@ -39,6 +39,10 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut**
+
+- Third time today a row's central premise had moved before it was taken
+
 **macos — E15: the rack's faceplate is TIDE's own panel, and two breaks the swap flushed out**
 
 - A module that measures itself is a different contract from a rectangle that takes orders, and the prefab grid only worked because the old faceplate obeyed it.
