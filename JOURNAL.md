@@ -74,6 +74,106 @@ Template:
 
 ---
 
+## 2026-08-20 — linux — E14: TIDE's own two modules are in the product, and half of Accept is met
+
+**Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
+
+**Sixth item this session**, at Jeff's direction — and taken on linux only because
+S21's correction showed the visual check IS possible here. I had ruled E14 out
+on the wrong premise a few hours earlier.
+
+**Did:** compiled `TiDEknob.cpp`, `TiDEknobGui.cpp` and `TiDEPanelGui.cpp` into
+the plugin, linked `tide_render`, and allowlisted both ids in
+`TIDE_STATIC_EXTRAS`.
+
+### Accept clause 1 is met, and I looked at it
+
+TIDE's browser now shows a **TiDE** category containing **Panel** and **knob**.
+That is the authoritative check this row asks for, done the way it asks.
+
+Symbol-level proof as well, because the row is explicit that an id check is a
+false positive: `__GLOBAL__sub_I_TiDEknob.cpp`, `__GLOBAL__sub_I_TiDEknobGui.cpp`
+and `__GLOBAL__sub_I_TiDEPanelGui.cpp` are all present in **both** `TIDE.gmpi`
+and `TIDE_VST3.so`, with a negative control (`NotAFile.cpp` -> 0). Those symbols
+name the FILE, so the rename table cannot fake them.
+
+Clean clone, configure rc=0, build **rc=0, zero error lines**.
+
+### Accept clause 2 is NOT met, and the reason is me
+
+*"A prefab using them drops into the rack and draws."* I could not work out the
+placement gesture — dragging a browser entry into the rack only highlights it
+yellow. Batched drag, explicit press/move/release, and double-click all failed.
+
+**Controlled before blaming the modules:** the **known-good `Oscillator` prefab
+fails identically** under the same gesture, and E2a placed that one with real
+mouse drags. So this is the interaction, not the two new classes. Anyone who
+knows the gesture closes clause 2 in a minute; I have left the row IN-REVIEW
+saying so rather than claiming it.
+
+### Three of this row's own notes are stale, and acting on them would waste a run
+
+1. **The naming inconsistency is already fixed.** The row says `SE TiDE:knob`
+   declares `name="TiDE:knob"` against Panel's `name="Panel"`. On current `main`
+   it declares **`name="knob"`** with `category="TiDE"` — identical shape
+   (`TiDEknob.cpp:25`, `TiDEPanelGui.cpp:2680`). Nothing to settle.
+2. **The awkward path is gone.** The row was written when `SynthEditSem/` lived
+   in private `SE16` while these sources did not, and calls for a new CMake
+   variable. **C7b moved SynthEditSem into this repo**; they are siblings now and
+   a relative path was enough.
+3. **The linker warning did not bite.** No helper TU was dragged in — unlike
+   Converters (`my_type_convert.cpp`) and Oscillator HD (`real_fft.cpp`), these
+   two are self-contained apart from `tide_render`.
+
+### The one judgement call, flagged for review
+
+`TiDEPanelGui.cpp` marches a distance field, and its own CMakeLists calls
+`tide_render_strict_fp` because `modules/` turns on fast math globally. **TIDE
+turns it on too** — `/fp:fast` on MSVC, an explicit reassociating subset on Apple
+(`CMakeLists.txt:254-265`).
+
+Applying `tide_render_strict_fp(TIDE)` would change the **DSP engine's** float
+model in order to fix a renderer. That is far more than this row should touch, so
+the opt-out is applied **per source file** through a new
+`tide_render_strict_fp_sources()`, defined beside the existing function so one
+place still decides what "strict" means.
+
+**On Linux neither fast-math block is active, so this is a no-op here** and is
+therefore **unverified on Windows and macOS** — the two platforms where it
+actually does something.
+
+**Learned:**
+
+1. **Control the tool before blaming the subject.** The placement failure looked
+   like "the new modules do not work"; one drag of a known-good prefab showed it
+   was my gesture. That control cost thirty seconds and changed the conclusion
+   completely.
+2. **A backlog row's warnings age with the tree, and three of E14's had.** Two
+   were closed by C7b, which was written after it. Re-check a row's premises
+   against `main` before following its instructions — it is cheaper than the
+   work it would misdirect.
+3. **A per-target compile option is the wrong tool when a requirement belongs to
+   one file.** `set_source_files_properties` keeps the audio path out of a
+   renderer's floating point argument entirely.
+4. **`pkill -f <name>` matches the shell running it**, because the pattern is in
+   that process's own command line. It killed my own script mid-edit (exit 144).
+
+**Next:**
+
+1. **Clause 2 needs someone who knows the rack placement gesture.** Everything
+   else about E14 is done and measured.
+2. **The per-source FP opt-out wants a Windows or macOS build** to confirm the
+   panel still renders — it is inert on Linux.
+3. E14's row has been corrected in place for the three stale notes above.
+
+**Branch/PR:** `tide/linux/E14-modules-in-product` — TideSynth only.
+
+---
+
+---
+
+---
+
 ## 2026-08-20 — linux — S17: name the folder, not the decision
 
 **Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)

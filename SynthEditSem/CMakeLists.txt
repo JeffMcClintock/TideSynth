@@ -113,6 +113,23 @@ gmpi_plugin(
     HAS_DSP HAS_GUI
 	FORMATS_LIST ${FORMATS_LIST}
     SOURCE_FILES
+	  # BACKLOG E14 -- TIDE's OWN two modules, and the only ones in this list that
+	  # are not borrowed from SynthEditLib. They live in this repo's modules/
+	  # tree, which also builds them as loadable .gmpi bundles for authoring in
+	  # SynthEditCL; that build is the AUTHORING path and this is the SHIPPING
+	  # one. TIDE cannot load a bundle at all -- PLAN constraint 7 is a fixed,
+	  # statically registered set and S1a deleted the scan -- so the class only
+	  # reaches the product by being compiled in here. E2c set the precedent.
+	  #
+	  # Neither needs a _tide_xmls entry: both register with Register<>::withXml
+	  # carrying their own pin descriptions inline (TiDEknob.cpp:23,
+	  # TiDEPanelGui.cpp:2678), which is the `SE Label` case rather than the
+	  # `SE Rectangle XP` one. TiDEknobGui.cpp attaches to the same id with
+	  # withId, so the GUI half needs no separate registration either.
+	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDEknob.cpp
+	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDEknobGui.cpp
+	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEPanel/TiDEPanelGui.cpp
+
 	  SynthEdit.cpp
 	  SynthEditGui.cpp
 	  SynthEditController.cpp
@@ -306,8 +323,26 @@ foreach(_fmt ${FORMATS_LIST})
   endif()
   if(TARGET ${_tide_target})
     target_sources(${_tide_target} PRIVATE ${_tide_clipboard_src})
+    # E14 -- TiDEPanelGui.cpp includes TidePathTracer.h and marches its distance
+    # field, so every format target needs the library.
+    target_link_libraries(${_tide_target} PRIVATE tide_render)
   endif()
 endforeach()
+
+# E14 -- match the tracer's floating point model on the ONE file that compiles a
+# distance field, and nowhere else.
+#
+# TIDE sets /fp:fast on MSVC and a reassociating subset on Apple
+# (../CMakeLists.txt), which is hostile to a sphere tracer: reassociated
+# rounding decides whether a ray stops at a surface or steps through it, and the
+# tracer's own comment says so. Applying the opt-out to the whole plugin target
+# would change the DSP engine's float model to fix a renderer -- far more than
+# E14 should touch -- so it is applied per source file instead.
+#
+# On Linux neither fast-math block above is active, so this is currently a
+# no-op here; it is not a no-op on Windows or macOS, and it was NOT verified
+# there. Whoever builds those first should confirm the panel still renders.
+tide_render_strict_fp_sources(${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEPanel/TiDEPanelGui.cpp)
 
 # Bundle data, staged into EVERY format target.
 #
