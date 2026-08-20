@@ -96,6 +96,58 @@ endif()
 
 include("${CPM_DOWNLOAD_LOCATION}")
 
+# BACKLOG S17 -- say which folder each dependency ACTUALLY resolved to.
+#
+# The trap this exists for, found on the mac box 2026-08-19 while tracing E12:
+# SE16's build printed "Using local GMPI-UI folder" while the include path was
+# really `-I.../build/_deps/gmpi_ui-src`, and the two were at DIFFERENT COMMITS
+# -- so the class layout being read was not the class layout being compiled. A
+# `fprintf` added to the local clone never reached the binary.
+#
+# A message that names the DECISION ("Using local ...") cannot catch that. Only
+# one that names the RESOLVED PATH can, which is what these do.
+#
+# Note there are THREE places a dependency can come from here, and only the
+# first is obvious from the log: a local *_FOLDER_OVERRIDE, FetchContent's
+# `build/_deps/<name>-src`, and CPM's shared cache under ~/.cache/CPM -- where
+# the VST3 SDK and harfbuzz live and where nothing announced them at all.
+# CACHE INTERNAL, not a plain variable: SynthEditSem/ resolves GMPI_Wrappers in
+# its own directory scope, and PARENT_SCOPE from there does not reach the root.
+# FORCE-cleared here so a reconfigure rebuilds the list instead of doubling it.
+set(TIDE_DEP_REPORT "" CACHE INTERNAL "S17 dependency provenance" FORCE)
+
+function(tide_report_dependency name path origin)
+  if(NOT EXISTS "${path}")
+    message(FATAL_ERROR
+      "S17: dependency '${name}' resolved to a path that does not exist:\n"
+      "  ${path}\n"
+      "Origin: ${origin}. A stale *_FOLDER_OVERRIDE in an existing CMakeCache.txt\n"
+      "is the usual cause -- delete the build directory or fix the override.")
+  endif()
+  message(STATUS "  dep ${name}: ${path}   [${origin}]")
+  set(TIDE_DEP_REPORT "${TIDE_DEP_REPORT}${name}|${path}|${origin}\n" CACHE INTERNAL "S17 dependency provenance" FORCE)
+endfunction()
+
+# An override is only honoured if nothing ALSO fetched the same name. If both
+# exist, the include path decides -- and it is not the one the log named. This
+# is the exact SE16 failure, made loud instead of silent.
+function(tide_check_not_shadowed name override)
+  if("${override}" STREQUAL "")
+    return()
+  endif()
+  set(_shadow "${CMAKE_BINARY_DIR}/_deps/${name}-src")
+  if(EXISTS "${_shadow}")
+    message(FATAL_ERROR
+      "S17: '${name}' has a local override AND a fetched copy; the build would\n"
+      "silently compile one of them while the log names the other.\n"
+      "  override: ${override}\n"
+      "  fetched : ${_shadow}\n"
+      "Something else in this build fetched '${name}' anyway. Delete the build\n"
+      "directory; if it comes back, that fetch is the bug, not this check.")
+  endif()
+endfunction()
+
+
 if("${VST3_SDK_FOLDER_OVERRIDE}" STREQUAL "")
 # Fetch VST3 via CPM
 CPMAddPackage(
@@ -105,9 +157,11 @@ GIT_TAG v3.8.0_build_66       # or a specific commit SHA
 DOWNLOAD_ONLY YES              # we only need sources; actual add_subdirectory happens later
 )
 set(VST3_SDK ${vst3_sdk_SOURCE_DIR})
+tide_report_dependency(vst3_sdk "${VST3_SDK}" "CPM cache")
 else()
 message(STATUS "Using local VST3 SDK")
 set(VST3_SDK ${VST3_SDK_FOLDER_OVERRIDE})
+tide_report_dependency(vst3_sdk "${VST3_SDK}" "local override")
 endif()
 
 # fetch VST MIDI UMP support
@@ -143,9 +197,12 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(syntheditlib)
 set(syntheditlib_folder ${syntheditlib_SOURCE_DIR})
+tide_report_dependency(SynthEditLib "${syntheditlib_folder}" "fetched")
 else()
 message(STATUS "Using local SynthEditLib folder")
 set(syntheditlib_folder ${SYNTHEDITLIB_FOLDER_OVERRIDE})
+tide_check_not_shadowed(syntheditlib "${SYNTHEDITLIB_FOLDER_OVERRIDE}")
+tide_report_dependency(SynthEditLib "${syntheditlib_folder}" "local override")
 endif()
 
 if("${GMPI_SDK_FOLDER_OVERRIDE}" STREQUAL "")
@@ -158,9 +215,12 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(gmpi)
 set(GMPI_SDK ${gmpi_SOURCE_DIR})
+tide_report_dependency(GMPI "${GMPI_SDK}" "fetched")
 else()
 message(STATUS "Using local GMPI folder")
 set(GMPI_SDK ${GMPI_SDK_FOLDER_OVERRIDE})
+tide_check_not_shadowed(gmpi "${GMPI_SDK_FOLDER_OVERRIDE}")
+tide_report_dependency(GMPI "${GMPI_SDK}" "local override")
 endif()
 
 if("${GMPI_UI_FOLDER_OVERRIDE}" STREQUAL "")
@@ -173,9 +233,12 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(gmpi_ui)
 set(GMPI_UI_SDK ${gmpi_ui_SOURCE_DIR})
+tide_report_dependency(gmpi_ui "${GMPI_UI_SDK}" "fetched")
 else()
 message(STATUS "Using local gmpi_ui folder")
 set(GMPI_UI_SDK ${GMPI_UI_FOLDER_OVERRIDE})
+tide_check_not_shadowed(gmpi_ui "${GMPI_UI_FOLDER_OVERRIDE}")
+tide_report_dependency(gmpi_ui "${GMPI_UI_SDK}" "local override")
 endif()
 
 # AudioUnit and CLAP SDKs. TIDE's own FORMATS_LIST is `GMPI VST3 STANDALONE`,
@@ -194,6 +257,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(au2)
 set(AU_SDK ${au2_SOURCE_DIR})
+tide_report_dependency(AudioUnit "${AU_SDK}" "fetched")
 set(AU_SDK_SRC ${au2_SOURCE_DIR}/src)
 set(AU_SDK_H ${au2_SOURCE_DIR}/include)
 
@@ -210,6 +274,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(clap)
 set(CLAP_SDK ${clap_SOURCE_DIR})
+tide_report_dependency(CLAP "${CLAP_SDK}" "fetched")
 
 FetchContent_Declare(
   clap_helpers
@@ -219,6 +284,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(clap_helpers)
 set(CLAP_HELPERS_SDK ${clap_helpers_SOURCE_DIR})
+tide_report_dependency(clap_helpers "${CLAP_HELPERS_SDK}" "fetched")
 
 
 project(TideSynth)
@@ -277,6 +343,7 @@ CPMAddPackage(
     GIT_TAG 14.2.1
     DOWNLOAD_ONLY YES
 )
+tide_report_dependency(harfbuzz "${harfbuzz_SOURCE_DIR}" "CPM cache")
 add_library(gmpi_harfbuzz STATIC ${harfbuzz_SOURCE_DIR}/src/harfbuzz.cc)
 target_include_directories(gmpi_harfbuzz PUBLIC ${harfbuzz_SOURCE_DIR}/src)
 target_compile_definitions(gmpi_harfbuzz PUBLIC HB_NO_MT)
@@ -288,3 +355,17 @@ endif()
 add_subdirectory(${syntheditlib_folder} SynthEditLib)
 add_subdirectory(${syntheditlib_folder}/EditorLib EditorLib)
 add_subdirectory(SynthEditSem)
+
+# S17 -- one block, after every resolution, so the provenance survives a long
+# configure log. `cmake -B build 2>&1 | grep "dep "` is the whole diagnostic.
+string(REPLACE "\n" ";" _tide_deps "${TIDE_DEP_REPORT}")
+list(REMOVE_ITEM _tide_deps "")
+list(LENGTH _tide_deps _tide_dep_count)
+message(STATUS "TIDE dependency provenance -- ${_tide_dep_count} resolved:")
+foreach(_row ${_tide_deps})
+  string(REPLACE "|" ";" _f "${_row}")
+  list(GET _f 0 _n)
+  list(GET _f 1 _p)
+  list(GET _f 2 _o)
+  message(STATUS "  ${_n} <- ${_p} [${_o}]")
+endforeach()
