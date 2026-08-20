@@ -74,6 +74,96 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — E15: the rack's faceplate is TIDE's own panel, and two breaks the swap flushed out
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · fifth item
+
+**Did:** swapped MIDI-CV's faceplate from `SE Rectangle XP` to `SE TiDE:Panel`
+and retired the Rectangle from TIDE entirely — both halves of the
+hardcoded-twice pair (`SynthEditSem/CMakeLists.txt` staging AND `TideApp.cpp`'s
+XML merge loop), per E2c's warning that missing either side fails silently.
+
+**Taken with `BLOCKED(E14)` in the status cell:** E14 is DONE, and BLOCKED(id)
+is defined as blocked-until-id-is-DONE, so the block had expired by its own
+definition. Recorded because the letter of "never start a BLOCKED item" and
+the definition point different ways for an expired blocker; the row now says
+which reading was used.
+
+### Every Accept clause, measured
+
+| clause | evidence |
+|---|---|
+| MIDI-CV rebuilt on `SE TiDE:Panel` | regenerated via SynthEditCL; `assert_all_modules_linked` clean, its note naming the id |
+| drawn in TIDE with legible captions | [docs/images/e15-midicv-tidepanel.png](images/e15-midicv-tidepanel.png) — heading + PITCH/GATE/VEL/TRIG black on the light plate |
+| Rectangle gone, build green | build rc=0; `__GLOBAL__sub_I_RectangleGui.cpp` **0** and `__GLOBAL__sub_I_TiDEPanelGui.cpp` **1** in BOTH `TIDE.gmpi` and `TIDE_VST3` |
+
+### The two breaks the swap flushed out
+
+1. **The first regeneration drew captions overhanging the plate.** The panel
+   sizes ITSELF — RackUnits × 48 DIPs (`kRackUnitDips`) — and
+   `SubView::measure` unions the children, so the authored 105-DIP slot
+   produced a 48-wide plate under 58-wide labels. Fixed with `Rack Units 2`
+   (96 DIPs; the one pin the swap sets — per-instance geometry, where the
+   2026-08-19 ruling made *appearance* compile-time) and the faceplate grid
+   re-authored to 96. The residual 3.2-HP-per-U vs 15-DIP-HP mismatch is
+   E17's own open note, deliberately not settled here.
+2. **`TiDEPanel.gmpi` had never been built on mac, and could not be.**
+   `helpers/Timer.cpp`'s mac path is CFRunLoopTimer; the loadable-bundle link
+   line carries no frameworks, so the authoring bundle failed with undefined
+   `_kCFRunLoopCommonModes`. One APPLE-guarded CoreFoundation line. (TIDE's
+   static build never sees it — the wrappers already link CF; same class as
+   P7d, one repo over.)
+
+### The authoring pipeline on mac, recorded so nobody re-derives it
+
+SynthEditCL's factory scan root is **`SynthEditCL.app/Contents/PlugIns/`**
+(the rescan prints it), NOT `build/modules/` — the TiDE `.gmpi` bundles must
+be copied there, then `SynthEditCL -rescan`, then `build-prefabs.py --secl`.
+The other five prefabs regenerate byte-identical except handle churn (the V3
+lesson), so they were reverted; only `MidiCv.synthedit` is committed. And
+`TIDE_STANDALONE` restores its session even under an isolated `HOME`
+(`Library/Application Support/TIDE Rack/session.xml` on mac, not `.config`) —
+two identical screenshots cost a relaunch before the session file was found.
+
+**Flagged for Jeff, not acted on:** the row records a ruling that the panel
+"ships exactly two pins", but `main`'s registration XML declares SIX (Text,
+Text Color, Rack Units, Layout, Material, Panel Color). Rack Units earns its
+keep as instance geometry; whether Layout/Material/Panel Color go compile-time
+is the unimplemented half of that ruling.
+
+**Skipped on the way here, with reasons:** **N1** defers itself ("after C7,
+not during"; C7 waits on Jeff's apt-get, and a rename would double-conflict
+with the open C10 PRs). **P11**'s remaining half is the diagnostic at
+`DocOb.cpp:540` — GATED, not a build break; option (c) already landed in
+docs/building.md. **S16/S22/S18** are GATED (S18 is also a licensing question
+first). **E9**'s Accept needs a within-instance rate change no measurement has
+ever produced — the wrappers replace the instance instead. **E5** waits on
+rack styling (NEEDS-JEFF by its own text).
+
+**Learned:**
+
+1. **A module that measures itself is a different contract from a rectangle
+   that takes orders, and the prefab grid only worked because the old
+   faceplate obeyed it.** The swap surfaced the collision immediately —
+   authored geometry vs self-sizing panels — and E17's units note is where the
+   real reconciliation lives.
+2. **"It builds in the product" says nothing about the authoring path.** The
+   panel shipped statically into TIDE on three platforms while its loadable
+   authoring bundle had never linked on mac. The first prefab regeneration
+   needing it found that in one step.
+
+**Next:**
+
+1. **S24/S25** are the remaining takeable S-rows (cursor feedback; the tofu
+   render — S25 may interact with this swap and wants re-measuring on top of
+   it).
+2. **E2's next children** now have both the panel and the pipeline; E16/E17's
+   open notes gate the module list and sizing.
+
+**Branch/PR:** `tide/mac/E15-panel-swap` — TideSynth only.
+
+---
+
 ## 2026-08-20 — macos — P7d was already fixed, from a third direction, and its parked question is moot
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · fourth item

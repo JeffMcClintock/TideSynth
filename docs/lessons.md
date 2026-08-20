@@ -39,6 +39,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**macos — E15: the rack's faceplate is TIDE's own panel, and two breaks the swap flushed out**
+
+- A module that measures itself is a different contract from a rectangle that takes orders, and the prefab grid only worked because the old faceplate obeyed it.
+- "It builds in the product" says nothing about the authoring path.
+
 **macos — P7d was already fixed, from a third direction, and its parked question is moot**
 
 - A row that parks on a question can be closed by running its Accept — check that before re-raising the question.
