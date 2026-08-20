@@ -1,0 +1,510 @@
+cmake_minimum_required(VERSION 3.30)
+
+set(GMPI_WRAPPER_FOLDER_OVERRIDE "" CACHE PATH "path of a local GMPI WRAPPERs repo, or blank to fetch it automatically.")
+
+include(FetchContent)
+include(${GMPI_SDK}/gmpi_plugin.cmake)
+
+# GMPI WRAPPERS
+if("${GMPI_WRAPPER_FOLDER_OVERRIDE}" STREQUAL "")
+message(STATUS "Fetching GMPI WRAPPERS from github")
+#note: SOURCE_SUBDIR is a subfolder with NO cmake file (so we don't needlessly generate projects for the GMPI examples)
+FetchContent_Declare(
+  gmpi_wrappers
+  GIT_REPOSITORY https://github.com/JeffMcClintock/GMPI_Wrappers
+  GIT_TAG origin/main
+  SOURCE_SUBDIR Core
+)
+FetchContent_MakeAvailable(gmpi_wrappers)
+set(GMPI_ADAPTORS ${gmpi_wrappers_SOURCE_DIR})
+else()
+message(STATUS "Using local GMPI WRAPPERS folder")
+set(GMPI_ADAPTORS ${GMPI_WRAPPER_FOLDER_OVERRIDE})
+endif()
+
+project(TIDE)
+
+set( SYNTHEDITLIB_DIR ${syntheditlib_folder} )
+
+# BACKLOG C7 (stage a), 2026-08-19 (linux). Carve-out stage 7 is "TIDE's CMake
+# consumes public SynthEditLib only, with no reference to SE16", so every entry
+# here that points into the private repo was measured rather than assumed. Four
+# were dead and are gone; ONE is real and is named, because a private reference
+# that is actually load-bearing is worth a line of explanation and a backlog id.
+#
+# Deleted, with what each measurement was:
+#   EDITOR_DIR  (../SynthEdit)   -- set and never referenced anywhere in this
+#   EDITOR2_DIR (../SynthEdit2)  -- file. Exactly the dead pair C6 removed from
+#                                   EditorLib/CMakeLists.txt for the same reason.
+#   ../Shared                    -- the directory DOES NOT EXIST in the tree.
+#   ../SynthEdit                 -- holds only icons, skins and the .chm; no
+#                                   headers. SynthEdit.rc includes resource.h
+#                                   and windows.h only, so the Windows resource
+#                                   compiler does not need it either.
+#
+# KEPT, and this is the whole of TIDE's remaining private-source dependency:
+#   ../SynthEdit2  -- ONE consumer. TideAppStubs.cpp:31 includes "SynthEditApp.h",
+#                     which resolves only in SE16/SynthEdit2. It is the same
+#                     header BACKLOG C14 files for ApplySynthEditConfig.cpp, so
+#                     the two want one fix -- C11's narrow-to-an-interface
+#                     treatment -- not two. Do NOT delete this line before that
+#                     lands.
+#
+#                     One correction for whoever takes C14, measured here rather
+#                     than inherited: SynthEditApp.h's moonbasepp_Licensing.h
+#                     include is INSIDE `#ifdef SE_MOONBASE_SUPPORT`
+#                     (SynthEdit2/SynthEditApp.h:6-11), and that header is not
+#                     tracked by git at all -- its own comment says to copy it in
+#                     from SynthEdit_Azure. So "this header drags the licensing
+#                     surface into the public repo" is true only for a moonbase
+#                     build, which narrows C14 rather than blocking it. It is
+#                     still a private header declaring a private app class; that,
+#                     not the licensing include, is why it cannot simply move.
+#
+# C7c is CLOSED, and by removal rather than by a move: TIDE used to include
+# ContainerThumbnail.h and link EditorScreenshot, both in SE16/EditorScreenshot,
+# purely to draw breadcrumb thumbnails. Jeff removed the breadcrumb bar
+# (2026-08-20, BACKLOG U3), so the dependency went with the feature and nothing
+# had to leave the commercial repo. Full inventory: docs/c7-clean-clone.md in
+# TideSynth.
+#
+# The dropped `PRIVATE` keyword was not a keyword: include_directories() is the
+# DIRECTORY-scoped command and takes only paths, so CMake was adding a relative
+# directory literally named "PRIVATE". Harmless because it does not exist, but
+# it made this block read as if it were target_include_directories().
+# C7b: this folder now lives in the TideSynth repo, so `../SynthEdit2` no longer
+# resolves -- the private repo is somewhere else entirely. SE16 passes its own
+# path in via SE16_SYNTHEDIT2_DIR before add_subdirectory(); when TideSynth is
+# built standalone the variable is empty and the entry vanishes, which is what
+# C7d needs. The single consumer is TideAppStubs.cpp -> SynthEditApp.h, tracked
+# as C16 -- until that lands, a standalone TideSynth build still cannot compile
+# this target, and that is expected rather than a regression.
+include_directories(
+	${SYNTHEDITLIB_DIR}
+	${SE16_SYNTHEDIT2_DIR}
+	${VST3_SDK}
+)
+
+# E2a, 2026-08-18, Jeff's call in an interactive session. STANDALONE is a
+# DEVELOPER target, not a product: it builds TIDE_STANDALONE.app, which stays
+# in the build tree (nothing copies it to a Plug-Ins folder, unlike GMPI/VST3),
+# and it carries the GMPI standalone wrapper's command channel -- a unix socket
+# an MCP server drives, so the rack can be screenshotted, clicked and rendered
+# to WAV from a script. That is what makes E2a's prefabs verifiable at all.
+#
+# MEASURED before adopting it, because the channel is a local IPC endpoint and
+# the question was whether it lands in the shipped plugin. It does not:
+# Standalone_Wrapper is linked PRIVATE into the _STANDALONE executable only
+# (GMPI/gmpi_plugin.cmake:373), and `nm` on the Release binaries counts 25
+# IpcServer/CommandDispatcher symbols in TIDE_STANDALONE against ZERO in both
+# TIDE_VST3 and TIDE.gmpi.
+#
+# THE ONE FOOTGUN: GMPI_STANDALONE_COMMAND_CHANNEL defaults ON. If TIDE ever
+# ships a standalone to users, that release must configure with
+# -DGMPI_STANDALONE_COMMAND_CHANNEL=OFF, which removes the code rather than
+# merely declining to start it (GMPI_Wrappers/wrapper/Standalone/CMakeLists.txt:92).
+set(FORMATS_LIST GMPI VST3 STANDALONE)
+
+#  HAS_VST3
+gmpi_plugin(
+    PROJECT_NAME ${PROJECT_NAME}
+    HAS_DSP HAS_GUI
+	FORMATS_LIST ${FORMATS_LIST}
+    SOURCE_FILES
+	  SynthEdit.cpp
+	  SynthEditGui.cpp
+	  SynthEditController.cpp
+	  TideApp.h
+	  TideApp.cpp
+	  ${GMPI_UI_SDK}/helpers/Timer.h
+	  ${GMPI_UI_SDK}/helpers/Timer.cpp
+
+	  ${SYNTHEDITLIB_DIR}/modules/se_sdk3_hosting/ConnectorView.h
+	  ${SYNTHEDITLIB_DIR}/modules/se_sdk3_hosting/ConnectorView.cpp
+
+	  # BACKLOG U2d -- TIDE's fixed module set (PLAN constraint 7), modern half.
+	  # These TUs are compiled into SynthEditLib ONLY inside IF(SE2JUCE), so a
+	  # GMPI/VST3 product never links them and their static registrations never
+	  # run: GetById("SE List Entry") returned null and ModuleViewPanel rendered
+	  # empty -- silently, in Release (see the diagnostic in ModuleView.cpp).
+	  # Listed as direct target sources because archive members can be
+	  # dead-stripped but target sources cannot. Grow this list deliberately as
+	  # TIDE's module set grows; do NOT fix this by defining
+	  # SE_GRAPHICS_SUPPORT for the whole lib -- that wakes unrelated dormant
+	  # code (Controller.cpp, MpParameter.cpp) and double-registers modules in
+	  # the scanning editor.
+	  # Landed first: SE Background Image (modern GMPI PluginEditor, no legacy
+	  # widget layer) -- registered and VERIFIED drawing in REAPER. The classic
+	  # SDK3 controls (SE List Entry / SE Text Entry, ControlsXp) also register
+	  # and construct once listed here, but their widget layer assumes skin
+	  # bitmaps/fonts exist and crashes in initialize/measure/arrange when
+	  # widgets never build (three distinct SIGSEGVs, stacks in the U2d row).
+	  # Add them back WITH their deps (ClassicControlGuiBase,
+	  # sharedLegacyWidgets/*, shared/ImageCache+ImageMetadata+FontCache) once
+	  # that layer is fixed.
+	  # U2e: the classic SDK3 controls and their widget/resource deps. Their
+	  # widget layer needs GmpiResourceManager's Image folder seeded (see
+	  # TideApp::InitInstance) -- without it these crashed, which is why U2d
+	  # landed with them excluded.
+	  ${SYNTHEDITLIB_DIR}/modules/shared/ImageCache.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/shared/ImageMetadata.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/shared/FontCache.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/sharedLegacyWidgets/Widget.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/sharedLegacyWidgets/ListWidget.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/sharedLegacyWidgets/TextWidget.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/sharedLegacyWidgets/BitmapWidget.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/sharedLegacyWidgets/TextEditWidget.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/ClassicControlGuiBase.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/ListEntry.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/ListEntryGui.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/TextEntry.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/TextEntryGui.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/Controls/PlainImageGui.cpp
+	  # BACKLOG E2a — the rack prefabs' faceplate background. A module needs BOTH
+	  # halves to work in TIDE: this .cpp for the class and its registration, and
+	  # its pin descriptions merged from SubControlsXp.xml below (TIDE has no
+	  # module scan to supply them -- S1a). With only the XML it is an "insertable
+	  # phantom"; with only the .cpp it registers with no pins and takes the whole
+	  # container's widget layer down with it.
+	  ${SYNTHEDITLIB_DIR}/modules/SubControlsXp/RectangleGui.cpp
+
+	  # The rack prefabs' captions. `SE Label` is the ONE-LINE case: it registers
+	  # with Register<>::withXml, so it carries its own pin descriptions and needs
+	  # no entry in _tide_xmls below -- unlike RectangleGui.cpp above. Its skin
+	  # dependency degrades safely: the load is guarded on findResourceUri(
+	  # "global.txt") succeeding, and SkinMetadata::getFont never returns null
+	  # (it falls back to a default Arial). gmpi_helper::SkinMetadata::Serialise
+	  # (const char*) is already a defined symbol in libSynthEditLib -- checked
+	  # with nm, not assumed -- via SynthEditLib's own helpers/ImageMetadata.cpp,
+	  # so there is nothing else to add.
+	  #
+	  # NOTE THE COLOUR TRAP: SE Label has NO colour pin. Its colour comes from
+	  # the skin font style, and with no skin in the bundle that default is
+	  # OPAQUE BLACK. Captions are therefore only legible on a LIGHT faceplate,
+	  # which is why build-prefabs.py paints one rather than a dark one. A
+	  # screenshot taken with SynthEditCL is NOT evidence here -- the CLI
+	  # resolves an external skin folder the plugin bundle does not have, so
+	  # text can come out white there and black in the DAW.
+	  ${SYNTHEDITLIB_DIR}/modules/Controls/LabelGui.cpp
+
+	  # BACKLOG V3/E7 -- SE MIDItoGate2, a MONOPHONIC MIDI-to-gate. Same two-halves
+	  # rule as RectangleGui.cpp above: this .cpp for the classes, and its pins
+	  # merged from MidiPlayer2.xml (staged below).
+	  #
+	  # It needs adding here for a reason worth writing down, because it is NOT
+	  # the reason it first looked like. MidiToGate.cpp is listed in
+	  # SynthEditLib/CMakeLists.txt, but in a source list belonging to a SEPARATE
+	  # `MidiPlayer2` target -- it is built as a loadable module, not compiled into
+	  # the SynthEditLib static library. So no INIT_STATIC_FILE can rescue it:
+	  # adding one to UgDatabase.cpp fails to link outright, because the object is
+	  # not in the library. `modules/OscillatorNaive/OscillatorNaive.cpp` sits in
+	  # the same list, which is what S8 measured.
+	  #
+	  # TIDE links statically and has no scan (S1a), so a loadable module is
+	  # invisible to it until its source joins a target TIDE actually links --
+	  # which is this one.
+	  ${SYNTHEDITLIB_DIR}/modules/MidiPlayer2/MidiToGate.cpp
+
+	  # BACKLOG E7 -- THE TYPE CONVERTERS, and this is not a nice-to-have.
+	  #
+	  # The DSP graph auto-inserts a converter module whenever two connected pins
+	  # have different datatypes: ug_base.cpp:1751 builds an id like
+	  # "SE <From>To<To>" and calls ModuleFactory()->GetById(). If that lookup
+	  # misses, the code does `assert(false); return;` -- so in a RELEASE build the
+	  # assert compiles out and **the connection is silently abandoned**. The
+	  # editor still shows the cable; the DSP simply never carries it.
+	  #
+	  # TIDE had none of these, because Converters.cpp builds into a separate
+	  # `Converters` target as a loadable Converters.sem, and TIDE links statically
+	  # with no scan (S1a). That is why SE MIDItoGate2's BoolOutPin gate never
+	  # reached the Envelope: bool -> audio-rate needs "SE BoolToVolts"
+	  # (Converters.cpp:137), which did not exist in TIDE.
+	  #
+	  # So this is a whole CLASS of silent failure, not one module's bug: any
+	  # mixed-datatype cable a user draws in TIDE would go quietly dead. Staged
+	  # with Converters.xml below for its pins, same two-halves rule as the rest.
+	  ${SYNTHEDITLIB_DIR}/modules/Converters/Converters.cpp
+	  # Converters.cpp instantiates SimpleConverter<From,To> for every pair, and
+	  # each one calls myTypeConvert<From,To>() -- whose specialisations live in a
+	  # separate translation unit. Without it the link fails on a wall of
+	  # undefined myTypeConvert<...> symbols.
+	  ${SYNTHEDITLIB_DIR}/modules/Converters/my_type_convert.cpp
+
+	  # BACKLOG E2c -- TIDE's two GO-TO MVP MODULES, named by Jeff 2026-08-19.
+	  #
+	  # Same shape as MidiToGate.cpp and Converters.cpp above, and for the same
+	  # reason: both of these build into SEPARATE loadable targets (`VaFilters`,
+	  # `OscillatorHD`) rather than into the SynthEditLib static library, so no
+	  # INIT_STATIC_FILE can reach them -- UgDatabase.cpp already HAS
+	  # `INIT_STATIC_FILE(SVFilter4)` at :1114 and the class was still absent from
+	  # TIDE. That list is SynthEditLib's; TIDE links a subset of it, so it is not
+	  # a menu of what TIDE can instantiate.
+	  #
+	  # Measured before and after with the check that discriminates -- the
+	  # static-init SYMBOL, not the module-id string, which gives false positives
+	  # via the rename table at CUG.cpp:301 (see build-prefabs.py:514).
+	  #
+	  # SE SV Filter4 ("StateVar Filter"): Signal / Pitch / Resonance / Strength /
+	  # Mode / Output. Its pins live in VaFilters.xml, staged below -- without that
+	  # the class links but has no pins and the browser does not list it, exactly
+	  # the trap MidiPlayer2.xml records.
+	  ${SYNTHEDITLIB_DIR}/modules/VaFilters/SvFilter.cpp
+
+	  # SE Oscillator4 ("Oscillator HD"): Pitch / Pulse Width / Waveform / Sync ...
+	  # NEEDS NO XML -- it registers with Register<>::withXml(R"XML(...)") inline in
+	  # its own .cpp (Oscillator.cpp:1054), the way MidiToCv2 does, so there is
+	  # nothing to stage for it. Do not add an OscillatorHD entry to _tide_xmls
+	  # looking for one; there is no such file.
+	  ${SYNTHEDITLIB_DIR}/modules/OscillatorHD/Oscillator.cpp
+	  # Oscillator HD builds its mipmapped wavetables with an FFT, and realft()
+	  # lives in a separate translation unit -- the same second-TU rule
+	  # my_type_convert.cpp records for Converters. Without it the link fails on
+	  # exactly one symbol: `realft(float*, unsigned int, int)`, referenced from
+	  # MipMapCalculator::generateWavetable in Oscillator.o.
+	  ${SYNTHEDITLIB_DIR}/modules/shared/real_fft.cpp
+
+	  # TideAppStubs.cpp supplies the three symbols EditorLib references from
+	  # SynthEditApp -- theApp, SafeMessagebox, and two licensing predicates.
+	  # It replaces compiling the whole of SynthEdit2/SynthEditApp.cpp, which
+	  # brought SynthEditApp::InitInstance() (a LoadOrScanModuleData() call site,
+	  # a filesystem-watcher thread and the settings-file writes) into the
+	  # plugin binary even though TIDE never calls it. BACKLOG S1b; see the
+	  # header comment in that file for why behaviour is unchanged. It also
+	  # replaces platform_plugin.cpp's stubs -- that file's SafeMessagebox would
+	  # collide, and its GmpiResourceManager::Instance() is superseded by
+	  # EditorLib's GmpiResourceManager_editor.cpp.
+	  AboutPane.h
+	  TideAppStubs.cpp
+)
+# BACKLOG U2e -- the classic controls' pin descriptions, registered at startup
+# by TideApp::InitInstance (the S1a design removed the scan that used to load
+# them). Staged from SynthEditLib's copy so it cannot drift. Contents/Resources
+# is the P6-approved home for bundle data (codesign refuses data under MacOS/).
+# Windows reads getResource via the exe resource first, then this same file --
+# the win staging equivalent is follow-up, noted in the U2e row.
+# D6 — the about pane's clipboard write ("Copy link"). Objective-C++, so it is
+# Apple-only; other platforms fall back to the stub in AboutPaneStub.cpp and the
+# pane simply omits the button rather than offering one that does nothing.
+#
+# E2a — iterate the format targets rather than naming them. This block used to
+# name TIDE_VST3 and TIDE, so adding STANDALONE to FORMATS_LIST above linked an
+# app whose only two undefined symbols were these. gmpi_plugin() derives every
+# target name from PROJECT_NAME the same way, so deriving them here keeps the
+# two lists from drifting the next time a format is added.
+if(APPLE)
+  set(_tide_clipboard_src ${CMAKE_CURRENT_SOURCE_DIR}/AboutPaneClipboard.mm)
+else()
+  set(_tide_clipboard_src ${CMAKE_CURRENT_SOURCE_DIR}/AboutPaneStub.cpp)
+endif()
+foreach(_fmt ${FORMATS_LIST})
+  if(_fmt STREQUAL "GMPI")
+    set(_tide_target TIDE)          # the GMPI format target is the bare name
+  else()
+    set(_tide_target TIDE_${_fmt})
+  endif()
+  if(TARGET ${_tide_target})
+    target_sources(${_tide_target} PRIVATE ${_tide_clipboard_src})
+  endif()
+endforeach()
+
+# Bundle data, staged into EVERY format target.
+#
+# This block used to be `if(APPLE)` around a single add_custom_command naming
+# TIDE_VST3, which meant TIDE.gmpi never got ControlsXp.xml and no format got it
+# on Windows -- the gap U2e's row flags. E2a's prefabs would inherit exactly the
+# same gap, so both are staged together here rather than repeating the mistake.
+#
+# BundleInfo::getResourceFolder() (SynthEditLib/modules/se_sdk3_hosting/
+# BundleInfo.cpp:258) is what reads these back, and on every platform where the
+# plugin is a BUNDLE it answers "<...>/Contents/Resources". That is the one
+# layout this block produces.
+#
+# KNOWN LIMIT, stated rather than hidden: a non-bundle target on Windows (the
+# standalone .exe) resolves resources through getImbeddedFileFolder() instead,
+# so it needs the resources embedded rather than copied. Nothing does that yet;
+# on Windows the standalone will report the missing folder on stderr and run
+# with an empty Prefabs group rather than misbehaving.
+foreach(_fmt ${FORMATS_LIST})
+  if(_fmt STREQUAL "GMPI")
+    set(_tide_target TIDE)
+  else()
+    set(_tide_target TIDE_${_fmt})
+  endif()
+  if(NOT TARGET ${_tide_target})
+    continue()
+  endif()
+
+  if(APPLE)
+    set(_tide_resources "$<TARGET_BUNDLE_CONTENT_DIR:${_tide_target}>/Resources")
+  else()
+    # Windows/Linux bundle layout: the binary sits in Contents/<arch>/, so
+    # Resources is its sibling.
+    set(_tide_resources "$<TARGET_FILE_DIR:${_tide_target}>/../Resources")
+  endif()
+
+  # U2e — the classic controls' pin descriptions; E2a — the sub-controls'.
+  # Merge-only enrichment for classes TIDE already links (see the loop in
+  # TideApp::InitInstance), so an entry whose .cpp is not in the source list
+  # above is skipped rather than becoming a phantom browser entry.
+  # MidiPlayer2.xml joined for BACKLOG V3/E7: SE MIDItoGate2 registers with
+  # sesdk::Register<>::withId, so its pins live in that file rather than inline
+  # in its .cpp the way MidiToCv2's do -- without it the class is linked but has
+  # no pins, and TIDE's browser does not list it at all.
+  # ONE list, used by BOTH staging blocks below. It used to be a loop here and
+  # a hand-enumerated pair of copies for the installed bundle, which meant
+  # adding an XML got it into the build tree and NOT into the plugin the DAW
+  # loads -- silently, and indistinguishable from the module not being linked.
+  # Cost a debugging cycle on V3; do not split them again.
+  set(_tide_xmls
+    ControlsXp/ControlsXp.xml
+    SubControlsXp/SubControlsXp.xml
+    MidiPlayer2/MidiPlayer2.xml
+    Converters/Converters.xml
+    # E2c -- SE SV Filter4's pins. Oscillator HD is NOT here on purpose: its XML
+    # is inline in its own .cpp, so it needs no staging.
+    VaFilters/VaFilters.xml
+  )
+  foreach(_tide_xml ${_tide_xmls})
+    get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
+    add_custom_command(TARGET ${_tide_target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SYNTHEDITLIB_DIR}/modules/${_tide_xml}"
+        "${_tide_resources}/${_tide_xml_leaf}"
+      VERBATIM
+    )
+  endforeach()
+
+  # E2a — the rack prefabs. copy_directory_if_different so adding a prefab to
+  # TideModules/ needs no CMake edit; TideApp::seedPrefabsFromBundle enumerates
+  # whatever lands here.
+  add_custom_command(TARGET ${_tide_target} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/../TideModules/prefabs"
+      "${_tide_resources}/Prefabs"
+    COMMENT "Staging rack prefabs (${_tide_target})"
+    VERBATIM
+  )
+
+  # ...and again into the INSTALLED bundle, because of POST_BUILD ordering.
+  #
+  # gmpi_plugin()'s copy_plugin() copies the whole bundle to ~/Library/Audio/
+  # Plug-Ins as its own POST_BUILD step, and POST_BUILD steps run in the order
+  # they were added. gmpi_plugin() is called far above this block, so its copy
+  # has already happened by the time the resources above are staged: the build
+  # tree ends up correct and the plugin the DAW actually loads does not. That
+  # is invisible until you wonder why a freshly built TIDE shows an empty
+  # Prefabs group in REAPER while the standalone shows three.
+  #
+  # Re-staging into the install destination is the narrow fix. The broad one is
+  # for copy_plugin to run last, which is a GMPI change affecting every plugin
+  # and is not this row's to make.
+  if(APPLE AND _fmt STREQUAL "VST3")
+    set(_tide_installed "$ENV{HOME}/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3/Contents/Resources")
+  elseif(APPLE AND _fmt STREQUAL "GMPI")
+    set(_tide_installed "$ENV{HOME}/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi/Contents/Resources")
+  else()
+    set(_tide_installed "")
+  endif()
+
+  if(_tide_installed)
+    set(_tide_install_cmds "")
+    foreach(_tide_xml ${_tide_xmls})
+      get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
+      list(APPEND _tide_install_cmds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${SYNTHEDITLIB_DIR}/modules/${_tide_xml}"
+          "${_tide_installed}/${_tide_xml_leaf}")
+    endforeach()
+    add_custom_command(TARGET ${_tide_target} POST_BUILD
+      ${_tide_install_cmds}
+      # copy_directory_if_different COPIES but never PRUNES, so a prefab deleted
+      # from TideModules/prefabs lingers in the installed bundle and keeps
+      # showing up in the browser. Bit V3 with its two throwaway probes.
+      COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/../TideModules/prefabs"
+        "${_tide_installed}/Prefabs"
+      COMMENT "Staging bundle data into the installed ${_tide_target}"
+      VERBATIM
+    )
+  endif()
+endforeach()
+
+#	  ${VST3_SDK}/pluginterfaces/base/funknown.h
+#	  ${VST3_SDK}/pluginterfaces/base/funknown.cpp
+#	  ${VST3_SDK}/pluginterfaces/base/coreiids.cpp
+#	  ${VST3_SDK}/base/source/fdebug.h
+#	  ${VST3_SDK}/base/source/fdebug.cpp
+#	  ${VST3_SDK}/base/source/fstring.h
+#	  ${VST3_SDK}/base/source/fstring.cpp
+#	  ${VST3_SDK}/base/source/fbuffer.h
+#	  ${VST3_SDK}/base/source/fbuffer.cpp
+#	  ${VST3_SDK}/base/source/baseiids.cpp
+#	  ${VST3_SDK}/public.sdk/source/vst/vstinitiids.cpp
+
+foreach(kind IN LISTS FORMATS_LIST)
+#	set( SUB_PROJECT_NAME ${PROJECT_NAME}_${kind} )
+
+    if(${kind} STREQUAL "GMPI")
+        set(SUB_PROJECT_NAME ${PROJECT_NAME})
+    else()
+        set(SUB_PROJECT_NAME ${PROJECT_NAME}_${kind})
+    endif()
+
+    # gmpi_plugin() may decline a format, so the target named here need not
+    # exist -- the same guard the two loops above already carry, and missing
+    # only here. GMPI 03dd218 made gmpi_plugin() run the Standalone wrapper's
+    # dependency probe and drop STANDALONE from its OWN parsed copy of the
+    # list when a dependency is absent; FORMATS_LIST above is a different
+    # variable and still reads GMPI VST3 STANDALONE afterwards. On Linux with
+    # no libpipewire-0.3 that made this line a hard configure error against a
+    # target that was never created, which cost the whole tree rather than the
+    # standalone app the decline exists to trade away. Invisible on Windows and
+    # macOS because dependencies.cmake only has anything to say on Linux.
+    if(NOT TARGET ${SUB_PROJECT_NAME})
+        continue()
+    endif()
+
+	# U3 — EditorScreenshot is gone from this list along with the breadcrumb
+	# bar it existed for. That was TIDE's last link-time dependency on a
+	# SE16-only target, and closing it is what C7c resolved into.
+	target_link_libraries(${SUB_PROJECT_NAME}
+		 PRIVATE SynthEditLib
+		 PRIVATE EditorLib
+	)
+	target_compile_definitions(
+		${SUB_PROJECT_NAME} PRIVATE 
+		IS_SYNTHEDIT_SEM=1
+		GMPI_DISABLE_FACTORY=1
+	)
+
+	if(WIN32)
+	target_link_libraries(${SUB_PROJECT_NAME}
+			 PRIVATE Version.lib
+			 PRIVATE winmm.lib
+			 PRIVATE Rpcrt4.lib
+	)
+	endif()
+
+	# Emit a PDB for Release too. A plugin only crashes in the host, so the only
+	# crash reports that ever arrive are against an optimised build; without this
+	# a minidump gives a bare fault RVA and nothing else (BACKLOG P4 -- the
+	# resize crash was symbolisable only because a Debug repro existed).
+	#
+	# /Zi and /DEBUG add symbols without changing codegen, but /DEBUG turns
+	# /OPT:REF and /OPT:ICF back off, so restore them explicitly -- otherwise
+	# this quietly stops stripping unreferenced code and the Release binary
+	# grows. The PDB sits beside the artifact and is not shipped.
+	if(MSVC)
+		target_compile_options(${SUB_PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:/Zi>)
+		target_link_options(${SUB_PROJECT_NAME} PRIVATE
+			$<$<CONFIG:Release>:/DEBUG>
+			$<$<CONFIG:Release>:/OPT:REF>
+			$<$<CONFIG:Release>:/OPT:ICF>
+		)
+	endif()
+
+	set_property(TARGET ${SUB_PROJECT_NAME} PROPERTY CXX_STANDARD 20)
+endforeach()
+
+add_subdirectory(${GMPI_ADAPTORS} adaptors)
+
