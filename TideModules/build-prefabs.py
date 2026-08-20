@@ -63,9 +63,16 @@ JACK_PITCH = 46              # vertical spacing between jacks
 # Make it span the whole slot and the declared rect becomes self-consistent, which
 # is why these prefabs get one and the bare four do not.
 #
-# On the rack grid: RackLayout is hpWidth 15, rowHeight 380, railHeight 15
-# (Presenter.h:37-42), so a slot should be a multiple of 15 wide and at most
-# 380-2*15 = 350 tall. 105 = 7 HP.
+# On the rack grid, as ruled 2026-08-21 (BACKLOG E5): RackLayout is hpWidth 15
+# (the VISUAL HP -- rail hole pitch), snapWidth 3 (the PLACEMENT pitch, and
+# gcd(12,15), so SynthEdit's 12s and VCV's 15s both land exactly), rowHeight 384
+# and railHeight 15. A slot is a multiple of 3 wide and up to 384 tall.
+#
+# 384, NOT 350: the rails are drawn as BACKGROUND by ViewBase::renderRack and
+# the panel covers them, exactly as a real Eurorack panel covers the rails it
+# is screwed to -- TIDE draws no mounting hardware. The old "380-2*15 = 350"
+# here subtracted a rail allowance that does not exist, which is what made
+# TIDE's own prefab measure as overlapping the rails.
 # E15: FACE_W follows the panel, not the other way round. SE TiDE:Panel sizes
 # ITSELF at RackUnits x 48 DIPs (TiDEPanelGui kRackUnitDips), and SubView's
 # measure unions the children -- so an authored width the plate cannot be
@@ -73,7 +80,7 @@ JACK_PITCH = 46              # vertical spacing between jacks
 # regeneration showed. 2 rack units = 96; labels end at 58 and jacks at 90,
 # so everything sits on the plate. (The 3.2-HP-per-U mismatch with RackLayout's
 # 15-DIP HP is E17's own open note, not this row's to settle.)
-FACE_W, FACE_H = 96, 350
+FACE_W, FACE_H = 96, 384
 CAPTION_H = 18               # heading strip at the top
 LABEL_W, LABEL_H = 52, 16
 ROW_TOP = 44                 # first jack row, below the caption

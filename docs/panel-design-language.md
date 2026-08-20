@@ -57,13 +57,29 @@ because matching it costs nothing and buys interchange.
 | | |
 |---|---|
 | 1 DIP | 1 VCV Rack pixel = 1/75 inch |
-| **1 HP** | 5.08 mm = **exactly 15 DIPs** (`RACK_GRID_WIDTH`) |
-| **3U panel height** | 128.5 mm = **380 DIPs** (`RACK_GRID_HEIGHT`) |
+| **1 HP** | 5.08 mm = **exactly 15 DIPs** (`RACK_GRID_WIDTH`) — the VISUAL unit: rail hole pitch |
+| **snap** | **3 DIPs** = `gcd(12, 15)` — the PLACEMENT pitch, not the HP |
+| **TIDE rack row** | **384 DIPs** = 32x12 = 8x48, and a panel is the *whole* row |
+| **TIDE rack unit** | **48 DIPs** = 3.2 HP — TIDE's standard module width |
+| VCV 3U panel | 128.5 mm = 380 DIPs (`RACK_GRID_HEIGHT`) — fits the 384 row with 4 DIPs spare |
 | millimetres | `mm x 75/25.4`, i.e. `mm x 2.9528` |
 
 Verified against `rack.hpp` rather than recalled. One DIP being one Rack pixel
 means a VCV panel layout ports across unchanged, and both convert to real
 millimetres exactly.
+
+**Snap and HP are different numbers, ruled 2026-08-21 (BACKLOG E5).** SynthEdit
+prefers multiples of 12 and every VCV module is a multiple of 15, so the
+placement pitch is `gcd(12, 15) = 3` — the coarsest snap on which both land
+exactly. Snapping on 12 instead would be exact for only 5 of 13 common VCV
+widths and leave 3–9 DIP gaps on the narrow utilities, because 12 and 15 first
+agree at 60 DIPs (4 HP). `hpWidth` keeps its real meaning and still draws one
+rail hole per HP.
+
+**A panel is the WHOLE row — there is no rail allowance to subtract.** The
+rails are painted as background by `ViewBase::renderRack` and the panel covers
+them, exactly as a real Eurorack panel covers the rails it is screwed to; TIDE
+draws no mounting hardware on the panel, so rails show only in empty slots.
 
 **A round 3 DIPs/mm was tried first and rejected.** It is only 1.6% away and
 looks identical, but it puts 1 HP at 15.24 DIPs — a panel width that can never
@@ -92,10 +108,13 @@ Current parts, and how they sit against VCV's standard component library:
   calls a big knob is VCV's *small* one, and TIDE's small knob is below
   anything in VCV's library. They look right on the test panel only because
   that panel is unusually narrow.
-- **One rack unit is 48 DIPs = 16.26 mm = 3.2 HP**, which is not a real module
-  width. Making the Rack Units pin mean HP is one constant (`kHpDips`), but it
-  also rescales every coordinate in every layout string *and* the module's own
-  width in the host, so it wants to be one deliberate edit.
+- **One rack unit is 48 DIPs = 16.26 mm = 3.2 HP** — not a real Eurorack width,
+  and **settled 2026-08-21 as deliberate rather than open**: 48 is 4x12, so
+  TIDE's own modules tile on SynthEdit's preferred 12s, and it sits exactly on
+  the 3-DIP snap, so it neighbours an imported VCV module with no gap. The
+  alternative (making the pin mean HP) was declined — it rescales every
+  coordinate in every layout string *and* the module's width in the host, to buy
+  a whole-HP number nothing actually requires.
 
 ---
 
@@ -292,7 +311,8 @@ an experiment says it should.
 Known open items:
 
 1. **Knob sizes** are below both VCV's library and real hardware (above).
-2. **The rack unit is 3.2 HP**, not a whole HP (above).
+2. ~~The rack unit is 3.2 HP~~ — **closed 2026-08-21**: deliberate, and on-grid
+   under the 3-DIP snap (above).
 3. **Shadow definition is set by light size, not part height.** The key is a
    large softbox, so its penumbra is about as wide as the shadow is long.
    Height gives a shadow its *length*; only a smaller or more distant key gives
