@@ -11,9 +11,10 @@
 # for toolchain or syntax errors.
 #
 # BACKLOG A5 (2026-08-09) fixed the issue-filing step below, which had never
-# executed once. Note what is still NOT fixed: `continue-on-error` at job level
-# means every run reports success, so "green" here still means nothing. That is
-# B1's job, and until it lands nothing should treat this workflow as a gate.
+# executed once. The other half of that diagnosis -- `continue-on-error` at job
+# level, which made every run report success regardless -- is fixed as of
+# 2026-08-20. So when this matrix runs, its result now means something. It does
+# not run yet: see the guard job below.
 #
 # 2026-08-16: the matrix is now gated on the `guard` job below, because until
 # C7 lands there is no root CMakeLists.txt and all three platforms died at
@@ -27,8 +28,9 @@
 # "not attempted", where a green one would claim a clean-clone build succeeded.
 # It is keyed on the file itself, like the issue-filing suppression below, so
 # the moment C7 adds a root CMakeLists.txt the matrix starts running again with
-# nobody having to remember to remove anything. This does NOT close B1 — B1
-# still owns authoring that CMake and dropping the `continue-on-error` below.
+# nobody having to remember to remove anything. This does NOT close B1 — after
+# 2026-08-20 dropped the `continue-on-error` below, what B1 still owns is
+# authoring TIDE's root CMakeLists.txt, which is C7d's job.
 
 name: build
 
@@ -90,7 +92,17 @@ jobs:
     needs: guard
     if: needs.guard.outputs.buildable == 'true'
     runs-on: ${{ matrix.os }}
-    continue-on-error: true # remove once C7 lands and green is achievable
+
+    # `continue-on-error: true` was here from this file's first commit, and it
+    # made the whole matrix decorative: every run reported success whatever the
+    # compiler said. Removed 2026-08-20 (interactive, Jeff directing), B1's
+    # remaining half apart from the CMake itself.
+    #
+    # Removing it BEFORE C7d is deliberate and is not a red-checks window: the
+    # `if:` above skips this job entirely until a root CMakeLists.txt exists, so
+    # the change is inert until the day it is wanted, and nobody has to remember
+    # it then. `fail-fast: false` stays, so one platform going red still lets the
+    # other two report and still lets each file its own platform issue.
 
     # Scoped to this job on purpose. The repo-wide default is `read`, which is
     # why the issue step below silently 403'd for its entire existence, and the
@@ -147,7 +159,8 @@ jobs:
       #
       # It had never once executed. From the day it was written until
       # 2026-08-09 the job's GITHUB_TOKEN was read-only, so `gh issue create`
-      # returned 403; the job-level continue-on-error swallowed that, the run
+      # returned 403; the job-level continue-on-error then in force swallowed
+      # that, the run
       # reported success, and zero issues were ever filed — while every weekly
       # run's STEP 1 dutifully polled a feed that could not fill. Verified
       # before fixing: `gh issue list --state all` was empty and the workflow
