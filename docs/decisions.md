@@ -40,6 +40,14 @@ PROPOSED: which module list does E2 author the curated set from? (E16, filed 202
   May proceed meanwhile: measuring the panel-authoring cost of ONE module from the 12-tier (it is in every option), and S8's oscillator unblocking, which every option needs.
   Decide-by: before E2 files its next child prefab.
 
+PROPOSED: the rack grid and the panel disagree about how wide a module is — which one moves? (E5, filed 2026-08-21 macos)
+  The measurement, not an impression: `RackLayout` puts 1 HP at **15 DIPs** (`SynthEditLib/modules/se_sdk3_hosting/Presenter.h:40`), `SE TiDE:Panel` puts 1 rack unit at **48 DIPs** (`modules/TiDEPanel/TiDEPanelGui.cpp:227`), and 48/15 = **3.2 HP**. So TIDE's own shipped prefab measures **96 DIPs = 6.400 HP** — not a whole number — and **no module TIDE ships can satisfy E5's Accept until this is settled.** Reproduce with `python3 tests/e5_rack_footprint_probe.py tests/fixtures/e5-rack-macos-2026-08-21.xml`.
+  Options: (a) the panel's rack unit becomes 45 DIPs = 3 HP, leaving `hpWidth` alone / (b) `RackLayout::hpWidth` becomes 16 DIPs so 48 = 3 HP / (c) the Rack Units pin is re-defined to mean HP directly (`kHpDips`), which is [panel-design-language.md](panel-design-language.md)'s own suggestion.
+  Recommended default: (a) — it is one constant in an ALLOWED path, and it keeps the 15-DIP HP that the E17 ruling verified against VCV's `rack.hpp` as an EXTERNAL anchor (1 HP = 0.2 in at 75 dpi). (b) breaks that anchor and edits GATED `SynthEditLib` besides; (c) reaches the same 90-DIP width as (a) but also renames what the pin means.
+  Default in effect meanwhile: TIDE's prefabs stay 6.4 HP and E5 cannot pass on any platform. This is the tweak the E17 ruling itself already named — *"one rack unit is 3.2 HP rather than a whole HP"* — so the default is a known-open item, not a silent one.
+  May proceed meanwhile: the probe, which landed with this entry and is identical under every option; and E5's SECOND clause (*"does not overlap its neighbours"*), which is GATED `SynthEditLib` under every option — see the E5 row.
+  Decide-by: before E2 authors another module panel. Every coordinate in a panel's layout string is expressed in these units and rescales with the constant, which is why `panel-design-language.md` calls it *"one deliberate edit"* rather than a one-liner.
+
 ---
 
 ## Decisions
