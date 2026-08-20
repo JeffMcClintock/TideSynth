@@ -323,12 +323,13 @@ PREFABS = [
             '--connect $scaffold_gate:Output $gate:Input',
             '--connect $scaffold_vel:Output $vel:Input',
             '--connect $scaffold_trig:Output $trig:Input',
-            # Faceplate. Light, per note 2 above. The colours are pins, so they
-            # are set here rather than patched into the XML afterwards.
-            '--add-module "SE Rectangle XP" 700,0 --as bg',
-            '--set-pin $bg:"Top Color" FFD8D8DC',
-            '--set-pin $bg:"Bottom Color" FFB4B4BE',
-            '--set-pin $bg:"Corner Radius" 4',
+            # Faceplate: TIDE's own panel (E15). Its look is compile-time --
+            # Jeff's 2026-08-19 ruling, the appearance is TIDE's and not the
+            # patch author's -- so unlike the SE Rectangle XP it replaces there
+            # are no colour pins to set here. Its Text caption stays empty: the
+            # heading Label below already carries the name, and this row swaps
+            # the mechanism while keeping the look.
+            '--add-module "SE TiDE:Panel" 700,0 --as bg',
             '--add-module "SE Label" 700,60  --as heading',
             '--add-module "SE Label" 700,120 --as lbl_pitch',
             '--add-module "SE Label" 700,180 --as lbl_gate',
@@ -522,9 +523,9 @@ TIDE_STATIC_EXTRAS = {
     # modules/MidiPlayer2/MidiToGate.cpp -- both classes it registers
     "SE MIDItoGate",
     "SE MIDItoGate2",
-    # modules/SubControlsXp/RectangleGui.cpp -- the faceplate background. The
-    # docstring below already names this as the case the allowlist exists for.
-    "SE Rectangle XP",
+# E15 retired "SE Rectangle XP" here: the MIDI-CV faceplate is SE TiDE:Panel
+    # now, no prefab names the Rectangle any more, and RectangleGui.cpp came
+    # off the TIDE source list with it.
     # modules/Controls/LabelGui.cpp -- the faceplate captions. Verified linked at
     # the symbol level rather than by strings/nm on an id:
     #   nm TIDE_VST3 | grep __GLOBAL__sub_I_LabelGui.cpp   -> present
@@ -674,9 +675,11 @@ def build(secl, prefab, outdir):
     # phantom with no class behind it; .cpp-only is a class with no pins, which
     # takes the whole enclosing container's widget layer down with it -- a blank
     # rack, not one missing module. For legacy SDK3 modules the second half is an
-    # XML merged in TideApp::InitInstance (SE Rectangle XP: RectangleGui.cpp plus
-    # SubControlsXp.xml); for modern Register<>::withXml modules it comes with the
-    # .cpp (SE Label needs no XML entry).
+    # XML merged in TideApp::InitInstance (MIDItoGate2: MidiToGate.cpp plus
+    # MidiPlayer2.xml -- SE Rectangle XP was the original example until E15
+    # replaced the faceplate with SE TiDE:Panel); for modern Register<>::withXml
+    # modules it comes with the .cpp (SE Label and the TiDE pair need no XML
+    # entry).
     #
     # THE TWO OPEN QUESTIONS THAT KEPT THESE JACKS-ONLY ARE BOTH ANSWERED as of
     # 2026-08-19, and the MIDI-CV prefab now carries a faceplate:

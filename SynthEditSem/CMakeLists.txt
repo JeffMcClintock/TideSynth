@@ -179,13 +179,11 @@ gmpi_plugin(
 	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/TextEntry.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/TextEntryGui.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/PlainImageGui.cpp
-	  # BACKLOG E2a — the rack prefabs' faceplate background. A module needs BOTH
-	  # halves to work in TIDE: this .cpp for the class and its registration, and
-	  # its pin descriptions merged from SubControlsXp.xml below (TIDE has no
-	  # module scan to supply them -- S1a). With only the XML it is an "insertable
-	  # phantom"; with only the .cpp it registers with no pins and takes the whole
-	  # container's widget layer down with it.
-	  ${SYNTHEDITLIB_DIR}/modules/SubControlsXp/RectangleGui.cpp
+	  # BACKLOG E15 -- SE Rectangle XP is gone: the rack faceplate is TIDE's own
+	  # SE TiDE:Panel now (modules/TiDEPanel, static via TIDE_STATIC_EXTRAS), so
+	  # RectangleGui.cpp and the SubControlsXp.xml staging both came off this
+	  # list. The two-halves rule its comment taught lives on at MIDItoGate2
+	  # below.
 
 	  # The rack prefabs' captions. `SE Label` is the ONE-LINE case: it registers
 	  # with Register<>::withXml, so it carries its own pin descriptions and needs
@@ -419,7 +417,6 @@ foreach(_fmt ${FORMATS_LIST})
   # Cost a debugging cycle on V3; do not split them again.
   set(_tide_xmls
     ControlsXp/ControlsXp.xml
-    SubControlsXp/SubControlsXp.xml
     MidiPlayer2/MidiPlayer2.xml
     Converters/Converters.xml
     # E2c -- SE SV Filter4's pins. Oscillator HD is NOT here on purpose: its XML

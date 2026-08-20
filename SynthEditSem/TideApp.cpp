@@ -476,9 +476,8 @@ bool TideApp::InitInstance()
 	// rack rather than one missing module. E2a hit the second failure while
 	// giving the prefabs a faceplate.
 	//
-	// SubControlsXp.xml joined the list for that faceplate: SE Rectangle XP's
-	// RectangleGui.cpp is now in the source list, so merging its pins is
-	// enrichment rather than a phantom. Everything else in that file is skipped
+	// SubControlsXp.xml left the list with E15: the faceplate is SE TiDE:Panel
+	// now, which registers withXml and needs no merged pin descriptions.
 	// automatically -- the GetById() guard below only enriches classes that are
 	// actually registered, which is exactly what keeps this safe to point at a
 	// file describing far more modules than TIDE links.
@@ -499,7 +498,7 @@ bool TideApp::InitInstance()
 	// Adding it in only one place fails silently in whichever direction you
 	// missed -- staged but never read, or read but never staged (the second says
 	// so on stderr, the first says nothing at all).
-	for (const auto* resourceName : { "ControlsXp.xml", "SubControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilters.xml" })
+	for (const auto* resourceName : { "ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilters.xml" })
 	{
 		const auto xml = BundleInfo::instance()->getResource(resourceName);
 		if (xml.empty())
