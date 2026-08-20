@@ -199,6 +199,14 @@ constexpr float kRackUnitDips = 48.0f;
 // resizeable only when the two answers differ.
 constexpr float kRackHeightDips = 380.0f;
 
+// The widest panel the Rack Units pin will build. A ceiling is not politeness,
+// it is a resource guard: cost and memory are both linear in panel area, and
+// the pin is an integer a user can type into. At the 4x trace ceiling an
+// 8-unit panel is 1536 x 1520 -- 2.3 Mpx, about 37 MB of float -- which fits
+// inside the trace cache's budget. A three-digit number typed by accident
+// would not, and would take the host down with it.
+constexpr int kMaxRackUnits = 8;
+
 // --- hardware, all sizes in DIPs ---------------------------------------------
 // WHERE things go now comes from the Layout pin; only WHAT they look like is
 // compiled in, per the one-look rule (PLAN constraint 8).
@@ -260,7 +268,12 @@ constexpr float kJackProudFrac = 0.25f;
 // component it would swallow, down to the minimum pad, because a pocket is a
 // jack feature: a knob half-in half-out of a pocket is a drawing error on a
 // real panel too.
-constexpr float kJackClusterDips = 46.0f;
+// THE RULE: adjacent patch points share an indent, unless doing so would
+// affect another widget. Expressed as a multiple of the bezel rather than as a
+// bare number, because what counts as "the next jack along" is set by how big a
+// jack is. 46 DIPs was too tight and split an ordinary row of three, which is
+// the shape a panel of patch points actually takes.
+constexpr float kJackClusterDips = 3.5f * (2.0f * kJackSurroundDips);
 constexpr float kIndentPadDips = 5.0f;
 constexpr float kIndentMinPadDips = 2.0f;
 constexpr float kIndentCornerDips = 6.7f;
@@ -856,32 +869,44 @@ struct DipRect { float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f; };
 
 // The keep-out footprint of a non-jack component, as a circle. Used only to
 // push pocket edges back, so generous-and-round beats tight-and-exact.
-float componentKeepOut(const PanelComponent& c, float dipsWide)
+// The area a non-jack widget wants left alone, as a RECTANGLE.
+//
+// It was a circle of the half-diagonal, which is fine for a knob and badly
+// wrong for anything long and thin. Once vents started spanning the panel, a
+// 276-DIP-wide slot bank claimed a circle of radius 140 -- most of the lower
+// panel -- and silently vetoed every pocket merge near it. A widget's keep-out
+// has to be the shape of the widget.
+//
+// `has` is false for kinds that reserve nothing.
+struct KeepOut { DipRect rect; bool has = false; };
+
+KeepOut componentKeepOut(const PanelComponent& c, float dipsWide)
 {
-	using tide::render::safeSqrt;
+	const auto box = [&c](float halfW, float halfH, float margin)
+	{
+		return KeepOut{ { c.x - halfW - margin, c.y - halfH - margin,
+			c.x + halfW + margin, c.y + halfH + margin }, true };
+	};
+
 	switch (c.kind)
 	{
 	case PanelComponent::Kind::Knob:
-		return (c.big ? kKnobBigRadiusDips : kKnobSmallRadiusDips) + 1.5f;
+	{
+		const float r = c.big ? kKnobBigRadiusDips : kKnobSmallRadiusDips;
+		return box(r, r, 1.5f);
+	}
 	case PanelComponent::Kind::Switch:
-		return safeSqrt(kSwitchHalfWidthDips * kSwitchHalfWidthDips
-			+ kSwitchHalfHeightDips * kSwitchHalfHeightDips) + 1.5f;
+		return box(kSwitchHalfWidthDips, kSwitchHalfHeightDips, 1.5f);
 	case PanelComponent::Kind::Grill:
-	{
-		const float hw = 0.5f * kVentPitchDips * (float)ventColsFor(dipsWide, c.cols);
-		const float hh = 0.5f * kVentPitchDips * 0.866f * (float)c.rows;
-		return safeSqrt(hw * hw + hh * hh) + 2.0f;
-	}
+		return box(0.5f * kVentPitchDips * (float)ventColsFor(dipsWide, c.cols),
+			0.5f * kVentPitchDips * 0.866f * (float)c.rows, 2.0f);
 	case PanelComponent::Kind::Slots:
-	{
-		const float hl = slotHalfLenFor(dipsWide);
-		const float hh = 0.5f * kSlotPitchDips * (float)c.rows;
-		return safeSqrt(hl * hl + hh * hh) + 2.0f;
-	}
+		return box(slotHalfLenFor(dipsWide),
+			0.5f * kSlotPitchDips * (float)c.rows, 2.0f);
 	case PanelComponent::Kind::Led:
-		return kLedHoleRadiusDips + 2.0f;
+		return box(kLedHoleRadiusDips, kLedHoleRadiusDips, 2.0f);
 	default:
-		return 0.0f;
+		return {};
 	}
 }
 
@@ -889,16 +914,19 @@ float componentKeepOut(const PanelComponent& c, float dipsWide)
 // moving the ONE edge that costs the least area. One edge rather than all
 // four: the intruder sits on one side of the jacks, and that is the side the
 // pocket should give up.
-void shrinkPocketClear(DipRect& rect, const DipRect& minRect, float cx, float cy, float r)
+bool rectsOverlap(const DipRect& a, const DipRect& b)
 {
-	using tide::render::clampf;
+	return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
 
-	const float px = clampf(cx, rect.x0, rect.x1);
-	const float py = clampf(cy, rect.y0, rect.y1);
-	const float dx = cx - px;
-	const float dy = cy - py;
-	if (dx * dx + dy * dy >= r * r)
-		return; // already clear
+// Shrink `rect` just enough to clear `keep`, never past `minRect`, by moving
+// the ONE edge that costs the least area. One edge rather than all four: the
+// intruder sits on one side of the jacks, and that is the side the pocket
+// should give up.
+void shrinkPocketClear(DipRect& rect, const DipRect& minRect, const DipRect& keep)
+{
+	if (!rectsOverlap(rect, keep))
+		return;
 
 	const float w = rect.x1 - rect.x0;
 	const float h = rect.y1 - rect.y0;
@@ -914,10 +942,10 @@ void shrinkPocketClear(DipRect& rect, const DipRect& minRect, float cx, float cy
 			bestCost = cost;
 		}
 	};
-	consider(0, cx - r, cx - r >= minRect.x1, (rect.x1 - (cx - r)) * h); // pull right edge in
-	consider(1, cx + r, cx + r <= minRect.x0, ((cx + r) - rect.x0) * h); // pull left edge in
-	consider(2, cy - r, cy - r >= minRect.y1, (rect.y1 - (cy - r)) * w); // pull bottom edge up
-	consider(3, cy + r, cy + r <= minRect.y0, ((cy + r) - rect.y0) * w); // pull top edge down
+	consider(0, keep.x0, keep.x0 >= minRect.x1, (rect.x1 - keep.x0) * h); // right edge in
+	consider(1, keep.x1, keep.x1 <= minRect.x0, (keep.x1 - rect.x0) * h); // left edge in
+	consider(2, keep.y0, keep.y0 >= minRect.y1, (rect.y1 - keep.y0) * w); // bottom edge up
+	consider(3, keep.y1, keep.y1 <= minRect.y0, (keep.y1 - rect.y0) * w); // top edge down
 
 	switch (bestEdge)
 	{
@@ -931,75 +959,120 @@ void shrinkPocketClear(DipRect& rect, const DipRect& minRect, float cx, float cy
 
 // Jacks grouped by proximity (single linkage), one pocket per group, each
 // pocket shrunk away from anything that is not a jack.
+DipRect padRect(const DipRect& b, float pad)
+{
+	return { b.x0 - pad, b.y0 - pad, b.x1 + pad, b.y1 + pad };
+}
+
+// Pull `rect` back off every non-jack widget, never past `floorRect`, and
+// report whether that succeeded. Shrinking FIRST and vetoing only if it fails
+// is the difference between "these two jacks cannot share a pocket because a
+// knob is near" and "they share a slightly tighter one" -- the pocket giving
+// ground is not the other widget being affected.
+bool clearOfOtherWidgets(DipRect& rect, const DipRect& floorRect,
+	const std::vector<PanelComponent>& comps, float dipsWide)
+{
+	for (const auto& c : comps)
+	{
+		if (c.kind == PanelComponent::Kind::Jack)
+			continue;
+		const KeepOut k = componentKeepOut(c, dipsWide);
+		if (k.has)
+			shrinkPocketClear(rect, floorRect, k.rect);
+	}
+
+	for (const auto& c : comps)
+	{
+		if (c.kind == PanelComponent::Kind::Jack)
+			continue;
+		const KeepOut k = componentKeepOut(c, dipsWide);
+		if (k.has && rectsOverlap(rect, k.rect))
+			return false;
+	}
+	return true;
+}
+
+// One pocket per group of adjacent patch points.
+//
+// Agglomerative with a VETO rather than plain clustering: every jack starts in
+// its own pocket, and two pockets merge only if the combined one can be made
+// to clear every other widget. A single pass of "cluster then fix up" cannot
+// express that -- it has already committed to the grouping by the time it
+// discovers a knob in the way.
 std::vector<DipRect> computeJackPockets(const std::vector<PanelComponent>& comps,
 	float dipsWide)
 {
-	std::vector<size_t> jacks;
+	constexpr float pad = kJackSurroundDips + kIndentPadDips;
+	constexpr float minPad = kJackSurroundDips + kIndentMinPadDips;
+
+	std::vector<std::vector<size_t>> groups;
 	for (size_t i = 0; i < comps.size(); ++i)
 		if (comps[i].kind == PanelComponent::Kind::Jack)
-			jacks.push_back(i);
-	if (jacks.empty())
+			groups.push_back({ i });
+	if (groups.empty())
 		return {};
 
-	// Label propagation until settled. A handful of jacks; O(n^2) is nothing.
-	std::vector<int> label(jacks.size());
-	for (size_t i = 0; i < label.size(); ++i)
-		label[i] = (int)i;
-
-	for (bool changed = true; changed; )
+	const auto bboxOf = [&comps](const std::vector<size_t>& g)
 	{
-		changed = false;
-		for (size_t a = 0; a < jacks.size(); ++a)
+		DipRect b{ 1.0e9f, 1.0e9f, -1.0e9f, -1.0e9f };
+		for (const size_t i : g)
 		{
-			for (size_t b = a + 1; b < jacks.size(); ++b)
+			b.x0 = (std::min)(b.x0, comps[i].x);
+			b.y0 = (std::min)(b.y0, comps[i].y);
+			b.x1 = (std::max)(b.x1, comps[i].x);
+			b.y1 = (std::max)(b.y1, comps[i].y);
+		}
+		return b;
+	};
+
+	// Adjacent if ANY member of one is within reach of any member of the other,
+	// so a row of jacks chains along rather than needing every pair to be close.
+	const auto adjacent = [&comps](const std::vector<size_t>& ga,
+		const std::vector<size_t>& gb)
+	{
+		for (const size_t a : ga)
+			for (const size_t b : gb)
 			{
-				const auto& ca = comps[jacks[a]];
-				const auto& cb = comps[jacks[b]];
-				const float dx = ca.x - cb.x;
-				const float dy = ca.y - cb.y;
-				if (dx * dx + dy * dy <= kJackClusterDips * kJackClusterDips
-					&& label[a] != label[b])
-				{
-					const int merged = (std::min)(label[a], label[b]);
-					label[a] = label[b] = merged;
-					changed = true;
-				}
+				const float dx = comps[a].x - comps[b].x;
+				const float dy = comps[a].y - comps[b].y;
+				if (dx * dx + dy * dy <= kJackClusterDips * kJackClusterDips)
+					return true;
+			}
+		return false;
+	};
+
+	for (bool merged = true; merged; )
+	{
+		merged = false;
+		for (size_t a = 0; a < groups.size() && !merged; ++a)
+		{
+			for (size_t b = a + 1; b < groups.size() && !merged; ++b)
+			{
+				if (!adjacent(groups[a], groups[b]))
+					continue;
+
+				std::vector<size_t> combined = groups[a];
+				combined.insert(combined.end(), groups[b].begin(), groups[b].end());
+
+				const DipRect bbox = bboxOf(combined);
+				DipRect candidate = padRect(bbox, pad);
+				if (!clearOfOtherWidgets(candidate, padRect(bbox, minPad), comps, dipsWide))
+					continue; // merging here WOULD affect another widget: leave them apart
+
+				groups[a] = std::move(combined);
+				groups.erase(groups.begin() + b);
+				merged = true;
 			}
 		}
 	}
 
 	std::vector<DipRect> pockets;
-	for (size_t seed = 0; seed < jacks.size(); ++seed)
+	pockets.reserve(groups.size());
+	for (const auto& g : groups)
 	{
-		if (label[seed] != (int)seed)
-			continue; // not a cluster representative
-
-		DipRect bbox{ 1.0e9f, 1.0e9f, -1.0e9f, -1.0e9f };
-		for (size_t m = 0; m < jacks.size(); ++m)
-		{
-			if (label[m] != (int)seed)
-				continue;
-			const auto& c = comps[jacks[m]];
-			bbox.x0 = (std::min)(bbox.x0, c.x);
-			bbox.y0 = (std::min)(bbox.y0, c.y);
-			bbox.x1 = (std::max)(bbox.x1, c.x);
-			bbox.y1 = (std::max)(bbox.y1, c.y);
-		}
-
-		const float pad = kJackSurroundDips + kIndentPadDips;
-		const float minPad = kJackSurroundDips + kIndentMinPadDips;
-		DipRect pocket{ bbox.x0 - pad, bbox.y0 - pad, bbox.x1 + pad, bbox.y1 + pad };
-		const DipRect minRect{ bbox.x0 - minPad, bbox.y0 - minPad, bbox.x1 + minPad, bbox.y1 + minPad };
-
-		for (const auto& c : comps)
-		{
-			if (c.kind == PanelComponent::Kind::Jack)
-				continue;
-			const float r = componentKeepOut(c, dipsWide);
-			if (r > 0.0f)
-				shrinkPocketClear(pocket, minRect, c.x, c.y, r);
-		}
-
+		const DipRect bbox = bboxOf(g);
+		DipRect pocket = padRect(bbox, pad);
+		clearOfOtherWidgets(pocket, padRect(bbox, minPad), comps, dipsWide);
 		pockets.push_back(pocket);
 	}
 	return pockets;
@@ -1787,7 +1860,7 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 	// always 3U.
 	Size panelSizeDips() const
 	{
-		return { kRackUnitDips * (float)(std::clamp)(pinRackUnits.value, 1, 16),
+		return { kRackUnitDips * (float)(std::clamp)(pinRackUnits.value, 1, kMaxRackUnits),
 			kRackHeightDips };
 	}
 
@@ -1806,7 +1879,7 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 	PanelSpec buildSpec() const
 	{
 		PanelSpec spec;
-		spec.units = (std::clamp)(pinRackUnits.value, 1, 16);
+		spec.units = (std::clamp)(pinRackUnits.value, 1, kMaxRackUnits);
 		spec.material = (std::clamp)(pinMaterial.value, 0, 2);
 
 		// colorFromHexString decodes sRGB to LINEAR (Drawing.h,
