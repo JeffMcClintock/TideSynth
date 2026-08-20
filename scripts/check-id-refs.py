@@ -98,24 +98,76 @@ DEFAULT_GLOBS = ("*.md", "docs/*.md")
 BACKLOG_FILES = ("BACKLOG.md", "BACKLOG-DONE.md")
 
 
-def known_ids(repo_root, backlog_files=BACKLOG_FILES):
-    """Every ID that has a row of its own, read from the tables' ID column."""
-    found = set()
+# A row whose ID cell is struck through -- `| ~~P8~~ | *(was)* | ...` -- is a
+# superseded entry kept for the record beside its replacement, not a second
+# owner of the ID. RE_ID_CELL deliberately tolerates the tildes so such rows
+# still count as KNOWN (references to them must resolve); the duplicate check
+# has to exclude them or every one is a false alarm. Real instances today: P8
+# in BACKLOG.md and G3 in BACKLOG-DONE.md.
+RE_SUPERSEDED_CELL = re.compile(r"^\s*~~")
+
+
+def id_locations(repo_root, backlog_files=BACKLOG_FILES, include_superseded=True):
+    """Every row ID -> the [(file, lineno), ...] where it has a row of its own.
+
+    A23 needs the locations, not just the set: a duplicate is only actionable if
+    the report names BOTH lines, since renumbering means editing one of them.
+    """
+    found = {}
     for name in backlog_files:
         path = os.path.join(repo_root, name)
         if not os.path.isfile(path):
             continue
         with open(path, encoding="utf-8") as handle:
-            for line in handle:
+            for lineno, line in enumerate(handle, 1):
                 if not line.startswith("|"):
                     continue
                 cells = line.split("|")
                 if len(cells) < 3:
                     continue
+                if not include_superseded and RE_SUPERSEDED_CELL.match(cells[1]):
+                    continue
                 match = RE_ID_CELL.match(cells[1])
                 if match:
-                    found.add(match.group(1))
+                    found.setdefault(match.group(1), []).append((name, lineno))
     return found
+
+
+def known_ids(repo_root, backlog_files=BACKLOG_FILES):
+    """Every ID that has a row of its own, read from the tables' ID column."""
+    return set(id_locations(repo_root, backlog_files))
+
+
+def duplicate_ids(locations, live_file=BACKLOG_FILES[0]):
+    """IDs owning more than one row, in the cases that are actionable. A23.
+
+    Two runs can allocate the same ID from branches cut off the same `main`,
+    where each other's row is unmerged and so invisible -- and if the rows land
+    at different points in the file, git merges them CLEANLY rather than
+    conflicting. Nothing detected that until a human noticed (2026-08-17, the
+    two A17s). Lint runs against the merge result, which is the first place the
+    collision is visible and the last moment renumbering is cheap.
+
+    TWO cases are flagged, and one deliberately is not:
+
+      * two rows in BACKLOG.md -- the collision this row was filed for. New IDs
+        are only ever allocated here, so this is where a race lands.
+      * one row in each file -- an archive move that COPIED instead of moving.
+        Same defect, different hat, and it makes the row's status ambiguous.
+      * two rows in BACKLOG-DONE.md and nowhere else -- NOT flagged. The archive
+        is history, "archiving never rewrites a row", and it already contains a
+        deliberate duplicate: S1 was taken by the linux AND macOS boxes on
+        2026-08-06 before the cron stagger took effect, and both rows are kept
+        on purpose with the second saying so. Flagging that would demand an edit
+        the rules forbid, every run, forever.
+    """
+    out = {}
+    for rid, locs in locations.items():
+        if len(locs) < 2:
+            continue
+        if any(name == live_file for name, _ in locs):
+            out[rid] = locs
+    return out
 
 
 def strip_noncontent(line):
@@ -152,7 +204,8 @@ def collect_files(repo_root, patterns):
 
 
 def run(repo_root, allow=(), show=False, patterns=DEFAULT_GLOBS):
-    ids = known_ids(repo_root)
+    locations = id_locations(repo_root)
+    ids = set(locations)
     if not ids:
         print("error: no IDs found -- is %s a TideSynth checkout?" % repo_root,
               file=sys.stderr)
@@ -173,6 +226,22 @@ def run(repo_root, allow=(), show=False, patterns=DEFAULT_GLOBS):
     print("%d ID reference(s) checked against %d row(s), %d distinct ID(s) named"
           % (examined, len(ids), len(distinct)))
 
+    # A23 -- reported before the stale-reference block, because a duplicated ID
+    # makes every reference to it ambiguous and so is the more fundamental
+    # failure. Both are reported in one run rather than short-circuiting.
+    duplicates = duplicate_ids(
+        id_locations(repo_root, include_superseded=False))
+    if duplicates:
+        print("\n%d DUPLICATE ID(s) -- one ID, more than one row:" % len(duplicates))
+        for rid in sorted(duplicates):
+            print("  %s" % rid)
+            for name, lineno in duplicates[rid]:
+                print("      %s:%d" % (name, lineno))
+        print("\nTwo runs can allocate the same ID from branches cut off the same")
+        print("main, and git merges the rows cleanly when they land at different")
+        print("points in the file. Renumber the newer row -- it is cheap now and")
+        print("expensive once anything references it.")
+
     if stale:
         print("\n%d STALE -- named but no such row in %s:"
               % (len(stale), " or ".join(BACKLOG_FILES)))
@@ -183,7 +252,10 @@ def run(repo_root, allow=(), show=False, patterns=DEFAULT_GLOBS):
               "--allow-id <ID> rather than removing the reference.")
         return 1
 
-    print("no stale ID references")
+    if duplicates:
+        return 1
+
+    print("no stale ID references, no duplicate IDs")
     return 0
 
 
@@ -253,7 +325,37 @@ def selftest():
         failures += 1
         print("FAIL  fenced code block leaked: %s" % leaked)
 
-    total = len(SELFTEST_CASES) + 1
+    # A23 -- the duplicate rule, on real file bodies rather than regex snippets,
+    # because every subtlety in it is about WHICH FILE a row is in.
+    import tempfile
+    LIVE = "| ID | Status | Plat | Item |\n|---|---|---|---|\n"
+    DONE = "| ID | Done | Plat | Item |\n|---|---|---|---|\n"
+    dup_cases = [
+        ("two rows in BACKLOG.md",
+         LIVE + "| A24 | TODO | any | x |\n| A24 | TODO | any | y |\n", DONE, ["A24"]),
+        ("one row in each file -- archived but not removed",
+         LIVE + "| A24 | TODO | any | x |\n", DONE + "| A24 | 2026-01-01 | any | x |\n", ["A24"]),
+        ("archive-only duplicate -- deliberate, see S1",
+         LIVE + "| A24 | TODO | any | x |\n",
+         DONE + "| S1 | 2026-08-06 | linux | x |\n| S1 | 2026-08-06 | mac | duplicate run |\n", []),
+        ("superseded row beside its replacement -- P8/G3's shape",
+         LIVE + "| P8 | DONE | win | new |\n| ~~P8~~ | *(was)* | win | old |\n", DONE, []),
+        ("clean",
+         LIVE + "| A24 | TODO | any | x |\n| A25 | TODO | any | y |\n", DONE, []),
+    ]
+    for description, live, done, expected in dup_cases:
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "BACKLOG.md"), "w", encoding="utf-8") as fh:
+                fh.write(live)
+            with open(os.path.join(d, "BACKLOG-DONE.md"), "w", encoding="utf-8") as fh:
+                fh.write(done)
+            got = sorted(duplicate_ids(id_locations(d, include_superseded=False)))
+            if got != sorted(expected):
+                failures += 1
+                print("FAIL  duplicate/%s\n      expected: %s\n      got:      %s"
+                      % (description, expected or "[]", got or "[]"))
+
+    total = len(SELFTEST_CASES) + 1 + len(dup_cases)
     print("\n%d case(s), %d failed" % (total, failures))
     return 1 if failures else 0
 
