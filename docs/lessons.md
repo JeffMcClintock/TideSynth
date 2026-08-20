@@ -39,6 +39,10 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**macos — E6's honest tell: renders that ignored your state now say so**
+
+- A row that names its own fallback scope can be half-shipped honestly
+
 **macos — S25 does not reproduce on mac, and the negative result is the deliverable**
 
 - A cross-platform row can be closed on one platform and open on another, and saying which is the whole value of a cheap reproduction.
