@@ -172,6 +172,75 @@ rather than doubling it.
 
 ---
 
+---
+
+## 2026-08-20 — macos — U2 was finished four days ago, and it was the last mac row
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Seventeenth item this session**, and taken with a concurrent agent running —
+so: throwaway worktree only, claim pushed before any work, every change
+committed as soon as it was coherent, `check-commit-authorship` and
+`check-commit-completeness` on every commit. None of Jeff's trees were touched.
+
+**Did:** closed **U2**, whose Accept had been met on 2026-08-16, and filed **A32**
+for the gap that let it sit.
+
+### The row had nothing in it
+
+U2 asked for exactly one deliverable — *"a triage note naming root cause(s) and
+the split; per-defect accepts land on the split rows."* Verified rather than
+assumed:
+
+- `docs/u2-triage-2026-08-16.md` — **163 lines**, exists
+- **all five splits archived DONE with merged PRs**: U2a (gmpi_ui#7), U2b
+  (gmpi_ui#8), U2c (SynthEdit#26), U2d (SynthEdit#27), U2e
+
+**Four days stale — and it was the ONLY `mac`-marked row left in the queue.** A
+run looking for mac work takes it and finds nothing to do. The failure is silent
+and self-concealing: from outside, the queue looks like it has work in it.
+
+### The obvious lint would be red on day one, and I measured that before proposing it
+
+The rule writes itself: *flag any live row all of whose `X[a-z]` splits are
+archived*. Run against the real tree it fires on **two** rows:
+
+| row | verdict |
+|---|---|
+| **U2** | correct — nothing left in it |
+| **E2** | **wrong** — a/b/c are done, but E2 is legitimately open; its remaining module stages are simply not filed yet |
+
+It correctly does **not** fire on C7, whose splits include open ones.
+
+**One real, one false: a 50% false-positive rate.** That is the same shape A23
+and A27 were each nearly shipped with, and the same shape A24's proposed remedy
+had. So A32 asks for an **advisory report** that never sets a non-zero exit,
+not a gate.
+
+**E2 is the interesting half of that false positive.** An umbrella with every
+child done and more intended is, from the outside, indistinguishable from one
+that is finished. That is a row-writing problem, not a lint problem, and A32 says
+so.
+
+**Learned:**
+
+1. **Third stale-status row today** — C15 (duplicate), U2 (splits all landed).
+   Different causes, one shared consequence: the queue advertises work that does
+   not exist. A31 covers the first, A32 the second.
+2. **Measuring a proposed lint against the live tree before writing it has now
+   paid off four times today** (A23, A27, A24, A32). It is cheap, it is one
+   command, and every time it changed the design.
+
+**Next:**
+
+1. **No `mac`-marked rows remain.** M1/M2/M3 and R3 are all BLOCKED; S9 is
+   WONTFIX. Mac's queue is `any` rows or nothing.
+2. **A31, A32** are the takeable process rows; **C10** wants `SynthEditLib`
+   authority.
+3. **The carve-out needs one `apt-get`** — [#189](https://github.com/JeffMcClintock/TideSynth/issues/189), Jeff's.
+
+**Branch/PR:** `tide/mac/U2-close` — TideSynth only, backlog and journal.
+
 ## 2026-08-20 — macos — C15 was C16: two ids, one job, and a NEXT block pointing three runs at it
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
