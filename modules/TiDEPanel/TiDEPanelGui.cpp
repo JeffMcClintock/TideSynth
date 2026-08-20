@@ -609,6 +609,43 @@ float taperedCut(float d2, float pz, float frontZ)
 	return d2 - kThroughCutTaper * tide::render::maxf(0.0f, frontZ - pz);
 }
 
+// Tapering the CUT is only half the story: it does nothing for a ray hugging
+// something that STANDS IN the cut.
+//
+// The jack is the case. Its barrel sits inside the panel's punched hole with a
+// 0.6 DIP slot between them, so the slot has two walls -- the panel's, which
+// taperedCut widens with depth, and the barrel's, which was straight up and
+// down. A ray hugging the barrel keeps a constant tiny distance to it however
+// much room opens up on the far side, runs out of steps, and is scored as a
+// miss. Alpha 0, host background through the slot.
+//
+// It is worth saying how this one was actually pinned down, because eyeballing
+// it got the wrong answer twice: the renderer was made to paint every
+// non-opaque pixel magenta, and the leak then measured itself at 11.1-12.9 DIPs
+// from the jack centre. The barrel wall is at 11.81 and the collar and bore are
+// at 9.60 and 7.19, so the ring could only be this wall. Guessing from a
+// screenshot had blamed the collar.
+//
+// So the shank NARROWS behind the panel face and the slot opens from both
+// sides. Nothing visible changes: the taper starts at the panel face, below the
+// bezel that covers it.
+//
+// CLAMPED, because the taper is a slope in world units while a component's
+// radius shrinks as the panel gets wider -- kJackSurroundDips/dipsWide is eight
+// times smaller on an 8-unit panel than on a 1-unit one, and an unclamped
+// slope would taper the barrel away to nothing. Going vertical again after the
+// clamp is safe: by then the ray has real clearance, so its steps are large.
+constexpr float kShankTaperMaxFrac = 0.25f;
+
+// `radial` is the distance from the shank's axis, `r` its radius.
+float taperedShank(float radial, float r, float pz, float frontZ)
+{
+	const float shrink = tide::render::minf(
+		kThroughCutTaper * tide::render::maxf(0.0f, frontZ - pz),
+		kShankTaperMaxFrac * r);
+	return radial - (r - shrink);
+}
+
 // Sweeps a 2D field along Z into a slab. Standard extrusion: the two distances
 // combine as a right triangle outside the solid and as the nearer face inside.
 float extrudeZ(float d2, float dz)
@@ -1604,13 +1641,21 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 				body.material = recipes::plastic({ 0.015f, 0.015f, 0.015f }, 0.42f);
 				body.boundsCentre = centre;
 				body.boundsRadius = safeSqrt(rSurround * rSurround + hz * hz) + 0.01f;
-				body.distance = [centre, rSurround, rBore, hz, boreDepth, bezelRound](const Vec3& p)
+				body.distance = [centre, rSurround, rBore, hz, boreDepth, bezelRound, halfZ](const Vec3& p)
 				{
 					const Vec3 q = p - centre;
 					const float boreHalf = 0.5f * (boreDepth + 0.1f);
 					const float boreZ = hz + 0.1f - boreHalf;
-					return opSubtract(sdRoundCylinder(q, rSurround, hz, bezelRound),
+					float d = opSubtract(sdRoundCylinder(q, rSurround, hz, bezelRound),
 						sdCylinder(q - Vec3{ 0.0f, 0.0f, boreZ }, rBore, boreHalf));
+
+					// Narrow the shank behind the panel face, so the punched
+					// slot around it is not bounded by a vertical wall. This is
+					// what stops the slot leaking the background; see
+					// taperedShank for why the cut's own taper is not enough.
+					const float radial = safeSqrt(q.x * q.x + q.y * q.y);
+					d = tide::render::maxf(d, taperedShank(radial, rSurround, p.z, halfZ));
+					return d;
 				};
 				scene.add(std::move(body));
 			}
@@ -1806,8 +1851,8 @@ public:
 
 		Result result;
 		result.target = it->second;
-		if (lastComplete && lastCompleteConfig == key.config && lastComplete != result.target)
-			result.fallback = lastComplete;
+		if (lastUsable && lastUsableConfig == key.config && lastUsable != result.target)
+			result.fallback = lastUsable;
 
 		// Even a cached-but-incomplete trace is re-declared as wanted: it may
 		// have been abandoned half-done when the size changed away and back.
@@ -1865,7 +1910,7 @@ private:
 			const auto old = cache.find(order[i]);
 			if (old != cache.end()
 				&& old->second->stage.load(std::memory_order_acquire) == 2
-				&& old->second != lastComplete)
+				&& old->second != lastUsable)
 			{
 				cache.erase(old);
 				order.erase(order.begin() + i);
@@ -1912,6 +1957,22 @@ private:
 				trace->preview = traceFaceplate(trace->previewWidth, trace->previewHeight,
 					spec, kPreviewSamples);
 				trace->stage.store(1, std::memory_order_release);
+
+				// Available as a stand-in immediately. Only claim the slot if
+				// nothing better holds it: a FULL render of this same panel at
+				// some other size still looks better stretched than a preview
+				// does, so it is not displaced by one.
+				{
+					std::lock_guard<std::mutex> lock(mutex);
+					const bool betterHeld = lastUsable
+						&& lastUsableConfig == key.config
+						&& lastUsable->stage.load(std::memory_order_acquire) >= 2;
+					if (!betterHeld)
+					{
+						lastUsable = trace;
+						lastUsableConfig = key.config;
+					}
+				}
 			}
 
 			// A cancellation point, and the one that matters: if the panel has
@@ -1931,8 +1992,8 @@ private:
 			// show while its own trace runs.
 			{
 				std::lock_guard<std::mutex> lock(mutex);
-				lastComplete = trace;
-				lastCompleteConfig = key.config;
+				lastUsable = trace;
+				lastUsableConfig = key.config;
 
 				// The trace that just finished is the one that made the cache
 				// bigger, so this is the moment to check the budget -- waiting
@@ -1955,8 +2016,14 @@ private:
 	std::vector<Key> order;
 	Key wantedKey{};
 	PanelSpec wantedSpec;
-	std::shared_ptr<FaceTrace> lastComplete;
-	uint64_t lastCompleteConfig = 0;
+	// The best image rendered so far for `lastUsableConfig`, offered as a
+	// stand-in while a new size renders. Deliberately NOT "the last COMPLETE
+	// trace", which was the bug: zooming in before the first full trace landed
+	// found nothing to fall back to and dropped all the way to flat grey, even
+	// though a perfectly good preview was already on screen. A low-fi image
+	// beats no image.
+	std::shared_ptr<FaceTrace> lastUsable;
+	uint64_t lastUsableConfig = 0;
 	bool haveWanted = false;
 	bool quit = false;
 	bool started = false;
@@ -1998,7 +2065,11 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 
 	// Which of the three possible sources faceBitmap was built from, so it is
 	// rebuilt when a better one appears and not otherwise. Higher is better.
-	enum FaceSource { FaceNone = 0, FacePreview, FaceStaleFull, FaceCurrentFull };
+	// Worst to best. A stale FULL outranks the current size's preview because
+	// quality here is pixels, not freshness; a stale PREVIEW ranks below both,
+	// but above drawing nothing at all.
+	enum FaceSource { FaceNone = 0, FaceStalePreview, FacePreview,
+		FaceStaleFull, FaceCurrentFull };
 	int faceBitmapSrc = FaceNone;
 	int faceTraceStage = 0; // how much of faceTrace has been consumed
 	bool timerRunning = false;
@@ -2246,6 +2317,42 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 					: tide::render::PixelOrder::Bgra;
 				tide::render::writePixels(image, locked.getAddress(),
 					locked.getBytesPerRow(), order, /*premultiply*/ true);
+
+#ifdef TIDE_PANEL_ALPHA_DEBUG
+				// THE ALPHA-LEAK DIAGNOSTIC. Off by default; #define
+				// TIDE_PANEL_ALPHA_DEBUG at the top of this file to arm it.
+				//
+				// Paints every pixel the tracer left even slightly transparent
+				// as opaque magenta, so a leak MEASURES ITSELF: screenshot the
+				// panel, find the magenta, convert its radius to DIPs and
+				// compare against the geometry constants. Nothing in the scene
+				// is magenta, and alpha is byte 3 in both channel orders (as it
+				// happens, magenta is byte-identical in RGBA and BGRA too).
+				//
+				// Reach for this EARLY. Alpha leaks look like lighting bugs and
+				// invite plausible stories about reflections; the ring around
+				// the jacks was blamed on the sky, then on the collar, before
+				// this measured it at 11.1-12.9 DIPs from the jack centre and
+				// identified the barrel wall at 11.81 in one shot. Expect a
+				// residue of a DIP or two around the panel's own outline --
+				// that is the silhouette's antialiasing, and it belongs there.
+				{
+					auto* base = static_cast<uint8_t*>(locked.getAddress());
+					const auto stride = locked.getBytesPerRow();
+					for (uint32_t yy = 0; yy < height; ++yy)
+					{
+						uint8_t* row = base + static_cast<size_t>(yy) * stride;
+						for (uint32_t xx = 0; xx < width; ++xx)
+						{
+							uint8_t* px = row + 4 * xx;
+							if (px[3] < 250)
+							{
+								px[0] = 255; px[1] = 0; px[2] = 255; px[3] = 255;
+							}
+						}
+					}
+				}
+#endif
 			}
 		}
 		return bitmap;
@@ -2376,14 +2483,19 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 		faceTraceStage = faceTrace
 			? faceTrace->stage.load(std::memory_order_acquire) : 0;
 
+		const int fallbackStage = faceFallback
+			? faceFallback->stage.load(std::memory_order_acquire) : 0;
+
 		int source = FaceNone;
-		if (faceTraceStage >= 2)      source = FaceCurrentFull;
-		else if (faceFallback)        source = FaceStaleFull;
-		else if (faceTraceStage >= 1) source = FacePreview;
+		if (faceTraceStage >= 2)         source = FaceCurrentFull;
+		else if (fallbackStage >= 2)     source = FaceStaleFull;
+		else if (faceTraceStage >= 1)    source = FacePreview;
+		else if (fallbackStage >= 1)     source = FaceStalePreview;
 
 		if (source != faceBitmapSrc)
 		{
-			const FaceTrace* from = (source == FaceStaleFull) ? faceFallback.get() : faceTrace.get();
+			const bool stale = (source == FaceStaleFull || source == FaceStalePreview);
+			const FaceTrace* from = stale ? faceFallback.get() : faceTrace.get();
 			switch (source)
 			{
 			case FaceCurrentFull:
@@ -2392,6 +2504,7 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 				faceSize = { from->fullWidth, from->fullHeight };
 				break;
 			case FacePreview:
+			case FaceStalePreview:
 				faceBitmap = bitmapFromImage(g, from->preview, from->previewWidth, from->previewHeight);
 				faceSize = { from->previewWidth, from->previewHeight };
 				break;
@@ -2402,7 +2515,9 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 			faceBitmapSrc = source;
 		}
 
-		// Once the real thing is up the stand-in is just memory.
+		// Only once the CURRENT size is fully rendered is the stand-in dead
+		// weight. Released later than it used to be, on purpose: it now has to
+		// survive being a preview that a later zoom may still want.
 		if (source == FaceCurrentFull)
 			faceFallback.reset();
 
