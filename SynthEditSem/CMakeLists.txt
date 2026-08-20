@@ -16,6 +16,12 @@ include(${CMAKE_CURRENT_LIST_DIR}/../cmake/S17DependencyProvenance.cmake)
 # neither, so add it here when the target is missing. modules/common is
 # dependency-free by design, which is what makes this safe this early.
 if(NOT TARGET tide_render)
+  # Parity with TideSynth's own root, which force-disables the preview tool and
+  # its image-regression test before adding this directory. Without this line,
+  # hosted mode alone would build and run them -- and render_regression fails
+  # on mac arm64 today for reasons unrelated to any build (S27: the committed
+  # reference images do not reproduce across platforms).
+  set(TIDE_RENDER_PREVIEW OFF CACHE BOOL "" FORCE)
   add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../modules/common ${CMAKE_BINARY_DIR}/TideRender)
 endif()
 

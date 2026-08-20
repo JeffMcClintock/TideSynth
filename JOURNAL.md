@@ -127,6 +127,23 @@ The positive control matters: a refactor that moves a FATAL_ERROR check is one
 typo away from a check that never runs, and "configure passed" cannot tell
 those apart.
 
+### What the newly-reachable test immediately caught — filed as S27
+
+Restoring hosted configure made `ctest` in the SE16 tree include
+`render_regression` for the first time anywhere: TideSynth's own root
+force-disables `TIDE_RENDER_PREVIEW`, so no standalone or CI build has ever
+run it. It **fails 5 of 5 scenes on mac arm64** — 34–66% of pixels moved
+(limit 0.4%), worst deltas 53–107 (limit 40) — against references that are in
+sync with their scenes (both `37d65d5`). **Contraction is eliminated:**
+`-ffp-contract=off` leaves shapes/glass/glow bit-identical and all five still
+failing, so this is not S19's mechanism. Dense, large differences point at
+libm/arch divergence through the Monte Carlo render — labelled a hypothesis.
+Filed as **S27** with the numbers; the fix here mirrors the root's
+`TIDE_RENDER_PREVIEW OFF` into hosted mode so both modes build identically
+(with that parity line, the full hosted suite is **67/67**; without env vars
+for the S16-class test paths, 45 of 68 fail from a fresh tree — the #156
+recipe applies on mac too when the tree is not at the box's usual path).
+
 **Not done here:** `docs/lessons.md` is deliberately not regenerated on this
 branch (A30's own precedent) — this branch races two open stacked PRs
 ([#218](https://github.com/JeffMcClintock/TideSynth/pull/218),
