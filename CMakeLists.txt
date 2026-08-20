@@ -98,54 +98,12 @@ include("${CPM_DOWNLOAD_LOCATION}")
 
 # BACKLOG S17 -- say which folder each dependency ACTUALLY resolved to.
 #
-# The trap this exists for, found on the mac box 2026-08-19 while tracing E12:
-# SE16's build printed "Using local GMPI-UI folder" while the include path was
-# really `-I.../build/_deps/gmpi_ui-src`, and the two were at DIFFERENT COMMITS
-# -- so the class layout being read was not the class layout being compiled. A
-# `fprintf` added to the local clone never reached the binary.
-#
-# A message that names the DECISION ("Using local ...") cannot catch that. Only
-# one that names the RESOLVED PATH can, which is what these do.
-#
-# Note there are THREE places a dependency can come from here, and only the
-# first is obvious from the log: a local *_FOLDER_OVERRIDE, FetchContent's
-# `build/_deps/<name>-src`, and CPM's shared cache under ~/.cache/CPM -- where
-# the VST3 SDK and harfbuzz live and where nothing announced them at all.
-# CACHE INTERNAL, not a plain variable: SynthEditSem/ resolves GMPI_Wrappers in
-# its own directory scope, and PARENT_SCOPE from there does not reach the root.
-# FORCE-cleared here so a reconfigure rebuilds the list instead of doubling it.
-set(TIDE_DEP_REPORT "" CACHE INTERNAL "S17 dependency provenance" FORCE)
-
-function(tide_report_dependency name path origin)
-  if(NOT EXISTS "${path}")
-    message(FATAL_ERROR
-      "S17: dependency '${name}' resolved to a path that does not exist:\n"
-      "  ${path}\n"
-      "Origin: ${origin}. A stale *_FOLDER_OVERRIDE in an existing CMakeCache.txt\n"
-      "is the usual cause -- delete the build directory or fix the override.")
-  endif()
-  message(STATUS "  dep ${name}: ${path}   [${origin}]")
-  set(TIDE_DEP_REPORT "${TIDE_DEP_REPORT}${name}|${path}|${origin}\n" CACHE INTERNAL "S17 dependency provenance" FORCE)
-endfunction()
-
-# An override is only honoured if nothing ALSO fetched the same name. If both
-# exist, the include path decides -- and it is not the one the log named. This
-# is the exact SE16 failure, made loud instead of silent.
-function(tide_check_not_shadowed name override)
-  if("${override}" STREQUAL "")
-    return()
-  endif()
-  set(_shadow "${CMAKE_BINARY_DIR}/_deps/${name}-src")
-  if(EXISTS "${_shadow}")
-    message(FATAL_ERROR
-      "S17: '${name}' has a local override AND a fetched copy; the build would\n"
-      "silently compile one of them while the log names the other.\n"
-      "  override: ${override}\n"
-      "  fetched : ${_shadow}\n"
-      "Something else in this build fetched '${name}' anyway. Delete the build\n"
-      "directory; if it comes back, that fetch is the bug, not this check.")
-  endif()
-endfunction()
+# The provenance machinery (tide_report_dependency / tide_check_not_shadowed)
+# lives in cmake/S17DependencyProvenance.cmake, with the reasoning, so that
+# SynthEditSem can include it too: SE16 add_subdirectory()s SynthEditSem
+# WITHOUT this root file, and defining the commands only here broke every
+# SE16-hosted configure (issue #222).
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/S17DependencyProvenance.cmake)
 
 
 if("${VST3_SDK_FOLDER_OVERRIDE}" STREQUAL "")
