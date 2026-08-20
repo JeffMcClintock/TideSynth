@@ -39,6 +39,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**macos — P7d was already fixed, from a third direction, and its parked question is moot**
+
+- A row that parks on a question can be closed by running its Accept — check that before re-raising the question.
+
+**macos — C10: 104 editor files leave the root, and the reference count fell as it was measured**
+
+- A reference count taken without word boundaries is an upper bound, not a work list.
+- "Same object count" needs the same instrument on both sides.
+
 **macos — #222: two of today's merges only ever built standalone, and SE16-hosted TIDE lost configure entirely**
 
 - "Verified on this box" quietly became "verified in the only mode this box builds".
