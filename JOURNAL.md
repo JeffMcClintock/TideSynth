@@ -46,6 +46,81 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — A22: the row names the branch, not the PR; and SynthEdit's CI never runs on push
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Ninth item this session.** S19 is fully closed —
+[SynthEdit#66](https://github.com/JeffMcClintock/SynthEdit/pull/66),
+[#67](https://github.com/JeffMcClintock/SynthEdit/pull/67) and
+[SynthEditLib#28](https://github.com/JeffMcClintock/SynthEditLib/pull/28) all
+merged, [#178](https://github.com/JeffMcClintock/TideSynth/issues/178) closed.
+
+**Did:** STEP 4 now says the backlog row must name your **branch**, with the PR
+link a best-effort extra.
+
+### Why (a)+(d) rather than either option the row offered
+
+The old wording — *"mark the item IN-REVIEW with links to every PR you opened"* —
+**cannot be satisfied in the commit that makes the mark**, because the PR does
+not exist until after it. So it guaranteed a follow-up.
+
+A22 offered (a) *name the branch* and (d) *accept the follow-up PR*. Taking (d)
+alone would legalise the second PR rather than remove the need for it — and #120
+showed the second PR is not the real cost. Its follow-up landed on a branch whose
+PR had already auto-merged, which is **a pushed branch with no PR: the one end
+state STEP 5 forbids.** So the new text adds a precondition A22 did not ask for:
+
+> check the PR is still open before pushing the follow-up, and if it has already
+> merged, **drop the commit** — `gh pr view <n> --json state --jq .state`
+
+Pushing nothing is always safe. A commit whose only content is a link is never
+worth a second PR, and the branch name in the row is what makes the follow-up
+**optional rather than load-bearing**.
+
+**The evidence is use, not argument:** this session ran the
+branch-then-follow-up shape about eight times across three repos — A27, A28, A21,
+S19, U3 — and never needed a second PR.
+
+### Found while confirming S19: the CI chain never runs on push — filed as S20
+
+`SE16 Kickstart Build` is **`on: workflow_dispatch:` and nothing else**.
+`cmake_win` triggers off *it*; `cmake_mac` triggers off `cmake_win`. **So a push
+to `master` runs no build and no tests.** The last dispatch was 2026-08-19T09:34
+and `master` has moved eight times since with **zero** runs.
+
+That is half the reason S19's five failures survived a week: `continue-on-error`
+hid them, and the chain fired rarely enough that few people ever saw a log.
+
+**The obvious fix is wrong, which is why it is a row and not a patch.** That
+chain is a *release* pipeline — it signs, notarizes, staples and **FTP-uploads to
+synthedit.com**. `on: push` would publish on every commit. What it wants is a
+separate build-and-test-only workflow, and that is `.github/workflows/**`, so it
+needs Jeff either way.
+
+**I did not dispatch it.** Triggering that chain is a release, not a test run —
+so today's mac fixes are verified locally (86/86) and remain unconfirmed in CI
+until Jeff next kicks one off.
+
+**Learned:**
+
+1. **A rule that cannot be obeyed in one step will be obeyed in two, and the
+   second step is where the damage is.** Nobody was going to skip linking the PR;
+   they were going to link it badly. The fix was not to demand less but to move
+   the required content to something knowable *before* the push.
+2. **"CI is green" means nothing until you know what triggers CI.** I spent the
+   session treating cmake_mac as the arbiter of mac health. It runs when a human
+   asks it to, and it had not been asked since before any of today's work.
+
+**Next:**
+
+1. **A23** — duplicate-id detection in `check-id-refs.py`, the best-specced row
+   left, with a positive control already written into it. **A24** after it.
+2. **S20** and the `continue-on-error` follow-through both want Jeff.
+3. **U3's click path** is still the one unverified thing from today.
+
+**Branch/PR:** `tide/mac/A22-pr-link` — TideSynth only, docs and backlog.
+
 ## 2026-08-20 — macos — the mac test drift is FMA contraction, and my own diagnosis was wrong first
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
@@ -335,102 +410,3 @@ an agent's call. The reporting half — removing `continue-on-error` — is a
 Two repos; the SynthEdit half is the whole fix and this half is the record, so
 neither blocks the other. Throwaway worktrees; every checkout left on its default
 branch and clean.
-
-## 2026-08-20 — windows — C14: the last private include was never needed, and it was hiding an ODR violation
-
-**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (the Claude Code CLI is not resolvable on this box either — `claude --version` is *command not found*, same as the mac entries report) · as **tide-rack-bot** (both paths: REST `gh api user` and GraphQL `viewer { login databaseId }` → `tide-rack-bot` / `314850083`) · transport check `git config --global --get url."https://github.com/".insteadOf` → `git@github.com:`
-
-**The prompt changed under this run.** It started at **`eba799e`** and `origin/main` is now at **`2ce10c7`** — A21 landed mid-run and rewrote STEP 0.7 and STEP 4's provenance template. The sha above is what actually executed; the line is written in the *new* format because the new format is strictly more informative and this run had both paths' answers anyway. Nothing else in the diff changed what this run did.
-
-**Did:** narrowed `ApplyConfigPreInit` / `ApplyConfigPostInit` from `SynthEditApp&` to `CSynthEditAppBase&`, which took the public repo's dangling private includes **1 → 0** and let `SE16`'s root `CMakeLists.txt` drop the `../SynthEdit2` include directory it was adding on `EditorLib`'s behalf. Also flipped and archived **A28**, filed **C15**, and re-pointed the `win` and `any` NEXT rows.
-
-### It never needed the private type, and that is the whole fix
-
-C14's row expected C11's treatment — invent a public interface. **No new interface was needed: `CSynthEditAppBase` already is one.** Every member the two functions touch is declared in the public repo:
-
-| used | declared |
-|---|---|
-| `SetQuiet()` | `SynthEditAppBase.h:201` — `CSynthEditAppBase` |
-| `setTemporaryRegistration()` | `SynthEditAppBase.h:270` — `CSynthEditAppBase` |
-| `rescanIncludesVsts` | `Application.h:144` — `ApplicationBase` |
-| `overrideSamplesFolder` | `Application.h:45` — `ApplicationBase` |
-| `RefreshModuleData()` | `Application.h:138` — `ApplicationBase` |
-
-`CSynthEditAppBase : public gmpi::hosting::interThreadQueUser, public ApplicationBase`, so one name covers all five. Derived-to-base reference conversion is implicit, so **no caller changed** — `MainWindow.xaml.cpp:500`, `SynthEditCL/main.cpp:128,138` and `SynthEditMac/.../AppDelegate.mm:175,279` compile unmodified. The header got *lighter*: it now forward-declares `class CSynthEditAppBase;` and the `.cpp` includes `SynthEditAppBase.h`.
-
-**One premise in the row was true but was never the operative reason.** It says `SynthEditApp.h` "pulls in `moonbasepp_Licensing.h`, the commercial licensing library". C7a had already measured that the include sits inside `#ifdef SE_MOONBASE_SUPPORT`, and `SynthEditSem/CMakeLists.txt:56-62` says so in place. What actually blocked a move is simpler and was never written down: **`SynthEditApp` is a private application class**. The licensing framing made C14 look like a policy problem; it was a plain layering one.
-
-### The finding worth more than the change: this was a live ODR violation
-
-There are **two unrelated classes named `SynthEditApp` in the global namespace**:
-
-- `SE16/SynthEdit2/SynthEditApp.h:14` — `: public CSynthEditAppBase, public ILicenseState`
-- `SE16/SynthEditCL/SynthEditAppCl.h:16` — `: public CSynthEditAppBase`
-
-**Both were passed to these functions**, which are compiled **exactly once**, into `EditorLib`, against the first. `SynthEditCL` then links that object and calls it with the other class. That is an ODR violation. It linked and ran only because `CSynthEditAppBase` is the **first** base of both, so the subobject the bodies actually touch sits at offset 0 in each — change either class's base order and it becomes a silent memory bug, not a link error.
-
-**Positive control**, because "the mangled name ignores the definition" is the load-bearing claim. A four-file MSVC repro — two headers each defining a different `class SynthEditApp`, one defining TU, one calling TU — `dumpbin /symbols`:
-
-```
-OLD  definition (class A) : ?ApplyConfigPreInit@@YAXAEAVSynthEditApp@@@Z   SECT3 External
-OLD  reference  (class B) : ?ApplyConfigPreInit@@YAXAEAVSynthEditApp@@@Z   UNDEF External
-NEW  definition           : ?ApplyConfigPreInit@@YAXAEAUAppBase@@@Z
-NEW  reference            : ?ApplyConfigPreInit@@YAXAEAUAppBase@@@Z
-```
-
-Identical symbol, different types, no diagnostic. And on the real build, definition and reference now agree on one type that both sides actually have:
-
-```
-EditorLib/.../ApplySynthEditConfig.cpp.obj  SECT22 External
-  ?ApplyConfigPreInit@@YAXAEAVCSynthEditAppBase@@AEBUSynthEditConfig@@@Z
-SynthEditCL/.../main.cpp.obj                UNDEF  External
-  ?ApplyConfigPreInit@@YAXAEAVCSynthEditAppBase@@AEBUSynthEditConfig@@@Z
-```
-
-**Result:**
-
-- `python3 scripts/dangling_private_includes.py` — **1 → 0**. Positive control: the same script against the untouched `C:\SE` checkouts still reports **1**, so the zero is the change and not a broken measurement.
-- Fresh Ninja tree, Release, MSVC: **1029/1029 RC=0**, **zero `error C` lines**, all four folder overrides local, `SE_APP_BUILD_NUMBER=187`.
-- **`ctest`: 92/92 passed, 0 failed** (93 listed, 1 disabled upstream) — the known-green figure.
-- Linked: `SynthEdit_VST3.vst3`, `SynthEdit_GMPI.gmpi`, `SynthEditCL.exe`, `EditorScreenshot.lib`, `TIDE.gmpi`, `TIDE_VST3.vst3`, `TIDE_STANDALONE.exe`, `synth_ui_tests.exe`, `dsp_tests.exe`.
-- **`EditorLib` now compiles with ZERO private include directories.**
-
-**The edge count is 1029, not the 1017 the last win entry recorded.** Upstream growth (`SynthEditLib` gained `--set-plugin-info` and more), not a regression — which is exactly what the baseline note says to check rather than assume.
-
-### One consumer broke, and its breaking is the correct outcome
-
-```
-C:\SE\_c14\SE16\tests\layouttests.cpp(9): fatal error C1083:
-  Cannot open include file: 'SynthEditApp.h': No such file or directory
-```
-
-`synth_ui_tests` was reaching the private header through `EditorLib`'s **PUBLIC** include directory. It already compiles `../SynthEdit2/SynthEditApp.cpp`, so the dependency was never new — only the route. It now names `../SynthEdit2` in its own `target_include_directories`, which is where a private target's private dependency belongs.
-
-**Nothing else in the tree was exposed, and that was measured, not hoped.** Enumerated every SE16 source outside `SynthEdit2/` that includes a `SynthEdit2`-only header: **23 file/include pairs** across `SynthEditCL`, `SynthEditJuce`, `SynthEditMac`, `SynthEditSem`, `SynthEditWayland` and `tests`. Every consuming target names the directory in its own build file — `SynthEditCL/CMakeLists.txt:18`, `SynthEditWayland/CMakeLists.txt:190`, `SynthEditJuce/CMakeLists.txt:59`, `SynthEditSem/CMakeLists.txt:74` — and `SynthEditMac` is an Xcode project that never saw the CMake variable at all. **So mac and linux are structurally safe here, not lucky**, which is the only honest thing a win box can say about them.
-
-**Not verified, stated rather than glossed:** `SynthEdit2` (WinUI3) cannot be built without writing into Jeff's Visual Studio tree. Checked by inspection instead — it does not compile `ApplySynthEditConfig.cpp` (it links `EditorLib.lib`), its `AdditionalIncludeDirectories` already names `..\SyntheditLib`, and `MainWindow.xaml.cpp` sits in `SynthEdit2/` so its own include resolves own-directory-first.
-
-### Filed, not fixed: C15 — TIDE's private include is now dead weight
-
-`SynthEditSem/TideAppStubs.cpp:31` includes `"SynthEditApp.h"` to define `SynthEditApp* theApp`, `SynthEditApp::isMoonbaseEnabled()` and `SynthEditApp::licenseIsActive()`. **Grepping the whole public repo for those three names returns 0 hits** — C11 removed the last consumer when `MfcDocPresenter.cpp:1316` moved to `GetLicenseState()`.
-
-C7a's and C14's own CMake comments both predicted the two would "want ONE fix". **They were wrong, and that is worth recording:** narrowing a *signature* cannot remove a *definition of someone else's member function*. The two halves are independent, and the second is a deletion with a link test for an acceptance check. Filed as C15 rather than done here, because `SynthEditSem` is outside C14's stated Scope and STEP 3 says file, do not fix.
-
-**Learned:**
-
-1. **"It needs a private header" and "it needs the private type" are different claims, and only the second is a real dependency.** C14 sat as the carve-out's last blocker for a day with the fix being *delete one include and widen one parameter to a base class that was already there*. Before designing an interface, check what the code actually touches — the answer here was five members, all already public.
-2. **A same-named class in two apps is an ODR violation the toolchain will never report.** MSVC's mangling carries the *name*, not the definition, so the linker binds them silently and the program works exactly as long as the used members happen to live at the same offsets. `SynthEditApp` is not a unique name in this tree; anything taking one by reference across the `EditorLib` boundary has the same latent bug.
-3. **A `PUBLIC` include directory is a dependency you have loaned to every consumer.** Removing `EditorLib`'s did not break `EditorLib` — it broke `synth_ui_tests`, three levels away, which had been silently borrowing it. The general form: when a shared target exports a path, you cannot tell from that target who is relying on it.
-4. **Do not build in the session scratchpad on Windows.** Ninja embeds the absolute *source* path inside object paths (`CMakeFiles/EditorLib.dir/C_/SE/…/foo.cpp.obj`), so a scratchpad path is over the 260-character limit before the first TU compiles. `git worktree move` relocates a worktree after the fact, which is how this run recovered without re-cloning.
-5. **The mac run's "C14 and C10 are `SynthEditLib`, rejected as GATED" reads the gate too widely.** STEP 5 gates that repo *unless the item is an approved carve-out stage*, C0 is approved, and C11/C12/C13 all landed there by PR on exactly that basis — C13 from this box. What the 2026-08-11 C8 ruling forbids is a **non**-carve-out item reaching in. That distinction is what rules out **P3**, and it is why the `any` cell now says so in place.
-6. **`origin/main` moved three times while this run built.** A21, A28 and A29's archive all landed. Measuring `check-backlog-diff` against a *freshly fetched* base rather than the branch point is what caught it — the first run of that check reported "A21: Item column differs" for a row this session never touched, which is the tell that the base is stale, not that the edit is wrong.
-
-**Next:**
-
-1. **`win` has no eligible item of its own.** `P3` is the only `win`-marked TODO and it is GATED, not a carve-out stage, not a build break — so this platform falls through to `any` every week. **That wants a ruling from Jeff, not another run re-deriving it**: either P3 escalates as a `PROPOSED:` entry, or it is re-marked.
-2. **C15** is small, ALLOWED, and has a link test for an acceptance check. It is the `win` cell's new target and the `any` cell's fallback.
-3. **C7d still cannot pass**, and the reason has changed: not C14's dangling header any more, but that C14 has not *merged*.
-
-**Branch/PR:** [SynthEditLib#27](https://github.com/JeffMcClintock/SynthEditLib/pull/27) + [SynthEdit#62](https://github.com/JeffMcClintock/SynthEdit/pull/62) + [#177](https://github.com/JeffMcClintock/TideSynth/pull/177), all on branch `tide/win/C14-licensing-seam`. **Merging any one without the other two breaks the build**, and it is said in each body.
-
-**Machine state.** All three repos were worked in **throwaway worktrees**; Jeff's own checkouts were never switched and are on their default branches. **`C:\SE\SynthEditLib` was already dirty** with his work in progress — `CUG.cpp`, real content (`git diff --ignore-all-space` shows it, so not CRLF churn) — and was left exactly as found, per STEP 5's third dirt category. `check-commit-authorship.py` clean in all three repos; `check-commit-completeness.py` recorded and verified on every commit; `check-no-direct-commits.py` clean on both GATED repos.
