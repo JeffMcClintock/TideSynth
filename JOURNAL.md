@@ -74,6 +74,133 @@ Template:
 
 ---
 
+## 2026-08-20 — linux — #190: the Linux CI package set, measured
+
+**Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
+
+**Did:** took no backlog row. STEP 1 outranked it — `build.yml`'s matrix ran for
+the first time overnight and filed three `platform:linux` failures
+([#189](https://github.com/JeffMcClintock/TideSynth/issues/189),
+[#190](https://github.com/JeffMcClintock/TideSynth/issues/190),
+[#191](https://github.com/JeffMcClintock/TideSynth/issues/191)), all one cause.
+The macOS run that triggered them diagnosed it correctly and said in as many
+words that *"the exact package set wants checking on a real ubuntu box rather
+than guessed at from the probe names"*. This box is that ubuntu box.
+
+### The CI failure, reproduced exactly
+
+No containers on this machine, so the runner was mirrored at the layer the
+failure actually lives in: a `PKG_CONFIG_LIBDIR` holding every `.pc` on this box
+**minus** the seven the CI log reported as not found. Configuring a clean clone
+under it reproduces the failure to the line:
+
+```
+CMake Error at FindPkgConfig.cmake (message):
+  The following required packages were not found:
+   - xext
+Call Stack:  .../gmpi_wrappers-src/wrapper/VST3/CMakeLists.txt:257
+```
+
+Same error, same file:line, same package as
+[run 32329948996](https://github.com/JeffMcClintock/TideSynth/actions/runs/32329948996).
+
+### The chain, walked rather than read
+
+`pkg_check_modules(... REQUIRED)` fails fast, so the log names one missing
+module and hides the rest — the trap the mac entry flagged twice in one day.
+Restoring one `.pc` at a time and re-configuring:
+
+| step | rc | missing | probe |
+|---|---|---|---|
+| 1 | 1 | `xext` | `VST3/CMakeLists.txt:257` |
+| 2 | 1 | `harfbuzz` | `:260` |
+| 3 | 1 | `dbus-1` | `:264` |
+| 4 | **0** | — | — |
+
+**Three packages, not one.** Each `.pc`→Debian mapping was read with `dpkg -S`
+rather than guessed: `libxext-dev`, `libharfbuzz-dev`, `libdbus-1-dev`. A fourth,
+`libpng-dev`, passes today only because the runner image happens to ship it.
+
+### Linux builds — the first time TIDE has ever been built here
+
+Clean `git clone` of the public URL, 158 files, then CI's own two commands with
+only the fixed package set visible:
+
+```
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release    rc=0
+cmake --build build --config Release --parallel   rc=0, 0 error lines  (76s)
+  -> TIDE.gmpi      7,378,536 bytes  ELF 64-bit LSB shared object, x86-64
+  -> TIDE_VST3.so   8,494,704 bytes  ELF 64-bit LSB shared object, x86-64
+  -> TIDE_VST3.vst3/Contents/x86_64-linux/TIDE_VST3.so
+350 objects; grep -ci se16 over configure log / build log / CMakeCache.txt = 0
+```
+
+So all three platforms are proven and **the `apt-get` is the only thing left in
+C7e**. It is still Jeff's: the token has no `workflow` scope, by design.
+
+### Relaxing the X11 probe is measurably wrong, not merely inelegant
+
+`GMPI_Wrappers` is ALLOWED, so I could have made the probe optional and turned
+CI green without anyone. mac declined this on principle; here it is a number.
+`ldd` shows all three libraries linked, and the undefined-symbol counts show they
+are used: **5 `XShm*`**, **50 `hb_*`**, **27 `dbus_*`**. An optional probe does
+not yield a Linux VST3 with a lesser editor — it yields one that fails to link.
+The Wayland trio genuinely is optional: without it configure prints *"Wayland
+support off … X11 editor only"* and *"STANDALONE skipped"*, then succeeds.
+
+### A separate defect this build found — filed as S21, not fixed
+
+Building on Linux for the first time exposed something CI would never have
+caught, because CI stops at "did it compile": **TIDE's resources are staged
+outside the Linux bundle.**
+
+`SynthEditSem/CMakeLists.txt:339` uses `$<TARGET_FILE_DIR:tgt>/../Resources`,
+commented *"the binary sits in Contents/<arch>/, so Resources is its sibling"*.
+On Linux it does not: `gmpi_plugin.cmake:849-861` links a bare `.so` in the
+target dir and copies it into the bundle **afterwards**. Measured — the XMLs and
+`Prefabs/` land in `build/Resources/`, while `TIDE_VST3.vst3/Contents/` holds
+**only** `x86_64-linux/`. The reader disagrees explicitly
+(`BundleInfo.cpp:296-299`): Linux resources live at
+`<name>.vst3/Contents/Resources/`. Both formats are wrong by different amounts —
+the bare `.gmpi` has no `Contents` in its path at all, so it wants `Resources/`
+beside the binary.
+
+Consequence is already spelled out in the source: `seedPrefabsFromBundle` prints
+*"no Prefabs folder in bundle resources - the rack module browser will be
+empty"*, and the five pin-description XMLs never load, which is the linked-but-
+pinless failure the CMake comment records from V3.
+
+**Filed, not fixed** — STEP 3 scopes me to one item, the build is rc=0 so this is
+not the build break, and the expression is shared with Windows, which I cannot
+compile on.
+
+**Learned:**
+
+1. **A fail-fast dependency probe costs one CI round trip per missing package,
+   and the cheap fix is to walk the chain locally.** Reading the list from source
+   got 6 of 7 names right but could not say which were actually absent on the
+   runner; restoring them one at a time answered both questions in one pass.
+2. **"CI is green" would not have caught S21.** The matrix asserts compilation;
+   the prefabs are a packaging step whose output nothing checks. A green Linux
+   row would have said the platform works while its module browser was empty.
+3. **The runner's package set is partly luck.** `libpng` is satisfied by the base
+   image, not by anything this repo declares — so it is one image bump away from
+   being the next `xext`, diagnosed one name at a time all over again.
+4. `PKG_CONFIG_LIBDIR` pointed at a pruned copy of the system `.pc` files is an
+   accurate, seconds-long stand-in for a differently-provisioned machine, and it
+   isolates the variable better than a container would have.
+
+**Next:**
+
+1. **Jeff: one `apt-get` step and C7 closes**, unblocking C10 and R2–R6. The
+   verified block is in [docs/ci/linux-build-deps.md](docs/ci/linux-build-deps.md),
+   ready to paste. #189/#190/#191 stay open until a green run closes them.
+2. **S21** is the next linux-takeable row, and it is small.
+3. C7b, C16 and C7d were flipped IN-REVIEW→DONE here on their merged PRs. Their
+   rows were not moved into `BACKLOG-DONE.md`; that archiving is still owed.
+
+**Branch/PR:** `tide/linux/issue-190` — TideSynth only; docs, backlog, journal.
+
 ## 2026-08-20 — macos — C7e: the clean clone builds; the CI clause is one apt-get away
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
