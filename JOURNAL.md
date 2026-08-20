@@ -121,6 +121,83 @@ run them is a `.github/workflows/**` edit, so it needs Jeff either way.
 **Branch/PR:** [#184](https://github.com/JeffMcClintock/TideSynth/pull/184), branch
 `tide/mac/A23-duplicate-ids` — TideSynth only.
 
+## 2026-08-20 — macos — A22: the row names the branch, not the PR; and SynthEdit's CI never runs on push
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Ninth item this session.** S19 is fully closed —
+[SynthEdit#66](https://github.com/JeffMcClintock/SynthEdit/pull/66),
+[#67](https://github.com/JeffMcClintock/SynthEdit/pull/67) and
+[SynthEditLib#28](https://github.com/JeffMcClintock/SynthEditLib/pull/28) all
+merged, [#178](https://github.com/JeffMcClintock/TideSynth/issues/178) closed.
+
+**Did:** STEP 4 now says the backlog row must name your **branch**, with the PR
+link a best-effort extra.
+
+### Why (a)+(d) rather than either option the row offered
+
+The old wording — *"mark the item IN-REVIEW with links to every PR you opened"* —
+**cannot be satisfied in the commit that makes the mark**, because the PR does
+not exist until after it. So it guaranteed a follow-up.
+
+A22 offered (a) *name the branch* and (d) *accept the follow-up PR*. Taking (d)
+alone would legalise the second PR rather than remove the need for it — and #120
+showed the second PR is not the real cost. Its follow-up landed on a branch whose
+PR had already auto-merged, which is **a pushed branch with no PR: the one end
+state STEP 5 forbids.** So the new text adds a precondition A22 did not ask for:
+
+> check the PR is still open before pushing the follow-up, and if it has already
+> merged, **drop the commit** — `gh pr view <n> --json state --jq .state`
+
+Pushing nothing is always safe. A commit whose only content is a link is never
+worth a second PR, and the branch name in the row is what makes the follow-up
+**optional rather than load-bearing**.
+
+**The evidence is use, not argument:** this session ran the
+branch-then-follow-up shape about eight times across three repos — A27, A28, A21,
+S19, U3 — and never needed a second PR.
+
+### Found while confirming S19: the CI chain never runs on push — filed as S20
+
+`SE16 Kickstart Build` is **`on: workflow_dispatch:` and nothing else**.
+`cmake_win` triggers off *it*; `cmake_mac` triggers off `cmake_win`. **So a push
+to `master` runs no build and no tests.** The last dispatch was 2026-08-19T09:34
+and `master` has moved eight times since with **zero** runs.
+
+That is half the reason S19's five failures survived a week: `continue-on-error`
+hid them, and the chain fired rarely enough that few people ever saw a log.
+
+**The obvious fix is wrong, which is why it is a row and not a patch.** That
+chain is a *release* pipeline — it signs, notarizes, staples and **FTP-uploads to
+synthedit.com**. `on: push` would publish on every commit. What it wants is a
+separate build-and-test-only workflow, and that is `.github/workflows/**`, so it
+needs Jeff either way.
+
+**I did not dispatch it.** Triggering that chain is a release, not a test run —
+so today's mac fixes are verified locally (86/86) and remain unconfirmed in CI
+until Jeff next kicks one off.
+
+**Learned:**
+
+1. **A rule that cannot be obeyed in one step will be obeyed in two, and the
+   second step is where the damage is.** Nobody was going to skip linking the PR;
+   they were going to link it badly. The fix was not to demand less but to move
+   the required content to something knowable *before* the push.
+2. **"CI is green" means nothing until you know what triggers CI.** I spent the
+   session treating cmake_mac as the arbiter of mac health. It runs when a human
+   asks it to, and it had not been asked since before any of today's work.
+
+**Next:**
+
+1. **A23** — duplicate-id detection in `check-id-refs.py`, the best-specced row
+   left, with a positive control already written into it. **A24** after it.
+2. **S20** and the `continue-on-error` follow-through both want Jeff.
+3. **U3's click path** is still the one unverified thing from today.
+
+**Branch/PR:** [#183](https://github.com/JeffMcClintock/TideSynth/pull/183), branch
+`tide/mac/A22-pr-link` — TideSynth only, docs and backlog.
+
+
 ## 2026-08-20 — macos — the mac test drift is FMA contraction, and my own diagnosis was wrong first
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
