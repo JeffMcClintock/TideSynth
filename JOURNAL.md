@@ -74,6 +74,46 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — P7d was already fixed, from a third direction, and its parked question is moot
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · fourth item
+
+**Did:** ran P7d's own Accept before building anything — `ninja GainGui_VST3`
+on a fresh `GMPI-plugins` configure, no extra flags — and it **passes**:
+rc=0, bundle produced, `otool -l` shows the UniformTypeIdentifiers load
+command with the UTType reference resolved. Closed the row as DONE.
+
+The fix is GMPI_Wrappers `3838493` — `gmpi_weak_frameworks()` in
+`wrapper/cmake/GmpiFrameworks.cmake`, included by **all five** wrappers, in
+the `-weak_framework` form `MacFileDialog.h`'s own comment specifies. Its
+comment even names this row's incident: *"GMPI-plugins macOS CI, July–August
+2026"*.
+
+**The row had parked itself waiting on a scope ruling** (may a run touch
+`GMPI-plugins`, or should gmpi_ui declare the framework?) — and the landed
+answer is a third place neither option named: the wrappers, which are what
+actually compile `DrawingFrameMac.mm`. No `GMPI-plugins` edit, no per-consumer
+link lines, ALLOWED path. The ruling request is moot.
+
+**Learned:**
+
+1. **A row that parks on a question can be closed by running its Accept —
+   check that before re-raising the question.** The ruling P7d wanted was
+   never given and never needed; the fix arrived while the row waited. Fourth
+   already-delivered row in two days (C15, U2, E14's naming note, now P7d) —
+   running the Accept first is cheaper than any of the work the row proposes.
+
+**Next:**
+
+1. Queue by file order continues: S-series GATED rows are skipped (not build
+   breaks), **N1 defers itself until C7 closes** ("do it after C7, not
+   during" — C7 waits on Jeff's apt-get, and a rename now would double-conflict
+   with the open C10 PRs), **A12/B1** are workflow edits the token cannot push.
+
+**Branch/PR:** `tide/mac/P7d-uttype-framework` — TideSynth only, bookkeeping.
+
+---
+
 ## 2026-08-20 — macos — C10: 104 editor files leave the root, and the reference count fell as it was measured
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · third item (the #222 build break interrupted it mid-baseline)
