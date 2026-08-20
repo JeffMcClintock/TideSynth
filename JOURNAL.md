@@ -74,6 +74,96 @@ Template:
 
 ---
 
+## 2026-08-20 — linux — insertion is arm-then-click, and I had blamed the wrong thing
+
+**Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
+
+**Did:** worked out why nothing could be inserted into the rack, after Jeff
+reported that he could not do it either with a real mouse, and that his cursor
+jammed on a left-right icon.
+
+### The mechanism: it is not a drag
+
+`ModuleDragAndDropManager.h` states it plainly:
+
+```
+1. User selects a module in the browser  -> ModuleBrowser calls BeginDrag(id)
+2. Cross cursor is shown via the registered hook
+3a. User clicks in the editor            -> presenter inserts module, EndDrag()
+```
+
+Plus `InsertAtViewCenter` for a double-click shortcut. **Nobody was dragging
+wrong — dragging is not the gesture.** Clicking `Prefabs > Filter` and then
+clicking the rack inserts `TIDE Filter` (properties: X 4304, Y 3968, W 100,
+H 160). It has worked the whole time.
+
+### I read my own control backwards
+
+My E14 entry said the failure was *"the gesture, not the modules"*, on the
+strength of the known-good `Oscillator` prefab failing identically. **That same
+observation supports "placement is broken for everyone" exactly as well**, which
+is what Jeff's report pointed at. I picked the reading that blamed my technique
+and never considered the other. The truth was a third thing neither reading
+named, and the file that explains it was one grep away.
+
+### The real defect, filed as S24
+
+**TIDE gives no cursor feedback for the armed state, on any platform.**
+`ModuleDragAndDropManager::SetCursorHandler` is **defined and never called** in
+the public tree — its own comment says MainWindow (WinUI) and SynthEditBridge
+(Mac) register it, and both are private desktop-app classes. So the cross cursor
+never appears, and the view keeps whatever cursor it last had; over a panel edge
+that is a resize cursor, which is exactly the "stuck left-right icon". The
+feature works, is undiscoverable, and looks broken.
+
+### E14's clause 2 is now half closed, precisely
+
+Clicking `TiDE > Panel` then the rack **inserts `SE TiDE:Panel`**, and the
+properties pane shows its live pins — `Text`, `Text Color FF101010`,
+`Rack Units 1`, `Layout`, `Material Brushed Aluminium`, `Panel Color FF2E3238`.
+So it drops in and constructs.
+
+**"And draws" is still unconfirmed** — nothing visibly appeared at the click
+point. That smells like E2a's `PanelWndPosition` trap, where a module drops
+successfully and draws nothing, and it is the next thing to check.
+
+### One thing that made this harder to see
+
+`TIDE_STANDALONE` persists its rack to **`~/.config/TIDE Rack/session.xml`** and
+restores it on launch (`SessionState.cpp`). A relaunch is **not** a clean rack:
+modules from an earlier session reappear, which is why a `List Entry` Jeff had
+inserted kept showing up in what I called fresh instances.
+
+**Learned:**
+
+1. **When an experiment has two readings and one of them blames my tools, that
+   is the one to distrust.** The Oscillator control was good evidence and I drew
+   the self-flattering conclusion from it — "my gesture is wrong" is a much
+   smaller claim than "insertion is broken", and I never tested the larger one.
+2. **Read the interaction's own header before guessing at it.** Three failed
+   gestures and a wrong conclusion cost more than the one grep that found
+   `ModuleDragAndDropManager.h` and answered it in nine lines.
+3. **A feature with no feedback is indistinguishable from a broken one**, and two
+   people independently concluded "broken". That is a UX defect worth a row, not
+   a documentation gap.
+4. **`TIDE_STANDALONE` restores its last session**, so "restart for a clean rack"
+   is false. Delete `~/.config/TIDE Rack/session.xml`.
+5. **`pkill -f <name>` matches the shell running it.** I recorded this in the E14
+   entry and then did it again an hour later.
+
+**Next:**
+
+1. **S24** — register a cursor handler in `TideApp`. Small, ALLOWED, and it is
+   what makes the feature discoverable.
+2. **E14's "and draws"** — check whether the inserted `SE TiDE:Panel` has a
+   zero rack rect (`PanelWndPosition`), which is E2a's documented trap.
+3. **A question for Jeff, not a run:** whether arm-then-click is the interaction
+   TIDE wants. Two people who know the product both reached for a drag, which is
+   what VCV and Blocks use. That is E2/E17 territory.
+
+**Branch/PR:** `tide/linux/E14-insert-gesture` — TideSynth only, docs and rows.
+
+---
 ## 2026-08-20 — linux — E14: TIDE's own two modules are in the product, and half of Accept is met
 
 **Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)

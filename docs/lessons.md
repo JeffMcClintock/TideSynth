@@ -39,12 +39,19 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**linux — insertion is arm-then-click, and I had blamed the wrong thing**
+
+- When an experiment has two readings and one of them blames my tools, that is the one to distrust.
+- Read the interaction's own header before guessing at it.
+- A feature with no feedback is indistinguishable from a broken one
+- `TIDE_STANDALONE` restores its last session
+- `pkill -f <name>` matches the shell running it.
+
 **linux — E14: TIDE's own two modules are in the product, and half of Accept is met**
 
 - Control the tool before blaming the subject.
 - A backlog row's warnings age with the tree, and three of E14's had.
 - A per-target compile option is the wrong tool when a requirement belongs to one file.
-- `pkill -f <name>` matches the shell running it
 
 **linux — S17: name the folder, not the decision**
 
