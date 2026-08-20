@@ -74,6 +74,46 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — S25 does not reproduce on mac, and the negative result is the deliverable
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · seventh item
+
+**Did:** ran S25's own comparison on this box and returned the row to TODO
+with the platform scoped: **insert ≡ restore on mac**.
+
+Same protocol as the linux finding (fresh isolated HOME so the rack is
+genuinely empty — the session-restore trap is real on mac too, at
+`Library/Application Support/TIDE Rack/session.xml`, not `.config`): the
+Oscillator prefab click-placed from the browser renders as its two bare
+jacks with correct glyphs — no tofu, no grey panel — and the same instance
+restored after kill/relaunch renders identically. Screenshots committed
+beside the row.
+
+**What the negative result eliminates:** any platform-independent divergence
+between the freshly-inserted and restored paths. The E2a `PanelWndPosition`
+suspect behaves the same in both (the 20×66 child-union size is the
+documented measure mechanic, not a divergence). **What survives:** linux
+font/resource binding — tofu is missing glyphs, and the linux fresh-insert
+path failing to bind what its restore path binds fits everything measured.
+That diagnosis needs the linux box; this one cannot observe the path.
+
+**Learned:**
+
+1. **A cross-platform row can be closed on one platform and open on another,
+   and saying which is the whole value of a cheap reproduction.** Twenty
+   minutes here spared the linux box the half of the suspect list that
+   platform-independence just killed.
+
+**Next:**
+
+1. **linux box:** diff the font/resource binding between the two paths (the
+   S21 probe discipline — write it from the reader's side).
+2. Jeff's "nothing at all on insert" remains its own unreproduced report.
+
+**Branch/PR:** `tide/mac/S25-fresh-insert-tofu` — TideSynth only, row + evidence.
+
+---
+
 ## 2026-08-20 — macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · sixth item
