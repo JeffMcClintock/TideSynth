@@ -147,7 +147,14 @@ every competitor defers to a paid tier.
 | 2 | **Envelope (ADSR)** | shapes it | `ug_adsr`, `EnvelopeAdsr` | exists |
 | 3 | **Output** | reaches the host | `ug_soundcard_out` seam | authored from scratch — existing `Output.seprefab` has **no Sound Out** |
 
-### Tier 1 — the hard intersection (+9 → 12 total)
+### Tier 1 — the hard intersection (+9 → 12 as surveyed; **+6 → 9 as RULED**)
+
+> **THE RULED MVP SET, 2026-08-21 — nine modules.** Tier 0's three (Oscillator
+> HD, Envelope, Output) plus **I/O modules, Filter, VCA, LFO, Noise,
+> Attenuverter+Offset**. Three of the surveyed nine are cut, each for a
+> mechanism rather than taste: **Mixer** and **Slew/Glide** because TIDE already
+> does the job (cables fan in with automatic summing; glide is inside MIDI-CV2),
+> and **Sample & Hold** as not critical. All three go to the second wave.
 
 Everything here appears in all five reference sets.
 
@@ -163,7 +170,7 @@ ruled MVP set** — see [decisions.md](decisions.md).
 | 5 | **Filter (SVF)** | multimode, all outputs exposed | `ug_filter_sv`, `SVFilter2`, `VaFilters` | |
 | 6 | **VCA** | level by CV | `ug_vca` | **must have a lin/exp switch** — see §7 |
 | 7 | **LFO** | cyclic modulation | `ug_oscillator2` at low rate | host-tempo sync + reset input |
-| 8? | **Mixer** (audio + CV) | sum several signals | `ug_adder2` | **UNDECIDED 2026-08-21** — Jeff: *"not critical as a distinct module since SE support multiple cables to one destination with automatic summing. Quite useful though i guess."* TIDE's patch cables **fan in with automatic summing**, so a mixer is convenience rather than capability. In or out is the one open question in the MVP list |
+| ~~8~~ | ~~Mixer~~ (audio + CV) | sum several signals | `ug_adder2` | **CUT from the MVP 2026-08-21** — *"let's leave mixer out of MVP to reduce the critical path."* TIDE's patch cables **fan in with automatic summing**, so a mixer is convenience rather than capability. Second-wave expansion |
 | 9 | **Noise** | white/pink | `ug_random` | pairs with S&H — a canonical compound |
 | ~~10~~ | ~~Sample & Hold~~ | stepped random | `ug_sample_hold` | **CUT from the MVP 2026-08-21** — *"not critical"*. Second-wave expansion |
 | 11 | **Attenuverter + Offset** | scale, invert, offset CV | `ug_multiplier`, `ug_adder2` | **one module, not two** — every set bundles them |
@@ -278,9 +285,10 @@ E2 authors anything.
 3. ~~The polyphony model~~ — **ANSWERED 2026-08-21**: SynthEdit's existing one.
    Modules are always monophonic and the runtime clones them per voice on the
    DSP graph only; the user sets a voice count on the MIDI-CV rack module.
-   **One live consequence**: whether cloning crosses a rack Container boundary
-   is E7's measured problem, and the I/O-modules ruling puts it on the MVP's
-   critical path.
+   **And the container question is already answered, not open**: MIDI-CV2 is
+   placed at the ROOT and routed into the Container, which presents it on the
+   GUI as patch-points. "Rack module" is how the user thinks of it, not how it
+   is built — so nothing needs polyphony to cross a Container boundary.
 4. **Which primitives are actually linked** per module in the shipped binary.
    S8 has one measurement (`OscillatorNaive`: zero); nobody has done the rest.
 5. **Panel authoring cost per module** — unknown until the first few are built,

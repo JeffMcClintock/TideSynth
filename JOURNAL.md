@@ -113,21 +113,39 @@ packaging fault it found; it no longer gates E2.
 ### The set is trimmed by three, each for a mechanism
 
 **Sample & Hold** out (*"not critical"*). **Slew/Glide** out — it is in MIDI-CV2,
-verified above. **Mixer** left **UNDECIDED**: TIDE's cables fan in with automatic
-summing, so a mixer is convenience rather than capability — *"Quite useful
-though i guess"* is not a ruling and I did not round it into one.
+verified above. **Mixer** out, ruled minutes later once the question was put
+plainly: *"let's leave mixer out of MVP to reduce the critical path."* TIDE's
+cables fan in with automatic summing, so a mixer is convenience rather than
+capability.
 
-### The one thing the rulings raise rather than settle
+**So the MVP is NINE modules** — Oscillator HD, Envelope, Output, I/O modules,
+Filter, VCA, LFO, Noise, Attenuverter+Offset — and **nothing in the set is
+open**. Worth noting that the first pass of this entry recorded the Mixer as
+undecided rather than guessing which way *"quite useful though i guess"* fell;
+asking cost one line and got a ruling that also names its reason.
+
+### I flagged a critical-path risk that does not exist, and Jeff corrected it inside the hour
 
 Polyphony is ruled to be SynthEdit's existing model — modules always
 monophonic, the runtime clones them per voice on the DSP graph, voice count set
-on the MIDI-CV rack module, *"essentially free"*. **And the I/O modules are
-ruled to be rack modules** (mandatory, not deletable, but placed and movable).
-Those two together put MIDI-CV back inside a Container — which is exactly what
-**E7** measured as not working, and what V3 side-stepped by keeping MIDI-CV at
-the document root. **Whether voice cloning crosses a Container boundary is now
-on the MVP's critical path**, and it wants measuring before E2 authors
-anything. Recorded on E7 rather than assumed either way.
+on the MIDI-CV rack module, *"essentially free"*. The I/O modules are ruled to
+be rack modules, mandatory but movable. **I read those two together as putting
+MIDI-CV back inside a Container** — E7's measured failure — and wrote it up as
+newly on the MVP's critical path.
+
+**It is not, and the error is worth keeping.** Jeff: *"conceptually they are
+rack modules, but in reality we place the MIDI-CV2 at the root level and route
+it into the Container (which represents it on the GUI as patch-points). This is
+already solved. MIDI-CV as rack module [is] how the end-user thinks of it, not
+how it is implemented."*
+
+So root-placement-plus-facade **is the architecture**, and PLAN.md's word for it
+— *"v0.1 side-steps this"* — is what made it read as a temporary evasion of an
+open limitation. All four places that carried my inference are corrected:
+`decisions.md`, `module-set.md` §9.3, E7's row, and PLAN.md itself. **S28 is
+sharpened rather than dropped**: the root placement is correct, so what remains
+is only that the root implementation modules should not *render* on the rack
+canvas, since the Container facade is their representation.
 
 **Learned:**
 
@@ -135,15 +153,22 @@ anything. Recorded on E7 rather than assumed either way.
    least.** "We ship Oscillator HD" reads like a preference; it retired a
    three-day-old blocker, and one grep proved the module was already in the
    binary.
-2. **Two rulings can be individually right and jointly open a question neither
-   mentions.** Polyphony-is-free and I/O-modules-are-rack-modules are both
-   clear; together they walk straight into E7's container boundary.
+2. **"Rack module" was a statement about the USER'S MODEL and I read it as one
+   about implementation** — then reasoned confidently from it to a critical-path
+   risk that does not exist. The tell I missed was available: V3 had already
+   built root-placement-plus-facade and it works. **A vocabulary that describes
+   the product can look exactly like one that describes the code**, and PLAN.md
+   calling the arrangement a *"side-step"* of a *"still open"* limitation is
+   what made the wrong reading the natural one.
+3. **Corrections are cheapest when the work is still unmerged.** This one
+   touched four documents and a journal entry; none had landed, so the record
+   shows the ruling rather than the ruling plus a retraction.
 
 **Next:**
 
 1. **E2 is unblocked** and now has a ruled list to author from.
-2. **The Mixer question** and **E7's container boundary** are the two answers
-   E2 needs before it starts.
+2. **E2 has everything it needs**: the Mixer is ruled out, and E7's container
+   boundary turned out to be already solved. Nothing in the set is open.
 3. The release track (R2-R6) has an MVP to package.
 
 **Branch/PR:** `tide/mac/E16-tier1-ruled` — TideSynth only, rulings and docs.
