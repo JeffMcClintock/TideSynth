@@ -894,9 +894,39 @@ void addPanelStudio(tide::render::Scene& scene, float k)
 // X and Y are DIPs from the panel's TOP-LEFT, y downward — GUI coordinates, so
 // the vector overlays drawn later (knob pointers, switch levers, LED lenses)
 // can reuse the same numbers unchanged. The panel is RackUnits x 48 DIPs wide.
+// They are SNAPPED to a half-DIP grid on the way in; see kWidgetGridDips.
 //
 // Unparseable statements are SKIPPED, never errors: this text is edited live
 // in a pin, and a half-typed line must not blank the panel.
+
+// EVERY COMPONENT CENTRE LANDS ON A HALF-DIP GRID, and that is an interface
+// constraint, not a tidiness one.
+//
+// The painted panel is only half of a control. The other half is a vector
+// widget sitting on top of it -- the knob's moving line, the LED's lens, the
+// socket's hit target -- and those are separate host modules. SynthEdit stores
+// a module's panelRect as integers: integer position, integer width, integer
+// height. So a widget's centre is position + size/2, which can only ever be a
+// multiple of 0.5 DIPs. Nothing the patch author does can change that.
+//
+// If a painted knob's centre is anywhere else, there is NO placement of the
+// widget that lines up with it. The author cannot dial the error out; they can
+// only get within a quarter DIP and stay wrong, which is exactly the "difficult
+// to get it correct" that prompted this. So the painted side gives up a freedom
+// it does not need: a quarter DIP of movement is invisible on a faceplate,
+// while a quarter DIP of misregistration between a knob and the pointer drawn
+// over it is not.
+//
+// Applied to every kind, including the vents that have no widget and do not
+// need it. A rule with no exceptions cannot be applied to the wrong list later.
+// (The auto-centred vents are unaffected in practice: the panel is a whole
+// number of 48-DIP units, so its centre is already a whole DIP.)
+constexpr float kWidgetGridDips = 0.5f;
+
+float snapToWidgetGrid(float dips)
+{
+	return std::round(dips / kWidgetGridDips) * kWidgetGridDips;
+}
 struct PanelComponent
 {
 	enum class Kind : uint8_t { Knob, Jack, Switch, Grill, Slots, Led };
@@ -982,6 +1012,14 @@ std::vector<PanelComponent> parsePanelLayout(const std::string& text)
 			continue;
 		if (!parseFloatToken(tok[coordAt], c.x) || !parseFloatToken(tok[coordAt + 1], c.y))
 			continue;
+
+		// Snapped HERE, once, at the only point a centre enters the system.
+		// Everything downstream -- the keep-out shapes, the jack pocket
+		// grouping, the scene geometry -- reads c.x/c.y, so it all agrees by
+		// construction. Snapping at the drawing end instead would put the
+		// painted hole and the pocket that surrounds it on different grids.
+		c.x = snapToWidgetGrid(c.x);
+		c.y = snapToWidgetGrid(c.y);
 
 		float v = 0.0f;
 		if (c.kind == PanelComponent::Kind::Grill && tok.size() >= coordAt + 4)
