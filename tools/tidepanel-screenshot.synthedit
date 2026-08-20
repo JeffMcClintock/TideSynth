@@ -20,8 +20,11 @@
         </PatchManager>
         <modules>
             <module type="SE TiDE:Panel" handle="190616161">
-                <structRect l="96" r="96" t="96" b="96"/>
-                <panelRect l="3936" r="3984" t="3760" b="4144"/>
+                <plugs>
+                    <plug default="5" idx="2"/>
+                </plugs>
+                <structRect l="96" r="360" t="96" b="552"/>
+                <panelRect l="3936" r="4176" t="3760" b="4140"/>
             </module>
         </modules>
         <lines/>
@@ -50,10 +53,14 @@
                 <Pin name="Ignore Program Change" datatype="bool" noAutomation="true"/>
             </GUI>
         </Plugin>
-        <Plugin id="SE TiDE:Panel" name="Panel Test" flags="384" category="TiDE">
+        <Plugin id="SE TiDE:Panel" name="Panel" flags="384" category="TiDE">
             <GUI graphicsApi="GmpiGui">
                 <Pin name="Text" datatype="string_utf8"/>
                 <Pin name="Text Color" datatype="string_utf8" default="FF101010"/>
+                <Pin name="Rack Units" datatype="int" default="1"/>
+                <Pin name="Layout" datatype="string_utf8" default="grill 24 20; knob big 24 163; knob small 24 216; switch 24 247; led 14 272; led 34 272; jack 24 297; jack 24 337; slots 24 371"/>
+                <Pin name="Material" datatype="enum" metadata="Brushed Aluminium, Flat Aluminium, Powder-coated Steel"/>
+                <Pin name="Panel Color" datatype="string_utf8" default="FF2E3238"/>
             </GUI>
         </Plugin>
     </PluginList>
