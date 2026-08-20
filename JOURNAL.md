@@ -174,6 +174,127 @@ rather than doubling it.
 
 ---
 
+---
+
+## 2026-08-20 — linux — S21 verified at runtime, and three things I got wrong
+
+**Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
+
+**Fifth item this session**, at Jeff's direction. It exists because he pushed back
+on a claim I had repeated four times without rechecking.
+
+### 1. The wayland claim was false, and I had the right data all along
+
+I wrote, in the S21 entry and in two PR bodies, that `TIDE_STANDALONE`
+*"cannot build on this box (wayland-client, xkbcommon, libdecor-0,
+libpipewire-0.3 all absent)"*. Jeff: *"I have run synthedit wayland here, why no
+wayland deps?"*
+
+Measured:
+
+| dep | this box |
+|---|---|
+| `wayland-client` | **1.22.0** |
+| `xkbcommon` | **1.6.0** |
+| `libdecor-0` | **0.2.2** |
+| `wayland-scanner`, `wayland-protocols` | **present** |
+| `libpipewire-0.3` | **missing — the only one** |
+
+A normal configure says so in one line: `STANDALONE skipped -- missing:
+libpipewire-0.3`. **That list of four was the CI runner's**, read out of the tree
+I had deliberately crippled with a pruned `PKG_CONFIG_LIBDIR` to reproduce #190,
+and then repeated as a fact about this machine.
+
+**The failure was not a missing measurement.** My first probe this session
+measured all three wayland modules as present. I overwrote correct data with a
+number from a different experiment, and then used it to justify *not* verifying
+two separate items — S21 shipped with "the plugin was never loaded", and I ruled
+E14 not-takeable-here on the same premise.
+
+### 2. So S21 is now verified by the reader, not by a directory listing
+
+`sudo` needs a password no unattended run has, so rather than change the box:
+`apt-get download libpipewire-0.3-dev libspa-0.2-dev`, `dpkg-deb -x` into a
+scratch prefix, repoint `prefix=` in the two `.pc` files, point
+`PKG_CONFIG_PATH` at them, and symlink `libpipewire-0.3.so` at the already
+installed runtime `.so.0`. **TIDE_STANDALONE then builds and runs on Linux —
+the first time it has.**
+
+**Deterministic A/B, 3 runs each layout:**
+
+```
+post-fix : seeded=1  enriched=5  missing=0
+pre-fix  : seeded=0  enriched=0  missing=6
+```
+
+With the fix: `TIDE: 6 rack prefab(s) seeded from the bundle`, and all five pin
+XMLs enriched. Without: six `missing from bundle resources` lines, including
+*"no Prefabs folder in bundle resources - the rack module browser will be
+empty"*.
+
+**And visually** — [before](docs/images/s21-prefabs-linux-before.png) /
+[after](docs/images/s21-prefabs-linux-after.png). With the fix the browser's
+**Prefabs** group lists Envelope, Filter, Midi, MidiCv, Oscillator, Output.
+Without it **the Prefabs group is absent from the tree altogether**, and
+`Sub-Controls` collapses from 27 classes to one (`Label`) because the XMLs never
+load — the second half of S21, which I had only ever inferred.
+
+### 3. A crash I reported before I had measured it
+
+The first pre-fix run segfaulted, and I wrote *"the pre-fix layout segfaults"*.
+**It does not.** 28 controlled runs — 8 per layout at 6s, 6 per layout at 12s,
+both layouts — produced **zero** crashes. Two crashes were real, both on the
+first run after relocating the resource directory with a 10s window, but the
+correlation with the layout is unsupported. Filed as **S23** with what is and is
+not known, unattached to S21. `gdb` is not installed here, so nothing names a
+frame.
+
+### 4. A merge commit of mine is authored as Jeff, and is already pushed
+
+`72cc7c7` on `tide/linux/A30-lessons-digest` — I dropped the `GIT_*` exports on
+the shell call that ran `git commit`, so the merge is stamped
+`Jeff McClintock <jef@synthedit.com>`. `check-commit-authorship.py` reports it
+and exits 0, by A26's design, because STEP 4 forbids rewriting anything already
+pushed. **I have not rewritten it.** It is metadata rather than privilege — the
+push authenticated as the bot, and authorship does not bypass a ruleset — but it
+is exactly the misattribution A14 exists to prevent, and it is Jeff's call
+whether to force-push a re-authored commit.
+
+**Learned:**
+
+1. **Data from a deliberately broken environment must be labelled at the moment
+   it is written down.** The pruned-`PKG_CONFIG_LIBDIR` tree existed to answer
+   "what does the CI runner lack?" — and its answer reads exactly like an answer
+   to "what does this box lack?". Nothing in the log distinguishes them.
+2. **A claim used to justify NOT doing work deserves more scrutiny than one used
+   to justify doing it, not less.** "I can't verify this here" closed two items
+   without review. It was wrong, and it was cheap to check.
+3. **Report a crash with a rate, or don't report it as a consequence.** One
+   observation became "the pre-fix layout segfaults" in the same message. 28 runs
+   said otherwise.
+4. **Export the identity in every shell that commits, not once per task.** Each
+   Bash call is a fresh environment; the exports do not persist, and the failure
+   is silent until the check prints it.
+5. **`libpipewire-0.3-dev` is all that stands between this box and a working
+   `TIDE_STANDALONE`**, and the download-and-extract route needs no root — so
+   visual verification IS available on linux, which several rows assume it is
+   not.
+
+**Next:**
+
+1. **E14 should be re-examined for this box.** I ruled it out because its
+   authoritative check is *"place it in TIDE and look"*; that is now possible
+   here, as the screenshots show.
+2. **S23** needs `gdb` and a longer run window.
+3. **Install `libpipewire-0.3-dev` properly** if the standalone is to be routine
+   here — the scratch-prefix workaround is per-build and undocumented outside
+   this entry and S23.
+4. Unchanged: **the `apt-get` in `build.yml`** is still all that stands between
+   C7e and closed; CI has now filed eight of those issues.
+
+**Branch/PR:** `tide/linux/S21-runtime-verification` — TideSynth only.
+
+---
 ## 2026-08-20 — macos — U2 was finished four days ago, and it was the last mac row
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
