@@ -28,12 +28,29 @@
 // GATED behind the carve-out (C0). If SynthEditApp's declarations change, this
 // file breaks at link time, which is the failure mode we want.
 
-#include "SynthEditApp.h"
 #include "SafeMessageBox.h"
+#include "ILicenseState.h" // C16 -- came in transitively via SynthEditApp.h
+                           // before; it lives in the PUBLIC SynthEditLib,
+                           // which is the whole point of the change.
 
-// Defined by SynthEditApp's constructor in the desktop app. TIDE constructs a
-// TideApp instead, so this stays null for the life of the process.
-SynthEditApp* theApp = nullptr;
+// C16, 2026-08-20. This file used to include SynthEdit2/SynthEditApp.h -- the
+// LAST private include in TIDE's own source, and the one thing keeping a
+// standalone TideSynth from configuring. It is gone, and so are the three
+// symbols it existed for: the `theApp` global and stub definitions of
+// SynthEditApp::isMoonbaseEnabled() / ::licenseIsActive().
+//
+// They were dead, and C11 is why. This file's header comment describes a
+// pre-C11 world where EditorLib reached for SynthEditApp directly; C11 replaced
+// that with ILicenseState, and GetLicenseState() below is what EditorLib
+// actually calls now. Measured before deleting: neither `theApp` nor either
+// member is referenced anywhere in EditorLib or SynthEditLib. Every surviving
+// caller of those members is desktop-app code (SynthEditMac/, SynthEdit2/),
+// which links the real SynthEditApp.cpp and never this file.
+//
+// If a future change makes EditorLib want `theApp` again, note it needs only a
+// FORWARD DECLARATION here, not the header: a pointer definition does not
+// require a complete type, and a global's mangled name carries no type in the
+// Itanium ABI, so the symbol is identical either way.
 
 void SafeMessagebox(
 	void* /*hWnd*/,
@@ -47,16 +64,6 @@ void SafeMessagebox(
 	// already silent here. Callers are EditorLib's CopyFileWithReplace and the
 	// module-scan paths in ModuleFactory_Editor -- none of which TIDE reaches.
 	// BACKLOG S3 covers making those paths unreachable rather than merely quiet.
-}
-
-bool SynthEditApp::isMoonbaseEnabled() const noexcept
-{
-	return false; // TIDE never defines SE_MOONBASE_SUPPORT.
-}
-
-bool SynthEditApp::licenseIsActive()
-{
-	return false; // TIDE is free and unlicensed -- PLAN, "Price and funding".
 }
 
 // BACKLOG C11. TIDE needs no licensing (Jeff, 2026-08-15): rather than

@@ -72,16 +72,13 @@ set( SYNTHEDITLIB_DIR ${syntheditlib_folder} )
 # DIRECTORY-scoped command and takes only paths, so CMake was adding a relative
 # directory literally named "PRIVATE". Harmless because it does not exist, but
 # it made this block read as if it were target_include_directories().
-# C7b: this folder now lives in the TideSynth repo, so `../SynthEdit2` no longer
-# resolves -- the private repo is somewhere else entirely. SE16 passes its own
-# path in via SE16_SYNTHEDIT2_DIR before add_subdirectory(); when TideSynth is
-# built standalone the variable is empty and the entry vanishes, which is what
-# C7d needs. The single consumer is TideAppStubs.cpp -> SynthEditApp.h, tracked
-# as C16 -- until that lands, a standalone TideSynth build still cannot compile
-# this target, and that is expected rather than a regression.
+# C16, 2026-08-20: SE16_SYNTHEDIT2_DIR is gone. C7b parameterised the old
+# `../SynthEdit2` because TideAppStubs.cpp still included SynthEditApp.h; C16
+# deleted that include along with the three dead symbols it served, so TIDE's
+# own source now resolves entirely against public repos. This target no longer
+# reads anything from SE16, which is what C7d needs to configure standalone.
 include_directories(
 	${SYNTHEDITLIB_DIR}
-	${SE16_SYNTHEDIT2_DIR}
 	${VST3_SDK}
 )
 

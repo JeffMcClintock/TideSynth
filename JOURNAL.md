@@ -74,6 +74,80 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — C16: the last private include was three dead symbols
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Thirteenth item this session**, stacked directly on C7b.
+
+**Did:** deleted `#include "SynthEditApp.h"` from
+`SynthEditSem/TideAppStubs.cpp` — the last include in TIDE's own source that
+resolved only inside the private repo.
+
+### The row expected C14's treatment. Measuring first showed there was nothing to narrow
+
+C16 was filed assuming the two member definitions —
+`SynthEditApp::isMoonbaseEnabled()` and `::licenseIsActive()` — needed the
+complete type and therefore an interface, the way C14 handled
+`ApplySynthEditConfig.cpp`.
+
+**They are not referenced anywhere in `EditorLib` or `SynthEditLib`.** C11 had
+already replaced that path with `ILicenseState`, and `GetLicenseState()` —
+returning `nullptr`, in this very file — is what EditorLib actually calls. Every
+surviving caller of those members is desktop-app code (`SynthEditMac/`,
+`SynthEdit2/`) which links the real `SynthEditApp.cpp` and never this file.
+
+**So the fix is a deletion, not an interface.** All three symbols go: the two
+members and the `theApp` global.
+
+**Why the row got it wrong is worth naming:** the file's own header comment still
+described the pre-C11 world — *"three symbols that EditorLib references"* — and
+I wrote C16 from that comment. **A stale comment set the expected difficulty of
+the work**, exactly as it did for A27, where `check-next-block.py`'s docstring
+claimed a behaviour the code never had.
+
+One include replaced it: `ILicenseState.h`, which had been arriving
+*transitively* through the private header and lives in the **public**
+`SynthEditLib`. The build error that revealed it (`unknown type name
+'ILicenseState'`) is the useful kind.
+
+### Verification
+
+| | |
+|---|---|
+| objects | **943 — identical to C7b's baseline**, so nothing stopped being built |
+| artefacts | `TIDE.gmpi` + `TIDE_VST3.vst3` |
+| ctest | **86/86** |
+| runtime | `TIDE_STANDALONE` runs, seeds 6 prefabs |
+| `dangling_private_includes.py` | **3 → 2**, `SynthEditApp.h` gone |
+
+**The two survivors are not real.** Both are `tinyxml/tinyxml.h`, which resolves
+in the **public** `SynthEditLib` — on TIDE's include path via `SYNTHEDITLIB_DIR`
+— and is only reported because `--public` was pointed at TideSynth alone, while
+TIDE's public surface is TideSynth *plus* SynthEditLib. **So TIDE's own source
+has zero real dependencies on the private repo**, which is what C7d needs.
+
+`SE16_SYNTHEDIT2_DIR`, which C7b added an hour earlier, is deleted from both
+CMakeLists — it existed solely for this include.
+
+**Learned:**
+
+1. **A deletion is a legitimate answer to "narrow this to an interface", and it
+   is cheaper to check for than to build toward.** Two greps over EditorLib and
+   SynthEditLib decided it before any code was written.
+2. **Stale comments do not just mislead about behaviour — they set the expected
+   SIZE of the work.** C16's row inherited its difficulty estimate from a comment
+   describing a world C11 had already ended. Second time today (see A27).
+
+**Next:**
+
+1. **C7d** — the root `CMakeLists.txt` TideSynth does not have. Now genuinely
+   unblocked: nothing in TIDE's source reaches into SE16.
+2. Then **C7e**, the clean-clone test, and C7 closes.
+
+**Branch/PR:** `tide/mac/C16-tideappstubs` in TideSynth and SynthEdit, **stacked
+on C7b's branches** and to be merged after them.
+
 ## 2026-08-20 — macos — C7b: TIDE's own source leaves the private repo
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
