@@ -46,6 +46,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Sentence-splitting on "." is wrong in any corpus that names files.
 - This project's writing conventions are load-bearing infrastructure.
 
+**linux — S21 verified at runtime, and three things I got wrong**
+
+- Data from a deliberately broken environment must be labelled at the moment it is written down.
+- A claim used to justify NOT doing work deserves more scrutiny than one used to justify doing it, not less.
+- Report a crash with a rate, or don't report it as a consequence.
+- Export the identity in every shell that commits, not once per task.
+- `libpipewire-0.3-dev` is all that stands between this box and a working `TIDE_STANDALONE`
+
 **macos — U2 was finished four days ago, and it was the last mac row**
 
 - Third stale-status row today
