@@ -196,8 +196,12 @@ fetched.)
 
   1. PLAN.md      — the goal and the design constraints. Treat as given.
   2. BACKLOG.md   — the queue.
-  3. JOURNAL.md   — what previous runs did and learned. Read at least the last
-                    four entries.
+  3. JOURNAL.md   — what previous runs did and learned. **Read all of it.** It
+                    is rotated to stay small: under 60 KB, with a floor of the
+                    four most recent entries OR every entry sharing the most
+                    recent date, whichever is more (A24). "The last four
+                    entries" used to be the instruction and, at ten entries a
+                    day, bought under half a day of context.
   4. docs/decisions.md — the rulings, and any open PROPOSED entries.
   5. docs/carve-out.md — if your item is C1-C7.
 
