@@ -79,8 +79,8 @@ Template:
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · ninth item
 
 **Did:** filed the E16 ruling request — a `PROPOSED:` entry in
-[docs/decisions.md](decisions.md) asking which
-[module-set.md](module-set.md) tier E2 authors the curated set from,
+[docs/decisions.md](docs/decisions.md) asking which
+[docs/module-set.md](docs/module-set.md) tier E2 authors the curated set from,
 recommending the 12-module playable tier (smallest set the doc argues is
 playable; its V1 subset already shipped as E2a; per-module panel cost still
 unmeasured, so the small commitment bounds the unmeasured half). Merging the
@@ -94,7 +94,8 @@ PR is the decision; E16 is NEEDS-JEFF until then.
   defaults unmeasured). Wants the linux box or green CI.
 - **E7** (engine polyphony) and the S-series GATED rows — not build breaks,
   so no exception reaches them.
-- **S27** — my own filing this morning; its cross-platform-references design
+- S27 (on the #224 branch, not yet on this chain — a bare mention on purpose,
+  the stacked-PR lint rule) — my own filing this morning; its design
   call is flagged for Jeff on the row.
 
 **Learned:**
