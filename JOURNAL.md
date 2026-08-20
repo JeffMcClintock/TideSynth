@@ -175,6 +175,151 @@ configure).
    was TideSynth-side. Unchanged.
 
 **Branch/PR:** `tide/mac/issue-222` — TideSynth only.
+## 2026-08-20 — macos — A32: the umbrella advisory, and the measurement that was already done
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · second item
+
+**Did:** the advisory A32 specced, in `check-id-refs.py`: live rows whose
+`X[a-z]` children are all closed print as **ADVISORY** — candidates for a
+human, never an exit code.
+
+The design work was already paid for: the U2 run measured the naive gate at a
+50% false-positive rate (U2 real, E2 false) and A32's row pinned the remedy to
+advisory output with `lint` staying green. So this session's job was mostly to
+not re-decide that — build it as specced, then verify the measurement still
+holds on today's tree.
+
+### It does, with one moot half
+
+| the U2 run predicted | today |
+|---|---|
+| fires on U2 (real) | **moot** — U2 was archived when it closed, and a closed/archived row is nobody's umbrella |
+| fires on E2 (false, by design tolerated) | **fires on E2 alone**, rc=0, advisory printed |
+| silent on C7 (open child) | **silent** — C7e is NEEDS-JEFF, live |
+
+Positive control on real data: flipping C7e to DONE in a copy makes **C7 join
+the report** with all five children named. Selftest **38 cases, 0 failed**
+(6 new, one per shape above plus childless rows, closed umbrellas, and
+child-of-child); proven able to fail — flipping the U2-shape expectation gives
+`FAIL umbrella/U2's shape`, rc=1, restored.
+
+**Children closed in the LIVE file count as closed** (E2b is WONTFIX in
+BACKLOG.md, E2a/E2c archived — E2's children are 1 live-file + 2 archive), so
+the rule reads status, not location. A child that is itself live keeps the
+umbrella alive wherever its siblings sit.
+
+**Deliberately not done:** E2's re-spec. A32's row asks for it "while someone
+is here", but which module children E2 intends is a product call — E17's
+path-traced design language resolved only yesterday, and the module set it
+implies is E16/E2 territory, not a lint session's. The advisory's own text
+explains E2's presence, which is what the Accept required.
+
+**Stacked on A31's branch** (`tide/mac/A31-same-job-habit`) because both edit
+`check-id-refs.py`; the PR targets that branch and GitHub retargets to `main`
+when #218 merges (the A10 lesson).
+
+**Learned:**
+
+1. **A row that carries its own false-positive measurement is a different kind
+   of spec: the build step is obedience, not design.** U2's session measured,
+   A32's row recorded, this session implemented — three runs, no re-derivation.
+   That is the backlog working as a memory the runs themselves lack.
+2. **"Advisory" needs the reason printed with it, or it decays into noise.**
+   The report explains the E2 class inline — an umbrella with unfiled future
+   children is indistinguishable from a finished one — so a reader who has
+   never seen A32 still knows why rc is 0 and what judgement is theirs to make.
+
+**Next:**
+
+1. **The takeable process rows are exhausted** — A31 and A32 are both
+   IN-REVIEW on this box's stacked branches. The mac queue after them is C10
+   (`SynthEditLib` authority) or Jeff's workflow edit
+   ([#189](https://github.com/JeffMcClintock/TideSynth/issues/189)).
+2. **E2 wants its next child filed or its row saying none are intended** — the
+   advisory will name it every run until one of those happens; that is the
+   advisory working, not failing.
+
+**Branch/PR:** `tide/mac/A32-umbrella-advisory`, stacked on A31's branch — TideSynth only.
+
+---
+
+## 2026-08-20 — macos — A31: the granularity was the whole design, and three measurements chose it
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present
+
+**Did:** shipped both halves of A31 — the filing-time habit into the run
+prompt, and a shared-location check into `check-id-refs.py` that fails when
+two LIVE rows cite the same `file:line`.
+
+### The row said "only if it can be done without false alarms", so the alarms were counted first
+
+Three candidate granularities, each run against the real tree before any code:
+
+| granularity | fires on | verdict |
+|---|---|---|
+| same FILE, live rows | **14 groups**, all legitimate (`CMakeLists.txt` alone: 14 rows) | unusable |
+| same FILE:LINE, live rows | **0** today — and the real C15/C16 pair IS caught | **shipped, as a gate** |
+| file:line, live vs DONE/archived | **6 hits, 6 false** — umbrella C7 vs its own landed splits, S3g vs its parent S3, E6/E7 follow-ups | **excluded, 100% false** |
+
+The middle row is the finding: both C15 and C16 cite
+`SynthEditSem/TideAppStubs.cpp:31` **verbatim**, so the strict variant catches
+the one real historical collision while firing on nothing else in the live
+tree. Keying is basename:line, which is what lets C15's
+`SE16/SynthEditSem/...` spelling meet C16's `SynthEditSem/...` spelling.
+
+The excluded tier matters as much as the shipped one: a follow-up or remainder
+row legitimately cites the sites its parent touched, so live-vs-closed pairing
+is structurally noisy — the same shape A32 measured for umbrella rows. The
+habit covers that side at filing time instead: grep **freshly-fetched**
+`origin/main:BACKLOG.md` for the file you are about to name (fetch-fresh per
+A19's id-recheck precedent — your branch's copy predates any concurrent run's
+filing, which is the exact mechanism that produced C15/C16).
+
+### Verification
+
+- selftest **32 cases, 0 failed** — 7 new, one per measured tier, on real file
+  bodies; **proven able to fail** (flipping one expectation → `FAIL
+  shared/two live rows...`, rc=1, then restored).
+- positive control on the real tree: restore archived C15 as TODO beside C16
+  as IN-REVIEW → **rc=1**, naming every live citing row (C7, C15, C16) with
+  file:line for each; unmodified tree → **rc=0**.
+- `check-next-block.py`, `check-backlog-diff.py`, `check-journal-prepend.py`,
+  `check-id-refs.py` all green on this branch.
+
+**What is NOT verified:** `lint.yml` runs `check-id-refs.py` without
+`--selftest` (known since A23), so the 25→32 selftest cases still run only by
+hand; making CI run them stays a `.github/workflows/**` edit, Jeff's.
+
+**Also this run (STEP 4):** flipped **S26** IN-REVIEW→DONE on merged
+[#213](https://github.com/JeffMcClintock/TideSynth/pull/213); re-pointed the
+mac NEXT cell at **A32** with the old imperative demoted.
+
+**Learned:**
+
+1. **A check's granularity is not a style choice — each candidate tier had a
+   measurable false-alarm rate (14, 0, 6) and only one was shippable.** The
+   fifth time this week that measuring a proposed lint against the live tree
+   changed its design before it shipped (A23, A27, A24, A32, now A31).
+2. **The C15/C16 collision left a fingerprint neither filer intended: both
+   rows cite the same `file:line` verbatim.** Rows written independently about
+   one job converge on its address, which is why location, not id, is the
+   detectable invariant.
+3. **The check's first catch was its own author, in the same commit that adds
+   it.** The A31 row's outcome text quoted the C15/C16 citation as a backticked
+   `file:line`, which made A31 (live) collide with umbrella C7 (live) the
+   moment the lint ran. Fixed by spelling the line out in prose. A row ABOUT a
+   location collision must not itself cite the location in citable form —
+   that is now written into the row rather than left to be rediscovered.
+
+**Next:**
+
+1. **A32** — the umbrella advisory, the last takeable process row; its
+   measurement is already in its own text.
+2. The carve-out still waits on Jeff's `apt-get`
+   ([#189](https://github.com/JeffMcClintock/TideSynth/issues/189)); linux
+   issues #191–#216 are all that one cause.
+
+**Branch/PR:** `tide/mac/A31-same-job-habit` — TideSynth only.
 
 ---
 

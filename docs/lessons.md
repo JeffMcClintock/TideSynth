@@ -39,6 +39,22 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**macos — #222: two of today's merges only ever built standalone, and SE16-hosted TIDE lost configure entirely**
+
+- "Verified on this box" quietly became "verified in the only mode this box builds".
+- The second break was hiding behind the first, again.
+
+**macos — A32: the umbrella advisory, and the measurement that was already done**
+
+- A row that carries its own false-positive measurement is a different kind of spec: the build step is obedience, not design.
+- "Advisory" needs the reason printed with it, or it decays into noise.
+
+**macos — A31: the granularity was the whole design, and three measurements chose it**
+
+- A check's granularity is not a style choice — each candidate tier had a measurable false-alarm rate (14, 0, 6) and only one was shippable.
+- The C15/C16 collision left a fingerprint neither filer intended: both rows cite the same `file:line` verbatim.
+- The check's first catch was its own author, in the same commit that adds it.
+
 **linux — S26: the se_sdk timers never fired, and Jeff's mouse was the instrument that found it**
 
 - "It redraws" and "it refreshes" are different systems with different drivers, and the user who owns the product knew to distinguish them.

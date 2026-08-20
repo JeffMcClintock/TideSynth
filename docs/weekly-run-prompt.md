@@ -474,6 +474,21 @@ STEP 3 — Do the work, on the branch you pushed in STEP 2.
 
   - Scope yourself to that one item. If you find other problems, file them as
     new BACKLOG items or GitHub issues — do not fix them now.
+  - **Before filing a row, grep the backlog for the file you are about to
+    name** — against freshly-fetched `origin/main`, not your branch, whose
+    copy predates any concurrent run's filing:
+
+        git fetch origin
+        git show origin/main:BACKLOG.md | grep -n <file-you-will-name>
+
+    If a row already names that file, read it before filing: your finding may
+    be that row's job under a new id. Two ids for one job is exactly how
+    C15/C16 happened (A31, 2026-08-20) — two boxes filed the identical
+    deletion hours apart, each from a branch where the other's row was
+    invisible, and A23's duplicate-id check is blind to it by construction.
+    The lint's shared-location check (`check-id-refs.py`) catches the case
+    where both rows cite the same `file:line` once they meet on one branch;
+    this grep is what catches the rest, and it costs one command.
   - Check your work against the design constraints in PLAN.md, especially:
     sandbox-safe (no filesystem access outside the plugin bundle) and
     self-contained (no caches or writes scattered across the disk).
