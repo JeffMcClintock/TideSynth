@@ -116,23 +116,34 @@ constexpr int kPollMs = 100;
 
 // --- the physical scale ------------------------------------------------------
 //
-// Everything in this file is authored in DIPs, which is only meaningful once
-// DIPs are pinned to millimetres. The anchor is EURORACK: a 3U front panel is
-// 128.5 mm tall (Doepfer), and the test panel is 384 DIPs tall, which puts the
-// scale at 2.99 DIPs/mm. Rounded to 3, that same panel is 128.0 mm -- a 3U
-// module to within half a millimetre -- so 3 it is.
+// Everything here is authored in DIPs, which only means something once DIPs are
+// pinned to millimetres. The anchor is VCV RACK'S, because matching it costs
+// nothing and buys interchange: Rack works at 1 px = 1/75 inch, so
+//
+//     1 HP  = 5.08 mm = exactly 15 px      (RACK_GRID_WIDTH)
+//     3U    = 128.5 mm = 380 px            (RACK_GRID_HEIGHT)
+//
+// (verified against rack.hpp, not recalled). Adopting the same number makes one
+// DIP one Rack pixel, so a VCV panel layout ports across unchanged and both
+// convert to real Eurorack millimetres exactly.
+//
+// A previous draft used a round 3 DIPs/mm. That is only 1.6% away and looks
+// identical, but it puts 1 HP at 15.24 DIPs -- a panel width that can never be
+// a whole number of DIPs, in a system where panel widths are counted in HP.
 //
 // This exists so parts can be specified as the REAL part: a 3 mm LED needs a
 // 3.2 mm hole, not "about five DIPs, looks right".
-constexpr float kDipsPerMm = 3.0f;
-constexpr float kMm = kDipsPerMm; // DIPs per mm, for reading sizes as "8.0f * kMm"
+constexpr float kDipsPerMm = 75.0f / 25.4f; // 2.9528, == VCV Rack's px/mm
+constexpr float kMm = kDipsPerMm;           // for reading sizes as "8.0f * kMm"
+constexpr float kHpDips = 5.08f * kDipsPerMm; // 15.0, exactly
 
 // One rack unit of panel width. The Rack Units pin scales the panel in these.
 //
-// NOTE this is 16.0 mm, or 3.15 HP -- NOT a whole number of Eurorack HP
-// (1 HP = 5.08 mm = 15.24 DIPs). Left alone deliberately: changing it rescales
-// every coordinate in every Layout string. If the pin should mean real HP,
-// that is a decision to take once, with the layouts updated in the same edit.
+// NOT YET one HP. At 48 DIPs this is 16.26 mm, or 3.2 HP -- no real module is
+// that wide. Making the pin mean HP is one line here (kHpDips), but it also
+// rescales every coordinate in every Layout string AND the module's own width
+// in the host, so it is one deliberate edit rather than a side effect of
+// fixing the scale. See docs/ui-design-language.md, "Sizes and the grid".
 constexpr float kRackUnitDips = 48.0f;
 
 // --- hardware, all sizes in DIPs ---------------------------------------------

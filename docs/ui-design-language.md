@@ -1,10 +1,25 @@
 # UI design language
 
-*Written 2026-08-18. Status: **proposal** — nothing in the renderer implements
-this yet. It exists so that when UI work starts, the look is a decision rather
-than an accident, per PLAN constraint 8 ("No user skins — TIDE ships its
-default appearance"). If adopted, the adoption belongs in
-[decisions.md](decisions.md).*
+> **RESCOPED 2026-08-20 — read this first.** E17 was resolved in a third
+> direction: TIDE Rack's **panels and fittings are path traced**, not drawn.
+> See [panel-design-language.md](panel-design-language.md), which is the
+> authority for that traced layer, and [decisions.md](decisions.md).
+>
+> This document is **not withdrawn**. It now governs the **vector overlay**
+> drawn on top of the traced panel — labels and legends, knob pointers, switch
+> levers, LED lenses, cables — where its rules, including the "banned outright"
+> list below, stand unchanged. A *drawn* drop shadow is still banned.
+>
+> What no longer applies is that ban's reach over the **panel** itself. It was
+> written for a UI that was flat 2D throughout; on the traced layer a shadow or
+> a bevel is not decoration but the output of a light simulation. Sections on
+> palette, type, density and geometry are unaffected and still apply to
+> everything drawn.
+
+*Written 2026-08-18. Status: **adopted for the vector overlay** (see the note
+above); originally written as a whole-UI proposal. It exists so that the look
+is a decision rather than an accident, per PLAN constraint 8 ("No user skins —
+TIDE ships its default appearance").*
 
 TIDE Rack needs exactly one look, shipped in the binary, drawn in code. This
 document defines it: a synthesis of the design language of Bungie's
