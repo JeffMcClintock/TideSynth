@@ -74,6 +74,81 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — C7e: the clean clone builds; the CI clause is one apt-get away
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Fifteenth item this session.** C7d merged first.
+
+**Did:** ran C7's real proof, and it splits cleanly in two.
+
+### The clean clone builds — proven by the literal test
+
+Not a worktree, not an override: `git clone` of the public URL into an empty
+directory with **no sibling repos and no SE16 anywhere on the path**.
+
+```
+git clone https://github.com/JeffMcClintock/TideSynth   158 files
+cmake -B build -G Ninja                                 rc=0
+cmake --build build                                     rc=0, zero error lines
+  -> TIDE.gmpi, TIDE_VST3.vst3, TIDE_STANDALONE.app
+lipo -archs TIDE.gmpi/Contents/MacOS/TIDE               x86_64 arm64
+TIDE_STANDALONE                                         runs, enriches XML, seeds prefabs
+grep SE16 in cc logs / CMakeCache / build.ninja         ZERO
+```
+
+**Universal, not a single-arch dev build** — worth stating, because that is the
+difference between "it compiles" and "this is the artefact you would ship".
+
+**A stranger can now clone this repo and build TIDE.** That is what C1–C7 were
+for, and it is done.
+
+### The CI clause is not met, and the reason has nothing to do with the carve-out
+
+C7e is written as *"build.yml's three platforms **run rather than skip**, and
+pass, on a PR."* They run now (C7d) and **windows passes**. **Linux fails on
+missing system packages.**
+
+`GMPI_Wrappers/wrapper/VST3/CMakeLists.txt:249-263` hard-requires six pkg-config
+modules on Linux — `x11`, `xext`, `fontconfig`, `freetype2`, `harfbuzz`,
+`libpng`, `dbus-1` — and the ubuntu runner has none.
+
+**`pkg_check_modules(REQUIRED)` fails fast, so the log names only `xext`.**
+Fixing that one moves the failure to the next probe — the same shape as
+`CoreMidiDriver.h` this morning, where CI printed one missing header and a second
+was waiting behind it. The full list and a ready-to-paste step are on
+[#189](https://github.com/JeffMcClintock/TideSynth/issues/189), which `build.yml`
+filed by itself.
+
+**So C7e is NEEDS-JEFF, not blocked on a decision:** the remaining step is an
+`apt-get` in `.github/workflows/build.yml`, and the fleet's token deliberately
+lacks `workflow` scope.
+
+**I did not reach for the alternative**, and it is worth saying why. `GMPI_Wrappers`
+is on STEP 5's ALLOWED list, so I *could* have made the X11 probe optional the
+way the Wayland one already is. That would turn CI green by removing a real
+requirement — a Linux VST3 with no editor — which is papering over the gap, not
+closing it. The dependency is genuine; installing it is the honest fix.
+
+**Learned:**
+
+1. **"CI is green" and "a stranger can build it" are different claims, and C7e
+   asks for the first while carve-out.md calls the second the real proof.** Both
+   were worth measuring separately; only one landed.
+2. **A fail-fast probe reports one missing dependency and hides the rest.** Twice
+   today. When a required-package check fails, read the *whole* list from the
+   source rather than the one name in the log.
+
+**Next:**
+
+1. **One `apt-get` step and C7 closes**, unblocking C10 and the release track
+   R2–R6. It is Jeff's to push.
+2. The macOS matrix job was still running when this was written — windows green,
+   linux red, macos unknown. It builds a universal binary from scratch, so it is
+   slow.
+
+**Branch/PR:** `tide/mac/C7e-clean-clone` — TideSynth only, backlog and journal.
+
 ## 2026-08-20 — macos — C7d: TideSynth builds on its own
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
