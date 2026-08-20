@@ -66,7 +66,14 @@ JACK_PITCH = 46              # vertical spacing between jacks
 # On the rack grid: RackLayout is hpWidth 15, rowHeight 380, railHeight 15
 # (Presenter.h:37-42), so a slot should be a multiple of 15 wide and at most
 # 380-2*15 = 350 tall. 105 = 7 HP.
-FACE_W, FACE_H = 105, 350
+# E15: FACE_W follows the panel, not the other way round. SE TiDE:Panel sizes
+# ITSELF at RackUnits x 48 DIPs (TiDEPanelGui kRackUnitDips), and SubView's
+# measure unions the children -- so an authored width the plate cannot be
+# produces overhanging captions on the dark rack, which is what the first
+# regeneration showed. 2 rack units = 96; labels end at 58 and jacks at 90,
+# so everything sits on the plate. (The 3.2-HP-per-U mismatch with RackLayout's
+# 15-DIP HP is E17's own open note, not this row's to settle.)
+FACE_W, FACE_H = 96, 350
 CAPTION_H = 18               # heading strip at the top
 LABEL_W, LABEL_H = 52, 16
 ROW_TOP = 44                 # first jack row, below the caption
@@ -330,6 +337,9 @@ PREFABS = [
             # heading Label below already carries the name, and this row swaps
             # the mechanism while keeping the look.
             '--add-module "SE TiDE:Panel" 700,0 --as bg',
+            # Width is the ONE pin the swap sets: it is per-instance geometry,
+            # not appearance (those are compile-time by the 2026-08-19 ruling).
+            '--set-pin $bg:"Rack Units" 2',
             '--add-module "SE Label" 700,60  --as heading',
             '--add-module "SE Label" 700,120 --as lbl_pitch',
             '--add-module "SE Label" 700,180 --as lbl_gate',
