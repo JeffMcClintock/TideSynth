@@ -46,6 +46,81 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — A23: duplicate-ID detection, and the three false alarms that shaped the rule
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Tenth item this session.** A22 is IN-REVIEW on
+[#183](https://github.com/JeffMcClintock/TideSynth/pull/183), green and waiting.
+
+**Did:** `scripts/check-id-refs.py` now fails when one ID owns more than one row.
+It already parsed every row ID; the change is that it records **locations**
+rather than a set, because a duplicate is only actionable if the report names
+*both* lines — renumbering means editing one of them.
+
+### The naive rule was red on day one, and that is the finding
+
+A first cut flagged **three** IDs in the live tree. **All three were
+legitimate**, and each taught the rule something:
+
+| flagged | what it actually is |
+|---|---|
+| `~~P8~~` (BACKLOG.md) | a **superseded row kept beside its replacement**. `RE_ID_CELL` tolerates the tildes *on purpose*, so references to it still resolve |
+| `~~G3~~` (BACKLOG-DONE.md) | the same shape |
+| `S1` ×2 (BACKLOG-DONE.md) | **a genuine, deliberate duplicate** — the linux and macOS boxes both took S1 on 2026-08-06, before the cron stagger took effect, and the second row says so in its own text |
+
+So the rule is narrower than "one ID, one row":
+
+- **Superseded rows are excluded from the duplicate test only**, not from the
+  known-ID set. Both properties are needed and they are not the same property.
+- **Archive-only duplicates are not flagged at all.** The archive is history,
+  *"archiving never rewrites a row"*, and flagging S1 would demand an edit the
+  rules forbid — on every run, forever.
+- **What IS flagged is any duplicate touching `BACKLOG.md`:** two live rows (the
+  A17 collision A23 was filed for), or one row in each file — an archive move
+  that *copied* instead of moving, which makes the row's status ambiguous.
+
+### Verification
+
+Two positive controls rather than the one A23 asked for, because the second
+shape only became visible while writing the rule:
+
+```
+duplicate row in BACKLOG.md   -> rc=1, names BACKLOG.md:76 and :77
+copied into the archive       -> rc=1, names BACKLOG.md:76 and BACKLOG-DONE.md:20
+the real tree                 -> rc=0
+```
+
+`--selftest` is **25 cases, 0 failed** (was 20), on real file bodies rather than
+regex snippets because every subtlety here is about *which file* a row is in.
+**The selftest is itself proven able to fail:** flipping one case's expectation
+gives `FAIL duplicate/clean`, rc=1.
+
+**Noted, not fixed:** `lint.yml` invokes this script **without** `--selftest`, so
+those 25 cases run only by hand — exactly like `check-next-block.py`. Making CI
+run them is a `.github/workflows/**` edit, so it needs Jeff either way.
+
+**Learned:**
+
+1. **Run a new lint against real history before believing it.** Three false
+   alarms, zero of them predictable from the row's description — and A23's own
+   text said the check was "a few lines on data it has already collected", which
+   was true and still nearly shipped a rule that failed `main`.
+2. **Two properties that look like one.** "Is this a known ID?" and "does this ID
+   own a row?" differ precisely on struck-through entries, and the existing
+   regex's tolerance of `~~` was deliberate for the first question. Reusing a
+   collector for a second question is where that kind of assumption breaks.
+
+**Next:**
+
+1. **A24** — the last A-series row: the journal's rotation floor is counted in
+   entries, so cross-run memory shrinks as cadence rises.
+2. **S20** and the CI-on-push question are Jeff's; **U3's click path** is still
+   unverified.
+
+**Branch/PR:** [#184](https://github.com/JeffMcClintock/TideSynth/pull/184), branch
+`tide/mac/A23-duplicate-ids` — TideSynth only.
+
 ## 2026-08-20 — macos — A22: the row names the branch, not the PR; and SynthEdit's CI never runs on push
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
@@ -121,6 +196,7 @@ until Jeff next kicks one off.
 
 **Branch/PR:** [#183](https://github.com/JeffMcClintock/TideSynth/pull/183), branch
 `tide/mac/A22-pr-link` — TideSynth only, docs and backlog.
+
 
 ## 2026-08-20 — macos — the mac test drift is FMA contraction, and my own diagnosis was wrong first
 
