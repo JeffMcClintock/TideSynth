@@ -24,7 +24,15 @@
                     <plug default="5" idx="2"/>
                 </plugs>
                 <structRect l="96" r="360" t="96" b="552"/>
-                <panelRect l="3936" r="4176" t="3760" b="4140"/>
+                <panelRect l="3416" r="3656" t="3640" b="4020"/>
+            </module>
+            <module type="SE Rectangle XP" handle="1991779248">
+                <plugs>
+                    <plug default="FF00ff00" idx="5"/>
+                    <plug default="FF00ff00"/>
+                </plugs>
+                <structRect l="0" r="0" t="0" b="0"/>
+                <panelRect l="3392" r="3492" t="3912" b="4012"/>
             </module>
         </modules>
         <lines/>
@@ -51,6 +59,17 @@
                 <Pin name="Controls on Module" datatype="bool" noAutomation="true"/>
                 <Pin name="Visible" datatype="bool"/>
                 <Pin name="Ignore Program Change" datatype="bool" noAutomation="true"/>
+            </GUI>
+        </Plugin>
+        <Plugin id="SE Rectangle XP" name="Rectangle" flags="384" category="Sub-Controls">
+            <GUI graphicsApi="GmpiGui">
+                <Pin name="Corner Radius" datatype="float" default="10" isMinimised="true"/>
+                <Pin name="Top Left" datatype="bool" default="1" isMinimised="true"/>
+                <Pin name="Top Right" datatype="bool" default="1" isMinimised="true"/>
+                <Pin name="Bottom Left" datatype="bool" default="1" isMinimised="true"/>
+                <Pin name="Bottom Right" datatype="bool" default="1" isMinimised="true"/>
+                <Pin name="Top Color" datatype="string" default="FF9A9AAA"/>
+                <Pin name="Bottom Color" datatype="string" default="FF858595"/>
             </GUI>
         </Plugin>
         <Plugin id="SE TiDE:Panel" name="Panel" flags="384" category="TiDE">

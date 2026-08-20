@@ -27,11 +27,6 @@ entries just move to a per-month archive.
    wins; a busy day pushing this file over 60 KB is correct, not a rotation
    failure.
 3. Never edit an entry while archiving it. The archive is the record.
-4. Regenerate the lessons digest — `python3 scripts/extract-lessons.py --write`
-   — and commit it with the rotation. **A30**: it reads both this file and the
-   archive, so archiving no longer takes a lesson out of circulation. Nothing to
-   copy by hand; write your **Learned** bullets as you already do and the
-   digest picks them up.
 
 **Why a date and not a duration (A24, 2026-08-20).** A24 asked for a time-based
 floor — *"retain everything from the last 7 days"* — and measuring what that
@@ -55,15 +50,10 @@ failure A24 correctly identified, where a 4-entry floor at ten entries a day
 bought under half a day. On a quiet week the four-entry floor still binds and
 nothing changes.
 
-**FIXED 2026-08-20 by A30 — this paragraph is kept for the reasoning, not as a
-live description.** It read: *"the durable lessons still age out. Rotation moves
-an entry's 'Learned' bullets into the archive with it, and no run reads the
-archive. The cheap answer is a standing digest that never rotates; the expensive
-one is reading 651 KB."* The cheap answer is what landed:
-[docs/lessons.md](docs/lessons.md), generated from **both** files, so rotation
-no longer removes a lesson from circulation. The measurement that shaped it —
-the Learned sections are **223 KB**, so a verbatim digest would have been worse
-than the 192 KB that caused A8 — is in the script's header.
+**What this does NOT fix, filed as A30:** the durable lessons still age out.
+Rotation moves an entry's *"Learned"* bullets into the archive with it, and no
+run reads the archive. The cheap answer is a standing digest that never rotates;
+the expensive one is reading 651 KB.
 
 A month splits across both files as it ages — recent entries here, older ones in
 the archive. That is why step 1 says "the month each entry belongs to".
@@ -138,16 +128,7 @@ truncated inside inline code — `` `PKG_CONFIG_LIBDIR` pointed at a pruned copy
 the system ` `` was a real output line. This journal is full of `.pc` and
 `foo.cpp:31`, so sentence-splitting has to ignore dots inside backticks.
 
-**Also closed: C15, which was already done and nobody had noticed.** It was filed
-expecting C14 not to reach it, reasoning *"the two did NOT want one fix"* — true
-of C14, but **C16 closed it**, deleting the `SynthEditApp.h` include along with
-the three symbols it served. Verified all three Accept clauses on merged `main`
-rather than assuming: the only includes left resolve in the **public**
-`SynthEditLib`; `../SynthEdit2` survives only in comments; and `theApp`,
-`isMoonbaseEnabled`, `licenseIsActive` appear only in comments. Flipped to DONE
-with the working in its row. The link clause holds for `TIDE.gmpi` and
-`TIDE_VST3` from this session's builds; `TIDE_STANDALONE` was **not** built,
-because it cannot be here.
+**C15 — I reached the same finding as the macOS box, independently and hours later.** I checked C15 before starting (it was the topmost eligible row), found C16 had already closed it, and flipped it to DONE here. **[#202](https://github.com/JeffMcClintock/TideSynth/pull/202) landed the same conclusion first**, archived the row into `BACKLOG-DONE.md`, and filed **A31** for the underlying gap — *two ids, one job*, which A23's duplicate-id check cannot see by construction. **My duplicate edit is dropped from this branch**, per STEP 2's rule for a collision found after opening a PR; this branch is now a delta on top of theirs. The verification is not wasted, because it was done on merged `main` and agrees with theirs clause for clause: the only remaining includes resolve in the **public** `SynthEditLib`, `../SynthEdit2` survives only in comments, and the three `SynthEditApp` symbols appear only in comments. **Worth noting for A31:** two boxes spent a session each re-deriving one answer, and neither could see the other's row — the same shape as the collision itself.
 
 **Learned:**
 
@@ -180,6 +161,89 @@ because it cannot be here.
    and closed**, and CI filed a fifth issue (#195) for it while this ran.
 
 **Branch/PR:** `tide/linux/A30-lessons-digest` — TideSynth only.
+
+---
+
+## 2026-08-20 — macos — C15 was C16: two ids, one job, and a NEXT block pointing three runs at it
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Sixteenth item this session.** Repos synced first; the **linux box is awake
+again** and holds A30 ([#198](https://github.com/JeffMcClintock/TideSynth/pull/198))
+and S17 ([#200](https://github.com/JeffMcClintock/TideSynth/pull/200)), so
+neither was taken here.
+
+**Did:** took C15, found it already delivered, closed it, and filed the process
+gap it exposed as **A31**.
+
+### C15 and C16 are the same job under two ids
+
+Every clause of C15's Accept, checked against `main` rather than assumed:
+
+| C15 required | on `main` |
+|---|---|
+| `TideAppStubs.cpp` includes no private header | **0** hits |
+| the three `SynthEditApp` symbols deleted | **0** |
+| `SafeMessagebox` + `GetLicenseState` kept | **2** |
+| `SynthEditSem`'s `../SynthEdit2` include gone | **0** |
+
+**The windows box filed C15** while landing C14 (`fa75989`, [#177](https://github.com/JeffMcClintock/TideSynth/pull/177)).
+**This box filed C16** for the same file, the same three symbols and the same
+include-path deletion, hours later while landing C7b (`830c77c`) — from a branch
+cut off the same `main`, where C15 was not yet visible.
+
+**A23 solved the neighbouring problem and is blind to this one.** It detects
+*one id, two rows*, which is what the two A17s were. This is *two ids, one job*,
+and no id-based check can see it. Filed as **A31** with three candidate fixes and
+a recommendation: the cheap habit — grep `BACKLOG.md` for the file you are about
+to name — over a lint that can only catch rows citing a `path:line`.
+
+**The cost was small only by luck.** C16 happened to land first, so C15 closed in
+minutes. Filed the other way round, a run would have spent a session re-doing
+finished work and discovered it at merge.
+
+**One thing C15 got right and is worth keeping:** it predicted that C14 would
+*not* close this half — *"narrowing a signature cannot remove a definition of
+somebody else's member function"*. Correct, and C16 reached the same conclusion
+independently by grepping.
+
+### The NEXT block was pointing three rows at it
+
+`check-next-block.py` — A27's own check — flagged the `win` and `any` cells, both
+naming C15 as a take-target. **The windows box was about to take work that was
+already done.** Without A27 that would have been a whole wasted run.
+
+Re-pointed all three cells. And the *third* instance of a lesson I have now
+written down twice and violated twice more in one sitting:
+
+1. the superseded quote in `any` said "then **C15**" — flagged;
+2. my replacement said "and then C15" — **flagged again**, because `then` before
+   an ID is itself a take-verb;
+3. deeper in the same cell, "if linux has it, take **C15**" — flagged a third
+   time.
+
+**Preserving NEXT-cell text verbatim is in direct tension with the check**, and
+A22 already ruled which way that goes: superseded text loses its imperative. It
+took three passes here because the cell is long and the phrases are buried.
+
+**Learned:**
+
+1. **The duplicate-work check that matters is not about ids.** A23 makes id
+   collisions visible; nothing makes *job* collisions visible, and the branch
+   model guarantees both. A31.
+2. **Writing a rule down is not the same as being able to follow it.** I wrote
+   A22's "superseded text must lose its imperative", then broke it twice in the
+   same edit — once in text I had just written to explain the rule. The check
+   caught all three; the habit caught none.
+
+**Next:**
+
+1. **A31** — the process fix, and the only thing this session leaves takeable
+   that is not blocked.
+2. **The carve-out is down to one workflow edit** ([#189](https://github.com/JeffMcClintock/TideSynth/issues/189)) — everything else in C7 has landed.
+3. **U2** is the only `mac`-marked row left.
+
+**Branch/PR:** `tide/mac/C15-duplicate-of-C16` — TideSynth only, backlog and journal.
 
 ## 2026-08-20 — linux — S21: the Linux bundle's resources were staged outside it
 

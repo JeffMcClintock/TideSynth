@@ -46,6 +46,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Sentence-splitting on "." is wrong in any corpus that names files.
 - This project's writing conventions are load-bearing infrastructure.
 
+**macos — C15 was C16: two ids, one job, and a NEXT block pointing three runs at it**
+
+- The duplicate-work check that matters is not about ids.
+- Writing a rule down is not the same as being able to follow it.
+
 **linux — S21: the Linux bundle's resources were staged outside it**
 
 - `$<TARGET_FILE_DIR>` is not inside the bundle on Linux
