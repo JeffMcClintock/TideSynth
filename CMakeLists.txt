@@ -285,6 +285,14 @@ if(MSVC)
     target_compile_options(gmpi_harfbuzz PRIVATE /wd4244 /wd4267 /wd4996 /bigobj)
 endif()
 
+# BACKLOG E14 -- the path tracer behind TIDE's own panels (E17's ruling: panels
+# are path traced into a cached bitmap, moving parts drawn over in vector).
+# A plain static library with no GMPI or SDK dependency, so this costs one small
+# target. Its tools and image-regression test are NOT wanted inside the plugin
+# build -- they are the modules/ superproject's business -- so they are off here.
+set(TIDE_RENDER_PREVIEW OFF CACHE BOOL "" FORCE)
+add_subdirectory(modules/common TideRender)
+
 add_subdirectory(${syntheditlib_folder} SynthEditLib)
 add_subdirectory(${syntheditlib_folder}/EditorLib EditorLib)
 add_subdirectory(SynthEditSem)

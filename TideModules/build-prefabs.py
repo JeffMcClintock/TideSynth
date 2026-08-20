@@ -533,6 +533,20 @@ TIDE_STATIC_EXTRAS = {
     # SynthEditLib, which is why they need naming in SynthEditSem's own list --
     # the same trap as Converters.cpp and MidiToGate.cpp.
     "SE Label",
+    # BACKLOG E14 -- TIDE's own two modules. Unlike every entry above, these are
+    # not borrowed from SynthEditLib: they live in this repo's modules/ tree and
+    # are built TWICE on purpose. modules/CMakeLists.txt builds each as a
+    # loadable .gmpi so SynthEditCL can scan and place it -- that is how a prefab
+    # using them gets authored at all -- while SynthEditSem/CMakeLists.txt
+    # compiles the same .cpp files straight into the plugin, which is the only
+    # way a class reaches TIDE (PLAN constraint 7; S1a deleted the scan).
+    #
+    # So SynthEditCL sees them as SCANNED and TIDE has them STATIC, which is
+    # exactly the mismatch this allowlist exists for: a saved document's
+    # `class=` attribute reflects the editor's registration, not TIDE's, so the
+    # check below would otherwise refuse a prefab that works perfectly.
+    "SE TiDE:knob",
+    "SE TiDE:Panel",
 }
 
 
