@@ -74,6 +74,87 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — C15 was C16: two ids, one job, and a NEXT block pointing three runs at it
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Sixteenth item this session.** Repos synced first; the **linux box is awake
+again** and holds A30 ([#198](https://github.com/JeffMcClintock/TideSynth/pull/198))
+and S17 ([#200](https://github.com/JeffMcClintock/TideSynth/pull/200)), so
+neither was taken here.
+
+**Did:** took C15, found it already delivered, closed it, and filed the process
+gap it exposed as **A31**.
+
+### C15 and C16 are the same job under two ids
+
+Every clause of C15's Accept, checked against `main` rather than assumed:
+
+| C15 required | on `main` |
+|---|---|
+| `TideAppStubs.cpp` includes no private header | **0** hits |
+| the three `SynthEditApp` symbols deleted | **0** |
+| `SafeMessagebox` + `GetLicenseState` kept | **2** |
+| `SynthEditSem`'s `../SynthEdit2` include gone | **0** |
+
+**The windows box filed C15** while landing C14 (`fa75989`, [#177](https://github.com/JeffMcClintock/TideSynth/pull/177)).
+**This box filed C16** for the same file, the same three symbols and the same
+include-path deletion, hours later while landing C7b (`830c77c`) — from a branch
+cut off the same `main`, where C15 was not yet visible.
+
+**A23 solved the neighbouring problem and is blind to this one.** It detects
+*one id, two rows*, which is what the two A17s were. This is *two ids, one job*,
+and no id-based check can see it. Filed as **A31** with three candidate fixes and
+a recommendation: the cheap habit — grep `BACKLOG.md` for the file you are about
+to name — over a lint that can only catch rows citing a `path:line`.
+
+**The cost was small only by luck.** C16 happened to land first, so C15 closed in
+minutes. Filed the other way round, a run would have spent a session re-doing
+finished work and discovered it at merge.
+
+**One thing C15 got right and is worth keeping:** it predicted that C14 would
+*not* close this half — *"narrowing a signature cannot remove a definition of
+somebody else's member function"*. Correct, and C16 reached the same conclusion
+independently by grepping.
+
+### The NEXT block was pointing three rows at it
+
+`check-next-block.py` — A27's own check — flagged the `win` and `any` cells, both
+naming C15 as a take-target. **The windows box was about to take work that was
+already done.** Without A27 that would have been a whole wasted run.
+
+Re-pointed all three cells. And the *third* instance of a lesson I have now
+written down twice and violated twice more in one sitting:
+
+1. the superseded quote in `any` said "then **C15**" — flagged;
+2. my replacement said "and then C15" — **flagged again**, because `then` before
+   an ID is itself a take-verb;
+3. deeper in the same cell, "if linux has it, take **C15**" — flagged a third
+   time.
+
+**Preserving NEXT-cell text verbatim is in direct tension with the check**, and
+A22 already ruled which way that goes: superseded text loses its imperative. It
+took three passes here because the cell is long and the phrases are buried.
+
+**Learned:**
+
+1. **The duplicate-work check that matters is not about ids.** A23 makes id
+   collisions visible; nothing makes *job* collisions visible, and the branch
+   model guarantees both. A31.
+2. **Writing a rule down is not the same as being able to follow it.** I wrote
+   A22's "superseded text must lose its imperative", then broke it twice in the
+   same edit — once in text I had just written to explain the rule. The check
+   caught all three; the habit caught none.
+
+**Next:**
+
+1. **A31** — the process fix, and the only thing this session leaves takeable
+   that is not blocked.
+2. **The carve-out is down to one workflow edit** ([#189](https://github.com/JeffMcClintock/TideSynth/issues/189)) — everything else in C7 has landed.
+3. **U2** is the only `mac`-marked row left.
+
+**Branch/PR:** `tide/mac/C15-duplicate-of-C16` — TideSynth only, backlog and journal.
+
 ## 2026-08-20 — linux — S21: the Linux bundle's resources were staged outside it
 
 **Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
