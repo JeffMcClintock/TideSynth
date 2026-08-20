@@ -118,7 +118,8 @@ run them is a `.github/workflows/**` edit, so it needs Jeff either way.
 2. **S20** and the CI-on-push question are Jeff's; **U3's click path** is still
    unverified.
 
-**Branch/PR:** `tide/mac/A23-duplicate-ids` — TideSynth only.
+**Branch/PR:** [#184](https://github.com/JeffMcClintock/TideSynth/pull/184), branch
+`tide/mac/A23-duplicate-ids` — TideSynth only.
 
 ## 2026-08-20 — macos — the mac test drift is FMA contraction, and my own diagnosis was wrong first
 
