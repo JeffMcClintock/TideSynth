@@ -74,6 +74,63 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · sixth item
+
+**Did:** gave the module-arm state a cross cursor on mac.
+
+### The row's premise had moved again, in a useful direction
+
+S24 asks for a port of `SetCursorHandler` registration the way
+`WaylandMainWindow.cpp:72` does it. Measuring first found TIDE **already
+ships the affordance on Windows** — an inline `::SetCursor(IDC_CROSS)` in
+`SynthEditGui.cpp` (`dragInProgress` set at OM_DRAG_NEW_MODULE, re-asserted
+every pointer move, with its own comment: "GMPI doesn't expose setCursor on
+IInputHost, so we go straight to Win32"). So the smallest correct change is
+the AppKit analogue of TIDE's own mechanism, not new handler plumbing:
+`TideCursorMac.mm` — `[[NSCursor crosshairCursor] set]` — called at
+arm/disarm and re-asserted per move (AppKit cursor rects reset the cursor on
+their own schedule, exactly like WM_SETCURSOR). One `.mm`, a Darwin-only
+source entry, two `#ifdef __APPLE__` forks beside the `_WIN32` ones.
+
+### Verified to the machine's limit, then handed to the instrument that found it
+
+- builds rc=0; `tideShowCrossCursor` linked in the standalone (nm = 1).
+- the full path driven live over the command channel: browser click **armed**
+  (entry highlighted), rack click **placed a List Entry** at the click point
+  with fully populated properties — the arm/disarm/re-assert calls all on
+  that path, no crash. (The placed combo box also *draws* here — S25's tofu
+  did not manifest for this control in this build.)
+- **the pointer bitmap is the one thing a screenshot cannot carry** — the
+  screenshot API excludes the cursor. Jeff reported the stuck cursor, so per
+  S26's lesson the verification of the pixels goes to his mouse; the PR asks.
+
+**Linux deliberately not attempted:** the Wayland APP works because
+`WaylandToplevel` has its own `setCursor`; gmpi_ui's frames expose none, so a
+linux TIDE cursor needs either a gmpi_ui frame API (a design question, not a
+port) or a linux shortcut of its own. Left for the linux box rather than
+guessed at from here.
+
+**Learned:**
+
+1. **Third time today a row's central premise had moved before it was taken**
+   (P7d delivered elsewhere, E15's pin ruling unlanded, now S24's "defined
+   and never called" — TIDE grew a Win32 path someone added without touching
+   the row). Measuring the premise first is now the cheapest step of every
+   item.
+
+**Next:**
+
+1. **Jeff, with a real mouse:** browser-click a module — the pointer should
+   turn crosshair until the rack click lands (mac).
+2. **S25** (tofu) — did not reproduce for List Entry here; wants re-measuring
+   against the E15 panel stack before anyone chases it.
+
+**Branch/PR:** `tide/mac/S24-cross-cursor` — TideSynth only.
+
+---
+
 ## 2026-08-20 — macos — E15: the rack's faceplate is TIDE's own panel, and two breaks the swap flushed out
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · fifth item
