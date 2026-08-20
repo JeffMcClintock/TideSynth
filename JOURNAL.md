@@ -74,6 +74,95 @@ Template:
 
 ---
 
+## 2026-08-20 — linux — S21: the Linux bundle's resources were staged outside it
+
+**Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
+
+**Second item this session.** Jeff said "take next task" mid-run, which overrides
+STEP 2's one-item rule; recording that here because otherwise the entry looks
+like a run that helped itself to a second row.
+
+**Did:** fixed the defect the previous entry filed. `SynthEditSem/CMakeLists.txt`
+staged TIDE's bundle resources with `$<TARGET_FILE_DIR:tgt>/../Resources`,
+commented *"the binary sits in Contents/<arch>/, so Resources is its sibling"* —
+true on Windows, false on Linux, where `gmpi_plugin.cmake:853-861` links a bare
+`.so` into the target directory and assembles the bundle around it afterwards.
+
+**Linux needs TWO answers, not one**, and that is the part worth not
+re-deriving. `BundleInfo::getBundleContentsFolder` (`BundleInfo.cpp:204`) walks
+the loaded module's path for a `Contents` element and falls back to
+`parent_path()` when there is none:
+
+| format | loaded from | reader wants |
+|---|---|---|
+| VST3 | `TIDE_VST3.vst3/Contents/x86_64-linux/TIDE_VST3.so` | `…/Contents/Resources` |
+| GMPI | a bare `TIDE.gmpi`, no `Contents` at all | `Resources` beside the binary |
+
+So the old expression was wrong for both, by different amounts.
+
+**The fix is a new `elseif(UNIX)` branch. The Windows expression is unchanged,
+byte for byte, and that was the point** — S21 was found on Linux and Windows is
+not verifiable from here, so it keeps its own branch rather than being retuned
+by someone who cannot build it.
+
+**Result:** fresh clone of the branch, full Release build — configure rc=0,
+build rc=0, **zero error lines**. Accept clause met exactly as written:
+
+```
+TIDE_VST3.vst3/Contents/Resources/Prefabs/  6 .synthedit   + 5 XMLs beside it
+build/SynthEditSem/Resources/Prefabs/       6 .synthedit   + 5 XMLs  (TIDE.gmpi)
+build/Resources/                            NO LONGER EXISTS  (negative control)
+```
+
+**Verification artifact:** [tests/s21_bundle_resources_probe.py](tests/s21_bundle_resources_probe.py)
+replicates the reader's own path algorithm and answers from its point of view,
+so the check is not "a human looked at a directory listing". Run as an A/B with
+a positive control:
+
+```
+pre-fix tree (main)  -> RESULT: FAIL   both formats, "EMPTY BROWSER"
+post-fix tree        -> RESULT: PASS   both formats, prefabs=6 xml=5
+```
+
+The positive control is load-bearing here: a probe that only ever passes would
+have looked identical and proved nothing.
+
+**What this does NOT claim.** The plugin was never loaded. `TIDE_STANDALONE`
+cannot build on this box (wayland-client, xkbcommon, libdecor-0, libpipewire-0.3
+all absent) and there is no DAW here, so the claim is that the reader's computed
+path now contains the files — not that a running TIDE listed six prefabs in its
+browser. Someone on mac or windows can close that gap in seconds.
+
+**Learned:**
+
+1. **`$<TARGET_FILE_DIR>` is not inside the bundle on Linux**, unlike macOS where
+   `$<TARGET_BUNDLE_CONTENT_DIR>` exists precisely because the linker writes into
+   the bundle. Any "resources go next to the binary" reasoning has to ask which
+   binary — the linker's output or the copy the bundle step made.
+2. **A silent cross-repo disagreement needs a test written from ONE side.** The
+   writer is in TideSynth and the reader is in SynthEditLib; each is internally
+   consistent, which is why this survived. The probe deliberately encodes only
+   the reader's algorithm.
+3. **CI would not have caught this and still will not.** The matrix asserts
+   compilation; nothing checks the staging step's output. A green Linux row says
+   the platform builds, not that its module browser has anything in it.
+
+**Next:**
+
+1. **A mac or windows run should confirm its own platform still stages
+   correctly** — neither expression changed for them, but the file did, and that
+   is cheap to check with the same directory listing.
+2. **The `SE_LOCAL_BUILD=TRUE` install copy is still wrong on Linux** and is left
+   alone: `copy_plugin` copies to `~/.vst3` *before* these POST_BUILD steps run,
+   the same ordering trap the APPLE block works around with `_tide_installed`.
+   Not reproduced, because reproducing it means writing a plugin into Jeff's
+   `~/.vst3`. Worth a row if anyone builds Linux with that flag.
+3. Unchanged from the previous entry: **the `apt-get` in `build.yml` is still the
+   only thing between C7e and closed**, and CI filed a fourth issue (#193) for
+   the same cause while this ran.
+
+**Branch/PR:** `tide/linux/S21-bundle-resources` — TideSynth only.
+
 ## 2026-08-20 — linux — #190: the Linux CI package set, measured
 
 **Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
