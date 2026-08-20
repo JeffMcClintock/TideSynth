@@ -333,9 +333,34 @@ foreach(_fmt ${FORMATS_LIST})
 
   if(APPLE)
     set(_tide_resources "$<TARGET_BUNDLE_CONTENT_DIR:${_tide_target}>/Resources")
+  elseif(UNIX)
+    # Linux gets its own branch because TARGET_FILE_DIR is NOT inside the bundle
+    # here: gmpi_plugin.cmake links a bare .so into the target directory and
+    # assembles the bundle around it in a POST_BUILD copy afterwards. The
+    # sibling rule below therefore lands two directories away from the plugin --
+    # measured 2026-08-20, resources in build/Resources/ while the bundle held
+    # only Contents/x86_64-linux/, so a Linux TIDE reported "no Prefabs folder
+    # in bundle resources" and loaded none of the pin XMLs. BACKLOG S21.
+    #
+    # The two formats want DIFFERENT answers, and getBundleContentsFolder()
+    # (BundleInfo.cpp:204) is why: it walks the loaded module's path for a
+    # "Contents" element and falls back to parent_path() when there is none.
+    #   VST3  <name>.vst3/Contents/<arch>-linux/<name>.so -> Contents/Resources
+    #   GMPI  a bare <name>.gmpi, no Contents at all      -> Resources beside it
+    #
+    # The VST3 path is spelled from CMAKE_CURRENT_BINARY_DIR rather than from
+    # TARGET_FILE_DIR so it matches, character for character, the expression
+    # gmpi_plugin.cmake:853 builds the bundle at.
+    if(_fmt STREQUAL "VST3")
+      set(_tide_resources "${CMAKE_CURRENT_BINARY_DIR}/${_tide_target}.vst3/Contents/Resources")
+    else()
+      set(_tide_resources "$<TARGET_FILE_DIR:${_tide_target}>/Resources")
+    endif()
   else()
-    # Windows/Linux bundle layout: the binary sits in Contents/<arch>/, so
-    # Resources is its sibling.
+    # Windows bundle layout: the binary sits in Contents/<arch>/, so Resources
+    # is its sibling. Left exactly as it was on purpose -- S21 was found on
+    # Linux, and Windows is not verifiable from there, so it gets its own branch
+    # rather than a shared expression tuned for one of the two.
     set(_tide_resources "$<TARGET_FILE_DIR:${_tide_target}>/../Resources")
   endif()
 
