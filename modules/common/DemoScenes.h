@@ -456,6 +456,32 @@ inline int sceneHeight(const SceneDef& def, int width)
 	return def.square ? width : (width * 9 / 16);
 }
 
+// The two modes each get their own committed reference, and they check
+// different things. The FULL one pins the look — materials, lighting, caustics.
+// The FAST one pins the GEOMETRY, and pins it harder: with no light transport
+// there is no Monte Carlo noise for a change to hide in, so a moved chamfer or
+// a bounds clip shows up cleanly instead of at the edge of the sampling floor.
+// It costs about 40 ms for the whole set.
+inline constexpr RenderMode kReferenceModes[] = { RenderMode::Full, RenderMode::Fast };
+
+inline std::string referenceName(const SceneDef& def, RenderMode mode)
+{
+	return std::string(def.name) + (mode == RenderMode::Fast ? "-fast" : "") + ".png";
+}
+
+// Built in ONE place so the generator and the test cannot disagree about what a
+// reference is — a drifting sample count or mode would fail every scene at once
+// with deltas that read as a renderer regression.
+inline Settings referenceSettings(const SceneDef& def, RenderMode mode)
+{
+	Settings settings;
+	settings.mode = mode;
+	settings.width = kReferenceWidth;
+	settings.height = sceneHeight(def, kReferenceWidth);
+	settings.samplesPerPixel = kReferenceSamples;
+	return settings;
+}
+
 // Render a scene and encode it to straight (NON-premultiplied) 8-bit RGBA —
 // the one pixel pipeline behind both the committed references and the
 // regression comparison. It lives here, used by both tools, because the two
