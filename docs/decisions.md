@@ -33,7 +33,12 @@ defaults are not.
 
 ## Open — PROPOSED, awaiting a merge to become decisions
 
-*(none open)*
+PROPOSED: which module list does E2 author the curated set from? (E16, filed 2026-08-20 macos)
+  Options: (a) the 12-module "genuinely playable" tier of [module-set.md](module-set.md), growing toward the 20-module release tier / (b) the 20-module release tier directly / (c) a different list Jeff names.
+  Recommended default: (a) — it is the smallest set the doc argues is playable, its 3-module V1 subset already shipped as E2a, and per-module panel cost is still unmeasured, so the smaller commitment bounds the unmeasured half.
+  Default in effect meanwhile: none — E2's next children stay unfiled, and the A32 advisory names E2 on every lint run until one lands.
+  May proceed meanwhile: measuring the panel-authoring cost of ONE module from the 12-tier (it is in every option), and S8's oscillator unblocking, which every option needs.
+  Decide-by: before E2 files its next child prefab.
 
 ---
 

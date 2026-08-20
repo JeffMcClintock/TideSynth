@@ -39,6 +39,10 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**macos — E16 becomes a PROPOSED entry, and the takeable queue runs dry behind it**
+
+- A row whose remaining work is "the ruling is minutes" is a PROPOSED entry waiting to be typed.
+
 **macos — E6's honest tell: renders that ignored your state now say so**
 
 - A row that names its own fallback scope can be half-shipped honestly

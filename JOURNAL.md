@@ -74,6 +74,44 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — E16 becomes a PROPOSED entry, and the takeable queue runs dry behind it
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · ninth item
+
+**Did:** filed the E16 ruling request — a `PROPOSED:` entry in
+[docs/decisions.md](decisions.md) asking which
+[module-set.md](module-set.md) tier E2 authors the curated set from,
+recommending the 12-module playable tier (smallest set the doc argues is
+playable; its V1 subset already shipped as E2a; per-module panel cost still
+unmeasured, so the small commitment bounds the unmeasured half). Merging the
+PR is the decision; E16 is NEEDS-JEFF until then.
+
+**Skipped just before it, with the reasons on their rows or here:**
+
+- **E1c** — its Accept requires the cross-platform residual measured in BOTH
+  directions, and the linux-seeded→mac direction cannot be produced from this
+  box (linux CI is red on the apt-get; the row itself forbids dropping to
+  defaults unmeasured). Wants the linux box or green CI.
+- **E7** (engine polyphony) and the S-series GATED rows — not build breaks,
+  so no exception reaches them.
+- **S27** — my own filing this morning; its cross-platform-references design
+  call is flagged for Jeff on the row.
+
+**Learned:**
+
+1. **A row whose remaining work is "the ruling is minutes" is a PROPOSED
+   entry waiting to be typed.** The escalation template turns a stuck row
+   into a one-merge decision; nine days of open §7.2 needed ten lines.
+
+**Next:**
+
+1. Jeff: merge or edit the PROPOSED entry ([#218](https://github.com/JeffMcClintock/TideSynth/pull/218)-chain PRs first — this one stacks on them).
+2. After the ruling: E2's next child, panel-cost measurement, S8.
+
+**Branch/PR:** `tide/mac/E16-module-list-proposed` — TideSynth only.
+
+---
+
 ## 2026-08-20 — macos — E6's honest tell: renders that ignored your state now say so
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · eighth item
