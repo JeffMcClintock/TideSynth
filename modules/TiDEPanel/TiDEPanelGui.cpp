@@ -863,6 +863,28 @@ float slotHalfLenFor(float dipsWide)
 	return (std::max)(kSlotMinHalfLenDips, 0.5f * dipsWide - kVentInsetDips);
 }
 
+// Whether this vent sizes itself to the panel. Slots always do; a grill does
+// unless the Layout line gave it an explicit column count.
+bool ventIsAutoWidth(const PanelComponent& c)
+{
+	return c.kind == PanelComponent::Kind::Slots
+		|| (c.kind == PanelComponent::Kind::Grill && c.cols <= 0);
+}
+
+// Where a vent actually sits horizontally.
+//
+// An auto-width vent is as wide as the panel, so its centre IS the panel's
+// centre -- honouring the X from the Layout line would hang a full-width bank
+// off one edge, which is exactly what it did: a layout written for a 1-unit
+// panel put X at 24, and on a 6-unit panel that pushed both vents so far left
+// that they ran from the edge to about 60% across and looked like they had
+// simply failed to reach. The X still counts for a grill with explicit
+// columns, which is the case where the author has said how wide it should be.
+float ventCentreXDips(const PanelComponent& c, float dipsWide)
+{
+	return ventIsAutoWidth(c) ? 0.5f * dipsWide : c.x;
+}
+
 // --- the automatic indent ------------------------------------------------------
 
 struct DipRect { float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f; };
@@ -882,10 +904,17 @@ struct KeepOut { DipRect rect; bool has = false; };
 
 KeepOut componentKeepOut(const PanelComponent& c, float dipsWide)
 {
-	const auto box = [&c](float halfW, float halfH, float margin)
+	// Vents use their EFFECTIVE centre, not the one in the Layout line -- a
+	// keep-out in the wrong place is worse than none, since it vetoes pocket
+	// merges over empty panel.
+	const float cx = (c.kind == PanelComponent::Kind::Grill
+		|| c.kind == PanelComponent::Kind::Slots)
+		? ventCentreXDips(c, dipsWide) : c.x;
+
+	const auto box = [&c, cx](float halfW, float halfH, float margin)
 	{
-		return KeepOut{ { c.x - halfW - margin, c.y - halfH - margin,
-			c.x + halfW + margin, c.y + halfH + margin }, true };
+		return KeepOut{ { cx - halfW - margin, c.y - halfH - margin,
+			cx + halfW + margin, c.y + halfH + margin }, true };
 	};
 
 	switch (c.kind)
@@ -1246,9 +1275,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			const float pitchX = kVentPitchDips / dipsWide;
 			const float pitchY = pitchX * 0.86602540f; // hexagonal row spacing
 			const int cols = ventColsFor(dipsWide, c.cols);
-			grills.push_back({ wx, wy, pitchX, pitchY,
+			const float vx = toWorldX(ventCentreXDips(c, dipsWide));
+			grills.push_back({ vx, wy, pitchX, pitchY,
 				kVentHoleRadiusDips / dipsWide, cols, c.rows });
-			addBacking({ wx, wy, -halfZ - 0.12f },
+			addBacking({ vx, wy, -halfZ - 0.12f },
 				{ 0.5f * pitchX * (float)cols + 0.04f,
 				  0.5f * pitchY * (float)c.rows + 0.04f, 0.08f });
 			break;
@@ -1258,9 +1288,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 		{
 			const float pitchY = kSlotPitchDips / dipsWide;
 			const float halfLen = slotHalfLenFor(dipsWide) / dipsWide;
-			slotBanks.push_back({ wx, wy, pitchY, halfLen,
+			const float vx = toWorldX(ventCentreXDips(c, dipsWide));
+			slotBanks.push_back({ vx, wy, pitchY, halfLen,
 				kSlotHalfThickDips / dipsWide, c.rows });
-			addBacking({ wx, wy, -halfZ - 0.12f },
+			addBacking({ vx, wy, -halfZ - 0.12f },
 				{ halfLen + 0.04f, 0.5f * pitchY * (float)c.rows + 0.04f, 0.08f });
 			break;
 		}
