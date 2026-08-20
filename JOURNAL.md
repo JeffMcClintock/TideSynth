@@ -189,9 +189,9 @@ from the *rack's* point of view, the S21 discipline.
    ([#189](https://github.com/JeffMcClintock/TideSynth/issues/189)) — every one
    of the ten open mac PRs carries a red `linux` check that belongs to it.
 
-**Branch/PR:** `tide/mac/E5-rack-default-size` — TideSynth only, **stacked on
-[#236](https://github.com/JeffMcClintock/TideSynth/pull/236)** and to be merged
-after it.
+**Branch/PR:** `tide/mac/E5-rack-default-size` — [#239](https://github.com/JeffMcClintock/TideSynth/pull/239), TideSynth only,
+**stacked on [#236](https://github.com/JeffMcClintock/TideSynth/pull/236)** and to
+be merged after it.
 
 ---
 
