@@ -119,7 +119,8 @@ until Jeff next kicks one off.
 2. **S20** and the `continue-on-error` follow-through both want Jeff.
 3. **U3's click path** is still the one unverified thing from today.
 
-**Branch/PR:** `tide/mac/A22-pr-link` — TideSynth only, docs and backlog.
+**Branch/PR:** [#183](https://github.com/JeffMcClintock/TideSynth/pull/183), branch
+`tide/mac/A22-pr-link` — TideSynth only, docs and backlog.
 
 ## 2026-08-20 — macos — the mac test drift is FMA contraction, and my own diagnosis was wrong first
 
