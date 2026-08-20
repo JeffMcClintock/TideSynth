@@ -46,26 +46,65 @@ using namespace gmpi::drawing;
 // module and moved here once it worked; the Layout pin is what replaced the
 // need for a scratch module to experiment in.
 //
-// ONLY TWO PINS, on purpose. The appearance is TIDE's, not the patch author's:
-// PLAN constraint 8 ships one look and forbids user skins, so the faceplate's
-// colours, corner radius, grain and glow are compile-time constants below
-// rather than pins. Tune them here and every rack module moves together, which
-// is the point. `SE Rectangle XP` exposed all of these as pins; deliberately
-// not carried over.
+// WHAT IS A PIN AND WHAT IS NOT. Four pins describe the panel -- Rack Units,
+// Layout, Material, Panel Color -- plus two for the caption. Those say WHAT is
+// on the panel and how wide it is. Everything about how it LOOKS is a compile
+// time constant below, because PLAN constraint 8 ships one appearance and
+// forbids user skins: tune a constant here and every rack module moves
+// together, which is the point. `SE Rectangle XP` exposed the look as pins;
+// deliberately not carried over.
 //
-// TWO CACHED BITMAPS, and both exist for the same reason: the effects need
-// per-pixel access, which means a CPU-readable offscreen target.
+// TWO CACHED BITMAPS, both because the work behind them is far too slow to
+// repeat per frame.
 //
-//   face    — gradient plus material grain. Regenerating it per frame would be
-//             both slow and WRONG: fresh random numbers every redraw would make
-//             the surface crawl.
-//   caption — the rotated legend and its inner glow. Rendering into a
-//             bounds-sized bitmap also clips it for free.
+//   face    — the traced render. Seconds of path tracing, so it is produced on
+//             a worker and cached process-wide; see FaceRenderer.
+//   caption — the rotated legend. Rendering into a bounds-sized bitmap also
+//             clips it for free.
 //
-// Per the design language (docs/ui-design-language.md), panels are flat in the
-// sense that matters — no bevel, no drop shadow, no glow on the panel itself.
-// The gradient and grain are material, not decoration, and both are subtle
-// enough to be felt rather than seen.
+// ---------------------------------------------------------------------------
+// TRAPS THIS FILE HAS ALREADY FALLEN INTO. Read before adding geometry.
+// ---------------------------------------------------------------------------
+//
+// Each of these cost real debugging time, and each has bitten more than once.
+// They are documented at their sites too; this is the index.
+//
+//  1. A RAY THAT RUNS OUT OF STEPS IS REPORTED AS A MISS, so the pixel gets
+//     alpha 0 and the HOST'S BACKGROUND shows through. Sphere tracing steps by
+//     the distance to the nearest surface, so a ray heading down a hole
+//     parallel to its wall crawls and never reaches the far side. This is what
+//     put coloured rings around every hole. Every through-cut therefore TAPERS
+//     behind the front face -- see taperedCut(). If you add a deep cut with
+//     parallel walls, you will reintroduce it.
+//
+//  2. COINCIDENT SURFACES SPECKLE. Two faces at exactly the same place give
+//     the tracer an undecidable zero, and it dithers between them. It has hit
+//     the jack surround (flush with the pocket floor), the switch plate (sized
+//     exactly to its pocket) and the jack bore (same radius as the panel
+//     hole). Never make two surfaces exactly equal: overlap them, or leave a
+//     deliberate gap, and say which in a comment.
+//
+//  3. A FLAT SURFACE FACING AN ORTHOGRAPHIC CAMERA REFLECTS ONE COLOUR. Every
+//     pixel has the same normal and the same view direction, so it renders as
+//     a flat patch no matter how good the material is. Anything that has to
+//     read as hardware needs a surface that sweeps through angles -- the
+//     brushing grooves, the panel chamfer, the knob bevel, the jack collar
+//     being a torus rather than a washer. A "black chrome ring" is this bug.
+//
+//  4. A SIZE THAT IS DERIVED MUST BE DERIVED EVERYWHERE. When the vents
+//     changed from a fixed size to one computed from panel width, three things
+//     kept using the old assumption and broke one at a time: the keep-out
+//     shape, the position, and the pocket-merge veto. If a component's
+//     geometry depends on the panel, check its draw, its keep-out AND its
+//     placement.
+//
+// HOW TO TELL A RENDER BUG FROM A TRANSPARENCY BUG, since they look alike and
+// three plausible "fixes" for the ring above were all wrong (turning the sky
+// off, neutralising the near-black materials, adding a full backing plate):
+// put a LURID background behind the panel in the host. If the artefact takes
+// that colour, it is alpha and no amount of lighting or material work will
+// touch it. Jeff found it in one move this way, after a lot of measurement
+// that did not.
 namespace
 {
 // --- the faceplate's look. One set of values for the whole rack. ------------

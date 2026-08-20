@@ -107,6 +107,17 @@ lights things by chance and will be noisy.
 
 ## Gotchas
 
+- **A hole bored straight through a plate will leak the background.** Rays
+  that enter near the wall run parallel to it, so their step size stays tiny,
+  they exhaust `kMaxMarchSteps`, and a ray out of steps is reported as a
+  *miss* — which means alpha 0, so the host's background shows through as a
+  ring around the hole. The fix is geometric: **taper the bore** so the wall
+  recedes from the ray. Widening it behind the visible face costs nothing and
+  is what a punched hole looks like anyway. Raising the step count instead
+  makes every ray in the scene pay for it.
+- **Never place two surfaces at exactly the same position.** Coincident faces
+  give the tracer an undecidable zero and it dithers between them, which shows
+  up as speckle along the seam. Overlap them or leave a deliberate gap.
 - **`boundsRadius` must contain the object.** It is used as a conservative
   distance bound, so an object that pokes outside its bounds gets silently
   clipped. Too large is merely slow; too small is wrong.

@@ -45,6 +45,21 @@ constexpr float kSurfaceEpsilon = 1.0e-4f;
 // leaves the tracer taking zero-length steps forever.
 constexpr float kRayOffset = 6.0e-4f;
 
+// A ray that exhausts this is reported as a MISS, and that is a trap worth
+// knowing before you meet it: a miss on a primary ray means alpha 0, so the
+// pixel comes out TRANSPARENT and whatever is behind the bitmap shows through.
+// It reads as a hole in the model rather than as a tracing failure.
+//
+// It bites when a ray travels nearly PARALLEL to a surface, because then the
+// distance to that surface -- which is the step size -- stays tiny for the
+// whole journey. A hole bored straight through a plate is the classic case:
+// rays entering near the wall crawl and never reach the far side. TIDE's panel
+// hit this on every LED and jack hole (modules/TiDEPanel, see taperedCut) and
+// the fix was geometric, not numeric -- taper the bore so the wall recedes
+// from the ray and the step size can grow.
+//
+// Raising this number is the wrong first move: it makes every ray in the scene
+// pay for a case that geometry can remove.
 constexpr int kMaxMarchSteps = 320;
 constexpr float kMaxTraceDistance = 400.0f;
 
