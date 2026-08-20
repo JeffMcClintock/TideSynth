@@ -393,11 +393,23 @@ constexpr float kSwitchHoleCornerDips = 0.35f; // a punch leaves a slight radius
 // The bevel is doing real work, not decoration: a flat cylinder top facing an
 // orthographic camera is one flat colour, exactly like the unbrushed faceplate;
 // the chamfer is the only part of the knob that sweeps through angles.
+// A knob's radius is not free either, for the same reason its centre is not:
+// the pointer is drawn by an overlay widget whose size is a whole number of
+// DIPs, so the radius it can reach comes in steps (TiDEknobGui takes
+// 0.4 x the widget's smaller side, and the round line cap puts the visible tip
+// at 0.44 x). A painted radius between two of those steps cannot be matched --
+// the small knob was one, and no overlay size put the indicator on its bevel.
+// Nudged out by half a DIP at Jeff's measurement, from the editor rather than
+// from this arithmetic.
 constexpr float kKnobBigRadiusDips = 10.6f;
-constexpr float kKnobSmallRadiusDips = 6.2f;
-// Heights measured off the Behringer 112 photo, and the two sizes are NOT the
-// same proportion: the big knob is squat (height about 0.6 of its diameter)
+constexpr float kKnobSmallRadiusDips = 6.7f;
+// Heights taken roughly off the Behringer 112 photo, and the two sizes are NOT
+// the same proportion: the big knob is squat (height about 0.6 of its diameter)
 // while the small one is nearly as tall as it is wide.
+//
+// Rough is FINE here, and worth saying so before someone tunes it: the camera
+// looks straight down, so height is never seen directly -- only as a vague
+// shadow. It does not repay precision the way the radius does.
 constexpr float kKnobBigHeightFrac = 1.2f;   // of the knob's own radius
 constexpr float kKnobSmallHeightFrac = 1.7f; // ditto
 constexpr float kKnobBevelFrac = 0.18f;
