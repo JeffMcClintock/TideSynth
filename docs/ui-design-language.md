@@ -7,14 +7,16 @@
 >
 > This document is **not withdrawn**. It now governs the **vector overlay**
 > drawn on top of the traced panel — labels and legends, knob pointers, switch
-> levers, LED lenses, cables — where its rules, including the "banned outright"
-> list below, stand unchanged. A *drawn* drop shadow is still banned.
+> levers, LED lenses, cables. Sections on palette, type, density and geometry
+> are unaffected and still apply to everything drawn.
 >
-> What no longer applies is that ban's reach over the **panel** itself. It was
-> written for a UI that was flat 2D throughout; on the traced layer a shadow or
-> a bevel is not decoration but the output of a light simulation. Sections on
-> palette, type, density and geometry are unaffected and still apply to
-> everything drawn.
+> **Its effect list is a starting position, not a ban** (Jeff, 2026-08-20 —
+> *"we experiment, we trial, we pivot"*). Shadows were on it, and the panel
+> language TIDE adopted is built out of simulated light where a shadow is the
+> *output*. The useful question is not "is this on the list" but **is the
+> effect coming from the model, or being painted on to fake it** — painting a
+> highlight onto a traced knob fights a renderer that already knows where the
+> light is. See the note at ["Not used today"](#geometry).
 
 *Written 2026-08-18. Status: **adopted for the vector overlay** (see the note
 above); originally written as a whole-UI proposal. It exists so that the look
@@ -201,8 +203,8 @@ style cohere; every one is verified against Marathon's own vector work.
 - **Stair clusters and hazard stripes stay in the world.** Two loud devices
   from the environment art do not board: the chaotic stepped-pixel clusters
   (licensed venues only, below) and diagonal hazard striping (nowhere — on a
-  working surface the clean stepped edge replaces it, and diagonals stay
-  banned).
+  working surface the clean stepped edge replaces it, and diagonals are left
+  alone for now).
 - **Tick rails everywhere a value lives.** Scales drawn as literal measuring
   instruments — major/minor ticks, mono numerals. Function shown, not
   implied.
@@ -228,10 +230,22 @@ style cohere; every one is verified against Marathon's own vector work.
   glance: straight things are the instrument, round things are the sound
   going through it.
 
-**Banned outright:** gradients as decoration, drop shadows, blur, glow,
-bevels, blend modes, skew, rotation at any angle other than the quarter-turn,
-round linecaps, textures other than the dot screen and the panel material
-grain. If a mock needs one of those to work, the mock is wrong.
+**Not used today** — a starting position, not a ban: gradients as decoration,
+drop shadows, blur, glow, bevels, blend modes, skew, rotation at any angle
+other than the quarter-turn, round linecaps, textures other than the dot
+screen and the panel material grain.
+
+**This list is where the language starts, not where it is fixed** (Jeff,
+2026-08-20: *"let's not ban shadows. final design can't be mandated on day 1.
+we experiment, we trial, we pivot."*). It was written before anything was
+built, and a day-one list is a guess about what will look right. It has
+already been wrong once in exactly the way that matters: shadows were on it,
+and the panel language TIDE actually adopted is built out of simulated light,
+where shadows are the *output* rather than an effect anyone applies. Treat
+each line as "we have not needed this yet, and reaching for it is worth a
+second thought" — then try it, look at it, and move the line if the result is
+better. What the list is really defending is COHERENCE: a small vocabulary of
+effects, used deliberately. That survives any individual entry leaving it.
 
 **The line between material and decoration** (Jeff, 2026-08-19, on building
 `SE TiDE:Panel`). "Flat" here means *not modelled* — no bevel, no drop shadow,
@@ -242,7 +256,9 @@ test is whether you notice it: material is felt and not seen, so if a viewer
 can point at the gradient or resolve individual noise pixels, it has stopped
 being material and become the decoration this list bans. Everything else above
 stands — a *shallow* gradient across a panel face is material; a gradient used
-to draw the eye, mark state or fake a light source is still banned.
+to draw the eye, mark state or fake a light source is the decoration this
+section is steering away from. (Steering, not forbidding: on the traced panel
+a faked light source is exactly what the renderer replaced with a real one.)
 
 ---
 

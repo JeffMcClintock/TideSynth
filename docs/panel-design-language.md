@@ -15,8 +15,11 @@ top of it is still governed by [ui-design-language.md](ui-design-language.md),
 which is now scoped to that overlay rather than to the whole UI — see
 [Two layers](#two-layers) below.
 
-The reference implementation is [modules/PanelTest](../modules/PanelTest),
-which carries every part described here behind a textual layout spec.
+The reference implementation is
+[modules/TiDEPanel](../modules/TiDEPanel) (`SE TiDE:Panel`), which carries
+every part described here behind a textual layout spec. It was developed as a
+separate `PanelTest` module and moved into the shipping one once it worked —
+the Layout pin is what removed the need for a scratch module to experiment in.
 
 ---
 
@@ -234,24 +237,38 @@ meaning is drawn over it in vector, at runtime:
 | LED holes | LED lenses and their light |
 | vents, pockets, chamfers | cables |
 
-**This is what supersedes the "banned outright" list.** That ban — gradients,
-drop shadows, blur, glow, bevels — was written for a language in which the
-whole UI was flat 2D, and it does not apply to the traced layer, where shadows
-and bevels are not decoration but the *output of a light simulation*. It
-continues to apply, unchanged, to the vector overlay: a drawn drop shadow under
-a label is still banned, and drawing a fake highlight onto a traced knob would
-be fighting the renderer.
+**Nothing here is banned, on either layer.** The old document carried a
+"banned outright" list including shadows and bevels; that list has been
+rewritten as a starting position rather than a prohibition, because a final
+design cannot be mandated on day one — *"we experiment, we trial, we pivot"*
+(Jeff, 2026-08-20). It is already a case in point: shadows were on that list,
+and the language TIDE adopted is built out of simulated light, where a shadow
+is the *output* rather than an effect anyone applies.
 
-The distinction the old document drew between *material* and *decoration* — "material
-is felt and not seen" — survives intact and is worth keeping in mind for the
-overlay. The traced layer simply answers it differently: the surface really is
-modelled, so there is nothing to fake.
+What replaces the ban is a question rather than a rule: **is this effect
+coming from the model, or being painted on to fake it?** On the traced layer
+the answer is always the former, so the question is moot. On the vector
+overlay it is worth asking — a drawn highlight applied over a traced knob
+would be fighting a renderer that already knows where the light is, and would
+stop agreeing with it the moment the lighting changed. That is an argument
+from *coherence*, not from a list, and it is the argument that should decide
+each case.
+
+The old document's distinction between *material* and *decoration* — "material
+is felt and not seen" — is worth keeping in mind for the overlay. The traced
+layer simply answers it differently: the surface really is modelled, so there
+is nothing to fake.
 
 ---
 
 ## Status and open questions
 
-Adopted, **subject to tweaks and refinements**. Known open items:
+Adopted, **subject to tweaks and refinements** — and that clause is meant
+literally. This document describes what is built and what was learned building
+it; it is not a specification anyone has to defend. Anything here can move if
+an experiment says it should.
+
+Known open items:
 
 1. **Knob sizes** are below both VCV's library and real hardware (above).
 2. **The rack unit is 3.2 HP**, not a whole HP (above).
@@ -262,7 +279,7 @@ Adopted, **subject to tweaks and refinements**. Known open items:
    another large soft source filling shadows in. The two pull opposite ways.
 4. **First-render cost.** Seconds per full trace, mitigated by the progressive
    preview and the cache, but not eliminated.
-5. **The studio is local to PanelTest**, not in `tide_render`'s shared
+5. **The studio is local to TiDEPanel**, not in `tide_render`'s shared
    `addStudio`, because that function's look is pinned by committed reference
    images for every demo scene. Promoting it means regenerating and
    re-approving those in the same commit.

@@ -11,7 +11,7 @@ means hand-tuning every highlight for every shape, and getting it wrong the
 moment the shape changes.
 
 Every output is **cached**: rendered once into a bitmap and blitted from then
-on, the way [PanelTestGui.cpp](../PanelTest/PanelTestGui.cpp) already caches its
+on, the way [TiDEPanelGui.cpp](../TiDEPanel/TiDEPanelGui.cpp) already caches its
 procedurally generated faces. So the code optimises for correctness and for
 looking good, never for speed.
 

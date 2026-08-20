@@ -18,7 +18,7 @@
 // material once and letting the geometry decide where the highlights land.
 //
 // WHY THAT IS AFFORDABLE. Every output is CACHED — rendered once into a bitmap
-// and blitted from then on (see modules/PanelTest/PanelTestGui.cpp, which
+// and blitted from then on (see modules/TiDEPanel/TiDEPanelGui.cpp, which
 // already caches procedurally generated faces exactly this way). So this code
 // optimises for correctness and for looking good, never for speed.
 //
@@ -880,7 +880,7 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 
 // Byte order of the destination. GMPI hands back BGRA on Windows and RGBA on
 // macOS from the same call, so this is a run-time property of the target
-// bitmap, not a compile-time one (PanelTestGui.cpp reads it from
+// bitmap, not a compile-time one (TiDEPanelGui.cpp reads it from
 // pixels.channelLayout()).
 enum class PixelOrder : uint8_t { Rgba, Bgra };
 
