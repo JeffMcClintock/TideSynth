@@ -74,6 +74,107 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — #222: two of today's merges only ever built standalone, and SE16-hosted TIDE lost configure entirely
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · STEP 1, found while baselining C10
+
+**Did:** un-broke every SE16-hosted configure of TIDE. Filed and fixed
+[#222](https://github.com/JeffMcClintock/TideSynth/issues/222).
+
+### The break, and why three verification surfaces all missed it
+
+`cmake` on a fresh SE16 tree died at
+`SynthEditSem/CMakeLists.txt:26: Unknown CMake command "tide_check_not_shadowed"`
+— and behind it, a second identical break: `tide_render_strict_fp_sources`
+(line 352). Two independent merges from today, one shape:
+
+| merge | defines its commands in | SynthEditSem calls them |
+|---|---|---|
+| S17 ([#200](https://github.com/JeffMcClintock/TideSynth/pull/200)) | TideSynth **root** CMakeLists | lines 20/26/27 |
+| E14 ([#209](https://github.com/JeffMcClintock/TideSynth/pull/209)) | `modules/common/` (also root-added) | line 352, plus `tide_render` itself at line 335 |
+
+SE16 consumes TIDE via `add_subdirectory(${tidesynth_folder}/SynthEditSem ...)`
+— **TideSynth's root never runs there**, so anything defined only in it does
+not exist. TideSynth CI builds standalone (root first), SE16 CI runs on
+dispatch only (S20), and the linux runs verified on clean TideSynth clones. A
+whole configuration — the one Jeff's own dev builds use — had no owner.
+
+E14's half is more than a function: SynthEditSem **links `tide_render`**, so
+hosted mode was missing a target, not just a name.
+
+### The fix, one mechanism per half
+
+1. **S17's machinery** moved to `cmake/S17DependencyProvenance.cmake` —
+   `include_guard(GLOBAL)`, the `TIDE_DEP_REPORT` FORCE-clear, both functions —
+   included by the root **and** by SynthEditSem. Whichever entry point runs
+   first defines everything once; the guard makes the second include a no-op,
+   so the report still clears exactly once per configure.
+2. **`modules/common`** is added by SynthEditSem itself when `tide_render` is
+   not already a target. It is dependency-free by design (its own header
+   comment), which is what makes adding it that early safe. Standalone mode is
+   unchanged: root adds it first, the guard sees the target, no-op.
+
+### Verified, both modes plus the control
+
+| check | result |
+|---|---|
+| SE16-hosted configure (the break) | **rc=0** |
+| full SE16-hosted build | **1072/1072, rc=0** — TIDE.gmpi, TIDE_VST3.vst3, TIDE_STANDALONE.app, SynthEditCL.app all produced |
+| TideSynth standalone configure | rc=0, provenance block prints **9 resolved** |
+| S17's shadow check still fires | override + planted `_deps/gmpi_ui-src` → **rc=1** with the S17 message |
+
+The positive control matters: a refactor that moves a FATAL_ERROR check is one
+typo away from a check that never runs, and "configure passed" cannot tell
+those apart.
+
+### What the newly-reachable test immediately caught — filed as S27
+
+Restoring hosted configure made `ctest` in the SE16 tree include
+`render_regression` for the first time anywhere: TideSynth's own root
+force-disables `TIDE_RENDER_PREVIEW`, so no standalone or CI build has ever
+run it. It **fails 5 of 5 scenes on mac arm64** — 34–66% of pixels moved
+(limit 0.4%), worst deltas 53–107 (limit 40) — against references that are in
+sync with their scenes (both `37d65d5`). **Contraction is eliminated:**
+`-ffp-contract=off` leaves shapes/glass/glow bit-identical and all five still
+failing, so this is not S19's mechanism. Dense, large differences point at
+libm/arch divergence through the Monte Carlo render — labelled a hypothesis.
+Filed as **S27** with the numbers; the fix here mirrors the root's
+`TIDE_RENDER_PREVIEW OFF` into hosted mode so both modes build identically
+(with that parity line, the full hosted suite is **67/67**; without env vars
+for the S16-class test paths, 45 of 68 fail from a fresh tree — the #156
+recipe applies on mac too when the tree is not at the box's usual path).
+
+**Not done here:** `docs/lessons.md` is deliberately not regenerated on this
+branch (A30's own precedent) — this branch races two open stacked PRs
+([#218](https://github.com/JeffMcClintock/TideSynth/pull/218),
+[#220](https://github.com/JeffMcClintock/TideSynth/pull/220)) that both
+regenerate it, and a whole-file regen is the worst possible merge surface.
+Whoever merges last runs `extract-lessons.py --write`. The `TIDE_DEP_REPORT`
+newline-truncation warning CMake prints at cache-write time predates this fix
+and is untouched (S17's design; harmless — the report is FORCE-cleared each
+configure).
+
+**Learned:**
+
+1. **"Verified on this box" quietly became "verified in the only mode this box
+   builds".** S17 and E14 were both real, both verified, both merged — and both
+   only ever ran standalone. A repo consumed two ways needs its checks defined
+   where BOTH entry points load them, and a function defined at one root is a
+   standalone-only feature.
+2. **The second break was hiding behind the first, again.** Configure stops at
+   the first unknown command exactly like a fail-fast package probe; fixing
+   `tide_check_not_shadowed` alone would have turned one red configure into
+   two. Walking the chain to rc=0 before writing anything up is what found the
+   missing `tide_render` target.
+
+**Next:**
+
+1. C10's baseline build is this fix's verification build — that item resumes
+   on top of it.
+2. S22 (the SE16-side provenance half) would have caught nothing here; the gap
+   was TideSynth-side. Unchanged.
+
+**Branch/PR:** `tide/mac/issue-222` — TideSynth only.
 ## 2026-08-20 — macos — A32: the umbrella advisory, and the measurement that was already done
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · second item

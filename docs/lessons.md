@@ -39,6 +39,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**macos — #222: two of today's merges only ever built standalone, and SE16-hosted TIDE lost configure entirely**
+
+- "Verified on this box" quietly became "verified in the only mode this box builds".
+- The second break was hiding behind the first, again.
+
 **macos — A32: the umbrella advisory, and the measurement that was already done**
 
 - A row that carries its own false-positive measurement is a different kind of spec: the build step is obedience, not design.
