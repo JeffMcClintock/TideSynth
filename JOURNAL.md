@@ -74,6 +74,101 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — E5: the rack grid ruled, and the snap is gcd(12, 15)
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** implemented Jeff's ruling on the rack grid. `hpWidth` stays **15**
+(the visual HP), a new **`snapWidth = 3`** is the placement pitch, the row is
+**384**, TIDE's standard module is **48** wide, and a panel is the **whole
+row**.
+
+### Jeff proposed 384 / snap 12 / width 48, and the measurement moved one of the three
+
+Snapping on 12 is the arm that would have cost VCV compatibility, which is the
+opposite of what it looks like — every VCV module is a multiple of 15 by
+construction, so today's 15-snap fits them all exactly:
+
+| snap | exact for | worst gap |
+|---|---|---|
+| 15 (today) | 13 of 13 common VCV widths | 0 |
+| **12** | **5 of 13** | **9 DIPs (3.0 mm)** |
+| 6 | 10 of 13 | 3 DIPs |
+| **3 = gcd(12,15)** | **13 of 13** | **0** |
+
+12 and 15 first agree at 60 DIPs (4 HP), so a 12-snap misaligns every VCV
+module that is not a multiple of 4 HP — worst on the 1–2 HP utilities there are
+many of. **3 is the coarsest snap that satisfies both worlds**, and it keeps
+every TIDE dimension a multiple of 12 anyway, because 384 and 48 both are.
+Jeff took it.
+
+### `hpWidth` was doing two jobs, and this would have wrecked the second
+
+`ViewBase::renderRack` derives the rail hole pitch *and* the hole radius from
+`hpWidth` — *"one threaded mounting hole per HP"*, `holeRadius = hpWidth *
+0.13`. Setting it to 3 would have given the rails a hole every 3 DIPs at
+**0.39 DIP radius**: fine sandpaper instead of Eurorack rails, and nothing
+would have failed to build. Six consumers, all in one file; the split sends
+`snapToGrid` to `snapWidth` and leaves the four rendering sites on `hpWidth`.
+
+### The rail allowance never existed — Jeff's correction, and it is the bigger one
+
+*"useable interior is the entire rack module surface (we don't draw mounting
+hardware)."* Confirmed in the render order rather than taken on trust:
+`ContainerView.cpp:71` calls `renderRack` inside the **background fill**, so
+modules draw over the rails exactly as a real panel covers the rails it is
+screwed to. Rails show only in empty slots.
+
+So `build-prefabs.py`'s `380 - 2*15 = 350` subtracted an allowance that does
+not exist — and that assumption had propagated: **#239's probe encoded it too**
+and reported TIDE's own prefab as `TALLER THAN ROW`, a verdict measured against
+a constant that does not govern. Both corrected. **A wrong model in a
+verification tool is worse than no tool**, because its output looks like
+evidence.
+
+### Verified
+
+- probe rewritten to the ruled model: **12 selftest cases, 0 failed**, and the
+  new cases are the ruling's own claims — a 380 VCV panel and a 384 TIDE panel
+  both pass, 400 fails, 48 / 30 / 36 all land on the 3-grid, 100 does not.
+- all four targets build rc=0 against the modified `SynthEditLib`.
+- MidiCv regenerated at 384 and **re-measured on a running rack**, not just
+  rebuilt: `TIDE MIDI-CV  w=96 h=384  6.400 HP  on-grid  fits row`, no
+  overlaps — the two clauses this row could never satisfy, satisfied — and the
+  rails visibly pass *behind* the panel
+  ([docs/images/e5-rack-ruled-grid-macos.png](docs/images/e5-rack-ruled-grid-macos.png)).
+
+**The one violation left is not a rack module, and I did not silence it.**
+`MIDI In` 8x14 is TIDE's seeded root plumbing (`TideApp.cpp:727` — V3's
+polyphony workaround, a root MIDI-CV feeding the rack module as a facade).
+Teaching the probe that name would make it lie about what it measures, so the
+measurement stands and the question — should root plumbing carry a panel rect
+at all? — is filed as **S28**.
+
+**The GATED half is its own PR** ([SynthEditLib#30](https://github.com/JeffMcClintock/SynthEditLib/pull/30)) — two constants and one line, shared with SynthEdit's
+own rack mode, so it is reviewable on its own.
+
+**Learned:**
+
+1. **A constant that serves both a layout rule and a drawing rule will be
+   changed for one and silently break the other.** `hpWidth` read as "the HP",
+   and it was also the hole pitch. The tell was reading every consumer before
+   editing the definition, which took one grep.
+2. **The most expensive thing in this item was an assumption inside a probe.**
+   `350` was arithmetic on a model nobody had checked against the renderer, and
+   it had already produced a confident false verdict about TIDE's own shipped
+   prefab.
+
+**Next:**
+
+1. **#239 is superseded by this branch** — it carried the same work stacked
+   behind E16's unresolved ruling, and its probe held the wrong rail model.
+2. E5's second clause (no overlaps) is now measurable on the ruled grid.
+
+**Branch/PR:** `tide/mac/E5-rack-grid` (TideSynth) + [SynthEditLib#30](https://github.com/JeffMcClintock/SynthEditLib/pull/30) — merge together.
+
+---
+
 ## 2026-08-20 — macos — E16 becomes a PROPOSED entry, and the takeable queue runs dry behind it
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · ninth item
@@ -110,9 +205,6 @@ PR is the decision; E16 is NEEDS-JEFF until then.
 2. After the ruling: E2's next child, panel-cost measurement, S8.
 
 **Branch/PR:** `tide/mac/E16-module-list-proposed` — TideSynth only.
-
----
-
 ## 2026-08-20 — macos — E6's honest tell: renders that ignored your state now say so
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · eighth item

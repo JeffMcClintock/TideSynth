@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="321902268" SelectedViewType="128" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0">
-    <master_container type="Container" handle="146320033" name="Main" PanelLocationZoom="1" StructLocationZoom="1" ViewOpenFlags="256" skin="default3">
+<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="1709088982" SelectedViewType="128" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0">
+    <master_container type="Container" handle="1996595734" name="Main" PanelLocationZoom="1" StructLocationZoom="1" ViewOpenFlags="256" skin="default3">
         <plugs>
             <plug idx="7" />
         </plugs>
@@ -8,7 +8,7 @@
         <PatchManager>
             <ProgramNames />
             <Parameters>
-                <param type="10" handle="327204818" private="true" hostControl="49">
+                <param type="10" handle="1100194740" private="true" hostControl="49">
                     <patch-list>
                         <s repeat="128" />
                     </patch-list>
@@ -16,7 +16,7 @@
             </Parameters>
         </PatchManager>
         <modules>
-            <module type="Container" handle="321902268" PanelLocationZoom="1" StructLocationZoom="1" skin="default3" name="TIDE MIDI-CV">
+            <module type="Container" handle="1709088982" PanelLocationZoom="1" StructLocationZoom="1" skin="default3" name="TIDE MIDI-CV">
                 <plugs>
                     <plug default="1" idx="2" />
                     <plug name="Input" idx="7" />
@@ -27,96 +27,96 @@
                 </plugs>
                 <structRect l="3834" r="3834" t="3834" b="3834" />
                 <modules>
-                    <module type="SE Patch Point out" handle="547010783">
+                    <module type="SE Patch Point out" handle="544098519">
                         <structRect l="3804" r="3840" t="3804" b="3840" />
                         <panelRect l="70" r="90" t="44" b="64" />
                     </module>
-                    <module type="SE Patch Point out" handle="1446066328">
+                    <module type="SE Patch Point out" handle="454607839">
                         <structRect l="3804" r="3840" t="3864" b="3900" />
                         <panelRect l="70" r="90" t="114" b="134" />
                     </module>
-                    <module type="SE Patch Point out" handle="1259256800">
+                    <module type="SE Patch Point out" handle="1387091323">
                         <structRect l="3804" r="3840" t="3924" b="3960" />
                         <panelRect l="70" r="90" t="184" b="204" />
                     </module>
-                    <module type="SE Patch Point out" handle="1060364465">
+                    <module type="SE Patch Point out" handle="2040106367">
                         <structRect l="3804" r="3840" t="3984" b="4020" />
                         <panelRect l="70" r="90" t="254" b="274" />
                     </module>
-                    <module type="SE Label" handle="898716024">
+                    <module type="SE Label" handle="552930444">
                         <plugs>
                             <plug default="MIDI-CV" />
                         </plugs>
                         <structRect l="4104" r="4212" t="3864" b="3964" />
                         <panelRect l="6" r="90" t="4" b="22" />
                     </module>
-                    <module type="SE Label" handle="604041457">
+                    <module type="SE Label" handle="1578697408">
                         <plugs>
                             <plug default="PITCH" />
                         </plugs>
                         <structRect l="4104" r="4212" t="3924" b="4024" />
                         <panelRect l="6" r="58" t="46" b="62" />
                     </module>
-                    <module type="SE Label" handle="1299695528">
+                    <module type="SE Label" handle="1845367773">
                         <plugs>
                             <plug default="GATE" />
                         </plugs>
                         <structRect l="4104" r="4212" t="3984" b="4084" />
                         <panelRect l="6" r="58" t="116" b="132" />
                     </module>
-                    <module type="SE Label" handle="1015568630">
+                    <module type="SE Label" handle="126092923">
                         <plugs>
                             <plug default="VEL" />
                         </plugs>
                         <structRect l="4104" r="4212" t="4044" b="4144" />
                         <panelRect l="6" r="58" t="186" b="202" />
                     </module>
-                    <module type="SE Label" handle="1904128661">
+                    <module type="SE Label" handle="662830535">
                         <plugs>
                             <plug default="TRIG" />
                         </plugs>
                         <structRect l="4104" r="4212" t="4104" b="4204" />
                         <panelRect l="6" r="58" t="256" b="272" />
                     </module>
-                    <module type="IO Mod" handle="500113506">
+                    <module type="IO Mod" handle="2026389121">
                         <plugs>
                             <plug />
                         </plugs>
                         <structRect l="4484" r="4532" t="3984" b="3996" />
                     </module>
-                    <module type="IO Mod" handle="1500192583">
+                    <module type="IO Mod" handle="1702466970">
                         <plugs>
-                            <plug name="Input" direction="1" tiedtomod="321902268" tiedtopin="7" />
-                            <plug name="Input" direction="1" tiedtomod="321902268" tiedtopin="8" />
-                            <plug name="Input" direction="1" tiedtomod="321902268" tiedtopin="9" />
-                            <plug name="Input" direction="1" tiedtomod="321902268" tiedtopin="10" />
+                            <plug name="Input" direction="1" tiedtomod="1709088982" tiedtopin="7" />
+                            <plug name="Input" direction="1" tiedtomod="1709088982" tiedtopin="8" />
+                            <plug name="Input" direction="1" tiedtomod="1709088982" tiedtopin="9" />
+                            <plug name="Input" direction="1" tiedtomod="1709088982" tiedtopin="10" />
                             <plug />
                         </plugs>
                         <structRect l="3484" r="3532" t="3984" b="4044" />
                     </module>
-                <module type="SE TiDE:Panel" handle="134506055">
+                <module type="SE TiDE:Panel" handle="1206928317">
                         <plugs>
                             <plug default="2" idx="2" />
                         </plugs>
-                        <structRect l="4104" r="4224" t="3804" b="4260" />
-                        <panelRect l="0" r="96" t="0" b="350" />
+                        <structRect l="4104" r="4224" t="3804" b="4264" />
+                        <panelRect l="0" r="96" t="0" b="384" />
                     </module>
                     </modules>
                 <lines>
-                    <line type="Line" handle="1909029640" lineType="1" fMod="1500192583" tMod="547010783" />
-                    <line type="Line" handle="98976023" lineType="1" fMod="1500192583" tMod="1446066328" fPlg="1" />
-                    <line type="Line" handle="1667975305" lineType="1" fMod="1500192583" tMod="1259256800" fPlg="2" />
-                    <line type="Line" handle="1379054331" lineType="1" fMod="1500192583" tMod="1060364465" fPlg="3" />
+                    <line type="Line" handle="229704230" lineType="1" fMod="1702466970" tMod="544098519" />
+                    <line type="Line" handle="594816869" lineType="1" fMod="1702466970" tMod="454607839" fPlg="1" />
+                    <line type="Line" handle="548723109" lineType="1" fMod="1702466970" tMod="1387091323" fPlg="2" />
+                    <line type="Line" handle="349892441" lineType="1" fMod="1702466970" tMod="2040106367" fPlg="3" />
                 </lines>
                 <PanelLocationCenter x="3984" y="3984" />
                 <StructLocationCenter x="3984" y="3984" />
-                <PanelWndPosition l="0" r="96" t="0" b="350" />
+                <PanelWndPosition l="0" r="96" t="0" b="384" />
                 <PanelLocation l="0" r="500" t="0" b="500" />
                 <StructLocation l="0" r="500" t="0" b="500" />
                 <PanelScroll x="3734" y="3734" />
                 <StructScroll x="3734" y="3734" />
                 <PanelWndOffset cx="-99999" cy="-99999" />
-                <panel_rect l="0" r="96" t="0" b="350" />
+                <panel_rect l="0" r="96" t="0" b="384" />
             </module>
         </modules>
         <lines />
