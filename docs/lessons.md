@@ -39,6 +39,10 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**macos — STEP 4 bookkeeping: seven rows flipped on merged PRs**
+
+- A day that merges thirteen PRs leaves the backlog lying by seven rows.
+
 **macos — E16 ruled Tier 1, and four conventions came with it**
 
 - A correction that removes a blocker is worth checking hardest, not least.
