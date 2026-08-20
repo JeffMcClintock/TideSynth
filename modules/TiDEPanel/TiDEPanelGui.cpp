@@ -236,7 +236,11 @@ constexpr float kRackUnitDips = 48.0f;
 // is offered, which is also how the wrappers detect a fixed-size editor -- they
 // measure twice, against nothing and against everything, and call an editor
 // resizeable only when the two answers differ.
-constexpr float kRackHeightDips = 380.0f;
+// 384, not VCV's 380: TIDE's row is 32x12 (SynthEdit likes multiples of 12) and
+// a panel is the WHOLE row, because the rails are background the panel covers
+// and TIDE draws no mounting hardware. A dropped-in 380 VCV panel still fits,
+// with 4 DIPs to spare. Ruled by Jeff 2026-08-21, BACKLOG E5.
+constexpr float kRackHeightDips = 384.0f;
 
 // The widest panel the Rack Units pin will build. A ceiling is not politeness,
 // it is a resource guard: cost and memory are both linear in panel area, and

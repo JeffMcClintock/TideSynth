@@ -37,6 +37,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 
+## 2026-08-21
+
+**macos — E5: the rack grid ruled, and the snap is gcd(12, 15)**
+
+- A constant that serves both a layout rule and a drawing rule will be changed for one and silently break the other.
+- The most expensive thing in this item was an assumption inside a probe.
+
 ## 2026-08-20
 
 **macos — E6's honest tell: renders that ignored your state now say so**
