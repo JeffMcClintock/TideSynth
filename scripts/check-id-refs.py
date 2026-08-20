@@ -40,6 +40,11 @@ Known IDs come from the **ID column of BACKLOG.md and BACKLOG-DONE.md** and
 nowhere else, so the check can never invent an ID that looks real: if a row
 does not exist in the table, a reference to it is stale by definition.
 
+Also here (A23): one ID owning more than one row fails the lint. And (A31):
+two LIVE rows citing the same `file:line` fails it too -- the tell for two IDs
+describing one job, which no id-based check can see. Each carries its measured
+false-alarm analysis at its own definition below.
+
 What it deliberately does not do
 --------------------------------
 - Fenced code blocks, inline code spans, link targets and bare URLs are all
@@ -105,6 +110,88 @@ BACKLOG_FILES = ("BACKLOG.md", "BACKLOG-DONE.md")
 # has to exclude them or every one is a false alarm. Real instances today: P8
 # in BACKLOG.md and G3 in BACKLOG-DONE.md.
 RE_SUPERSEDED_CELL = re.compile(r"^\s*~~")
+
+# --- A31: two live rows citing the same file:line --------------------------
+# A23 detects one ID owning two rows; it is blind by construction to two IDs
+# describing one job (C15 and C16, 2026-08-20 -- filed by different boxes from
+# branches where each other's row was invisible, for the identical file, the
+# identical three symbols). No id-based check can see that. What both rows DID
+# share, verbatim, was the citation `SynthEditSem/TideAppStubs.cpp:31`.
+#
+# The granularity is measured, not guessed (A31's working, 2026-08-20):
+#
+#   * same FILE, any line, live rows only:  14 collision groups on the live
+#     tree, every one legitimate (`CMakeLists.txt` alone is cited by 14 rows).
+#     Unusable as a gate.
+#   * same FILE:LINE, live rows only:  ZERO collisions on the live tree, and
+#     the C15/C16 pair is caught (both cite TideAppStubs.cpp:31).
+#   * same FILE:LINE, live row vs DONE/archived row:  6 hits, 6 of them false
+#     alarms -- an umbrella (C7) sharing citations with its own landed splits,
+#     a filed remainder (S3g) citing the sites its parent S3 fixed, follow-ups
+#     (E6, E7) citing lines that finished work touched. 100% false-positive
+#     today, so that tier is deliberately NOT checked; the filing-time habit in
+#     the run prompt (grep freshly-fetched origin/main before naming a file in
+#     a new row) covers it instead.
+#
+# So: only rows whose status is live, only citations carrying a line number,
+# keyed on basename:line so different path spellings of one location still
+# collide -- C15 wrote `SE16/SynthEditSem/TideAppStubs.cpp` and C16 wrote
+# `SynthEditSem/TideAppStubs.cpp:31`; basename-keying is what makes those meet.
+# Like A23, this fires once both rows are on one branch: the first place the
+# collision is visible, and the last moment merging the rows is cheap.
+RE_FILE_LINE_CITE = re.compile(
+    r"`([A-Za-z0-9_./\\-]+\.(?:cpp|h|hpp|mm|c|cc|py|cmake|yml|yaml|xml|md|txt"
+    r"|pbxproj|vcxproj|iss|lua|sln)):(\d+)`")
+
+# Statuses that mean a row is finished business. Matched as prefixes so
+# variants like DONE-PENDING-CI count as closed. Everything else -- TODO,
+# DOING(...), IN-REVIEW, BLOCKED(...), NEEDS-JEFF, NEEDS-SPEC -- is live.
+CLOSED_STATUS_PREFIXES = ("DONE", "WONTFIX", "RESOLVED", "MOOT")
+
+
+def live_row_citations(repo_root, live_file=BACKLOG_FILES[0]):
+    """(basename, line) -> [(id, lineno), ...] for live rows in BACKLOG.md.
+
+    Only the live backlog: new jobs are only ever filed there, and the
+    archive is history. Superseded (~~struck~~) rows are skipped, closed rows
+    are skipped, and one row citing a location twice counts once.
+    """
+    path = os.path.join(repo_root, live_file)
+    cited = {}
+    if not os.path.isfile(path):
+        return cited
+    with open(path, encoding="utf-8") as handle:
+        for lineno, line in enumerate(handle, 1):
+            if not line.startswith("|"):
+                continue
+            cells = line.split("|")
+            if len(cells) < 4:
+                continue
+            if RE_SUPERSEDED_CELL.match(cells[1]):
+                continue
+            match = RE_ID_CELL.match(cells[1])
+            if not match:
+                continue
+            status = cells[2].strip().upper()
+            if status.startswith(CLOSED_STATUS_PREFIXES):
+                continue
+            rid = match.group(1)
+            row_cites = set()
+            for cite in RE_FILE_LINE_CITE.finditer(line):
+                base = cite.group(1).replace("\\", "/").rsplit("/", 1)[-1]
+                row_cites.add((base, cite.group(2)))
+            for key in row_cites:
+                cited.setdefault(key, []).append((rid, lineno))
+    return cited
+
+
+def shared_locations(citations):
+    """The subset of citations owned by more than one distinct live row."""
+    out = {}
+    for key, owners in citations.items():
+        if len({rid for rid, _ in owners}) > 1:
+            out[key] = owners
+    return out
 
 
 def id_locations(repo_root, backlog_files=BACKLOG_FILES, include_superseded=True):
@@ -242,6 +329,22 @@ def run(repo_root, allow=(), show=False, patterns=DEFAULT_GLOBS):
         print("points in the file. Renumber the newer row -- it is cheap now and")
         print("expensive once anything references it.")
 
+    # A31 -- two live rows citing the same file:line is the tell for two IDs
+    # describing one job, which the duplicate-ID check above is blind to.
+    shared = shared_locations(live_row_citations(repo_root))
+    if shared:
+        print("\n%d SHARED LOCATION(s) -- one file:line cited by more than one "
+              "live row:" % len(shared))
+        for key in sorted(shared):
+            print("  %s:%s" % key)
+            for rid, lineno in shared[key]:
+                print("      %s  (%s:%d)" % (rid, BACKLOG_FILES[0], lineno))
+        print("\nTwo live rows naming the same file:line usually means two runs")
+        print("filed the same job under different ids (C15/C16, 2026-08-20).")
+        print("Read both rows; if they are one job, fold the newer into the")
+        print("older -- and if they genuinely differ, make each row say so and")
+        print("cite different lines, or drop the citation from one.")
+
     if stale:
         print("\n%d STALE -- named but no such row in %s:"
               % (len(stale), " or ".join(BACKLOG_FILES)))
@@ -252,10 +355,10 @@ def run(repo_root, allow=(), show=False, patterns=DEFAULT_GLOBS):
               "--allow-id <ID> rather than removing the reference.")
         return 1
 
-    if duplicates:
+    if duplicates or shared:
         return 1
 
-    print("no stale ID references, no duplicate IDs")
+    print("no stale ID references, no duplicate IDs, no shared live citations")
     return 0
 
 
@@ -355,7 +458,51 @@ def selftest():
                 print("FAIL  duplicate/%s\n      expected: %s\n      got:      %s"
                       % (description, expected or "[]", got or "[]"))
 
-    total = len(SELFTEST_CASES) + 1 + len(dup_cases)
+    # A31 -- shared live citations, on real file bodies again. The negative
+    # cases are the measured false-alarm tiers, so a regression toward any of
+    # them turns a case red here before it turns the live tree red.
+    shared_cases = [
+        # (description, BACKLOG.md body, expected shared keys)
+        ("two live rows, same file:line -- the C15/C16 shape",
+         LIVE + "| C15 | TODO | win | fix `SynthEditSem/TideAppStubs.cpp:31` |\n"
+                "| C16 | TODO | any | also `TideAppStubs.cpp:31` |\n",
+         [("TideAppStubs.cpp", "31")]),
+        ("different path spellings of one location still collide",
+         LIVE + "| C15 | TODO | win | `SE16/SynthEditSem/TideAppStubs.cpp:31` |\n"
+                "| C16 | TODO | any | `SynthEditSem/TideAppStubs.cpp:31` |\n",
+         [("TideAppStubs.cpp", "31")]),
+        ("live row vs DONE row -- measured 100%% false-alarm tier, not checked",
+         LIVE + "| C7 | BLOCKED(C7e) | any | umbrella cites `TideAppStubs.cpp:31` |\n"
+                "| C16 | DONE | any | landed `TideAppStubs.cpp:31` |\n",
+         []),
+        ("same file, different lines -- the 14-group file-level tier, not checked",
+         LIVE + "| E9 | TODO | any | `SeAudioMaster.cpp:410` |\n"
+                "| E10 | TODO | any | `SeAudioMaster.cpp:413` |\n",
+         []),
+        ("citation without a line number is not a location",
+         LIVE + "| B1 | TODO | any | `build.yml` matrix |\n"
+                "| R7 | TODO | any | `build.yml` secrets |\n",
+         []),
+        ("one row citing a location twice is not a collision",
+         LIVE + "| S5 | TODO | any | `Application.cpp:167` and again `Application.cpp:167` |\n",
+         []),
+        ("superseded row does not own its citations",
+         LIVE + "| P8 | TODO | win | new row, no citation |\n"
+                "| ~~P8~~ | *(was)* | win | old row cites `foo.cpp:12` |\n"
+                "| S5 | TODO | any | live row cites `foo.cpp:12` |\n",
+         []),
+    ]
+    for description, live, expected in shared_cases:
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "BACKLOG.md"), "w", encoding="utf-8") as fh:
+                fh.write(live)
+            got = sorted(shared_locations(live_row_citations(d)))
+            if got != sorted(expected):
+                failures += 1
+                print("FAIL  shared/%s\n      expected: %s\n      got:      %s"
+                      % (description, sorted(expected) or "[]", got or "[]"))
+
+    total = len(SELFTEST_CASES) + 1 + len(dup_cases) + len(shared_cases)
     print("\n%d case(s), %d failed" % (total, failures))
     return 1 if failures else 0
 

@@ -74,6 +74,86 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — A31: the granularity was the whole design, and three measurements chose it
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present
+
+**Did:** shipped both halves of A31 — the filing-time habit into the run
+prompt, and a shared-location check into `check-id-refs.py` that fails when
+two LIVE rows cite the same `file:line`.
+
+### The row said "only if it can be done without false alarms", so the alarms were counted first
+
+Three candidate granularities, each run against the real tree before any code:
+
+| granularity | fires on | verdict |
+|---|---|---|
+| same FILE, live rows | **14 groups**, all legitimate (`CMakeLists.txt` alone: 14 rows) | unusable |
+| same FILE:LINE, live rows | **0** today — and the real C15/C16 pair IS caught | **shipped, as a gate** |
+| file:line, live vs DONE/archived | **6 hits, 6 false** — umbrella C7 vs its own landed splits, S3g vs its parent S3, E6/E7 follow-ups | **excluded, 100% false** |
+
+The middle row is the finding: both C15 and C16 cite
+`SynthEditSem/TideAppStubs.cpp:31` **verbatim**, so the strict variant catches
+the one real historical collision while firing on nothing else in the live
+tree. Keying is basename:line, which is what lets C15's
+`SE16/SynthEditSem/...` spelling meet C16's `SynthEditSem/...` spelling.
+
+The excluded tier matters as much as the shipped one: a follow-up or remainder
+row legitimately cites the sites its parent touched, so live-vs-closed pairing
+is structurally noisy — the same shape A32 measured for umbrella rows. The
+habit covers that side at filing time instead: grep **freshly-fetched**
+`origin/main:BACKLOG.md` for the file you are about to name (fetch-fresh per
+A19's id-recheck precedent — your branch's copy predates any concurrent run's
+filing, which is the exact mechanism that produced C15/C16).
+
+### Verification
+
+- selftest **32 cases, 0 failed** — 7 new, one per measured tier, on real file
+  bodies; **proven able to fail** (flipping one expectation → `FAIL
+  shared/two live rows...`, rc=1, then restored).
+- positive control on the real tree: restore archived C15 as TODO beside C16
+  as IN-REVIEW → **rc=1**, naming every live citing row (C7, C15, C16) with
+  file:line for each; unmodified tree → **rc=0**.
+- `check-next-block.py`, `check-backlog-diff.py`, `check-journal-prepend.py`,
+  `check-id-refs.py` all green on this branch.
+
+**What is NOT verified:** `lint.yml` runs `check-id-refs.py` without
+`--selftest` (known since A23), so the 25→32 selftest cases still run only by
+hand; making CI run them stays a `.github/workflows/**` edit, Jeff's.
+
+**Also this run (STEP 4):** flipped **S26** IN-REVIEW→DONE on merged
+[#213](https://github.com/JeffMcClintock/TideSynth/pull/213); re-pointed the
+mac NEXT cell at **A32** with the old imperative demoted.
+
+**Learned:**
+
+1. **A check's granularity is not a style choice — each candidate tier had a
+   measurable false-alarm rate (14, 0, 6) and only one was shippable.** The
+   fifth time this week that measuring a proposed lint against the live tree
+   changed its design before it shipped (A23, A27, A24, A32, now A31).
+2. **The C15/C16 collision left a fingerprint neither filer intended: both
+   rows cite the same `file:line` verbatim.** Rows written independently about
+   one job converge on its address, which is why location, not id, is the
+   detectable invariant.
+3. **The check's first catch was its own author, in the same commit that adds
+   it.** The A31 row's outcome text quoted the C15/C16 citation as a backticked
+   `file:line`, which made A31 (live) collide with umbrella C7 (live) the
+   moment the lint ran. Fixed by spelling the line out in prose. A row ABOUT a
+   location collision must not itself cite the location in citable form —
+   that is now written into the row rather than left to be rediscovered.
+
+**Next:**
+
+1. **A32** — the umbrella advisory, the last takeable process row; its
+   measurement is already in its own text.
+2. The carve-out still waits on Jeff's `apt-get`
+   ([#189](https://github.com/JeffMcClintock/TideSynth/issues/189)); linux
+   issues #191–#216 are all that one cause.
+
+**Branch/PR:** `tide/mac/A31-same-job-habit` — TideSynth only.
+
+---
+
 ## 2026-08-20 — linux — S26: the se_sdk timers never fired, and Jeff's mouse was the instrument that found it
 
 **Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths) · interactive, Jeff directing
