@@ -203,7 +203,11 @@ fetched.)
                     entries" used to be the instruction and, at ten entries a
                     day, bought under half a day of context.
   4. docs/decisions.md — the rulings, and any open PROPOSED entries.
-  5. docs/carve-out.md — if your item is C1-C7.
+  5. docs/lessons.md — one line per lesson every previous run recorded,
+                    generated from the journal AND its archive (A24 rotation
+                    used to age these out within a day; A30, 2026-08-20).
+                    Read it to avoid re-deriving something already paid for.
+  6. docs/carve-out.md — if your item is C1-C7.
 
 Conventions you see in journal entries marked "interactive" — such as
 committing straight to main — are Jeff's interactive-session conventions and

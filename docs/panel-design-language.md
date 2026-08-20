@@ -237,6 +237,27 @@ meaning is drawn over it in vector, at runtime:
 | LED holes | LED lenses and their light |
 | vents, pockets, chamfers | cables |
 
+### The two layers have to register, so the grid is half a DIP
+
+The two layers are separate modules, and the overlay is positioned by the
+patch author. SynthEdit stores a module's `panelRect` as **integers** —
+integer position, integer width and height — so an overlay widget's centre is
+`position + size/2`, which can only ever be a multiple of **0.5 DIPs**.
+
+Every component centre in a Layout string is therefore snapped to a half-DIP
+grid on the way in (`kWidgetGridDips` in `TiDEPanelGui.cpp`). Without it a
+painted knob could sit at, say, x = 24.3, where **no** placement of the
+pointer widget lines up: the author cannot dial the error out, only get within
+a quarter DIP and stay wrong.
+
+The trade is one-sided, which is why it is a rule rather than an option. A
+quarter of a DIP of movement is invisible on a faceplate. A quarter of a DIP
+of misregistration between a knob and the pointer drawn over it is not.
+
+So: **write Layout coordinates as whole or half DIPs.** Anything else is
+silently rounded, and the panel is telling you the truth about where the
+overlay can actually go.
+
 **Nothing here is banned, on either layer.** The old document carried a
 "banned outright" list including shadows and bevels; that list has been
 rewritten as a starting position rather than a prohibition, because a final
