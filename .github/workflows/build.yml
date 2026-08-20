@@ -141,9 +141,22 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
+          # The four on the LAST line are what C7e waited on.
+          # GMPI_Wrappers/wrapper/VST3/CMakeLists.txt:256-264 runs six
+          # pkg_check_modules(... REQUIRED) probes -- x11+xext, fontconfig,
+          # freetype2, harfbuzz, libpng, dbus-1 -- and REQUIRED fails FAST, so
+          # the log only ever named `xext` while harfbuzz and dbus-1 waited
+          # behind it. The set was measured by restoring one .pc at a time on a
+          # real Ubuntu box until configure returned 0, not read off the log:
+          # docs/ci/linux-build-deps.md.
+          #
+          # libpng is in the probe list and passes today only because the
+          # runner image happens to ship it -- declared here so it is one image
+          # bump away from nothing rather than from a red build.
           sudo apt-get install -y build-essential cmake ninja-build \
             libx11-dev libxcb1-dev libgl1-mesa-dev libfreetype-dev \
-            libfontconfig1-dev libasound2-dev
+            libfontconfig1-dev libasound2-dev \
+            libxext-dev libharfbuzz-dev libdbus-1-dev libpng-dev
 
       - name: Configure
         id: configure
