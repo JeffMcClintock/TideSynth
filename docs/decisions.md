@@ -34,7 +34,8 @@ defaults are not.
 ## Open — PROPOSED, awaiting a merge to become decisions
 
 PROPOSED: which module list does E2 author the curated set from? (E16, filed 2026-08-20 macos)
-  Options: (a) the 12-module "genuinely playable" tier of [module-set.md](module-set.md), growing toward the 20-module release tier / (b) the 20-module release tier directly / (c) a different list Jeff names.
+  Options: (a) the **12**-module "genuinely playable" tier of [module-set.md](module-set.md), growing toward Tier 2 later / (b) the **22**-module "credible first release" tier directly / (c) a different list Jeff names.
+  Counted from the doc, not from the row: Tier 0 is 3 (E2a, shipped), Tier 1 adds 9 for **12**, Tier 2 adds 10 more for **22**. The E16 row says "20" and is wrong — corrected on the row 2026-08-21. One of the 12 (the Host I/O strip) is fixed furniture rather than a placeable module, so 12 means **11 placeable + the strip**.
   Recommended default: (a) — it is the smallest set the doc argues is playable, its 3-module V1 subset already shipped as E2a, and per-module panel cost is still unmeasured, so the smaller commitment bounds the unmeasured half.
   Default in effect meanwhile: none — E2's next children stay unfiled, and the A32 advisory names E2 on every lint run until one lands.
   May proceed meanwhile: measuring the panel-authoring cost of ONE module from the 12-tier (it is in every option), and S8's oscillator unblocking, which every option needs.
