@@ -158,6 +158,18 @@ constexpr float kHpDips = 5.08f * kDipsPerMm; // 15.0, exactly
 // fixing the scale. See docs/ui-design-language.md, "Sizes and the grid".
 constexpr float kRackUnitDips = 48.0f;
 
+// A 3U front panel, the only height a Eurorack module has. VCV calls the same
+// number RACK_GRID_HEIGHT.
+//
+// THE PANEL IS NOT RESIZEABLE, and that is a statement about the object rather
+// than a limitation: a rack module is 3U tall and a whole number of units wide,
+// so a host that stretched one to fit a box would be drawing something that
+// cannot exist. measure() therefore returns this size and ignores the space it
+// is offered, which is also how the wrappers detect a fixed-size editor -- they
+// measure twice, against nothing and against everything, and call an editor
+// resizeable only when the two answers differ.
+constexpr float kRackHeightDips = 380.0f;
+
 // --- hardware, all sizes in DIPs ---------------------------------------------
 // WHERE things go now comes from the Layout pin; only WHAT they look like is
 // compiled in, per the one-look rule (PLAN constraint 8).
@@ -1021,7 +1033,12 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	const float dipsWide = kRackUnitDips * (float)(std::max)(1, spec.units);
 
 	const float halfW = 0.5f;
-	const float halfH = 0.5f * (float)pixelHeight / (float)pixelWidth;
+
+	// From the SPEC, not from the pixel buffer's aspect. Those agree now that
+	// the panel is fixed-size, and deriving it from the spec is what keeps them
+	// agreeing: geometry that reads its proportions off whatever rectangle it
+	// was handed will happily render a squashed panel and look like it worked.
+	const float halfH = 0.5f * kRackHeightDips / dipsWide;
 	const float halfZ = kPanelThickness;
 
 	// DIP space -> world space. The panel is dipsWide DIPs and exactly 1.0
@@ -1669,6 +1686,23 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 		invalidate();
 	}
 
+	// The panel's one true size. Width follows the Rack Units pin; height is
+	// always 3U.
+	Size panelSizeDips() const
+	{
+		return { kRackUnitDips * (float)(std::clamp)(pinRackUnits.value, 1, 16),
+			kRackHeightDips };
+	}
+
+	void onUnitsChanged()
+	{
+		// The DESIRED size just changed, so the host has to be told to ask
+		// again -- invalidateRect alone would repaint the old rectangle.
+		if (drawingHost)
+			drawingHost->invalidateMeasure();
+		onFaceChanged();
+	}
+
 	// The face is fully described by four pins; this is that description as a
 	// value, plus a hash of it to key the trace cache. A collision would need
 	// two different pin states hashing identically AND sharing a pixel size.
@@ -2043,7 +2077,7 @@ public:
 		pinTextColor.onUpdate = [this](PinBase*) { onCaptionChanged(); };
 
 		const auto faceChanged = [this](PinBase*) { onFaceChanged(); };
-		pinRackUnits.onUpdate  = faceChanged;
+		pinRackUnits.onUpdate  = [this](PinBase*) { onUnitsChanged(); };
 		pinLayout.onUpdate     = faceChanged;
 		pinMaterial.onUpdate   = faceChanged;
 		pinPanelColor.onUpdate = faceChanged;
@@ -2052,6 +2086,28 @@ public:
 	~TiDEPanelGui()
 	{
 		stopTimer();
+	}
+
+	// IGNORES availableSize, deliberately -- see kRackHeightDips. Returning
+	// something derived from the offer, even clamped, would make the editor
+	// report itself resizeable and put us back to drawing a squashed panel.
+	ReturnCode measure(const Size* /*availableSize*/, Size* returnDesiredSize) override
+	{
+		*returnDesiredSize = panelSizeDips();
+		return ReturnCode::Ok;
+	}
+
+	// The panel draws its own size from the top-left of `bounds`, which may be
+	// larger OR smaller than what the host allotted, so the clip area is the
+	// union rather than either one.
+	ReturnCode getClipArea(Rect* returnRect) override
+	{
+		const Size size = panelSizeDips();
+		*returnRect = Rect{
+			bounds.left, bounds.top,
+			(std::max)(bounds.right,  bounds.left + size.width),
+			(std::max)(bounds.bottom, bounds.top + size.height) };
+		return ReturnCode::Ok;
 	}
 
 	// Polls the worker. It does not call back on purpose: invalidateRect belongs
@@ -2083,8 +2139,16 @@ public:
 	{
 		Graphics g(drawingContext);
 
-		const Size size{ getWidth(bounds), getHeight(bounds) };
+		// The panel's own size, NOT the rectangle the host happened to give us.
+		// A host that honours measure() hands us exactly this; one that does
+		// not gets the panel drawn at its true size in the corner of whatever
+		// it offered, rather than distorted to fill it.
+		const Size size = panelSizeDips();
 		updateBitmaps(g, size, getDeviceScale(g));
+
+		const Rect panelRect{
+			bounds.left, bounds.top,
+			bounds.left + size.width, bounds.top + size.height };
 
 		if (faceBitmap)
 		{
@@ -2093,7 +2157,7 @@ public:
 			// trace is smaller too. Destination is always the DIP bounds, so
 			// whichever is current gets stretched to fill the panel.
 			const Rect faceSource{ 0.0f, 0.0f, (float)faceSize.width, (float)faceSize.height };
-			g.drawBitmap(faceBitmap, bounds, faceSource);
+			g.drawBitmap(faceBitmap, panelRect, faceSource);
 		}
 		else
 		{
@@ -2103,7 +2167,7 @@ public:
 			// silhouette: the cheapest thing that is still the right SHAPE.
 			const float radius = cornerRadius(size);
 			auto brush = g.createSolidColorBrush(colorFromHex(kPlaceholderGrey));
-			g.fillRoundedRectangle(RoundedRect{ bounds, radius, radius }, brush);
+			g.fillRoundedRectangle(RoundedRect{ panelRect, radius, radius }, brush);
 		}
 
 		if (faceTraceStage < 2 && !timerRunning)
@@ -2115,7 +2179,7 @@ public:
 		if (captionBitmap)
 		{
 			const Rect source{ 0.0f, 0.0f, (float)bitmapSize.width, (float)bitmapSize.height };
-			g.drawBitmap(captionBitmap, bounds, source);
+			g.drawBitmap(captionBitmap, panelRect, source);
 		}
 
 		return ReturnCode::Ok;
