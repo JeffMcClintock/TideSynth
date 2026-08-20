@@ -39,6 +39,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**linux — S26: the se_sdk timers never fired, and Jeff's mouse was the instrument that found it**
+
+- "It redraws" and "it refreshes" are different systems with different drivers, and the user who owns the product knew to distinguish them.
+- A platform port is complete when every pump the reference app runs has an owner.
+- When two input paths disagree, say so and hand verification to the one that failed.
+
 **linux — insertion is arm-then-click, and I had blamed the wrong thing**
 
 - When an experiment has two readings and one of them blames my tools, that is the one to distrust.

@@ -74,6 +74,106 @@ Template:
 
 ---
 
+## 2026-08-20 — linux — S26: the se_sdk timers never fired, and Jeff's mouse was the instrument that found it
+
+**Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** found and fixed why click-placing a module inserted it into the
+document while the view never showed it until a view-switch. **Verified by
+Jeff with a real mouse: "insert works now. module appears immediately."**
+
+### First, a correction that a squash-merge nearly lost
+
+**[#211](https://github.com/JeffMcClintock/TideSynth/pull/211) auto-merged
+between my two pushes**, so only its first commit reached `main`. The second —
+correcting S24 and filing S25 — landed on the branch afterwards and was
+orphaned. `main` therefore carried S24's claim that `SetCursorHandler` is
+*"defined and never called"*, which is **wrong**: it is never called in the
+**public** tree, and `SE16/SynthEditWayland/WaylandMainWindow.cpp:72` calls it.
+Both the corrected S24 and S25 are recovered in this branch. This is A22's
+auto-merge trap in a new shape — there it was a link-only follow-up worth
+dropping, here it was the substance.
+
+### Jeff's repro was the diagnosis
+
+He reported: insert appears to do nothing, **but the properties pane lights
+up** — which only happens for modules in the document — and switching to
+structure view and back **forces a refresh** that reveals the module. Then he
+named the distinction that cracked it: *invalidating the pixels* (redrawing
+what is there) versus *refreshing the view* (reconstructing it from the
+document via fresh XML). The insert marked the view dirty; the refresh never
+ran.
+
+### The mechanism
+
+`MfcDocPresenter` is its own `se_sdk::TimerClient` — `setView()` does
+`StartTimer(50)`, and each tick services `viewDirty` -> `RefreshView()` ->
+re-export the container to JSON -> rebuild. A view-switch works because
+`setView()` calls `OnTimer(); // intial refresh` directly, needing no timer.
+
+**On Linux, se_sdk timers have no source at all.** `TimerManager.h:94`: the
+host *"must call [Pump(elapsedMs)] periodically"*. Jeff predicted SynthEdit
+Wayland "must use some workaround" since it works on this same machine — it
+does, literally: `Main.cpp:190` pumps it every loop (and `:189` pumps
+gmpi_ui's separately). TIDE, a plugin with no main loop, pumped nothing.
+Windows survives via `PatchManager.cpp:1850`'s DX-view path. And
+`timerhelper = new AppTimerHelper(this)` turns out to be the **last line of
+the base `InitInstance` that TideApp skips** — S5's known gap, second
+consequence.
+
+### The fix
+
+`SeSdkTimerPump` in `SynthEditGui` — a Linux-only 30ms gmpi_ui `TimerClient`
+passing real elapsed time, living and dying with the editor. It rides gmpi_ui
+timers because those ARE serviced here (`StandaloneApp.cpp:332`). Not folded
+into the 500ms heartbeat: S12's sync serialises the whole document per tick.
+One wrinkle: `::TimerManager` needs the global qualifier — ambiguous with
+`gmpi::TimerManager`, the exact collision the se_sdk header warns about.
+
+**Every se_sdk timer client in a Linux TIDE benefits** — the scopes have
+never ticked either.
+
+### What this session's instruments could and could not see
+
+Injected-pointer inserts refreshed **even before the fix**, so this box's A/B
+could not distinguish — pre- and post-fix screenshots are identical for my
+path. Only Jeff's mouse could verify, and did. Why the injected path behaved
+differently is **unexplained and worth suspicion** — noted, not theorised.
+
+**Still open, deliberately unclaimed:**
+
+1. **The coordinates** (S26 row text): Jeff's inserts landed at structure-view
+   bottom-right / off the left of panel view; injected inserts land at
+   sensible coords (400,150 click -> 4104,3816). Different outcomes,
+   unexplained.
+2. **S25's tofu**: a freshly inserted prefab still draws grey with
+   missing-glyph text post-fix, so that defect is independent of the refresh.
+
+**Learned:**
+
+1. **"It redraws" and "it refreshes" are different systems with different
+   drivers, and the user who owns the product knew to distinguish them.** The
+   pixels repainted fine all along (cables, hover, wheel); the
+   document-to-view rebuild is a timer, and the timer was dead.
+2. **A platform port is complete when every pump the reference app runs has an
+   owner.** SynthEditWayland's main loop runs THREE (gmpi_ui, se_sdk,
+   app.OnTimer); the standalone wrapper supplies the first for TIDE, nothing
+   supplied the other two.
+3. **When two input paths disagree, say so and hand verification to the one
+   that failed.** Claiming the fix on my path's evidence would have been the
+   wayland-deps mistake again.
+
+**Next:**
+
+1. Jeff's coordinate observation wants a reproduction with pan/zoom state
+   recorded — it did not reproduce via the command channel.
+2. S25 (tofu render) unchanged.
+3. Whether `app.OnTimer()` (DSP queues, live-module updates) also needs a
+   Linux pump in TIDE is S5-adjacent and deliberately not smuggled into S26.
+
+**Branch/PR:** `tide/linux/S26-pump-se-timers` — [#213](https://github.com/JeffMcClintock/TideSynth/pull/213).
+
+---
 ## 2026-08-20 — linux — insertion is arm-then-click, and I had blamed the wrong thing
 
 **Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
