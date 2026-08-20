@@ -1436,10 +1436,26 @@ public:
 		}
 	};
 
+	struct Result
+	{
+		std::shared_ptr<FaceTrace> target;   // the trace for the size asked for
+		std::shared_ptr<FaceTrace> fallback; // newest COMPLETE render of the
+		                                     // same panel at ANY size, or null
+	};
+
 	// UI thread. Returns the trace for `key` -- possibly still empty -- and
 	// makes it the thing the worker is working toward. Never blocks on a
 	// render; the only lock held is around the bookkeeping.
-	std::shared_ptr<FaceTrace> request(const Key& key, const PanelSpec& spec)
+	//
+	// `fallback` is what makes a resize look like a resize rather than a
+	// reload. It lives HERE rather than in the editor because the host may
+	// rebuild the editor at any time (the headless screenshot harness builds a
+	// fresh one per frame), and an image kept in a member would not survive
+	// that. Kept per CONFIG, so it is only ever offered for a panel whose
+	// layout, material and width in units are unchanged -- a stale render of a
+	// DIFFERENT panel would be showing the wrong thing, where a stale render at
+	// a different size is showing the right thing at the wrong resolution.
+	Result request(const Key& key, const PanelSpec& spec)
 	{
 		std::unique_lock<std::mutex> lock(mutex);
 
@@ -1457,9 +1473,14 @@ public:
 			order.push_back(key);
 		}
 
+		Result result;
+		result.target = it->second;
+		if (lastComplete && lastCompleteConfig == key.config && lastComplete != result.target)
+			result.fallback = lastComplete;
+
 		// Even a cached-but-incomplete trace is re-declared as wanted: it may
 		// have been abandoned half-done when the size changed away and back.
-		if (it->second->stage.load(std::memory_order_acquire) < 2)
+		if (result.target->stage.load(std::memory_order_acquire) < 2)
 		{
 			wantedKey = key;
 			wantedSpec = spec;
@@ -1467,7 +1488,7 @@ public:
 			lock.unlock();
 			cv.notify_one();
 		}
-		return it->second;
+		return result;
 	}
 
 	~FaceRenderer()
@@ -1551,6 +1572,14 @@ private:
 			trace->fullHeight = key.height;
 			trace->full = traceFaceplate(key.width, key.height, spec, kSamplesPerPixel);
 			trace->stage.store(2, std::memory_order_release);
+
+			// Becomes the stand-in every later size of this same panel gets to
+			// show while its own trace runs.
+			{
+				std::lock_guard<std::mutex> lock(mutex);
+				lastComplete = trace;
+				lastCompleteConfig = key.config;
+			}
 		}
 	}
 
@@ -1566,6 +1595,8 @@ private:
 	std::vector<Key> order;
 	Key wantedKey{};
 	PanelSpec wantedSpec;
+	std::shared_ptr<FaceTrace> lastComplete;
+	uint64_t lastCompleteConfig = 0;
 	bool haveWanted = false;
 	bool quit = false;
 	bool started = false;
@@ -1601,7 +1632,15 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 	// `faceBitmap`, and that bitmap's own pixel size.
 	std::shared_ptr<FaceTrace> faceTrace;
 	SizeU faceSize{};
-	int faceStage = 0;      // 0 nothing drawn yet, 1 preview, 2 full
+	// The previous full-size render, shown stretched while the current size is
+	// still being traced.
+	std::shared_ptr<FaceTrace> faceFallback;
+
+	// Which of the three possible sources faceBitmap was built from, so it is
+	// rebuilt when a better one appears and not otherwise. Higher is better.
+	enum FaceSource { FaceNone = 0, FacePreview, FaceStaleFull, FaceCurrentFull };
+	int faceBitmapSrc = FaceNone;
+	int faceTraceStage = 0; // how much of faceTrace has been consumed
 	bool timerRunning = false;
 
 	// CpuReadable is what makes lockPixels() work at all, and SRGBPixels is what
@@ -1937,37 +1976,56 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 				(double)pixels.height * (double)width / (double)pixels.width));
 
 			// ASKS for a render; never performs one. Returns immediately, with
-			// an empty trace if nothing has been rendered at this size yet.
-			faceTrace = faceRenderer().request(
+			// an empty trace if nothing has been rendered at this size yet,
+			// plus the previous full-size render to show in the meantime.
+			const auto result = faceRenderer().request(
 				{ width, height, specConfigHash() }, buildSpec());
-			faceBitmap = {};
-			faceStage = 0;
+			faceTrace = result.target;
+			faceFallback = result.fallback;
+			faceTraceStage = 0;
 			faceDirty = false;
 		}
 
-		// Pick up whatever the worker has published since the last frame, and
-		// never go backwards. Both stages go through the same blit, stretched
-		// to `bounds`.
-		if (faceTrace)
+		// Choose the best image available THIS frame, and rebuild the bitmap
+		// only when that choice changes.
+		//
+		// The order is by pixels, not by freshness: the previous full render is
+		// 96 x 768 real pixels and stretching it a little beats a correctly
+		// sized preview at 16 x 128 stretched six times. So a stale full render
+		// outranks a fresh preview, and the preview is only ever seen on a
+		// panel that has never finished a render at all.
+		faceTraceStage = faceTrace
+			? faceTrace->stage.load(std::memory_order_acquire) : 0;
+
+		int source = FaceNone;
+		if (faceTraceStage >= 2)      source = FaceCurrentFull;
+		else if (faceFallback)        source = FaceStaleFull;
+		else if (faceTraceStage >= 1) source = FacePreview;
+
+		if (source != faceBitmapSrc)
 		{
-			const int stage = faceTrace->stage.load(std::memory_order_acquire);
-			if (stage > faceStage)
+			const FaceTrace* from = (source == FaceStaleFull) ? faceFallback.get() : faceTrace.get();
+			switch (source)
 			{
-				if (stage >= 2)
-				{
-					faceBitmap = bitmapFromImage(g, faceTrace->full,
-						faceTrace->fullWidth, faceTrace->fullHeight);
-					faceSize = { faceTrace->fullWidth, faceTrace->fullHeight };
-				}
-				else
-				{
-					faceBitmap = bitmapFromImage(g, faceTrace->preview,
-						faceTrace->previewWidth, faceTrace->previewHeight);
-					faceSize = { faceTrace->previewWidth, faceTrace->previewHeight };
-				}
-				faceStage = stage;
+			case FaceCurrentFull:
+			case FaceStaleFull:
+				faceBitmap = bitmapFromImage(g, from->full, from->fullWidth, from->fullHeight);
+				faceSize = { from->fullWidth, from->fullHeight };
+				break;
+			case FacePreview:
+				faceBitmap = bitmapFromImage(g, from->preview, from->previewWidth, from->previewHeight);
+				faceSize = { from->previewWidth, from->previewHeight };
+				break;
+			default:
+				faceBitmap = {};
+				break;
 			}
+			faceBitmapSrc = source;
 		}
+
+		// Once the real thing is up the stand-in is just memory.
+		if (source == FaceCurrentFull)
+			faceFallback.reset();
 
 		if (captionDirty || !captionBitmap)
 		{
@@ -2003,16 +2061,17 @@ public:
 	bool onTimer() override
 	{
 		// Repaint whenever the worker has moved on a stage, and keep polling
-		// until the full-size image for the CURRENT size is the one on screen.
-		// Keyed on faceStage rather than on the trace being complete, because
-		// a resize starts a fresh trace and this has to follow it.
+		// until the full-size trace for the CURRENT size has been consumed.
+		// Keyed on the trace rather than on the bitmap, because during a
+		// resize the bitmap is already at stage 2 -- it is the OLD one -- and
+		// stopping there would leave the stale image up for good.
 		const int stage = faceTrace
 			? faceTrace->stage.load(std::memory_order_acquire) : 0;
 
-		if (stage != faceStage)
+		if (stage != faceTraceStage)
 			invalidate();
 
-		if (faceTrace && stage >= 2 && faceStage >= 2)
+		if (faceTrace && stage >= 2 && faceTraceStage >= 2)
 		{
 			timerRunning = false;
 			return false; // returning false unregisters this client
@@ -2038,16 +2097,16 @@ public:
 		}
 		else
 		{
-			// Nothing rendered yet. Flat grey in the panel's own silhouette --
-			// the cheapest thing that is still the right SHAPE, so a resize
-			// drag stays responsive and the panel does not flash its
-			// background through.
+			// Nothing has EVER been rendered -- the first frame of a fresh
+			// panel, and only then, since a resize keeps the previous image up
+			// rather than falling back here. Flat grey in the panel's own
+			// silhouette: the cheapest thing that is still the right SHAPE.
 			const float radius = cornerRadius(size);
 			auto brush = g.createSolidColorBrush(colorFromHex(kPlaceholderGrey));
 			g.fillRoundedRectangle(RoundedRect{ bounds, radius, radius }, brush);
 		}
 
-		if (faceStage < 2 && !timerRunning)
+		if (faceTraceStage < 2 && !timerRunning)
 		{
 			startTimer(kPollMs);
 			timerRunning = true;
