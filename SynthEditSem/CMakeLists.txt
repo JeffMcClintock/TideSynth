@@ -2,6 +2,23 @@ cmake_minimum_required(VERSION 3.30)
 
 set(GMPI_WRAPPER_FOLDER_OVERRIDE "" CACHE PATH "path of a local GMPI WRAPPERs repo, or blank to fetch it automatically.")
 
+# SE16 consumes TIDE by add_subdirectory of THIS directory, never loading the
+# repo root -- so the S17 provenance commands used below must be included
+# here as well. include_guard makes this a no-op in the standalone build,
+# where the root already included it. Removing this include re-breaks every
+# SE16-hosted configure with "Unknown CMake command" (issue #222).
+include(${CMAKE_CURRENT_LIST_DIR}/../cmake/S17DependencyProvenance.cmake)
+
+# Same hosted-vs-standalone split for the path tracer (issue #222, second
+# break behind the first): TideSynth's root adds modules/common -- which
+# defines tide_render (linked at the bottom of this file) and the
+# tide_render_strict_fp* helpers -- before adding this directory. SE16 adds
+# neither, so add it here when the target is missing. modules/common is
+# dependency-free by design, which is what makes this safe this early.
+if(NOT TARGET tide_render)
+  add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../modules/common ${CMAKE_BINARY_DIR}/TideRender)
+endif()
+
 include(FetchContent)
 include(${GMPI_SDK}/gmpi_plugin.cmake)
 
