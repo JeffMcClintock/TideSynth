@@ -114,9 +114,25 @@ constexpr int kPreviewSamples = 48;
 // How often the UI thread asks whether the worker has finished.
 constexpr int kPollMs = 100;
 
-// One rack unit of panel width. The Rack Units pin scales the panel in these,
-// and every layout coordinate and hardware size below is authored in the same
-// DIPs, so a "10.6 DIP knob" is the same physical knob on any width of module.
+// --- the physical scale ------------------------------------------------------
+//
+// Everything in this file is authored in DIPs, which is only meaningful once
+// DIPs are pinned to millimetres. The anchor is EURORACK: a 3U front panel is
+// 128.5 mm tall (Doepfer), and the test panel is 384 DIPs tall, which puts the
+// scale at 2.99 DIPs/mm. Rounded to 3, that same panel is 128.0 mm -- a 3U
+// module to within half a millimetre -- so 3 it is.
+//
+// This exists so parts can be specified as the REAL part: a 3 mm LED needs a
+// 3.2 mm hole, not "about five DIPs, looks right".
+constexpr float kDipsPerMm = 3.0f;
+constexpr float kMm = kDipsPerMm; // DIPs per mm, for reading sizes as "8.0f * kMm"
+
+// One rack unit of panel width. The Rack Units pin scales the panel in these.
+//
+// NOTE this is 16.0 mm, or 3.15 HP -- NOT a whole number of Eurorack HP
+// (1 HP = 5.08 mm = 15.24 DIPs). Left alone deliberately: changing it rescales
+// every coordinate in every Layout string. If the pin should mean real HP,
+// that is a decision to take once, with the layouts updated in the same edit.
 constexpr float kRackUnitDips = 48.0f;
 
 // --- hardware, all sizes in DIPs ---------------------------------------------
@@ -181,9 +197,15 @@ constexpr float kIndentCornerDips = 6.7f;
 constexpr float kIndentDepth = 0.035f;   // world units, from the front face
 constexpr float kIndentFillet = 0.02f;   // radius where the pocket meets the face
 
-// LED punch-outs: a plain small hole into a dark void. The lens and its light
-// get drawn over the top in vector later, like the knob pointer.
-constexpr float kLedHoleRadiusDips = 1.6f;
+// LED punch-outs: a plain hole into a dark void. The lens and its light get
+// drawn over the top in vector later, like the knob pointer.
+//
+// Sized as the REAL hole. Eurorack uses 3 mm LEDs, whose panel cut-out is
+// 3.2 mm; the old 1.6 DIP radius was a 1.07 mm hole, a third of that, which is
+// why the LEDs read as specks. Change kLedDiameterMm to 5.0f for 5 mm LEDs.
+constexpr float kLedDiameterMm = 3.0f;
+constexpr float kLedHoleClearanceMm = 0.2f; // a part has to fit through it
+constexpr float kLedHoleRadiusDips = 0.5f * (kLedDiameterMm + kLedHoleClearanceMm) * kMm;
 
 // The switch slot: a shallow pocket holding an UNBRUSHED aluminium plate with
 // a square hole punched into a dark void. The moving part gets drawn over the
@@ -201,9 +223,13 @@ constexpr float kSwitchPlateRoughness = 0.38f; // duller than the panel, and unb
 // into. A real inset has a seam anyway.
 constexpr float kSwitchPlateGapDips = 0.4f;
 
-constexpr float kSwitchHoleHalfDips = 4.3f;
+// The hole is a SLOT, not a square: the lever travels up and down inside it, so
+// it needs the full travel cut away. CENTRED in the pocket, with equal margin
+// above and below -- an offset hole reads as a mistake rather than as a throw.
+constexpr float kSwitchHoleHalfWidthDips = 4.3f;
+constexpr float kSwitchHoleMarginDips = 4.6f;  // plate left above AND below the slot
+constexpr float kSwitchHoleHalfHeightDips = kSwitchHalfHeightDips - kSwitchHoleMarginDips;
 constexpr float kSwitchHoleCornerDips = 0.35f; // a punch leaves a slight radius
-constexpr float kSwitchHoleOffsetDips = 4.5f;  // above the pocket's centre
 
 // Knobs: plain black plastic cylinders with a bevelled rim, in the two sizes
 // Behringer's modules use. No flutes and no indicator -- the pointer is drawn
@@ -998,7 +1024,7 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	struct GrillW { float cx, cy, pitchX, pitchY, r; int cols, rows; };
 	struct SlotW { float cx, cy, pitchY, halfLen, halfThick; int rows; };
 	struct HoleW { float x, y, r; };
-	struct SwitchW { float cx, cy, holeY; };
+	struct SwitchW { float cx, cy; }; // the slot is centred, so cy serves both
 
 	std::vector<PocketW> pockets;
 	std::vector<GrillW> grills;
@@ -1074,10 +1100,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 
 		case PanelComponent::Kind::Switch:
 		{
-			const float holeY = toWorldY(c.y - kSwitchHoleOffsetDips);
-			switches.push_back({ wx, wy, holeY });
-			const float hh = kSwitchHoleHalfDips / dipsWide;
-			addBacking({ wx, holeY, -halfZ - 0.12f }, { hh + 0.04f, hh + 0.04f, 0.08f });
+			switches.push_back({ wx, wy });
+			addBacking({ wx, wy, -halfZ - 0.12f }, {
+				kSwitchHoleHalfWidthDips / dipsWide + 0.04f,
+				kSwitchHoleHalfHeightDips / dipsWide + 0.04f, 0.08f });
 			break;
 		}
 
@@ -1110,7 +1136,8 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	const float swHalfH = kSwitchHalfHeightDips / dipsWide;
 	const float swCorner = kSwitchCornerDips / dipsWide;
 	const float swFloorZ = halfZ - kSwitchDepth;
-	const float swHoleHalf = kSwitchHoleHalfDips / dipsWide;
+	const float swHoleHalfW = kSwitchHoleHalfWidthDips / dipsWide;
+	const float swHoleHalfH = kSwitchHoleHalfHeightDips / dipsWide;
 	const float swHoleCorner = kSwitchHoleCornerDips / dipsWide;
 
 	Object panel;
@@ -1136,8 +1163,8 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			// in one part only exposes the other. Same lesson as the jack bore.
 			d = opSmoothSubtract(d, sdIndentTool(p, sw.cx, sw.cy, swHalfW, swHalfH,
 				swCorner, swFloorZ), kIndentFillet);
-			d = opSubtract(d, sdRoundRect2D(p.x, p.y, sw.cx, sw.holeY,
-				swHoleHalf, swHoleHalf, swHoleCorner));
+			d = opSubtract(d, sdRoundRect2D(p.x, p.y, sw.cx, sw.cy,
+				swHoleHalfW, swHoleHalfH, swHoleCorner));
 		}
 
 		// Jack bores and LED punch-outs: clean through the plate. What the eye
@@ -1276,7 +1303,6 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			// The inset plate: unbrushed, a shade smaller than its pocket (see
 			// kSwitchPlateGapDips), buried well below the pocket floor so its
 			// underside never becomes a surface anything can see.
-			const float holeY = toWorldY(c.y - kSwitchHoleOffsetDips);
 			const float gap = kSwitchPlateGapDips / dipsWide;
 			const float top = swFloorZ + 0.010f;
 			const float bottom = swFloorZ - 0.05f;
@@ -1293,9 +1319,9 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 					swHalfW - gap, swHalfH - gap, swCorner);
 				const float d = extrudeZ(rect, std::fabs(p.z - cz) - hz);
 
-				// The punched hole, straight through the plate.
-				return opSubtract(d, sdRoundRect2D(p.x, p.y, wx, holeY,
-					swHoleHalf, swHoleHalf, swHoleCorner));
+				// The punched slot, straight through the plate.
+				return opSubtract(d, sdRoundRect2D(p.x, p.y, wx, wy,
+					swHoleHalfW, swHoleHalfH, swHoleCorner));
 			};
 			scene.add(std::move(plate));
 			break;
