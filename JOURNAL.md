@@ -21,11 +21,39 @@ entries just move to a per-month archive.
    month each entry belongs to, appending **below** what is already there so the
    archive stays newest-first. Copy the template from
    [JOURNAL-2026-08.md](JOURNAL-2026-08.md) if that month has no file yet.
-2. Stop when this file is **under 30 KB**, or when the **four most recent
-   entries** remain — whichever comes first. **The floor of four wins**: the run
-   prompt tells every run to read the last four entries, so a verbose month
-   pushing this file over 30 KB is correct, not a rotation failure.
+2. Stop when this file is **under 60 KB**, or when the floor is reached —
+   whichever comes first. **The floor is the LATER of: the four most recent
+   entries, or every entry carrying the most recent date.** The floor always
+   wins; a busy day pushing this file over 60 KB is correct, not a rotation
+   failure.
 3. Never edit an entry while archiving it. The archive is the record.
+
+**Why a date and not a duration (A24, 2026-08-20).** A24 asked for a time-based
+floor — *"retain everything from the last 7 days"* — and measuring what that
+costs is what killed it. Entries per day, counted across both files:
+
+| window | entries | bytes |
+|---|---|---|
+| last 1 date | 9 | 63 KB |
+| last 2 dates | 25 | 164 KB |
+| last 3 dates | 51 | 301 KB |
+| **last 7 dates** | **112** | **651 KB** |
+
+Every run on three machines reads all of it, so 7 days is **3.4× the 192 KB that
+triggered A8 in the first place** — the remedy would have been twenty times more
+expensive than the problem. Even two days is worse than the state A8 was created
+to fix.
+
+So the floor is **one date**, which bounds the cost at roughly a day's work while
+guaranteeing a run can always see everything that happened most recently — the
+failure A24 correctly identified, where a 4-entry floor at ten entries a day
+bought under half a day. On a quiet week the four-entry floor still binds and
+nothing changes.
+
+**What this does NOT fix, filed as A30:** the durable lessons still age out.
+Rotation moves an entry's *"Learned"* bullets into the archive with it, and no
+run reads the archive. The cheap answer is a standing digest that never rotates;
+the expensive one is reading 651 KB.
 
 A month splits across both files as it ages — recent entries here, older ones in
 the archive. That is why step 1 says "the month each entry belongs to".
@@ -45,6 +73,77 @@ Template:
 ```
 
 ---
+
+## 2026-08-20 — macos — A24: the journal floor is one DATE, because seven days measures 651 KB
+
+**Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
+
+**Eleventh item this session.** A22 and A23 both merged.
+
+**Did:** changed the rotation floor from four entries to **the later of four
+entries or every entry sharing the most recent date**, raised the trim target
+30 KB → 60 KB, and changed the run prompt from *"read at least the last four
+entries"* to **"read all of it"**.
+
+### A24's premise is right and its remedy is wrong, by a factor of twenty
+
+**Premise, re-measured and now sharper than when filed:** `JOURNAL.md` held
+**five entries all carrying the same date**. A run obeying *"read the last four
+entries"* saw under one day. A24 measured "about half a day" on 08-18; it has
+got worse.
+
+**Remedy refuted.** A24 asked to *"retain everything from the last 7 days"*.
+Counted across both files:
+
+| window | entries | bytes |
+|---|---|---|
+| last 1 date | 9 | 63 KB |
+| last 2 dates | 25 | 164 KB |
+| last 3 dates | 51 | 301 KB |
+| **last 7 dates** | **112** | **651 KB** |
+
+Every run on three machines reads all of it. **Seven days is 3.4× the 192 KB
+that triggered A8 in the first place** — the cure twenty times more expensive
+than the disease. Even *two* days is worse than the state A8 was created to fix.
+
+**So the floor is one date.** It bounds the cost at roughly a day's work while
+guaranteeing a run sees everything that happened most recently, which is the
+failure A24 correctly identified. On a quiet week the four-entry floor still
+binds and nothing changes — the rule only bites on days like this one.
+
+### What it does not fix — filed as A30
+
+Rotation carries an entry's **Learned** bullets into the archive with it, and
+**no run reads the archive**. So a lesson is load-bearing for about a day and
+then silently stops being read. A24's one-date bound is the most that is
+affordable, so the window cannot be widened to solve this: the lessons have to
+leave the rotating file, into a standing digest.
+
+This is not hypothetical. Twice today a run re-derived something an earlier entry
+had already recorded, and this session is the shortest possible distance from
+those entries.
+
+**Learned:**
+
+1. **Measure the remedy, not just the problem.** A24 was filed with careful
+   numbers for the *premise* and an unmeasured guess for the *fix*. The guess was
+   off by 20×, and nothing in the row's own reasoning would have revealed it —
+   only counting the bytes did.
+2. **A24 nearly cited a taken ID.** I wrote "filed as A25" and A25 has been in
+   `BACKLOG-DONE.md` since 08-18. Caught by checking rather than by lint —
+   `check-id-refs` validates that a *referenced* ID exists, and A25 does exist.
+   The duplicate check shipped this morning would have caught the *row*, had I
+   written one. Worth knowing that "the ID exists" and "the ID is free" are
+   different questions and only one of them is linted.
+
+**Next:**
+
+1. **A30** — the lessons digest. Wants Jeff's eye on the prompt half.
+2. **A12** is the only A-series row left, and it is `.github/workflows/**`.
+3. **C7b / C7d** are the carve-out's critical path; **C14** is IN-REVIEW with all
+   three PRs merged and should flip to DONE.
+
+**Branch/PR:** `tide/mac/A24-journal-floor` — TideSynth only.
 
 ## 2026-08-20 — macos — A23: duplicate-ID detection, and the three false alarms that shaped the rule
 
