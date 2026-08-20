@@ -142,10 +142,28 @@ how it is implemented."*
 So root-placement-plus-facade **is the architecture**, and PLAN.md's word for it
 — *"v0.1 side-steps this"* — is what made it read as a temporary evasion of an
 open limitation. All four places that carried my inference are corrected:
-`decisions.md`, `module-set.md` §9.3, E7's row, and PLAN.md itself. **S28 is
-sharpened rather than dropped**: the root placement is correct, so what remains
-is only that the root implementation modules should not *render* on the rack
-canvas, since the Container facade is their representation.
+`decisions.md`, `module-set.md` §9.3, E7's row, and PLAN.md itself. **S28 turned out to be wrong too, and is closed** — see below.
+
+### S28: I filed a row without asking why two modules differed
+
+I had sharpened S28 to *"the root implementation modules should not render on
+the rack canvas"*. Jeff: *"if they have no GUI class (which MIDI-CV2 does not),
+they already don't render on the rack canvas (only on the structure-view).
+That's already implemented and working."*
+
+**Verified, and it splits the two modules the row had lumped together:**
+
+| module | GUI class | saved rect | rendered? |
+|---|---|---|---|
+| `SE MIDI to CV 2` | **none** — no `*Gui*` registration in SynthEditLib | **0,0,0,0** | no — the probe already skipped it as *"zero rect"* |
+| `MIDI In` | **yes** — `modules_internal/MidiInGui.cpp:123` | 8x14 | yes, because it is meant to |
+
+So the self-exclusion the row asked for **already exists by mechanism**, and the
+one module that does render has a GUI class and is *supposed* to. Under the same
+day's I/O-modules ruling it is a rack module that has not been authored to rack
+proportions yet — **E2's work on item #4, not a defect**. S28 is closed WONTFIX,
+and the probe's docstring now carries the discriminator so the next reader does
+not re-derive it or, worse, add a name-based exception list.
 
 **Learned:**
 
@@ -160,9 +178,14 @@ canvas, since the Container facade is their representation.
    the product can look exactly like one that describes the code**, and PLAN.md
    calling the arrangement a *"side-step"* of a *"still open"* limitation is
    what made the wrong reading the natural one.
-3. **Corrections are cheapest when the work is still unmerged.** This one
-   touched four documents and a journal entry; none had landed, so the record
-   shows the ruling rather than the ruling plus a retraction.
+3. **Corrections are cheapest when the work is still unmerged.** These touched
+   four documents, a probe, a row and this entry; none had landed, so the
+   record shows the rulings rather than the rulings plus retractions.
+4. **Two wrong calls this session died to one habit: reasoning from a
+   measurement without asking what produced it.** S28 came from a probe line
+   listing two root modules, one measuring and one not — and I never asked why
+   they differed. One grep for a GUI class answers it. The probe was right both
+   times; the interpretation was not.
 
 **Next:**
 

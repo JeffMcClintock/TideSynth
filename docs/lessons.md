@@ -44,6 +44,7 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A correction that removes a blocker is worth checking hardest, not least.
 - "Rack module" was a statement about the USER'S MODEL and I read it as one about implementation
 - Corrections are cheapest when the work is still unmerged.
+- Two wrong calls this session died to one habit: reasoning from a measurement without asking what produced it.
 
 **macos — E5: the rack grid ruled, and the snap is gcd(12, 15)**
 
