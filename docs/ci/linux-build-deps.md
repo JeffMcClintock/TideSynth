@@ -74,6 +74,28 @@ The runner image ships it, so the probe passes today by luck of the base image
 rather than by anything this repo states. A base-image change would turn it into
 the next `xext`, with the same one-name-at-a-time diagnosis cost.
 
+## The linux box itself — `libpipewire-0.3-dev`, installed 2026-08-20
+
+Distinct from CI, and worth stating because three runs' worth of notes said
+otherwise. **`TIDE_STANDALONE` needs `libpipewire-0.3-dev`**, and the linux
+box did not have it — only the PipeWire *runtime*, which is why SynthEdit
+Wayland ran while TIDE's standalone was skipped at configure with
+`missing: libpipewire-0.3`.
+
+**Jeff installed it system-wide (1.0.5-1ubuntu3.3).** Verified with the old
+workaround deliberately removed — scratch prefix deleted, `PKG_CONFIG_PATH`
+unset, build tree wiped: configure rc=0 with **zero** `STANDALONE skipped`
+lines, build rc=0, zero errors.
+
+**Do not reconstruct the `apt-get download` + `dpkg-deb -x` scratch-prefix
+recipe.** It existed only because an unattended run cannot answer `sudo`'s
+password prompt (`sudo -n` -> *"a password is required"*, `tty` -> *"not a
+tty"*). It is obsolete, and the rows that describe it say so now.
+
+**What this buys a linux run:** visual verification, which several older rows
+assume is impossible here. Build `TIDE_STANDALONE`, run it, and it prints a
+command-channel socket an MCP server can screenshot, click and drag over.
+
 ## The optional three
 
 `wayland-client`, `xkbcommon` and `libdecor-0` (`libwayland-dev`,
