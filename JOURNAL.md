@@ -172,7 +172,93 @@ rather than doubling it.
 
 ---
 
----
+## 2026-08-20 — linux — A30: the lessons digest, and why the literal spec would have backfired
+
+**Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
+
+**Third item this session**, continued at Jeff's direction.
+
+**Did:** built [docs/lessons.md](docs/lessons.md) — one line per lesson, every
+run reads it, and **rotation cannot age it out** because
+[scripts/extract-lessons.py](scripts/extract-lessons.py) generates it from
+`JOURNAL.md` **and** `JOURNAL-2026-08.md`. Rotation gained a step 4 that
+regenerates it, and the run prompt's reading list gained one line — that half is
+the one A30 said wants Jeff's eye, and it is why this is a PR.
+
+**Result — Accept met:** **599 lessons from 152 entries, 0 dropped**; the digest
+is **56 KB against the 223 KB of Learned sections it distils, 4.1x smaller**.
+`--check` fails when it is stale, so it cannot drift from the journals.
+
+### The literal scope would have made things worse, and that is the finding
+
+A30 says *"a standing, append-only digest that rotation copies each entry's
+Learned bullets into"*. Copied verbatim that is **223 KB today — 24% of the
+entire corpus** — added to what every run already reads. That is **worse than
+the 192 KB that triggered A8 in the first place**, and it is the same trap A24
+measured and rejected when it killed the 7-day journal floor.
+
+So I measured before building, the way A24 did:
+
+| approach | size | verdict |
+|---|---|---|
+| every Learned bullet, verbatim | 223 KB | worse than the problem |
+| bold claim only, one line each | **56 KB** | shipped |
+
+**What makes the cheap version work is the journal's own convention**: every
+Learned bullet opens with a bold claim and then argues it, so the claim alone is
+a real lesson rather than a title. That is a property of how this project already
+writes, not something I imposed.
+
+### The bug worth not repeating
+
+The first cut read only markdown list items and reported **72 entries** — and
+looked entirely complete while dropping **80 of the 152** entries that have
+lessons. Three Learned shapes exist here and only one is a list:
+
+```
+1. **Learned:**  followed by "1." / "-" items          72 entries
+2. **Learned:**  followed by one prose paragraph    }  the other 80
+3. **Learned — headline.** **1. Claim...**          }
+```
+
+A second bug in the same pass: the no-bold fallback split on the first `.`, which
+truncated inside inline code — `` `PKG_CONFIG_LIBDIR` pointed at a pruned copy of
+the system ` `` was a real output line. This journal is full of `.pc` and
+`foo.cpp:31`, so sentence-splitting has to ignore dots inside backticks.
+
+**C15 — I reached the same finding as the macOS box, independently and hours later.** I checked C15 before starting (it was the topmost eligible row), found C16 had already closed it, and flipped it to DONE here. **[#202](https://github.com/JeffMcClintock/TideSynth/pull/202) landed the same conclusion first**, archived the row into `BACKLOG-DONE.md`, and filed **A31** for the underlying gap — *two ids, one job*, which A23's duplicate-id check cannot see by construction. **My duplicate edit is dropped from this branch**, per STEP 2's rule for a collision found after opening a PR; this branch is now a delta on top of theirs. The verification is not wasted, because it was done on merged `main` and agrees with theirs clause for clause: the only remaining includes resolve in the **public** `SynthEditLib`, `../SynthEdit2` survives only in comments, and the three `SynthEditApp` symbols appear only in comments. **Worth noting for A31:** two boxes spent a session each re-deriving one answer, and neither could see the other's row — the same shape as the collision itself.
+
+**Learned:**
+
+1. **A spec that says "copy X into a file every run reads" is a size decision in
+   disguise, and it should be measured before it is implemented.** A30's own
+   scope, followed literally, would have recreated A8 — the row that exists
+   because this journal already grew past what runs could afford once.
+2. **A generated index that silently covers half its input looks exactly like one
+   that covers all of it.** The count came out plausible (72 entries, 306
+   lessons) and nothing was obviously missing; only asking "of the entries that
+   *have* lessons, how many are represented?" exposed it. Assert coverage against
+   the source, not against your own output.
+3. **Sentence-splitting on "." is wrong in any corpus that names files.** Dots
+   inside backticks are the common case here, not the exception.
+4. **This project's writing conventions are load-bearing infrastructure.** The
+   digest is only affordable because Learned bullets already lead with a bold
+   claim. A convention nobody enforced turned out to be the thing that made a
+   mechanical distillation possible.
+
+**Next:**
+
+1. **The digest grows ~3.5 KB/day, ~100 KB/month** — 56 KB is affordable now and
+   will not be by October. The lever is dropping the archive from the script's
+   `SOURCES` once its lessons are spent, which halves it at a stroke. That is a
+   judgement call and belongs to Jeff, not to a run.
+2. **Nothing enforces that the digest is regenerated.** Rotation step 4 says to,
+   and `--check` will catch a stale file, but no lint step runs it — adding one
+   to `lint.yml` is a `.github/workflows/**` edit the token cannot push.
+3. Unchanged: **the `apt-get` in `build.yml` is still the only thing between C7e
+   and closed**, and CI filed a fifth issue (#195) for it while this ran.
+
+**Branch/PR:** `tide/linux/A30-lessons-digest` — TideSynth only.
 
 ---
 
