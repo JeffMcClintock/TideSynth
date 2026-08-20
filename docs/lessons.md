@@ -39,6 +39,10 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-20
 
+**macos — S25 does not reproduce on mac, and the negative result is the deliverable**
+
+- A cross-platform row can be closed on one platform and open on another, and saying which is the whole value of a cheap reproduction.
+
 **macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut**
 
 - Third time today a row's central premise had moved before it was taken
