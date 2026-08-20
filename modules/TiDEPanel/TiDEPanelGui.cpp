@@ -103,14 +103,43 @@ constexpr float kAnisotropy = 0.85f;
 constexpr float kGroovesPerDip = 55.0f / 48.0f;
 constexpr float kGrooveSlope = 0.22f;
 
-// Paths per pixel, and the cap on how big a face is ever traced.
+// Paths per pixel, and the ceiling on trace RESOLUTION.
 //
-// The cap is what bounds the worst case. Tracing is SECONDS, and cost is linear
-// in pixels, so without a ceiling a high-DPI or zoomed-in panel would quietly
-// become a ten-second stall. Above the cap the face is traced at the cap and
-// stretched, which costs a little sharpness and nothing else.
+// The ceiling is on device pixels per DIP, NOT on absolute width -- that
+// distinction is the whole point. A flat width cap was the original guard
+// against unbounded zoom, and it was silently wrong once panel width became a
+// pin: a 6-unit panel is 288 DIPs across, so capping the trace at 96 px meant
+// rendering one sixth of the detail and magnifying it six times. It looked
+// exactly like it was: blurry.
+//
+// Capping the SCALE instead means a wider panel gets proportionally more
+// pixels -- it is a bigger object, so it is more work, which is honest -- while
+// zoom and DPI still cannot run away with it. Zooming past this is stretched,
+// which is a uniform magnification of the right picture rather than a squashed
+// one, so it degrades gently.
+//
+// 4x is a lot of pixels and the traced image is FLOAT rgba, 16 bytes each:
+//
+//     1 unit  @ 4x = 192 x 1520  =  4.5 MB
+//     6 units @ 4x = 1152 x 1520 = 26.7 MB
+//     16units @ 4x = 3072 x 1520 = 71.2 MB
+//
+// which is why the cache below is bounded by PIXELS rather than by a count of
+// entries: eight of the last one would be half a gigabyte.
+constexpr float kMaxTraceScale = 4.0f;
+
+// How much traced imagery is kept alive for instant re-use. Deliberately in
+// pixels: entry count is meaningless when one entry can be sixteen times
+// another. About 48 MB of float at this figure.
+constexpr size_t kTraceCachePixelBudget = 3u * 1024u * 1024u;
+
+// Paths per pixel, tapered for large panels so a 6-unit module does not take
+// six times as long as a 1-unit one. sqrt rather than linear: noise falls as
+// the square root of sample count, so halving samples on a panel with four
+// times the area keeps the visible grain about level.
 constexpr int kSamplesPerPixel = 128;
-constexpr uint32_t kMaxTracedWidth = 96;
+constexpr int kMinSamplesPerPixel = 64;
+constexpr uint32_t kReferenceTracePixels = 96u * 760u; // a 1-unit panel at 2x
 
 // The progressive preview: how much smaller it is on a side, and how few paths
 // it gets. Both are deliberately crude — it exists to be replaced within a
@@ -176,14 +205,20 @@ constexpr float kRackHeightDips = 380.0f;
 
 // Punched vent: staggered so the holes pack hexagonally, which is what a real
 // punched sheet does — more open area between the same web thickness.
+// Vents span the panel rather than being a fixed size: a grill that stayed
+// 5 holes wide on a 3-unit panel would sit in the middle looking lost. Both
+// kinds are laid out from the panel's own width, inset by this much at each
+// side, and both can still be overridden per-instance from the Layout pin.
+constexpr float kVentInsetDips = 6.0f;
+
 constexpr float kVentPitchDips = 7.5f;
 constexpr float kVentHoleRadiusDips = 1.9f;
-constexpr int kVentColsDefault = 5;
+constexpr int kVentColsAuto = 0; // "fill the width", resolved when tracing
 constexpr int kVentRowsDefault = 4;
 
 // Slotted vent: stadium slots (a rounded rect whose corner radius is half its
 // thickness), sharing the faceplate's own 2D rounded-rect field.
-constexpr float kSlotHalfLenDips = 13.0f;
+constexpr float kSlotMinHalfLenDips = 4.0f; // a floor, for absurdly narrow panels
 constexpr float kSlotHalfThickDips = 1.6f;
 constexpr float kSlotPitchDips = 5.5f;
 constexpr int kSlotRowsDefault = 3;
@@ -772,7 +807,7 @@ std::vector<PanelComponent> parsePanelLayout(const std::string& text)
 		}
 		else if (tok[0] == "jack")   c.kind = PanelComponent::Kind::Jack;
 		else if (tok[0] == "switch") c.kind = PanelComponent::Kind::Switch;
-		else if (tok[0] == "grill")  { c.kind = PanelComponent::Kind::Grill; c.cols = kVentColsDefault; c.rows = kVentRowsDefault; }
+		else if (tok[0] == "grill")  { c.kind = PanelComponent::Kind::Grill; c.cols = kVentColsAuto; c.rows = kVentRowsDefault; }
 		else if (tok[0] == "slots")  { c.kind = PanelComponent::Kind::Slots; c.rows = kSlotRowsDefault; }
 		else if (tok[0] == "led")    c.kind = PanelComponent::Kind::Led;
 		else
@@ -799,13 +834,29 @@ std::vector<PanelComponent> parsePanelLayout(const std::string& text)
 	return out;
 }
 
+// How wide the vents come out on a panel of `dipsWide`. Both are derived
+// rather than stored, so the same Layout string describes a 1-unit and a
+// 6-unit module without editing.
+int ventColsFor(float dipsWide, int specified)
+{
+	if (specified > 0)
+		return specified;
+	const float usable = dipsWide - 2.0f * kVentInsetDips;
+	return (std::max)(1, (int)std::floor(usable / kVentPitchDips));
+}
+
+float slotHalfLenFor(float dipsWide)
+{
+	return (std::max)(kSlotMinHalfLenDips, 0.5f * dipsWide - kVentInsetDips);
+}
+
 // --- the automatic indent ------------------------------------------------------
 
 struct DipRect { float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f; };
 
 // The keep-out footprint of a non-jack component, as a circle. Used only to
 // push pocket edges back, so generous-and-round beats tight-and-exact.
-float componentKeepOut(const PanelComponent& c)
+float componentKeepOut(const PanelComponent& c, float dipsWide)
 {
 	using tide::render::safeSqrt;
 	switch (c.kind)
@@ -817,14 +868,15 @@ float componentKeepOut(const PanelComponent& c)
 			+ kSwitchHalfHeightDips * kSwitchHalfHeightDips) + 1.5f;
 	case PanelComponent::Kind::Grill:
 	{
-		const float hw = 0.5f * kVentPitchDips * (float)c.cols;
+		const float hw = 0.5f * kVentPitchDips * (float)ventColsFor(dipsWide, c.cols);
 		const float hh = 0.5f * kVentPitchDips * 0.866f * (float)c.rows;
 		return safeSqrt(hw * hw + hh * hh) + 2.0f;
 	}
 	case PanelComponent::Kind::Slots:
 	{
+		const float hl = slotHalfLenFor(dipsWide);
 		const float hh = 0.5f * kSlotPitchDips * (float)c.rows;
-		return safeSqrt(kSlotHalfLenDips * kSlotHalfLenDips + hh * hh) + 2.0f;
+		return safeSqrt(hl * hl + hh * hh) + 2.0f;
 	}
 	case PanelComponent::Kind::Led:
 		return kLedHoleRadiusDips + 2.0f;
@@ -879,7 +931,8 @@ void shrinkPocketClear(DipRect& rect, const DipRect& minRect, float cx, float cy
 
 // Jacks grouped by proximity (single linkage), one pocket per group, each
 // pocket shrunk away from anything that is not a jack.
-std::vector<DipRect> computeJackPockets(const std::vector<PanelComponent>& comps)
+std::vector<DipRect> computeJackPockets(const std::vector<PanelComponent>& comps,
+	float dipsWide)
 {
 	std::vector<size_t> jacks;
 	for (size_t i = 0; i < comps.size(); ++i)
@@ -942,7 +995,7 @@ std::vector<DipRect> computeJackPockets(const std::vector<PanelComponent>& comps
 		{
 			if (c.kind == PanelComponent::Kind::Jack)
 				continue;
-			const float r = componentKeepOut(c);
+			const float r = componentKeepOut(c, dipsWide);
 			if (r > 0.0f)
 				shrinkPocketClear(pocket, minRect, c.x, c.y, r);
 		}
@@ -1072,7 +1125,7 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	std::vector<HoleW> holes; // jack bores and LED punch-outs
 	std::vector<SwitchW> switches;
 
-	for (const DipRect& r : computeJackPockets(spec.components))
+	for (const DipRect& r : computeJackPockets(spec.components, dipsWide))
 	{
 		pockets.push_back({
 			toWorldX(0.5f * (r.x0 + r.x1)),
@@ -1119,10 +1172,11 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 		{
 			const float pitchX = kVentPitchDips / dipsWide;
 			const float pitchY = pitchX * 0.86602540f; // hexagonal row spacing
+			const int cols = ventColsFor(dipsWide, c.cols);
 			grills.push_back({ wx, wy, pitchX, pitchY,
-				kVentHoleRadiusDips / dipsWide, c.cols, c.rows });
+				kVentHoleRadiusDips / dipsWide, cols, c.rows });
 			addBacking({ wx, wy, -halfZ - 0.12f },
-				{ 0.5f * pitchX * (float)c.cols + 0.04f,
+				{ 0.5f * pitchX * (float)cols + 0.04f,
 				  0.5f * pitchY * (float)c.rows + 0.04f, 0.08f });
 			break;
 		}
@@ -1130,7 +1184,7 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 		case PanelComponent::Kind::Slots:
 		{
 			const float pitchY = kSlotPitchDips / dipsWide;
-			const float halfLen = kSlotHalfLenDips / dipsWide;
+			const float halfLen = slotHalfLenFor(dipsWide) / dipsWide;
 			slotBanks.push_back({ wx, wy, pitchY, halfLen,
 				kSlotHalfThickDips / dipsWide, c.rows });
 			addBacking({ wx, wy, -halfZ - 0.12f },
@@ -1407,6 +1461,20 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	return render(scene, camera, settings);
 }
 
+// Samples for a trace of this many pixels: full quality at the size a 1-unit
+// panel comes out, tapering by sqrt of the area ratio beyond that, never below
+// kMinSamplesPerPixel.
+int samplesFor(uint32_t width, uint32_t height)
+{
+	const double pixels = (double)width * (double)height;
+	if (pixels <= (double)kReferenceTracePixels)
+		return kSamplesPerPixel;
+
+	const double taper = std::sqrt((double)kReferenceTracePixels / pixels);
+	return (std::max)(kMinSamplesPerPixel,
+		(int)std::lround((double)kSamplesPerPixel * taper));
+}
+
 // The face, and how it gets made.
 //
 // NOTHING HERE RUNS ON THE UI THREAD. An earlier version traced the preview
@@ -1523,13 +1591,35 @@ private:
 	// Keep a few finished traces so flicking back to a previous size or layout
 	// is instant. Only COMPLETE ones are evicted -- an in-flight trace is
 	// still owned by the worker.
+	static size_t traceCost(const FaceTrace& t)
+	{
+		return (size_t)t.fullWidth * t.fullHeight
+			+ (size_t)t.previewWidth * t.previewHeight;
+	}
+
+	size_t cachedPixelsLocked() const
+	{
+		size_t total = 0;
+		for (const auto& entry : cache)
+			total += traceCost(*entry.second);
+		return total;
+	}
+
+	// Evict oldest-first until the cache is inside its pixel budget. Only
+	// COMPLETE traces go: an in-flight one is still owned by the worker, and
+	// the one currently on screen is held by the editor's shared_ptr anyway, so
+	// erasing it here frees nothing until it stops being used.
 	void evictLocked()
 	{
-		constexpr size_t kMaxCached = 8;
-		for (size_t i = 0; i < order.size() && cache.size() >= kMaxCached; )
+		for (size_t i = 0; i < order.size(); )
 		{
+			if (cachedPixelsLocked() <= kTraceCachePixelBudget)
+				return;
+
 			const auto old = cache.find(order[i]);
-			if (old != cache.end() && old->second->stage.load(std::memory_order_acquire) == 2)
+			if (old != cache.end()
+				&& old->second->stage.load(std::memory_order_acquire) == 2
+				&& old->second != lastComplete)
 			{
 				cache.erase(old);
 				order.erase(order.begin() + i);
@@ -1587,7 +1677,8 @@ private:
 
 			trace->fullWidth = key.width;
 			trace->fullHeight = key.height;
-			trace->full = traceFaceplate(key.width, key.height, spec, kSamplesPerPixel);
+			trace->full = traceFaceplate(key.width, key.height, spec,
+				samplesFor(key.width, key.height));
 			trace->stage.store(2, std::memory_order_release);
 
 			// Becomes the stand-in every later size of this same panel gets to
@@ -1596,6 +1687,12 @@ private:
 				std::lock_guard<std::mutex> lock(mutex);
 				lastComplete = trace;
 				lastCompleteConfig = key.config;
+
+				// The trace that just finished is the one that made the cache
+				// bigger, so this is the moment to check the budget -- waiting
+				// for the next request would hold the peak until something
+				// else happened to be asked for.
+				evictLocked();
 			}
 		}
 	}
@@ -2001,13 +2098,15 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 
 		if (faceDirty)
 		{
-			// Cap the traced size. Cost is linear in pixels and a full trace is
-			// seconds, so past the cap the face is traced at the cap and
-			// stretched — which costs some sharpness, where not capping would
-			// cost a stall that grows without limit as the panel is zoomed.
-			const uint32_t width = (std::min)(pixels.width, kMaxTracedWidth);
-			const uint32_t height = (std::max)(1u, (uint32_t)std::lround(
-				(double)pixels.height * (double)width / (double)pixels.width));
+			// Trace at the panel's own size in device pixels, limited by
+			// RESOLUTION rather than by width -- see kMaxTraceScale. Both
+			// dimensions take the same factor, so the traced aspect is always
+			// the panel's and nothing is ever squashed.
+			const float traceScale = (std::min)(deviceScale, kMaxTraceScale);
+			const uint32_t width = (std::max)(1u,
+				(uint32_t)std::lround(size.width * traceScale));
+			const uint32_t height = (std::max)(1u,
+				(uint32_t)std::lround(size.height * traceScale));
 
 			// ASKS for a render; never performs one. Returns immediately, with
 			// an empty trace if nothing has been rendered at this size yet,
