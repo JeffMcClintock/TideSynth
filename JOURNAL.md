@@ -74,6 +74,82 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — E16 ruled Tier 1, and four conventions came with it
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** recorded Jeff's E16 ruling — **TIDE ships Tier 1** — plus four
+conventions and seven corrections he gave alongside it, and verified the four
+claims that were checkable rather than transcribing them.
+
+### The ruling is a sequencing argument, not a size preference
+
+*"we need a testable, installable MVP first"* — Tier 1 is what lets installers,
+the website and the release track move, while the full set is developed in
+parallel by Jeff. The risk being managed is stated plainly: *"I wouldn't want
+to spend a lot of time on a full set only to find we got the design language
+wrong or something that requires a lot of redesign."* Every authored panel is
+hostage to E17 until an installable build has been tested.
+
+**The doc's own argument for Tier 2 was rejected as false.** It said that below
+Tier 2 a user *"can make a sound but not music"*; Jeff: *"Tier 1 absolutely can
+make music. Plenty of real hardware products ship with only this type of
+functionality."* Corrected in place.
+
+### Four claims checked against the tree, because each changes what is blocked
+
+| claim | verified |
+|---|---|
+| Oscillator HD is the oscillator TIDE ships | **already compiled in** by E2c (`SynthEditSem/CMakeLists.txt:299`) |
+| glide is already in MIDI-CV2 | **yes** — `CVoiceList.cpp` drives constant-rate glide via `HC_GLIDE_START_PITCH` into `MidiToCv2`'s `pitchInterpolator` |
+| pitch 0.5 = 440 Hz, 0.6 = 880 Hz | **exactly** — `ug_oscillator2.cpp:375` is `440.0 * pow(2.0, volts - 5.0)`, and `ULookup.h:9` agrees |
+| volts are display-only | consistent — `CVoiceList.cpp:980` records the "SE volts (0-10 V)" convention on the MIDI-CV host controls |
+
+**The first of those unblocks the MVP.** S8 has been carried as the oscillator's
+blocker since 2026-08-18, and its measurement is still true — but it is about
+`OscillatorNaive`, and TIDE ships `SE Oscillator4`. The row stays open for the
+packaging fault it found; it no longer gates E2.
+
+### The set is trimmed by three, each for a mechanism
+
+**Sample & Hold** out (*"not critical"*). **Slew/Glide** out — it is in MIDI-CV2,
+verified above. **Mixer** left **UNDECIDED**: TIDE's cables fan in with automatic
+summing, so a mixer is convenience rather than capability — *"Quite useful
+though i guess"* is not a ruling and I did not round it into one.
+
+### The one thing the rulings raise rather than settle
+
+Polyphony is ruled to be SynthEdit's existing model — modules always
+monophonic, the runtime clones them per voice on the DSP graph, voice count set
+on the MIDI-CV rack module, *"essentially free"*. **And the I/O modules are
+ruled to be rack modules** (mandatory, not deletable, but placed and movable).
+Those two together put MIDI-CV back inside a Container — which is exactly what
+**E7** measured as not working, and what V3 side-stepped by keeping MIDI-CV at
+the document root. **Whether voice cloning crosses a Container boundary is now
+on the MVP's critical path**, and it wants measuring before E2 authors
+anything. Recorded on E7 rather than assumed either way.
+
+**Learned:**
+
+1. **A correction that removes a blocker is worth checking hardest, not
+   least.** "We ship Oscillator HD" reads like a preference; it retired a
+   three-day-old blocker, and one grep proved the module was already in the
+   binary.
+2. **Two rulings can be individually right and jointly open a question neither
+   mentions.** Polyphony-is-free and I/O-modules-are-rack-modules are both
+   clear; together they walk straight into E7's container boundary.
+
+**Next:**
+
+1. **E2 is unblocked** and now has a ruled list to author from.
+2. **The Mixer question** and **E7's container boundary** are the two answers
+   E2 needs before it starts.
+3. The release track (R2-R6) has an MVP to package.
+
+**Branch/PR:** `tide/mac/E16-tier1-ruled` — TideSynth only, rulings and docs.
+
+---
+
 ## 2026-08-21 — macos — E5: the rack grid ruled, and the snap is gcd(12, 15)
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing

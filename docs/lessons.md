@@ -39,6 +39,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**macos — E16 ruled Tier 1, and four conventions came with it**
+
+- A correction that removes a blocker is worth checking hardest, not least.
+- Two rulings can be individually right and jointly open a question neither mentions.
+
 **macos — E5: the rack grid ruled, and the snap is gcd(12, 15)**
 
 - A constant that serves both a layout rule and a drawing rule will be changed for one and silently break the other.
