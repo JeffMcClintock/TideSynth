@@ -2,7 +2,16 @@ cmake_minimum_required(VERSION 3.30)
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "") 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
-set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Build architectures for Mac OS X")
+# TIDE Rack is arm64-only on macOS, ruled by Jeff 2026-08-21: *"lets change
+# macOS to ARM-only, for faster building. Any straggler who wants intel can
+# build it themselves."* Roughly halves the macOS build -- the universal
+# build compiled every one of these translation units twice.
+#
+# This only takes effect because SynthEditLib and GMPI_Wrappers stopped
+# FORCEing the variable on the same day; with the FORCE in place this line
+# was silently overwritten, and so was a command-line -D. SynthEdit itself
+# is unaffected and still ships universal.
+set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Build architectures for MacOS")
 set(SE_LOCAL_BUILD FALSE CACHE BOOL "Execute extra build steps for developers machine")
 
 # This is for macOS commandline only, because it uses a single-target generator. for other targets, ref: target_compile_definitions
