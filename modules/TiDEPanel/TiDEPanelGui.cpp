@@ -233,10 +233,43 @@ constexpr int kSlotRowsDefault = 3;
 
 // Jack sockets: a plated collar set in a black moulded body, blind bore down
 // the middle.
-constexpr float kJackSurroundDips = 10.5f; // black plastic body, OUTSIDE the collar
-constexpr float kJackOuterDips = 7.0f;   // collar outer radius
-constexpr float kJackInnerDips = 4.4f;   // collar inner radius
-constexpr float kJackBoreDips = 3.5f;    // the socket mouth
+// Sized from a real PJ301M / Thonkiconn -- the standard Eurorack 3.5 mm socket
+// -- rather than by eye. The eyeballed numbers were not merely small, they were
+// IMPOSSIBLE: a 2.37 mm bore inside a 2.98 mm collar hole, on a socket that has
+// to accept a 3.5 mm plug. Nothing about that could have been right.
+constexpr float kJackBodyMm = 8.0f;        // the black moulded body
+constexpr float kJackCollarOuterMm = 6.5f; // plated ring, outside
+constexpr float kJackCollarInnerMm = 4.6f; // plated ring, the hole in it
+
+constexpr float kJackSurroundDips = 0.5f * kJackBodyMm * kMm;
+constexpr float kJackOuterDips = 0.5f * kJackCollarOuterMm * kMm;
+constexpr float kJackInnerDips = 0.5f * kJackCollarInnerMm * kMm;
+
+// THE BORE IS WIDER THAN THE COLLAR'S HOLE, and that is the whole point rather
+// than a rounding choice. On the real part you look through the metal ring
+// straight into a void; ours had a ring of moulded plastic showing inside the
+// metal, because the bore was narrower than the hole above it. That annulus is
+// also what produced the blue circle: it is a glossy dielectric facing the sky,
+// so it did exactly what a glossy dielectric facing a bright blue source does.
+//
+// Opening the bore past the collar's inner edge removes the annulus and the
+// reflection with it. The overhang is what a nut screwed down over a barrel
+// actually looks like. Deliberately NOT equal to the collar radius: coincident
+// vertical walls are the speckling trap the jack surround and the switch plate
+// both fell into.
+constexpr float kJackBoreOverhangDips = 0.4f;
+constexpr float kJackBoreDips = kJackInnerDips + kJackBoreOverhangDips;
+
+// The panel is PUNCHED AROUND THE WHOLE BODY, not just bored for the barrel.
+// A jack is a part pushed through a panel cut-out, so a fine dark line runs
+// round the outside of the bezel where the cut edge is -- visible on the real
+// socket, and absent here while the panel was merely drilled for the bore and
+// the bezel sat on top of solid metal.
+//
+// The gap has to be small: it is a see-through slot in the plate, and it is
+// only dark rather than transparent because a backing sits behind it.
+constexpr float kJackPanelGapDips = 0.6f;
+constexpr float kJackPanelHoleDips = kJackSurroundDips + kJackPanelGapDips;
 
 // The bezel stands proud of the PANEL FACE, as it does in the Behringer photo
 // -- the moulded body is a part pushed through from behind and done up against
@@ -1252,6 +1285,7 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	};
 
 	const float jackBoreR = kJackBoreDips / dipsWide;
+	const float jackPanelHoleR = kJackPanelHoleDips / dipsWide;
 
 	for (const auto& c : spec.components)
 	{
@@ -1261,7 +1295,11 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 		switch (c.kind)
 		{
 		case PanelComponent::Kind::Jack:
-			holes.push_back({ wx, wy, jackBoreR });
+			// The PLATE takes the body-sized cut-out; the body's own blind bore
+			// is a separate, smaller thing built with the jack below.
+			holes.push_back({ wx, wy, jackPanelHoleR });
+			addBacking({ wx, wy, -halfZ - 0.12f },
+				{ jackPanelHoleR + 0.02f, jackPanelHoleR + 0.02f, 0.08f });
 			break;
 
 		case PanelComponent::Kind::Led:
@@ -1459,7 +1497,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 				const float rBore = jackBoreR;
 
 				Object body;
-				body.material = recipes::satinPlastic({ 0.020f, 0.020f, 0.022f });
+				// Darker and matter than the knobs. It has to read as a VOID
+				// down the middle, and a glossy wall at grazing incidence is a
+				// near-perfect mirror -- which is how the sky got in there.
+				body.material = recipes::plastic({ 0.015f, 0.015f, 0.017f }, 0.42f);
 				body.boundsCentre = centre;
 				body.boundsRadius = safeSqrt(rSurround * rSurround + hz * hz) + 0.01f;
 				body.distance = [centre, rSurround, rBore, hz, boreDepth, bezelRound](const Vec3& p)
