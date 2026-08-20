@@ -42,8 +42,10 @@ does not exist in the table, a reference to it is stale by definition.
 
 Also here (A23): one ID owning more than one row fails the lint. And (A31):
 two LIVE rows citing the same `file:line` fails it too -- the tell for two IDs
-describing one job, which no id-based check can see. Each carries its measured
-false-alarm analysis at its own definition below.
+describing one job, which no id-based check can see. And (A32): a live
+umbrella row whose split rows have all landed is reported as ADVISORY only,
+never an exit code. Each carries its measured false-alarm analysis at its own
+definition below.
 
 What it deliberately does not do
 --------------------------------
@@ -191,6 +193,70 @@ def shared_locations(citations):
     for key, owners in citations.items():
         if len({rid for rid, _ in owners}) > 1:
             out[key] = owners
+    return out
+
+
+# --- A32: umbrella rows whose splits have all landed -------------------------
+# U2's Accept was met on 2026-08-16 -- the triage doc shipped and all five
+# splits (U2a-U2e) were archived with merged PRs -- and the row read TODO for
+# four more days. It was the only mac-marked row left, so a run looking for
+# mac work took it and found nothing inside. The failure is silent and
+# self-concealing: from outside, the queue looks like it has work in it.
+#
+# This is ADVISORY BY CONSTRUCTION, never an exit code, and that is measured
+# rather than cautious (A32's working, 2026-08-20): the obvious rule -- flag
+# any live row all of whose X[a-z] splits are closed -- fired on exactly two
+# rows of the real tree, U2 (correctly: nothing left in it) and E2 (wrongly:
+# a/b/c are done but its remaining module stages are simply not filed yet).
+# One real, one false. A 50% false-positive rate is the same shape A23, A24
+# and A27 were each nearly shipped with, so the report only names candidates;
+# a human closes the umbrella or files its next child. An umbrella with all
+# children landed and more intended is indistinguishable FROM OUTSIDE from one
+# that is finished -- only the row's author knows, which is why this cannot be
+# a gate.
+
+
+def stale_umbrellas(repo_root, live_file=BACKLOG_FILES[0]):
+    """Live rows whose child rows (id + one lowercase letter) all closed.
+
+    Returns {umbrella_id: sorted child ids}. A row with no child rows anywhere
+    is not an umbrella and is never reported. A child row that is itself live
+    keeps its umbrella alive (C7 today: C7e is NEEDS-JEFF, so C7 is not
+    reported however many siblings landed).
+    """
+    statuses = {}          # id -> (is_live, owning file) for non-superseded rows
+    for name in BACKLOG_FILES:
+        path = os.path.join(repo_root, name)
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as handle:
+            for line in handle:
+                if not line.startswith("|"):
+                    continue
+                cells = line.split("|")
+                if len(cells) < 4 or RE_SUPERSEDED_CELL.match(cells[1]):
+                    continue
+                match = RE_ID_CELL.match(cells[1])
+                if not match:
+                    continue
+                rid = match.group(1)
+                if name == live_file:
+                    status = cells[2].strip().upper()
+                    live = not status.startswith(CLOSED_STATUS_PREFIXES)
+                else:
+                    live = False   # the archive is finished business by definition
+                # A row in both files keeps the live file's verdict; that
+                # conflict is A23's copied-not-moved case and is its to flag.
+                if rid not in statuses or name == live_file:
+                    statuses[rid] = live
+
+    out = {}
+    for rid, live in statuses.items():
+        if not live or not re.fullmatch(r"[A-Z]\d{1,2}", rid):
+            continue   # children (trailing lowercase) cannot themselves umbrella
+        children = [c for c in statuses if c[:-1] == rid and c[-1].islower()]
+        if children and not any(statuses[c] for c in children):
+            out[rid] = sorted(children)
     return out
 
 
@@ -344,6 +410,21 @@ def run(repo_root, allow=(), show=False, patterns=DEFAULT_GLOBS):
         print("Read both rows; if they are one job, fold the newer into the")
         print("older -- and if they genuinely differ, make each row say so and")
         print("cite different lines, or drop the citation from one.")
+
+    # A32 -- advisory only, by measurement: the naive gate had a 50% false-
+    # positive rate on the real tree (U2 real, E2 false). Candidates for a
+    # human, never an exit code.
+    umbrellas = stale_umbrellas(repo_root)
+    if umbrellas:
+        print("\nADVISORY -- %d live umbrella row(s) whose split rows have all "
+              "landed:" % len(umbrellas))
+        for rid in sorted(umbrellas):
+            print("  %s  (children all closed: %s)"
+                  % (rid, ", ".join(umbrellas[rid])))
+        print("Advisory, not a failure: an umbrella with unfiled future children")
+        print("(E2's shape) is indistinguishable from a finished one (U2's shape).")
+        print("If nothing is left in the row, close it; if more children are")
+        print("intended, file the next one or say so in the row.")
 
     if stale:
         print("\n%d STALE -- named but no such row in %s:"
@@ -502,7 +583,44 @@ def selftest():
                 print("FAIL  shared/%s\n      expected: %s\n      got:      %s"
                       % (description, sorted(expected) or "[]", got or "[]"))
 
-    total = len(SELFTEST_CASES) + 1 + len(dup_cases) + len(shared_cases)
+    # A32 -- stale umbrellas, every case a shape measured on the real tree.
+    umb_cases = [
+        ("U2's shape: live umbrella, every child archived",
+         LIVE + "| U2 | TODO | mac | triage |\n",
+         DONE + "| U2a | 2026-08-16 | mac | x |\n| U2b | 2026-08-16 | mac | x |\n",
+         ["U2"]),
+        ("C7's shape: one child still live keeps the umbrella alive",
+         LIVE + "| C7 | BLOCKED(C7e) | any | umbrella |\n"
+                "| C7e | NEEDS-JEFF | any | ci clause |\n",
+         DONE + "| C7a | 2026-08-19 | any | x |\n| C7b | 2026-08-20 | any | x |\n",
+         []),
+        ("children closed in the LIVE file count as closed",
+         LIVE + "| E2 | TODO | any | umbrella |\n"
+                "| E2a | DONE | any | x |\n| E2b | WONTFIX | any | x |\n",
+         DONE, ["E2"]),
+        ("a row with no children is not an umbrella",
+         LIVE + "| S5 | TODO | any | no splits exist |\n", DONE, []),
+        ("a closed umbrella is nobody's business",
+         LIVE + "| U2 | DONE | mac | flipped |\n",
+         DONE + "| U2a | 2026-08-16 | mac | x |\n", []),
+        ("a child row cannot itself be an umbrella",
+         LIVE + "| C7e | NEEDS-JEFF | any | leaf |\n",
+         DONE + "| C7a | 2026-08-19 | any | x |\n", []),
+    ]
+    for description, live, done, expected in umb_cases:
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "BACKLOG.md"), "w", encoding="utf-8") as fh:
+                fh.write(live)
+            with open(os.path.join(d, "BACKLOG-DONE.md"), "w", encoding="utf-8") as fh:
+                fh.write(done)
+            got = sorted(stale_umbrellas(d))
+            if got != sorted(expected):
+                failures += 1
+                print("FAIL  umbrella/%s\n      expected: %s\n      got:      %s"
+                      % (description, expected or "[]", got or "[]"))
+
+    total = (len(SELFTEST_CASES) + 1 + len(dup_cases) + len(shared_cases)
+             + len(umb_cases))
     print("\n%d case(s), %d failed" % (total, failures))
     return 1 if failures else 0
 

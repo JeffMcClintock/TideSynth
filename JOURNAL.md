@@ -74,6 +74,74 @@ Template:
 
 ---
 
+## 2026-08-20 — macos — A32: the umbrella advisory, and the measurement that was already done
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · second item
+
+**Did:** the advisory A32 specced, in `check-id-refs.py`: live rows whose
+`X[a-z]` children are all closed print as **ADVISORY** — candidates for a
+human, never an exit code.
+
+The design work was already paid for: the U2 run measured the naive gate at a
+50% false-positive rate (U2 real, E2 false) and A32's row pinned the remedy to
+advisory output with `lint` staying green. So this session's job was mostly to
+not re-decide that — build it as specced, then verify the measurement still
+holds on today's tree.
+
+### It does, with one moot half
+
+| the U2 run predicted | today |
+|---|---|
+| fires on U2 (real) | **moot** — U2 was archived when it closed, and a closed/archived row is nobody's umbrella |
+| fires on E2 (false, by design tolerated) | **fires on E2 alone**, rc=0, advisory printed |
+| silent on C7 (open child) | **silent** — C7e is NEEDS-JEFF, live |
+
+Positive control on real data: flipping C7e to DONE in a copy makes **C7 join
+the report** with all five children named. Selftest **38 cases, 0 failed**
+(6 new, one per shape above plus childless rows, closed umbrellas, and
+child-of-child); proven able to fail — flipping the U2-shape expectation gives
+`FAIL umbrella/U2's shape`, rc=1, restored.
+
+**Children closed in the LIVE file count as closed** (E2b is WONTFIX in
+BACKLOG.md, E2a/E2c archived — E2's children are 1 live-file + 2 archive), so
+the rule reads status, not location. A child that is itself live keeps the
+umbrella alive wherever its siblings sit.
+
+**Deliberately not done:** E2's re-spec. A32's row asks for it "while someone
+is here", but which module children E2 intends is a product call — E17's
+path-traced design language resolved only yesterday, and the module set it
+implies is E16/E2 territory, not a lint session's. The advisory's own text
+explains E2's presence, which is what the Accept required.
+
+**Stacked on A31's branch** (`tide/mac/A31-same-job-habit`) because both edit
+`check-id-refs.py`; the PR targets that branch and GitHub retargets to `main`
+when #218 merges (the A10 lesson).
+
+**Learned:**
+
+1. **A row that carries its own false-positive measurement is a different kind
+   of spec: the build step is obedience, not design.** U2's session measured,
+   A32's row recorded, this session implemented — three runs, no re-derivation.
+   That is the backlog working as a memory the runs themselves lack.
+2. **"Advisory" needs the reason printed with it, or it decays into noise.**
+   The report explains the E2 class inline — an umbrella with unfiled future
+   children is indistinguishable from a finished one — so a reader who has
+   never seen A32 still knows why rc is 0 and what judgement is theirs to make.
+
+**Next:**
+
+1. **The takeable process rows are exhausted** — A31 and A32 are both
+   IN-REVIEW on this box's stacked branches. The mac queue after them is C10
+   (`SynthEditLib` authority) or Jeff's workflow edit
+   ([#189](https://github.com/JeffMcClintock/TideSynth/issues/189)).
+2. **E2 wants its next child filed or its row saying none are intended** — the
+   advisory will name it every run until one of those happens; that is the
+   advisory working, not failing.
+
+**Branch/PR:** `tide/mac/A32-umbrella-advisory`, stacked on A31's branch — TideSynth only.
+
+---
+
 ## 2026-08-20 — macos — A31: the granularity was the whole design, and three measurements chose it
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present
