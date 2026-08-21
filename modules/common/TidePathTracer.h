@@ -837,12 +837,41 @@ enum class RenderMode : uint8_t
 	Fast,
 };
 
+// The reconstruction filter: how a pixel's samples are placed around it, which
+// is what decides how the image RESOLVES — the one quality axis that more
+// samples cannot buy back.
+//
+// Implemented as FILTER IMPORTANCE SAMPLING: the sub-pixel offset is drawn from
+// the filter's own distribution, so every sample still lands wholly in its own
+// pixel with weight one. That is chosen over the textbook splat-into-neighbours
+// because it keeps the two properties this renderer is built on — pixels stay
+// independent (no cross-tile accumulation, no atomics) and the per-pixel seed
+// keeps the image deterministic. The price is slightly more variance than
+// weighted splatting, paid for by the sample counts already in use.
+enum class PixelFilter : uint8_t
+{
+	// Uniform over the pixel square. Crunchiest edges; kept for comparison and
+	// for anyone who prefers the old look.
+	Box,
+
+	// Triangle over ±1 pixel. The workhorse: visibly cleaner edges and gradient
+	// noise than Box at identical sample counts, with no visible softening at
+	// the sizes this renderer targets. The default.
+	Tent,
+
+	// A truncated Gaussian (sigma 0.45px, clamped at 1.25px). Smoothest
+	// possible resolve, a whisker softer than Tent — the hero-render filter.
+	Gaussian,
+};
+
 struct Settings
 {
 	int width = 256;
 	int height = 256;
 
 	RenderMode mode = RenderMode::Full;
+
+	PixelFilter filter = PixelFilter::Tent;
 
 	// Sub-pixel grid per axis in Fast mode — 2 means 2x2 = 4 rays per pixel,
 	// purely for antialiasing. It is a fixed grid rather than jittered samples
@@ -873,6 +902,26 @@ struct Settings
 	// percent of missing energy. Raise it if caustics look weak; 0 disables.
 	float clampRadiance = 12.0f;
 
+	// The bounce at which Russian roulette may start killing dim paths. Ending
+	// paths early is unbiased ON AVERAGE but trades it for variance exactly
+	// where paths are dim — the interiors of glass, the shadowed side of a
+	// bore. Raise it towards maxBounces for a cleaner (slower) render; at or
+	// above maxBounces it is effectively off.
+	int rouletteDepth = 3;
+
+	// Lens bloom, applied to the HDR image at the end of render(): anything
+	// brighter than `bloomThreshold` bleeds a Gaussian-ish halo, scaled by
+	// `bloomStrength` (0 disables, ~0.06 is photographic). It is a LENS
+	// artefact, not light transport, which is why it is a post-pass and not a
+	// BSDF — real optics scatter a little of every bright source, and its
+	// absence is one of the stronger CG "tells". Where the halo spills past the
+	// silhouette it raises alpha with itself, so a composited glow survives
+	// premultiplied output instead of being clipped to the coverage it
+	// outshines. Progressive callers: render() applies it only on the complete
+	// image, so apply applyBloom() yourself after the final batch.
+	float bloomStrength = 0.0f;
+	float bloomThreshold = 1.0f;
+
 	uint32_t seed = 0x9E3779B9u;
 
 	// 0 means "use the hardware concurrency". Tiles are independent and each
@@ -881,6 +930,49 @@ struct Settings
 	// diffable, which matters when the output is committed as a cached asset.
 	int threads = 0;
 };
+
+// ---------------------------------------------------------------------------
+// The quality ladder
+//
+// Settings gives every knob; this gives the three or four positions anyone
+// actually wants, tuned as a SET — sample count, clamp, roulette depth, filter
+// and bounce budget move together, because half of them trade against the other
+// half. It exists so a consumer says how good, not how.
+// ---------------------------------------------------------------------------
+
+enum class Quality : uint8_t
+{
+	// RenderMode::Fast: geometry only, milliseconds. The interactive preview.
+	Draft,
+
+	// The product's working quality — the faceplate you normally see. Same
+	// budget the shipped panels have always used (128 paths tapering with
+	// area, 8 bounces).
+	Standard,
+
+	// The product's "this bitmap is worth staring at" quality: 4x the paths,
+	// roulette pushed back, a softer clamp. Roughly 1 second for a knob-sized
+	// bitmap — background-render territory, not interactive.
+	High,
+
+	// Marketing. No taper (a 4K hero frame gets the full count everywhere), no
+	// radiance clamp — every caustic keeps its energy, paid for in samples —
+	// roulette effectively off, Gaussian filter, bloom on. Minutes to hours;
+	// nothing in the product should ever ask for it implicitly.
+	Ultra,
+};
+
+// Paths per pixel for a Full render this many pixels big: `base` at or below
+// `referencePixels`, tapering by sqrt of the area ratio beyond it, never below
+// `floor`. The taper keeps the COST of a render roughly proportional to its
+// width instead of its area, which is what makes big panels affordable in the
+// product; a hero render should bypass it (Ultra does).
+int samplesFor(int width, int height, int base = 128, int floor = 64,
+	int referencePixels = 96 * 760);
+
+// The ladder's whole point: a complete Settings from a quality and a size.
+// Tweak the result afterwards if a field needs overriding.
+Settings qualitySettings(Quality quality, int width, int height);
 
 // ---------------------------------------------------------------------------
 // Output
@@ -917,6 +1009,27 @@ struct Image
 
 Image render(const Scene& scene, const Camera& camera, const Settings& settings);
 
+// Render paths [sampleBegin, sampleEnd) per pixel into `image`, which already
+// holds the average of [0, sampleBegin). Because every sample is seeded from
+// its pixel and INDEX, batches compose exactly: [0,64) then [64,128) is
+// bit-identical to [0,128) in one call — so a consumer can show a usable image
+// after the first batch and refine it in place, paying nothing for the
+// interruptions. render() itself is one call to this.
+//
+// Contract: keep settings identical across batches — samplesPerPixel included,
+// since it anchors the stratification grid; it is fine for sampleEnd to run
+// past it (the overflow is plain jittered). At sampleBegin 0 the image is
+// (re)sized and cleared; after it, passing a different image is undefined. Fast
+// mode renders whole on the first batch and ignores the rest. Bloom is NOT
+// applied here — call applyBloom() after the final batch.
+void renderProgressive(const Scene& scene, const Camera& camera, const Settings& settings,
+	Image& image, int sampleBegin, int sampleEnd);
+
+// The bloom post-pass on a finished HDR image; render() calls it when
+// bloomStrength > 0, progressive callers do it themselves. See
+// Settings::bloomStrength for what it is and why alpha rises with it.
+void applyBloom(Image& image, float strength, float threshold);
+
 // Byte order of the destination. GMPI hands back BGRA on Windows and RGBA on
 // macOS from the same call, so this is a run-time property of the target
 // bitmap, not a compile-time one (TiDEPanelGui.cpp reads it from
@@ -936,6 +1049,15 @@ enum class PixelOrder : uint8_t { Rgba, Bgra };
 // effectively "no tone mapping, just clip", which is what you want if the
 // bitmap has to colour-match a flat UI palette exactly.
 void writePixels(const Image& image, uint8_t* dst, int32_t bytesPerRow,
+	PixelOrder order, bool premultiply, float exposure = 1.0f, float whitePoint = 4.0f);
+
+// The 16-bit sibling, same pipeline to the last step: tone map, exact sRGB
+// encode, then quantise to 65535 instead of 255. sRGB-encoded 16-bit is the
+// GRADING format — the encode packs the precision where the eye lives, and
+// 16 bits of it survive any curve an editor applies where 8 would band. (It is
+// not HDR: values above the tone-mapped shoulder still roll off. bytesPerRow is
+// still BYTES.)
+void writePixels16(const Image& image, uint16_t* dst, int32_t bytesPerRow,
 	PixelOrder order, bool premultiply, float exposure = 1.0f, float whitePoint = 4.0f);
 
 }
