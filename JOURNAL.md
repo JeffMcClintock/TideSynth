@@ -74,6 +74,47 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — S33 filed: a live defect was sitting on a closed row
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing · two other agents active (linux, renderer)
+
+**Did:** gave the `setBlob` stub its own row. It was found while answering E11
+and recorded on **E6** — which I had already flipped to DONE hours earlier. **A
+live defect on a closed row is invisible**, which is precisely the failure A32
+exists to name, so this is me walking into the trap I filed a lint for.
+
+The finding itself is unchanged and is restated on S33: `setBlob`
+(`processor_holder.h:135`) has its one assignment commented out and returns
+`true`; `value_` is written only at construction; two callers branch on that
+`true`, and `onQueMessageReady` reads a payload into a local vector, calls the
+stub, then sends a **zero-length** blob event — discarding the bytes it just
+read.
+
+**A31's habit ran first and earned its keep again:** the backlog already had
+**S31 and S32** filed by the linux box while I was working, so the next free id
+was not the one I would have guessed, and a live row (**E9**) already cites
+`processor_holder` — different lines, different subject, so not a duplicate.
+Re-checked against a freshly fetched `origin/main` immediately before
+committing, per the id-collision rule.
+
+**Learned:**
+
+1. **Recording a finding on a row you are about to close loses it.** The
+   sequence was innocent — flip E6 DONE in a bookkeeping pass, discover the
+   root cause hours later, add it to the row that already described the
+   symptom. Nothing warns you, and A32's advisory only looks at umbrella rows
+   with closed children, not at closed rows carrying new text.
+2. **Two other agents were filing ids concurrently.** The gap between reading
+   the highest id and committing is where collisions live; fetching again
+   immediately before the commit is the whole mitigation.
+
+**Next:** S33 is PR-GATED and wants Jeff. E11 stays WONTFIX with its reopen
+trigger pointing at exactly this row.
+
+**Branch/PR:** `tide/mac/S33-setblob-stub` — TideSynth only, one row and this entry.
+
+---
+
 ## 2026-08-21 — linux — N1 costed: 91% of what a grep finds must not be touched
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
