@@ -616,6 +616,128 @@ int testFastCoverage()
 }
 }
 
+// ---------------------------------------------------------------------------
+// 5. Metal conserves energy (white furnace)
+// ---------------------------------------------------------------------------
+//
+// Enclose a white metal sphere in a shell that emits radiance 1 in every
+// direction, and put nothing else in the scene. A lossless BRDF returns exactly
+// the light it receives, so the sphere must VANISH into the background — read
+// anything below 1.0 and that is energy the microfacet model threw away.
+//
+// Single-scattering GGX always throws some away: it traces one bounce off the
+// microsurface and discards whatever is shadowed, where a real surface bounces
+// that light again until it escapes. Measured here with the compensation
+// disabled, the loss runs from 0.2% at roughness 0.15 to 61% at roughness 0.8
+// with anisotropy — a 92%-reflective aluminium rendering at a third of its
+// brightness, which reads as grey plastic rather than as metal.
+//
+// No lights at all, so next-event estimation never runs: every photon is found
+// by BSDF sampling, and this measures the BSDF rather than the light sampler.
+// Roulette and the radiance clamp are off for the same reason — both would
+// remove energy that has nothing to do with what is being measured.
+//
+// WHY THE TOLERANCE IS ASYMMETRIC. The compensation stands an isotropic albedo
+// table in for an anisotropic pair (see multiScatterMetal), which cannot be
+// exact; it is fitted to err slightly BRIGHT rather than dark, because a metal
+// that is 3% too bright still reads as metal and one that is 30% too dark does
+// not. The ceiling is therefore looser than the floor, deliberately.
+double furnaceAlbedo(float roughness, float anisotropy)
+{
+	Scene scene;
+
+	// Radius 60, not the 20 that first suggested itself: an ORTHOGRAPHIC camera
+	// pushes its ray origins back by nearPullback (20) from a camera at z = 6,
+	// so a 20-unit shell puts every ray OUTSIDE it and each one "hits" the
+	// shell at t = 0. That version measured the shell's own emission and read a
+	// perfect 1.000 even with the compensation disabled — a test that could
+	// only pass. Anything enclosing the camera has to clear the pullback.
+	Object shell;
+	shell.material = recipes::glow({ 1.0f, 1.0f, 1.0f }, 1.0f);
+	shell.unbounded = true;
+	shell.distance = [](const Vec3& p) { return 60.0f - length(p); };
+	scene.add(std::move(shell));
+
+	Object ball;
+	Material m = recipes::metal({ 0.999f, 0.999f, 0.999f }, roughness);
+	if (anisotropy > 0.0f)
+	{
+		m.anisotropy = anisotropy;
+		m.brush = BrushMode::Fixed;
+		m.brushAxis = { 1.0f, 0.0f, 0.0f };
+	}
+	ball.material = m;
+	ball.boundsCentre = { 0.0f, 0.0f, 0.0f };
+	ball.boundsRadius = 1.05f;
+	ball.distance = [](const Vec3& p) { return sdSphere(p, 1.0f); };
+	scene.add(std::move(ball));
+
+	Camera camera;
+	camera.position = { 0.0f, 0.0f, 6.0f };
+	camera.target = { 0.0f, 0.0f, 0.0f };
+	camera.filmWidth = 3.0f;
+
+	Settings settings;
+	settings.width = 64;
+	settings.height = 64;
+	settings.samplesPerPixel = 192;
+	settings.maxBounces = 32;      // let the light bounce its way out honestly
+	settings.clampRadiance = 0.0f; // no clamp: energy is the measurement
+	settings.rouletteDepth = 32;   // and no roulette truncation either
+
+	const Image image = render(scene, camera, settings);
+
+	// A disc well inside the silhouette. The sphere is 1 world unit in a 3-unit
+	// film, so it spans about 21 px of 64; sampling the middle 12 keeps the
+	// edge pixels — which are part background — out of the average.
+	double sum = 0.0;
+	int count = 0;
+	const float cx = image.width * 0.5f;
+	const float cy = image.height * 0.5f;
+	for (int y = 0; y < image.height; ++y)
+	{
+		for (int x = 0; x < image.width; ++x)
+		{
+			const float dx = (float)x + 0.5f - cx;
+			const float dy = (float)y + 0.5f - cy;
+			if (dx * dx + dy * dy > 12.0f * 12.0f)
+				continue;
+
+			const Vec3 c = image.pixel(x, y);
+			sum += ((double)c.x + (double)c.y + (double)c.z) / 3.0;
+			++count;
+		}
+	}
+
+	return count ? (sum / (double)count) : 0.0;
+}
+
+int testEnergyConservation()
+{
+	int failures = 0;
+
+	struct Case { float roughness; float anisotropy; };
+	const Case cases[] = {
+		{ 0.15f, 0.0f }, { 0.45f, 0.0f }, { 0.80f, 0.0f },
+		{ 0.15f, 0.85f }, { 0.45f, 0.85f }, { 0.80f, 0.85f },
+	};
+
+	for (const Case& c : cases)
+	{
+		const double albedo = furnaceAlbedo(c.roughness, c.anisotropy);
+
+		// Floor 0.97: below this the compensation is failing to do its job.
+		// Ceiling 1.06: above it the isotropic stand-in has overshot far
+		// enough to be worth knowing about.
+		const bool ok = albedo > 0.97 && albedo < 1.06;
+		failures += check(ok, "white furnace returns its light",
+			text("roughness %.2f aniso %.2f -> %.4f", (double)c.roughness,
+				(double)c.anisotropy, albedo));
+	}
+
+	return failures;
+}
+
 int main()
 {
 	std::printf("tide_render_unit\n\n");
@@ -625,6 +747,7 @@ int main()
 	failures += testBloom();
 	failures += testQualityLadder();
 	failures += testFastCoverage();
+	failures += testEnergyConservation();
 
 	if (failures == 0)
 	{

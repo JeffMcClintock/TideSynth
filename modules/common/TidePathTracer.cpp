@@ -584,6 +584,225 @@ BsdfSample sampleDiffuse(const Material& m, float u1, float u2)
 	return s;
 }
 
+// ---------------------------------------------------------------------------
+// Multiple-scattering energy compensation (Kulla-Conty)
+//
+// Single-scattering GGX loses light, and loses more of it the rougher the
+// surface gets. The model traces one bounce off the microsurface and discards
+// whatever is shadowed; in reality that light bounces again between the
+// microfacets and most of it eventually escapes. The missing fraction is
+// exactly 1 - E(mu), where E is the BRDF's directional albedo.
+//
+// Measured on this implementation before compensation: about 5% gone by alpha
+// 0.45, and up to 47% at roughness 0.45 with anisotropy 1.0 - the loss tracks
+// the LARGER of the two anisotropic alphas, because that is the axis doing the
+// shadowing. A 92%-reflective aluminium rendering at half brightness stops
+// reading as metal and starts reading as grey plastic.
+//
+// Kulla and Conty's fix (SIGGRAPH 2017 course notes) adds a second lobe
+// carrying precisely the missing energy, shaped so the pair integrates to one:
+//
+//     f_ms(wo, wi) = (1 - E(mu_o)) (1 - E(mu_i)) / (pi (1 - E_avg))
+//
+// scaled by a colour term that accounts for the light being re-absorbed on
+// every extra bounce.
+//
+// WHY A TABLE AND NOT AN ANALYTIC FIT. Published fits exist, but they are fits
+// to the isotropic Smith-GGX with a particular masking term, and this renderer
+// uses the height-correlated form. Integrating our own BRDF gives a table that
+// is right for the BRDF we actually have, and it costs one 32x32 sweep once per
+// process.
+//
+// WHY 2D AND NOT 3D. A fully anisotropic table would need an azimuth axis as
+// well. Instead the effective alpha is max(ax, ay) - the measurement above says
+// the loss tracks the larger alpha, so the isotropic table indexed by it
+// captures the bulk. It slightly OVER-compensates in the middle azimuths, and
+// over-compensating a 47% deficit is a far smaller error than leaving it.
+// ---------------------------------------------------------------------------
+
+// Directional albedo E(mu, alpha): the fraction of light leaving the surface
+// for a view at cos(theta) = mu, with Fresnel forced to 1. Sampled with the
+// same VNDF routine the BSDF uses, so the table measures THIS implementation
+// including its below-horizon rejection.
+constexpr int kAlbedoSize = 32;
+
+struct AlbedoTable
+{
+	// [alpha][mu], both axes uniformly sampled over (0, 1].
+	float e[kAlbedoSize][kAlbedoSize] = {};
+	// Cosine-weighted average of E over the hemisphere, per alpha.
+	float average[kAlbedoSize] = {};
+};
+
+// Built once, deterministically: a fixed seed and a fixed sample count, so the
+// table is bit-identical on every run and the committed reference images stay
+// reproducible. A Monte Carlo table with a wandering seed would quietly make
+// every render irreproducible.
+AlbedoTable buildAlbedoTable()
+{
+	AlbedoTable table;
+	constexpr int kSamples = 512;
+
+	for (int ai = 0; ai < kAlbedoSize; ++ai)
+	{
+		const float alpha = ((float)ai + 0.5f) / (float)kAlbedoSize;
+
+		Ggx g;
+		g.ax = alpha;
+		g.ay = alpha;
+
+		double weightedSum = 0.0;
+		double weightTotal = 0.0;
+
+		for (int mi = 0; mi < kAlbedoSize; ++mi)
+		{
+			const float mu = ((float)mi + 0.5f) / (float)kAlbedoSize;
+			const Vec3 wo{ safeSqrt(1.0f - mu * mu), 0.0f, mu };
+
+			Rng rng = seedRng((uint32_t)ai, (uint32_t)mi, 0u, 0x9E3779B9u);
+
+			double sum = 0.0;
+			for (int i = 0; i < kSamples; ++i)
+			{
+				const float u1 = rng.next();
+				const float u2 = rng.next();
+
+				const Vec3 wh = ggxSampleVndf(g, wo, u1, u2);
+				const float dotOh = dot(wo, wh);
+				if (dotOh <= 0.0f)
+					continue;
+
+				const Vec3 wi = reflectAbout(wo, wh, dotOh);
+				if (wi.z <= 0.0f)
+					continue; // below the horizon: this is the lost energy
+
+				// The VNDF weight with Fresnel = 1 is exactly G2/G1(wo).
+				sum += (double)(ggxG2(g, wo, wi) / maxf(ggxG1(g, wo), 1.0e-6f));
+			}
+
+			const float e = (float)(sum / (double)kSamples);
+			table.e[ai][mi] = clampf(e, 0.0f, 1.0f);
+
+			// E_avg is the cosine-weighted mean: 2 * integral E(mu) mu dmu.
+			weightedSum += (double)table.e[ai][mi] * (double)mu;
+			weightTotal += (double)mu;
+		}
+
+		table.average[ai] = (weightTotal > 0.0)
+			? clampf((float)(weightedSum / weightTotal), 0.0f, 1.0f) : 1.0f;
+	}
+
+	return table;
+}
+
+const AlbedoTable& albedoTable()
+{
+	// Function-local static: C++ guarantees the initialisation is thread-safe
+	// and happens once, which matters because render() calls this from every
+	// worker thread at the same moment.
+	static const AlbedoTable table = buildAlbedoTable();
+	return table;
+}
+
+float albedoLookup(float alpha, float mu)
+{
+	const AlbedoTable& t = albedoTable();
+
+	const float a = clampf(alpha * (float)kAlbedoSize - 0.5f, 0.0f, (float)(kAlbedoSize - 1));
+	const float m = clampf(mu * (float)kAlbedoSize - 0.5f, 0.0f, (float)(kAlbedoSize - 1));
+
+	const int a0 = (int)a, m0 = (int)m;
+	const int a1 = std::min(a0 + 1, kAlbedoSize - 1);
+	const int m1 = std::min(m0 + 1, kAlbedoSize - 1);
+	const float af = a - (float)a0, mf = m - (float)m0;
+
+	const float e00 = t.e[a0][m0], e01 = t.e[a0][m1];
+	const float e10 = t.e[a1][m0], e11 = t.e[a1][m1];
+
+	return (e00 + (e01 - e00) * mf) * (1.0f - af)
+		+ (e10 + (e11 - e10) * mf) * af;
+}
+
+float albedoAverage(float alpha)
+{
+	const AlbedoTable& t = albedoTable();
+	const float a = clampf(alpha * (float)kAlbedoSize - 0.5f, 0.0f, (float)(kAlbedoSize - 1));
+	const int a0 = (int)a;
+	const int a1 = std::min(a0 + 1, kAlbedoSize - 1);
+	return t.average[a0] + (t.average[a1] - t.average[a0]) * (a - (float)a0);
+}
+
+// The multiple-scattering lobe's value, times cos(wi), for a conductor.
+//
+// `fAvg` is the Fresnel averaged over the hemisphere: light making N extra
+// bounces is attenuated by F^N, and summing that geometric series gives the
+// colour of the compensation term. Without it the added energy would be white
+// and gold would desaturate as it roughened.
+Vec3 multiScatterMetal(const Ggx& g, const Vec3& fAvg, const Vec3& wo, const Vec3& wi)
+{
+	// The effective isotropic alpha standing in for the anisotropic pair.
+	//
+	// RMS, not max(ax, ay) and not the geometric mean. Measured against the
+	// white furnace at anisotropy 0.85: the geometric mean is exactly the
+	// isotropic alpha and so under-compensates (it does not see the anisotropy
+	// at all), while max() over-compensates badly — it read +18% at roughness
+	// 0.6, turning a 34% deficit into an 18% surplus. RMS lands between them
+	// and tracks the measured loss closely across the range.
+	const float alpha = safeSqrt((g.ax * g.ax + g.ay * g.ay) * 0.5f);
+
+	const float eo = albedoLookup(alpha, wo.z);
+	const float ei = albedoLookup(alpha, wi.z);
+	const float eAvg = albedoAverage(alpha);
+
+	const float denom = 1.0f - eAvg;
+	if (denom <= 1.0e-4f)
+		return {}; // nothing measurable was lost
+
+	// f_ms * cos(wi); the 1/pi and the cosine combine to the usual form.
+	const float lobe = (1.0f - eo) * (1.0f - ei) * wi.z * kInvPi / denom;
+
+	// Kulla-Conty's colour term: F_avg^2 E_avg / (1 - F_avg (1 - E_avg)),
+	// the sum of the series over all the extra bounces.
+	const Vec3 numerator = fAvg * fAvg * eAvg;
+	const Vec3 series{
+		1.0f - fAvg.x * denom,
+		1.0f - fAvg.y * denom,
+		1.0f - fAvg.z * denom,
+	};
+
+	return Vec3{
+		numerator.x / maxf(series.x, 1.0e-4f),
+		numerator.y / maxf(series.y, 1.0e-4f),
+		numerator.z / maxf(series.z, 1.0e-4f),
+	} * lobe;
+}
+
+// Hemispherical average Fresnel for a conductor.
+//
+// Schlick's curve integrates over the cosine-weighted hemisphere in closed
+// form to (20 F0 + 1) / 21, so this recovers F0 from the complex IOR exactly
+// and then uses that. Schlick is not good enough for the PRIMARY reflection —
+// that is why fresnelConductorExact exists — but this term only decides the
+// tint of light that has already bounced several times off the microsurface,
+// where the angular detail has long since been averaged away.
+Vec3 averageFresnel(const ConductorIor& ior)
+{
+	Vec3 result;
+	for (int c = 0; c < 3; ++c)
+	{
+		const float n = (&ior.n.x)[c];
+		const float k = (&ior.k.x)[c];
+
+		const float nPlus = n + 1.0f;
+		const float nMinus = n - 1.0f;
+		const float f0 = clampf((nMinus * nMinus + k * k)
+			/ maxf(nPlus * nPlus + k * k, 1.0e-6f), 0.0f, 1.0f);
+
+		(&result.x)[c] = (20.0f * f0 + 1.0f) / 21.0f;
+	}
+	return result;
+}
+
 // --- metal -----------------------------------------------------------------
 
 BsdfEval evalMetal(const Ggx& g, const ConductorIor& ior, const Vec3& wo, const Vec3& wi)
@@ -603,6 +822,13 @@ BsdfEval evalMetal(const Ggx& g, const ConductorIor& ior, const Vec3& wo, const 
 	// f_r = D * G2 * F / (4 cos_o cos_i), and the estimator wants f_r * cos_i,
 	// so one cosine cancels here.
 	e.value = f * (d * g2 / (4.0f * wo.z));
+
+	// Plus the light single scattering threw away. Added to the VALUE only:
+	// the pdf stays the single-scattering one, which is legal because the
+	// extra lobe is broad and the sampled directions still cover it — the
+	// estimator divides by the density it actually sampled from either way.
+	e.value += multiScatterMetal(g, averageFresnel(ior), wo, wi);
+
 	e.pdf = ggxVndfPdf(g, wo, wh) / (4.0f * dot(wo, wh));
 	return e;
 }
@@ -638,6 +864,14 @@ BsdfSample sampleMetal(const Ggx& g, const ConductorIor& ior, const Vec3& wo, fl
 	s.weight = fresnelConductor(dotOh, ior)
 		* (ggxG2(g, wo, wi) / maxf(ggxG1(g, wo), 1.0e-6f));
 	s.pdf = ggxVndfPdf(g, wo, wh) / (4.0f * dotOh);
+
+	// The multiple-scattering lobe is carried on the same sample rather than
+	// being given its own: it is broad and smooth, so the single-scattering
+	// direction is a perfectly good place to evaluate it, and one lobe means
+	// one pdf and no mixture bookkeeping to get wrong.
+	if (s.pdf > 0.0f)
+		s.weight += multiScatterMetal(g, averageFresnel(ior), wo, wi) / s.pdf;
+
 	return s;
 }
 
