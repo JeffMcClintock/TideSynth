@@ -258,6 +258,25 @@ constexpr float kMaxTraceScale = 4.0f;
 // it, and still a legitimate stand-in afterwards.
 constexpr float kMinTraceScale = 1.0f;
 
+// BELOW THIS DEVICE SCALE THE PANEL DOES NOT TRACE AT ALL -- it draws flat
+// grey and waits to be asked again bigger. THUMBNAILS SHOULD BE INSTANT.
+//
+// SynthEdit's breadcrumb bar renders each container into a tile, and a panel
+// lands in it at device scale 0.25: a 1-unit faceplate is then twelve pixels
+// wide. Everything the tracer is good at is gone at that size -- a 24 DIP jack
+// is six pixels, the brushing is below one -- so the seconds it costs buy an
+// image indistinguishable from a grey rectangle.
+//
+// 0.35 sits just above the breadcrumb's 0.25 and well below anything the main
+// view uses, so it catches thumbnails and essentially nothing else. It is a
+// floor on DETAIL, not on size: a wide panel at this scale is equally
+// unresolvable, since what matters is how many pixels a FEATURE gets.
+//
+// This never means "grey where a picture was". peek() still searches the
+// cache, so a panel already rendered at any size shows that image scaled down
+// -- which is the usual case once you have been looking at the patch.
+constexpr float kMinDetailScale = 0.35f;
+
 // AND THE SCALE IS QUANTISED, so that zooming does not mint a new render per
 // distinct float.
 //
@@ -292,13 +311,12 @@ float quantiseTraceScale(float deviceScale)
 // another. About 48 MB of float at this figure.
 constexpr size_t kTraceCachePixelBudget = 3u * 1024u * 1024u;
 
-// Paths per pixel, tapered for large panels so a 6-unit module does not take
-// six times as long as a 1-unit one. sqrt rather than linear: noise falls as
-// the square root of sample count, so halving samples on a panel with four
-// times the area keeps the visible grain about level.
-constexpr int kSamplesPerPixel = 128;
-constexpr int kMinSamplesPerPixel = 64;
-constexpr uint32_t kReferenceTracePixels = 96u * 760u; // a 1-unit panel at 2x
+// Paths per pixel and the large-panel taper now live in tide_render's quality
+// ladder (Quality::Standard is this module's old numbers verbatim: 128 paths,
+// sqrt-of-area taper past a 1-unit panel at 2x, floor 64, 8 bounces). The
+// faceplate asks for a QUALITY and the library owns what that means, so every
+// consumer of the renderer ages together instead of each carrying its own
+// copy of these constants.
 
 // The progressive preview is tide_render's RenderMode::Fast at the FULL pixel
 // size — one primary ray and an analytic shade, no light transport, tens of
@@ -1570,11 +1588,12 @@ float sdIndentTool(const Vec3& p, float centreX, float centreY, float halfW,
 
 // --- the spec-driven trace ---------------------------------------------------
 
-// `samplesPerPixel` is ignored when mode is Fast; see RenderMode in
-// TidePathTracer.h for exactly what that mode keeps and what it drops.
+// `quality` picks a rung of tide_render's ladder: Draft is the progressive
+// preview (RenderMode::Fast under the hood), Standard the faceplate's normal
+// look. See Quality in TidePathTracer.h.
 tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
-	const PanelSpec& spec, int samplesPerPixel,
-	tide::render::RenderMode mode = tide::render::RenderMode::Full)
+	const PanelSpec& spec,
+	tide::render::Quality quality = tide::render::Quality::Standard)
 {
 	using namespace tide::render;
 
@@ -2014,28 +2033,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	camera.filmWidth = 1.45f; // the plate foreshortens, so leave margin
 #endif
 
-	Settings settings;
-	settings.width = (int)pixelWidth;
-	settings.height = (int)pixelHeight;
-	settings.mode = mode;
-	settings.samplesPerPixel = samplesPerPixel;
-	settings.maxBounces = 8;
+	const Settings settings =
+		qualitySettings(quality, (int)pixelWidth, (int)pixelHeight);
 
 	return render(scene, camera, settings);
-}
-
-// Samples for a trace of this many pixels: full quality at the size a 1-unit
-// panel comes out, tapering by sqrt of the area ratio beyond that, never below
-// kMinSamplesPerPixel.
-int samplesFor(uint32_t width, uint32_t height)
-{
-	const double pixels = (double)width * (double)height;
-	if (pixels <= (double)kReferenceTracePixels)
-		return kSamplesPerPixel;
-
-	const double taper = std::sqrt((double)kReferenceTracePixels / pixels);
-	return (std::max)(kMinSamplesPerPixel,
-		(int)std::lround((double)kSamplesPerPixel * taper));
 }
 
 // The face, and how it gets made.
@@ -2089,9 +2090,10 @@ public:
 		std::shared_ptr<FaceTrace> target;   // the trace for the size asked for
 		std::shared_ptr<FaceTrace> fallback; // best render of the same panel at
 		                                     // ANOTHER size, or null
-		// How far `fallback` has to be resampled, always >= 1. The caller needs
-		// this: a stretch of a few percent is invisible, but one of six times
-		// is not, and the two deserve opposite decisions.
+		// How much `fallback` must be MAGNIFIED to fill this size. Above 1 it is
+		// being blown up and softness is the question; at or below 1 it is being
+		// reduced, which is always sharp. The caller needs the distinction: a
+		// few percent of blow-up is invisible, six times is not.
 		double fallbackStretch = 1.0;
 	};
 
@@ -2107,6 +2109,22 @@ public:
 	// layout, material and width in units are unchanged -- a stale render of a
 	// DIFFERENT panel would be showing the wrong thing, where a stale render at
 	// a different size is showing the right thing at the wrong resolution.
+	// What already exists for `key`, WITHOUT starting any work. For views too
+	// small to show detail -- see kMinDetailScale. Still consults the cache,
+	// because a render made earlier (or by an identical panel elsewhere in the
+	// patch) costs nothing to reuse and scales down beautifully.
+	Result peek(const Key& key)
+	{
+		std::unique_lock<std::mutex> lock(mutex);
+
+		Result result;
+		if (const auto it = cache.find(key); it != cache.end())
+			result.target = it->second;
+
+		result.fallback = bestFallbackLocked(key, result.target, result.fallbackStretch);
+		return result;
+	}
+
 	Result request(const Key& key, const PanelSpec& spec)
 	{
 		std::unique_lock<std::mutex> lock(mutex);
@@ -2207,10 +2225,22 @@ private:
 			if (w == 0 || h == 0 || key.width == 0 || key.height == 0)
 				continue;
 
+			// TWO different numbers, and conflating them was a bug.
+			//
+			// `score` ranks candidates by how far the size is off in EITHER
+			// direction, so the nearest one wins. `magnify` is what the caller
+			// actually has to judge: how much the image must be BLOWN UP. They
+			// differ in sign and only one of them is a quality problem --
+			// scaling a big render down is sharp, always. Ranking on the
+			// symmetric number and then thresholding on it too meant a panel
+			// already rendered large was rejected as "stretched 3x" when it was
+			// really being reduced 3x, which is exactly the case a thumbnail
+			// hits, and it drew flat grey with a perfect image in hand.
 			const double sx = (double)w / (double)key.width;
 			const double sy = (double)h / (double)key.height;
 			const double score = (std::max)(sx < 1.0 ? 1.0 / sx : sx,
 				sy < 1.0 ? 1.0 / sy : sy);
+			const double magnify = (std::max)(1.0 / sx, 1.0 / sy);
 
 			if (!best || stage > bestStage
 				|| (stage == bestStage && score < bestScore))
@@ -2218,10 +2248,9 @@ private:
 				best = entry.second;
 				bestStage = stage;
 				bestScore = score;
+				stretchOut = magnify;
 			}
 		}
-		if (best)
-			stretchOut = bestScore;
 
 		// A trace can outlive the cache: eviction never drops lastUsable, but
 		// belt and braces if that ever changes.
@@ -2313,8 +2342,7 @@ private:
 				trace->previewHeight = key.height;
 				const double previewT0 = TIDE_LOG_NOW;
 				trace->preview = traceFaceplate(trace->previewWidth, trace->previewHeight,
-					spec, /*samplesPerPixel, ignored in Fast*/ 1,
-					tide::render::RenderMode::Fast);
+					spec, tide::render::Quality::Draft);
 				trace->stage.store(1, std::memory_order_release);
 				TIDE_LOG("PREVIEW  ready %ux%u  traced in %.0f ms",
 					trace->previewWidth, trace->previewHeight,
@@ -2370,12 +2398,11 @@ private:
 			trace->fullWidth = key.width;
 			trace->fullHeight = key.height;
 			const double fullT0 = TIDE_LOG_NOW;
-			trace->full = traceFaceplate(key.width, key.height, spec,
-				samplesFor(key.width, key.height));
+			trace->full = traceFaceplate(key.width, key.height, spec);
 			trace->stage.store(2, std::memory_order_release);
 			TIDE_LOG("FULL     ready %ux%u  traced in %.0f ms at %d spp",
 				key.width, key.height, TIDE_LOG_NOW - fullT0,
-				samplesFor(key.width, key.height));
+				tide::render::samplesFor((int)key.width, (int)key.height));
 
 			// Becomes the stand-in every later size of this same panel gets to
 			// show while its own trace runs.
@@ -2892,7 +2919,13 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 			// plus the best other render to show in the meantime. Asked for at
 			// once, so the preview starts now; the worker is what waits before
 			// the expensive stage.
-			const auto result = faceRenderer().request(wanted, buildSpec());
+			//
+			// Too small to show detail (a thumbnail) asks for NOTHING and takes
+			// whatever the cache already holds -- see kMinDetailScale.
+			const bool detailWorthTracing = deviceScale >= kMinDetailScale;
+			const auto result = detailWorthTracing
+				? faceRenderer().request(wanted, buildSpec())
+				: faceRenderer().peek(wanted);
 			faceTrace = result.target;
 			faceFallback = result.fallback;
 			faceFallbackStretch = result.fallbackStretch;
@@ -3102,7 +3135,11 @@ public:
 			g.fillRoundedRectangle(RoundedRect{ panelRect, radius, radius }, brush);
 		}
 
-		if (faceTraceStage < 2 && !timerRunning)
+		// Poll only while something is actually coming. A thumbnail-sized view
+		// asked for nothing (kMinDetailScale) and so has no trace at all;
+		// without this test its stage of 0 reads as "not finished yet" and the
+		// panel would poll forever for work nobody started.
+		if (faceTrace && faceTraceStage < 2 && !timerRunning)
 		{
 			startTimer(kPollMs);
 			timerRunning = true;
