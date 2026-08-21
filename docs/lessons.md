@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**linux — R4: the tarball, and the CLAP's resources have nowhere to live**
+
+- Verify a two-repo fix from the shared branch, not from the branch that made it.
+- "Where does this format keep its data?" is a packaging question with a different answer per format.
+- A bare `.so` plugin format has no namespace
+- Check for a validator before promising verification.
+
 **windows — R2: the Windows installer, and the payload it must carry is not the file the build emits**
 
 - A packaging script's real job is deciding what the shipped layout IS, not copying a build tree into a zip.
@@ -115,27 +122,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `LNK1201` names disk space, privilege and path, and means none of them.
 - Configure twice and diff the generated build system.
 - A build that does not install is a measurement trap.
-
-## 2026-08-21
-
-**macos — R3: the pkg builds, and productbuild would have shipped it to the wrong hardware**
-
-- A packaging tool's defaults describe the tool, not your payload.
-- When a row names two payloads, confirm both exist before starting.
-
-**macos — S29's coverage-hole fix, rebuilt clean after the branch went stale**
-
-- An unpushed branch decays the moment other agents keep merging.
-
-**macos — the release track was free for three days and the backlog said otherwise**
-
-- A blocked row is never obviously wrong, so nothing ever re-reads it.
-- "Unblock the section" is not the same as "unblock every row in it."
-
-**macos — N1a: the rename shipped, and it silently unlinked half the build first**
-
-- A guard that makes missing work silent turns a rename into a downgrade.
-- When the old artifact is still installed and shares an ID, matching numbers are not evidence.
 
 ## 2026-08-18
 
@@ -1414,3 +1400,22 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `error 4` vs `error 5` separates a null dereference from a wild read
 - Grep the tree for your own crash signature before theorising.
 - A dead end closed with evidence is worth more than a lead kept alive on hope.
+
+**macos — N1a: the rename shipped, and it silently unlinked half the build first**
+
+- A guard that makes missing work silent turns a rename into a downgrade.
+- When the old artifact is still installed and shares an ID, matching numbers are not evidence.
+
+**macos — the release track was free for three days and the backlog said otherwise**
+
+- A blocked row is never obviously wrong, so nothing ever re-reads it.
+- "Unblock the section" is not the same as "unblock every row in it."
+
+**macos — S29's coverage-hole fix, rebuilt clean after the branch went stale**
+
+- An unpushed branch decays the moment other agents keep merging.
+
+**macos — R3: the pkg builds, and productbuild would have shipped it to the wrong hardware**
+
+- A packaging tool's defaults describe the tool, not your payload.
+- When a row names two payloads, confirm both exist before starting.

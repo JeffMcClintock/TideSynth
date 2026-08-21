@@ -109,6 +109,97 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — linux — R4: the tarball, and the CLAP's resources have nowhere to live
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Did:** synced all five repos, confirmed **#271 is genuinely fixed on `main`**,
+then took **R4** — the Linux tarball — and filed the one thing it cannot solve.
+
+### #271 closed, checked from `main` rather than from my own branches
+
+Both halves merged (GMPI#6 + #274), and the split-brain risk was the whole point
+of that pairing, so I re-checked from a **clean configure and build of `main`**.
+TIDE tracks GMPI by `GIT_TAG origin/main`, so a fresh configure fetches the fix:
+
+```
+TIDE-Rack.vst3/Contents/x86_64-linux/TIDE-Rack.so
+TIDE-Rack.vst3/Contents/Resources/…            (no stray TIDE_Rack_VST3.vst3)
+[Info]: Found Plugin: TIDE Rack   uid=506C7567696E474D504920501951ED43
+```
+
+One bundle, and Ardour loads it. Closed.
+
+### R4: the tarball
+
+`scripts/package-linux.sh` → `TIDE-Rack-Linux.tar.gz`, 5.7 MB, 32 entries, no
+spaces and no underscored shipped names (docs/distribution.md's rule, which
+exists because a space is `%20` in a permalink R6 promises never to change).
+
+**Verified by installing it, not by listing it:** untar into a scratch `HOME`,
+run `install.sh`, and Ardour's scanner finds the *installed* plugin at
+`~/.vst3/TIDE-Rack.vst3` with all six prefabs present. `install.sh` writes
+nothing outside `HOME`, needs no root, honours `VST3_DIR`/`CLAP_DIR` and is
+re-runnable.
+
+### The finding: a Linux CLAP has nowhere to put its data
+
+A Linux CLAP is a **bare shared object**, not a bundle directory — `gmpi_plugin.cmake`
+says so in as many words. So it carries no resources, and
+`BundleInfo::getBundleContentsFolder()` walks the module path for a `Contents`
+element and **falls back to `parent_path()`**. The lookup therefore lands beside
+the `.so`: **`~/.clap/Resources`, shared with every other CLAP installed the same
+way.**
+
+Confirmed it actually needs them rather than assuming: `TIDE-Rack.clap` contains
+the same `no Prefabs folder in bundle resources` and `%s missing from bundle
+resources` strings the VST3 does, and ships none itself — 7.6 MB against the
+VST3 bundle's 8.7 MB, the difference being the 160 KB `Resources`.
+
+**R4 ships it anyway**, because the alternative is an empty rack module browser —
+the S21 failure — and the `README.txt` documents the folder and offers a
+VST3-only install. The design problem is **S37**, with three options costed.
+
+**And the CLAP is packaged but never loaded**, because there is no CLAP host on
+this box: `clap-validator` and `clap-info` absent, and Ardour 8.4 has **no** CLAP
+support (`strings libardour.so.3` finds no `clap_entry`). All three checked, not
+assumed — which is the habit yesterday's Ardour correction was supposed to teach
+me.
+
+**Learned:**
+
+1. **Verify a two-repo fix from the shared branch, not from the branch that made
+   it.** Both halves merging is not the same as both halves reaching a consumer;
+   TIDE fetches GMPI by moving tag, so only a clean configure proves it.
+2. **"Where does this format keep its data?" is a packaging question with a
+   different answer per format.** The VST3 is self-contained and the CLAP is not,
+   on the same platform, in the same build — and only the CLAP leaks into a
+   shared directory.
+3. **A bare `.so` plugin format has no namespace**, so any resource convention
+   built on `parent_path()` is shared-by-construction. Worth knowing before
+   choosing that convention for a fourth format.
+4. **Check for a validator before promising verification.** I could verify the
+   VST3 half completely and the CLAP half not at all, and the honest package is
+   one that says which is which.
+
+**Next:**
+
+1. **S37** wants a CLAP host on some box before it can be measured at all; that
+   may be its real first step.
+2. **R4's tarball is not uploaded anywhere** — R6 owns the release plumbing, and
+   this row only produces the artifact.
+3. **The audio half of v0.1 still has not been run against the renamed
+   artifacts** — `render-and-measure.py` is REAPER-specific.
+
+**Machine left clean.** All builds and installs ran in scratch trees and a fake
+`HOME`; `~/.vst3`, `~/.clap` and the developer's build tree were not written to.
+Ardour cache entries from the scans pointed into scratch trees and were removed,
+leaving his nine own entries. All five repos synced and on their default branches.
+
+**Branch/PR:** `tide/linux/R4-linux-tarball` — TideSynth only.
+
+---
+
 ## 2026-08-22 — windows — R2: the Windows installer, and the payload it must carry is not the file the build emits
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
@@ -1261,233 +1352,6 @@ that `TIDE-Rack.vst3` is now this branch's build rather than yesterday's;
 call, exactly as the previous entry left it.
 
 **Branch/PR:** `tide/mac/N1a-rename` — [#268](https://github.com/JeffMcClintock/TideSynth/pull/268), TideSynth only. One CMake block.
-
----
-
-## 2026-08-21 — macos — R3: the pkg builds, and productbuild would have shipped it to the wrong hardware
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** built the macOS pkg — [scripts/package-macos.sh](scripts/package-macos.sh)
-produces `TIDE-Rack-macOS.pkg` — and split the half of R3 that cannot be done.
-
-### Half the row was unbuildable, and checking first is what caught it
-
-R3 says *"AU → `Components`, VST3 → `VST3`"*. `SynthEditSem/CMakeLists.txt` sets
-`FORMATS_LIST GMPI VST3 STANDALONE`: **there is no AU target**, and **M1**, the
-row that would add one, is BLOCKED. Filed as **R3a**, `BLOCKED(M1)`.
-
-The script **fails** if the AU is missing rather than quietly packaging one
-plug-in where the docs promise two — a pkg that silently omits half its payload
-is worse than one that refuses to build.
-
-### The real find: productbuild lies about hardware
-
-`productbuild` writes `hostArchitectures="x86_64,arm64"` into the synthesized
-Distribution **regardless of what the payload actually contains**. TIDE is now
-arm64-only, so the pkg would have **installed happily on an Intel Mac** and the
-plug-in would then have failed to load with nothing explaining why.
-
-That is precisely the consequence R3's own row predicted this morning — *"the
-pkg will not run on an Intel Mac and nothing tells the user why"* — and it turns
-out macOS will tell them, if the pkg is honest. The script now derives
-`hostArchitectures` from `lipo` on the built binary and verifies the
-substitution landed; the shipped pkg reads `hostArchitectures="arm64"`, so the
-installer itself refuses the wrong hardware. Derived rather than hardcoded, so
-it stays correct if the ARM ruling is revisited.
-
-### Verified against the artefact, not the tool's own output
-
-- payload installs to `./Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3`, matching
-  distribution.md
-- a real `installer` run into a sandbox target: *"The install was successful"*,
-  placing a binary **byte-identical** to the build (same sha), and leaving no
-  stray receipt
-- `hostArchitectures="arm64"` read back out of the expanded pkg
-
-**Not signed, not notarized, and that is stated rather than implied.** Signing
-runs only when the two identity variables are in the environment; notarization
-(`notarytool` + `stapler`, modelled on `SynthEdit_cmake_mac.yml:223-244`)
-belongs to **R5**, which owns the secret store. The script prints which of the
-two artefacts it produced and says plainly that an unsigned pkg is not
-shippable.
-
-**Learned:**
-
-1. **A packaging tool's defaults describe the tool, not your payload.**
-   `productbuild` had no idea the binary was single-arch and cheerfully said it
-   would run anywhere. The check that caught it was reading the generated
-   Distribution rather than trusting "Wrote product to …".
-2. **When a row names two payloads, confirm both exist before starting.** Half
-   of R3 was blocked by a row nobody had connected to it, and the connection was
-   one grep of `FORMATS_LIST`.
-
-**Next:** R3a waits on M1. R5 wires notarization and is a workflow file, so
-Jeff pushes it. R2 (`win`) and R4 (`linux`) are now takeable on their boxes.
-
-**Branch/PR:** `tide/mac/R3-macos-pkg` — TideSynth only.
-
----
-
-## 2026-08-21 — macos — S29's coverage-hole fix, rebuilt clean after the branch went stale
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** re-created the `startsWith(github.head_ref, 'tide/')` correction on a
-fresh branch off current `main`, because the original never got pushed and had
-drifted 17 files behind.
-
-**#258 merged the guard without the correction.** Checked directly rather than
-assumed: `main`'s `build.yml` has the bare `if:` with no `tide/` test, so every
-branch Jeff names by hand — none of which start with `tide/` — currently gets
-**zero build coverage**: no push run (outside `on: push: branches:`), and now no
-PR run either, because the guard skips all same-repo PRs unconditionally.
-
-**The old local branch was the wrong base to push.** `git diff origin/main
-s29-close-coverage-hole --stat` showed 17 files and 1263 deletions — journal
-rotation, a deleted doc, N1a's rename, all landed separately since. Force-pushing
-that would have reverted merged work. Deleted the stale branch and rebuilt the
-one-line fix directly on today's `main`: one file, 13 lines.
-
-**Learned:**
-
-1. **An unpushed branch decays the moment other agents keep merging.** The fix
-   was correct when written; by the time I went to push it, rebasing would have
-   cost more than re-deriving it. Re-creating small, mechanical diffs from a
-   current base is cheaper than reconciling a stale one.
-
-**Next:** Jeff pushes `s29-close-coverage-hole` — one file, the fleet token
-still has no `workflow` scope.
-
-**Branch/PR:** `s29-close-coverage-hole` — workflow + row + this entry.
-
----
-
-## 2026-08-21 — macos — the release track was free for three days and the backlog said otherwise
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** unblocked **R2, R3, R4, R5**; gave **R6** a *named* blocker instead of a
-blanket one; corrected the section header that caused all of it.
-
-### The stale gate
-
-`## Release & distribution — blocked on V1 (nothing to ship yet)`. **V1 closed
-2026-08-18.** One row also said *"Needs C7"* — **C7 closed 2026-08-21**. Neither
-had been revisited, so five rows advertised a shut door that had been open for
-three days, on the one track that turns a working plugin into something a user
-can install.
-
-This is A32's failure with the polarity reversed: A32 catches rows that look
-*live* and are finished; this is rows that look *blocked* and are free. Nothing
-detects it, because a `BLOCKED` status is never wrong-looking on its own.
-
-### Four are free, and one is not — which is why I did not flip all five
-
-**R2 / R3 / R4** need an artefact and a signing identity: all three platforms
-build from a clean public clone, N1a gave the artefacts their shipped names
-(`TIDE-Rack.vst3` / `.gmpi` / `.app`), and R1 settled signing. Free.
-
-**R5**'s own named blocker was C7, now gone — but it is a
-`.github/workflows/**` file, so a run can author and verify it and **cannot push
-it**. That constraint is recorded on the row rather than discovered by the next
-taker.
-
-**R6 is genuinely not free**, and flipping it with its siblings would have been
-the lazy read. It replaces the honest *"nothing to download yet"* card with
-`releases/latest/download/<asset>` permalinks, and **those 404 until a release
-exists**. So it moves from `BLOCKED` to **`BLOCKED(R5)`** — same status, real
-information, and eligibility now lives in the status column where STEP 2 reads
-it.
-
-**Learned:**
-
-1. **A blocked row is never obviously wrong, so nothing ever re-reads it.** The
-   fleet has a lint for stale-live rows (A32) and none for stale-blocked ones,
-   and the second kind is more expensive: it hides work that could have started.
-2. **"Unblock the section" is not the same as "unblock every row in it."** Four
-   of five were free; the fifth had a real dependency the blanket status was
-   concealing. Naming the blocker is worth more than clearing it.
-
-**Next:** R3 is `mac` and now takeable here. R2 is `win`, R4 is `linux`, R5
-wants Jeff's push.
-
-**Branch/PR:** `tide/mac/R-unblock` — TideSynth only, statuses and header.
-
----
-
-## 2026-08-21 — macos — N1a: the rename shipped, and it silently unlinked half the build first
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing · linux + renderer agents also active
-
-**Did:** carried the TIDE Rack rename through the build. Shipped artifacts are
-now `TIDE-Rack.vst3` / `.gmpi` / `.app`; targets stay `TIDE_Rack` /
-`TIDE_Rack_VST3` / `TIDE_Rack_STANDALONE`.
-
-### The finding: a rename that skips work instead of failing
-
-Two loops built target names by hand — `set(_tide_target TIDE)` and
-`TIDE_${_fmt}` — instead of deriving from `PROJECT_NAME`. **Every use of
-`_tide_target` sits behind `if(TARGET ...)`**, so renaming the project did not
-break those loops, it made them **no-ops**: no `tide_render` link, no resource
-staging, no diagnostic.
-
-It surfaced only as `fatal error: 'TidePathTracer.h' file not found`, and only
-because `TiDEPanelGui.cpp` happens to include that header. **Without that
-include the build would have gone green and shipped bundles containing zero
-prefabs** — an empty module browser, which is exactly S21's failure wearing a
-different hat. All four sites now derive from `${PROJECT_NAME}`.
-
-N1a's scope list was careful and still missed these, because it searched for
-`TIDE_VST3`-shaped strings and these are the bare `TIDE`.
-
-### Checked before renaming, not after
-
-- **Identity does not move.** `id`, `name`, `vendor` come from the `<Plugin>`
-  element in `SynthEdit.cpp`, not `PROJECT_NAME` — so saved host sessions still
-  resolve. That was the one thing worth knowing before touching anything.
-- **`${PROJECT_NAME}.xml` is not in play** (no `HAS_XML`, no `TIDE.xml`), so
-  distribution.md's second warning does not apply here.
-- **The STANDALONE's bundle id does follow `PROJECT_NAME`**
-  (`com.gmpi.standalone.${PROJECT_NAME}`), so that dev tool gets a fresh
-  preferences container. Stated rather than discovered later.
-
-### The measurement, and why the first pass of it was worthless
-
-Baseline `v1-rack.rpp`: peak **−6.3 dBFS**, rms **−17.0**, 2 patch cables.
-After the rename: identical. **That proved nothing**, because the old
-`TIDE_VST3.vst3` was still installed and carries the same plugin ID — REAPER
-could have loaded either. So the old bundle was **moved aside** and the render
-repeated: same numbers with only `TIDE-Rack.vst3` present. That is the
-difference between "the numbers match" and "the artifact under test produced
-them".
-
-All five fixtures then pass in isolation — `v1-rack` −6.3/−17.0, `v1-rack-midi`
-−6.3/−17.0, `v3-midi-pitch` −6.2/−21.1, `v3-midi-gate` −6.3/−21.2, and
-`v1-rack-uncabled` **silence**, the negative control. `--control` PASSes.
-**Jeff's original bundle was restored immediately afterwards.**
-
-**Left for Jeff, deliberately:** `~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3`
-(16 Aug) is now stale — nothing produces that name any more — and sits beside
-the new bundle, so a DAW scan lists both. Deleting from his plugin folder is
-his call, not a run's.
-
-**Learned:**
-
-1. **A guard that makes missing work silent turns a rename into a downgrade.**
-   `if(TARGET x)` is the right shape for an optional format and the wrong shape
-   for a name that must exist; the same line cannot tell the two apart. Deriving
-   the name from `PROJECT_NAME` removes the question.
-2. **When the old artifact is still installed and shares an ID, matching
-   numbers are not evidence.** Moving it aside cost one minute and converted a
-   plausible result into a proof.
-
-**Next:**
-
-1. N1's remaining buckets (B and C) are untouched — this was bucket A only.
-2. The stale installed bundle wants Jeff's decision.
-
-**Branch/PR:** `tide/mac/N1a-rename` — TideSynth only.
 
 ---
 
