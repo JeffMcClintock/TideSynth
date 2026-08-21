@@ -74,6 +74,59 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — the release track was free for three days and the backlog said otherwise
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** unblocked **R2, R3, R4, R5**; gave **R6** a *named* blocker instead of a
+blanket one; corrected the section header that caused all of it.
+
+### The stale gate
+
+`## Release & distribution — blocked on V1 (nothing to ship yet)`. **V1 closed
+2026-08-18.** One row also said *"Needs C7"* — **C7 closed 2026-08-21**. Neither
+had been revisited, so five rows advertised a shut door that had been open for
+three days, on the one track that turns a working plugin into something a user
+can install.
+
+This is A32's failure with the polarity reversed: A32 catches rows that look
+*live* and are finished; this is rows that look *blocked* and are free. Nothing
+detects it, because a `BLOCKED` status is never wrong-looking on its own.
+
+### Four are free, and one is not — which is why I did not flip all five
+
+**R2 / R3 / R4** need an artefact and a signing identity: all three platforms
+build from a clean public clone, N1a gave the artefacts their shipped names
+(`TIDE-Rack.vst3` / `.gmpi` / `.app`), and R1 settled signing. Free.
+
+**R5**'s own named blocker was C7, now gone — but it is a
+`.github/workflows/**` file, so a run can author and verify it and **cannot push
+it**. That constraint is recorded on the row rather than discovered by the next
+taker.
+
+**R6 is genuinely not free**, and flipping it with its siblings would have been
+the lazy read. It replaces the honest *"nothing to download yet"* card with
+`releases/latest/download/<asset>` permalinks, and **those 404 until a release
+exists**. So it moves from `BLOCKED` to **`BLOCKED(R5)`** — same status, real
+information, and eligibility now lives in the status column where STEP 2 reads
+it.
+
+**Learned:**
+
+1. **A blocked row is never obviously wrong, so nothing ever re-reads it.** The
+   fleet has a lint for stale-live rows (A32) and none for stale-blocked ones,
+   and the second kind is more expensive: it hides work that could have started.
+2. **"Unblock the section" is not the same as "unblock every row in it."** Four
+   of five were free; the fifth had a real dependency the blanket status was
+   concealing. Naming the blocker is worth more than clearing it.
+
+**Next:** R3 is `mac` and now takeable here. R2 is `win`, R4 is `linux`, R5
+wants Jeff's push.
+
+**Branch/PR:** `tide/mac/R-unblock` — TideSynth only, statuses and header.
+
+---
+
 ## 2026-08-22 — macos — N1a: OUTPUT_NAME renamed three things, and only one of them had an extension
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
