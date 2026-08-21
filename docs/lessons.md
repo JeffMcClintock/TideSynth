@@ -48,6 +48,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Grep the tree for your own crash signature before theorising.
 - A dead end closed with evidence is worth more than a lead kept alive on hope.
 
+**linux — A12: the wall this row recorded was not there, and the check it wanted had a false alarm in it**
+
+- A row can inherit a blocker from the rows filed beside it, and nobody re-checks.
+- A watchdog's own false alarms are the expensive kind.
+- Rotation is a hazard for anything that reads the journal, not just for readers of it.
+- The archive is not reliably ordered
+- Some Accept clauses are unsatisfiable by construction, and saying so beats half-meeting them.
+
 **macos — S29 fixed, after measuring that S29's own recommendation was wrong**
 
 - A concurrency group is only as good as what its expressions evaluate to, and `github.ref` is not the branch on a `pull_request` event.
@@ -102,16 +110,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - A constant that serves both a layout rule and a drawing rule will be changed for one and silently break the other.
 - The most expensive thing in this item was an assumption inside a probe.
-
-## 2026-08-20
-
-**macos — E6's honest tell: renders that ignored your state now say so**
-
-- A row that names its own fallback scope can be half-shipped honestly
-
-**macos — S25 does not reproduce on mac, and the negative result is the deliverable**
-
-- A cross-platform row can be closed on one platform and open on another, and saying which is the whole value of a cheap reproduction.
 
 ## 2026-08-18
 
@@ -1287,3 +1285,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 **macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut**
 
 - Third time today a row's central premise had moved before it was taken
+
+**macos — S25 does not reproduce on mac, and the negative result is the deliverable**
+
+- A cross-platform row can be closed on one platform and open on another, and saying which is the whole value of a cheap reproduction.
+
+**macos — E6's honest tell: renders that ignored your state now say so**
+
+- A row that names its own fallback scope can be half-shipped honestly
