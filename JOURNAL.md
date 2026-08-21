@@ -109,6 +109,118 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — S27: four suspects eliminated, and the reference box turns out to be x86_64
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** took **S27** — `tide_render`'s image references failing on mac — and
+eliminated four candidate causes by measurement. No fix; the row wants a
+decision, and the decision is better made knowing what it is not.
+
+### The experiment only a Mac can run
+
+S27's hypothesis is *"libm transcendental divergence ... or an x86-vs-arm64
+divergence — labelled a hypothesis, not a diagnosis"*. Those two are separable on
+exactly one kind of machine: an Apple Silicon Mac, which builds and runs **both**
+architectures against **one** OS, one libm, one compiler.
+
+`modules/common` is a self-contained CMake project with no GMPI or SDK
+dependency, so this cost two configures.
+
+**arm64 render vs x86_64 render, same machine:**
+
+```
+ok  knob        0.168%   worst delta 9        ok  knob (fast)        0.000%  delta 1
+ok  materials   0.125%   worst delta 16       ok  materials (fast)   0.000%  delta 1
+ok  shapes      0.396%   worst delta 14       ok  shapes (fast)      0.000%  delta 1
+ok  glass       0.146%   worst delta 10       ok  glass (fast)       0.000%  delta 1
+ok  glow        0.000%   worst delta 1        ok  glow (fast)        0.000%  delta 1
+```
+
+**All ten pass**, inside the existing 0.400% / delta-40 limits. Against the
+committed references, both architectures fail at **35–67%**, worst delta 46–142.
+
+Two orders of magnitude apart. **ISA is not what moves the image.**
+
+### Three more suspects, three more eliminations
+
+**Renderer drift.** Eight commits touched the tracer after `37d65d5`, and the
+current tip `4128291` (*telecentric depth of field*) landed without re-baking —
+so "the references are just stale" was the obvious reading. Built at `25e0bf6`,
+the last commit that *did* update them: **identical figures to three decimals**
+(35.301 / 35.007 / 66.917 / 54.465 / 61.535), the same numbers `main` gives. The
+references never matched a mac build at any commit.
+
+**The RNG.** A hand-rolled PCG over `uint32`/`uint64` shifts
+(`TidePathTracer.cpp:84`). No `std::uniform_real_distribution`, no
+`std::mt19937` — the usual cross-stdlib trap is absent, so the sample sequence is
+bit-identical everywhere.
+
+**Inherent nondeterminism.** The five `(fast)` variants pass at **0.000%** on both
+architectures, and the code explains itself: fast mode uses *"a fixed sub-pixel
+GRID, not jittered draws ... bit-deterministic without the RNG being involved at
+all"* (`:2539`).
+
+### What survives, with an argument instead of a guess
+
+The divergence is confined to the transcendental-heavy Monte Carlo path.
+`shadeFast()` contains **1** transcendental call; the tracer overall contains
+**19**. `sqrt` is excluded from that count — IEEE-754 requires it correctly
+rounded, so it cannot diverge. Few transcendentals → bit-stable. Many → 35–67%.
+
+### And the reference box is x86_64, but not a Mac
+
+The x86_64 build reproduces all five fast references **bit-exactly, worst delta
+0**, while arm64 is off by one — yet x86_64-on-macOS still fails the full scenes
+identically to arm64. So the references came from an **x86_64 machine running a
+different libm**: Windows or Linux.
+
+### Two corrections to the row, and one new problem
+
+The row says *"5 of 5 scenes fail"*. It is **5 of 10 checks** — every fast variant
+passes, and that asymmetry is the most useful fact available.
+
+I also misread the exit status once: piping the tool into `tail` and echoing `$?`
+reports **`tail`'s** status, so the test looked like it passed while printing five
+failures. It exits **1**, correctly.
+
+**New, latent:** `shapes` cross-ISA is **0.396% against a 0.400% limit** — one
+percent of margin. Even with correct references that scene is borderline flaky.
+
+**Learned:**
+
+- **An Apple Silicon Mac separates ISA from OS/libm in a way no other box can** —
+  two architectures, one operating system. When a cross-platform difference is
+  suspected, that is the cheapest possible discriminator, and it costs one extra
+  `-DCMAKE_OSX_ARCHITECTURES`.
+- **`$?` after a pipeline is the LAST command's status.** `tool | tail` then
+  `echo $?` reports `tail`. Use `${PIPESTATUS[0]}`, or don't pipe when the status
+  is what you came for — I briefly recorded a failing test as passing.
+- **Check whether a hand-rolled RNG is actually the portable kind before blaming
+  it.** `std::uniform_real_distribution` differs between libc++ and libstdc++ and
+  is the classic cause; a PCG over integer shifts is not, and ruling it out took
+  one grep.
+- **`sqrt` is not a cross-platform divergence source.** IEEE-754 requires it
+  correctly rounded. `pow`/`exp`/`log`/`sin`/`cos` are not required to be, and are
+  where libm implementations actually differ — so count those separately.
+- **A passing subset is a control, not noise.** The fast-mode scenes passing at
+  0.000% is what turns "the renderer is nondeterministic" into "the renderer is
+  deterministic except in the path that calls transcendentals".
+- **Rebuild at the commit that produced the artifact before assuming drift.** It
+  cost one build to kill the most plausible explanation, and believing it would
+  have sent someone to re-bake references that were never right.
+
+**Next:** the decision is still **Jeff's** — per-platform references, a tolerance
+derived from measured cross-platform residual, or pinning the math — but it can
+now be made knowing ISA and the RNG are irrelevant, that a bit-stable subset
+already exists to build on, and that `shapes` needs headroom regardless.
+**Whoever owns it should also decide where the test runs**, since TideSynth's root
+force-disables `TIDE_RENDER_PREVIEW` and no CI has ever executed it.
+
+**Branch/PR:** `tide/mac/S27-isa-vs-libm` — TideSynth, backlog and journal only.
+
+---
+
 ## 2026-08-22 — macos — R4a: CLAP was in nobody's build, and my own Linux fix was a half-fix
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
@@ -742,6 +854,71 @@ that `TIDE-Rack.vst3` is now this branch's build rather than yesterday's;
 call, exactly as the previous entry left it.
 
 **Branch/PR:** `tide/mac/N1a-rename` — [#268](https://github.com/JeffMcClintock/TideSynth/pull/268), TideSynth only. One CMake block.
+
+---
+
+## 2026-08-21 — macos — R3: the pkg builds, and productbuild would have shipped it to the wrong hardware
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** built the macOS pkg — [scripts/package-macos.sh](scripts/package-macos.sh)
+produces `TIDE-Rack-macOS.pkg` — and split the half of R3 that cannot be done.
+
+### Half the row was unbuildable, and checking first is what caught it
+
+R3 says *"AU → `Components`, VST3 → `VST3`"*. `SynthEditSem/CMakeLists.txt` sets
+`FORMATS_LIST GMPI VST3 STANDALONE`: **there is no AU target**, and **M1**, the
+row that would add one, is BLOCKED. Filed as **R3a**, `BLOCKED(M1)`.
+
+The script **fails** if the AU is missing rather than quietly packaging one
+plug-in where the docs promise two — a pkg that silently omits half its payload
+is worse than one that refuses to build.
+
+### The real find: productbuild lies about hardware
+
+`productbuild` writes `hostArchitectures="x86_64,arm64"` into the synthesized
+Distribution **regardless of what the payload actually contains**. TIDE is now
+arm64-only, so the pkg would have **installed happily on an Intel Mac** and the
+plug-in would then have failed to load with nothing explaining why.
+
+That is precisely the consequence R3's own row predicted this morning — *"the
+pkg will not run on an Intel Mac and nothing tells the user why"* — and it turns
+out macOS will tell them, if the pkg is honest. The script now derives
+`hostArchitectures` from `lipo` on the built binary and verifies the
+substitution landed; the shipped pkg reads `hostArchitectures="arm64"`, so the
+installer itself refuses the wrong hardware. Derived rather than hardcoded, so
+it stays correct if the ARM ruling is revisited.
+
+### Verified against the artefact, not the tool's own output
+
+- payload installs to `./Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3`, matching
+  distribution.md
+- a real `installer` run into a sandbox target: *"The install was successful"*,
+  placing a binary **byte-identical** to the build (same sha), and leaving no
+  stray receipt
+- `hostArchitectures="arm64"` read back out of the expanded pkg
+
+**Not signed, not notarized, and that is stated rather than implied.** Signing
+runs only when the two identity variables are in the environment; notarization
+(`notarytool` + `stapler`, modelled on `SynthEdit_cmake_mac.yml:223-244`)
+belongs to **R5**, which owns the secret store. The script prints which of the
+two artefacts it produced and says plainly that an unsigned pkg is not
+shippable.
+
+**Learned:**
+
+1. **A packaging tool's defaults describe the tool, not your payload.**
+   `productbuild` had no idea the binary was single-arch and cheerfully said it
+   would run anywhere. The check that caught it was reading the generated
+   Distribution rather than trusting "Wrote product to …".
+2. **When a row names two payloads, confirm both exist before starting.** Half
+   of R3 was blocked by a row nobody had connected to it, and the connection was
+   one grep of `FORMATS_LIST`.
+
+**Next:** R3a waits on M1. R5 wires notarization and is a workflow file, so
+Jeff pushes it. R2 (`win`) and R4 (`linux`) are now takeable on their boxes.
+
+**Branch/PR:** `tide/mac/R3-macos-pkg` — TideSynth only.
 
 ---
 
