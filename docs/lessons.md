@@ -56,6 +56,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**macos — the release track was free for three days and the backlog said otherwise**
+
+- A blocked row is never obviously wrong, so nothing ever re-reads it.
+- "Unblock the section" is not the same as "unblock every row in it."
+
 **macos — N1a: the rename shipped, and it silently unlinked half the build first**
 
 - A guard that makes missing work silent turns a rename into a downgrade.
