@@ -56,6 +56,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A passing subset is a control, not noise.
 - Rebuild at the commit that produced the artifact before assuming drift.
 
+**macos — S31: the trap only exists on Linux, and that is why writing it down four times did not work**
+
+- When a negative control refuses to reproduce a documented bug, that is a result, not a broken harness.
+- `pkill -f` self-kill is a Linux-only trap.
+- A lesson that two of three boxes cannot reproduce will not stick by being written down again.
+- Test what the OS might be doing for you, directly.
+- Ask whether the signal was delivered, not whether the process died.
+- Silence expected noise in test output.
+
 **macos — R4a: CLAP was in nobody's build, and my own Linux fix was a half-fix**
 
 - A format missing from a build list produces no error, only an absent file.
