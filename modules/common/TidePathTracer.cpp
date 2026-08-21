@@ -584,6 +584,225 @@ BsdfSample sampleDiffuse(const Material& m, float u1, float u2)
 	return s;
 }
 
+// ---------------------------------------------------------------------------
+// Multiple-scattering energy compensation (Kulla-Conty)
+//
+// Single-scattering GGX loses light, and loses more of it the rougher the
+// surface gets. The model traces one bounce off the microsurface and discards
+// whatever is shadowed; in reality that light bounces again between the
+// microfacets and most of it eventually escapes. The missing fraction is
+// exactly 1 - E(mu), where E is the BRDF's directional albedo.
+//
+// Measured on this implementation before compensation: about 5% gone by alpha
+// 0.45, and up to 47% at roughness 0.45 with anisotropy 1.0 - the loss tracks
+// the LARGER of the two anisotropic alphas, because that is the axis doing the
+// shadowing. A 92%-reflective aluminium rendering at half brightness stops
+// reading as metal and starts reading as grey plastic.
+//
+// Kulla and Conty's fix (SIGGRAPH 2017 course notes) adds a second lobe
+// carrying precisely the missing energy, shaped so the pair integrates to one:
+//
+//     f_ms(wo, wi) = (1 - E(mu_o)) (1 - E(mu_i)) / (pi (1 - E_avg))
+//
+// scaled by a colour term that accounts for the light being re-absorbed on
+// every extra bounce.
+//
+// WHY A TABLE AND NOT AN ANALYTIC FIT. Published fits exist, but they are fits
+// to the isotropic Smith-GGX with a particular masking term, and this renderer
+// uses the height-correlated form. Integrating our own BRDF gives a table that
+// is right for the BRDF we actually have, and it costs one 32x32 sweep once per
+// process.
+//
+// WHY 2D AND NOT 3D. A fully anisotropic table would need an azimuth axis as
+// well. Instead the effective alpha is max(ax, ay) - the measurement above says
+// the loss tracks the larger alpha, so the isotropic table indexed by it
+// captures the bulk. It slightly OVER-compensates in the middle azimuths, and
+// over-compensating a 47% deficit is a far smaller error than leaving it.
+// ---------------------------------------------------------------------------
+
+// Directional albedo E(mu, alpha): the fraction of light leaving the surface
+// for a view at cos(theta) = mu, with Fresnel forced to 1. Sampled with the
+// same VNDF routine the BSDF uses, so the table measures THIS implementation
+// including its below-horizon rejection.
+constexpr int kAlbedoSize = 32;
+
+struct AlbedoTable
+{
+	// [alpha][mu], both axes uniformly sampled over (0, 1].
+	float e[kAlbedoSize][kAlbedoSize] = {};
+	// Cosine-weighted average of E over the hemisphere, per alpha.
+	float average[kAlbedoSize] = {};
+};
+
+// Built once, deterministically: a fixed seed and a fixed sample count, so the
+// table is bit-identical on every run and the committed reference images stay
+// reproducible. A Monte Carlo table with a wandering seed would quietly make
+// every render irreproducible.
+AlbedoTable buildAlbedoTable()
+{
+	AlbedoTable table;
+	constexpr int kSamples = 512;
+
+	for (int ai = 0; ai < kAlbedoSize; ++ai)
+	{
+		const float alpha = ((float)ai + 0.5f) / (float)kAlbedoSize;
+
+		Ggx g;
+		g.ax = alpha;
+		g.ay = alpha;
+
+		double weightedSum = 0.0;
+		double weightTotal = 0.0;
+
+		for (int mi = 0; mi < kAlbedoSize; ++mi)
+		{
+			const float mu = ((float)mi + 0.5f) / (float)kAlbedoSize;
+			const Vec3 wo{ safeSqrt(1.0f - mu * mu), 0.0f, mu };
+
+			Rng rng = seedRng((uint32_t)ai, (uint32_t)mi, 0u, 0x9E3779B9u);
+
+			double sum = 0.0;
+			for (int i = 0; i < kSamples; ++i)
+			{
+				const float u1 = rng.next();
+				const float u2 = rng.next();
+
+				const Vec3 wh = ggxSampleVndf(g, wo, u1, u2);
+				const float dotOh = dot(wo, wh);
+				if (dotOh <= 0.0f)
+					continue;
+
+				const Vec3 wi = reflectAbout(wo, wh, dotOh);
+				if (wi.z <= 0.0f)
+					continue; // below the horizon: this is the lost energy
+
+				// The VNDF weight with Fresnel = 1 is exactly G2/G1(wo).
+				sum += (double)(ggxG2(g, wo, wi) / maxf(ggxG1(g, wo), 1.0e-6f));
+			}
+
+			const float e = (float)(sum / (double)kSamples);
+			table.e[ai][mi] = clampf(e, 0.0f, 1.0f);
+
+			// E_avg is the cosine-weighted mean: 2 * integral E(mu) mu dmu.
+			weightedSum += (double)table.e[ai][mi] * (double)mu;
+			weightTotal += (double)mu;
+		}
+
+		table.average[ai] = (weightTotal > 0.0)
+			? clampf((float)(weightedSum / weightTotal), 0.0f, 1.0f) : 1.0f;
+	}
+
+	return table;
+}
+
+const AlbedoTable& albedoTable()
+{
+	// Function-local static: C++ guarantees the initialisation is thread-safe
+	// and happens once, which matters because render() calls this from every
+	// worker thread at the same moment.
+	static const AlbedoTable table = buildAlbedoTable();
+	return table;
+}
+
+float albedoLookup(float alpha, float mu)
+{
+	const AlbedoTable& t = albedoTable();
+
+	const float a = clampf(alpha * (float)kAlbedoSize - 0.5f, 0.0f, (float)(kAlbedoSize - 1));
+	const float m = clampf(mu * (float)kAlbedoSize - 0.5f, 0.0f, (float)(kAlbedoSize - 1));
+
+	const int a0 = (int)a, m0 = (int)m;
+	const int a1 = std::min(a0 + 1, kAlbedoSize - 1);
+	const int m1 = std::min(m0 + 1, kAlbedoSize - 1);
+	const float af = a - (float)a0, mf = m - (float)m0;
+
+	const float e00 = t.e[a0][m0], e01 = t.e[a0][m1];
+	const float e10 = t.e[a1][m0], e11 = t.e[a1][m1];
+
+	return (e00 + (e01 - e00) * mf) * (1.0f - af)
+		+ (e10 + (e11 - e10) * mf) * af;
+}
+
+float albedoAverage(float alpha)
+{
+	const AlbedoTable& t = albedoTable();
+	const float a = clampf(alpha * (float)kAlbedoSize - 0.5f, 0.0f, (float)(kAlbedoSize - 1));
+	const int a0 = (int)a;
+	const int a1 = std::min(a0 + 1, kAlbedoSize - 1);
+	return t.average[a0] + (t.average[a1] - t.average[a0]) * (a - (float)a0);
+}
+
+// The multiple-scattering lobe's value, times cos(wi), for a conductor.
+//
+// `fAvg` is the Fresnel averaged over the hemisphere: light making N extra
+// bounces is attenuated by F^N, and summing that geometric series gives the
+// colour of the compensation term. Without it the added energy would be white
+// and gold would desaturate as it roughened.
+Vec3 multiScatterMetal(const Ggx& g, const Vec3& fAvg, const Vec3& wo, const Vec3& wi)
+{
+	// The effective isotropic alpha standing in for the anisotropic pair.
+	//
+	// RMS, not max(ax, ay) and not the geometric mean. Measured against the
+	// white furnace at anisotropy 0.85: the geometric mean is exactly the
+	// isotropic alpha and so under-compensates (it does not see the anisotropy
+	// at all), while max() over-compensates badly — it read +18% at roughness
+	// 0.6, turning a 34% deficit into an 18% surplus. RMS lands between them
+	// and tracks the measured loss closely across the range.
+	const float alpha = safeSqrt((g.ax * g.ax + g.ay * g.ay) * 0.5f);
+
+	const float eo = albedoLookup(alpha, wo.z);
+	const float ei = albedoLookup(alpha, wi.z);
+	const float eAvg = albedoAverage(alpha);
+
+	const float denom = 1.0f - eAvg;
+	if (denom <= 1.0e-4f)
+		return {}; // nothing measurable was lost
+
+	// f_ms * cos(wi); the 1/pi and the cosine combine to the usual form.
+	const float lobe = (1.0f - eo) * (1.0f - ei) * wi.z * kInvPi / denom;
+
+	// Kulla-Conty's colour term: F_avg^2 E_avg / (1 - F_avg (1 - E_avg)),
+	// the sum of the series over all the extra bounces.
+	const Vec3 numerator = fAvg * fAvg * eAvg;
+	const Vec3 series{
+		1.0f - fAvg.x * denom,
+		1.0f - fAvg.y * denom,
+		1.0f - fAvg.z * denom,
+	};
+
+	return Vec3{
+		numerator.x / maxf(series.x, 1.0e-4f),
+		numerator.y / maxf(series.y, 1.0e-4f),
+		numerator.z / maxf(series.z, 1.0e-4f),
+	} * lobe;
+}
+
+// Hemispherical average Fresnel for a conductor.
+//
+// Schlick's curve integrates over the cosine-weighted hemisphere in closed
+// form to (20 F0 + 1) / 21, so this recovers F0 from the complex IOR exactly
+// and then uses that. Schlick is not good enough for the PRIMARY reflection —
+// that is why fresnelConductorExact exists — but this term only decides the
+// tint of light that has already bounced several times off the microsurface,
+// where the angular detail has long since been averaged away.
+Vec3 averageFresnel(const ConductorIor& ior)
+{
+	Vec3 result;
+	for (int c = 0; c < 3; ++c)
+	{
+		const float n = (&ior.n.x)[c];
+		const float k = (&ior.k.x)[c];
+
+		const float nPlus = n + 1.0f;
+		const float nMinus = n - 1.0f;
+		const float f0 = clampf((nMinus * nMinus + k * k)
+			/ maxf(nPlus * nPlus + k * k, 1.0e-6f), 0.0f, 1.0f);
+
+		(&result.x)[c] = (20.0f * f0 + 1.0f) / 21.0f;
+	}
+	return result;
+}
+
 // --- metal -----------------------------------------------------------------
 
 BsdfEval evalMetal(const Ggx& g, const ConductorIor& ior, const Vec3& wo, const Vec3& wi)
@@ -603,6 +822,13 @@ BsdfEval evalMetal(const Ggx& g, const ConductorIor& ior, const Vec3& wo, const 
 	// f_r = D * G2 * F / (4 cos_o cos_i), and the estimator wants f_r * cos_i,
 	// so one cosine cancels here.
 	e.value = f * (d * g2 / (4.0f * wo.z));
+
+	// Plus the light single scattering threw away. Added to the VALUE only:
+	// the pdf stays the single-scattering one, which is legal because the
+	// extra lobe is broad and the sampled directions still cover it — the
+	// estimator divides by the density it actually sampled from either way.
+	e.value += multiScatterMetal(g, averageFresnel(ior), wo, wi);
+
 	e.pdf = ggxVndfPdf(g, wo, wh) / (4.0f * dot(wo, wh));
 	return e;
 }
@@ -638,6 +864,14 @@ BsdfSample sampleMetal(const Ggx& g, const ConductorIor& ior, const Vec3& wo, fl
 	s.weight = fresnelConductor(dotOh, ior)
 		* (ggxG2(g, wo, wi) / maxf(ggxG1(g, wo), 1.0e-6f));
 	s.pdf = ggxVndfPdf(g, wo, wh) / (4.0f * dotOh);
+
+	// The multiple-scattering lobe is carried on the same sample rather than
+	// being given its own: it is broad and smooth, so the single-scattering
+	// direction is a perfectly good place to evaluate it, and one lobe means
+	// one pdf and no mixture bookkeeping to get wrong.
+	if (s.pdf > 0.0f)
+		s.weight += multiScatterMetal(g, averageFresnel(ior), wo, wi) / s.pdf;
+
 	return s;
 }
 
@@ -1453,6 +1687,176 @@ float misWeight(float pdfA, float pdfB)
 }
 
 // ---------------------------------------------------------------------------
+// Procedural imperfection
+//
+// See Imperfection in the header for why this exists. The short version: a
+// surface with one roughness everywhere reads as CG no matter how correct the
+// light transport is.
+// ---------------------------------------------------------------------------
+
+// Integer hash, deliberately NOT the usual sin(dot(p, k)) * 43758.5453 trick.
+// That idiom is a portability trap here: its result depends on the platform's
+// sin implementation and on whether the compiler contracts the dot product, so
+// the committed reference images would stop being reproducible across
+// toolchains — the exact property this renderer spends a CMake function
+// defending. Integer arithmetic is bit-identical everywhere.
+//
+// The mixer is Chris Wellons' `lowbias32`, found by a search over multiply-xorshift
+// triples for minimum avalanche bias; it is public-domain and small enough to
+// verify by reading.
+uint32_t hashMix(uint32_t x)
+{
+	x ^= x >> 16;
+	x *= 0x7feb352du;
+	x ^= x >> 15;
+	x *= 0x846ca68bu;
+	x ^= x >> 16;
+	return x;
+}
+
+// A deterministic value in [0,1) for an integer lattice point.
+float latticeValue(int ix, int iy, int iz)
+{
+	uint32_t h = hashMix((uint32_t)(ix * 73856093) ^ (uint32_t)(iy * 19349663)
+		^ (uint32_t)(iz * 83492791));
+	h = hashMix(h);
+	return (float)(h >> 8) * (1.0f / 16777216.0f);
+}
+
+// Trilinear value noise with a smoothstep fade.
+//
+// VALUE noise rather than gradient (Perlin) noise: gradient noise is smoother
+// and better for organic shapes, and this wants neither. Surface wear is
+// blotchy, and value noise is a third of the code with no visible penalty at
+// the frequencies used here.
+float valueNoise(const Vec3& p)
+{
+	const float fx = std::floor(p.x), fy = std::floor(p.y), fz = std::floor(p.z);
+	const int ix = (int)fx, iy = (int)fy, iz = (int)fz;
+
+	const float tx = p.x - fx, ty = p.y - fy, tz = p.z - fz;
+
+	// Smoothstep, so the lattice does not show as a grid of creases.
+	const float ux = tx * tx * (3.0f - 2.0f * tx);
+	const float uy = ty * ty * (3.0f - 2.0f * ty);
+	const float uz = tz * tz * (3.0f - 2.0f * tz);
+
+	const auto mix = [](float a, float b, float t) { return a + (b - a) * t; };
+
+	const float x00 = mix(latticeValue(ix, iy, iz), latticeValue(ix + 1, iy, iz), ux);
+	const float x10 = mix(latticeValue(ix, iy + 1, iz), latticeValue(ix + 1, iy + 1, iz), ux);
+	const float x01 = mix(latticeValue(ix, iy, iz + 1), latticeValue(ix + 1, iy, iz + 1), ux);
+	const float x11 = mix(latticeValue(ix, iy + 1, iz + 1), latticeValue(ix + 1, iy + 1, iz + 1), ux);
+
+	return mix(mix(x00, x10, uy), mix(x01, x11, uy), uz);
+}
+
+// Fractal sum. Returns roughly [0,1), centred near 0.5.
+float fbm(const Vec3& p, int octaves)
+{
+	float sum = 0.0f;
+	float amplitude = 0.5f;
+	float total = 0.0f;
+	Vec3 q = p;
+
+	for (int i = 0; i < octaves; ++i)
+	{
+		sum += amplitude * valueNoise(q);
+		total += amplitude;
+		amplitude *= 0.5f;
+		q = q * 2.03f; // not exactly 2, so octaves do not align their lattices
+	}
+
+	return (total > 0.0f) ? (sum / total) : 0.5f;
+}
+
+// The direction surface features run along: the brush direction where there is
+// one, an arbitrary stable tangent otherwise. Shared with shadingFrame below so
+// the scratches cannot end up running across the grain they are meant to follow.
+Vec3 preferredTangent(const Material& m, const Vec3& normal, const Vec3& position)
+{
+	switch (m.brush)
+	{
+	case BrushMode::Fixed:
+		return m.brushAxis;
+
+	case BrushMode::Concentric:
+	case BrushMode::Radial:
+	{
+		const Vec3 radial = position - m.brushOrigin;
+		const Vec3 axis = normalize(m.brushAxis);
+		return (m.brush == BrushMode::Concentric)
+			? cross(axis, radial)
+			: radial - axis * dot(radial, axis);
+	}
+
+	default:
+		return makeFrame(normal).x;
+	}
+}
+
+// Perturbs `roughness` and `normal` in place. Both effects come from the same
+// noise field, one octave apart, so a scuffed patch is also a rougher patch —
+// which is what wear actually does to a surface.
+void applyImperfection(const Material& m, const Vec3& position, Vec3& normal, float& roughness)
+{
+	const Imperfection& imp = m.imperfection;
+	if (imp.roughness <= 0.0f && imp.scratch <= 0.0f)
+		return;
+
+	const int octaves = std::clamp(imp.octaves, 1, 6);
+	const float frequency = maxf(imp.frequency, 1.0e-3f);
+
+	// Build a frame whose X runs along the grain, then SQUASH the sampling
+	// position across it. Squashing the domain across the grain is what
+	// stretches the features along it — the noise is isotropic; the anisotropy
+	// is entirely in how it is sampled.
+	const Frame grain = makeFrameWithTangent(normal, preferredTangent(m, normal, position));
+	const float streak = maxf(imp.streak, 1.0f);
+
+	const Vec3 local{
+		dot(position, grain.x) / streak,
+		dot(position, grain.y),
+		dot(position, grain.z),
+	};
+	const Vec3 sample = local * frequency;
+
+	if (imp.roughness > 0.0f)
+	{
+		// Centred on 1 so the material's nominal roughness stays its average
+		// rather than becoming its floor.
+		const float wander = (fbm(sample, octaves) - 0.5f) * 2.0f;
+		roughness = maxf(roughness * (1.0f + imp.roughness * wander), 1.0e-3f);
+	}
+
+	if (imp.scratch > 0.0f)
+	{
+		// Central differences on the noise give a gradient; tilting the normal
+		// along it is the standard bump-mapping move. Sampled at twice the
+		// frequency, so the scratches are finer than the roughness blotching
+		// they sit inside.
+		const Vec3 fine = sample * 2.0f;
+		const float h = 0.5f;
+		const float gx = fbm(fine + Vec3{ h, 0.0f, 0.0f }, octaves)
+			- fbm(fine - Vec3{ h, 0.0f, 0.0f }, octaves);
+		const float gy = fbm(fine + Vec3{ 0.0f, h, 0.0f }, octaves)
+			- fbm(fine - Vec3{ 0.0f, h, 0.0f }, octaves);
+
+		// Clamped hard. A shading normal that departs too far from the
+		// geometric one gets its path dropped by the wo.z test in the
+		// integrator, which shows up as black speckle rather than as scratches.
+		const float amount = clampf(imp.scratch, 0.0f, 1.0f) * 0.25f;
+		const Vec3 tilted = normal
+			+ grain.x * (gx * amount)
+			+ grain.y * (gy * amount);
+
+		const Vec3 renormalised = normalize(tilted);
+		if (dot(renormalised, normal) > 0.2f)
+			normal = renormalised;
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Material dispatch
 // ---------------------------------------------------------------------------
 
@@ -1478,7 +1882,7 @@ Frame shadingFrame(const Material& m, const Vec3& normal, const Vec3& position,
 	switch (m.brush)
 	{
 	case BrushMode::Fixed:
-		return makeFrameWithTangent(normal, m.brushAxis);
+		return makeFrameWithTangent(normal, preferredTangent(m, normal, position));
 
 	case BrushMode::Concentric:
 	case BrushMode::Radial:
@@ -1487,12 +1891,11 @@ Frame shadingFrame(const Material& m, const Vec3& normal, const Vec3& position,
 		const Vec3 axis = normalize(m.brushAxis);
 
 		const float radialLenSq = dot(radial, radial);
-		const Vec3 around = cross(axis, radial);
 
 		// |axis x radial| / |radial| = sin(angle between them): 0 on the axis,
 		// 1 on the equator. Fully anisotropic above 0.15, matte at the centre.
 		const float sinAngle = (radialLenSq > 1.0e-12f)
-			? length(around) / std::sqrt(radialLenSq) : 0.0f;
+			? length(cross(axis, radial)) / std::sqrt(radialLenSq) : 0.0f;
 		const float t = clampf(sinAngle / 0.15f, 0.0f, 1.0f);
 		anisoScale = t * t * (3.0f - 2.0f * t);
 
@@ -1501,11 +1904,9 @@ Frame shadingFrame(const Material& m, const Vec3& normal, const Vec3& position,
 
 		// Concentric: the tangent runs AROUND the axis — the way the tool
 		// travelled on a lathe, so the highlight forms a ring. Radial: along
-		// the spoke instead, a sunburst finish.
-		const Vec3 preferred = (m.brush == BrushMode::Concentric)
-			? around
-			: radial - axis * dot(radial, axis);
-		return makeFrameWithTangent(normal, preferred);
+		// the spoke instead, a sunburst finish. Shared with the imperfection
+		// field so scratches follow the same grain.
+		return makeFrameWithTangent(normal, preferredTangent(m, normal, position));
 	}
 
 	default:
@@ -1677,13 +2078,20 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 		const Material& m = *hit.material;
 
 		// --- build the local frame -----------------------------------------
+		//
+		// Imperfection is applied FIRST, because it moves the shading normal
+		// and the frame has to be built around where the normal ended up.
+		Vec3 shadingNormal = hit.normal;
+		float roughness = m.roughness;
+		applyImperfection(m, hit.position, shadingNormal, roughness);
+
 		float anisoScale = 1.0f;
-		const Frame frame = shadingFrame(m, hit.normal, hit.position, anisoScale);
+		const Frame frame = shadingFrame(m, shadingNormal, hit.position, anisoScale);
 		const Vec3 wo = frame.toLocal(-direction);
 		if (wo.z <= 0.0f)
 			break; // shading normal disagrees with the geometry; drop the path
 
-		const Ggx ggx = makeGgx(m.roughness, m.anisotropy * anisoScale);
+		const Ggx ggx = makeGgx(roughness, m.anisotropy * anisoScale);
 		const ConductorIor& ior = derived[hit.objectIndex].ior;
 
 		// Whether next-event estimation runs at THIS vertex. Computed once and
@@ -1707,7 +2115,10 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 					const BsdfEval e = evalBsdf(m, ggx, ior, wo, wi);
 					if (e.pdf > 0.0f && !e.value.isBlack())
 					{
-						const Vec3 shadowOrigin = hit.position + hit.normal * kRayOffset;
+						// hit.normal, not the bumped shading normal: the offset
+					// exists to clear the actual surface, and a tilted normal
+					// would push the origin along the surface instead of off it.
+					const Vec3 shadowOrigin = hit.position + hit.normal * kRayOffset;
 						bool visible = false;
 
 						if (emitter.objectIndex >= 0)
@@ -2160,7 +2571,20 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 	// Pixel plus a sub-pixel offset in [0,1) -> the ray's starting point.
 	// THE orthographic camera: every ray shares `basis.forward` and they differ
 	// only in where they start.
-	const auto rayOrigin = [&](int x, int y, float offsetX, float offsetY)
+	// Defocus is off unless an aperture was asked for, and the sharp path then
+	// costs exactly what it did before: no disc sample, no normalize, and the
+	// direction stays the shared `basis.forward` for every ray in the frame.
+	const bool defocus = (camera.aperture > 0.0f);
+
+	// Where the fan converges, as a distance along the ray. The origin already
+	// sits nearPullback behind the camera, so the focus plane is that much
+	// further along than the caller's focusDistance.
+	const float focusT = camera.nearPullback + maxf(camera.focusDistance, 0.0f);
+
+	struct CameraRay { Vec3 origin; Vec3 direction; };
+
+	const auto cameraRay = [&](int x, int y, float offsetX, float offsetY,
+		float lensU, float lensV) -> CameraRay
 	{
 		const float px = ((float)x + offsetX) / (float)image.width;
 		const float py = ((float)y + offsetY) / (float)image.height;
@@ -2170,7 +2594,31 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 		const float fx = (px * 2.0f - 1.0f) * basis.halfWidth;
 		const float fy = (1.0f - py * 2.0f) * basis.halfHeight;
 
-		return basis.origin + basis.right * fx + basis.up * fy;
+		const Vec3 origin = basis.origin + basis.right * fx + basis.up * fy;
+		if (!defocus)
+			return { origin, basis.forward };
+
+		// TELECENTRIC defocus. A perspective camera jitters the ray's ORIGIN
+		// across the lens and keeps the target fixed; here the origins are the
+		// film itself and must stay put, so the DIRECTION is fanned instead
+		// and the target is what stays fixed. Rays through one film position
+		// spread out, cross again at the focus plane, and blur either side of
+		// it — the same circle of confusion, without the convergence that
+		// makes a perspective knob wrong everywhere but the centre.
+		const Vec3 focusPoint = origin + basis.forward * focusT;
+
+		float dx, dy;
+		sampleConcentricDisc(lensU, lensV, dx, dy);
+		const Vec3 spread = basis.right * (dx * camera.aperture)
+			+ basis.up * (dy * camera.aperture);
+
+		// The origin MOVES and the target stays put. Tilting the direction
+		// while leaving the origin alone looks equivalent and defocuses
+		// everything uniformly, focus plane included: rays leaving one point in
+		// different directions diverge forever and never reconverge. It is the
+		// spread of ORIGINS all aimed at one point that makes a focus plane.
+		const Vec3 lensOrigin = origin + spread;
+		return { lensOrigin, normalize(focusPoint - lensOrigin) };
 	};
 
 	const auto worker = [&]()
@@ -2213,20 +2661,26 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 								// Cell CENTRES, so the grid is symmetric about
 								// the pixel and an edge lands the same way from
 								// either side.
-								const Vec3 origin = rayOrigin(x, y,
+								// Lens samples fixed at the disc centre: Fast
+								// mode is exact and has nothing to average, so
+								// a defocused preview would be a blurry image
+								// with no more information in it. The preview
+								// stays sharp even when the camera is not.
+								const CameraRay ray = cameraRay(x, y,
 									((float)sx + 0.5f) / (float)fastGrid,
-									((float)sy + 0.5f) / (float)fastGrid);
+									((float)sy + 0.5f) / (float)fastGrid,
+									0.5f, 0.5f);
 
 								// primary = true and mediumIndex = -1: the same
 								// call the full render makes for its camera ray,
 								// so camera-invisible geometry stays invisible
 								// and the alpha channel comes out identical.
-								const Hit hit = intersect(scene, origin, basis.forward,
+								const Hit hit = intersect(scene, ray.origin, ray.direction,
 									kMaxTraceDistance, true, -1);
 								if (!hit.valid)
 									continue;
 
-								sum += shadeFast(hit, basis.forward);
+								sum += shadeFast(hit, ray.direction);
 								alphaSum += 1.0f;
 							}
 						}
@@ -2262,10 +2716,30 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 							}
 
 							const FilterOffset f = filterOffset(settings.filter, u1, u2);
-							const Vec3 origin = rayOrigin(x, y, f.x, f.y);
+
+							// The lens draws happen ONLY when there is a lens.
+							//
+							// Taking them unconditionally looks tidier and is
+							// worse: it advances the RNG stream for every sharp
+							// render ever made, so adding this feature moved all
+							// five committed references by up to 77% of their
+							// pixels while changing nothing anyone could see.
+							// The invariant that would have bought — a sharp
+							// render sharing its noise with a defocused one — is
+							// not worth having. A camera with no aperture should
+							// produce exactly the image it always did.
+							float lensU = 0.5f;
+							float lensV = 0.5f;
+							if (defocus)
+							{
+								lensU = rng.next();
+								lensV = rng.next();
+							}
+
+							const CameraRay ray = cameraRay(x, y, f.x, f.y, lensU, lensV);
 
 							const PathResult r = tracePath(scene, settings, emitters, derived,
-								origin, basis.forward, rng);
+								ray.origin, ray.direction, rng);
 							sum += r.radiance;
 							alphaSum += r.alpha;
 						}

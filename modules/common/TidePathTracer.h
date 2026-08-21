@@ -138,6 +138,59 @@ enum class BrushMode : uint8_t
 	Fixed,       // one world-space direction — a linear-brushed faceplate
 };
 
+// Surface imperfection: the reason a physically correct render still reads as
+// CG.
+//
+// Real hardware is never uniform. An anodised knob has roughness that wanders
+// across the part, faint machining swirl, scuffs where fingers go. A renderer
+// that gives every point on a face the same microfacet distribution produces a
+// surface that is *too* even — the eye reads the perfection long before it
+// reads the material, and no amount of extra light transport fixes it.
+//
+// PROCEDURAL, and evaluated per shading point rather than baked. There is no
+// texture, no UV, no map to author or ship: the field is a function of the
+// world position, so it costs nothing to store, tiles nowhere, and holds up at
+// any render resolution — which matters when the same knob is traced at 64
+// pixels for a panel and 4096 for a hero frame.
+//
+// All zero by default, so switching this on is always a deliberate act and the
+// shipped faceplates are unaffected until someone opts in.
+//
+// IGNORED BY RenderMode::Fast, along with the rest of the material model. That
+// is deliberate rather than an oversight: the preview exists to iterate on
+// GEOMETRY, and wear is the last thing that should shift while a chamfer is
+// being tuned. The consequence worth knowing is that a worn surface looks
+// identical to a pristine one in Draft — if the wear is what you are judging,
+// judge it at Standard or above.
+struct Imperfection
+{
+	// How far the roughness wanders, as a fraction of itself. 0.35 means it
+	// ranges roughly 0.65x to 1.35x across the surface. This is the setting
+	// that does most of the work: it breaks up the even sheen that reads as
+	// synthetic, and it is what makes a large flat face interesting.
+	float roughness = 0.0f;
+
+	// Normal perturbation — the actual scratches. Kept deliberately small: a
+	// shading normal that departs far from the geometric one gets paths
+	// dropped where the two disagree about which side is lit, so this is a
+	// suggestion of a scuffed surface rather than a displacement.
+	float scratch = 0.0f;
+
+	// Feature density, in cycles per world unit. The subject is about one unit
+	// across, so ~30 gives detail at knob scale and ~8 gives broad blotching.
+	float frequency = 30.0f;
+
+	// How far features are stretched ALONG the brush direction. Real scratches
+	// on a machined part follow the tooling, so this defaults to elongated;
+	// 1 gives isotropic mottling instead, which is right for cast or moulded
+	// parts that were never brushed.
+	float streak = 6.0f;
+
+	// Octaves of detail. Three is plenty — the fourth is below a pixel at any
+	// size this renderer is used at, and only costs time.
+	int octaves = 3;
+};
+
 struct Material
 {
 	MaterialKind kind = MaterialKind::Diffuse;
@@ -190,6 +243,9 @@ struct Material
 	// this false, so it lights the subject and appears in its reflections while
 	// leaving the bitmap's background transparent. See Scene::room below.
 	bool cameraVisible = true;
+
+	// Off by default — see Imperfection above.
+	Imperfection imperfection;
 };
 
 // ---------------------------------------------------------------------------
@@ -233,6 +289,24 @@ inline Material brushed(Material m, BrushMode mode, Vec3 axis = { 0.0f, 0.0f, 1.
 	m.brush = mode;
 	m.brushAxis = axis;
 	m.brushOrigin = origin;
+	return m;
+}
+
+// Take any material off the showroom floor: roughness that wanders, and a
+// suggestion of scuffing along the grain. See Imperfection for why this is the
+// single biggest thing between a correct render and a photographic one.
+//
+// `amount` scales the whole effect. 0.35 is a part that has been handled;
+// 0.6 is one that has lived in a rack for a decade. It stacks after brushed(),
+// and picks up whatever grain direction that set.
+inline Material worn(Material m, float amount = 0.35f, float frequency = 30.0f)
+{
+	m.imperfection.roughness = amount;
+	// Scratches deliberately weaker than the roughness wander. Wear is mostly
+	// a change in how ROUGH a surface is, not in which way it points; leading
+	// with the normals gives a hammered look rather than a used one.
+	m.imperfection.scratch = amount * 0.5f;
+	m.imperfection.frequency = frequency;
 	return m;
 }
 
@@ -805,6 +879,28 @@ struct Camera
 	// ray has no natural origin and must start outside everything it could hit,
 	// including the room.
 	float nearPullback = 20.0f;
+
+	// Defocus. 0 keeps the camera perfectly sharp everywhere, which is what
+	// panel artwork wants and therefore the default.
+	//
+	// Depth of field does NOT require perspective. An orthographic camera gets
+	// it by tilting each sample's ray about the point it would have hit at the
+	// focus plane: rays through one film position fan out, converge again at
+	// `focusDistance`, and blur either side of it. That is a telecentric lens,
+	// which is a real thing you can buy and a staple of product photography —
+	// it defocuses without the convergence that makes a perspective knob look
+	// wrong everywhere except where the camera was pointed.
+	//
+	// `aperture` is the radius of the fan in WORLD units, so it scales with the
+	// scene rather than with the film: 0.05 is a gentle fall-off on a
+	// one-unit subject, 0.2 is showy. `focusDistance` is measured from
+	// `position` along the view direction, so 0 focuses at the camera plane and
+	// the distance to `target` focuses on the subject.
+	//
+	// It costs nothing extra: the rays being fanned are the samples already
+	// being taken for antialiasing.
+	float aperture = 0.0f;
+	float focusDistance = 6.0f;
 };
 
 // How much of the renderer actually runs.
