@@ -109,6 +109,116 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — loading the CLAP for the first time found that TIDE ships SynthEdit's identity
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** took **E9** for its CLAP question, wrote a real CLAP host to answer it,
+and the handshake printed something far more important than the answer.
+
+### The row's caveat was stale within hours
+
+E9 says AU and CLAP are *"unmeasured, deliberately not claimed, because TIDE
+builds neither (`SynthEditSem/CMakeLists.txt:59` is `GMPI VST3 STANDALONE`)"*.
+**R4a merged earlier today and made that false** — the list is
+`GMPI VST3 CLAP STANDALONE`, and it is not at that line any more either.
+
+And R4a's own verification was thin, by my own admission on its row: `nm` found
+one exported symbol. **An entry point is not a plugin.** Nothing had ever loaded
+the thing.
+
+### Why a probe instead of REAPER
+
+A DAW cannot settle this cheaply. REAPER references plugins in `.rpp` by a
+host-specific id, and forcing a render rate needs its GUI — E9 itself records
+Jeff hitting that dialog. So `tests/e9_clap_rate_probe.c` drives the CLAP C ABI
+directly: `dlopen` → `clap_entry` → factory → descriptor → `create_plugin` →
+`init`, then
+
+```
+activate(48000) → deactivate → activate(44100) → deactivate → activate(48000)
+```
+
+which is exactly the bracket a DAW uses for a rate change, and a **stricter**
+exercise of it than REAPER gave. 21 checks, all passing.
+
+That confirms E9's mechanism transfers: `Processor_CLAP::activate()` calls
+`plugin.start_processor(...)` with the new rate, and `processor_holder.cpp` `:55`
+releases the old processor, `:69` creates a fresh one, `:82` calls `open()`,
+`:215` re-seeds the blob. CLAP absorbs a rate change by instance replacement,
+exactly as VST3 does.
+
+### And then the descriptor printed this
+
+```
+id="SE SynthEdit"  name="TIDE Rack"  vendor="TIDE Synth"
+```
+
+`name` and `vendor` were rebranded. **`id` — the only field that functions as
+identity — was not.** `SynthEditSem/SynthEdit.cpp` declares it, and the
+commented-out original two lines below still reads
+`<Plugin id="SE SynthEdit" name="SynthEdit" ...>`, which is where it came from.
+
+That is not cosmetic, and it does not stop at CLAP.
+`GMPI_Wrappers/wrapper/VST3/MyVstPluginFactory.cpp:200` builds the **VST3 class
+GUID** from the ASCII `"PluginGMPI "`, a `P`/`C` role byte, and
+**`hashString(id)`** — a djb2 hash of that string and nothing else.
+
+So I computed it against the artifact rather than trusting the reading:
+
+```
+hashString("SE SynthEdit") = 0x43ED5119   little-endian -> 1951ED43
+
+committed fixture tests/hosts/v1-rack.rpp:
+  1386065673{506C7567696E474D504920 50 1951ED43}
+             "PluginGMPI "          "P"  ^^^^^^^^ exact match
+```
+
+**TIDE Rack's shipped VST3 GUID is a hash of SynthEdit's generic shell id.** The
+CLAP id is that string verbatim (`Factory_CLAP.cpp:25`), and GMPI uses it
+directly. Any other GMPI plugin declaring `SE SynthEdit` gets the same GUID and
+the same CLAP id; a host with both installed cannot tell them apart, and a saved
+project can reload the wrong one. Filed as **R9**.
+
+**The timing is the point.** The GUID is a pure function of the id, so fixing the
+id *changes the GUID*, and every project saved with TIDE Rack stops finding the
+plugin. That cost is near zero today and permanent after 1.0 — and R2, R3 and R4
+are building installers for these exact artifacts right now.
+
+**Learned:**
+
+- **Load the artifact in a real host before believing it works.** R4a's evidence
+  was `nm` finding `clap_entry`, which I wrote up as verified. One handshake
+  found an identity bug that no amount of building would have shown.
+- **A stale caveat is most dangerous when it is your own and hours old.** E9 said
+  CLAP was unmeasurable *because TIDE builds no CLAP*. I merged the change that
+  made it buildable earlier in the same session and did not go back.
+- **Write the host when the DAW is the expensive part.** ~170 lines of C against
+  the CLAP C ABI drove the rate-change bracket more precisely than REAPER could,
+  headlessly, with no GUI and no project file.
+- **When a rename touches `name` and `vendor`, check `id`.** Display fields are
+  what a person sees and notices; the identifier is what the software uses and
+  nobody looks at. This one survived the whole N1a rename.
+- **Follow an identifier to what is DERIVED from it.** The CLAP id looked like a
+  CLAP-only problem until `textIdtoUuid` turned out to hash it into the VST3
+  GUID. Grep for what consumes an identity string before scoping the blast
+  radius.
+- **Verify a hash claim by computing it.** Reading "the GUID is a hash of the id"
+  is an argument; matching `1951ED43` in a committed fixture is proof, and it
+  took four lines of Python.
+
+**Next:** **R9 is Jeff's** and wants deciding before the first release rather than
+after — it pairs with **R8** (the empty `CFBundleIdentifier`), since both need one
+naming scheme. **E9 is left TODO deliberately**: its Accept is measured for VST3
+and now CLAP, but AU is genuinely unmeasured and belongs to **R3a**, which is
+`BLOCKED(M1)`.
+
+**Branch/PR:** `tide/mac/E9-clap-host-verify` — TideSynth.
+
+---
+
+---
+
 ## 2026-08-22 — linux — E1c: the deciding case, and the control that makes it decide anything
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
