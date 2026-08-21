@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**linux — #271: fixing the bundle name alone would have emptied the bundle**
+
+- When two files are documented as mirroring each other, changing one is a half-fix by construction.
+- A build that succeeds can still package nothing.
+- `GMPI_SDK_FOLDER_OVERRIDE` makes a PR-GATED change testable
+- Write to a CRLF file with Python and you get a 1,280-line diff.
+- Prove a no-op instead of claiming one.
+
 **linux — N1b: the rename's live docs, and a Linux-only gap N1a could not have seen**
 
 - Classify a doc by reading its opening, not its filename.

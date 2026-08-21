@@ -74,6 +74,104 @@ Template:
 
 ---
 
+## 2026-08-22 — linux — #271: fixing the bundle name alone would have emptied the bundle
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Did:** STEP 1 outranked the backlog — [#271](https://github.com/JeffMcClintock/TideSynth/issues/271),
+the packaging break I filed earlier today, is my platform's product break. Fixed
+it as two PRs that must land together: [GMPI#7](https://github.com/JeffMcClintock/GMPI/pull/7)
+(PR-GATED, raised as a proposal, not merged) and
+[#274](https://github.com/JeffMcClintock/TideSynth/pull/274).
+
+Also resolved #273's conflict first, per STEP 1.5, and corrected an
+overstatement in my own issue on the way.
+
+### The one-line fix was a trap
+
+`gmpi_plugin.cmake` builds the Linux VST3 bundle directory from the **target**
+name while the `.so` inside takes `OUTPUT_NAME`. Obvious fix: make the directory
+follow `OUTPUT_NAME` too. It builds, and it produces **two** bundles:
+
+```
+TIDE-Rack.vst3/Contents/x86_64-linux/TIDE-Rack.so    <- loadable, NO resources
+TIDE_Rack_VST3.vst3/Contents/Resources/Prefabs/…     <- resources, never loaded
+```
+
+`SynthEditSem/CMakeLists.txt` stages `Resources/` into a path it spells out to
+match GMPI's expression **character for character** — and its comment says so, in
+as many words. So the GMPI-only fix leaves the loadable bundle with no prefabs
+and no pin XMLs: **exactly the failure S21 was filed to fix.** I only saw it
+because I built and listed the tree instead of trusting a green rc=0.
+
+With both halves: one bundle, `TIDE-Rack.vst3/Contents/x86_64-linux/TIDE-Rack.so`,
+Resources and all six prefabs intact — and `TIDE-Rack.vst3` is the name the five
+`tests/hosts/*.rpp` fixtures already expect after N1a.
+
+### Blast radius, probed rather than argued
+
+The PR-GATED rules want to know what else this touches. With `OUTPUT_NAME` unset,
+`$<TARGET_FILE_BASE_NAME:t>` **is** the target name — measured with a two-target
+CMake probe:
+
+```
+plain:   target=plain    base=plain
+renamed: target=renamed  base=Some-Name
+```
+
+The only other in-tree `gmpi_plugin()` consumer, `SE16/se_gmpi/vst3`, does not set
+`OUTPUT_NAME`, so its output is unchanged. That is the argument for a GMPI change
+being safe, and it is checkable rather than rhetorical.
+
+### I overstated my own issue, and corrected it
+
+I had written that `~/.vst3/TIDE_Rack_VST3.vst3/…` "is what a Linux user ends up
+with". Reasoned from the code, not observed. The whole `copy_plugin()` block is
+gated on **`SE_LOCAL_BUILD`** (`gmpi_plugin.cmake:1139`), which this build sets
+`FALSE`; the generated `build.make` has no `~/.vst3` reference and TIDE is
+correctly absent from that folder. Local developer builds do propagate it;
+standalone and CI builds never run the copy. Corrected on the issue.
+
+Corroboration for the convention itself, since I was asserting one: every other
+VST3 installed here keeps bundle name == payload name — `Gain_VST3.vst3` →
+`Gain_VST3.so`, `Container.vst3` → `Container.so`, `FinalCheckSynth.vst3` →
+`FinalCheckSynth.so`.
+
+**Learned:**
+
+1. **When two files are documented as mirroring each other, changing one is a
+   half-fix by construction.** The comment in `SynthEditSem/CMakeLists.txt` named
+   the GMPI line it copies. Reading the *other* side of a documented pairing
+   before editing either is the cheap move.
+2. **A build that succeeds can still package nothing.** rc=0 with an empty
+   loadable bundle is a worse outcome than a compile error, and only `find` on
+   the output tree distinguishes them.
+3. **`GMPI_SDK_FOLDER_OVERRIDE` makes a PR-GATED change testable** without
+   touching the developer's tree: clone GMPI to scratch, point a scratch build
+   at it, and the whole proposal is verifiable before it is proposed.
+4. **Write to a CRLF file with Python and you get a 1,280-line diff.** Caught it
+   on the first `git diff --stat` — read the byte mode and re-encode. STEP 5
+   warns about CRLF churn for stashes; it applies to your own edits too.
+5. **Prove a no-op instead of claiming one.** A five-line CMake probe turned "this
+   should not affect other consumers" into a printed before/after.
+
+**Next:**
+
+1. **The two PRs must merge together** — GMPI#7 first or simultaneously; either
+   alone leaves the bundle split or the names mismatched. Both bodies say so.
+2. **#271 stays OPEN** — nothing here loaded the plugin in a host. It is a layout
+   check against the rule GMPI's own comment states. Closing it wants the v0.1
+   harness against the fixed bundle, which needs REAPER (win or mac).
+3. **#273 (N1b)** is conflict-free again and waiting on review.
+
+**Machine left clean.** All builds ran in scratch trees against a scratch GMPI
+clone; Jeff's `~/TideSynth/build` and his `~/.vst3` were not written to. TideSynth
+back on `main` after this branch.
+
+**Branch/PR:** `tide/linux/issue-271` → [#274](https://github.com/JeffMcClintock/TideSynth/pull/274), with [GMPI#7](https://github.com/JeffMcClintock/GMPI/pull/7).
+
+---
+
 ## 2026-08-22 — linux — N1b: the rename's live docs, and a Linux-only gap N1a could not have seen
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
