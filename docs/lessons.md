@@ -97,15 +97,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Resolving an address in a rebuilt binary is not evidence.
 - A "GNOME Shell crashed" line and a login prompt are not the same event.
 
-**linux — S23 did not reproduce, but a mechanism explains why it never would**
-
-- A self-healing mechanism upstream of a bug will make that bug look intermittent, and a controlled-run count cannot see it.
-- `XDG_CONFIG_HOME` is honoured by the standalone
-- A branch's CI platform issue can be reporting `main`'s break.
-- A clean SIGTERM shutdown exits 0
-- `pkill -f <pattern>` matched my own shell and killed it (exit 144)
-- Report a crash with its control, not just its correlation.
-
 ## 2026-08-18
 
 **windows — the Marathon design language, researched from source and revised live by Jeff (interactive session, Jeff directing)**
@@ -1322,3 +1313,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - A constant that serves both a layout rule and a drawing rule will be changed for one and silently break the other.
 - The most expensive thing in this item was an assumption inside a probe.
+
+**linux — S23 did not reproduce, but a mechanism explains why it never would**
+
+- A self-healing mechanism upstream of a bug will make that bug look intermittent, and a controlled-run count cannot see it.
+- `XDG_CONFIG_HOME` is honoured by the standalone
+- A branch's CI platform issue can be reporting `main`'s break.
+- A clean SIGTERM shutdown exits 0
+- `pkill -f <pattern>` matched my own shell and killed it (exit 144)
+- Report a crash with its control, not just its correlation.

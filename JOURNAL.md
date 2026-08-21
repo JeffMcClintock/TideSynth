@@ -166,12 +166,32 @@ installed and built binaries both
 | `v3-midi-gate` | −6.3 / −21.2, 3 cables | −6.3 / −21.2 |
 | `v1-rack-uncabled` | **silence**, 0 cables | silence |
 
-**What is NOT verified, said plainly: the Windows link.** There is no MSVC on
-this box, and STEP 3 forbids fixing a platform blind. This is not that — the
-break is this platform's own PR, STEP 1.5 makes it mine, and **the PR's own
-`windows` job is the verification**, which is why the fix is pushed to the same
-branch rather than reasoned about further. If that job stays red, the next step
-is a `platform:win` issue with the full output, not another guess from here.
+### The Windows link, which this box cannot compile — verified by CI, then waited for
+
+There is no MSVC here, and STEP 3 forbids fixing a platform blind. This is not
+that: the break is this platform's own PR, STEP 1.5 makes it mine, and **the
+PR's own `windows` job is the verification** — which is why the fix went to the
+same branch, and why the run stayed up for it rather than declaring victory on
+a mechanism.
+
+[Run 32492249466](https://github.com/JeffMcClintock/TideSynth/actions/runs/32492249466), on `276e150`:
+
+| job | before (`ea6a1e1`) | after (`276e150`) |
+|---|---|---|
+| `guard` | success | success |
+| `linux` | success | success |
+| **`windows`** | **failure — `LNK1201`** | **success** |
+| `macos` | success | queued (S30) |
+
+**`windows` went red → green on a one-block change, with `linux` green on both
+ends as the control.** That is the A/B this platform could not run locally.
+
+`macos` is still queued and **carries no information about this change** — it
+was green on the previous head, the change sets Windows-only properties, and the
+local build here was rc=0 with the artifacts checked. S30 (the mac runner
+completes ~5% of runs) is why it is still sitting there, and waiting longer would
+be waiting on a 5%-likely event to confirm something already measured — the same
+call the 2026-08-21 C7e entry made, for the same reason.
 
 **Learned:**
 
@@ -197,8 +217,10 @@ is a `platform:win` issue with the full output, not another guess from here.
 
 **Next:**
 
-1. **Watch `windows` on [#268](https://github.com/JeffMcClintock/TideSynth/pull/268).** Green closes N1a; red wants a `platform:win`
-   issue with the compiler output, since no run here can go further.
+1. **[#268](https://github.com/JeffMcClintock/TideSynth/pull/268) is green where it matters and wants only a merge** — `lint`,
+   `guard`, `windows` and `linux` all pass on `276e150`; `macos` is queued
+   behind S30 and cannot say anything about a Windows-only property. No
+   `platform:win` issue was needed.
 2. **N1b unblocks when N1a merges** — and it now has two more references to
    carry, both PDB names: `docs/state-of-the-prototype.md:106` and
    `docs/p4-resize-crash.md:461-462`. Noted on its row.
@@ -965,163 +987,6 @@ is byte-identical (md5s above). All replay work happened in the session
 scratchpad.
 
 **Branch/PR:** `tide/linux/S23-session-replay` — TideSynth only, row and journal. No code change.
-
----
-
-## 2026-08-21 — linux — S23 did not reproduce, but a mechanism explains why it never would
-
-**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (claude-desktop 1.32885.1) · as **tide-rack-bot** (both paths)
-
-**Did:** STEP 1 first — verified and closed
-[#257](https://github.com/JeffMcClintock/TideSynth/issues/257) — then took **S23**
-and stopped it early, deliberately, without a backtrace. The row goes back to
-`TODO` with the blocker cleared, one hypothesis that explains the whole observed
-pattern, and the exact experiment left to run.
-
-### STEP 1: #257 was `main`'s break, not the branch's
-
-CI filed it against `tide/mac/E11-blob-lifetime`, so it reads as that branch's
-fault. It was not. `TiDEPanelGui.cpp` referred to `tide::render::Quality` before
-`modules/common/TidePathTracer.h` declared it, and the counts per commit say
-where that lived:
-
-| commit | uses in `TiDEPanelGui.cpp` | `Quality` in `common/TidePathTracer.h` |
-|---|---|---|
-| `fd1e106` | 2 | **0** |
-| `348e91d` | 2 | **0** |
-| `f760589` | 2 | **0** |
-| `da0bb37` | 2 | **2** |
-
-So **`main` itself was broken from 01:36 to 04:02**, and both other `build.yml`
-runs in that window failed identically on **windows and linux**
-([32436905221](https://github.com/JeffMcClintock/TideSynth/actions/runs/32436905221),
-[32439088554](https://github.com/JeffMcClintock/TideSynth/actions/runs/32439088554)).
-No `platform:win` twin exists only because that step is `matrix.platform != 'win'`.
-Jeff's `da0bb37` added the declaration.
-
-Verified by building here rather than by reading CI — `cmake -S . -B build
--DCMAKE_BUILD_TYPE=Release` rc=0, `cmake --build build --config Release
---parallel` **rc=0, 0 error lines, 3m36s**, the failing TU compiled into all
-three targets, and `TIDE.gmpi` / `TIDE_VST3.so` / `TIDE_VST3.vst3` /
-`TIDE_STANDALONE` all linked. Issue closed with the working; no PR, because
-there was nothing left to fix.
-
-### S23's stated blocker is gone, and so is one of its hypotheses
-
-- **`gdb` is installed** — 15.1 (Ubuntu 15.1-1ubuntu1~24.04.1). The row's
-  *"`gdb` is not installed, so nothing here names a frame"* is stale.
-- **`libpipewire-0.3-dev` is 1.0.5-1ubuntu3.3 system-wide and the runtime
-  `libpipewire-0.3.so.0.1005.0` is the same version.** So the tempting theory —
-  that the two crashes came from S21's `apt-get download` + `dpkg-deb -x`
-  workaround compiling against headers that did not match the linked runtime —
-  **is dead**: the archive version and the installed version are the same.
-  Worth killing explicitly, because it is the first thing the workaround
-  suggests.
-
-### It did not reproduce, and here is the rate
-
-Release build with `-g` added at the same `-O3` (so codegen is the shipped one,
-not `RelWithDebInfo`'s `-O2`):
-
-| what | result |
-|---|---|
-| 4 native runs, 25s window, SIGTERM at the end | **rc=0 every time** — a clean SIGTERM shutdown exits 0, so any 139 really is a segfault |
-| 1 run under `gdb`, driven ~13 min over the command channel: ~1000 arm-then-click prefab insertions plus a full-window screenshot after each | **no signal** |
-
-The only `SIGNAL-STOP` in the gdb log is my own `kill -9`. **28 clean runs
-were the prior evidence; this adds roughly 1000 driven interactions to it.**
-
-### The mechanism that explains "seen twice, never again" — and it needs no nondeterminism at all
-
-`SessionState` (`GMPI_Wrappers/wrapper/Standalone/SessionState.cpp`) writes a
-**breadcrumb** `session.loading` before reading the patch and removes it after
-(`:395-419`). A launch that finds one concludes the previous run died inside the
-read, **quarantines `session.xml` to `session.previous.xml`**, and comes up at
-defaults (`:325-328`). The header says why in as many words: an assert inside
-the parse is *"the failure a return code cannot catch"*, and without this
-*"the app would die on every launch from now on"*.
-
-**So a crash in session restore is self-limiting to exactly one occurrence per
-bad file** — which is the entire shape of what S23 recorded: two crashes, both
-on a *first* run, then 28 controlled runs finding nothing. The 28 runs were not
-evidence of rarity. They were runs of an app that had already thrown the
-offending file away.
-
-**And the file is still on disk.** `~/.config/TIDE Rack/session.previous.xml`,
-**17,866 bytes, dated 2026-08-20 17:33** — the same box and the same day as the
-two crashes. That is the prime suspect, sitting where the quarantine put it.
-
-**Not proven.** `keepCurrentAside` (`:255`) rotates to the same filename for
-ordinary reasons, and the header names a false positive of its own — a second
-instance launched while the first is still in `restore()` sees the crumb and
-quarantines a good file. Either could have produced this one.
-
-### Why I stopped instead of running the experiment that decides it
-
-The experiment is one command and needs nothing from Jeff:
-`StandaloneSettings.cpp:49` honours **`XDG_CONFIG_HOME`**, so the suspect file
-can be replayed in a scratch config dir under `gdb` **without touching Jeff's
-own config at all**. The harness is written (`replay.sh`, in this run's
-scratchpad, reproduced in the row).
-
-I did not run it, because **the desktop session on this box crashed twice while
-I was working**, and this is Jeff's machine. Stated with the control, because
-the control is what matters: the first crash (~16:45) came during the heavy
-insertion stress; **the second (~16:49) came when `TIDE_STANDALONE` was not
-running at all** — I had killed it five minutes earlier and the relaunch was
-never made. So **the correlation with TIDE is unsupported**, and the second
-event is the negative control that breaks it. This box is a **VirtualBox** VM
-whose log carries `libEGL warning: Ensure your X server supports DRI3` and
-repeated `Invalid sequence for VSYNC frame info`; `gnome-shell` restarted three
-times in four minutes. Neither event was a reboot — `journalctl --list-boots`
-shows one boot across the whole session.
-
-I am recording that as an observation about the box, **not** as a finding about
-the product, precisely because S21's own entry made the opposite mistake with
-these same crashes and had to retract it.
-
-**Jeff's working tree was left as found**: `session.xml` was overwritten by my
-stress run (5.8 MB of inserted junk), and the 13,406-byte 2026-08-20 original
-was restored from a backup taken before the first launch — **md5 verified equal**.
-The stress file is kept as evidence in the scratchpad, not in the repo.
-
-**Learned:**
-
-1. **A self-healing mechanism upstream of a bug will make that bug look
-   intermittent, and a controlled-run count cannot see it.** 28 clean runs read
-   as "rare"; they were 28 runs of an app that had already quarantined the input.
-   **Before sizing a crash by its rate, ask what the first crash changed.**
-2. **`XDG_CONFIG_HOME` is honoured by the standalone**, so any session-state
-   experiment can run fully isolated from the developer's own config. This is
-   the technique that makes replaying a suspect patch safe on a shared box.
-3. **A branch's CI platform issue can be reporting `main`'s break.** The title
-   names the branch, so the natural reading is wrong. One `git show` of the
-   failing TU against `main` decides who owns it — and here the answer was
-   nobody on this branch.
-4. **A clean SIGTERM shutdown exits 0**, so in this harness a 139 is unambiguous.
-   Worth one run to establish before counting crashes.
-5. **`pkill -f <pattern>` matched my own shell and killed it (exit 144)** — the
-   third time this fleet has recorded it and the second in two runs on this box.
-   Two journal bullets have not stopped it. Filed as **S31**, because a lesson
-   this durable wants a wrapper, not another bullet.
-6. **Report a crash with its control, not just its correlation.** I had a
-   plausible story — heavy path-traced rendering in a software-GL VM takes the
-   compositor down — and the second crash, with nothing running, refuted it. It
-   would have been an easy and confident thing to write down.
-
-**Next:**
-
-1. **The one experiment that decides S23**, and it is cheap: replay
-   `~/.config/TIDE Rack/session.previous.xml` as `session.xml` under
-   `XDG_CONFIG_HOME=<scratch>` with no `session.loading` present, under `gdb`.
-   A segfault names the frame and closes the row; a clean run eliminates the
-   only hypothesis that explains the observed pattern. **Do this before any
-   further stress runs** — it is seconds, and the stress is hours.
-2. **Do it when the box is calm.** The desktop was restarting itself today; that
-   is worth knowing before blaming anything it hosts.
-3. **S31** — the `pkill -f` trap.
-
-**Branch/PR:** `tide/linux/S23-standalone-segfault` — TideSynth only, row and journal. No code change.
 
 ---
 
