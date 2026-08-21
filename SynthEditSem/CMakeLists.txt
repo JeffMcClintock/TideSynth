@@ -569,8 +569,25 @@ foreach(kind IN LISTS FORMATS_LIST)
     # sessions. What DOES follow PROJECT_NAME is the STANDALONE's bundle id
     # (gmpi_plugin.cmake sets com.gmpi.standalone.${PROJECT_NAME}), which is a
     # developer tool rather than a shipped artifact.
+    #
+    # THE SIDE-CHANNEL ARTIFACTS MUST STAY DISTINCT, and this is not tidiness:
+    # OUTPUT_NAME alone renamed the .pdb and the import .lib too, and all three
+    # format targets build into the SAME directory on Windows. Only the module
+    # itself is disambiguated by its extension (.gmpi / .vst3 / .exe); the PDB
+    # and the import library are not, so GMPI, VST3 and STANDALONE all linked
+    # against `Release/TIDE-Rack.pdb` at once and MSBuild's parallel link died
+    # with `LNK1201: error writing to program database` -- a message that reads
+    # like a disk-space problem and is really a name collision.
+    #
+    # Invisible on macOS and Linux, which is why CI showed green there and red
+    # on Windows only: neither emits a PDB, and neither emits an import library
+    # for a MODULE. Keyed off the TARGET name, which is unique by construction
+    # (`${PROJECT_NAME}_${kind}`), rather than a hand-written per-format string.
     set_target_properties(${SUB_PROJECT_NAME} PROPERTIES
         OUTPUT_NAME "TIDE-Rack"
+        PDB_NAME "${SUB_PROJECT_NAME}"
+        COMPILE_PDB_NAME "${SUB_PROJECT_NAME}"
+        ARCHIVE_OUTPUT_NAME "${SUB_PROJECT_NAME}"
         MACOSX_BUNDLE_BUNDLE_NAME "TIDE Rack")
 
 	# U3 — EditorScreenshot is gone from this list along with the breadcrumb
