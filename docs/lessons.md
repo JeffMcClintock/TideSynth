@@ -39,6 +39,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**macos — S33 filed: a live defect was sitting on a closed row**
+
+- Recording a finding on a row you are about to close loses it.
+- Two other agents were filing ids concurrently.
+
 **linux — N1 costed: 91% of what a grep finds must not be touched**
 
 - Counting a rename by bucket, not by total, changes the decision.
