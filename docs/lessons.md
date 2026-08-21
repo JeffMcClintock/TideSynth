@@ -39,6 +39,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**macos — S29 fixed, after measuring that S29's own recommendation was wrong**
+
+- A concurrency group is only as good as what its expressions evaluate to, and `github.ref` is not the branch on a `pull_request` event.
+- The second-best fix won on a constraint from a different row.
+
 **macos — E11's hazard is unreachable, and the reason is a stub nobody had noticed**
 
 - A row that asks "is this ordering safe?" can be answered by showing the code never reaches the ordering at all.
