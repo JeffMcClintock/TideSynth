@@ -93,9 +93,21 @@ jobs:
     # THE COST, stated: same-repo PRs are no longer tested as a merge result,
     # only as the branch tip. Acceptable while this repo squash-merges quickly;
     # revisit if main starts moving under long-lived PRs.
+    # THE `tide/` TEST IS LOAD-BEARING, and the merged guard lacked it.
+    # Skipping every same-repo PR assumes a push run already covered the
+    # branch -- true only for `main` and `tide/**`, which is what `on: push:`
+    # above lists. A branch outside that pattern gets NO push run, so skipping
+    # its PR run too leaves it with ZERO build coverage. Jeff's own branches
+    # are all outside it (`website-donate-link-wording`, `c7-linux-ci-deps`,
+    # `s29-one-run-per-commit`), and the hole is silent by construction: a
+    # skipped job reports green.
+    #
+    # Keep this condition in step with `on: push: branches:` above -- they are
+    # two halves of one rule.
     if: >-
       github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name != github.repository
+      github.event.pull_request.head.repo.full_name != github.repository ||
+      !startsWith(github.head_ref, 'tide/')
     runs-on: ubuntu-latest
     permissions:
       contents: read
