@@ -2421,11 +2421,20 @@ Settings qualitySettings(Quality quality, int width, int height)
 		break;
 
 	case Quality::Standard:
-		// The shipped faceplate budget, verbatim: TiDEPanel ran 128 paths
-		// tapering past a one-unit panel at 2x, floor 64, 8 bounces, before
-		// the numbers moved here.
+		// The shipped faceplate budget: 128 paths tapering past a one-unit
+		// panel at 2x, floor 64.
+		//
+		// The bounce cap is 12 rather than the 8 TiDEPanel used, because 8 was
+		// a saving that never existed. Measured on the glass scene, 8 bounces
+		// loses 1.37% of the converged energy where 12 loses 0.18% — and
+		// measured on render time, raising it costs +0.8% (materials) to +2.1%
+		// (glass), with the metal knob inside noise. Russian roulette at depth
+		// 3 was already ending dim paths long before the cap could bind, so
+		// the cap was only ever truncating the BRIGHT paths that matter, and
+		// only on transmissive geometry. Faceplates never noticed either way;
+		// glass did.
 		s.samplesPerPixel = samplesFor(width, height, 128, 64);
-		s.maxBounces = 8;
+		s.maxBounces = 12;
 		s.clampRadiance = 12.0f;
 		s.rouletteDepth = 3;
 		s.filter = PixelFilter::Tent;

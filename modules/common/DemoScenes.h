@@ -431,15 +431,19 @@ inline constexpr SceneDef kScenes[] = {
 };
 inline constexpr int kSceneCount = (int)(sizeof(kScenes) / sizeof(kScenes[0]));
 
-// The size and sample count the committed reference images are rendered at.
+// The size the committed reference images are rendered at.
 //
 // Small and cheap on purpose: the regression test runs on every build, and its
 // job is to notice that the LOOK changed, which a 160-pixel frame does just as
-// well as a 640-pixel one. The sample count is high enough that the image is
-// readable rather than a sandstorm — a noisy reference makes a human reviewing
-// a diff unable to tell a real change from grain.
+// well as a 640-pixel one. It is also below the quality ladder's taper
+// threshold, so `Quality::Standard` hands out its full base sample count here —
+// which keeps the references readable rather than a sandstorm, and a noisy
+// reference makes a human reviewing a diff unable to tell a change from grain.
+//
+// There is deliberately no kReferenceSamples any more: the sample count comes
+// from the ladder now, and a second constant beside it could only ever drift
+// out of agreement with the thing it was meant to describe.
 inline constexpr int kReferenceWidth = 160;
-inline constexpr int kReferenceSamples = 128;
 
 // Null for an unknown name, so the CLI can print usage instead of a stack trace.
 inline const SceneDef* findScene(const std::string& name)
@@ -469,17 +473,29 @@ inline std::string referenceName(const SceneDef& def, RenderMode mode)
 	return std::string(def.name) + (mode == RenderMode::Fast ? "-fast" : "") + ".png";
 }
 
+// The rung each reference mode pins. Draft IS RenderMode::Fast, and Standard is
+// the faceplate quality the product actually ships, so the two references per
+// scene are exactly the two rungs a user ever sees.
+inline constexpr Quality referenceQuality(RenderMode mode)
+{
+	return (mode == RenderMode::Fast) ? Quality::Draft : Quality::Standard;
+}
+
 // Built in ONE place so the generator and the test cannot disagree about what a
 // reference is — a drifting sample count or mode would fail every scene at once
 // with deltas that read as a renderer regression.
+//
+// Routed THROUGH the quality ladder rather than assembling a Settings by hand.
+// Hand-assembling pinned only the fields it happened to mention: the ladder's
+// own numbers — sample count, bounce budget, clamp, roulette depth, filter —
+// went unchecked, so `Quality::Standard` could have been retuned to anything
+// overnight and every reference would still have matched. Now the committed
+// images ARE the shipped rungs, and changing a rung is a change you have to
+// look at.
 inline Settings referenceSettings(const SceneDef& def, RenderMode mode)
 {
-	Settings settings;
-	settings.mode = mode;
-	settings.width = kReferenceWidth;
-	settings.height = sceneHeight(def, kReferenceWidth);
-	settings.samplesPerPixel = kReferenceSamples;
-	return settings;
+	return qualitySettings(referenceQuality(mode), kReferenceWidth,
+		sceneHeight(def, kReferenceWidth));
 }
 
 // Render a scene and encode it to straight (NON-premultiplied) 8-bit RGBA —
