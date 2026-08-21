@@ -11,8 +11,11 @@
 // to a PNG so a material or a light can be judged without a plugin host, a DAW
 // and a rebuild of the whole rack in the loop.
 //
-//   tide_render_preview <scene> [--size N] [--spp N] [--out F]
+//   tide_render_preview <scene> [--size N] [--spp N] [--fast] [--out F]
 //   tide_render_preview --references <dir>
+//
+// --fast is the geometry-iteration mode: no light transport, full resolution,
+// tens of milliseconds instead of seconds. See RenderMode in TidePathTracer.h.
 //
 // The scenes themselves live in DemoScenes.h, shared with the regression test.
 //
@@ -26,7 +29,7 @@ namespace
 
 int usage()
 {
-	std::printf("usage: tide_render_preview <scene> [--size N] [--spp N] [--out F]\n");
+	std::printf("usage: tide_render_preview <scene> [--size N] [--spp N] [--fast] [--out F]\n");
 	std::printf("       tide_render_preview --references <dir>\n");
 	std::printf("scenes:");
 	for (const tide::demo::SceneDef& def : tide::demo::kScenes)
@@ -53,8 +56,14 @@ bool renderToPng(const tide::demo::SceneDef& def, const Settings& settings,
 		return false;
 	}
 
-	std::printf("%-10s %4dx%-4d %5d spp  %6.2fs  -> %s\n", def.name,
-		image.width, image.height, settings.samplesPerPixel, elapsed, outPath.c_str());
+	// Report what actually ran: "spp" is meaningless in fast mode, and printing
+	// it anyway is how a preview gets mistaken for a converged render.
+	if (settings.mode == RenderMode::Fast)
+		std::printf("%-10s %4dx%-4d  fast %dx  %6.3fs  -> %s\n", def.name,
+			image.width, image.height, settings.fastAntiAlias, elapsed, outPath.c_str());
+	else
+		std::printf("%-10s %4dx%-4d %5d spp  %6.2fs  -> %s\n", def.name,
+			image.width, image.height, settings.samplesPerPixel, elapsed, outPath.c_str());
 	return true;
 }
 
@@ -64,15 +73,15 @@ bool renderToPng(const tide::demo::SceneDef& def, const Settings& settings,
 // as good as the eye that approved it.
 int writeReferences(const std::string& directory)
 {
-	Settings settings;
-	settings.width = tide::demo::kReferenceWidth;
-	settings.samplesPerPixel = tide::demo::kReferenceSamples;
-
 	for (const tide::demo::SceneDef& def : tide::demo::kScenes)
 	{
-		settings.height = tide::demo::sceneHeight(def, settings.width);
-		if (!renderToPng(def, settings, directory + "/" + def.name + ".png"))
-			return 1;
+		for (const RenderMode mode : tide::demo::kReferenceModes)
+		{
+			const Settings settings = tide::demo::referenceSettings(def, mode);
+			if (!renderToPng(def, settings,
+				directory + "/" + tide::demo::referenceName(def, mode)))
+				return 1;
+		}
 	}
 
 	std::printf("\nreferences written to %s — LOOK AT THEM before committing.\n",
@@ -107,6 +116,8 @@ int main(int argc, char** argv)
 			settings.width = std::atoi(argv[++i]);
 		else if (!std::strcmp(argv[i], "--spp") && hasValue)
 			settings.samplesPerPixel = std::atoi(argv[++i]);
+		else if (!std::strcmp(argv[i], "--fast"))
+			settings.mode = RenderMode::Fast;
 		else if (!std::strcmp(argv[i], "--out") && hasValue)
 			outPath = argv[++i];
 		else

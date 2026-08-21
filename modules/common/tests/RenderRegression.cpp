@@ -93,30 +93,33 @@ Comparison compare(const std::vector<uint8_t>& actual, const std::vector<uint8_t
 	return c;
 }
 
-int runScene(const tide::demo::SceneDef& def, const std::string& referenceDir,
-	const std::string& failureDir)
+int runScene(const tide::demo::SceneDef& def, tide::render::RenderMode mode,
+	const std::string& referenceDir, const std::string& failureDir)
 {
 	using namespace tide::render;
 
-	const std::string name = def.name;
+	// The label carries the mode so a failure says which of the two moved — a
+	// change in FULL only is a lighting or material change, a change in FAST
+	// means the geometry itself moved.
+	const std::string name = std::string(def.name)
+		+ ((mode == RenderMode::Fast) ? " (fast)" : "");
 
-	Settings settings;
-	settings.width = tide::demo::kReferenceWidth;
-	settings.height = tide::demo::sceneHeight(def, settings.width);
-	settings.samplesPerPixel = tide::demo::kReferenceSamples;
+	// The SAME settings and pipeline the reference generator uses — both come
+	// from DemoScenes.h precisely so they cannot drift apart.
+	const Settings settings = tide::demo::referenceSettings(def, mode);
 
-	// The SAME pipeline the reference generator writes with — see DemoScenes.h.
 	std::vector<uint8_t> actual;
 	const Image image = tide::demo::renderSceneRgba8(def, settings, actual);
 
-	const std::string referencePath = referenceDir + "/" + name + ".png";
+	const std::string referencePath =
+		referenceDir + "/" + tide::demo::referenceName(def, mode);
 
 	std::vector<uint8_t> reference;
 	int refWidth = 0, refHeight = 0;
 	std::string error;
 	if (!tide::png::read(referencePath, reference, refWidth, refHeight, error))
 	{
-		std::printf("FAIL %-10s %s\n", name.c_str(), error.c_str());
+		std::printf("FAIL %-17s %s\n", name.c_str(), error.c_str());
 		std::printf("     regenerate with: tide_render_preview --references %s\n",
 			referenceDir.c_str());
 		return 1;
@@ -124,7 +127,7 @@ int runScene(const tide::demo::SceneDef& def, const std::string& referenceDir,
 
 	if (refWidth != image.width || refHeight != image.height)
 	{
-		std::printf("FAIL %-10s reference is %dx%d, rendered %dx%d\n",
+		std::printf("FAIL %-17s reference is %dx%d, rendered %dx%d\n",
 			name.c_str(), refWidth, refHeight, image.width, image.height);
 		return 1;
 	}
@@ -132,15 +135,16 @@ int runScene(const tide::demo::SceneDef& def, const std::string& referenceDir,
 	const Comparison c = compare(actual, reference, image.width, image.height);
 	if (c.matched)
 	{
-		std::printf("ok   %-10s %.3f%% pixels moved, worst delta %d\n",
+		std::printf("ok   %-17s %.3f%% pixels moved, worst delta %d\n",
 			name.c_str(), c.changedFraction * 100.0, c.worstDelta);
 		return 0;
 	}
 
-	const std::string actualPath = failureDir + "/" + name + "-actual.png";
+	const std::string actualPath = failureDir + "/"
+		+ std::string(def.name) + ((mode == RenderMode::Fast) ? "-fast" : "") + "-actual.png";
 	tide::png::write(actualPath, actual.data(), image.width, image.height);
 
-	std::printf("FAIL %-10s %.3f%% of pixels moved (limit %.3f%%), worst delta %d at (%d,%d)"
+	std::printf("FAIL %-17s %.3f%% of pixels moved (limit %.3f%%), worst delta %d at (%d,%d)"
 		" (limit %d)\n",
 		name.c_str(), c.changedFraction * 100.0, kMaxChangedFraction * 100.0,
 		c.worstDelta, c.worstX, c.worstY, kMaxChannelDelta);
@@ -162,16 +166,23 @@ int main(int argc, char** argv)
 	const std::string failureDir = (argc > 2) ? argv[2] : ".";
 
 	int failures = 0;
+	int checks = 0;
 	for (const tide::demo::SceneDef& def : tide::demo::kScenes)
-		failures += runScene(def, referenceDir, failureDir);
+	{
+		for (const tide::render::RenderMode mode : tide::demo::kReferenceModes)
+		{
+			++checks;
+			failures += runScene(def, mode, referenceDir, failureDir);
+		}
+	}
 
 	if (failures == 0)
 	{
-		std::printf("\nall %d scenes match\n", tide::demo::kSceneCount);
+		std::printf("\nall %d references match\n", checks);
 		return 0;
 	}
 
-	std::printf("\n%d of %d scenes changed.\n", failures, tide::demo::kSceneCount);
+	std::printf("\n%d of %d references changed.\n", failures, checks);
 	std::printf("If the change was INTENDED, look at the -actual images, then run\n");
 	std::printf("  tide_render_preview --references %s\n", referenceDir.c_str());
 	std::printf("and commit the new references with the change that caused them.\n");

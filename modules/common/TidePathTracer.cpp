@@ -1826,6 +1826,89 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 }
 
 // ---------------------------------------------------------------------------
+// Fast preview shading
+//
+// No light transport whatsoever: one primary ray, then a closed-form shade from
+// the surface normal. This is the classic "solid"/workbench shading every
+// modelling tool carries next to its renderer, and it is here for the same
+// reason — geometry iteration wants resolution and silhouette, not photons.
+//
+// Deliberately NOT physically based, and deliberately not a cheap path tracer:
+// there is no sampling, no pdf, no estimator, so there is nothing here that can
+// be subtly biased. The worst a mistake in this file can do is look wrong.
+// ---------------------------------------------------------------------------
+
+// Direction TO the key light, = normalize({-3.6, 3.0, 3.4}), which is exactly
+// where addStudio puts the studio key. Matching it matters: the preview and the
+// full render then agree about which side of a chamfer is the lit one, so a
+// bevel tuned in preview does not flip when the real lights arrive.
+constexpr Vec3 kFastLightDirection{ -0.6218f, 0.5182f, 0.5872f };
+
+// Wrapped rather than clamped diffuse: `ambient + key * (0.5 + 0.5 cos)` never
+// reaches zero, so a surface facing away keeps its form instead of going to a
+// black silhouette. Losing the unlit side is precisely losing half the geometry
+// you opened the preview to look at.
+constexpr float kFastAmbient = 0.18f;
+constexpr float kFastKey = 0.90f;
+
+// A fixed Blinn-Phong pop with no Fresnel and no roughness. Its whole job is to
+// put a highlight ON EDGES: a chamfer or fillet sweeps through the mirror angle
+// somewhere along its width, so the band appears roughly where the real render
+// will put it — which is what makes an edge treatment judgeable at all.
+constexpr float kFastSpecular = 0.30f;
+constexpr float kFastSpecularPower = 32.0f;
+
+// A grazing-angle lift, and the term that makes this mode useful on the shape
+// it exists for.
+//
+// Seen head-on under an orthographic camera, a flat face has exactly ONE normal
+// and therefore exactly one shade. The full render escapes that because a metal
+// face is a picture of the room; the preview has no room, so without this a
+// knob previews as a plain disc with a dot in the middle. This is zero on a
+// surface square to the camera and rises wherever one turns away, so it draws
+// precisely the features that TURNING is made of: chamfers, fillets, groove
+// walls, the falloff of a crown. It is a curvature cue, not a Fresnel term —
+// there is no physics claimed here.
+constexpr float kFastRim = 0.45f;
+
+Vec3 shadeFast(const Hit& hit, const Vec3& rayDirection)
+{
+	// Emitters keep their emission, so an LED still reads as ON and a visible
+	// softbox still reads as a light rather than as a white wall.
+	if (hit.light)
+		return hit.light->emission;
+
+	if (!hit.material)
+		return {};
+
+	const Material& m = *hit.material;
+	if (m.kind == MaterialKind::Emissive)
+		return m.emission;
+
+	// `colour` means something different per material — albedo for diffuse and
+	// plastic, normal-incidence reflectance for metal, transmitted tint for
+	// glass — but all four are "roughly what this thing looks like", which is
+	// all a geometry pass needs to keep the parts tellable apart. Glass shades
+	// as an opaque solid of its own tint, on purpose: a preview that showed
+	// through it would hide the shape being previewed.
+	const Vec3 normal = hit.normal; // already oriented against the ray
+	const Vec3 view = -rayDirection;
+
+	const float wrap = clampf(0.5f + 0.5f * dot(normal, kFastLightDirection), 0.0f, 1.0f);
+
+	// Multiplied into the albedo rather than added on top, so a turning surface
+	// keeps its own colour instead of washing towards white. Brass that goes
+	// pale at every chamfer stops looking like brass.
+	const float rim = kFastRim * (1.0f - clampf(dot(normal, view), 0.0f, 1.0f));
+
+	const Vec3 half = normalize(kFastLightDirection + view);
+	const float specular = kFastSpecular
+		* std::pow(maxf(dot(normal, half), 0.0f), kFastSpecularPower);
+
+	return m.colour * (kFastAmbient + kFastKey * wrap + rim) + Vec3{ specular };
+}
+
+// ---------------------------------------------------------------------------
 // Camera
 // ---------------------------------------------------------------------------
 
@@ -1969,7 +2052,16 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 	// must not be touched while a render is in flight.
 	const std::vector<Emitter> emitters = buildEmitters(scene);
 	const std::vector<ObjectDerived> derived = buildDerived(scene);
-	const int samplesPerPixel = std::max(settings.samplesPerPixel, 1);
+
+	const bool fast = (settings.mode == RenderMode::Fast);
+
+	// Fast mode's samples are a fixed sub-pixel GRID, not jittered draws: with
+	// no light transport the shade is exact, so jitter would add noise to an
+	// image that has none. It also makes the preview bit-deterministic without
+	// the RNG being involved at all.
+	const int fastGrid = std::clamp(settings.fastAntiAlias, 1, 8);
+	const int samplesPerPixel = fast
+		? (fastGrid * fastGrid) : std::max(settings.samplesPerPixel, 1);
 	const float invSpp = 1.0f / (float)samplesPerPixel;
 
 	// Tiles rather than scanlines: a tile is a compact region of the image, so
@@ -1987,6 +2079,22 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 	threadCount = std::clamp(threadCount, 1, 64);
 
 	std::atomic<int> nextTile{ 0 };
+
+	// Pixel plus a sub-pixel offset in [0,1) -> the ray's starting point.
+	// THE orthographic camera: every ray shares `basis.forward` and they differ
+	// only in where they start.
+	const auto rayOrigin = [&](int x, int y, float offsetX, float offsetY)
+	{
+		const float px = ((float)x + offsetX) / (float)image.width;
+		const float py = ((float)y + offsetY) / (float)image.height;
+
+		// Film coordinates: +1 right, +1 up. Image rows run top to bottom,
+		// hence the flip on py.
+		const float fx = (px * 2.0f - 1.0f) * basis.halfWidth;
+		const float fy = (1.0f - py * 2.0f) * basis.halfHeight;
+
+		return basis.origin + basis.right * fx + basis.up * fy;
+	};
 
 	const auto worker = [&]()
 	{
@@ -2008,33 +2116,65 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 					Vec3 sum{ 0.0f };
 					float alphaSum = 0.0f;
 
-					for (int s = 0; s < samplesPerPixel; ++s)
+					if (fast)
 					{
-						// Seeded from the PIXEL, not from a shared counter, so
-						// the image does not depend on how the tiles were
-						// scheduled across threads.
-						Rng rng = seedRng((uint32_t)x, (uint32_t)y, (uint32_t)s, settings.seed);
+						for (int sy = 0; sy < fastGrid; ++sy)
+						{
+							for (int sx = 0; sx < fastGrid; ++sx)
+							{
+								// Cell CENTRES, so the grid is symmetric about
+								// the pixel and an edge lands the same way from
+								// either side.
+								const Vec3 origin = rayOrigin(x, y,
+									((float)sx + 0.5f) / (float)fastGrid,
+									((float)sy + 0.5f) / (float)fastGrid);
 
-						// Jitter within the pixel for antialiasing. Plain
-						// stratification would be better still, but the sample
-						// counts here are high enough that the difference is
-						// below the noise floor.
-						const float px = ((float)x + rng.next()) / (float)image.width;
-						const float py = ((float)y + rng.next()) / (float)image.height;
+								// primary = true and mediumIndex = -1: the same
+								// call the full render makes for its camera ray,
+								// so camera-invisible geometry stays invisible
+								// and the alpha channel comes out identical.
+								const Hit hit = intersect(scene, origin, basis.forward,
+									kMaxTraceDistance, true, -1);
+								if (!hit.valid)
+									continue;
 
-						// Film coordinates: +1 right, +1 up. Image rows run top
-						// to bottom, hence the flip on py.
-						const float fx = (px * 2.0f - 1.0f) * basis.halfWidth;
-						const float fy = (1.0f - py * 2.0f) * basis.halfHeight;
+								sum += shadeFast(hit, basis.forward);
+								alphaSum += 1.0f;
+							}
+						}
+					}
+					else
+					{
+						for (int s = 0; s < samplesPerPixel; ++s)
+						{
+							// Seeded from the PIXEL, not from a shared counter,
+							// so the image does not depend on how the tiles were
+							// scheduled across threads.
+							Rng rng = seedRng((uint32_t)x, (uint32_t)y, (uint32_t)s, settings.seed);
 
-						// THE orthographic camera: every ray shares a direction
-						// and they differ only in where they start.
-						const Vec3 origin = basis.origin + basis.right * fx + basis.up * fy;
+							// Jitter within the pixel for antialiasing. Plain
+							// stratification would be better still, but the
+							// sample counts here are high enough that the
+							// difference is below the noise floor.
+							//
+							// The two draws are SEPARATE STATEMENTS on purpose.
+							// Passing them straight into the call as two
+							// arguments reads better and is a determinism bug:
+							// C++ leaves argument evaluation order unspecified,
+							// so which draw becomes x and which becomes y is
+							// the compiler's choice, and the committed
+							// reference images stop being reproducible across
+							// toolchains. (Written that way once; the image
+							// regression caught it immediately.)
+							const float jitterX = rng.next();
+							const float jitterY = rng.next();
+							const Vec3 origin = rayOrigin(x, y, jitterX, jitterY);
 
-						const PathResult r = tracePath(scene, settings, emitters, derived,
-							origin, basis.forward, rng);
-						sum += r.radiance;
-						alphaSum += r.alpha;
+							const PathResult r = tracePath(scene, settings, emitters, derived,
+								origin, basis.forward, rng);
+							sum += r.radiance;
+							alphaSum += r.alpha;
+						}
 					}
 
 					const size_t i = ((size_t)y * (size_t)image.width + (size_t)x) * 4;

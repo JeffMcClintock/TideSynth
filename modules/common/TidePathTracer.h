@@ -807,14 +807,53 @@ struct Camera
 	float nearPullback = 20.0f;
 };
 
+// How much of the renderer actually runs.
+//
+// The two modes exist because the two things you iterate on have opposite
+// needs. Tuning a MATERIAL is a lighting question and needs the full simulation.
+// Tuning GEOMETRY — a chamfer width, a groove, a bore, a seam — needs
+// resolution and needs to see the silhouette, and the lighting is just in the
+// way. Dropping resolution to go faster is exactly backwards for the second
+// case: it destroys the sub-pixel detail you are looking at while leaving the
+// Monte Carlo noise that hides it.
+enum class RenderMode : uint8_t
+{
+	// Path traced. Everything the renderer knows how to do.
+	Full,
+
+	// One primary ray, one analytic shade, no light transport at all: every
+	// surface opaque, lit by a single fixed direction. 100-500x faster, so it
+	// runs at FULL resolution in tens of milliseconds instead of seconds.
+	//
+	// What it keeps, exactly: the silhouette, the alpha channel, and every
+	// geometric artefact — a bore that leaks the background, speckle where two
+	// faces are coincident, an object clipped by its own bounds. Those are all
+	// primary-ray phenomena computed by the very same marcher, so the preview
+	// does not APPROXIMATE the geometry, it renders it.
+	//
+	// What it drops: reflection, shadow, transmission, caustics, roughness,
+	// anisotropy. Brushed and polished aluminium look identical here. Anything
+	// about light means going back to Full.
+	Fast,
+};
+
 struct Settings
 {
 	int width = 256;
 	int height = 256;
 
-	// Paths per pixel. 32 is a usable preview, 512 is clean, and a glass object
-	// with a coloured caustic wants more — the caustic arrives only by chance
-	// through BSDF sampling and is the last thing in the image to converge.
+	RenderMode mode = RenderMode::Full;
+
+	// Sub-pixel grid per axis in Fast mode — 2 means 2x2 = 4 rays per pixel,
+	// purely for antialiasing. It is a fixed grid rather than jittered samples
+	// because with no light transport there is nothing to average away: jitter
+	// would only add noise to an otherwise exact image. `samplesPerPixel`,
+	// `maxBounces` and `clampRadiance` are all ignored in Fast mode.
+	int fastAntiAlias = 2;
+
+	// Paths per pixel, Full mode only. 32 is a rough look, 512 is clean, and a
+	// glass object with a coloured caustic wants more — the caustic arrives only
+	// by chance through BSDF sampling and is the last thing to converge.
 	int samplesPerPixel = 256;
 
 	// Path length. 8 is enough for a knob; glass needs more because every

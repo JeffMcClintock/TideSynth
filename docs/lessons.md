@@ -44,6 +44,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `set(... CACHE ... FORCE)` in a dependency silently outranks the consumer AND the command line.
 - When a change must reach shared code, the negative control is the deliverable.
 
+**macos — Linux CI is green, and the macOS job that would confirm it cannot say anything**
+
+- Ask what a pending check could possibly prove before waiting on it.
+- "All three platforms pass" and "all three passed in one run" are different claims, and only one of them is what an Accept clause usually means.
+
 **macos — STEP 4 bookkeeping: seven rows flipped on merged PRs**
 
 - A day that merges thirteen PRs leaves the backlog lying by seven rows.

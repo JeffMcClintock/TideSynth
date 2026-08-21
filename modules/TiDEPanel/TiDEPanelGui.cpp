@@ -9,6 +9,7 @@
 #include <mutex>
 #include <vector>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdlib>
 #include <cstring>
@@ -18,6 +19,78 @@
 #include <thread>
 #include <tuple>
 #include "helpers/Timer.h"
+
+// ---------------------------------------------------------------------------
+// THE PROGRESSION LOG. Off by default; set this to 1 to find out which image
+// the panel actually put on screen, and when.
+//
+// It exists because that question is genuinely hard to answer from the outside.
+// Trying to tell a stretched full render from a flat-lit preview by looking at
+// screenshots wasted a lot of time and produced two confident wrong answers;
+// the panel saying what it drew settles it in one line. Writes to
+// %TEMP%\TiDEPanel.log, truncated when the host process first draws a panel, so
+// one run is one file.
+//
+// Typical use: arm it, rebuild, load a patch, then read the log. Every line is
+// timestamped from the first event, so the gaps between REQUEST, PREVIEW, FULL
+// and each DRAW are the latencies you are looking for.
+#ifndef TIDE_PANEL_TRACE_LOG
+#define TIDE_PANEL_TRACE_LOG 0
+#endif
+
+#if TIDE_PANEL_TRACE_LOG
+#include <cstdarg>
+#include <cstdio>
+#include <string>
+
+namespace tidelog
+{
+
+inline double millisNow()
+{
+	using clock = std::chrono::steady_clock;
+	static const clock::time_point t0 = clock::now();
+	return std::chrono::duration<double, std::milli>(clock::now() - t0).count();
+}
+
+// Serialised because the render worker and the UI thread both write, and a
+// torn line is worse than no line.
+inline void write(const char* fmt, ...)
+{
+	char line[512];
+	va_list ap;
+	va_start(ap, fmt);
+	std::vsnprintf(line, sizeof(line), fmt, ap);
+	va_end(ap);
+
+	static std::mutex m;
+	std::lock_guard<std::mutex> lock(m);
+
+	static std::FILE* file = nullptr;
+	static bool opened = false;
+	if (!opened)
+	{
+		opened = true;
+		const char* tmp = std::getenv("TEMP");
+		const std::string path =
+			(tmp ? std::string(tmp) : std::string(".")) + "\\TiDEPanel.log";
+		file = std::fopen(path.c_str(), "w");
+	}
+	if (!file)
+		return;
+
+	std::fprintf(file, "%9.1f ms  %s\n", millisNow(), line);
+	std::fflush(file); // a crash mid-investigation must not eat the evidence
+}
+
+} // namespace tidelog
+
+#define TIDE_LOG(...) tidelog::write(__VA_ARGS__)
+#define TIDE_LOG_NOW  tidelog::millisNow()
+#else
+#define TIDE_LOG(...) ((void)0)
+#define TIDE_LOG_NOW  0.0
+#endif
 // BACKLOG E15 - the caption's raised edge is NOT APPROVED (Jeff, 2026-08-19).
 // Switched off rather than deleted: the mechanism is sound and the finding
 // behind it is worth keeping, but the look is not signed off. Set to 1 to
@@ -167,24 +240,156 @@ constexpr float kGrooveSlope = 0.22f;
 // entries: eight of the last one would be half a gigabyte.
 constexpr float kMaxTraceScale = 4.0f;
 
+// AND A FLOOR: never trace below one pixel per DIP. THE PANEL DOES NOT RENDER
+// BLURRY IMAGES -- not as a preview, not as a thumbnail, not ever.
+//
+// The cap had no counterpart, so the panel traced whatever the host asked for
+// however small that was. A real patch load caught it: the host reported a
+// device scale of 0.25 for a single frame before the view settled, and the
+// panel dutifully spent 764 ms tracing a 24x96 THUMBNAIL. An image below one
+// pixel per DIP cannot be anything but blurry when shown, because the panel
+// occupies at least that many DIPs by definition, so the work was worse than
+// wasted: the thumbnail then became the best stand-in available and was blown
+// up 6.3x on screen for eleven seconds.
+//
+// With the floor, that same frame traces the panel at 1:1 instead. It costs
+// more than a thumbnail and is worth it, because unlike the thumbnail it is a
+// real image: sharp when scaled down for the zoomed-out view that asked for
+// it, and still a legitimate stand-in afterwards.
+constexpr float kMinTraceScale = 1.0f;
+
+// BELOW THIS DEVICE SCALE THE PANEL DOES NOT TRACE AT ALL -- it draws flat
+// grey and waits to be asked again bigger. THUMBNAILS SHOULD BE INSTANT.
+//
+// SynthEdit's breadcrumb bar renders each container into a tile, and a panel
+// lands in it at device scale 0.25: a 1-unit faceplate is then twelve pixels
+// wide. Everything the tracer is good at is gone at that size -- a 24 DIP jack
+// is six pixels, the brushing is below one -- so the seconds it costs buy an
+// image indistinguishable from a grey rectangle.
+//
+// 0.35 sits just above the breadcrumb's 0.25 and well below anything the main
+// view uses, so it catches thumbnails and essentially nothing else. It is a
+// floor on DETAIL, not on size: a wide panel at this scale is equally
+// unresolvable, since what matters is how many pixels a FEATURE gets.
+//
+// This never means "grey where a picture was". peek() still searches the
+// cache, so a panel already rendered at any size shows that image scaled down
+// -- which is the usual case once you have been looking at the patch.
+constexpr float kMinDetailScale = 0.35f;
+
+// AND THE SCALE IS QUANTISED, so that zooming does not mint a new render per
+// distinct float.
+//
+// The device scale is rasterization scale x the current transform's scale, read
+// on EVERY paint, and any change makes a new cache key. Jeff asked why the
+// panel kept re-rendering when the module was not changing size, which was the
+// right question: it was not the size. A patch load moved the scale 0.25 ->
+// 1.58 and each value queued its own multi-second trace; dragging a zoom would
+// have queued one per intermediate value.
+//
+// Round UP to the next rung, never down. That keeps the invariant that matters
+// -- the traced image is always at least the displayed resolution, so it is
+// only ever scaled DOWN and can never be blurry -- while collapsing a continuum
+// of zoom levels onto a handful of renders that also hit the cache on the way
+// back. The cost is tracing a little larger than strictly needed: at 1.58x this
+// renders 2x, which is 1.6x the pixels, against re-rendering from scratch every
+// time the zoom twitches.
+constexpr float kTraceScaleLadder[] = { 1.0f, 1.5f, 2.0f, 3.0f, 4.0f };
+
+float quantiseTraceScale(float deviceScale)
+{
+	for (const float rung : kTraceScaleLadder)
+	{
+		if (deviceScale <= rung)
+			return rung;
+	}
+	return kMaxTraceScale;
+}
+
 // How much traced imagery is kept alive for instant re-use. Deliberately in
 // pixels: entry count is meaningless when one entry can be sixteen times
 // another. About 48 MB of float at this figure.
 constexpr size_t kTraceCachePixelBudget = 3u * 1024u * 1024u;
 
-// Paths per pixel, tapered for large panels so a 6-unit module does not take
-// six times as long as a 1-unit one. sqrt rather than linear: noise falls as
-// the square root of sample count, so halving samples on a panel with four
-// times the area keeps the visible grain about level.
-constexpr int kSamplesPerPixel = 128;
-constexpr int kMinSamplesPerPixel = 64;
-constexpr uint32_t kReferenceTracePixels = 96u * 760u; // a 1-unit panel at 2x
+// Paths per pixel and the large-panel taper now live in tide_render's quality
+// ladder (Quality::Standard is this module's old numbers verbatim: 128 paths,
+// sqrt-of-area taper past a 1-unit panel at 2x, floor 64, 8 bounces). The
+// faceplate asks for a QUALITY and the library owns what that means, so every
+// consumer of the renderer ages together instead of each carrying its own
+// copy of these constants.
 
-// The progressive preview: how much smaller it is on a side, and how few paths
-// it gets. Both are deliberately crude — it exists to be replaced within a
-// second or two, and being stretched over the panel hides most of its noise.
-constexpr uint32_t kPreviewDivisor = 6;
-constexpr int kPreviewSamples = 48;
+// The progressive preview is tide_render's RenderMode::Fast at the FULL pixel
+// size — one primary ray and an analytic shade, no light transport, tens of
+// milliseconds instead of seconds.
+//
+// It used to be a Full trace at 1/6 the size and 48 paths, and that was the
+// wrong axis to economise on. Dropping resolution destroys the silhouette and
+// the fine detail while leaving the Monte Carlo noise that hides what is left,
+// so the stand-in was both blurry and speckled. Fast keeps the geometry
+// exactly — same marcher, same alpha, same edges — and gives up only the
+// lighting. There is no divisor and no sample count to set: Fast ignores
+// samplesPerPixel, and its only quality knob is the sub-pixel grid
+// (Settings::fastAntiAlias, default 2x2).
+//
+// The cost is memory. The preview is now the same size as the full render, so
+// a cached trace holds twice the pixels; traceCost() already counts both, so
+// the cache simply keeps about half as many traces, which is the right
+// behaviour rather than a leak.
+
+// How far an older render may be stretched before the current size's preview
+// is the better picture. See the source choice in updateBitmaps for the two
+// observations either side of it.
+constexpr double kMaxFallbackStretch = 2.0;
+
+// Milliseconds since the first call, for the settle timer below. Independent of
+// the diagnostic log, which may be compiled out.
+double monotonicMs()
+{
+	using clock = std::chrono::steady_clock;
+	static const clock::time_point t0 = clock::now();
+	return std::chrono::duration<double, std::milli>(clock::now() - t0).count();
+}
+
+// THE SETTLE TIMER, and note carefully WHICH step it guards.
+//
+// Jeff's pattern: "start and reset a timer on every zoom change, only when the
+// timer expires (user stopped zooming) do I perform the expensive step." The
+// trap is the last two words. A first attempt debounced the whole request, so
+// nothing at all happened for 250 ms -- and Jeff caught it immediately: why
+// wait a quarter second for a preview that takes forty milliseconds to compute?
+//
+// There are two steps with costs three orders of magnitude apart, so they get
+// opposite treatment:
+//
+//   PREVIEW, tens of ms  -- requested IMMEDIATELY. Cheap enough to spend on a
+//                           zoom level the user is only passing through, and
+//                           it is what puts a correct-size image on screen
+//                           fast. Scale quantisation bounds how many distinct
+//                           ones a zoom gesture can touch.
+//   FULL, seconds        -- waits for this much quiet first. Nothing else can
+//                           interrupt it once begun: tide_render has no
+//                           cancellation, so a full trace started for a size
+//                           that is already obsolete owns the worker until it
+//                           finishes. A load log showed exactly that, 5.3
+//                           seconds of it.
+//
+// Waiting costs a few percent of a multi-second trace and saves the whole
+// thing whenever the view is still moving -- which is what loading a patch,
+// dragging a zoom, or typing in the Layout pin all look like.
+constexpr double kSettleMs = 250.0;
+//
+// From the load log. The host asked for the panel at 0.25x, then settled on
+// 1.58x only 88 ms later -- but the preview had finished at 52 ms, the worker
+// checked "is a different size wanted yet?", correctly saw no, and started a
+// full trace of the OBSOLETE size that then ran for 5.3 SECONDS. It cannot be
+// interrupted: tide_render has no cancellation, so once a full trace starts the
+// worker is gone until it ends. The check was in the right place and simply
+// happened 88 ms too early.
+//
+// Waiting a moment costs a few percent of a multi-second trace and saves the
+// whole thing whenever a view is still settling, which is exactly what loading
+// a patch looks like.
+constexpr int kFullSettleMs = 250;
 
 // How often the UI thread asks whether the worker has produced anything new.
 constexpr int kPollMs = 100;
@@ -1383,8 +1588,12 @@ float sdIndentTool(const Vec3& p, float centreX, float centreY, float halfW,
 
 // --- the spec-driven trace ---------------------------------------------------
 
+// `quality` picks a rung of tide_render's ladder: Draft is the progressive
+// preview (RenderMode::Fast under the hood), Standard the faceplate's normal
+// look. See Quality in TidePathTracer.h.
 tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
-	const PanelSpec& spec, int samplesPerPixel)
+	const PanelSpec& spec,
+	tide::render::Quality quality = tide::render::Quality::Standard)
 {
 	using namespace tide::render;
 
@@ -1824,27 +2033,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	camera.filmWidth = 1.45f; // the plate foreshortens, so leave margin
 #endif
 
-	Settings settings;
-	settings.width = (int)pixelWidth;
-	settings.height = (int)pixelHeight;
-	settings.samplesPerPixel = samplesPerPixel;
-	settings.maxBounces = 8;
+	const Settings settings =
+		qualitySettings(quality, (int)pixelWidth, (int)pixelHeight);
 
 	return render(scene, camera, settings);
-}
-
-// Samples for a trace of this many pixels: full quality at the size a 1-unit
-// panel comes out, tapering by sqrt of the area ratio beyond that, never below
-// kMinSamplesPerPixel.
-int samplesFor(uint32_t width, uint32_t height)
-{
-	const double pixels = (double)width * (double)height;
-	if (pixels <= (double)kReferenceTracePixels)
-		return kSamplesPerPixel;
-
-	const double taper = std::sqrt((double)kReferenceTracePixels / pixels);
-	return (std::max)(kMinSamplesPerPixel,
-		(int)std::lround((double)kSamplesPerPixel * taper));
 }
 
 // The face, and how it gets made.
@@ -1896,8 +2088,13 @@ public:
 	struct Result
 	{
 		std::shared_ptr<FaceTrace> target;   // the trace for the size asked for
-		std::shared_ptr<FaceTrace> fallback; // newest COMPLETE render of the
-		                                     // same panel at ANY size, or null
+		std::shared_ptr<FaceTrace> fallback; // best render of the same panel at
+		                                     // ANOTHER size, or null
+		// How much `fallback` must be MAGNIFIED to fill this size. Above 1 it is
+		// being blown up and softness is the question; at or below 1 it is being
+		// reduced, which is always sharp. The caller needs the distinction: a
+		// few percent of blow-up is invisible, six times is not.
+		double fallbackStretch = 1.0;
 	};
 
 	// UI thread. Returns the trace for `key` -- possibly still empty -- and
@@ -1912,6 +2109,22 @@ public:
 	// layout, material and width in units are unchanged -- a stale render of a
 	// DIFFERENT panel would be showing the wrong thing, where a stale render at
 	// a different size is showing the right thing at the wrong resolution.
+	// What already exists for `key`, WITHOUT starting any work. For views too
+	// small to show detail -- see kMinDetailScale. Still consults the cache,
+	// because a render made earlier (or by an identical panel elsewhere in the
+	// patch) costs nothing to reuse and scales down beautifully.
+	Result peek(const Key& key)
+	{
+		std::unique_lock<std::mutex> lock(mutex);
+
+		Result result;
+		if (const auto it = cache.find(key); it != cache.end())
+			result.target = it->second;
+
+		result.fallback = bestFallbackLocked(key, result.target, result.fallbackStretch);
+		return result;
+	}
+
 	Result request(const Key& key, const PanelSpec& spec)
 	{
 		std::unique_lock<std::mutex> lock(mutex);
@@ -1932,8 +2145,21 @@ public:
 
 		Result result;
 		result.target = it->second;
-		if (lastUsable && lastUsableConfig == key.config && lastUsable != result.target)
-			result.fallback = lastUsable;
+		result.fallback = bestFallbackLocked(key, result.target, result.fallbackStretch);
+
+		{
+			const int targetStage = result.target->stage.load(std::memory_order_acquire);
+			const int fbStage = result.fallback
+				? result.fallback->stage.load(std::memory_order_acquire) : 0;
+			const uint32_t fbW = !result.fallback ? 0u
+				: (fbStage >= 2 ? result.fallback->fullWidth : result.fallback->previewWidth);
+			const uint32_t fbH = !result.fallback ? 0u
+				: (fbStage >= 2 ? result.fallback->fullHeight : result.fallback->previewHeight);
+			TIDE_LOG("REQUEST  %ux%u  cached-stage=%d  stand-in=%s %ux%u  stretch=%.2fx",
+				key.width, key.height, targetStage,
+				!result.fallback ? "none" : (fbStage >= 2 ? "full" : "preview"),
+				fbW, fbH, result.fallbackStretch);
+		}
 
 		// Even a cached-but-incomplete trace is re-declared as wanted: it may
 		// have been abandoned half-done when the size changed away and back.
@@ -1960,6 +2186,82 @@ public:
 	}
 
 private:
+	// The best stand-in to show while `key` renders: the CLOSEST cached size,
+	// not simply the most recent one. Zooming through several sizes leaves
+	// several usable renders behind, and the nearest needs the least stretching.
+	//
+	// Closeness is measured as a SCALE ratio, always taken the larger way up, so
+	// a render 10% too small scores the same as one 10% too big -- what the eye
+	// judges is how far the image had to be resampled, not which direction.
+	//
+	// A finished render outranks a preview however well the preview's size fits,
+	// and that is the whole ranking in one line. Stretching a lit render keeps
+	// the panel's MATERIAL, and a stretch of 10 or 20 percent is close to
+	// invisible; switching to the flat-lit preview reads as the surface itself
+	// changing, which is obvious. Jeff put it exactly right: nobody can tell a
+	// 70% render from the same render shown at 80%, but the preview popping up
+	// is very noticeable.
+	std::shared_ptr<FaceTrace> bestFallbackLocked(const Key& key,
+		const std::shared_ptr<FaceTrace>& target, double& stretchOut) const
+	{
+		stretchOut = 1.0;
+		std::shared_ptr<FaceTrace> best;
+		int bestStage = 0;
+		double bestScore = 0.0;
+
+		for (const auto& entry : cache)
+		{
+			if (entry.first.config != key.config || entry.second == target)
+				continue;
+
+			const int stage = entry.second->stage.load(std::memory_order_acquire);
+			if (stage < 1)
+				continue;
+
+			const uint32_t w = (stage >= 2)
+				? entry.second->fullWidth : entry.second->previewWidth;
+			const uint32_t h = (stage >= 2)
+				? entry.second->fullHeight : entry.second->previewHeight;
+			if (w == 0 || h == 0 || key.width == 0 || key.height == 0)
+				continue;
+
+			// TWO different numbers, and conflating them was a bug.
+			//
+			// `score` ranks candidates by how far the size is off in EITHER
+			// direction, so the nearest one wins. `magnify` is what the caller
+			// actually has to judge: how much the image must be BLOWN UP. They
+			// differ in sign and only one of them is a quality problem --
+			// scaling a big render down is sharp, always. Ranking on the
+			// symmetric number and then thresholding on it too meant a panel
+			// already rendered large was rejected as "stretched 3x" when it was
+			// really being reduced 3x, which is exactly the case a thumbnail
+			// hits, and it drew flat grey with a perfect image in hand.
+			const double sx = (double)w / (double)key.width;
+			const double sy = (double)h / (double)key.height;
+			const double score = (std::max)(sx < 1.0 ? 1.0 / sx : sx,
+				sy < 1.0 ? 1.0 / sy : sy);
+			const double magnify = (std::max)(1.0 / sx, 1.0 / sy);
+
+			if (!best || stage > bestStage
+				|| (stage == bestStage && score < bestScore))
+			{
+				best = entry.second;
+				bestStage = stage;
+				bestScore = score;
+				stretchOut = magnify;
+			}
+		}
+
+		// A trace can outlive the cache: eviction never drops lastUsable, but
+		// belt and braces if that ever changes.
+		if (!best && lastUsable && lastUsableConfig == key.config
+			&& lastUsable != target)
+		{
+			best = lastUsable;
+		}
+		return best;
+	}
+
 	// Keep a few finished traces so flicking back to a previous size or layout
 	// is instant. Only COMPLETE ones are evicted -- an in-flight trace is
 	// still owned by the worker.
@@ -2027,17 +2329,24 @@ private:
 			if (trace->stage.load(std::memory_order_relaxed) >= 2)
 				continue;
 
-			// PREVIEW first, at a fraction of the size. Cost is linear in
-			// pixels, so 1/6 on a side is ~1/36th of the work: it lands in
-			// well under a second and gives the panel the right material under
-			// the right lights long before the full trace is done.
+			// PREVIEW first: same pixels, a fraction of the physics. Fast mode
+			// lands in tens of milliseconds and gives the panel its exact
+			// SHAPE -- every edge, hole and seam where it will finally be --
+			// long before the full trace works out what the light is doing.
+			//
+			// Same size as the full render on purpose, so nothing is stretched
+			// and the two stages differ only in lighting.
 			if (trace->stage.load(std::memory_order_relaxed) < 1)
 			{
-				trace->previewWidth = (std::max)(1u, (key.width + kPreviewDivisor - 1) / kPreviewDivisor);
-				trace->previewHeight = (std::max)(1u, (key.height + kPreviewDivisor - 1) / kPreviewDivisor);
+				trace->previewWidth = key.width;
+				trace->previewHeight = key.height;
+				const double previewT0 = TIDE_LOG_NOW;
 				trace->preview = traceFaceplate(trace->previewWidth, trace->previewHeight,
-					spec, kPreviewSamples);
+					spec, tide::render::Quality::Draft);
 				trace->stage.store(1, std::memory_order_release);
+				TIDE_LOG("PREVIEW  ready %ux%u  traced in %.0f ms",
+					trace->previewWidth, trace->previewHeight,
+					TIDE_LOG_NOW - previewT0);
 
 				// Available as a stand-in immediately. Only claim the slot if
 				// nothing better holds it: a FULL render of this same panel at
@@ -2063,11 +2372,37 @@ private:
 			if (wantedElsewhere(key))
 				continue;
 
+			// THE WAIT, and it belongs here rather than at the request: the
+			// preview above has already gone out, so the panel is showing the
+			// right shape at the right size while this runs. See kSettleMs.
+			//
+			// Woken the instant a different size is wanted, so a still panel
+			// pays it once and a moving one skips the full trace entirely.
+			{
+				std::unique_lock<std::mutex> lock(mutex);
+				cv.wait_for(lock,
+					std::chrono::milliseconds((int)kSettleMs),
+					[this, &key] {
+						return quit || (haveWanted && !(wantedKey == key));
+					});
+				if (quit)
+					return;
+			}
+			if (wantedElsewhere(key))
+			{
+				TIDE_LOG("ABANDON  %ux%u full trace; a newer size is wanted",
+					key.width, key.height);
+				continue;
+			}
+
 			trace->fullWidth = key.width;
 			trace->fullHeight = key.height;
-			trace->full = traceFaceplate(key.width, key.height, spec,
-				samplesFor(key.width, key.height));
+			const double fullT0 = TIDE_LOG_NOW;
+			trace->full = traceFaceplate(key.width, key.height, spec);
 			trace->stage.store(2, std::memory_order_release);
+			TIDE_LOG("FULL     ready %ux%u  traced in %.0f ms at %d spp",
+				key.width, key.height, TIDE_LOG_NOW - fullT0,
+				tide::render::samplesFor((int)key.width, (int)key.height));
 
 			// Becomes the stand-in every later size of this same panel gets to
 			// show while its own trace runs.
@@ -2143,15 +2478,34 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 	// The previous full-size render, shown stretched while the current size is
 	// still being traced.
 	std::shared_ptr<FaceTrace> faceFallback;
+	double faceFallbackStretch = 1.0;
+
 
 	// Which of the three possible sources faceBitmap was built from, so it is
 	// rebuilt when a better one appears and not otherwise. Higher is better.
-	// Worst to best. A stale FULL outranks the current size's preview because
-	// quality here is pixels, not freshness; a stale PREVIEW ranks below both,
-	// but above drawing nothing at all.
+	// Worst to best, and the split is FULLY LIT versus flat: any finished
+	// render outranks any preview, stretched or not, because a material change
+	// is more noticeable than a resample. Within each pair the current size
+	// wins. See the selection in onRender for the reasoning and its history.
 	enum FaceSource { FaceNone = 0, FaceStalePreview, FacePreview,
 		FaceStaleFull, FaceCurrentFull };
-	int faceBitmapSrc = FaceNone;
+
+	static const char* faceSourceName(int s)
+	{
+		switch (s)
+		{
+		case FaceCurrentFull:  return "FULL (this size)";
+		case FaceStaleFull:    return "FULL (stretched)";
+		case FacePreview:      return "PREVIEW";
+		case FaceStalePreview: return "PREVIEW (stretched)";
+		default:               return "flat grey";
+		}
+	}
+	// Deliberately NOT FaceNone: starting outside the enum means the first
+	// evaluation always counts as a change, so the opening flat-grey frame
+	// builds its (empty) bitmap and shows up in the progression log instead of
+	// being silently skipped as "no change".
+	int faceBitmapSrc = -1;
 	int faceTraceStage = 0; // how much of faceTrace has been consumed
 	bool timerRunning = false;
 
@@ -2244,9 +2598,26 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 	// Precedent: SynthEditLib/modules/Controls/Scope4Gui.cpp:353.
 	float getDeviceScale(Graphics& g) const
 	{
-		const float dpiScale = drawingHost.get() ? drawingHost->getRasterizationScale() : 1.0f;
-		return (std::max)(0.01f, dpiScale * transformScale(g.getTransform()));
+		const bool haveHost = drawingHost.get() != nullptr;
+		const float dpiScale = haveHost ? drawingHost->getRasterizationScale() : 1.0f;
+		const float xformScale = transformScale(g.getTransform());
+
+		// Logged split into its two factors, because "the scale was wrong on
+		// the first frame" has two very different explanations and the product
+		// hides which. Only on change, or every paint would drown the log.
+		if (dpiScale != loggedDpi || xformScale != loggedXform)
+		{
+			loggedDpi = dpiScale;
+			loggedXform = xformScale;
+			TIDE_LOG("SCALE    raster=%.4f  transform=%.4f  -> device=%.4f%s",
+				dpiScale, xformScale, dpiScale * xformScale,
+				haveHost ? "" : "  (NO HOST YET -- raster assumed 1.0)");
+		}
+		return (std::max)(0.01f, dpiScale * xformScale);
 	}
+
+	mutable float loggedDpi = -1.0f;
+	mutable float loggedXform = -1.0f;
 
 	// The hex-string -> Color conversion is gmpi_ui's own (Drawing.h:654). It
 	// already implements SynthEdit's convention exactly: AARRGGBB, with alpha
@@ -2536,19 +2907,28 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 			// RESOLUTION rather than by width -- see kMaxTraceScale. Both
 			// dimensions take the same factor, so the traced aspect is always
 			// the panel's and nothing is ever squashed.
-			const float traceScale = (std::min)(deviceScale, kMaxTraceScale);
-			const uint32_t width = (std::max)(1u,
-				(uint32_t)std::lround(size.width * traceScale));
-			const uint32_t height = (std::max)(1u,
-				(uint32_t)std::lround(size.height * traceScale));
+			const float traceScale = quantiseTraceScale(
+				tide::render::clampf(deviceScale, kMinTraceScale, kMaxTraceScale));
+			const FaceRenderer::Key wanted{
+				(std::max)(1u, (uint32_t)std::lround(size.width * traceScale)),
+				(std::max)(1u, (uint32_t)std::lround(size.height * traceScale)),
+				specConfigHash() };
 
 			// ASKS for a render; never performs one. Returns immediately, with
 			// an empty trace if nothing has been rendered at this size yet,
-			// plus the previous full-size render to show in the meantime.
-			const auto result = faceRenderer().request(
-				{ width, height, specConfigHash() }, buildSpec());
+			// plus the best other render to show in the meantime. Asked for at
+			// once, so the preview starts now; the worker is what waits before
+			// the expensive stage.
+			//
+			// Too small to show detail (a thumbnail) asks for NOTHING and takes
+			// whatever the cache already holds -- see kMinDetailScale.
+			const bool detailWorthTracing = deviceScale >= kMinDetailScale;
+			const auto result = detailWorthTracing
+				? faceRenderer().request(wanted, buildSpec())
+				: faceRenderer().peek(wanted);
 			faceTrace = result.target;
 			faceFallback = result.fallback;
+			faceFallbackStretch = result.fallbackStretch;
 			faceTraceStage = 0;
 			faceDirty = false;
 		}
@@ -2556,22 +2936,61 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 		// Choose the best image available THIS frame, and rebuild the bitmap
 		// only when that choice changes.
 		//
-		// The order is by pixels, not by freshness: the previous full render is
-		// 96 x 768 real pixels and stretching it a little beats a correctly
-		// sized preview at 16 x 128 stretched six times. So a stale full render
-		// outranks a fresh preview, and the preview is only ever seen on a
-		// panel that has never finished a render at all.
+		// FULL QUALITY WINS, even when it has to be stretched. The preview is
+		// shown only when NO finished render exists to stretch.
+		//
+		// The thing being traded is not sharpness against sharpness. A stretched
+		// full render still carries the panel's material -- its reflections, its
+		// grain, the light in the room -- and a modest resample of that is very
+		// hard to see. The Fast preview is pin sharp but has no light transport
+		// at all, so switching to it reads as the SURFACE changing, and the eye
+		// catches a material change far quicker than a little softness.
+		//
+		// Worth recording how this landed, because it moved twice. It began as
+		// full-beats-preview back when the preview was a sixth-size blur. When
+		// the preview became RenderMode::Fast I flipped it, reasoning that a
+		// full-resolution preview must beat a stretched image -- and it does, on
+		// sharpness alone, which turned out to be the wrong measure. Jeff, who
+		// was watching the actual zoom: "humans can't really detect much
+		// difference between e.g. a 70% size proper render and the same render
+		// stretched to 80%, but having the preview render pop up instead is
+		// quite noticeable."
+		//
+		// The genuine fault behind the original complaint was never this order.
+		// It was that the preview was low resolution AND that the stand-in was
+		// whatever rendered last rather than whatever fits best. Both are fixed
+		// now -- see bestFallbackLocked, which picks the nearest cached size --
+		// so the stretch is usually small and full quality can simply win.
 		faceTraceStage = faceTrace
 			? faceTrace->stage.load(std::memory_order_acquire) : 0;
 
 		const int fallbackStage = faceFallback
 			? faceFallback->stage.load(std::memory_order_acquire) : 0;
 
+		// ...BUT ONLY WHILE THE STRETCH IS MODEST. The argument above is about
+		// a resample nobody can see; it stops being true when the stand-in is
+		// a fraction of the size and has to be blown up.
+		//
+		// Straight from a log of a real patch loading. The host asked for the
+		// panel at 0.25x for one frame before the view settled, so a 24x96
+		// thumbnail got traced -- and it then served as the stand-in, blown up
+		// 6.3x, for ELEVEN SECONDS while the real 152x608 render ran. A sharp
+		// preview of the correct size had been sitting ready since 0.9 s. At
+		// that ratio the lighting is no consolation.
+		//
+		// The cutoff is a judgement call between two data points: Jeff could
+		// not see 1.14x (70% shown at 80%), and 6.3x was unmissable. 2x is the
+		// conservative middle. Past it the preview wins; a badly stretched full
+		// still beats nothing, so it stays as the last resort before grey.
+		const bool stretchModest = faceFallback
+			&& faceFallbackStretch <= kMaxFallbackStretch;
+
 		int source = FaceNone;
-		if (faceTraceStage >= 2)         source = FaceCurrentFull;
-		else if (fallbackStage >= 2)     source = FaceStaleFull;
-		else if (faceTraceStage >= 1)    source = FacePreview;
-		else if (fallbackStage >= 1)     source = FaceStalePreview;
+		if (faceTraceStage >= 2)                       source = FaceCurrentFull;
+		else if (fallbackStage >= 2 && stretchModest)  source = FaceStaleFull;
+		else if (faceTraceStage >= 1)                  source = FacePreview;
+		else if (fallbackStage >= 2)                   source = FaceStaleFull;
+		else if (fallbackStage >= 1)                   source = FaceStalePreview;
 
 		if (source != faceBitmapSrc)
 		{
@@ -2593,6 +3012,10 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 				faceBitmap = {};
 				break;
 			}
+			TIDE_LOG("DRAW     %-19s  bitmap %ux%u -> panel %.0fx%.0f DIP at %.2fx"
+				"  (stand-in stretch %.2fx)",
+				faceSourceName(source), faceSize.width, faceSize.height,
+				size.width, size.height, deviceScale, faceFallbackStretch);
 			faceBitmapSrc = source;
 		}
 
@@ -2702,16 +3125,21 @@ public:
 		}
 		else
 		{
-			// Nothing has EVER been rendered -- the first frame of a fresh
-			// panel, and only then, since a resize keeps the previous image up
-			// rather than falling back here. Flat grey in the panel's own
-			// silhouette: the cheapest thing that is still the right SHAPE.
+			// Nothing has EVER been rendered for this panel -- not at this
+			// size, not at any other, not even a preview. That is the first
+			// frame of a fresh panel and essentially nothing else. Flat grey in
+			// the panel's own silhouette: the cheapest thing that is still the
+			// right SHAPE, and it lasts until the Fast preview lands.
 			const float radius = cornerRadius(size);
 			auto brush = g.createSolidColorBrush(colorFromHex(kPlaceholderGrey));
 			g.fillRoundedRectangle(RoundedRect{ panelRect, radius, radius }, brush);
 		}
 
-		if (faceTraceStage < 2 && !timerRunning)
+		// Poll only while something is actually coming. A thumbnail-sized view
+		// asked for nothing (kMinDetailScale) and so has no trace at all;
+		// without this test its stage of 0 reads as "not finished yet" and the
+		// panel would poll forever for work nobody started.
+		if (faceTrace && faceTraceStage < 2 && !timerRunning)
 		{
 			startTimer(kPollMs);
 			timerRunning = true;

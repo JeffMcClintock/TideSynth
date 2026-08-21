@@ -132,19 +132,52 @@ lights things by chance and will be noisy.
   one colour.** Curvature, chamfers and brushed anisotropy are what break that
   up. This is why the knob is domed by 4% and chamfered.
 
+## Fast mode
+
+`Settings::mode = RenderMode::Fast` (or `--fast` on the preview tool) replaces
+the path tracer with one primary ray and a closed-form shade: every surface
+opaque, lit from a single fixed direction. Measured on the knob scene at 448px:
+**36 ms against 18.5 s — about 500× faster, at the same resolution.**
+
+That last part is the point. Low-resolution previews are the wrong trade,
+because the thing you iterate on is *geometry* — chamfer widths, grooves, bores,
+seams — and those are sub-pixel exactly when you shrink the image, while the
+Monte Carlo noise that hides them is worst exactly when you cut samples.
+Dropping the *lighting* instead keeps every pixel and removes every sample.
+
+**It renders the geometry, it does not approximate it.** Fast mode calls the
+same marcher with the same primary ray, so the silhouette, the alpha channel and
+every geometric artefact come out the same. Measured on bored plates, mean
+coverage agrees with the full render to within 0.03%, and the deep-straight-bore
+leak below shows up in both at the same magnitude — including the taper
+recovering it.
+
+What it drops: reflection, shadow, transmission, caustics, roughness,
+anisotropy. Brushed and polished aluminium look identical. Anything about
+*light* means going back to `Full`.
+
 ## Preview tool
 
 ```bash
 tide_render_preview shapes --size 640 --spp 640 --out shapes.png
+tide_render_preview shapes --size 640 --fast --out quick.png
 ```
 
 Scenes: `knob`, `materials`, `shapes`, `glass`, `glow`.
 
 ## Regression test
 
-`ctest -R render_regression` renders every demo scene at 160px / 128spp and
-compares it against a committed reference PNG. The whole set takes a few
-seconds.
+`ctest -R render_regression` renders every demo scene at 160px in **both**
+modes and compares each against a committed reference PNG — `<scene>.png` and
+`<scene>-fast.png`. Ten references, a few seconds; the fast half costs about
+40 ms of that.
+
+The two halves check different things. The full reference pins the **look** —
+materials, lighting, caustics. The fast reference pins the **geometry**, and
+pins it harder: with no light transport there is no noise for a change to hide
+in, so a moved chamfer shows up cleanly instead of at the edge of the sampling
+floor. A failure in `fast` alone means the shape moved; a failure in `full`
+alone means the lighting or a material did.
 
 It pins **images** rather than numbers on purpose. Almost everything this
 renderer can get wrong is invisible to a unit test and obvious to an eye: the
@@ -155,9 +188,17 @@ still correct. Both were caught by looking.
 It is not flaky. The RNG is seeded from the pixel coordinate and sample index,
 never from a shared counter, so output does not depend on thread scheduling —
 and `tide_render_strict_fp` opts every target out of the global `/fp:fast` so
-the optimiser cannot move the images either. The tolerance that remains is for
-a different compiler reordering floating point, and is far below what any real
-regression produces.
+the optimiser cannot move the images either. Fast mode goes further and uses a
+fixed sub-pixel grid, so it involves no RNG at all. The tolerance that remains
+is for a different compiler reordering floating point, and is far below what any
+real regression produces.
+
+Keeping it that way needs one discipline: **consecutive RNG draws must be
+separate statements**, never two arguments to the same call. C++ leaves argument
+evaluation order unspecified, so `f(rng.next(), rng.next())` lets the compiler
+decide which draw is which and the references stop being reproducible across
+toolchains. This is not hypothetical — it was written that way once, and the
+image test caught it the same minute.
 
 When a change to a look is **intended**:
 
