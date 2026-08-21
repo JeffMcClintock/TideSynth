@@ -1,0 +1,13 @@
+{
+  "case": "osc_naive_pitched",
+  "duration_s": 2.0,
+  "engine": "SynthEditCL V1.6.186",
+  "rate": 48000,
+  "recorded": "measured",
+  "reference_sha256": "7ade35f205048cf029ddab73d0719faf57383c664fc264fb6a7b7e8795702a9a",
+  "seeded_on": {
+    "machine": "x86_64",
+    "release": "7.0.0-30-generic",
+    "system": "Linux"
+  }
+}

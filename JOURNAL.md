@@ -208,6 +208,205 @@ stopped by pid (S31). TideSynth back on `main`.
 
 ---
 
+---
+
+## 2026-08-22 — macos — loading the CLAP for the first time found that TIDE ships SynthEdit's identity
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** took **E9** for its CLAP question, wrote a real CLAP host to answer it,
+and the handshake printed something far more important than the answer.
+
+### The row's caveat was stale within hours
+
+E9 says AU and CLAP are *"unmeasured, deliberately not claimed, because TIDE
+builds neither (`SynthEditSem/CMakeLists.txt:59` is `GMPI VST3 STANDALONE`)"*.
+**R4a merged earlier today and made that false** — the list is
+`GMPI VST3 CLAP STANDALONE`, and it is not at that line any more either.
+
+And R4a's own verification was thin, by my own admission on its row: `nm` found
+one exported symbol. **An entry point is not a plugin.** Nothing had ever loaded
+the thing.
+
+### Why a probe instead of REAPER
+
+A DAW cannot settle this cheaply. REAPER references plugins in `.rpp` by a
+host-specific id, and forcing a render rate needs its GUI — E9 itself records
+Jeff hitting that dialog. So `tests/e9_clap_rate_probe.c` drives the CLAP C ABI
+directly: `dlopen` → `clap_entry` → factory → descriptor → `create_plugin` →
+`init`, then
+
+```
+activate(48000) → deactivate → activate(44100) → deactivate → activate(48000)
+```
+
+which is exactly the bracket a DAW uses for a rate change, and a **stricter**
+exercise of it than REAPER gave. 21 checks, all passing.
+
+That confirms E9's mechanism transfers: `Processor_CLAP::activate()` calls
+`plugin.start_processor(...)` with the new rate, and `processor_holder.cpp` `:55`
+releases the old processor, `:69` creates a fresh one, `:82` calls `open()`,
+`:215` re-seeds the blob. CLAP absorbs a rate change by instance replacement,
+exactly as VST3 does.
+
+### And then the descriptor printed this
+
+```
+id="SE SynthEdit"  name="TIDE Rack"  vendor="TIDE Synth"
+```
+
+`name` and `vendor` were rebranded. **`id` — the only field that functions as
+identity — was not.** `SynthEditSem/SynthEdit.cpp` declares it, and the
+commented-out original two lines below still reads
+`<Plugin id="SE SynthEdit" name="SynthEdit" ...>`, which is where it came from.
+
+That is not cosmetic, and it does not stop at CLAP.
+`GMPI_Wrappers/wrapper/VST3/MyVstPluginFactory.cpp:200` builds the **VST3 class
+GUID** from the ASCII `"PluginGMPI "`, a `P`/`C` role byte, and
+**`hashString(id)`** — a djb2 hash of that string and nothing else.
+
+So I computed it against the artifact rather than trusting the reading:
+
+```
+hashString("SE SynthEdit") = 0x43ED5119   little-endian -> 1951ED43
+
+committed fixture tests/hosts/v1-rack.rpp:
+  1386065673{506C7567696E474D504920 50 1951ED43}
+             "PluginGMPI "          "P"  ^^^^^^^^ exact match
+```
+
+**TIDE Rack's shipped VST3 GUID is a hash of SynthEdit's generic shell id.** The
+CLAP id is that string verbatim (`Factory_CLAP.cpp:25`), and GMPI uses it
+directly. Any other GMPI plugin declaring `SE SynthEdit` gets the same GUID and
+the same CLAP id; a host with both installed cannot tell them apart, and a saved
+project can reload the wrong one. Filed as **R9**.
+
+**The timing is the point.** The GUID is a pure function of the id, so fixing the
+id *changes the GUID*, and every project saved with TIDE Rack stops finding the
+plugin. That cost is near zero today and permanent after 1.0 — and R2, R3 and R4
+are building installers for these exact artifacts right now.
+
+**Learned:**
+
+- **Load the artifact in a real host before believing it works.** R4a's evidence
+  was `nm` finding `clap_entry`, which I wrote up as verified. One handshake
+  found an identity bug that no amount of building would have shown.
+- **A stale caveat is most dangerous when it is your own and hours old.** E9 said
+  CLAP was unmeasurable *because TIDE builds no CLAP*. I merged the change that
+  made it buildable earlier in the same session and did not go back.
+- **Write the host when the DAW is the expensive part.** ~170 lines of C against
+  the CLAP C ABI drove the rate-change bracket more precisely than REAPER could,
+  headlessly, with no GUI and no project file.
+- **When a rename touches `name` and `vendor`, check `id`.** Display fields are
+  what a person sees and notices; the identifier is what the software uses and
+  nobody looks at. This one survived the whole N1a rename.
+- **Follow an identifier to what is DERIVED from it.** The CLAP id looked like a
+  CLAP-only problem until `textIdtoUuid` turned out to hash it into the VST3
+  GUID. Grep for what consumes an identity string before scoping the blast
+  radius.
+- **Verify a hash claim by computing it.** Reading "the GUID is a hash of the id"
+  is an argument; matching `1951ED43` in a committed fixture is proof, and it
+  took four lines of Python.
+
+**Next:** **R9 is Jeff's** and wants deciding before the first release rather than
+after — it pairs with **R8** (the empty `CFBundleIdentifier`), since both need one
+naming scheme. **E9 is left TODO deliberately**: its Accept is measured for VST3
+and now CLAP, but AU is genuinely unmeasured and belongs to **R3a**, which is
+`BLOCKED(M1)`.
+
+**Branch/PR:** `tide/mac/E9-clap-host-verify` — TideSynth.
+
+---
+
+---
+
+## 2026-08-22 — linux — E1c: the deciding case, and the control that makes it decide anything
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Did:** resolved R4's conflict first (STEP 1.5), then took **E1c** and built the
+one experiment macOS had narrowed it to. The Linux half is done; one macOS or
+Windows render finishes it.
+
+### The case
+
+`tests/cases/osc_naive_pitched.json` — the **same** `SE Oscillator (naive)` as
+`osc_naive_sine`, same duration, rate and source pin, differing only in that
+`Pitch` is driven from a patch point pinned to 5 V rather than free-running on
+the module default.
+
+### The control nobody had run, and it is the whole reason this experiment works
+
+**Both cases render at exactly 440.0 Hz** — zero-crossing count over the 2.0 s
+render, 95,999 frames at 48 kHz, identical for both. Pinning 5 V happens to
+reproduce the module's own default note.
+
+That is not a detail, it is the experiment's validity. Had the two rendered at
+different frequencies, any cross-platform residual would have been confounded by
+a different phase increment, and a `-123 dBFS` result would have proved nothing
+about the *driven-ness* of the input. I checked it because "same module, one pin
+changed" is only single-variable if the pin change does not move the note, and
+nothing in the row said whether it did.
+
+### Also confirmed while the harness was up
+
+`osc_naive_sine` renders **bit-identical** to its stored reference here —
+`null=-inf dBFS`. Its provenance record says `recorded: reconstructed`, inferred
+by macOS from journal archaeology; this corroborates the same conclusion by
+measurement. I did **not** rewrite that file — regenerating it would upgrade the
+label but discard the `evidence` field explaining how it was reconstructed, and
+it is another box's work.
+
+The new reference is seeded with first-hand provenance: `recorded: measured`,
+`SynthEditCL V1.6.186`, `x86_64`, sha256 `7ade35f2…`.
+
+### What is left, and why not here
+
+The residual is a **macOS-vs-Linux** quantity, so one platform cannot produce it.
+A second box renders `osc_naive_pitched` against this reference, and the outcome
+is binary and pre-committed in the row so it cannot be rationalised after the
+fact: **-123 dBFS** means the discriminator is the undriven pitch input (and
+`prefab_oscillator`/`prefab_filter` carry gates for a mechanism they do not
+exhibit); **-73 dBFS** means the module is the variable and `osc_naive_sine`'s
+stated reason stands.
+
+The new case ships with **provisional** drift-class gates copied from
+`osc_naive_sine`, and its `tolerance_reason` says so — gating it as if the answer
+were known would beg the question it exists to settle.
+
+**Learned:**
+
+1. **A "single-variable" experiment is a claim, and it is cheap to check.**
+   Pinning the pitch input could easily have changed the note; if it had, the
+   whole comparison would have been worthless and would have *looked* fine.
+   One zero-crossing count per render settled it.
+2. **The audio harness runs on Linux** — `tools/render_harness.py --cli
+   <SynthEditCL> --modules <folder>`, using the existing
+   `~/SE/build/SynthEditCL/SynthEditCL`. Nothing in the rows said so, and it
+   needs no REAPER.
+3. **The harness warns when the engine scanned module folders outside
+   `--modules`** (`~/.local/share/SynthEdit/modules` on this box), and says the
+   run therefore does not prove which module set rendered. True here; it is a
+   developer box. Worth reading rather than skipping on a result that matters.
+4. **Do not regenerate another box's provenance record to improve its label.**
+   `--update-refs` would have stamped `measured` over `reconstructed` and thrown
+   away the reasoning that made the reconstruction credible.
+
+**Next:**
+
+1. **One macOS or Windows render** of `osc_naive_pitched` against this reference
+   closes E1c. Everything needed is in the row and the case's `tolerance_reason`.
+2. If it lands in the rounding class, **`prefab_oscillator` and `prefab_filter`
+   want their gates revisited** — they are currently drift-class for a mechanism
+   their scripts would not exhibit.
+
+**Machine left clean.** Renders went to a scratch `--out`; the only tracked
+additions are the new case and its reference. TideSynth back on `main`.
+
+**Branch/PR:** `tide/linux/E1c-pitch-pinned` — TideSynth only.
+
+---
+
 ## 2026-08-22 — linux — R4: the tarball, and the CLAP's resources have nowhere to live
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)

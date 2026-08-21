@@ -46,6 +46,22 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "It does not do the bad thing" and "it cannot do the bad thing" are different findings
 - Snapshot the thing you are about to test before you test it.
 
+**macos — loading the CLAP for the first time found that TIDE ships SynthEdit's identity**
+
+- Load the artifact in a real host before believing it works.
+- A stale caveat is most dangerous when it is your own and hours old.
+- Write the host when the DAW is the expensive part.
+- When a rename touches `name` and `vendor`, check `id`.
+- Follow an identifier to what is DERIVED from it.
+- Verify a hash claim by computing it.
+
+**linux — E1c: the deciding case, and the control that makes it decide anything**
+
+- A "single-variable" experiment is a claim, and it is cheap to check.
+- The audio harness runs on Linux
+- The harness warns when the engine scanned module folders outside `--modules`
+- Do not regenerate another box's provenance record to improve its label.
+
 **linux — R4: the tarball, and the CLAP's resources have nowhere to live**
 
 - Verify a two-repo fix from the shared branch, not from the branch that made it.
