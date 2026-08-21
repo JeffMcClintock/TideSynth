@@ -74,6 +74,257 @@ Template:
 
 ---
 
+## 2026-08-22 — macos — N1a: OUTPUT_NAME renamed three things, and only one of them had an extension
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
+
+**Did:** STEP 1.5, not a backlog item. [#268](https://github.com/JeffMcClintock/TideSynth/pull/268) is this platform's own
+open PR and its `windows` check was red, which outranks new work. Fixed the
+cause, on the same branch, and re-ran N1a's full Accept against a binary built
+from the tree being pushed.
+
+### The failure, and why two of three platforms said nothing
+
+```
+LINK : fatal error LNK1201: error writing to program database
+  'D:\a\TideSynth\TideSynth\build\SynthEditSem\Release\TIDE-Rack.pdb';
+  check for insufficient disk space, invalid path, or insufficient privilege
+  [...\TIDE_Rack_VST3.vcxproj]
+   Creating library ...\Release\TIDE-Rack.lib and object ...\Release\TIDE-Rack.exp
+   TIDE_Rack.vcxproj -> ...\Release\TIDE-Rack.gmpi
+```
+
+Read those three lines together and the message is a lie about its own cause.
+`TIDE_Rack.vcxproj` is writing `TIDE-Rack.lib` at the same moment
+`TIDE_Rack_VST3.vcxproj` fails to write `TIDE-Rack.pdb`. It is not disk space.
+**`OUTPUT_NAME "TIDE-Rack"` renames three artifacts per target, not one** — the
+module, the linker PDB, and the import library — and all three format targets
+(`TIDE_Rack`, `TIDE_Rack_VST3`, `TIDE_Rack_STANDALONE`) build into the SAME
+directory on Windows. Only the module is disambiguated, by its extension
+(`.gmpi` / `.vst3` / `.exe`). The PDB and the `.lib` are not, so three targets
+raced for one `TIDE-Rack.pdb` under MSBuild's parallel link.
+
+**macOS and Linux were green on the identical commit**, and that is the whole
+trap: neither emits a PDB, neither emits an import library for a MODULE, and on
+macOS each artifact is a bundle so even the paths differ. A rename verified
+end-to-end on this box could not have shown it here.
+
+Fixed by keying the two side-channel names off the TARGET name, which is unique
+by construction (`${PROJECT_NAME}_${kind}`):
+
+```cmake
+set_target_properties(${SUB_PROJECT_NAME} PROPERTIES
+    OUTPUT_NAME "TIDE-Rack"
+    PDB_NAME "${SUB_PROJECT_NAME}"
+    COMPILE_PDB_NAME "${SUB_PROJECT_NAME}"
+    ARCHIVE_OUTPUT_NAME "${SUB_PROJECT_NAME}"
+    MACOSX_BUNDLE_BUNDLE_NAME "TIDE Rack")
+```
+
+That also restores the pre-rename convention rather than inventing one: the
+PDBs were `TIDE.pdb` / `TIDE_VST3.pdb`, i.e. target-named, which is what
+`docs/state-of-the-prototype.md:106` and `docs/p4-resize-crash.md` still record.
+Those two are live reference docs and belong to **N1b**, so they are untouched.
+
+### The macOS half is proven inert, by construction rather than by re-rendering
+
+Configured the branch twice — once with the fix, once with it stashed — and
+diffed the ENTIRE generated build system under `build/SynthEditSem`, with the
+build-directory name normalised away. **Three files differ, and every difference
+is a PDB filename:**
+
+| target | before | after |
+|---|---|---|
+| `TIDE_Rack` | `TIDE-Rack.gmpi/Contents/MacOS/TIDE-Rack.pdb` | `…/TIDE_Rack.pdb` |
+| `TIDE_Rack_VST3` | `TIDE-Rack.vst3/Contents/MacOS/TIDE-Rack.pdb` | `…/TIDE_Rack_VST3.pdb` |
+| `TIDE_Rack_STANDALONE` | `TIDE-Rack.pdb` | `TIDE_Rack_STANDALONE.pdb` |
+
+All three `link.txt` files are byte-identical. **The baseline column is also the
+proof of the diagnosis** — three targets, one PDB name — obtained without a
+Windows machine.
+
+### N1a's Accept, re-run against this tree's own binary
+
+Configure rc=0, build rc=0, zero `error` lines. `TIDE-Rack.gmpi`,
+`TIDE-Rack.vst3` and `TIDE-Rack.app` all emitted; targets still `TIDE_Rack*`;
+`lipo -archs` = `arm64`, as ruled 2026-08-21.
+
+The build does **not** copy the VST3 into `~/Library/Audio/Plug-Ins`, so
+rendering straight away would have measured the previous session's bundle. It
+was installed deliberately and the identity checked rather than assumed —
+installed and built binaries both
+`009060be0f4852280bd89e4cabfc3277df0f3040f36d1e15af9232950c5fe816`. Jeff's stale
+`TIDE_VST3.vst3` (16 Aug, same plugin ID) was parked for the duration, so
+`TIDE-Rack.vst3` was the only candidate, and **restored afterwards**.
+
+| fixture | this run | 2026-08-21 |
+|---|---|---|
+| `--control` | PASS, −6.0 / −9.0 | PASS |
+| `v1-rack` | −6.3 / −17.0, 2 cables | −6.3 / −17.0 |
+| `v1-rack-midi` | −6.3 / −17.0, 4 cables | −6.3 / −17.0 |
+| `v3-midi-pitch` | −6.2 / −21.1, 4 cables | −6.2 / −21.1 |
+| `v3-midi-gate` | −6.3 / −21.2, 3 cables | −6.3 / −21.2 |
+| `v1-rack-uncabled` | **silence**, 0 cables | silence |
+
+### The Windows link, which this box cannot compile — verified by CI, then waited for
+
+There is no MSVC here, and STEP 3 forbids fixing a platform blind. This is not
+that: the break is this platform's own PR, STEP 1.5 makes it mine, and **the
+PR's own `windows` job is the verification** — which is why the fix went to the
+same branch, and why the run stayed up for it rather than declaring victory on
+a mechanism.
+
+[Run 32492249466](https://github.com/JeffMcClintock/TideSynth/actions/runs/32492249466), on `276e150`:
+
+| job | before (`ea6a1e1`) | after (`276e150`) |
+|---|---|---|
+| `guard` | success | success |
+| `linux` | success | success |
+| **`windows`** | **failure — `LNK1201`** | **success** |
+| `macos` | success | queued (S30) |
+
+**`windows` went red → green on a one-block change, with `linux` green on both
+ends as the control.** That is the A/B this platform could not run locally.
+
+`macos` is still queued and **carries no information about this change** — it
+was green on the previous head, the change sets Windows-only properties, and the
+local build here was rc=0 with the artifacts checked. S30 (the mac runner
+completes ~5% of runs) is why it is still sitting there, and waiting longer would
+be waiting on a 5%-likely event to confirm something already measured — the same
+call the 2026-08-21 C7e entry made, for the same reason.
+
+**Learned:**
+
+1. **`OUTPUT_NAME` is three renames, and only the one with an extension is
+   collision-proof.** Targets sharing an output directory can carry the same
+   `OUTPUT_NAME` safely only for the artifact whose suffix differs; `PDB_NAME`
+   and `ARCHIVE_OUTPUT_NAME` have no suffix to save them. Any future format
+   added to `FORMATS_LIST` inherits this for free now, because both derive from
+   the target name.
+2. **`LNK1201` names disk space, privilege and path, and means none of them.**
+   The line above it in the log — a sibling project writing the same base name —
+   is the actual evidence, and it is easy to skim past as ordinary progress.
+3. **Configure twice and diff the generated build system.** It answered "can
+   this change affect macOS?" exactly, in about a minute, and produced the
+   diagnosis of the Windows failure as a by-product. Cheaper and stronger than
+   re-rendering, which could only have shown that nothing broke.
+4. **A build that does not install is a measurement trap.** `cmake --build`
+   leaves the previous bundle in the plugin folder, so a render "after the
+   change" silently measures the artifact from before it. Hashing the installed
+   binary against the built one is one command and converts a plausible result
+   into a proof — the same trap the 2026-08-21 entry hit from the other side,
+   with a same-ID bundle rather than a stale one.
+
+**Next:**
+
+1. **[#268](https://github.com/JeffMcClintock/TideSynth/pull/268) is green where it matters and wants only a merge** — `lint`,
+   `guard`, `windows` and `linux` all pass on `276e150`; `macos` is queued
+   behind S30 and cannot say anything about a Windows-only property. No
+   `platform:win` issue was needed.
+2. **N1b unblocks when N1a merges** — and it now has two more references to
+   carry, both PDB names: `docs/state-of-the-prototype.md:106` and
+   `docs/p4-resize-crash.md:461-462`. Noted on its row.
+3. **Two stale `platform:mac` issues were closed** — see below; they were never
+   this platform's break.
+
+**Also this run, STEP 1 bookkeeping.** [#264](https://github.com/JeffMcClintock/TideSynth/issues/264) and [#260](https://github.com/JeffMcClintock/TideSynth/issues/260) were the only open
+`platform:mac` issues and **both were re-verified before being touched**, per
+STEP 1's rule about not fixing what you cannot observe. Neither is a macOS
+break: each names a branch that no longer exists (both merged), and in each run
+**all three platforms failed the Build step together**, which is `main`'s state
+at that hour rather than anything about this platform. `main` went green on all
+three at `5ef0bf29`, and macOS passes on #268's current head. Closed with that
+evidence, and the linux box's own lesson is what made the check cheap — *"a
+branch's CI platform issue can be reporting `main`'s break."*
+
+**Machine left clean.** TideSynth returned to `main`, tree clean; every other
+repo on this box (`SynthEdit`, `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers`,
+`GMPI`) was clean at the start of the run, untouched during it, and clean at the
+end — this item is one file in TideSynth. Builds went to the scratchpad, not to
+Jeff's trees. `~/Library/Audio/Plug-Ins/VST3/` ends the run as it began, except
+that `TIDE-Rack.vst3` is now this branch's build rather than yesterday's;
+`TIDE_VST3.vst3` is back and byte-untouched, and deleting it remains Jeff's
+call, exactly as the previous entry left it.
+
+**Branch/PR:** `tide/mac/N1a-rename` — [#268](https://github.com/JeffMcClintock/TideSynth/pull/268), TideSynth only. One CMake block.
+
+---
+
+## 2026-08-21 — macos — N1a: the rename shipped, and it silently unlinked half the build first
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing · linux + renderer agents also active
+
+**Did:** carried the TIDE Rack rename through the build. Shipped artifacts are
+now `TIDE-Rack.vst3` / `.gmpi` / `.app`; targets stay `TIDE_Rack` /
+`TIDE_Rack_VST3` / `TIDE_Rack_STANDALONE`.
+
+### The finding: a rename that skips work instead of failing
+
+Two loops built target names by hand — `set(_tide_target TIDE)` and
+`TIDE_${_fmt}` — instead of deriving from `PROJECT_NAME`. **Every use of
+`_tide_target` sits behind `if(TARGET ...)`**, so renaming the project did not
+break those loops, it made them **no-ops**: no `tide_render` link, no resource
+staging, no diagnostic.
+
+It surfaced only as `fatal error: 'TidePathTracer.h' file not found`, and only
+because `TiDEPanelGui.cpp` happens to include that header. **Without that
+include the build would have gone green and shipped bundles containing zero
+prefabs** — an empty module browser, which is exactly S21's failure wearing a
+different hat. All four sites now derive from `${PROJECT_NAME}`.
+
+N1a's scope list was careful and still missed these, because it searched for
+`TIDE_VST3`-shaped strings and these are the bare `TIDE`.
+
+### Checked before renaming, not after
+
+- **Identity does not move.** `id`, `name`, `vendor` come from the `<Plugin>`
+  element in `SynthEdit.cpp`, not `PROJECT_NAME` — so saved host sessions still
+  resolve. That was the one thing worth knowing before touching anything.
+- **`${PROJECT_NAME}.xml` is not in play** (no `HAS_XML`, no `TIDE.xml`), so
+  distribution.md's second warning does not apply here.
+- **The STANDALONE's bundle id does follow `PROJECT_NAME`**
+  (`com.gmpi.standalone.${PROJECT_NAME}`), so that dev tool gets a fresh
+  preferences container. Stated rather than discovered later.
+
+### The measurement, and why the first pass of it was worthless
+
+Baseline `v1-rack.rpp`: peak **−6.3 dBFS**, rms **−17.0**, 2 patch cables.
+After the rename: identical. **That proved nothing**, because the old
+`TIDE_VST3.vst3` was still installed and carries the same plugin ID — REAPER
+could have loaded either. So the old bundle was **moved aside** and the render
+repeated: same numbers with only `TIDE-Rack.vst3` present. That is the
+difference between "the numbers match" and "the artifact under test produced
+them".
+
+All five fixtures then pass in isolation — `v1-rack` −6.3/−17.0, `v1-rack-midi`
+−6.3/−17.0, `v3-midi-pitch` −6.2/−21.1, `v3-midi-gate` −6.3/−21.2, and
+`v1-rack-uncabled` **silence**, the negative control. `--control` PASSes.
+**Jeff's original bundle was restored immediately afterwards.**
+
+**Left for Jeff, deliberately:** `~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3`
+(16 Aug) is now stale — nothing produces that name any more — and sits beside
+the new bundle, so a DAW scan lists both. Deleting from his plugin folder is
+his call, not a run's.
+
+**Learned:**
+
+1. **A guard that makes missing work silent turns a rename into a downgrade.**
+   `if(TARGET x)` is the right shape for an optional format and the wrong shape
+   for a name that must exist; the same line cannot tell the two apart. Deriving
+   the name from `PROJECT_NAME` removes the question.
+2. **When the old artifact is still installed and shares an ID, matching
+   numbers are not evidence.** Moving it aside cost one minute and converted a
+   plausible result into a proof.
+
+**Next:**
+
+1. N1's remaining buckets (B and C) are untouched — this was bucket A only.
+2. The stale installed bundle wants Jeff's decision.
+
+**Branch/PR:** `tide/mac/N1a-rename` — TideSynth only.
+
+---
+
 ## 2026-08-21 — macos — S33 filed: a live defect was sitting on a closed row
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing · two other agents active (linux, renderer)
@@ -736,634 +987,6 @@ is byte-identical (md5s above). All replay work happened in the session
 scratchpad.
 
 **Branch/PR:** `tide/linux/S23-session-replay` — TideSynth only, row and journal. No code change.
-
----
-
-## 2026-08-21 — linux — S23 did not reproduce, but a mechanism explains why it never would
-
-**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (claude-desktop 1.32885.1) · as **tide-rack-bot** (both paths)
-
-**Did:** STEP 1 first — verified and closed
-[#257](https://github.com/JeffMcClintock/TideSynth/issues/257) — then took **S23**
-and stopped it early, deliberately, without a backtrace. The row goes back to
-`TODO` with the blocker cleared, one hypothesis that explains the whole observed
-pattern, and the exact experiment left to run.
-
-### STEP 1: #257 was `main`'s break, not the branch's
-
-CI filed it against `tide/mac/E11-blob-lifetime`, so it reads as that branch's
-fault. It was not. `TiDEPanelGui.cpp` referred to `tide::render::Quality` before
-`modules/common/TidePathTracer.h` declared it, and the counts per commit say
-where that lived:
-
-| commit | uses in `TiDEPanelGui.cpp` | `Quality` in `common/TidePathTracer.h` |
-|---|---|---|
-| `fd1e106` | 2 | **0** |
-| `348e91d` | 2 | **0** |
-| `f760589` | 2 | **0** |
-| `da0bb37` | 2 | **2** |
-
-So **`main` itself was broken from 01:36 to 04:02**, and both other `build.yml`
-runs in that window failed identically on **windows and linux**
-([32436905221](https://github.com/JeffMcClintock/TideSynth/actions/runs/32436905221),
-[32439088554](https://github.com/JeffMcClintock/TideSynth/actions/runs/32439088554)).
-No `platform:win` twin exists only because that step is `matrix.platform != 'win'`.
-Jeff's `da0bb37` added the declaration.
-
-Verified by building here rather than by reading CI — `cmake -S . -B build
--DCMAKE_BUILD_TYPE=Release` rc=0, `cmake --build build --config Release
---parallel` **rc=0, 0 error lines, 3m36s**, the failing TU compiled into all
-three targets, and `TIDE.gmpi` / `TIDE_VST3.so` / `TIDE_VST3.vst3` /
-`TIDE_STANDALONE` all linked. Issue closed with the working; no PR, because
-there was nothing left to fix.
-
-### S23's stated blocker is gone, and so is one of its hypotheses
-
-- **`gdb` is installed** — 15.1 (Ubuntu 15.1-1ubuntu1~24.04.1). The row's
-  *"`gdb` is not installed, so nothing here names a frame"* is stale.
-- **`libpipewire-0.3-dev` is 1.0.5-1ubuntu3.3 system-wide and the runtime
-  `libpipewire-0.3.so.0.1005.0` is the same version.** So the tempting theory —
-  that the two crashes came from S21's `apt-get download` + `dpkg-deb -x`
-  workaround compiling against headers that did not match the linked runtime —
-  **is dead**: the archive version and the installed version are the same.
-  Worth killing explicitly, because it is the first thing the workaround
-  suggests.
-
-### It did not reproduce, and here is the rate
-
-Release build with `-g` added at the same `-O3` (so codegen is the shipped one,
-not `RelWithDebInfo`'s `-O2`):
-
-| what | result |
-|---|---|
-| 4 native runs, 25s window, SIGTERM at the end | **rc=0 every time** — a clean SIGTERM shutdown exits 0, so any 139 really is a segfault |
-| 1 run under `gdb`, driven ~13 min over the command channel: ~1000 arm-then-click prefab insertions plus a full-window screenshot after each | **no signal** |
-
-The only `SIGNAL-STOP` in the gdb log is my own `kill -9`. **28 clean runs
-were the prior evidence; this adds roughly 1000 driven interactions to it.**
-
-### The mechanism that explains "seen twice, never again" — and it needs no nondeterminism at all
-
-`SessionState` (`GMPI_Wrappers/wrapper/Standalone/SessionState.cpp`) writes a
-**breadcrumb** `session.loading` before reading the patch and removes it after
-(`:395-419`). A launch that finds one concludes the previous run died inside the
-read, **quarantines `session.xml` to `session.previous.xml`**, and comes up at
-defaults (`:325-328`). The header says why in as many words: an assert inside
-the parse is *"the failure a return code cannot catch"*, and without this
-*"the app would die on every launch from now on"*.
-
-**So a crash in session restore is self-limiting to exactly one occurrence per
-bad file** — which is the entire shape of what S23 recorded: two crashes, both
-on a *first* run, then 28 controlled runs finding nothing. The 28 runs were not
-evidence of rarity. They were runs of an app that had already thrown the
-offending file away.
-
-**And the file is still on disk.** `~/.config/TIDE Rack/session.previous.xml`,
-**17,866 bytes, dated 2026-08-20 17:33** — the same box and the same day as the
-two crashes. That is the prime suspect, sitting where the quarantine put it.
-
-**Not proven.** `keepCurrentAside` (`:255`) rotates to the same filename for
-ordinary reasons, and the header names a false positive of its own — a second
-instance launched while the first is still in `restore()` sees the crumb and
-quarantines a good file. Either could have produced this one.
-
-### Why I stopped instead of running the experiment that decides it
-
-The experiment is one command and needs nothing from Jeff:
-`StandaloneSettings.cpp:49` honours **`XDG_CONFIG_HOME`**, so the suspect file
-can be replayed in a scratch config dir under `gdb` **without touching Jeff's
-own config at all**. The harness is written (`replay.sh`, in this run's
-scratchpad, reproduced in the row).
-
-I did not run it, because **the desktop session on this box crashed twice while
-I was working**, and this is Jeff's machine. Stated with the control, because
-the control is what matters: the first crash (~16:45) came during the heavy
-insertion stress; **the second (~16:49) came when `TIDE_STANDALONE` was not
-running at all** — I had killed it five minutes earlier and the relaunch was
-never made. So **the correlation with TIDE is unsupported**, and the second
-event is the negative control that breaks it. This box is a **VirtualBox** VM
-whose log carries `libEGL warning: Ensure your X server supports DRI3` and
-repeated `Invalid sequence for VSYNC frame info`; `gnome-shell` restarted three
-times in four minutes. Neither event was a reboot — `journalctl --list-boots`
-shows one boot across the whole session.
-
-I am recording that as an observation about the box, **not** as a finding about
-the product, precisely because S21's own entry made the opposite mistake with
-these same crashes and had to retract it.
-
-**Jeff's working tree was left as found**: `session.xml` was overwritten by my
-stress run (5.8 MB of inserted junk), and the 13,406-byte 2026-08-20 original
-was restored from a backup taken before the first launch — **md5 verified equal**.
-The stress file is kept as evidence in the scratchpad, not in the repo.
-
-**Learned:**
-
-1. **A self-healing mechanism upstream of a bug will make that bug look
-   intermittent, and a controlled-run count cannot see it.** 28 clean runs read
-   as "rare"; they were 28 runs of an app that had already quarantined the input.
-   **Before sizing a crash by its rate, ask what the first crash changed.**
-2. **`XDG_CONFIG_HOME` is honoured by the standalone**, so any session-state
-   experiment can run fully isolated from the developer's own config. This is
-   the technique that makes replaying a suspect patch safe on a shared box.
-3. **A branch's CI platform issue can be reporting `main`'s break.** The title
-   names the branch, so the natural reading is wrong. One `git show` of the
-   failing TU against `main` decides who owns it — and here the answer was
-   nobody on this branch.
-4. **A clean SIGTERM shutdown exits 0**, so in this harness a 139 is unambiguous.
-   Worth one run to establish before counting crashes.
-5. **`pkill -f <pattern>` matched my own shell and killed it (exit 144)** — the
-   third time this fleet has recorded it and the second in two runs on this box.
-   Two journal bullets have not stopped it. Filed as **S31**, because a lesson
-   this durable wants a wrapper, not another bullet.
-6. **Report a crash with its control, not just its correlation.** I had a
-   plausible story — heavy path-traced rendering in a software-GL VM takes the
-   compositor down — and the second crash, with nothing running, refuted it. It
-   would have been an easy and confident thing to write down.
-
-**Next:**
-
-1. **The one experiment that decides S23**, and it is cheap: replay
-   `~/.config/TIDE Rack/session.previous.xml` as `session.xml` under
-   `XDG_CONFIG_HOME=<scratch>` with no `session.loading` present, under `gdb`.
-   A segfault names the frame and closes the row; a clean run eliminates the
-   only hypothesis that explains the observed pattern. **Do this before any
-   further stress runs** — it is seconds, and the stress is hours.
-2. **Do it when the box is calm.** The desktop was restarting itself today; that
-   is worth knowing before blaming anything it hosts.
-3. **S31** — the `pkill -f` trap.
-
-**Branch/PR:** `tide/linux/S23-standalone-segfault` — TideSynth only, row and journal. No code change.
-
----
-
-## 2026-08-21 — macos — E11's hazard is unreachable, and the reason is a stub nobody had noticed
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** answered E11 by measurement — **the dangling-pointer hazard cannot
-happen** — and found the real defect underneath it, which belongs to **E6**
-rather than to a new row.
-
-### E11 asked the wrong question, and the right one is cheaper
-
-The row wanted the drain ordering established: does anything write parameter 1
-between `start_processor` (host main thread) and the first `process()` (audio
-thread)? **The ordering does not matter, because the pointer is never taken.**
-
-Exhaustive rather than sampled — `value_` appears exactly four times in
-`processor_holder`:
-
-| site | what it does |
-|---|---|
-| `.h:87` | double default, at construction |
-| `.h:91` | `std::vector<uint8_t>{}` — an EMPTY blob, at construction |
-| `.cpp:224` | read (the seed) |
-| `.cpp:337` | read (`sendParameterToProcessor`) |
-
-**No write after construction**, because `setBlob` (`.h:135`) is a **stub**: its
-one assignment is commented out at `:137` and it unconditionally returns `true`.
-So a blob parameter's vector is empty for the object's whole life, and both
-sites that could publish a raw pointer decline to — the seed hits
-`if (!v || v->empty()) continue;`, and `sendParameterToProcessor` takes the
-inline branch because `v.size() > 8` is false at size 0. `e.oversizeData_` is
-never assigned. Nothing can dangle.
-
-**E11 is WONTFIX with a trigger written into it:** the moment `setBlob` is
-implemented, both sites go live and the row's analysis applies exactly as
-written.
-
-### The stub is the real defect, and two callers already trust it
-
-`onQueMessageReady` (`.cpp:397`) reads the payload into a local vector, calls
-`setBlob`, gets `true`, and then calls `sendParameterToProcessor` — **which
-reads the still-empty vector and sends a zero-length blob event, discarding the
-bytes it just read.** `setPin` (`.cpp:652`) marks the controller waiting on a
-parameter whose stored value is empty. And the seed's own comment says it exists
-so a processor created at any time starts with the parameter's *current* bytes —
-which cannot happen while nothing ever writes them.
-
-**Not verified at runtime, and I am saying so rather than implying otherwise:**
-TIDE's patch persistence goes through the preset chunk (S12), not the
-blob-parameter round trip, so TIDE working is not evidence this path works.
-
-### A31's habit stopped this becoming a duplicate
-
-Before filing a new row I grepped the backlog for `processor_holder` — the habit
-this fleet added yesterday — and got **three hits: E9, E11, E6**. **E6 already
-owns this ground**, saying a blob-capable prime *"needs a non-scalar setter in
-GMPI's processor_holder — only setParameterNormalizedFromDaw exists"*. That
-premise is slightly wrong in an actionable way: the setter **exists and is
-empty**, which is a sharper and more fixable statement than "there is none". So
-the finding went onto E6 and no S31 was filed.
-
-**Learned:**
-
-1. **A row that asks "is this ordering safe?" can be answered by showing the
-   code never reaches the ordering at all.** Four greps beat the runtime
-   experiment the row proposed, and the answer is stronger — not "safe today"
-   but "unreachable by construction".
-2. **A stub that returns `true` is worse than one that returns `false`.** Both
-   callers here branch on the result, so an honest `false` would have surfaced
-   this years earlier; instead the bytes are read, discarded, and reported as
-   stored.
-3. **The grep-before-filing habit paid for itself the day after it shipped**
-   (A31). Three rows already cited this file; one of them already owned the
-   finding.
-
-**Next:**
-
-1. **E6** carries the sharpened root cause. Implementing `setBlob` is PR-GATED
-   and wants Jeff — it is a hosting-layer change with every GMPI plug-in
-   downstream.
-2. Whether anything shipping depends on the blob-parameter path is unmeasured;
-   the preset chunk is what TIDE actually uses.
-
-**Branch/PR:** `tide/mac/E11-blob-lifetime` — TideSynth only, rows and journal. No GMPI change.
-
----
-
-## 2026-08-21 — macos — arm64-only, and the FORCE that made the obvious change a no-op
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** made TIDE Rack arm64-only on macOS. Jeff: *"lets change macOS to
-ARM-only, for faster building. Any straggler who wants intel can build it
-themselves."*
-
-### The one-line version of this change does nothing, silently
-
-TIDE sets `CMAKE_OSX_ARCHITECTURES` in its own root (`:32`) and in
-`modules/CMakeLists.txt:5`. Changing those to `arm64` looks like the whole job.
-It is not: **`SynthEditLib/CMakeLists.txt:10` and
-`GMPI_Wrappers/CMakeLists.txt:12` both do `set(... CACHE STRING ... FORCE)`**,
-and a FORCEd cache set overrides the parent scope *and* the command line.
-
-Proven rather than reasoned about, before touching anything:
-
-```
-cmake -DCMAKE_OSX_ARCHITECTURES=arm64 <TideSynth>
-  CMakeCache.txt:  CMAKE_OSX_ARCHITECTURES:STRING=x86_64;arm64
-```
-
-So the flag a person would reach for first is discarded without a word. Both
-shared lines are now guarded with `if(NOT DEFINED CMAKE_OSX_ARCHITECTURES)` —
-universal stays the default for anyone who does not choose, and a consumer that
-has chosen keeps its choice.
-
-### The measurement, and the negative control that matters more
-
-| | |
-|---|---|
-| universal, cold | **160 s** |
-| arm64, cold | **79 s** — 2.03x |
-| `lipo -archs` on TIDE / TIDE_VST3 / TIDE_STANDALONE | **arm64** (control binary: `x86_64 arm64`) |
-| **SynthEdit configure — the negative control** | **still `x86_64;arm64`** |
-
-**SynthEdit is untouched and still ships universal**, which is not luck: SE16's
-root sets the variable before adding those subdirectories, so the guard skips
-and the value is identical. That control is the whole reason this was safe to
-do in shared repos — without it, "TIDE got faster" and "the commercial product
-quietly lost Intel" look the same from here.
-
-**Roughly half the build is the shared libraries** (SynthEditLib 181 + EditorLib
-57 objects against SynthEditSem's 219), which is why a per-target
-`OSX_ARCHITECTURES` property on TIDE's own targets — the change that would have
-needed no shared edit at all — was rejected: it would have bought about half
-the speedup, because the libraries underneath would still compile twice.
-
-**Stated rather than buried:** a released TIDE Rack will not run on an Intel Mac
-and **nothing will tell such a user why** — the plugin just fails to load.
-Recorded on **R3**, which owns the packaging where a minimum-hardware note would
-belong.
-
-**Learned:**
-
-1. **`set(... CACHE ... FORCE)` in a dependency silently outranks the consumer
-   AND the command line.** The tell was cheap — one configure, one `grep` of
-   `CMakeCache.txt` — and without it this change would have been committed,
-   reviewed and merged while doing nothing at all.
-2. **When a change must reach shared code, the negative control is the
-   deliverable.** Proving SynthEdit still configures universal is what
-   distinguishes this from a change that quietly dropped Intel support for the
-   commercial product too.
-
-**Next:**
-
-1. Three PRs that **must merge together** — TIDE's arm64 line is inert until
-   both FORCEs are guarded.
-2. Whether SynthEdit itself goes arm64 is now a one-line change and a separate
-   decision.
-
-**Branch/PR:** `tide/mac/macos-arm64` + [SynthEditLib#31](https://github.com/JeffMcClintock/SynthEditLib/pull/31) + [GMPI_Wrappers#10](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/10).
-## 2026-08-21 — macos — Linux CI is green, and the macOS job that would confirm it cannot say anything
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** prepared C7e's and C7's status on the evidence that exists, rather than
-on the evidence the clause asks for — and said which is which.
-
-### The apt-get landed and Linux went green
-
-Jeff pushed [#250](https://github.com/JeffMcClintock/TideSynth/pull/250). The
-step that has failed every Linux run since the matrix first fired now reads:
-
-```
-3. Install Linux deps: success
-4. Configure:          success     <- red for two days
-5. Build:              success
-6. File a platform issue on failure: skipped
-```
-
-That last line is the mechanism confirming it rather than me reading a log.
-**Nothing was hiding behind the fail-fast probe** — the measured four-package
-set was complete, which was the standing risk.
-
-### The macOS job on that PR is incapable of telling us anything
-
-Checked rather than assumed, because it is the difference between waiting and
-finishing: **#250 changes exactly one file**, and its only non-comment change is
-inside a step gated `if: matrix.platform == 'linux'`. The macOS job's definition
-is byte-identical to `main`'s. Its outcome carries **zero information about this
-change** — so waiting for it is waiting for a 5%-likely event to confirm a step
-that did not change.
-
-### So C7e is IN-REVIEW, not DONE, and the reason is written down
-
-The clause is *"three platforms run rather than skip, and pass, on a PR"*.
-Windows and Linux pass on #250; macOS is QUEUED. **All three platforms are
-proven — but not in one run**, and that is a CI-capacity fact (S30: macOS
-completes ~5% of runs here) rather than anything about TIDE. The two runs that
-did complete macOS recently both **passed**, and both were runs where **linux
-failed and macOS succeeded**.
-
-Flipping to DONE on that composite would be reading the clause loosely on my own
-authority, so it is IN-REVIEW with the argument attached and the call left to
-Jeff.
-
-**Learned:**
-
-1. **Ask what a pending check could possibly prove before waiting on it.** One
-   look at the diff showed the macOS job was gated out of every line that
-   changed. That reframed an hour of waiting as a decision to make.
-2. **"All three platforms pass" and "all three passed in one run" are different
-   claims, and only one of them is what an Accept clause usually means.** Saying
-   which one you have is the whole job when the weaker one is all that CI
-   capacity allows.
-
-**Next:**
-
-1. Jeff's call on whether the composite satisfies C7e; C7 moves with it.
-2. On closing, **C10 and R2-R6 unblock** — the release track has waited on this.
-3. **S30** (macOS starvation) and **S29** (duplicate runs) are the CI-capacity
-   rows this turned up; both want a workflow edit.
-
-**Branch/PR:** `tide/mac/C7-close` — TideSynth only, status and evidence.
-
----
-
-## 2026-08-21 — macos — STEP 4 bookkeeping: seven rows flipped on merged PRs
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** flipped **A31, A32, C10, E5, E15, S24, E6** from IN-REVIEW to DONE.
-Every PR behind them merged today, and each state was **queried rather than
-assumed** — thirteen PRs across four repos, all `MERGED`.
-
-This is STEP 4's own instruction (*"If you see an IN-REVIEW row whose PRs have
-all merged, flip it as part of your STEP 4"*), done in one pass because the
-whole mac chain landed at once rather than one row at a time.
-
-**Learned:**
-
-1. **A day that merges thirteen PRs leaves the backlog lying by seven rows.**
-   IN-REVIEW is accurate for about as long as it takes the PR to merge, and
-   nothing flips it automatically — so a summary taken off the status column
-   mid-merge-run understates what shipped.
-
-**Next:** the queue's remaining TODOs are the S-series GATED rows, the linux
-platform issues, and E2 — which now has a ruled nine-module list and no open
-questions.
-
-**Branch/PR:** `tide/mac/flip-merged-rows-0821` — TideSynth only, bookkeeping.
-
----
-
-## 2026-08-21 — macos — E16 ruled Tier 1, and four conventions came with it
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** recorded Jeff's E16 ruling — **TIDE ships Tier 1** — plus four
-conventions and seven corrections he gave alongside it, and verified the four
-claims that were checkable rather than transcribing them.
-
-### The ruling is a sequencing argument, not a size preference
-
-*"we need a testable, installable MVP first"* — Tier 1 is what lets installers,
-the website and the release track move, while the full set is developed in
-parallel by Jeff. The risk being managed is stated plainly: *"I wouldn't want
-to spend a lot of time on a full set only to find we got the design language
-wrong or something that requires a lot of redesign."* Every authored panel is
-hostage to E17 until an installable build has been tested.
-
-**The doc's own argument for Tier 2 was rejected as false.** It said that below
-Tier 2 a user *"can make a sound but not music"*; Jeff: *"Tier 1 absolutely can
-make music. Plenty of real hardware products ship with only this type of
-functionality."* Corrected in place.
-
-### Four claims checked against the tree, because each changes what is blocked
-
-| claim | verified |
-|---|---|
-| Oscillator HD is the oscillator TIDE ships | **already compiled in** by E2c (`SynthEditSem/CMakeLists.txt:299`) |
-| glide is already in MIDI-CV2 | **yes** — `CVoiceList.cpp` drives constant-rate glide via `HC_GLIDE_START_PITCH` into `MidiToCv2`'s `pitchInterpolator` |
-| pitch 0.5 = 440 Hz, 0.6 = 880 Hz | **exactly** — `ug_oscillator2.cpp:375` is `440.0 * pow(2.0, volts - 5.0)`, and `ULookup.h:9` agrees |
-| volts are display-only | consistent — `CVoiceList.cpp:980` records the "SE volts (0-10 V)" convention on the MIDI-CV host controls |
-
-**The first of those unblocks the MVP.** S8 has been carried as the oscillator's
-blocker since 2026-08-18, and its measurement is still true — but it is about
-`OscillatorNaive`, and TIDE ships `SE Oscillator4`. The row stays open for the
-packaging fault it found; it no longer gates E2.
-
-### The set is trimmed by three, each for a mechanism
-
-**Sample & Hold** out (*"not critical"*). **Slew/Glide** out — it is in MIDI-CV2,
-verified above. **Mixer** out, ruled minutes later once the question was put
-plainly: *"let's leave mixer out of MVP to reduce the critical path."* TIDE's
-cables fan in with automatic summing, so a mixer is convenience rather than
-capability.
-
-**So the MVP is NINE modules** — Oscillator HD, Envelope, Output, I/O modules,
-Filter, VCA, LFO, Noise, Attenuverter+Offset — and **nothing in the set is
-open**. Worth noting that the first pass of this entry recorded the Mixer as
-undecided rather than guessing which way *"quite useful though i guess"* fell;
-asking cost one line and got a ruling that also names its reason.
-
-### I flagged a critical-path risk that does not exist, and Jeff corrected it inside the hour
-
-Polyphony is ruled to be SynthEdit's existing model — modules always
-monophonic, the runtime clones them per voice on the DSP graph, voice count set
-on the MIDI-CV rack module, *"essentially free"*. The I/O modules are ruled to
-be rack modules, mandatory but movable. **I read those two together as putting
-MIDI-CV back inside a Container** — E7's measured failure — and wrote it up as
-newly on the MVP's critical path.
-
-**It is not, and the error is worth keeping.** Jeff: *"conceptually they are
-rack modules, but in reality we place the MIDI-CV2 at the root level and route
-it into the Container (which represents it on the GUI as patch-points). This is
-already solved. MIDI-CV as rack module [is] how the end-user thinks of it, not
-how it is implemented."*
-
-So root-placement-plus-facade **is the architecture**, and PLAN.md's word for it
-— *"v0.1 side-steps this"* — is what made it read as a temporary evasion of an
-open limitation. All four places that carried my inference are corrected:
-`decisions.md`, `module-set.md` §9.3, E7's row, and PLAN.md itself. **S28 turned out to be wrong too, and is closed** — see below.
-
-### S28: I filed a row without asking why two modules differed
-
-I had sharpened S28 to *"the root implementation modules should not render on
-the rack canvas"*. Jeff: *"if they have no GUI class (which MIDI-CV2 does not),
-they already don't render on the rack canvas (only on the structure-view).
-That's already implemented and working."*
-
-**Verified, and it splits the two modules the row had lumped together:**
-
-| module | GUI class | saved rect | rendered? |
-|---|---|---|---|
-| `SE MIDI to CV 2` | **none** — no `*Gui*` registration in SynthEditLib | **0,0,0,0** | no — the probe already skipped it as *"zero rect"* |
-| `MIDI In` | **yes** — `modules_internal/MidiInGui.cpp:123` | 8x14 | yes, because it is meant to |
-
-So the self-exclusion the row asked for **already exists by mechanism**, and the
-one module that does render has a GUI class and is *supposed* to. Under the same
-day's I/O-modules ruling it is a rack module that has not been authored to rack
-proportions yet — **E2's work on item #4, not a defect**. S28 is closed WONTFIX,
-and the probe's docstring now carries the discriminator so the next reader does
-not re-derive it or, worse, add a name-based exception list.
-
-**Learned:**
-
-1. **A correction that removes a blocker is worth checking hardest, not
-   least.** "We ship Oscillator HD" reads like a preference; it retired a
-   three-day-old blocker, and one grep proved the module was already in the
-   binary.
-2. **"Rack module" was a statement about the USER'S MODEL and I read it as one
-   about implementation** — then reasoned confidently from it to a critical-path
-   risk that does not exist. The tell I missed was available: V3 had already
-   built root-placement-plus-facade and it works. **A vocabulary that describes
-   the product can look exactly like one that describes the code**, and PLAN.md
-   calling the arrangement a *"side-step"* of a *"still open"* limitation is
-   what made the wrong reading the natural one.
-3. **Corrections are cheapest when the work is still unmerged.** These touched
-   four documents, a probe, a row and this entry; none had landed, so the
-   record shows the rulings rather than the rulings plus retractions.
-4. **Two wrong calls this session died to one habit: reasoning from a
-   measurement without asking what produced it.** S28 came from a probe line
-   listing two root modules, one measuring and one not — and I never asked why
-   they differed. One grep for a GUI class answers it. The probe was right both
-   times; the interpretation was not.
-
-**Next:**
-
-1. **E2 is unblocked** and now has a ruled list to author from.
-2. **E2 has everything it needs**: the Mixer is ruled out, and E7's container
-   boundary turned out to be already solved. Nothing in the set is open.
-3. The release track (R2-R6) has an MVP to package.
-
-**Branch/PR:** `tide/mac/E16-tier1-ruled` — TideSynth only, rulings and docs.
-
----
-
-## 2026-08-21 — macos — E5: the rack grid ruled, and the snap is gcd(12, 15)
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** implemented Jeff's ruling on the rack grid. `hpWidth` stays **15**
-(the visual HP), a new **`snapWidth = 3`** is the placement pitch, the row is
-**384**, TIDE's standard module is **48** wide, and a panel is the **whole
-row**.
-
-### Jeff proposed 384 / snap 12 / width 48, and the measurement moved one of the three
-
-Snapping on 12 is the arm that would have cost VCV compatibility, which is the
-opposite of what it looks like — every VCV module is a multiple of 15 by
-construction, so today's 15-snap fits them all exactly:
-
-| snap | exact for | worst gap |
-|---|---|---|
-| 15 (today) | 13 of 13 common VCV widths | 0 |
-| **12** | **5 of 13** | **9 DIPs (3.0 mm)** |
-| 6 | 10 of 13 | 3 DIPs |
-| **3 = gcd(12,15)** | **13 of 13** | **0** |
-
-12 and 15 first agree at 60 DIPs (4 HP), so a 12-snap misaligns every VCV
-module that is not a multiple of 4 HP — worst on the 1–2 HP utilities there are
-many of. **3 is the coarsest snap that satisfies both worlds**, and it keeps
-every TIDE dimension a multiple of 12 anyway, because 384 and 48 both are.
-Jeff took it.
-
-### `hpWidth` was doing two jobs, and this would have wrecked the second
-
-`ViewBase::renderRack` derives the rail hole pitch *and* the hole radius from
-`hpWidth` — *"one threaded mounting hole per HP"*, `holeRadius = hpWidth *
-0.13`. Setting it to 3 would have given the rails a hole every 3 DIPs at
-**0.39 DIP radius**: fine sandpaper instead of Eurorack rails, and nothing
-would have failed to build. Six consumers, all in one file; the split sends
-`snapToGrid` to `snapWidth` and leaves the four rendering sites on `hpWidth`.
-
-### The rail allowance never existed — Jeff's correction, and it is the bigger one
-
-*"useable interior is the entire rack module surface (we don't draw mounting
-hardware)."* Confirmed in the render order rather than taken on trust:
-`ContainerView.cpp:71` calls `renderRack` inside the **background fill**, so
-modules draw over the rails exactly as a real panel covers the rails it is
-screwed to. Rails show only in empty slots.
-
-So `build-prefabs.py`'s `380 - 2*15 = 350` subtracted an allowance that does
-not exist — and that assumption had propagated: **#239's probe encoded it too**
-and reported TIDE's own prefab as `TALLER THAN ROW`, a verdict measured against
-a constant that does not govern. Both corrected. **A wrong model in a
-verification tool is worse than no tool**, because its output looks like
-evidence.
-
-### Verified
-
-- probe rewritten to the ruled model: **12 selftest cases, 0 failed**, and the
-  new cases are the ruling's own claims — a 380 VCV panel and a 384 TIDE panel
-  both pass, 400 fails, 48 / 30 / 36 all land on the 3-grid, 100 does not.
-- all four targets build rc=0 against the modified `SynthEditLib`.
-- MidiCv regenerated at 384 and **re-measured on a running rack**, not just
-  rebuilt: `TIDE MIDI-CV  w=96 h=384  6.400 HP  on-grid  fits row`, no
-  overlaps — the two clauses this row could never satisfy, satisfied — and the
-  rails visibly pass *behind* the panel
-  ([docs/images/e5-rack-ruled-grid-macos.png](docs/images/e5-rack-ruled-grid-macos.png)).
-
-**The one violation left is not a rack module, and I did not silence it.**
-`MIDI In` 8x14 is TIDE's seeded root plumbing (`TideApp.cpp:727` — V3's
-polyphony workaround, a root MIDI-CV feeding the rack module as a facade).
-Teaching the probe that name would make it lie about what it measures, so the
-measurement stands and the question — should root plumbing carry a panel rect
-at all? — is filed as **S28**.
-
-**The GATED half is its own PR** ([SynthEditLib#30](https://github.com/JeffMcClintock/SynthEditLib/pull/30)) — two constants and one line, shared with SynthEdit's
-own rack mode, so it is reviewable on its own.
-
-**Learned:**
-
-1. **A constant that serves both a layout rule and a drawing rule will be
-   changed for one and silently break the other.** `hpWidth` read as "the HP",
-   and it was also the hole pitch. The tell was reading every consumer before
-   editing the definition, which took one grep.
-2. **The most expensive thing in this item was an assumption inside a probe.**
-   `350` was arithmetic on a model nobody had checked against the renderer, and
-   it had already produced a confident false verdict about TIDE's own shipped
-   prefab.
-
-**Next:**
-
-1. **#239 is superseded by this branch** — it carried the same work stacked
-   behind E16's unresolved ruling, and its probe held the wrong rail model.
-2. E5's second clause (no overlaps) is now measurable on the ruled grid.
-
-**Branch/PR:** `tide/mac/E5-rack-grid` (TideSynth) + [SynthEditLib#30](https://github.com/JeffMcClintock/SynthEditLib/pull/30) — merge together.
 
 ---
 

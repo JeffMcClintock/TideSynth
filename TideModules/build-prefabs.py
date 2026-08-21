@@ -545,7 +545,7 @@ TIDE_STATIC_EXTRAS = {
     # off the TIDE source list with it.
     # modules/Controls/LabelGui.cpp -- the faceplate captions. Verified linked at
     # the symbol level rather than by strings/nm on an id:
-    #   nm TIDE_VST3 | grep __GLOBAL__sub_I_LabelGui.cpp   -> present
+    #   nm TIDE-Rack (the VST3 binary) | grep __GLOBAL__sub_I_LabelGui.cpp   -> present
     # That symbol names the FILE, so the legacy rename table cannot fake it. Both
     # of these live in source lists belonging to SEPARATE CMake targets in
     # SynthEditLib, which is why they need naming in SynthEditSem's own list --

@@ -29,10 +29,10 @@ import re
 import subprocess
 import sys
 
-# Targets whose objects end up inside TIDE_VST3.so. Taken from the LINK_LIBRARIES
+# Targets whose objects end up inside the VST3 .so. Taken from the LINK_LIBRARIES
 # line in build.ninja rather than assumed -- TIDE links VST3_Wrapper, SynthEditLib
 # and EditorLib, and deliberately none of the .sem module libraries.
-TIDE_TARGETS = {"TIDE", "TIDE_VST3", "VST3_Wrapper", "SynthEditLib", "EditorLib"}
+TIDE_TARGETS = {"TIDE_Rack", "TIDE_Rack_VST3", "VST3_Wrapper", "SynthEditLib", "EditorLib"}
 
 # Where a moved file may have gone. C4 relocated a dozen files from
 # SE16/SynthEdit2/ into SynthEditLib/, so a configure older than 2026-08-13
@@ -147,10 +147,10 @@ def linked_compile_units(binary):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--build", required=True, help="a build tree with TIDE configured")
-    ap.add_argument("--binary", default=None, help="unstripped TIDE .so (default: <build>/SynthEditSem/TIDE_VST3.so)")
+    ap.add_argument("--binary", default=None, help="unstripped TIDE .so (default: <build>/SynthEditSem/TIDE-Rack.so)")
     args = ap.parse_args()
 
-    binary = args.binary or os.path.join(args.build, "SynthEditSem", "TIDE_VST3.so")
+    binary = args.binary or os.path.join(args.build, "SynthEditSem", "TIDE-Rack.so")
 
     print("== 1. TIDE link closure ==")
     per_target = translation_units(args.build)

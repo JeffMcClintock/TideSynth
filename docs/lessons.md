@@ -37,7 +37,21 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 
+## 2026-08-22
+
+**macos — N1a: OUTPUT_NAME renamed three things, and only one of them had an extension**
+
+- `OUTPUT_NAME` is three renames, and only the one with an extension is collision-proof.
+- `LNK1201` names disk space, privilege and path, and means none of them.
+- Configure twice and diff the generated build system.
+- A build that does not install is a measurement trap.
+
 ## 2026-08-21
+
+**macos — N1a: the rename shipped, and it silently unlinked half the build first**
+
+- A guard that makes missing work silent turns a rename into a downgrade.
+- When the old artifact is still installed and shares an ID, matching numbers are not evidence.
 
 **macos — S33 filed: a live defect was sitting on a closed row**
 
@@ -82,47 +96,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A timeline can refute a hypothesis that a reproduction attempt cannot.
 - Resolving an address in a rebuilt binary is not evidence.
 - A "GNOME Shell crashed" line and a login prompt are not the same event.
-
-**linux — S23 did not reproduce, but a mechanism explains why it never would**
-
-- A self-healing mechanism upstream of a bug will make that bug look intermittent, and a controlled-run count cannot see it.
-- `XDG_CONFIG_HOME` is honoured by the standalone
-- A branch's CI platform issue can be reporting `main`'s break.
-- A clean SIGTERM shutdown exits 0
-- `pkill -f <pattern>` matched my own shell and killed it (exit 144)
-- Report a crash with its control, not just its correlation.
-
-**macos — E11's hazard is unreachable, and the reason is a stub nobody had noticed**
-
-- A row that asks "is this ordering safe?" can be answered by showing the code never reaches the ordering at all.
-- A stub that returns `true` is worse than one that returns `false`.
-- The grep-before-filing habit paid for itself the day after it shipped
-
-**macos — arm64-only, and the FORCE that made the obvious change a no-op**
-
-- `set(... CACHE ... FORCE)` in a dependency silently outranks the consumer AND the command line.
-- When a change must reach shared code, the negative control is the deliverable.
-
-**macos — Linux CI is green, and the macOS job that would confirm it cannot say anything**
-
-- Ask what a pending check could possibly prove before waiting on it.
-- "All three platforms pass" and "all three passed in one run" are different claims, and only one of them is what an Accept clause usually means.
-
-**macos — STEP 4 bookkeeping: seven rows flipped on merged PRs**
-
-- A day that merges thirteen PRs leaves the backlog lying by seven rows.
-
-**macos — E16 ruled Tier 1, and four conventions came with it**
-
-- A correction that removes a blocker is worth checking hardest, not least.
-- "Rack module" was a statement about the USER'S MODEL and I read it as one about implementation
-- Corrections are cheapest when the work is still unmerged.
-- Two wrong calls this session died to one habit: reasoning from a measurement without asking what produced it.
-
-**macos — E5: the rack grid ruled, and the snap is gcd(12, 15)**
-
-- A constant that serves both a layout rule and a drawing rule will be changed for one and silently break the other.
-- The most expensive thing in this item was an assumption inside a probe.
 
 ## 2026-08-18
 
@@ -1306,3 +1279,46 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 **macos — E6's honest tell: renders that ignored your state now say so**
 
 - A row that names its own fallback scope can be half-shipped honestly
+
+## 2026-08-21
+
+**macos — E11's hazard is unreachable, and the reason is a stub nobody had noticed**
+
+- A row that asks "is this ordering safe?" can be answered by showing the code never reaches the ordering at all.
+- A stub that returns `true` is worse than one that returns `false`.
+- The grep-before-filing habit paid for itself the day after it shipped
+
+**macos — arm64-only, and the FORCE that made the obvious change a no-op**
+
+- `set(... CACHE ... FORCE)` in a dependency silently outranks the consumer AND the command line.
+- When a change must reach shared code, the negative control is the deliverable.
+
+**macos — Linux CI is green, and the macOS job that would confirm it cannot say anything**
+
+- Ask what a pending check could possibly prove before waiting on it.
+- "All three platforms pass" and "all three passed in one run" are different claims, and only one of them is what an Accept clause usually means.
+
+**macos — STEP 4 bookkeeping: seven rows flipped on merged PRs**
+
+- A day that merges thirteen PRs leaves the backlog lying by seven rows.
+
+**macos — E16 ruled Tier 1, and four conventions came with it**
+
+- A correction that removes a blocker is worth checking hardest, not least.
+- "Rack module" was a statement about the USER'S MODEL and I read it as one about implementation
+- Corrections are cheapest when the work is still unmerged.
+- Two wrong calls this session died to one habit: reasoning from a measurement without asking what produced it.
+
+**macos — E5: the rack grid ruled, and the snap is gcd(12, 15)**
+
+- A constant that serves both a layout rule and a drawing rule will be changed for one and silently break the other.
+- The most expensive thing in this item was an assumption inside a probe.
+
+**linux — S23 did not reproduce, but a mechanism explains why it never would**
+
+- A self-healing mechanism upstream of a bug will make that bug look intermittent, and a controlled-run count cannot see it.
+- `XDG_CONFIG_HOME` is honoured by the standalone
+- A branch's CI platform issue can be reporting `main`'s break.
+- A clean SIGTERM shutdown exits 0
+- `pkill -f <pattern>` matched my own shell and killed it (exit 144)
+- Report a crash with its control, not just its correlation.
