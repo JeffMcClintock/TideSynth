@@ -18335,3 +18335,154 @@ The stress file is kept as evidence in the scratchpad, not in the repo.
 
 ---
 
+## 2026-08-21 — linux — S23: the session file is innocent, and the kernel had both crashes logged
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Did:** ran the one experiment the previous run left written but unrun, got a clean
+result — and then found the thing that actually answers S23 sitting in
+`journalctl`, which no run had read. Also filed **S32**, because `gnome-shell`
+segfaulted a fourth time and took Jeff's desktop down mid-run.
+
+### The experiment: the suspect file loads fine
+
+`~/.config/TIDE Rack/session.previous.xml` (17,866 bytes, md5
+`010ed62b3baa7bbdda95ee935108d6e7`) copied to `<scratch>/TIDE Rack/session.xml`,
+no `session.loading` beside it, launched as
+`XDG_CONFIG_HOME=<scratch> gdb -batch -ex run -ex bt --args ./TIDE_STANDALONE`.
+
+**Ran ~3 minutes, no signal.** Three things say the restore *succeeded* rather
+than merely failing to crash:
+
+| check | result |
+|---|---|
+| quarantine fired? | **no** — the scratch dir has no `session.previous.xml` afterwards, so `parametersAreReadable` passed and `host_.restoreState()` returned true |
+| did the app write its own state back? | **yes** — scratch `session.xml` 17,866 → **17,346** bytes, new mtime; the debounced save only runs in a healthy session |
+| does the rack draw? | **yes** — screenshot over the command channel, modules and patch points visible |
+
+**Jeff's own config was byte-identical before and after** — both md5s unchanged.
+`XDG_CONFIG_HOME` isolation does what `StandaloneSettings.cpp:49` promises.
+
+### The kernel had both original crashes, with an offset
+
+```
+Aug 20 17:32:58 TIDE_STANDALONE[23881]: segfault at fffffffffffffff8 ip 000062312e4f7627 ... in TIDE_STANDALONE[3b4627,62312e1cb000+404000]
+Aug 20 17:33:27 TIDE_STANDALONE[23924]: segfault at fffffffffffffff8 ip 000055bae7342627 ... in TIDE_STANDALONE[3b4627,55bae7016000+404000]
+```
+
+**Same module offset `3b4627` both times, under different ASLR bases.** So this
+is **one deterministic code site**, not a random smear — which is the single most
+useful fact anyone has produced about S23, and it was free.
+
+`0xfffffffffffffff8` is **-8**, and `error 5` decodes as a **user-mode READ of a
+mapped page**. That is the signature of reading 8 bytes *before* a null-ish base
+— `back()` on an empty container, `*(--it)` at `begin()`, a length stored ahead
+of a null data pointer — **not** a plain null `->field`.
+
+**And the 29-second gap proves the session file is innocent, independently of the
+replay.** Crash 1 at 17:32:58 leaves the breadcrumb, so the *next* launch
+quarantines the file — `session.previous.xml` is stamped **17:33**, exactly
+between the two — and comes up at defaults. **That defaults run crashed anyway at
+17:33:27, at the same offset.** So the second crash was not loading the
+quarantined file at all.
+
+Two hypotheses die and one hedge resolves:
+
+- **"the bad session file is the crash input"** — dead, from both directions.
+- **"the 28 clean runs were runs of an app that had thrown the file away"** — the
+  mechanism is real, but it is not why S23 stopped reproducing, because the
+  crash recurred *after* the quarantine.
+- **`session.previous.xml` IS a quarantine artifact**, not the `File > Revert to
+  Plugin Defaults` false positive the row hedged about — its 17:33 stamp sits
+  between the two crashes. (`keepCurrentAside` is reachable from exactly one
+  place, `StandaloneApp.cpp:353`, armed at `:180`.)
+
+**Not reproduced since:** zero `TIDE_STANDALONE` segfaults in `journalctl` after
+2026-08-20 17:33 — across the previous run's 28 controlled runs and ~1000 driven
+insertions, and this run's replay.
+
+### A lead I am labelling unreliable, on purpose
+
+`addr2line` on **today's** binary at `0x3b4627` gives `CContainer::OnEditContain()`
+at `SynthEditLib/EditorLib/CContainer.cpp:2338`, and `:2330` there does use a
+`dynamic_cast` result with no null check. Tempting — `OnEditContain` is the
+unlock-a-container path, which is exactly the rack gesture.
+
+**It is probably a coincidence and should not be spent on.** It is a *different
+binary* from the one that faulted, and a null `->Plugs.size()` would fault at a
+small **positive** offset, not at **-8**. The signature does not match. Recorded
+only so the next run does not re-derive it.
+
+### S32: the compositor, not the app
+
+`gnome-shell` **segfaulted at 18:28:59** — `code=dumped, status=11/SEGV` — and
+took the graphical session to the login screen. From the apport core:
+
+```
+wl_display_flush_clients -> wl_client_destroy -> libmutter-14
+  -> g_signal_handler_disconnect -> g_type_check_instance   SIGSEGV
+```
+
+A **use-after-free in mutter while destroying a disconnecting Wayland client**.
+Four occurrences in two days (`Aug 20 17:35:18`, `Aug 21 16:44:21`, `16:48:06`,
+`18:28:59`). **TIDE_STANDALONE did not crash** — no crash report for it; my own
+`timeout` terminated it.
+
+Stated carefully in both directions, because this journal has got it wrong twice:
+the crash landed within seconds of TIDE's SIGTERM and TIDE's `gmpi-wl` memfd was
+mapped in the compositor — **but** `wl_display_flush_clients` iterates every
+client and the core does not name which one, `/memfd:… (deleted)` is how every
+memfd appears, the 16:48 crash happened with TIDE not running, and TIDE's own
+backend handles a lost connection cleanly (`DrawingFrameWayland.h:3856-3868`)
+rather than faulting. **So "the compositor crash IS S23's 139" does not follow.**
+
+**Learned:**
+
+1. **`journalctl` keeps a kernel record of every segfault, with a module-relative
+   offset, and nobody in this fleet had looked.** Two runs spent hours on stress
+   loops and controlled-run counts for a crash the kernel had already located
+   twice. **Before trying to reproduce a crash, ask what the machine already
+   wrote down about it.**
+2. **The same module offset under two different ASLR bases means one
+   deterministic site.** The absolute `ip` differs and looks like noise; the
+   bracketed offset is the invariant, and it is the number worth keeping.
+3. **A fault at `0xfffffffffffffff8` is -8, and -8 is a signature, not an
+   address.** It says "read just before a base", which rules out the whole class
+   of plain null-`->field` explanations — including the one `addr2line` handed me.
+4. **A timeline can refute a hypothesis that a reproduction attempt cannot.** The
+   29-second gap between the two crashes, read against when the quarantine must
+   have fired, kills the session-file theory on its own — no build, no run.
+5. **Resolving an address in a rebuilt binary is not evidence.** It produced a
+   plausible, thematically perfect function name that the fault signature then
+   contradicted. The check that made it safe was asking whether the *symptom*
+   matched, not whether the *story* did.
+6. **A "GNOME Shell crashed" line and a login prompt are not the same event.** At
+   19:11 I read `Xwayland terminated` plus a shell restart as a fifth crash; it
+   was Jeff logging back in, and the greeter exiting normally. `loginctl` and the
+   `session opened/closed` lines told the truth in one command.
+
+**Next:**
+
+1. **S23 is one step from closed:** rebuild the tree as it stood on 2026-08-20
+   ~17:30 and `addr2line 0x3b4627` in *that* binary. `-g` does not change codegen
+   at `-O3`, so the offset should survive. **No more stress runs** — stress has
+   never reproduced it and this box cannot afford them.
+2. **S32 before any further GUI work here:** option (b), a nested or headless
+   compositor, is the one a run can adopt without touching Jeff's machine.
+3. **S31** is still open — the `pkill -f` trap.
+
+**Did not rebuild.** The item needed no build: the binary in `build/SynthEditSem/`
+was built at 16:27 today, after `main`'s last code commit (`da0bb37`, 16:01), and
+the only thing landed since is `c5c29ee`, docs-only. The previous run measured
+`main` building here rc=0 with 0 error lines at that same code state. Jeff had
+just logged back in and a full rebuild is CPU he was using.
+
+**Jeff's working tree and config left as found:** `~/TideSynth` was clean at
+start and is clean apart from this branch's two files; `~/.config/TIDE Rack/`
+is byte-identical (md5s above). All replay work happened in the session
+scratchpad.
+
+**Branch/PR:** `tide/linux/S23-session-replay` — TideSynth only, row and journal. No code change.
+
+---
+

@@ -77,7 +77,7 @@ the next `xext`, with the same one-name-at-a-time diagnosis cost.
 ## The linux box itself — `libpipewire-0.3-dev`, installed 2026-08-20
 
 Distinct from CI, and worth stating because three runs' worth of notes said
-otherwise. **`TIDE_STANDALONE` needs `libpipewire-0.3-dev`**, and the linux
+otherwise. **The standalone (target `TIDE_Rack_STANDALONE`, binary `TIDE-Rack`) needs `libpipewire-0.3-dev`**, and the linux
 box did not have it — only the PipeWire *runtime*, which is why SynthEdit
 Wayland ran while TIDE's standalone was skipped at configure with
 `missing: libpipewire-0.3`.
@@ -93,8 +93,10 @@ password prompt (`sudo -n` -> *"a password is required"*, `tty` -> *"not a
 tty"*). It is obsolete, and the rows that describe it say so now.
 
 **What this buys a linux run:** visual verification, which several older rows
-assume is impossible here. Build `TIDE_STANDALONE`, run it, and it prints a
-command-channel socket an MCP server can screenshot, click and drag over.
+assume is impossible here. Build `TIDE_Rack_STANDALONE`, run `./TIDE-Rack`, and it
+prints a command-channel socket an MCP server can screenshot, click and drag over.
+**Run it inside a headless compositor, not against the developer's desktop** —
+see [headless-gui-verification.md](headless-gui-verification.md) (BACKLOG S32).
 
 ## The optional three
 
@@ -109,7 +111,7 @@ not in the step above. Without them configure prints:
 ```
 
 and carries on to a working X11 VST3. Adding them is a product choice — whether
-CI also builds the Wayland editor and `TIDE_STANDALONE` — not a build fix. Note
+CI also builds the Wayland editor and `TIDE_Rack_STANDALONE` — not a build fix. Note
 `libpipewire-0.3` is also missing on the runner and is only needed by the
 standalone.
 
@@ -120,7 +122,7 @@ X11 probe the way the Wayland one already is and turn CI green without Jeff.
 That was declined on macOS as papering over a real dependency; on Linux it is
 now **measured** rather than argued. The linked binary genuinely uses all three:
 
-| library | undefined symbols in `TIDE_VST3.so` |
+| library | undefined symbols in the VST3 `.so` (measured pre-N1a as `TIDE_VST3.so`; now `TIDE-Rack.so`) |
 |---|---|
 | `libXext` | **5** (`XShm*` — the MIT-SHM path the CMake comment describes) |
 | `libharfbuzz` | **50** (`hb_*`) |
@@ -131,7 +133,11 @@ would produce one that fails to resolve those symbols.
 
 ## What passes once the step is installed
 
-The full CI recipe, run on a clean clone with only these packages visible:
+The full CI recipe, run on a clean clone with only these packages visible.
+**The artifact names in the transcript are pre-N1a and are left as measured**;
+today the same build emits `TIDE-Rack.gmpi`, `TIDE-Rack.so` and — until
+[#271](https://github.com/JeffMcClintock/TideSynth/issues/271) is fixed —
+`TIDE_Rack_VST3.vst3/Contents/x86_64-linux/TIDE-Rack.so`.
 
 ```
 git clone https://github.com/JeffMcClintock/TideSynth      158 files

@@ -7,6 +7,14 @@ Everything below was *seen*, not inferred, unless a paragraph says
 "**Inferred**" — those are reasoned from source and are marked so a later run
 knows which claims still need proving.
 
+> **Names in this document are pre-N1a and are deliberately left as they were
+> seen.** The rename landed 2026-08-22; today the same artifacts are
+> `TIDE-Rack.gmpi`, `TIDE-Rack.so` and `TIDE-Rack.vst3` (`TIDE_Rack_VST3.vst3`
+> on Linux until [#271](https://github.com/JeffMcClintock/TideSynth/issues/271)
+> is fixed), with CMake targets `TIDE_Rack`, `TIDE_Rack_VST3`,
+> `TIDE_Rack_STANDALONE` and PDBs named after those targets. Rewriting the
+> observations below would falsify what was measured — see **N1b**.
+
 ## How it was observed
 
 | | |

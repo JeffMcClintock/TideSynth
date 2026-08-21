@@ -1,4 +1,4 @@
-# Driving TIDE_STANDALONE without risking the developer's desktop
+# Driving TIDE-Rack (the standalone) without risking the developer's desktop
 
 **Linux only.** Written 2026-08-21 for **BACKLOG S32**, after `gnome-shell`
 segfaulted four times in two days on the linux box and took the developer's
@@ -37,14 +37,14 @@ weston --backend=headless --socket=tide-test --width=1400 --height=900 &
 XDG_RUNTIME_DIR=/run/user/$(id -u) \
 WAYLAND_DISPLAY=tide-test \
 XDG_CONFIG_HOME=<scratch> \
-  ./TIDE_STANDALONE
+  ./TIDE-Rack
 ```
 
 Stop it by pid when you are done — **never `pkill -f`**, which matches the shell
 running it (BACKLOG **S31**, hit three times):
 
 ```bash
-for p in $(pgrep -x TIDE_STANDALONE); do kill "$p"; done
+for p in $(pgrep -x TIDE-Rack); do kill "$p"; done
 for p in $(pgrep -x weston);         do kill "$p"; done
 ```
 

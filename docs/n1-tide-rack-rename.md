@@ -1,6 +1,15 @@
 # N1 — carrying the TIDE Rack rename through the tree
 
-Status **TODO**, platform **any**. Lifted verbatim out of the
+Status: **N1a LANDED 2026-08-22** ([#268](https://github.com/JeffMcClintock/TideSynth/pull/268));
+**N1b in progress**; N1 itself is now an umbrella. The rename is real in the
+tree — targets are `TIDE_Rack` / `TIDE_Rack_VST3` / `TIDE_Rack_STANDALONE` and
+the shipped files are `TIDE-Rack.*`. **One gap remains on Linux only:** the VST3
+bundle directory is still target-named, so it and the `.so` inside it disagree —
+[#271](https://github.com/JeffMcClintock/TideSynth/issues/271).
+**Old names appearing below are the BEFORE state of the rename and are correct
+as written.**
+
+Originally: status **TODO**, platform **any**. Lifted verbatim out of the
 [BACKLOG.md](../BACKLOG.md) row by **A8**, 2026-08-12, when that file had
 reached 76 KB and every run on three machines was reading all of it. The row
 now carries the decision-shaped summary and points here; this file is the
