@@ -39,6 +39,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — S27: four suspects eliminated, and the reference box turns out to be x86_64**
+
+- An Apple Silicon Mac separates ISA from OS/libm in a way no other box can
+- `$?` after a pipeline is the LAST command's status.
+- Check whether a hand-rolled RNG is actually the portable kind before blaming it.
+- `sqrt` is not a cross-platform divergence source.
+- A passing subset is a control, not noise.
+- Rebuild at the commit that produced the artifact before assuming drift.
+
 **macos — S31: the trap only exists on Linux, and that is why writing it down four times did not work**
 
 - When a negative control refuses to reproduce a documented bug, that is a result, not a broken harness.
@@ -47,6 +56,18 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Test what the OS might be doing for you, directly.
 - Ask whether the signal was delivered, not whether the process died.
 - Silence expected noise in test output.
+
+**macos — R4a: CLAP was in nobody's build, and my own Linux fix was a half-fix**
+
+- A format missing from a build list produces no error, only an absent file.
+- Grepping for a variable name closes the uses of that variable, not the defect class.
+- Never edit a CRLF file with Python text mode.
+- Checking a control turns a bug report into an elimination.
+- A duplicate found from two boxes is not waste
+- Check a lint's EXIT CODE, never grep its output.
+- Invoke a lint exactly as CI does or the local run means nothing.
+- Filing a row out of another row duplicates its citations.
+- `gh pr edit` needs `read:org` and the agent token has only `repo`.
 
 **linux — #271: fixing the bundle name alone would have emptied the bundle**
 
@@ -80,6 +101,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A build that does not install is a measurement trap.
 
 ## 2026-08-21
+
+**macos — R3: the pkg builds, and productbuild would have shipped it to the wrong hardware**
+
+- A packaging tool's defaults describe the tool, not your payload.
+- When a row names two payloads, confirm both exist before starting.
 
 **macos — S29's coverage-hole fix, rebuilt clean after the branch went stale**
 
