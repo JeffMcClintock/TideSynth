@@ -74,6 +74,79 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — arm64-only, and the FORCE that made the obvious change a no-op
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** made TIDE Rack arm64-only on macOS. Jeff: *"lets change macOS to
+ARM-only, for faster building. Any straggler who wants intel can build it
+themselves."*
+
+### The one-line version of this change does nothing, silently
+
+TIDE sets `CMAKE_OSX_ARCHITECTURES` in its own root (`:32`) and in
+`modules/CMakeLists.txt:5`. Changing those to `arm64` looks like the whole job.
+It is not: **`SynthEditLib/CMakeLists.txt:10` and
+`GMPI_Wrappers/CMakeLists.txt:12` both do `set(... CACHE STRING ... FORCE)`**,
+and a FORCEd cache set overrides the parent scope *and* the command line.
+
+Proven rather than reasoned about, before touching anything:
+
+```
+cmake -DCMAKE_OSX_ARCHITECTURES=arm64 <TideSynth>
+  CMakeCache.txt:  CMAKE_OSX_ARCHITECTURES:STRING=x86_64;arm64
+```
+
+So the flag a person would reach for first is discarded without a word. Both
+shared lines are now guarded with `if(NOT DEFINED CMAKE_OSX_ARCHITECTURES)` —
+universal stays the default for anyone who does not choose, and a consumer that
+has chosen keeps its choice.
+
+### The measurement, and the negative control that matters more
+
+| | |
+|---|---|
+| universal, cold | **160 s** |
+| arm64, cold | **79 s** — 2.03x |
+| `lipo -archs` on TIDE / TIDE_VST3 / TIDE_STANDALONE | **arm64** (control binary: `x86_64 arm64`) |
+| **SynthEdit configure — the negative control** | **still `x86_64;arm64`** |
+
+**SynthEdit is untouched and still ships universal**, which is not luck: SE16's
+root sets the variable before adding those subdirectories, so the guard skips
+and the value is identical. That control is the whole reason this was safe to
+do in shared repos — without it, "TIDE got faster" and "the commercial product
+quietly lost Intel" look the same from here.
+
+**Roughly half the build is the shared libraries** (SynthEditLib 181 + EditorLib
+57 objects against SynthEditSem's 219), which is why a per-target
+`OSX_ARCHITECTURES` property on TIDE's own targets — the change that would have
+needed no shared edit at all — was rejected: it would have bought about half
+the speedup, because the libraries underneath would still compile twice.
+
+**Stated rather than buried:** a released TIDE Rack will not run on an Intel Mac
+and **nothing will tell such a user why** — the plugin just fails to load.
+Recorded on **R3**, which owns the packaging where a minimum-hardware note would
+belong.
+
+**Learned:**
+
+1. **`set(... CACHE ... FORCE)` in a dependency silently outranks the consumer
+   AND the command line.** The tell was cheap — one configure, one `grep` of
+   `CMakeCache.txt` — and without it this change would have been committed,
+   reviewed and merged while doing nothing at all.
+2. **When a change must reach shared code, the negative control is the
+   deliverable.** Proving SynthEdit still configures universal is what
+   distinguishes this from a change that quietly dropped Intel support for the
+   commercial product too.
+
+**Next:**
+
+1. Three PRs that **must merge together** — TIDE's arm64 line is inert until
+   both FORCEs are guarded.
+2. Whether SynthEdit itself goes arm64 is now a one-line change and a separate
+   decision.
+
+**Branch/PR:** `tide/mac/macos-arm64` + [SynthEditLib#31](https://github.com/JeffMcClintock/SynthEditLib/pull/31) + [GMPI_Wrappers#10](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/10).
 ## 2026-08-21 — macos — Linux CI is green, and the macOS job that would confirm it cannot say anything
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing

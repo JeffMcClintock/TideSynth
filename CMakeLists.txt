@@ -29,7 +29,16 @@ endif()
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo" CACHE STRING "" FORCE)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3" CACHE STRING "Minimum MacOS deployment version")
-set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Build architectures for MacOS")
+# TIDE Rack is arm64-only on macOS, ruled by Jeff 2026-08-21: *"lets change
+# macOS to ARM-only, for faster building. Any straggler who wants intel can
+# build it themselves."* Roughly halves the macOS build -- the universal
+# build compiled every one of these translation units twice.
+#
+# This only takes effect because SynthEditLib and GMPI_Wrappers stopped
+# FORCEing the variable on the same day; with the FORCE in place this line
+# was silently overwritten, and so was a command-line -D. SynthEdit itself
+# is unaffected and still ships universal.
+set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Build architectures for MacOS")
 set(GMPI_SDK_FOLDER_OVERRIDE "" CACHE PATH "path of a local GMPI repo, or blank to fetch it automatically.")
 set(GMPI_UI_FOLDER_OVERRIDE "" CACHE PATH "path of a local GMPI UI repo, or blank to fetch it automatically.")
 set(SYNTHEDITLIB_FOLDER_OVERRIDE "" CACHE PATH "path of a local SynthEditLib repo, or blank to fetch it automatically.")
