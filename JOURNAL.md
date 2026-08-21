@@ -109,6 +109,147 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — M1 and M3 were never blocked by the carve-out, and the AU passes auval
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** Jeff asked what mac-only work remains. The mac-boxed rows are `M1`,
+`M2`, `M3`, `R8` and `R3a` — and three of them were **one-line `BLOCKED` rows
+with no stated blocker**:
+
+```
+| M1 | BLOCKED | mac | AU + AUv3 targets building on macOS. |
+| M3 | BLOCKED | mac | `auval` clean. |
+```
+
+Their only blocker is the section heading above them, **"After the carve-out"**,
+and C7 has been DONE since 2026-08-21. That is the same shape as R2–R6, which
+this fleet found unblocked three days after the fact.
+
+So I built it. **`auval`: `AU VALIDATION SUCCEEDED`.**
+
+### Three blockers, each hidden behind the one before it
+
+**1 — header shadowing, and the offending path is ours.** `plist_util` is an
+AU-only helper that compiles GMPI's `dynamic_linking.cpp`, which wants
+`wrapper::JmUnicodeConversions`. Three headers are called
+`unicode_conversion.h`:
+
+| repo | namespace |
+|---|---|
+| GMPI_Wrappers `wrapper/common` | `wrapper::JmUnicodeConversions` ← wanted |
+| SynthEditLib `modules/shared` | `JmUnicodeConversions` (global) ← found |
+| gmpi_ui `helpers` | `gmpi::unicode` (unrelated) |
+
+`plist_util` *does* ask for the right directory — as a **target-scoped**
+`PRIVATE` dir, while our ROOT `CMakeLists.txt` adds SynthEditLib's with
+**directory-scoped** `include_directories()`, which CMake places first. Measured
+order on the failing compile line: SynthEditLib at **position 3**, GMPI_Wrappers
+at **position 9**. This is S17's class, and it is TIDE's path leaking into a
+target TIDE does not define.
+
+**2 — AudioUnitSDK needs C++23.** `std::expected`. Verified rather than assumed:
+a three-line program compiles at `-std=c++23` and fails at `-std=c++20`.
+
+**The obvious fix silently does nothing**, and that cost me a build. Setting
+`CXX_STANDARD 23` on the AU target earlier in `SynthEditSem/CMakeLists.txt`
+prints its configure message, sets the property — and the compile still says
+`-std=gnu++20`, because a later `set_property(... CXX_STANDARD 20)` inside the
+format loop overwrites it. I only found that by reading the failing compile line
+for `-std`, not by trusting the property. The exception now lives *inside* that
+loop.
+
+**3 — two duplicate symbols.** `AU2_Wrapper.cpp` defines
+`initialise_synthedit_extra_modules(bool)` — its own comment says *"here to
+satisfy linker"* — and `CreatePluginBundleRef()`. TIDE already has both from
+EditorLib and SynthEditLib. Marking both `__attribute__((weak))` links it: the
+fallback survives for plugins that need it, a real definition wins. Tested
+against the fetched copy; `GMPI_Wrappers` is ALLOWED, so it is a normal PR.
+
+Then it built. **And the component did not register.**
+
+### The registration failure is issue #271's class, in a third place
+
+`auval -a` did not list it. `auval -v` said *"Cannot get Component's Name
+strings"* and *"didn't find the component"*. I signed it — no change. I added a
+`CFBundleIdentifier` — no change.
+
+A working control on the same machine settled it in one command:
+
+```
+Poly Synth2.component   CFBundleExecutable = SeAu           binary = SeAu        <- match
+TIDE-Rack.component     CFBundleExecutable = TIDE-Rack_AU   binary = TIDE-Rack   <- MISMATCH
+```
+
+`plist_util.cpp:587` derives the name as `pluginPath.stem() + "_AU"` — correct
+only while a plugin does **not** set `OUTPUT_NAME`. TIDE sets it. **That is
+exactly issue #271**: one half of a pair follows `OUTPUT_NAME`, the other follows
+the target name, and the platform silently declines the result.
+
+Corrected by hand, re-signed: `aumu Syhd Dsyh - TIDE Synth:TIDE Rack`, then
+`AU VALIDATION SUCCEEDED` — 19 passes, one warning. The `auval` log also shows
+E9's shipped fix working in a real host: *"TIDE: unprepared - writing silence to
+the host's output buffers"*.
+
+### Two more identity leaks, and a new row
+
+The AU plist has **no** `CFBundleIdentifier` key at all — not empty like the
+other three formats, absent — so `codesign` again invents one (**R8**). And the
+AU's `manufacturer`/`subtype` are `Dsyh`/`Syhd`, which are not TIDE's: **R9**'s
+leak again, in the four-character-code namespace where uniqueness is what
+registration is keyed on.
+
+Registering it also printed **seven** Objective-C class collisions with two
+unrelated GMPI plugins — `GMPI_VIEW_MAKER_VERSION_02` and friends, *"may cause
+spurious casting failures and mysterious crashes"*. Filed as **S38**
+(written as S37 when this entry was drafted; the linux box filed a different S37
+the same day and landed first, so this row renumbered on merge). The `_02`
+/ `_03` suffixes show someone already met this and versioned the names, which
+fixes it between versions and never between two plugins.
+
+### Why AU is NOT in FORMATS_LIST on this branch
+
+Enabling it today ships a component **no host registers**. The two fixes land as
+inert enablers, and the AU branch raises `FATAL_ERROR` rather than skipping —
+N1a lost a session to a silent `if(TARGET ...)`.
+
+**Learned:**
+
+- **A `BLOCKED` row with no stated blocker is a claim nobody has retested.**
+  Three of them here inherited it from a section heading whose subject closed a
+  day earlier. Re-derive the blocker before believing it — this is the second
+  time this week (R2–R6 was the first).
+- **A CMake property can be set, announced, and overwritten one loop later.**
+  `set_target_properties` is not a commitment. Verify against the compile line
+  (`-std=`), not against the configure output.
+- **A working control on the same machine beats any amount of reading.**
+  Comparing TIDE's AU plist to a plugin that *does* register found the mismatch
+  in one command, after signing and identifier theories had both failed.
+- **`OUTPUT_NAME` breaks every hand-derived sibling name, not just the one you
+  fixed.** Linux VST3 bundle (#271), `copy_plugin()`, and now the AU's
+  `CFBundleExecutable`. The pattern is a *derived* name sitting next to a
+  generator-expression name. Grep for the derivation, not for the symptom.
+- **Fix the first error and expect the count to go UP.** One error became 20
+  became 1 became a link failure became a registration failure. Fail-fast means
+  the first message is a position report, not a scope estimate.
+- **Objective-C class names are process-global.** Any GMPI plugin sharing them
+  collides with any other in the same host, and versioned suffixes do not help
+  between two plugins of the same version.
+
+**Next:** **M1 needs the `GMPI_Wrappers` weak-symbol PR** (ALLOWED, small).
+**M3 needs `plist_util` to be told the executable name rather than deriving it**
+— an argument in `plist_util.cpp` (ALLOWED) plus its invocation in
+`gmpi_plugin.cmake` (**PR-GATED**), which must land together, same as
+GMPI#6/#274. Then AU can go into `FORMATS_LIST` and **R3a unblocks**. **AUv3
+(`AU3`) is still unbuilt** — M1 names it and only `AU` was tested.
+
+**Branch/PR:** `tide/mac/M1-au-targets` — TideSynth. **Based on
+`tide/mac/E9-clap-host-verify` (#283)** for the R9 reference.
+
+---
+
+---
+
 ## 2026-08-22 — macos — loading the CLAP for the first time found that TIDE ships SynthEdit's identity
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
