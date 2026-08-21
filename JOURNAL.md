@@ -74,6 +74,81 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — N1a: the rename shipped, and it silently unlinked half the build first
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing · linux + renderer agents also active
+
+**Did:** carried the TIDE Rack rename through the build. Shipped artifacts are
+now `TIDE-Rack.vst3` / `.gmpi` / `.app`; targets stay `TIDE_Rack` /
+`TIDE_Rack_VST3` / `TIDE_Rack_STANDALONE`.
+
+### The finding: a rename that skips work instead of failing
+
+Two loops built target names by hand — `set(_tide_target TIDE)` and
+`TIDE_${_fmt}` — instead of deriving from `PROJECT_NAME`. **Every use of
+`_tide_target` sits behind `if(TARGET ...)`**, so renaming the project did not
+break those loops, it made them **no-ops**: no `tide_render` link, no resource
+staging, no diagnostic.
+
+It surfaced only as `fatal error: 'TidePathTracer.h' file not found`, and only
+because `TiDEPanelGui.cpp` happens to include that header. **Without that
+include the build would have gone green and shipped bundles containing zero
+prefabs** — an empty module browser, which is exactly S21's failure wearing a
+different hat. All four sites now derive from `${PROJECT_NAME}`.
+
+N1a's scope list was careful and still missed these, because it searched for
+`TIDE_VST3`-shaped strings and these are the bare `TIDE`.
+
+### Checked before renaming, not after
+
+- **Identity does not move.** `id`, `name`, `vendor` come from the `<Plugin>`
+  element in `SynthEdit.cpp`, not `PROJECT_NAME` — so saved host sessions still
+  resolve. That was the one thing worth knowing before touching anything.
+- **`${PROJECT_NAME}.xml` is not in play** (no `HAS_XML`, no `TIDE.xml`), so
+  distribution.md's second warning does not apply here.
+- **The STANDALONE's bundle id does follow `PROJECT_NAME`**
+  (`com.gmpi.standalone.${PROJECT_NAME}`), so that dev tool gets a fresh
+  preferences container. Stated rather than discovered later.
+
+### The measurement, and why the first pass of it was worthless
+
+Baseline `v1-rack.rpp`: peak **−6.3 dBFS**, rms **−17.0**, 2 patch cables.
+After the rename: identical. **That proved nothing**, because the old
+`TIDE_VST3.vst3` was still installed and carries the same plugin ID — REAPER
+could have loaded either. So the old bundle was **moved aside** and the render
+repeated: same numbers with only `TIDE-Rack.vst3` present. That is the
+difference between "the numbers match" and "the artifact under test produced
+them".
+
+All five fixtures then pass in isolation — `v1-rack` −6.3/−17.0, `v1-rack-midi`
+−6.3/−17.0, `v3-midi-pitch` −6.2/−21.1, `v3-midi-gate` −6.3/−21.2, and
+`v1-rack-uncabled` **silence**, the negative control. `--control` PASSes.
+**Jeff's original bundle was restored immediately afterwards.**
+
+**Left for Jeff, deliberately:** `~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3`
+(16 Aug) is now stale — nothing produces that name any more — and sits beside
+the new bundle, so a DAW scan lists both. Deleting from his plugin folder is
+his call, not a run's.
+
+**Learned:**
+
+1. **A guard that makes missing work silent turns a rename into a downgrade.**
+   `if(TARGET x)` is the right shape for an optional format and the wrong shape
+   for a name that must exist; the same line cannot tell the two apart. Deriving
+   the name from `PROJECT_NAME` removes the question.
+2. **When the old artifact is still installed and shares an ID, matching
+   numbers are not evidence.** Moving it aside cost one minute and converted a
+   plausible result into a proof.
+
+**Next:**
+
+1. N1's remaining buckets (B and C) are untouched — this was bucket A only.
+2. The stale installed bundle wants Jeff's decision.
+
+**Branch/PR:** `tide/mac/N1a-rename` — TideSynth only.
+
+---
+
 ## 2026-08-21 — macos — S33 filed: a live defect was sitting on a closed row
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing · two other agents active (linux, renderer)

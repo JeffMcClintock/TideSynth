@@ -43,7 +43,7 @@ def check(label, module_path):
 root = pathlib.Path(sys.argv[1])
 label = sys.argv[2]
 print(f"\n=== {label} ===")
-a = check("TIDE_VST3", root/"SynthEditSem/TIDE_VST3.vst3/Contents/x86_64-linux/TIDE_VST3.so")
-b = check("TIDE.gmpi", root/"SynthEditSem/TIDE.gmpi")
+a = check("TIDE-Rack.vst3", root/"SynthEditSem/TIDE-Rack.vst3/Contents/x86_64-linux/TIDE-Rack.so")
+b = check("TIDE-Rack.gmpi", root/"SynthEditSem/TIDE-Rack.gmpi")
 print(f"  RESULT: {'PASS' if (a and b) else 'FAIL'}")
 sys.exit(0 if (a and b) else 1)

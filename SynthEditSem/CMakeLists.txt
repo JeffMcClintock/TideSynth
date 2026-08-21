@@ -50,7 +50,12 @@ tide_check_not_shadowed(gmpi_wrappers "${GMPI_WRAPPER_FOLDER_OVERRIDE}")
 tide_report_dependency(GMPI_Wrappers "${GMPI_ADAPTORS}" "local override")
 endif()
 
-project(TIDE)
+# N1a: the CMake project name is the TARGET form -- underscore, never shipped.
+# Targets derive as ${PROJECT_NAME}_${kind} below, so a dashed project name
+# would produce `TIDE-Rack_VST3`, mixing both separators in the one place you
+# cannot avoid it (docs/distribution.md). Shipped filenames are dashed via
+# OUTPUT_NAME instead, set in the format loop further down.
+project(TIDE_Rack)
 
 set( SYNTHEDITLIB_DIR ${syntheditlib_folder} )
 
@@ -111,7 +116,7 @@ include_directories(
 )
 
 # E2a, 2026-08-18, Jeff's call in an interactive session. STANDALONE is a
-# DEVELOPER target, not a product: it builds TIDE_STANDALONE.app, which stays
+# DEVELOPER target, not a product: it builds TIDE-Rack.app, which stays
 # in the build tree (nothing copies it to a Plug-Ins folder, unlike GMPI/VST3),
 # and it carries the GMPI standalone wrapper's command channel -- a unix socket
 # an MCP server drives, so the rack can be screenshotted, clicked and rendered
@@ -121,8 +126,8 @@ include_directories(
 # the question was whether it lands in the shipped plugin. It does not:
 # Standalone_Wrapper is linked PRIVATE into the _STANDALONE executable only
 # (GMPI/gmpi_plugin.cmake:373), and `nm` on the Release binaries counts 25
-# IpcServer/CommandDispatcher symbols in TIDE_STANDALONE against ZERO in both
-# TIDE_VST3 and TIDE.gmpi.
+# IpcServer/CommandDispatcher symbols in the standalone against ZERO in both
+# TIDE-Rack.vst3 and TIDE-Rack.gmpi.
 #
 # THE ONE FOOTGUN: GMPI_STANDALONE_COMMAND_CHANNEL defaults ON. If TIDE ever
 # ships a standalone to users, that release must configure with
@@ -328,7 +333,7 @@ gmpi_plugin(
 # pane simply omits the button rather than offering one that does nothing.
 #
 # E2a — iterate the format targets rather than naming them. This block used to
-# name TIDE_VST3 and TIDE, so adding STANDALONE to FORMATS_LIST above linked an
+# name TIDE_Rack_VST3 and TIDE_Rack, so adding STANDALONE to FORMATS_LIST above linked an
 # app whose only two undefined symbols were these. gmpi_plugin() derives every
 # target name from PROJECT_NAME the same way, so deriving them here keeps the
 # two lists from drifting the next time a format is added.
@@ -339,9 +344,14 @@ else()
 endif()
 foreach(_fmt ${FORMATS_LIST})
   if(_fmt STREQUAL "GMPI")
-    set(_tide_target TIDE)          # the GMPI format target is the bare name
+    # N1a: derive from PROJECT_NAME, never spell the target out. These two
+    # loops hardcoded `TIDE` / `TIDE_${_fmt}`, and because every use of
+    # _tide_target sits behind an `if(TARGET ...)` guard, a rename did not
+    # fail -- it SILENTLY SKIPPED the body: no tide_render link, no resource
+    # staging, no error. Found by exactly that during the rename.
+    set(_tide_target ${PROJECT_NAME})   # the GMPI format target is the bare name
   else()
-    set(_tide_target TIDE_${_fmt})
+    set(_tide_target ${PROJECT_NAME}_${_fmt})
   endif()
   if(TARGET ${_tide_target})
     target_sources(${_tide_target} PRIVATE ${_tide_clipboard_src})
@@ -369,7 +379,7 @@ tide_render_strict_fp_sources(${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEPanel/T
 # Bundle data, staged into EVERY format target.
 #
 # This block used to be `if(APPLE)` around a single add_custom_command naming
-# TIDE_VST3, which meant TIDE.gmpi never got ControlsXp.xml and no format got it
+# the VST3 target, which meant the GMPI build never got ControlsXp.xml and no format got it
 # on Windows -- the gap U2e's row flags. E2a's prefabs would inherit exactly the
 # same gap, so both are staged together here rather than repeating the mistake.
 #
@@ -385,9 +395,9 @@ tide_render_strict_fp_sources(${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEPanel/T
 # with an empty Prefabs group rather than misbehaving.
 foreach(_fmt ${FORMATS_LIST})
   if(_fmt STREQUAL "GMPI")
-    set(_tide_target TIDE)
+    set(_tide_target ${PROJECT_NAME})
   else()
-    set(_tide_target TIDE_${_fmt})
+    set(_tide_target ${PROJECT_NAME}_${_fmt})
   endif()
   if(NOT TARGET ${_tide_target})
     continue()
@@ -482,9 +492,9 @@ foreach(_fmt ${FORMATS_LIST})
   # for copy_plugin to run last, which is a GMPI change affecting every plugin
   # and is not this row's to make.
   if(APPLE AND _fmt STREQUAL "VST3")
-    set(_tide_installed "$ENV{HOME}/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3/Contents/Resources")
+    set(_tide_installed "$ENV{HOME}/Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3/Contents/Resources")
   elseif(APPLE AND _fmt STREQUAL "GMPI")
-    set(_tide_installed "$ENV{HOME}/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi/Contents/Resources")
+    set(_tide_installed "$ENV{HOME}/Library/Audio/Plug-Ins/GMPI/TIDE-Rack.gmpi/Contents/Resources")
   else()
     set(_tide_installed "")
   endif()
@@ -546,6 +556,22 @@ foreach(kind IN LISTS FORMATS_LIST)
     if(NOT TARGET ${SUB_PROJECT_NAME})
         continue()
     endif()
+
+    # N1a -- SHIPPED FILENAMES ARE DASHED, and every format gets the same one:
+    # TIDE-Rack.gmpi / TIDE-Rack.vst3 / TIDE-Rack.app. The extension already
+    # says which format it is, so the target's `_VST3` suffix must not reach
+    # the filename (docs/distribution.md's table names `TIDE-Rack.vst3`
+    # explicitly, and R2/R4 install exactly that).
+    #
+    # Identity is NOT affected and that was checked before renaming: the
+    # plugin's id, name and vendor come from the <Plugin> element in
+    # SynthEdit.cpp, not from PROJECT_NAME, so a host still resolves saved
+    # sessions. What DOES follow PROJECT_NAME is the STANDALONE's bundle id
+    # (gmpi_plugin.cmake sets com.gmpi.standalone.${PROJECT_NAME}), which is a
+    # developer tool rather than a shipped artifact.
+    set_target_properties(${SUB_PROJECT_NAME} PROPERTIES
+        OUTPUT_NAME "TIDE-Rack"
+        MACOSX_BUNDLE_BUNDLE_NAME "TIDE Rack")
 
 	# U3 — EditorScreenshot is gone from this list along with the breadcrumb
 	# bar it existed for. That was TIDE's last link-time dependency on a

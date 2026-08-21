@@ -39,6 +39,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**macos — N1a: the rename shipped, and it silently unlinked half the build first**
+
+- A guard that makes missing work silent turns a rename into a downgrade.
+- When the old artifact is still installed and shares an ID, matching numbers are not evidence.
+
 **macos — S33 filed: a live defect was sitting on a closed row**
 
 - Recording a finding on a row you are about to close loses it.
