@@ -46,6 +46,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "It does not do the bad thing" and "it cannot do the bad thing" are different findings
 - Snapshot the thing you are about to test before you test it.
 
+**linux — R4: the tarball, and the CLAP's resources have nowhere to live**
+
+- Verify a two-repo fix from the shared branch, not from the branch that made it.
+- "Where does this format keep its data?" is a packaging question with a different answer per format.
+- A bare `.so` plugin format has no namespace
+- Check for a validator before promising verification.
+
 **macos — STEP 4: six PRs merged in one go, and every NEXT cell went stale at once**
 
 - A batch merge invalidates the WHOLE NEXT block, not one cell.
