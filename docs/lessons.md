@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**linux — N1b: the rename's live docs, and a Linux-only gap N1a could not have seen**
+
+- Classify a doc by reading its opening, not its filename.
+- A doc you wrote yesterday is not exempt from going stale.
+- The first build on a platform after a cross-platform rename is a real test.
+- When two things must agree, check them against each other, not against spec.
+- "Verified on two platforms" is not "verified".
+
 **macos — N1a: OUTPUT_NAME renamed three things, and only one of them had an extension**
 
 - `OUTPUT_NAME` is three renames, and only the one with an extension is collision-proof.
@@ -95,15 +103,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - A concurrency group is only as good as what its expressions evaluate to, and `github.ref` is not the branch on a `pull_request` event.
 - The second-best fix won on a constraint from a different row.
-
-**linux — S23: the session file is innocent, and the kernel had both crashes logged**
-
-- `journalctl` keeps a kernel record of every segfault, with a module-relative offset, and nobody in this fleet had looked.
-- The same module offset under two different ASLR bases means one deterministic site.
-- A fault at `0xfffffffffffffff8` is -8, and -8 is a signature, not an address.
-- A timeline can refute a hypothesis that a reproduction attempt cannot.
-- Resolving an address in a rebuilt binary is not evidence.
-- A "GNOME Shell crashed" line and a login prompt are not the same event.
 
 ## 2026-08-18
 
@@ -1330,3 +1329,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A clean SIGTERM shutdown exits 0
 - `pkill -f <pattern>` matched my own shell and killed it (exit 144)
 - Report a crash with its control, not just its correlation.
+
+**linux — S23: the session file is innocent, and the kernel had both crashes logged**
+
+- `journalctl` keeps a kernel record of every segfault, with a module-relative offset, and nobody in this fleet had looked.
+- The same module offset under two different ASLR bases means one deterministic site.
+- A fault at `0xfffffffffffffff8` is -8, and -8 is a signature, not an address.
+- A timeline can refute a hypothesis that a reproduction attempt cannot.
+- Resolving an address in a rebuilt binary is not evidence.
+- A "GNOME Shell crashed" line and a login prompt are not the same event.

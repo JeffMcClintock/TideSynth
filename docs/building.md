@@ -107,18 +107,47 @@ Configure:
 cmake -S C:/SE/SE16 -B C:/SE/build-tide-p1 -G "Visual Studio 18 2026" -A x64 -DCMAKE_GENERATOR_INSTANCE="C:/Program Files/Microsoft Visual Studio/18/Community" -DGMPI_SDK_FOLDER_OVERRIDE=C:/SE/GMPI -DGMPI_UI_FOLDER_OVERRIDE=C:/SE/gmpi_ui -DGMPI_WRAPPER_FOLDER_OVERRIDE=C:/SE/GMPI_Wrappers -DSYNTHEDITLIB_FOLDER_OVERRIDE=C:/SE/SynthEditLib
 ```
 
+## Current target and artifact names (N1a, 2026-08-22)
+
+The canonical list. Older documents under `docs/` are **dated records** and name
+the pre-rename artifacts on purpose — check the date at the top of one before
+believing a name in it.
+
+| | CMake target | shipped file |
+|---|---|---|
+| GMPI | `TIDE_Rack` | `TIDE-Rack.gmpi` |
+| VST3 | `TIDE_Rack_VST3` | `TIDE-Rack.vst3` (bundle); the binary inside is `TIDE-Rack.so` on Linux |
+| standalone | `TIDE_Rack_STANDALONE` | `TIDE-Rack` |
+
+PDBs stay **target**-named — `TIDE_Rack.pdb`, `TIDE_Rack_VST3.pdb`,
+`TIDE_Rack_STANDALONE.pdb` — which is deliberate, not an oversight (N1a).
+
+The three forms never mix in one name: display **`TIDE Rack`**, shipped files
+**`TIDE-Rack`**, CMake targets **`TIDE_Rack`**.
+
+> **Linux exception, open:** the VST3 *bundle directory* is still target-named
+> (`TIDE_Rack_VST3.vst3`) while the `.so` inside it took the shipped name, so the
+> two disagree and a host scanning `~/.vst3` expects them to match —
+> [#271](https://github.com/JeffMcClintock/TideSynth/issues/271). macOS and
+> Windows are correct; only Linux builds the bundle path by hand.
+
 Build both plugin formats:
 
 ```bash
-cmake --build C:/SE/build-tide-p1 --config Release --target TIDE TIDE_VST3
+cmake --build C:/SE/build-tide-p1 --config Release --target TIDE_Rack TIDE_Rack_VST3
 ```
 
-`TIDE` is the GMPI target, `TIDE_VST3` the VST3 one — see
+`TIDE_Rack` is the GMPI target, `TIDE_Rack_VST3` the VST3 one — see
 `SE16/SynthEditSem/CMakeLists.txt:41` (`FORMATS_LIST GMPI VST3`).
 
 Swap `Release` for `Debug` for a debug build; both were verified.
 
 ## Results, 2026-08-06
+
+**Artifact names below are pre-N1a and are left as measured** — this is a record
+of that build, not a description of today's. The current names are
+`TIDE-Rack.gmpi` and `TIDE-Rack.vst3` (`TIDE_Rack_VST3.vst3` on Linux until
+[#271](https://github.com/JeffMcClintock/TideSynth/issues/271) is fixed).
 
 | Config | Exit | Warnings | Artifacts |
 |---|---|---|---|
@@ -142,28 +171,28 @@ Release build ~6 min from cold.
   the `afxres.h` error, this difference will send you the wrong way — check
   `CMAKE_GENERATOR_INSTANCE` and `CMAKE_LINKER` in `CMakeCache.txt` first, they
   name the instance actually in use.
-- **Building other targets pulls in the whole product.** `--target TIDE
-  TIDE_VST3` builds only what TIDE needs (SynthEditLib, EditorLib, HarfBuzz).
+- **Building other targets pulls in the whole product.** `--target TIDE_Rack
+  TIDE_Rack_VST3` builds only what TIDE needs (SynthEditLib, EditorLib, HarfBuzz).
   A bare `cmake --build` builds SynthEditCL, the tests and the rest too.
 
-## The two-target trap (P11): `TIDE_VST3` alone ships a half-built install
+## The two-target trap (P11): `TIDE_Rack_VST3` alone ships a half-built install
 
-Building only `--target TIDE_VST3` leaves the *module database* stale: the
-`SE *` GUI modules resolve through the installed `TIDE.gmpi`, which is
-written by the **`TIDE` target's** post-build step, not by `TIDE_VST3`'s.
+Building only `--target TIDE_Rack_VST3` leaves the *module database* stale: the
+`SE *` GUI modules resolve through the installed `TIDE-Rack.gmpi`, which is
+written by the **`TIDE_Rack` target's** post-build step, not by `TIDE_Rack_VST3`'s.
 On Windows the stale-DB symptom is a modal *"required module is missing
 from the module database"* that blames the user's installation; the fix is
 building both targets (P11 tracks making this self-consistent or at least
 honestly diagnosed).
 
-**On macOS it is worse: there is no install step at all.** The `TIDE`
-target's post-build copy has no mac counterpart — the fresh `TIDE.gmpi`
+**On macOS it is worse: there is no install step at all.** The `TIDE_Rack`
+target's post-build copy has no mac counterpart — the fresh `TIDE-Rack.gmpi`
 lands only in `build/SynthEditSem/Release/`, and
-`/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi` goes stale silently (found
+`/Library/Audio/Plug-Ins/GMPI/TIDE-Rack.gmpi` goes stale silently (found
 2026-08-16 at 3.5 months old, pre-P5 identity). Until P11 lands, refresh it
 by hand after building:
 
-    cp -R build/SynthEditSem/Release/TIDE.gmpi "/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi"
+    cp -R build/SynthEditSem/Release/TIDE-Rack.gmpi "/Library/Audio/Plug-Ins/GMPI/TIDE-Rack.gmpi"
 
 (Note: the stale DB was ruled out as the cause of U2d's blank panels — see
 that row — so do not expect this copy to fix rendering; it fixes the
