@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**linux — N1 costed: 91% of what a grep finds must not be touched**
+
+- Counting a rename by bucket, not by total, changes the decision.
+- A grep total is not a work estimate when the repo keeps a historical record.
+- Ask which box can VERIFY a change before asking which box can make it.
+- A row that says "needs decisions rather than edits" is worth re-reading after its blocker clears.
+- When the developer overrides a standing rule, write down which rule and which instance.
+
 **linux — S23: what -8 means, measured — and the fleet has been bitten by this exact class before**
 
 - `/var/log/apport.log` names the executable path for crashes apport declined to report.
