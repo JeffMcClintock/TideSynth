@@ -39,6 +39,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**linux — S23: the session file is innocent, and the kernel had both crashes logged**
+
+- `journalctl` keeps a kernel record of every segfault, with a module-relative offset, and nobody in this fleet had looked.
+- The same module offset under two different ASLR bases means one deterministic site.
+- A fault at `0xfffffffffffffff8` is -8, and -8 is a signature, not an address.
+- A timeline can refute a hypothesis that a reproduction attempt cannot.
+- Resolving an address in a rebuilt binary is not evidence.
+- A "GNOME Shell crashed" line and a login prompt are not the same event.
+
 **linux — S23 did not reproduce, but a mechanism explains why it never would**
 
 - A self-healing mechanism upstream of a bug will make that bug look intermittent, and a controlled-run count cannot see it.
@@ -102,11 +111,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 **macos — P7d was already fixed, from a third direction, and its parked question is moot**
 
 - A row that parks on a question can be closed by running its Accept — check that before re-raising the question.
-
-**macos — C10: 104 editor files leave the root, and the reference count fell as it was measured**
-
-- A reference count taken without word boundaries is an upper bound, not a work list.
-- "Same object count" needs the same instrument on both sides.
 
 ## 2026-08-18
 
@@ -1264,3 +1268,8 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - "Verified on this box" quietly became "verified in the only mode this box builds".
 - The second break was hiding behind the first, again.
+
+**macos — C10: 104 editor files leave the root, and the reference count fell as it was measured**
+
+- A reference count taken without word boundaries is an upper bound, not a work list.
+- "Same object count" needs the same instrument on both sides.

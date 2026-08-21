@@ -17345,3 +17345,99 @@ configure).
    was TideSynth-side. Unchanged.
 
 **Branch/PR:** `tide/mac/issue-222` — TideSynth only.
+## 2026-08-20 — macos — C10: 104 editor files leave the root, and the reference count fell as it was measured
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · third item (the #222 build break interrupted it mid-baseline)
+
+**Did:** re-homed the carve-out's editor files from `SynthEditLib`'s root into
+`EditorLib/`, beside their own CMakeLists. Branches
+`tide/mac/C10-rehome-editor` in **SynthEditLib** (the move) and **SynthEdit**
+(consumer rewrites) — those two must merge together; the TideSynth branch is
+bookkeeping only.
+
+### The move set is a measured list, not "the editor files"
+
+**104 files** = EditorLib's compiled root-level entries ∩ files the carve-out
+added since 2026-08-01 (`git log --diff-filter=A`). The intersection matters
+from both sides: EditorLib also compiles **3 root files that predate the
+carve-out** (`CancellationAnalyse.{cpp,h}`, `SafeMessageBox.h` — they stay),
+and the carve-out also added root files EditorLib does NOT compile
+(`SynthEditApp.{h,cpp}`, `ExportAsPlugin.{cpp,h}`, `ModulePicker.h` — the
+compile-direct/app-level set, deliberately untouched).
+
+### The consumer survey shrank fourfold under measurement
+
+A boundary-less grep first claimed ~33 build-file references across 10 files,
+including three in `se_au`'s pbxproj. With word boundaries and reading each
+hit: `se_au`'s three are **substrings** (`IDspPatchManager.h` ⊃
+"PatchManager.h", `UPlug.h` ⊃ "Plug.h", `HostVoiceControl.h` ⊃ "Control.h"),
+SE16's root CMakeLists refs are **comments**, SynthEditCL/Wayland/Juce refs
+are **comments**, and TideSynth's two refs are **comments**. What actually
+needed editing:
+
+| consumer | edit |
+|---|---|
+| `EditorLib/CMakeLists.txt` | 104 path prefixes + ONE `PUBLIC ${SYNTHEDITLIB_DIR}/EditorLib` include dir |
+| `CpuMeterGui.cpp` | 3 explicit `EditorLib/` include prefixes — it is compiled by the **DSP target**, the one consumer that links no EditorLib |
+| `SynthEdit2.vcxproj` + `.filters` | **6** literal paths (the other 8 grep hits are "moved to EditorLib" comments, now literally true) + the new dir in 4 AdditionalIncludeDirectories |
+| both SynthEditMac xcconfigs | HEADER_SEARCH_PATHS + the new dir |
+| pbxproj | one FuzzyMatch.h file ref |
+| `MidiAutomationWindowController.mm` | the one literal include — the same file the carve-out broke on 2026-08-20's CI fix |
+
+**52 SE16 source files include these headers bare** and needed nothing: CMake
+consumers inherit the PUBLIC dir, vcxproj/Xcode get it from their own include
+lists.
+
+### Verified before vs after, same tree, same metrics
+
+| check | before | after |
+|---|---|---|
+| SE16-hosted Ninja build | 1072/1072 rc=0 | 207/207 rc=0 (incremental) |
+| **compile-graph edges** | **941** | **941** |
+| ctest (S16-class env vars set) | 67/67 | 67/67 |
+| SynthEditMac `xcodebuild` | BUILD SUCCEEDED | BUILD SUCCEEDED |
+| `TIDE_STANDALONE` | — | runs, seeds 6 prefabs |
+| movers left at root | — | 0 |
+
+The 941 needed care: the base build tree's ninja graph was overwritten by the
+reconfigure, so the pre-move graph was **reconstructed from a detached
+worktree at origin/main** (configure-only) and both sides counted with the
+identical command. A "same object count" clause is only evidence when both
+numbers come from the same instrument.
+
+**Stated unverified:** `SynthEdit2.vcxproj` (WinUI3/MSBuild — the win box or
+the Store pipeline builds it; the edits are 6 path rewrites + 4 include-dir
+lines) and `SynthEditWayland` (linux; its refs were comments, its CMake
+consumers inherit the PUBLIC dir). `SynthEditJuce` is deprecated and not
+generated (#88).
+
+**Gate note, stated rather than assumed:** C10 edits `SynthEditLib` (GATED)
+as a filed stage of the C0-approved carve-out — the same standing C12a–f, C14
+and C16 ran under on all three boxes; the prompt's "C1-C7" enumeration has
+been acknowledged-stale since C12c, and the windows box's C14 lesson
+explicitly rebuked the narrow reading. Review still discharges it: nothing
+merges without Jeff.
+
+**Learned:**
+
+1. **A reference count taken without word boundaries is an upper bound, not a
+   work list.** 33 references shrank to ~15 real edits across four files once
+   substrings and comments were read; `se_au` — a whole Xcode project I
+   expected to edit — contained only substring matches.
+2. **"Same object count" needs the same instrument on both sides.** The build
+   log counts what compiled; the ninja graph counts what is scheduled, and `-c`
+   greps catch `python -c` too. Reconstructing the base graph from a detached
+   worktree cost one configure and made the numbers actually comparable.
+
+**Next:**
+
+1. **The win box should build `SynthEdit2.vcxproj`** on the SE16 branch before
+   or at merge — the one consumer neither CI nor this box exercises.
+2. S27 (tide_render references, filed during #222) and the E2 umbrella note
+   are unchanged.
+
+**Branch/PR:** `tide/mac/C10-rehome-editor` × 3 repos — SynthEditLib and
+SynthEdit must merge together; TideSynth is bookkeeping.
+
+---
+
