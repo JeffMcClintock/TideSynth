@@ -39,6 +39,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**linux — S23: what -8 means, measured — and the fleet has been bitten by this exact class before**
+
+- `/var/log/apport.log` names the executable path for crashes apport declined to report.
+- An address that lands mid-instruction is proof the binary is wrong
+- Negative fault addresses are arithmetic, and the arithmetic is worth measuring rather than recalling
+- `error 4` vs `error 5` separates a null dereference from a wild read
+- Grep the tree for your own crash signature before theorising.
+- A dead end closed with evidence is worth more than a lead kept alive on hope.
+
 **macos — S29 fixed, after measuring that S29's own recommendation was wrong**
 
 - A concurrency group is only as good as what its expressions evaluate to, and `github.ref` is not the branch on a `pull_request` event.
@@ -103,19 +112,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 **macos — S25 does not reproduce on mac, and the negative result is the deliverable**
 
 - A cross-platform row can be closed on one platform and open on another, and saying which is the whole value of a cheap reproduction.
-
-**macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut**
-
-- Third time today a row's central premise had moved before it was taken
-
-**macos — E15: the rack's faceplate is TIDE's own panel, and two breaks the swap flushed out**
-
-- A module that measures itself is a different contract from a rectangle that takes orders, and the prefab grid only worked because the old faceplate obeyed it.
-- "It builds in the product" says nothing about the authoring path.
-
-**macos — P7d was already fixed, from a third direction, and its parked question is moot**
-
-- A row that parks on a question can be closed by running its Accept — check that before re-raising the question.
 
 ## 2026-08-18
 
@@ -1278,3 +1274,16 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - A reference count taken without word boundaries is an upper bound, not a work list.
 - "Same object count" needs the same instrument on both sides.
+
+**macos — P7d was already fixed, from a third direction, and its parked question is moot**
+
+- A row that parks on a question can be closed by running its Accept — check that before re-raising the question.
+
+**macos — E15: the rack's faceplate is TIDE's own panel, and two breaks the swap flushed out**
+
+- A module that measures itself is a different contract from a rectangle that takes orders, and the prefab grid only worked because the old faceplate obeyed it.
+- "It builds in the product" says nothing about the authoring path.
+
+**macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut**
+
+- Third time today a row's central premise had moved before it was taken

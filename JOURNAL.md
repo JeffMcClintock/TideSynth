@@ -74,6 +74,152 @@ Template:
 
 ---
 
+## 2026-08-21 — linux — S23: what -8 means, measured — and the fleet has been bitten by this exact class before
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Third item this run, at Jeff's direction** (*"take next task"*, twice). STEP 2's
+one-item rule is overridden by that; recording it so this does not read as a run
+helping itself.
+
+**Did:** took S23 back to finish it. The step I had left — rebuild the 2026-08-20
+tree and `addr2line 0x3b4627` — turned out to be **impossible**, and closing that
+off properly was worth more than the guess it would have produced. Then decoded
+the fault signature by measurement instead, which named a class of site the
+project has already been bitten by once.
+
+### The offset route is closed, and here is the proof rather than the excuse
+
+`/var/log/apport.log.1` names the binary that faulted:
+
+```
+2026-08-20 17:33:00: executable: /tmp/claude-1000/-home-jef-SE/22760dc3-.../scratchpad/s17/TideSynth/build-sa/SynthEditSem/TIDE_STANDALONE
+2026-08-20 17:33:00: ERROR: executable does not belong to a package, ignoring
+```
+
+Three things follow, and each kills a route:
+
+1. **It was a clone in the S21 run's own scratchpad**, built into `build-sa` —
+   **not** `~/TideSynth/build`, which is the tree the previous entry resolved
+   `0x3b4627` against. Different tree, different link, different layout.
+2. **No core was ever written.** `core limit 0`, and apport declined an
+   unpackaged executable. Nothing to open.
+3. **The binary is gone** — the scratchpad did not survive the reboots.
+
+And an exact rebuild is not reproducible either: at `21f9c80` (main's code state
+at crash time) there was **no `cpm-package-lock.cmake`**, so every dependency
+resolved to whatever its branch head was that afternoon.
+
+**The previous entry's `CContainer::OnEditContain` lead was not merely weak, it
+was invalid**, and one command shows it — `0x3b4627` lands **mid-instruction** in
+today's binary:
+
+```
+3b4626: 0f 84 92 00 00 00    je  3b46be      <-- 6 bytes, 3b4626..3b462b
+```
+
+I labelled that lead "probably a coincidence" for the wrong reason (I argued from
+the -8 offset, see below) and it turns out to be right for a better one.
+
+### What -8 actually means, measured
+
+Three candidates, each in its own forked child so one crash could not mask the
+others, with the fault addresses read back from the kernel log:
+
+| candidate | fault address | verdict |
+|---|---|---|
+| `dynamic_cast` on an object with a zeroed vptr | **-16** | not ours |
+| `back()` on an empty `std::vector<int>` | **-4** | right class, wrong element size |
+| `null->member` | **+12**, and `error 4` | not ours |
+
+Ours is **-8 with error 5**. So the crash is **`back()` / `rbegin()` /
+`end()[-1]` on an empty vector of 8-byte elements — a vector of raw pointers.**
+
+**This kills two guesses, one of which I had made about forty minutes earlier.**
+I had started to favour `dynamic_cast` on a dangling handle, on the reasoning
+that the Itanium ABI puts typeinfo at vptr-8. The measurement says -16. Reasoning
+about ABI offsets from memory is exactly the move that produces a confident wrong
+answer, and it cost one 30-line program to avoid.
+
+### The precedent was already in the tree
+
+`SynthEditLib/modules/ControlsXp/ClassicControlGuiBase.cpp:22`:
+
+> `widgets.back()` on an empty vector is UB (crashed TIDE at address **-16** =
+> empty `back()` with **16-byte elements**; TideSynth BACKLOG **U2d**). Widgets
+> are built by pin-init callbacks above; **a host where those don't fire must not
+> bring the whole process down.** Loud, not silent, per U2d's rule.
+
+Same class, same arithmetic done the same way, and **the same trigger shape**:
+U2d's empty collection came from missing font/skin resources; **S23's two crashes
+were both in the layout with the bundle's `Resources` missing**. The fleet has
+solved this once and written down how.
+
+### Two unguarded candidate sites
+
+Both are `std::vector<UPlug*>` (`ug_base.h:245`), so both fault at exactly -8:
+
+| site | code | guard |
+|---|---|---|
+| `SynthEditLib/ug_adder2.cpp:81` | `auto p = plugs.back();` — first line of `ug_adder2::NewConnection()` | **none** |
+| `SynthEditLib/ug_feedback_delays.cpp:72` | `auto dummyPin = u->plugs.back();` | **none** |
+| `SynthEditLib/ug_oversampler.cpp:337` | `connections.back()` | `while(!…empty())` — what the other two should look like |
+
+The adder is the interesting one: it is what implements TIDE's automatic summing
+when patch cables fan into one input, and `NewConnection` runs while the DSP
+graph is built from a restored patch — at startup, which is when both crashes
+happened.
+
+**Not proven, and the tidiness of the story is exactly why it should not be
+trusted yet.** Nothing here observes the fault at either line. "Resources missing
+→ pin list empty → `back()`" fits every measured fact and remains a hypothesis.
+
+Both files are **GATED** (`SynthEditLib`) and this is not a build break, so A17's
+exception does not reach it. Filed, not fixed.
+
+**Learned:**
+
+1. **`/var/log/apport.log` names the executable path for crashes apport
+   declined to report.** Two runs assumed the crashing binary was the one in the
+   obvious build tree. It was a clone in a scratchpad, which is *why* the offset
+   resolved to nonsense — and one grep would have said so on day one.
+2. **An address that lands mid-instruction is proof the binary is wrong**, and it
+   is a one-command check. Worth doing before any reasoning about what a resolved
+   symbol means.
+3. **Negative fault addresses are arithmetic, and the arithmetic is worth
+   measuring rather than recalling:** -4, -8, -16 are `back()` on empty vectors of
+   4-, 8-, and 16-byte elements. I had the ABI story for -8 confidently wrong.
+4. **`error 4` vs `error 5` separates a null dereference from a wild read**, and
+   both crashes were `error 5`, consistent with the negative-address reading.
+5. **Grep the tree for your own crash signature before theorising.** The comment
+   at `ClassicControlGuiBase.cpp:22` had already done the same decode, in the same
+   codebase, four days earlier — including the element-size arithmetic.
+6. **A dead end closed with evidence is worth more than a lead kept alive on
+   hope.** The rebuild would have produced a symbol nobody could trust, and the
+   next run would have spent on it.
+
+**Next:**
+
+1. **A targeted repro, not archaeology:** launch `TIDE_STANDALONE` with the
+   bundle's `Resources` absent — the layout both crashes were in — under `gdb`,
+   and see whether it stops in either candidate. Minutes, and it either names the
+   frame or clears both sites.
+2. **Read S32 first.** Launching the standalone on this box has taken the
+   developer's desktop down; a nested compositor is the safe way, and none is
+   installed (`weston`, `cage`, `sway`, `Xvfb` all absent; no `sudo`).
+3. **Incidental, noted in the row rather than filed** so as not to make two ids
+   for one job: `ClassicControlGuiBase.cpp:9-11` `dynamic_cast`s and then calls
+   `header->SetText` with no null check, while its sibling at `:31` checks.
+
+**Machine left clean.** TideSynth back on `main`, tree clean. Nothing was run
+against Jeff's desktop this item — all of it was log reading, disassembly, and a
+30-line test program in the scratchpad. `~/.config/TIDE Rack/` untouched.
+`~/SE/gmpi_ui/TEXT_LAYOUT_PLAN.md` is still dirty from 2026-08-19 and is Jeff's.
+
+**Branch/PR:** `tide/linux/S23-addr2line` — TideSynth only, row and journal. No code change.
+
+---
+
 ## 2026-08-21 — macos — S29 fixed, after measuring that S29's own recommendation was wrong
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
@@ -991,193 +1137,6 @@ That diagnosis needs the linux box; this one cannot observe the path.
 2. Jeff's "nothing at all on insert" remains its own unreproduced report.
 
 **Branch/PR:** `tide/mac/S25-fresh-insert-tofu` — TideSynth only, row + evidence.
-
----
-
-## 2026-08-20 — macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · sixth item
-
-**Did:** gave the module-arm state a cross cursor on mac.
-
-### The row's premise had moved again, in a useful direction
-
-S24 asks for a port of `SetCursorHandler` registration the way
-`WaylandMainWindow.cpp:72` does it. Measuring first found TIDE **already
-ships the affordance on Windows** — an inline `::SetCursor(IDC_CROSS)` in
-`SynthEditGui.cpp` (`dragInProgress` set at OM_DRAG_NEW_MODULE, re-asserted
-every pointer move, with its own comment: "GMPI doesn't expose setCursor on
-IInputHost, so we go straight to Win32"). So the smallest correct change is
-the AppKit analogue of TIDE's own mechanism, not new handler plumbing:
-`TideCursorMac.mm` — `[[NSCursor crosshairCursor] set]` — called at
-arm/disarm and re-asserted per move (AppKit cursor rects reset the cursor on
-their own schedule, exactly like WM_SETCURSOR). One `.mm`, a Darwin-only
-source entry, two `#ifdef __APPLE__` forks beside the `_WIN32` ones.
-
-### Verified to the machine's limit, then handed to the instrument that found it
-
-- builds rc=0; `tideShowCrossCursor` linked in the standalone (nm = 1).
-- the full path driven live over the command channel: browser click **armed**
-  (entry highlighted), rack click **placed a List Entry** at the click point
-  with fully populated properties — the arm/disarm/re-assert calls all on
-  that path, no crash. (The placed combo box also *draws* here — S25's tofu
-  did not manifest for this control in this build.)
-- **the pointer bitmap is the one thing a screenshot cannot carry** — the
-  screenshot API excludes the cursor. Jeff reported the stuck cursor, so per
-  S26's lesson the verification of the pixels goes to his mouse; the PR asks.
-
-**Linux deliberately not attempted:** the Wayland APP works because
-`WaylandToplevel` has its own `setCursor`; gmpi_ui's frames expose none, so a
-linux TIDE cursor needs either a gmpi_ui frame API (a design question, not a
-port) or a linux shortcut of its own. Left for the linux box rather than
-guessed at from here.
-
-**Learned:**
-
-1. **Third time today a row's central premise had moved before it was taken**
-   (P7d delivered elsewhere, E15's pin ruling unlanded, now S24's "defined
-   and never called" — TIDE grew a Win32 path someone added without touching
-   the row). Measuring the premise first is now the cheapest step of every
-   item.
-
-**Next:**
-
-1. **Jeff, with a real mouse:** browser-click a module — the pointer should
-   turn crosshair until the rack click lands (mac).
-2. **S25** (tofu) — did not reproduce for List Entry here; wants re-measuring
-   against the E15 panel stack before anyone chases it.
-
-**Branch/PR:** `tide/mac/S24-cross-cursor` — TideSynth only.
-
----
-
-## 2026-08-20 — macos — E15: the rack's faceplate is TIDE's own panel, and two breaks the swap flushed out
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · fifth item
-
-**Did:** swapped MIDI-CV's faceplate from `SE Rectangle XP` to `SE TiDE:Panel`
-and retired the Rectangle from TIDE entirely — both halves of the
-hardcoded-twice pair (`SynthEditSem/CMakeLists.txt` staging AND `TideApp.cpp`'s
-XML merge loop), per E2c's warning that missing either side fails silently.
-
-**Taken with `BLOCKED(E14)` in the status cell:** E14 is DONE, and BLOCKED(id)
-is defined as blocked-until-id-is-DONE, so the block had expired by its own
-definition. Recorded because the letter of "never start a BLOCKED item" and
-the definition point different ways for an expired blocker; the row now says
-which reading was used.
-
-### Every Accept clause, measured
-
-| clause | evidence |
-|---|---|
-| MIDI-CV rebuilt on `SE TiDE:Panel` | regenerated via SynthEditCL; `assert_all_modules_linked` clean, its note naming the id |
-| drawn in TIDE with legible captions | [docs/images/e15-midicv-tidepanel.png](docs/images/e15-midicv-tidepanel.png) — heading + PITCH/GATE/VEL/TRIG black on the light plate |
-| Rectangle gone, build green | build rc=0; `__GLOBAL__sub_I_RectangleGui.cpp` **0** and `__GLOBAL__sub_I_TiDEPanelGui.cpp` **1** in BOTH `TIDE.gmpi` and `TIDE_VST3` |
-
-### The two breaks the swap flushed out
-
-1. **The first regeneration drew captions overhanging the plate.** The panel
-   sizes ITSELF — RackUnits × 48 DIPs (`kRackUnitDips`) — and
-   `SubView::measure` unions the children, so the authored 105-DIP slot
-   produced a 48-wide plate under 58-wide labels. Fixed with `Rack Units 2`
-   (96 DIPs; the one pin the swap sets — per-instance geometry, where the
-   2026-08-19 ruling made *appearance* compile-time) and the faceplate grid
-   re-authored to 96. The residual 3.2-HP-per-U vs 15-DIP-HP mismatch is
-   E17's own open note, deliberately not settled here.
-2. **`TiDEPanel.gmpi` had never been built on mac, and could not be.**
-   `helpers/Timer.cpp`'s mac path is CFRunLoopTimer; the loadable-bundle link
-   line carries no frameworks, so the authoring bundle failed with undefined
-   `_kCFRunLoopCommonModes`. One APPLE-guarded CoreFoundation line. (TIDE's
-   static build never sees it — the wrappers already link CF; same class as
-   P7d, one repo over.)
-
-### The authoring pipeline on mac, recorded so nobody re-derives it
-
-SynthEditCL's factory scan root is **`SynthEditCL.app/Contents/PlugIns/`**
-(the rescan prints it), NOT `build/modules/` — the TiDE `.gmpi` bundles must
-be copied there, then `SynthEditCL -rescan`, then `build-prefabs.py --secl`.
-The other five prefabs regenerate byte-identical except handle churn (the V3
-lesson), so they were reverted; only `MidiCv.synthedit` is committed. And
-`TIDE_STANDALONE` restores its session even under an isolated `HOME`
-(`Library/Application Support/TIDE Rack/session.xml` on mac, not `.config`) —
-two identical screenshots cost a relaunch before the session file was found.
-
-**Flagged for Jeff, not acted on:** the row records a ruling that the panel
-"ships exactly two pins", but `main`'s registration XML declares SIX (Text,
-Text Color, Rack Units, Layout, Material, Panel Color). Rack Units earns its
-keep as instance geometry; whether Layout/Material/Panel Color go compile-time
-is the unimplemented half of that ruling.
-
-**Skipped on the way here, with reasons:** **N1** defers itself ("after C7,
-not during"; C7 waits on Jeff's apt-get, and a rename would double-conflict
-with the open C10 PRs). **P11**'s remaining half is the diagnostic at
-`DocOb.cpp:540` — GATED, not a build break; option (c) already landed in
-docs/building.md. **S16/S22/S18** are GATED (S18 is also a licensing question
-first). **E9**'s Accept needs a within-instance rate change no measurement has
-ever produced — the wrappers replace the instance instead. **E5** waits on
-rack styling (NEEDS-JEFF by its own text).
-
-**Learned:**
-
-1. **A module that measures itself is a different contract from a rectangle
-   that takes orders, and the prefab grid only worked because the old
-   faceplate obeyed it.** The swap surfaced the collision immediately —
-   authored geometry vs self-sizing panels — and E17's units note is where the
-   real reconciliation lives.
-2. **"It builds in the product" says nothing about the authoring path.** The
-   panel shipped statically into TIDE on three platforms while its loadable
-   authoring bundle had never linked on mac. The first prefab regeneration
-   needing it found that in one step.
-
-**Next:**
-
-1. **S24/S25** are the remaining takeable S-rows (cursor feedback; the tofu
-   render — S25 may interact with this swap and wants re-measuring on top of
-   it).
-2. **E2's next children** now have both the panel and the pipeline; E16/E17's
-   open notes gate the module list and sizing.
-
-**Branch/PR:** `tide/mac/E15-panel-swap` — TideSynth only.
-
----
-
-## 2026-08-20 — macos — P7d was already fixed, from a third direction, and its parked question is moot
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · fourth item
-
-**Did:** ran P7d's own Accept before building anything — `ninja GainGui_VST3`
-on a fresh `GMPI-plugins` configure, no extra flags — and it **passes**:
-rc=0, bundle produced, `otool -l` shows the UniformTypeIdentifiers load
-command with the UTType reference resolved. Closed the row as DONE.
-
-The fix is GMPI_Wrappers `3838493` — `gmpi_weak_frameworks()` in
-`wrapper/cmake/GmpiFrameworks.cmake`, included by **all five** wrappers, in
-the `-weak_framework` form `MacFileDialog.h`'s own comment specifies. Its
-comment even names this row's incident: *"GMPI-plugins macOS CI, July–August
-2026"*.
-
-**The row had parked itself waiting on a scope ruling** (may a run touch
-`GMPI-plugins`, or should gmpi_ui declare the framework?) — and the landed
-answer is a third place neither option named: the wrappers, which are what
-actually compile `DrawingFrameMac.mm`. No `GMPI-plugins` edit, no per-consumer
-link lines, ALLOWED path. The ruling request is moot.
-
-**Learned:**
-
-1. **A row that parks on a question can be closed by running its Accept —
-   check that before re-raising the question.** The ruling P7d wanted was
-   never given and never needed; the fix arrived while the row waited. Fourth
-   already-delivered row in two days (C15, U2, E14's naming note, now P7d) —
-   running the Accept first is cheaper than any of the work the row proposes.
-
-**Next:**
-
-1. Queue by file order continues: S-series GATED rows are skipped (not build
-   breaks), **N1 defers itself until C7 closes** ("do it after C7, not
-   during" — C7 waits on Jeff's apt-get, and a rename now would double-conflict
-   with the open C10 PRs), **A12/B1** are workflow edits the token cannot push.
-
-**Branch/PR:** `tide/mac/P7d-uttype-framework` — TideSynth only, bookkeeping.
 
 ---
 
