@@ -136,7 +136,7 @@ likely it was fixed in passing by the churn since 2026-08-20 — E14, E15, S26 a
 Jeff's TiDEPanel/tide_render work all landed after it. The alternative is an
 ingredient nobody has named. Either way, more stress runs will not settle it.
 
-### What survives: S33
+### What survives: S34
 
 The signature decode stands on its own, and it points at two **real** latent
 defects whether or not they caused S23 — two unguarded `back()` calls on
@@ -160,22 +160,22 @@ return). Both files are GATED and this is not a build break, so filed, not fixed
    resources-absent run is meaningful *because* the log lines match the crash
    runs exactly; without that, "it didn't crash" would just mean "I ran something
    else."
-4. **`check-id-refs.py` caught me filing A31's exact hazard.** S33 and S23 both
+4. **`check-id-refs.py` caught me filing A31's exact hazard.** S34 and S23 both
    cited `ug_adder2.cpp:81`, and the lint flagged the shared location within a
    minute of my writing it — the check A31 shipped for precisely this, doing its
-   job on the run that had just re-read A31. Fixed by giving S33 the citations
+   job on the run that had just re-read A31. Fixed by giving S34 the citations
    and having S23 point at it.
 5. **A crash row that no longer describes anything observable should be closed,
-   not left open.** S23 has now consumed four runs. The useful residue is S33;
+   not left open.** S23 has now consumed four runs. The useful residue is S34;
    keeping the crash row open would keep drawing runs toward a repro that has
    failed on ~35 launches.
 
 **Next:**
 
-1. **S33** — two `empty()` guards in `SynthEditLib`, minutes for Jeff or an
+1. **S34** — two `empty()` guards in `SynthEditLib`, minutes for Jeff or an
    interactive session. Accept is in the row, including "build `SynthEditCL`
    too", since it is shared and TIDE building is not evidence.
-2. **S23 should be closed as not-reproducible**, once S33 is on the board. Jeff's
+2. **S23 should be closed as not-reproducible**, once S34 is on the board. Jeff's
    call, not a run's — I have not set it DONE.
 3. **The mutter bug itself is untouched** and remains option (a) — Jeff's
    decision about the VM's graphics stack, not TIDE's problem to fix.
