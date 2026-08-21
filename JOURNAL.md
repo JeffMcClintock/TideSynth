@@ -74,6 +74,92 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — E11's hazard is unreachable, and the reason is a stub nobody had noticed
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** answered E11 by measurement — **the dangling-pointer hazard cannot
+happen** — and found the real defect underneath it, which belongs to **E6**
+rather than to a new row.
+
+### E11 asked the wrong question, and the right one is cheaper
+
+The row wanted the drain ordering established: does anything write parameter 1
+between `start_processor` (host main thread) and the first `process()` (audio
+thread)? **The ordering does not matter, because the pointer is never taken.**
+
+Exhaustive rather than sampled — `value_` appears exactly four times in
+`processor_holder`:
+
+| site | what it does |
+|---|---|
+| `.h:87` | double default, at construction |
+| `.h:91` | `std::vector<uint8_t>{}` — an EMPTY blob, at construction |
+| `.cpp:224` | read (the seed) |
+| `.cpp:337` | read (`sendParameterToProcessor`) |
+
+**No write after construction**, because `setBlob` (`.h:135`) is a **stub**: its
+one assignment is commented out at `:137` and it unconditionally returns `true`.
+So a blob parameter's vector is empty for the object's whole life, and both
+sites that could publish a raw pointer decline to — the seed hits
+`if (!v || v->empty()) continue;`, and `sendParameterToProcessor` takes the
+inline branch because `v.size() > 8` is false at size 0. `e.oversizeData_` is
+never assigned. Nothing can dangle.
+
+**E11 is WONTFIX with a trigger written into it:** the moment `setBlob` is
+implemented, both sites go live and the row's analysis applies exactly as
+written.
+
+### The stub is the real defect, and two callers already trust it
+
+`onQueMessageReady` (`.cpp:397`) reads the payload into a local vector, calls
+`setBlob`, gets `true`, and then calls `sendParameterToProcessor` — **which
+reads the still-empty vector and sends a zero-length blob event, discarding the
+bytes it just read.** `setPin` (`.cpp:652`) marks the controller waiting on a
+parameter whose stored value is empty. And the seed's own comment says it exists
+so a processor created at any time starts with the parameter's *current* bytes —
+which cannot happen while nothing ever writes them.
+
+**Not verified at runtime, and I am saying so rather than implying otherwise:**
+TIDE's patch persistence goes through the preset chunk (S12), not the
+blob-parameter round trip, so TIDE working is not evidence this path works.
+
+### A31's habit stopped this becoming a duplicate
+
+Before filing a new row I grepped the backlog for `processor_holder` — the habit
+this fleet added yesterday — and got **three hits: E9, E11, E6**. **E6 already
+owns this ground**, saying a blob-capable prime *"needs a non-scalar setter in
+GMPI's processor_holder — only setParameterNormalizedFromDaw exists"*. That
+premise is slightly wrong in an actionable way: the setter **exists and is
+empty**, which is a sharper and more fixable statement than "there is none". So
+the finding went onto E6 and no S31 was filed.
+
+**Learned:**
+
+1. **A row that asks "is this ordering safe?" can be answered by showing the
+   code never reaches the ordering at all.** Four greps beat the runtime
+   experiment the row proposed, and the answer is stronger — not "safe today"
+   but "unreachable by construction".
+2. **A stub that returns `true` is worse than one that returns `false`.** Both
+   callers here branch on the result, so an honest `false` would have surfaced
+   this years earlier; instead the bytes are read, discarded, and reported as
+   stored.
+3. **The grep-before-filing habit paid for itself the day after it shipped**
+   (A31). Three rows already cited this file; one of them already owned the
+   finding.
+
+**Next:**
+
+1. **E6** carries the sharpened root cause. Implementing `setBlob` is PR-GATED
+   and wants Jeff — it is a hosting-layer change with every GMPI plug-in
+   downstream.
+2. Whether anything shipping depends on the blob-parameter path is unmeasured;
+   the preset chunk is what TIDE actually uses.
+
+**Branch/PR:** `tide/mac/E11-blob-lifetime` — TideSynth only, rows and journal. No GMPI change.
+
+---
+
 ## 2026-08-21 — macos — arm64-only, and the FORCE that made the obvious change a no-op
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing

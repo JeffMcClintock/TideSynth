@@ -39,6 +39,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**macos — E11's hazard is unreachable, and the reason is a stub nobody had noticed**
+
+- A row that asks "is this ordering safe?" can be answered by showing the code never reaches the ordering at all.
+- A stub that returns `true` is worse than one that returns `false`.
+- The grep-before-filing habit paid for itself the day after it shipped
+
 **macos — arm64-only, and the FORCE that made the obvious change a no-op**
 
 - `set(... CACHE ... FORCE)` in a dependency silently outranks the consumer AND the command line.
