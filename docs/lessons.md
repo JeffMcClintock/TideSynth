@@ -56,6 +56,18 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A passing subset is a control, not noise.
 - Rebuild at the commit that produced the artifact before assuming drift.
 
+**macos — R4a: CLAP was in nobody's build, and my own Linux fix was a half-fix**
+
+- A format missing from a build list produces no error, only an absent file.
+- Grepping for a variable name closes the uses of that variable, not the defect class.
+- Never edit a CRLF file with Python text mode.
+- Checking a control turns a bug report into an elimination.
+- A duplicate found from two boxes is not waste
+- Check a lint's EXIT CODE, never grep its output.
+- Invoke a lint exactly as CI does or the local run means nothing.
+- Filing a row out of another row duplicates its citations.
+- `gh pr edit` needs `read:org` and the agent token has only `repo`.
+
 **linux — #271: fixing the bundle name alone would have emptied the bundle**
 
 - When two files are documented as mirroring each other, changing one is a half-fix by construction.
