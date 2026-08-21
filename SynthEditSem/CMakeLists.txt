@@ -422,9 +422,13 @@ foreach(_fmt ${FORMATS_LIST})
     #
     # The VST3 path is spelled from CMAKE_CURRENT_BINARY_DIR rather than from
     # TARGET_FILE_DIR so it matches, character for character, the expression
-    # gmpi_plugin.cmake:853 builds the bundle at.
+    # gmpi_plugin.cmake builds the bundle at. It uses TARGET_FILE_BASE_NAME,
+    # not the target name, so that the bundle directory tracks OUTPUT_NAME and
+    # matches the .so inside it (issue #271) -- this expression MUST be changed
+    # in lockstep with that one, or the .so and the Resources land in two
+    # differently-named bundles and the loadable one has no prefabs at all.
     if(_fmt STREQUAL "VST3")
-      set(_tide_resources "${CMAKE_CURRENT_BINARY_DIR}/${_tide_target}.vst3/Contents/Resources")
+      set(_tide_resources "${CMAKE_CURRENT_BINARY_DIR}/$<TARGET_FILE_BASE_NAME:${_tide_target}>.vst3/Contents/Resources")
     else()
       set(_tide_resources "$<TARGET_FILE_DIR:${_tide_target}>/Resources")
     endif()
