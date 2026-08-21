@@ -208,6 +208,15 @@ via the API — [#165](https://github.com/JeffMcClintock/TideSynth/pull/165) and
 3. **S23** remains one `addr2line` from closed; **S32** before any further GUI
    work on this box.
 
+**Machine left clean.** TideSynth is back on `main`, tree clean; both PRs are the
+only place this run's work lives. **One dirty file elsewhere, and it is not mine:**
+`~/SE/gmpi_ui/TEXT_LAYOUT_PLAN.md` carries a real content change (not CRLF churn —
+`git diff --ignore-all-space` is non-empty) dated **2026-08-19 17:41**, two days
+before this run started. That is Jeff's work in progress: not committed, not
+reverted, not stashed. The three CPM `_deps` checkouts I read from
+(`gmpi_ui-src`, `gmpi_wrappers-src`, `syntheditlib-src`) are all clean — this run
+only read them.
+
 **Branch/PR:** `tide/linux/A12-halted-box-digest` — TideSynth only.
 ## 2026-08-21 — macos — S29 fixed, after measuring that S29's own recommendation was wrong
 
