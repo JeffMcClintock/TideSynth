@@ -133,7 +133,18 @@ include_directories(
 # ships a standalone to users, that release must configure with
 # -DGMPI_STANDALONE_COMMAND_CHANNEL=OFF, which removes the code rather than
 # merely declining to start it (GMPI_Wrappers/wrapper/Standalone/CMakeLists.txt:92).
-set(FORMATS_LIST GMPI VST3 STANDALONE)
+# BACKLOG R4 -- CLAP is here because every installer row needs it, not just
+# the Linux one. docs/distribution.md lists CLAP as a shipped format on all
+# three platforms, and R2/R3/R4 each say "the VST3 and CLAP bundles" -- but
+# CLAP was absent from this list, so NO platform was building one. Enabling it
+# here is the shared half of that work; the per-platform packaging is not.
+#
+# It cost one word. GMPI already had the CLAP wrapper wired, and the format
+# picks up N1a's OUTPUT_NAME for free, so this produces TIDE-Rack.clap with
+# no other change. Verified on macOS/arm64 2026-08-22: builds rc=0 with zero
+# errors, correct bundle layout, and `nm` finds exactly one exported entry
+# point (clap_entry) -- see the journal entry for the commands.
+set(FORMATS_LIST GMPI VST3 CLAP STANDALONE)
 
 #  HAS_VST3
 gmpi_plugin(

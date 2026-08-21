@@ -18692,3 +18692,433 @@ reverted, not stashed. The three CPM `_deps` checkouts I read from
 only read them.
 
 **Branch/PR:** `tide/linux/A12-halted-box-digest` — TideSynth only.
+## 2026-08-21 — linux — the compositor problem is solved, and S23 does not reproduce once you can safely look
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Fifth item this run, at Jeff's direction.** He installed `weston` in response to
+the previous entry's *"blocked on one `apt install`"* and said *"use it if you
+can"*. Two rows moved as a result, and one of them only because the other was
+fixed first.
+
+### S32: headless weston works, and costs nothing
+
+```bash
+weston --backend=headless --socket=tide-test --width=1400 --height=900 &
+WAYLAND_DISPLAY=tide-test XDG_CONFIG_HOME=<scratch> ./TIDE_STANDALONE
+```
+
+The headless backend needs no display, no seat and no GPU, and **nothing it does
+reaches `gnome-shell`** — so mutter's client-teardown bug cannot be triggered by
+anything a run does.
+
+**What I expected to lose and did not:** the MCP command channel works unchanged,
+and `gmpi_screenshot` returned a correct 1100x626 PNG with the rack drawn and the
+module browser fully populated. It renders from the app's **own** buffer rather
+than asking the compositor, so a headless session gives up the *view* and keeps
+every bit of the *verification*.
+
+**Roughly ten launches this session** — control, resources-absent, mismatch, four
+shutdown trials, plus a continuous **635 s (10 m 35 s)** run still answering the command
+channel at the ten-minute mark — with **zero `gnome-shell` crashes** and Jeff's login session (`loginctl` session 10) unchanged throughout.
+Against four crashes in the two days before, on a box where two runs lost their
+work to it.
+
+Recipe written up as [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md),
+including the one cosmetic wart (`Gdk-CRITICAL … gdk_seat_get_keyboard`, because
+headless advertises no keyboard) so the next run does not chase it, and the
+warning that nested-but-visible weston is only **partial** isolation — that
+compositor is itself a mutter client and its own exit still runs the bad path.
+
+### S23: the repro finally ran, and came back negative
+
+Only possible because S32 was fixed first. Three conditions, seven launches:
+
+| condition | result |
+|---|---|
+| control — resources present | 60 s, no fault |
+| **resources ABSENT** (the layout both crashes were in) | 60 s, plus **4 × 10 s runs, every one exit 0** |
+| **resources absent + the quarantined `session.previous.xml`** | 45 s, no fault |
+
+The third is the case nobody had tried: a patch saved when the modules existed,
+replayed when they do not. It was the best remaining hypothesis and it is dead.
+
+**The startup state was confirmed identical to the crash runs**, not merely
+similar — all four `missing from bundle resources`, `no Prefabs folder`, and
+`MidiCv.synthedit did not insert a container`. Zero `TIDE_STANDALONE` segfaults
+in `journalctl` throughout. A clean SIGTERM exit really is 0 here, so a 139 would
+have been unambiguous.
+
+**So the reproduction attempt is exhausted and should not be repeated.** Most
+likely it was fixed in passing by the churn since 2026-08-20 — E14, E15, S26 and
+Jeff's TiDEPanel/tide_render work all landed after it. The alternative is an
+ingredient nobody has named. Either way, more stress runs will not settle it.
+
+### What survives: S34
+
+The signature decode stands on its own, and it points at two **real** latent
+defects whether or not they caused S23 — two unguarded `back()` calls on
+`std::vector<UPlug*>`, which read `data[-1]` at address -8 when the vector is
+empty. Not a null-pointer fault, so no null check catches it. A third sibling is
+already guarded and is the model; `ClassicControlGuiBase.cpp:22-33` fixed the
+identical thing at -16 for **U2d** and set the convention (guard, log loudly,
+return). Both files are GATED and this is not a build break, so filed, not fixed.
+
+**Learned:**
+
+1. **Fixing the tooling blocker was worth more than any single item it
+   unblocked.** Two runs burned their runtime work on this box, and the previous
+   entry's honest answer was "blocked on Jeff". One `apt install` converted an
+   unrunnable experiment into a seven-launch A/B in twenty minutes.
+2. **A headless compositor loses the view and keeps the verification**, because
+   the screenshot path reads the app's own buffer. I assumed I would be trading
+   capability for safety and was wrong — worth knowing before anyone declines the
+   safe route to keep the pictures.
+3. **A negative result is only worth what its control is worth.** The
+   resources-absent run is meaningful *because* the log lines match the crash
+   runs exactly; without that, "it didn't crash" would just mean "I ran something
+   else."
+4. **`check-id-refs.py` caught me filing A31's exact hazard.** S34 and S23 both
+   cited `ug_adder2.cpp:81`, and the lint flagged the shared location within a
+   minute of my writing it — the check A31 shipped for precisely this, doing its
+   job on the run that had just re-read A31. Fixed by giving S34 the citations
+   and having S23 point at it.
+5. **A crash row that no longer describes anything observable should be closed,
+   not left open.** S23 has now consumed four runs. The useful residue is S34;
+   keeping the crash row open would keep drawing runs toward a repro that has
+   failed on ~35 launches.
+
+**Next:**
+
+1. **S34** — two `empty()` guards in `SynthEditLib`, minutes for Jeff or an
+   interactive session. Accept is in the row, including "build `SynthEditCL`
+   too", since it is shared and TIDE building is not evidence.
+2. **S23 should be closed as not-reproducible**, once S34 is on the board. Jeff's
+   call, not a run's — I have not set it DONE.
+3. **The mutter bug itself is untouched** and remains option (a) — Jeff's
+   decision about the VM's graphics stack, not TIDE's problem to fix.
+4. **Every future linux GUI item can now be verified here.** That includes the
+   **E14 clause-2 gap** (the rack placement gesture), which older rows call
+   unmeasurable on this box.
+
+**Machine left clean.** TideSynth back on `main`, tree clean. All experiments ran
+on a **copy** of the binary and resources in the scratchpad — Jeff's build tree
+was never modified. `~/.config/TIDE Rack/` is byte-identical (every run used a
+scratch `XDG_CONFIG_HOME`). Weston stopped by pid, not `pkill -f` (**S31**).
+`~/SE/gmpi_ui/TEXT_LAYOUT_PLAN.md` is still dirty from 2026-08-19 and is Jeff's.
+
+**Branch/PR:** `tide/linux/S32-headless-compositor` — TideSynth only. No product code change.
+
+---
+
+## 2026-08-21 — macos — S33 filed: a live defect was sitting on a closed row
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing · two other agents active (linux, renderer)
+
+**Did:** gave the `setBlob` stub its own row. It was found while answering E11
+and recorded on **E6** — which I had already flipped to DONE hours earlier. **A
+live defect on a closed row is invisible**, which is precisely the failure A32
+exists to name, so this is me walking into the trap I filed a lint for.
+
+The finding itself is unchanged and is restated on S33: `setBlob`
+(`processor_holder.h:135`) has its one assignment commented out and returns
+`true`; `value_` is written only at construction; two callers branch on that
+`true`, and `onQueMessageReady` reads a payload into a local vector, calls the
+stub, then sends a **zero-length** blob event — discarding the bytes it just
+read.
+
+**A31's habit ran first and earned its keep again:** the backlog already had
+**S31 and S32** filed by the linux box while I was working, so the next free id
+was not the one I would have guessed, and a live row (**E9**) already cites
+`processor_holder` — different lines, different subject, so not a duplicate.
+Re-checked against a freshly fetched `origin/main` immediately before
+committing, per the id-collision rule.
+
+**Learned:**
+
+1. **Recording a finding on a row you are about to close loses it.** The
+   sequence was innocent — flip E6 DONE in a bookkeeping pass, discover the
+   root cause hours later, add it to the row that already described the
+   symptom. Nothing warns you, and A32's advisory only looks at umbrella rows
+   with closed children, not at closed rows carrying new text.
+2. **Two other agents were filing ids concurrently.** The gap between reading
+   the highest id and committing is where collisions live; fetching again
+   immediately before the commit is the whole mitigation.
+
+**Next:** S33 is PR-GATED and wants Jeff. E11 stays WONTFIX with its reopen
+trigger pointing at exactly this row.
+
+**Branch/PR:** `tide/mac/S33-setblob-stub` — TideSynth only, one row and this entry.
+
+---
+
+---
+
+## 2026-08-21 — linux — N1 costed: 91% of what a grep finds must not be touched
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Fourth item this run, at Jeff's direction** (*"take next task"*, three times).
+STEP 2's one-item rule is overridden by that each time.
+
+**Also at his direction: I merged [#262](https://github.com/JeffMcClintock/TideSynth/pull/262) myself** (*"then merge 262"*), which
+overrides STEP 5's *"Do NOT merge the PR"* for that one PR. Recording it plainly
+because that rule exists so Jeff reviews before anything lands, and him asking
+for the merge **is** that review — but a later run reading `git log` would
+otherwise see a bot-merged PR and have no way to tell which. All three platform
+builds were green on the head before the merge-of-main; `lint` and `guard` passed
+on the merged commit; the three matrix jobs were still re-running, and the PR
+contains no compiled code.
+
+**Did:** took **N1** and did the thing its own row asked for — *"probably wants
+splitting once someone costs it"* — rather than starting the rename. Costing it
+is what showed the rename must not happen on this box.
+
+### The count, and the finding is bucket C
+
+| bucket | what | files | refs |
+|---|---|---|---|
+| **A — live build, tooling, fixtures** | the actual rename, one commit | 11 | **21** |
+| **B — live reference docs** | instructions somebody follows today | 4 | ~28 |
+| **C — the historical record** | `JOURNAL*`, `BACKLOG-DONE.md`, `docs/lessons.md` | 4 | **220** |
+
+**Bucket C is ten times bucket A and none of it may be rewritten.** Those files
+record measurements of a binary that really was called `TIDE_VST3.so` on the day
+they were taken, and this project's convention is that superseded text is
+preserved verbatim. So the row's standing warning — *"do not start with a global
+search-and-replace"* — is stronger than it reads: **a global replace is not
+merely risky, it is wrong on 91% of its hits**, and it would falsify the record
+rather than just churn it.
+
+### Two flagged unknowns answered, two flagged hazards dismissed
+
+- **`OUTPUT_NAME` alone is not enough**, exactly as the row suspected.
+  `gmpi_plugin.cmake:774` sets `MACOSX_BUNDLE_BUNDLE_NAME "${GMPI_PLUGIN_PROJECT_NAME}"`,
+  so the project name reaches the macOS bundle name directly.
+- **No `OUTPUT_NAME` is set anywhere today** — artifacts are named straight off
+  the target names, so the dashed convention is an addition, not an edit.
+- **`TIDE.xml` / `TIDE.rc` do not exist**, so `gmpi_plugin()`'s
+  `${PROJECT_NAME}.xml` / `.rc` paths are not in play.
+- **`build.yml` names no TIDE target or artifact** — comments only. So the rename
+  needs no workflow change and no `workflow` token scope, which is the wall this
+  fleet keeps hitting and which does **not** apply here.
+
+### The prose half is done — verified rather than assumed
+
+`SynthEditSem/SynthEdit.cpp:396` ships `name="TIDE Rack" vendor="TIDE Synth"`,
+and the host sees it: every fixture records `"VST3i: TIDE Rack (TIDE Synth)"`.
+`getVendor4charCode()` still returns the fixed-width `"TIDE"`, correct and not to
+be changed. **Nothing user-visible is waiting on N1** — what remains is internal
+naming only, which is worth knowing before anyone prioritises it.
+
+### Why this box must not do the rename
+
+The five fixtures name the artifact by **filename**:
+
+```
+<VST "VST3i: TIDE Rack (TIDE Synth)" TIDE_VST3.vst3 0 "" 1386065673{...}
+```
+
+Renaming the artifact invalidates all five at once, and they are **v0.1's
+acceptance evidence** — the thing PLAN.md points at to say the product works.
+Re-verifying them needs `render-and-measure.py` and **REAPER**, which is not
+installed here. A run on this box could make the change and could not tell
+whether it had broken the proof.
+
+**Split accordingly:** **N1a** (bucket A, one commit, on a box with REAPER; N1
+becomes the umbrella) and **N1b** (bucket B, `BLOCKED(N1a)` — doing the docs
+first would make them lie). Bucket C is out of scope permanently. Full working
+in [docs/n1-tide-rack-rename.md](docs/n1-tide-rack-rename.md).
+
+**Also, bookkeeping:** **A12 → DONE** on its merged PR, and the NEXT linux cell
+re-pointed — it still told the next run to *"rebuild the 2026-08-20 tree and
+`addr2line 0x3b4627`"*, which this run proved impossible three hours ago.
+
+**Learned:**
+
+1. **Counting a rename by bucket, not by total, changes the decision.** "143
+   references" reads as a large scary job. "21 live, 220 that must not be
+   touched" is a small job with a trap beside it, and only the second framing
+   tells you what to do.
+2. **A grep total is not a work estimate when the repo keeps a historical
+   record.** Every append-only file inflates the count with hits that are
+   correct as they stand.
+3. **Ask which box can VERIFY a change before asking which box can make it.**
+   The rename is minutes of editing anywhere; it is only finishable where the
+   acceptance harness runs. That constraint lives in the fixtures, not in the
+   code being renamed.
+4. **A row that says "needs decisions rather than edits" is worth re-reading
+   after its blocker clears.** N1's decisions were all settled — the forms, the
+   repo name, the asset names. Only the *timing* was open, gated on C7, and C7
+   went DONE earlier in this same run.
+5. **When the developer overrides a standing rule, write down which rule and
+   which instance.** A bot-merged PR is indistinguishable from a bot that decided
+   to merge, and the difference is the whole point of the rule.
+
+**Next:**
+
+1. **N1a on a box with REAPER** (win or mac). Everything it needs is in its row;
+   nobody should have to re-derive the file list.
+2. **This platform's runtime work is blocked on one `apt install`** — S32 has no
+   workaround a run can apply, because `weston`, `cage`, `sway` and `Xvfb` are
+   all absent and `sudo` needs a password. Until then S23's targeted repro cannot
+   be run safely here.
+3. **S23** otherwise needs only that repro; the signature and two candidate sites
+   are already in the row.
+
+**Machine left clean.** TideSynth back on `main`, tree clean. Nothing was run
+against the desktop for this item — greps, CMake reading and counting only.
+`~/.config/TIDE Rack/` untouched. `~/SE/gmpi_ui/TEXT_LAYOUT_PLAN.md` remains
+dirty from 2026-08-19 and is Jeff's.
+
+**Branch/PR:** `tide/linux/N1-cost-and-split` — TideSynth only. No code change.
+
+---
+
+---
+
+## 2026-08-21 — linux — S23: what -8 means, measured — and the fleet has been bitten by this exact class before
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Third item this run, at Jeff's direction** (*"take next task"*, twice). STEP 2's
+one-item rule is overridden by that; recording it so this does not read as a run
+helping itself.
+
+**Did:** took S23 back to finish it. The step I had left — rebuild the 2026-08-20
+tree and `addr2line 0x3b4627` — turned out to be **impossible**, and closing that
+off properly was worth more than the guess it would have produced. Then decoded
+the fault signature by measurement instead, which named a class of site the
+project has already been bitten by once.
+
+### The offset route is closed, and here is the proof rather than the excuse
+
+`/var/log/apport.log.1` names the binary that faulted:
+
+```
+2026-08-20 17:33:00: executable: /tmp/claude-1000/-home-jef-SE/22760dc3-.../scratchpad/s17/TideSynth/build-sa/SynthEditSem/TIDE_STANDALONE
+2026-08-20 17:33:00: ERROR: executable does not belong to a package, ignoring
+```
+
+Three things follow, and each kills a route:
+
+1. **It was a clone in the S21 run's own scratchpad**, built into `build-sa` —
+   **not** `~/TideSynth/build`, which is the tree the previous entry resolved
+   `0x3b4627` against. Different tree, different link, different layout.
+2. **No core was ever written.** `core limit 0`, and apport declined an
+   unpackaged executable. Nothing to open.
+3. **The binary is gone** — the scratchpad did not survive the reboots.
+
+And an exact rebuild is not reproducible either: at `21f9c80` (main's code state
+at crash time) there was **no `cpm-package-lock.cmake`**, so every dependency
+resolved to whatever its branch head was that afternoon.
+
+**The previous entry's `CContainer::OnEditContain` lead was not merely weak, it
+was invalid**, and one command shows it — `0x3b4627` lands **mid-instruction** in
+today's binary:
+
+```
+3b4626: 0f 84 92 00 00 00    je  3b46be      <-- 6 bytes, 3b4626..3b462b
+```
+
+I labelled that lead "probably a coincidence" for the wrong reason (I argued from
+the -8 offset, see below) and it turns out to be right for a better one.
+
+### What -8 actually means, measured
+
+Three candidates, each in its own forked child so one crash could not mask the
+others, with the fault addresses read back from the kernel log:
+
+| candidate | fault address | verdict |
+|---|---|---|
+| `dynamic_cast` on an object with a zeroed vptr | **-16** | not ours |
+| `back()` on an empty `std::vector<int>` | **-4** | right class, wrong element size |
+| `null->member` | **+12**, and `error 4` | not ours |
+
+Ours is **-8 with error 5**. So the crash is **`back()` / `rbegin()` /
+`end()[-1]` on an empty vector of 8-byte elements — a vector of raw pointers.**
+
+**This kills two guesses, one of which I had made about forty minutes earlier.**
+I had started to favour `dynamic_cast` on a dangling handle, on the reasoning
+that the Itanium ABI puts typeinfo at vptr-8. The measurement says -16. Reasoning
+about ABI offsets from memory is exactly the move that produces a confident wrong
+answer, and it cost one 30-line program to avoid.
+
+### The precedent was already in the tree
+
+`SynthEditLib/modules/ControlsXp/ClassicControlGuiBase.cpp:22`:
+
+> `widgets.back()` on an empty vector is UB (crashed TIDE at address **-16** =
+> empty `back()` with **16-byte elements**; TideSynth BACKLOG **U2d**). Widgets
+> are built by pin-init callbacks above; **a host where those don't fire must not
+> bring the whole process down.** Loud, not silent, per U2d's rule.
+
+Same class, same arithmetic done the same way, and **the same trigger shape**:
+U2d's empty collection came from missing font/skin resources; **S23's two crashes
+were both in the layout with the bundle's `Resources` missing**. The fleet has
+solved this once and written down how.
+
+### Two unguarded candidate sites
+
+Both are `std::vector<UPlug*>` (`ug_base.h:245`), so both fault at exactly -8:
+
+| site | code | guard |
+|---|---|---|
+| `SynthEditLib/ug_adder2.cpp:81` | `auto p = plugs.back();` — first line of `ug_adder2::NewConnection()` | **none** |
+| `SynthEditLib/ug_feedback_delays.cpp:72` | `auto dummyPin = u->plugs.back();` | **none** |
+| `SynthEditLib/ug_oversampler.cpp:337` | `connections.back()` | `while(!…empty())` — what the other two should look like |
+
+The adder is the interesting one: it is what implements TIDE's automatic summing
+when patch cables fan into one input, and `NewConnection` runs while the DSP
+graph is built from a restored patch — at startup, which is when both crashes
+happened.
+
+**Not proven, and the tidiness of the story is exactly why it should not be
+trusted yet.** Nothing here observes the fault at either line. "Resources missing
+→ pin list empty → `back()`" fits every measured fact and remains a hypothesis.
+
+Both files are **GATED** (`SynthEditLib`) and this is not a build break, so A17's
+exception does not reach it. Filed, not fixed.
+
+**Learned:**
+
+1. **`/var/log/apport.log` names the executable path for crashes apport
+   declined to report.** Two runs assumed the crashing binary was the one in the
+   obvious build tree. It was a clone in a scratchpad, which is *why* the offset
+   resolved to nonsense — and one grep would have said so on day one.
+2. **An address that lands mid-instruction is proof the binary is wrong**, and it
+   is a one-command check. Worth doing before any reasoning about what a resolved
+   symbol means.
+3. **Negative fault addresses are arithmetic, and the arithmetic is worth
+   measuring rather than recalling:** -4, -8, -16 are `back()` on empty vectors of
+   4-, 8-, and 16-byte elements. I had the ABI story for -8 confidently wrong.
+4. **`error 4` vs `error 5` separates a null dereference from a wild read**, and
+   both crashes were `error 5`, consistent with the negative-address reading.
+5. **Grep the tree for your own crash signature before theorising.** The comment
+   at `ClassicControlGuiBase.cpp:22` had already done the same decode, in the same
+   codebase, four days earlier — including the element-size arithmetic.
+6. **A dead end closed with evidence is worth more than a lead kept alive on
+   hope.** The rebuild would have produced a symbol nobody could trust, and the
+   next run would have spent on it.
+
+**Next:**
+
+1. **A targeted repro, not archaeology:** launch `TIDE_STANDALONE` with the
+   bundle's `Resources` absent — the layout both crashes were in — under `gdb`,
+   and see whether it stops in either candidate. Minutes, and it either names the
+   frame or clears both sites.
+2. **Read S32 first.** Launching the standalone on this box has taken the
+   developer's desktop down; a nested compositor is the safe way, and none is
+   installed (`weston`, `cage`, `sway`, `Xvfb` all absent; no `sudo`).
+3. **Incidental, noted in the row rather than filed** so as not to make two ids
+   for one job: `ClassicControlGuiBase.cpp:9-11` `dynamic_cast`s and then calls
+   `header->SetText` with no null check, while its sibling at `:31` checks.
+
+**Machine left clean.** TideSynth back on `main`, tree clean. Nothing was run
+against Jeff's desktop this item — all of it was log reading, disassembly, and a
+30-line test program in the scratchpad. `~/.config/TIDE Rack/` untouched.
+`~/SE/gmpi_ui/TEXT_LAYOUT_PLAN.md` is still dirty from 2026-08-19 and is Jeff's.
+
+**Branch/PR:** `tide/linux/S23-addr2line` — TideSynth only, row and journal. No code change.
+
+---
