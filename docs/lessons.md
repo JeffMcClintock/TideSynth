@@ -39,6 +39,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — S27: four suspects eliminated, and the reference box turns out to be x86_64**
+
+- An Apple Silicon Mac separates ISA from OS/libm in a way no other box can
+- `$?` after a pipeline is the LAST command's status.
+- Check whether a hand-rolled RNG is actually the portable kind before blaming it.
+- `sqrt` is not a cross-platform divergence source.
+- A passing subset is a control, not noise.
+- Rebuild at the commit that produced the artifact before assuming drift.
+
 **linux — #271: fixing the bundle name alone would have emptied the bundle**
 
 - When two files are documented as mirroring each other, changing one is a half-fix by construction.
