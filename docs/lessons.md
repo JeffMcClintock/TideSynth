@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**linux — #271: fixing the bundle name alone would have emptied the bundle**
+
+- When two files are documented as mirroring each other, changing one is a half-fix by construction.
+- A build that succeeds can still package nothing.
+- `GMPI_SDK_FOLDER_OVERRIDE` makes a PR-GATED change testable
+- Write to a CRLF file with Python and you get a 1,280-line diff.
+- Prove a no-op instead of claiming one.
+
 **macos — P11's mac half had the right symptom and the wrong mechanism**
 
 - A stale row is most expensive when its symptom is right and its mechanism is wrong.
@@ -103,19 +111,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `error 4` vs `error 5` separates a null dereference from a wild read
 - Grep the tree for your own crash signature before theorising.
 - A dead end closed with evidence is worth more than a lead kept alive on hope.
-
-**linux — A12: the wall this row recorded was not there, and the check it wanted had a false alarm in it**
-
-- A row can inherit a blocker from the rows filed beside it, and nobody re-checks.
-- A watchdog's own false alarms are the expensive kind.
-- Rotation is a hazard for anything that reads the journal, not just for readers of it.
-- The archive is not reliably ordered
-- Some Accept clauses are unsatisfiable by construction, and saying so beats half-meeting them.
-
-**macos — S29 fixed, after measuring that S29's own recommendation was wrong**
-
-- A concurrency group is only as good as what its expressions evaluate to, and `github.ref` is not the branch on a `pull_request` event.
-- The second-best fix won on a constraint from a different row.
 
 ## 2026-08-18
 
@@ -1351,3 +1346,16 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A timeline can refute a hypothesis that a reproduction attempt cannot.
 - Resolving an address in a rebuilt binary is not evidence.
 - A "GNOME Shell crashed" line and a login prompt are not the same event.
+
+**macos — S29 fixed, after measuring that S29's own recommendation was wrong**
+
+- A concurrency group is only as good as what its expressions evaluate to, and `github.ref` is not the branch on a `pull_request` event.
+- The second-best fix won on a constraint from a different row.
+
+**linux — A12: the wall this row recorded was not there, and the check it wanted had a false alarm in it**
+
+- A row can inherit a blocker from the rows filed beside it, and nobody re-checks.
+- A watchdog's own false alarms are the expensive kind.
+- Rotation is a hazard for anything that reads the journal, not just for readers of it.
+- The archive is not reliably ordered
+- Some Accept clauses are unsatisfiable by construction, and saying so beats half-meeting them.
