@@ -166,6 +166,27 @@ For grading, `writePixels16` + `tide::png::write16` emit 16-bit-per-channel
 PNG (`--png16` on the preview tool): same tone map and exact sRGB encode, with
 the 8 extra bits that survive a curve without banding.
 
+## Surface imperfection
+
+`recipes::worn(material, amount)` is the single biggest thing between a
+correct render and a photographic one. Real hardware is never uniform — a
+physically perfect surface reads as CG long before it reads as metal, and no
+amount of extra light transport fixes it, because the problem is not the light.
+
+It adds roughness that wanders across the part and a suggestion of scuffing
+along the grain, both procedural, so there is no map to author and it holds at
+any resolution. Off by default everywhere, and ignored by `Fast` along with the
+rest of the material model.
+
+## Depth of field
+
+`Camera::aperture` and `Camera::focusDistance`. Defocus does **not** require
+perspective: the camera stays orthographic and the ray origins spread across
+the aperture aimed at a common focus point, which is a telecentric lens — a
+real thing, and a staple of product photography. Receding objects blur without
+changing size. `aperture = 0` (the default) is exactly the sharp camera it
+always was, bit for bit.
+
 ## Fast mode
 
 `Settings::mode = RenderMode::Fast` (or `--fast` on the preview tool) replaces

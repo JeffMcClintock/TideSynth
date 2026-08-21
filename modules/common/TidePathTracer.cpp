@@ -2571,7 +2571,20 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 	// Pixel plus a sub-pixel offset in [0,1) -> the ray's starting point.
 	// THE orthographic camera: every ray shares `basis.forward` and they differ
 	// only in where they start.
-	const auto rayOrigin = [&](int x, int y, float offsetX, float offsetY)
+	// Defocus is off unless an aperture was asked for, and the sharp path then
+	// costs exactly what it did before: no disc sample, no normalize, and the
+	// direction stays the shared `basis.forward` for every ray in the frame.
+	const bool defocus = (camera.aperture > 0.0f);
+
+	// Where the fan converges, as a distance along the ray. The origin already
+	// sits nearPullback behind the camera, so the focus plane is that much
+	// further along than the caller's focusDistance.
+	const float focusT = camera.nearPullback + maxf(camera.focusDistance, 0.0f);
+
+	struct CameraRay { Vec3 origin; Vec3 direction; };
+
+	const auto cameraRay = [&](int x, int y, float offsetX, float offsetY,
+		float lensU, float lensV) -> CameraRay
 	{
 		const float px = ((float)x + offsetX) / (float)image.width;
 		const float py = ((float)y + offsetY) / (float)image.height;
@@ -2581,7 +2594,31 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 		const float fx = (px * 2.0f - 1.0f) * basis.halfWidth;
 		const float fy = (1.0f - py * 2.0f) * basis.halfHeight;
 
-		return basis.origin + basis.right * fx + basis.up * fy;
+		const Vec3 origin = basis.origin + basis.right * fx + basis.up * fy;
+		if (!defocus)
+			return { origin, basis.forward };
+
+		// TELECENTRIC defocus. A perspective camera jitters the ray's ORIGIN
+		// across the lens and keeps the target fixed; here the origins are the
+		// film itself and must stay put, so the DIRECTION is fanned instead
+		// and the target is what stays fixed. Rays through one film position
+		// spread out, cross again at the focus plane, and blur either side of
+		// it — the same circle of confusion, without the convergence that
+		// makes a perspective knob wrong everywhere but the centre.
+		const Vec3 focusPoint = origin + basis.forward * focusT;
+
+		float dx, dy;
+		sampleConcentricDisc(lensU, lensV, dx, dy);
+		const Vec3 spread = basis.right * (dx * camera.aperture)
+			+ basis.up * (dy * camera.aperture);
+
+		// The origin MOVES and the target stays put. Tilting the direction
+		// while leaving the origin alone looks equivalent and defocuses
+		// everything uniformly, focus plane included: rays leaving one point in
+		// different directions diverge forever and never reconverge. It is the
+		// spread of ORIGINS all aimed at one point that makes a focus plane.
+		const Vec3 lensOrigin = origin + spread;
+		return { lensOrigin, normalize(focusPoint - lensOrigin) };
 	};
 
 	const auto worker = [&]()
@@ -2624,20 +2661,26 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 								// Cell CENTRES, so the grid is symmetric about
 								// the pixel and an edge lands the same way from
 								// either side.
-								const Vec3 origin = rayOrigin(x, y,
+								// Lens samples fixed at the disc centre: Fast
+								// mode is exact and has nothing to average, so
+								// a defocused preview would be a blurry image
+								// with no more information in it. The preview
+								// stays sharp even when the camera is not.
+								const CameraRay ray = cameraRay(x, y,
 									((float)sx + 0.5f) / (float)fastGrid,
-									((float)sy + 0.5f) / (float)fastGrid);
+									((float)sy + 0.5f) / (float)fastGrid,
+									0.5f, 0.5f);
 
 								// primary = true and mediumIndex = -1: the same
 								// call the full render makes for its camera ray,
 								// so camera-invisible geometry stays invisible
 								// and the alpha channel comes out identical.
-								const Hit hit = intersect(scene, origin, basis.forward,
+								const Hit hit = intersect(scene, ray.origin, ray.direction,
 									kMaxTraceDistance, true, -1);
 								if (!hit.valid)
 									continue;
 
-								sum += shadeFast(hit, basis.forward);
+								sum += shadeFast(hit, ray.direction);
 								alphaSum += 1.0f;
 							}
 						}
@@ -2673,10 +2716,30 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 							}
 
 							const FilterOffset f = filterOffset(settings.filter, u1, u2);
-							const Vec3 origin = rayOrigin(x, y, f.x, f.y);
+
+							// The lens draws happen ONLY when there is a lens.
+							//
+							// Taking them unconditionally looks tidier and is
+							// worse: it advances the RNG stream for every sharp
+							// render ever made, so adding this feature moved all
+							// five committed references by up to 77% of their
+							// pixels while changing nothing anyone could see.
+							// The invariant that would have bought — a sharp
+							// render sharing its noise with a defocused one — is
+							// not worth having. A camera with no aperture should
+							// produce exactly the image it always did.
+							float lensU = 0.5f;
+							float lensV = 0.5f;
+							if (defocus)
+							{
+								lensU = rng.next();
+								lensV = rng.next();
+							}
+
+							const CameraRay ray = cameraRay(x, y, f.x, f.y, lensU, lensV);
 
 							const PathResult r = tracePath(scene, settings, emitters, derived,
-								origin, basis.forward, rng);
+								ray.origin, ray.direction, rng);
 							sum += r.radiance;
 							alphaSum += r.alpha;
 						}

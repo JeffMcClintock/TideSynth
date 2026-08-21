@@ -879,6 +879,28 @@ struct Camera
 	// ray has no natural origin and must start outside everything it could hit,
 	// including the room.
 	float nearPullback = 20.0f;
+
+	// Defocus. 0 keeps the camera perfectly sharp everywhere, which is what
+	// panel artwork wants and therefore the default.
+	//
+	// Depth of field does NOT require perspective. An orthographic camera gets
+	// it by tilting each sample's ray about the point it would have hit at the
+	// focus plane: rays through one film position fan out, converge again at
+	// `focusDistance`, and blur either side of it. That is a telecentric lens,
+	// which is a real thing you can buy and a staple of product photography —
+	// it defocuses without the convergence that makes a perspective knob look
+	// wrong everywhere except where the camera was pointed.
+	//
+	// `aperture` is the radius of the fan in WORLD units, so it scales with the
+	// scene rather than with the film: 0.05 is a gentle fall-off on a
+	// one-unit subject, 0.2 is showy. `focusDistance` is measured from
+	// `position` along the view direction, so 0 focuses at the camera plane and
+	// the distance to `target` focuses on the subject.
+	//
+	// It costs nothing extra: the rays being fanned are the samples already
+	// being taken for antialiasing.
+	float aperture = 0.0f;
+	float focusDistance = 6.0f;
 };
 
 // How much of the renderer actually runs.
