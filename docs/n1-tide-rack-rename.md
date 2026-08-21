@@ -60,3 +60,90 @@ CMake target, a 4-char vendor code (`TideApp::getVendor4charCode()` returns
 `"TIDE"` — that one is a fixed-width field and must not grow) and a filename
 prefix; they do not all move together. **Depends on P5** or supersedes it — see
 that row.
+
+---
+
+## The costing this row asked for — measured 2026-08-21 (linux, scheduled run)
+
+The row above says *"probably wants splitting once someone costs it — the
+surfaces are not equally cheap."* Here is the count, and it changes the shape of
+the job: **the live surface is small, and most of what a grep finds must not be
+touched at all.**
+
+### Three buckets, counted
+
+| bucket | what it is | files | references |
+|---|---|---|---|
+| **A — live build, tooling, fixtures** | the actual rename; must all move in one commit | 11 | **21** |
+| **B — live reference docs** | instructions somebody follows today | 4 | ~28 |
+| **C — the historical record** | `JOURNAL*`, `BACKLOG-DONE.md`, `docs/lessons.md` | 4 | **220** |
+
+**Bucket C is the finding.** It is ten times bucket A, and **none of it may be
+rewritten**: this project's convention is that a superseded entry is preserved
+verbatim, and those files record measurements of a binary that really was called
+`TIDE_VST3.so` on the day they were taken. Renaming them would falsify the
+record. This is the concrete reason behind the row's *"do not start with a global
+search-and-replace"* — a global replace is not merely risky here, it is wrong on
+91% of its hits.
+
+Bucket A in full:
+
+```
+SynthEditSem/CMakeLists.txt              7     modules/common/CMakeLists.txt      1
+tools/sandbox_audit.py                   4     scripts/measure-chunk-robustness.py 1
+tests/s21_bundle_resources_probe.py      2     TideModules/build-prefabs.py       1
+tests/hosts/*.rpp  (five fixtures)       5
+```
+
+### Two unknowns the row flagged, now answered
+
+1. **`OUTPUT_NAME` alone is NOT enough**, exactly as the row suspected.
+   `gmpi_plugin.cmake:774` sets `MACOSX_BUNDLE_BUNDLE_NAME "${GMPI_PLUGIN_PROJECT_NAME}"`,
+   so the project name reaches the macOS bundle name directly. A rename must set
+   both, or the bundle and the file disagree.
+2. **No `OUTPUT_NAME` is set anywhere today** — artifacts are named straight off
+   the target names (`TIDE`, `TIDE_VST3`, `TIDE_STANDALONE`), which is why the
+   dashed shipped-file convention needs adding rather than editing.
+
+Two hazards the row raised turn out **not** to apply:
+
+- **`TIDE.xml` and `TIDE.rc` do not exist**, so `gmpi_plugin()`'s
+  `${PROJECT_NAME}.xml` / `.rc` paths are not in play.
+- **`build.yml` names no TIDE target or artifact** — only in comments — so the
+  rename needs no workflow change, and therefore no `workflow` token scope.
+
+### The prose half really is done — verified, not assumed
+
+`SynthEditSem/SynthEdit.cpp:396` already ships
+`name="TIDE Rack" vendor="TIDE Synth"`, and the host sees it: every fixture
+records the plugin as `"VST3i: TIDE Rack (TIDE Synth)"`. `getVendor4charCode()`
+still returns the fixed-width `"TIDE"`, which is correct and must not change.
+
+**So nothing user-visible is waiting on N1.** What remains is internal naming.
+
+### Why this cannot be finished on the linux box
+
+The five fixtures in [tests/hosts/](../tests/hosts/README.md) name the artifact
+by filename:
+
+```
+<VST "VST3i: TIDE Rack (TIDE Synth)" TIDE_VST3.vst3 0 "" 1386065673{...}
+```
+
+Renaming the artifact **invalidates all five**, and they are v0.1's acceptance
+evidence — the thing PLAN.md points at to say the product works. Re-verifying
+them needs `scripts/render-and-measure.py` **and REAPER**, which is not installed
+on the linux box. A run here could make the change and could not tell whether it
+had broken the proof.
+
+**That is the split:** the rename is one small coherent commit that must be made
+on a box that can re-run the harness.
+
+### The split
+
+- **N1a — the rename itself.** Bucket A, one commit, on a box with REAPER.
+  Accept: `render-and-measure.py` passes on all five fixtures against the renamed
+  artifact, and `--control` still detects audio.
+- **N1b — bucket B**, the live reference docs, once N1a has landed and the names
+  in them are true.
+- **Bucket C is explicitly out of scope, permanently.**

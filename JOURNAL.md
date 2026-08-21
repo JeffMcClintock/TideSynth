@@ -74,6 +74,127 @@ Template:
 
 ---
 
+## 2026-08-21 — linux — N1 costed: 91% of what a grep finds must not be touched
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Fourth item this run, at Jeff's direction** (*"take next task"*, three times).
+STEP 2's one-item rule is overridden by that each time.
+
+**Also at his direction: I merged [#262](https://github.com/JeffMcClintock/TideSynth/pull/262) myself** (*"then merge 262"*), which
+overrides STEP 5's *"Do NOT merge the PR"* for that one PR. Recording it plainly
+because that rule exists so Jeff reviews before anything lands, and him asking
+for the merge **is** that review — but a later run reading `git log` would
+otherwise see a bot-merged PR and have no way to tell which. All three platform
+builds were green on the head before the merge-of-main; `lint` and `guard` passed
+on the merged commit; the three matrix jobs were still re-running, and the PR
+contains no compiled code.
+
+**Did:** took **N1** and did the thing its own row asked for — *"probably wants
+splitting once someone costs it"* — rather than starting the rename. Costing it
+is what showed the rename must not happen on this box.
+
+### The count, and the finding is bucket C
+
+| bucket | what | files | refs |
+|---|---|---|---|
+| **A — live build, tooling, fixtures** | the actual rename, one commit | 11 | **21** |
+| **B — live reference docs** | instructions somebody follows today | 4 | ~28 |
+| **C — the historical record** | `JOURNAL*`, `BACKLOG-DONE.md`, `docs/lessons.md` | 4 | **220** |
+
+**Bucket C is ten times bucket A and none of it may be rewritten.** Those files
+record measurements of a binary that really was called `TIDE_VST3.so` on the day
+they were taken, and this project's convention is that superseded text is
+preserved verbatim. So the row's standing warning — *"do not start with a global
+search-and-replace"* — is stronger than it reads: **a global replace is not
+merely risky, it is wrong on 91% of its hits**, and it would falsify the record
+rather than just churn it.
+
+### Two flagged unknowns answered, two flagged hazards dismissed
+
+- **`OUTPUT_NAME` alone is not enough**, exactly as the row suspected.
+  `gmpi_plugin.cmake:774` sets `MACOSX_BUNDLE_BUNDLE_NAME "${GMPI_PLUGIN_PROJECT_NAME}"`,
+  so the project name reaches the macOS bundle name directly.
+- **No `OUTPUT_NAME` is set anywhere today** — artifacts are named straight off
+  the target names, so the dashed convention is an addition, not an edit.
+- **`TIDE.xml` / `TIDE.rc` do not exist**, so `gmpi_plugin()`'s
+  `${PROJECT_NAME}.xml` / `.rc` paths are not in play.
+- **`build.yml` names no TIDE target or artifact** — comments only. So the rename
+  needs no workflow change and no `workflow` token scope, which is the wall this
+  fleet keeps hitting and which does **not** apply here.
+
+### The prose half is done — verified rather than assumed
+
+`SynthEditSem/SynthEdit.cpp:396` ships `name="TIDE Rack" vendor="TIDE Synth"`,
+and the host sees it: every fixture records `"VST3i: TIDE Rack (TIDE Synth)"`.
+`getVendor4charCode()` still returns the fixed-width `"TIDE"`, correct and not to
+be changed. **Nothing user-visible is waiting on N1** — what remains is internal
+naming only, which is worth knowing before anyone prioritises it.
+
+### Why this box must not do the rename
+
+The five fixtures name the artifact by **filename**:
+
+```
+<VST "VST3i: TIDE Rack (TIDE Synth)" TIDE_VST3.vst3 0 "" 1386065673{...}
+```
+
+Renaming the artifact invalidates all five at once, and they are **v0.1's
+acceptance evidence** — the thing PLAN.md points at to say the product works.
+Re-verifying them needs `render-and-measure.py` and **REAPER**, which is not
+installed here. A run on this box could make the change and could not tell
+whether it had broken the proof.
+
+**Split accordingly:** **N1a** (bucket A, one commit, on a box with REAPER; N1
+becomes the umbrella) and **N1b** (bucket B, `BLOCKED(N1a)` — doing the docs
+first would make them lie). Bucket C is out of scope permanently. Full working
+in [docs/n1-tide-rack-rename.md](docs/n1-tide-rack-rename.md).
+
+**Also, bookkeeping:** **A12 → DONE** on its merged PR, and the NEXT linux cell
+re-pointed — it still told the next run to *"rebuild the 2026-08-20 tree and
+`addr2line 0x3b4627`"*, which this run proved impossible three hours ago.
+
+**Learned:**
+
+1. **Counting a rename by bucket, not by total, changes the decision.** "143
+   references" reads as a large scary job. "21 live, 220 that must not be
+   touched" is a small job with a trap beside it, and only the second framing
+   tells you what to do.
+2. **A grep total is not a work estimate when the repo keeps a historical
+   record.** Every append-only file inflates the count with hits that are
+   correct as they stand.
+3. **Ask which box can VERIFY a change before asking which box can make it.**
+   The rename is minutes of editing anywhere; it is only finishable where the
+   acceptance harness runs. That constraint lives in the fixtures, not in the
+   code being renamed.
+4. **A row that says "needs decisions rather than edits" is worth re-reading
+   after its blocker clears.** N1's decisions were all settled — the forms, the
+   repo name, the asset names. Only the *timing* was open, gated on C7, and C7
+   went DONE earlier in this same run.
+5. **When the developer overrides a standing rule, write down which rule and
+   which instance.** A bot-merged PR is indistinguishable from a bot that decided
+   to merge, and the difference is the whole point of the rule.
+
+**Next:**
+
+1. **N1a on a box with REAPER** (win or mac). Everything it needs is in its row;
+   nobody should have to re-derive the file list.
+2. **This platform's runtime work is blocked on one `apt install`** — S32 has no
+   workaround a run can apply, because `weston`, `cage`, `sway` and `Xvfb` are
+   all absent and `sudo` needs a password. Until then S23's targeted repro cannot
+   be run safely here.
+3. **S23** otherwise needs only that repro; the signature and two candidate sites
+   are already in the row.
+
+**Machine left clean.** TideSynth back on `main`, tree clean. Nothing was run
+against the desktop for this item — greps, CMake reading and counting only.
+`~/.config/TIDE Rack/` untouched. `~/SE/gmpi_ui/TEXT_LAYOUT_PLAN.md` remains
+dirty from 2026-08-19 and is Jeff's.
+
+**Branch/PR:** `tide/linux/N1-cost-and-split` — TideSynth only. No code change.
+
+---
+
 ## 2026-08-21 — linux — S23: what -8 means, measured — and the fleet has been bitten by this exact class before
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
