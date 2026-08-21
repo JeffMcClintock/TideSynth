@@ -39,6 +39,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**linux — S23 did not reproduce, but a mechanism explains why it never would**
+
+- A self-healing mechanism upstream of a bug will make that bug look intermittent, and a controlled-run count cannot see it.
+- `XDG_CONFIG_HOME` is honoured by the standalone
+- A branch's CI platform issue can be reporting `main`'s break.
+- A clean SIGTERM shutdown exits 0
+- `pkill -f <pattern>` matched my own shell and killed it (exit 144)
+- Report a crash with its control, not just its correlation.
+
 **macos — E11's hazard is unreachable, and the reason is a stub nobody had noticed**
 
 - A row that asks "is this ordering safe?" can be answered by showing the code never reaches the ordering at all.
@@ -98,133 +107,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - A reference count taken without word boundaries is an upper bound, not a work list.
 - "Same object count" needs the same instrument on both sides.
-
-**macos — #222: two of today's merges only ever built standalone, and SE16-hosted TIDE lost configure entirely**
-
-- "Verified on this box" quietly became "verified in the only mode this box builds".
-- The second break was hiding behind the first, again.
-
-**macos — A32: the umbrella advisory, and the measurement that was already done**
-
-- A row that carries its own false-positive measurement is a different kind of spec: the build step is obedience, not design.
-- "Advisory" needs the reason printed with it, or it decays into noise.
-
-**macos — A31: the granularity was the whole design, and three measurements chose it**
-
-- A check's granularity is not a style choice — each candidate tier had a measurable false-alarm rate (14, 0, 6) and only one was shippable.
-- The C15/C16 collision left a fingerprint neither filer intended: both rows cite the same `file:line` verbatim.
-- The check's first catch was its own author, in the same commit that adds it.
-
-**linux — S26: the se_sdk timers never fired, and Jeff's mouse was the instrument that found it**
-
-- "It redraws" and "it refreshes" are different systems with different drivers, and the user who owns the product knew to distinguish them.
-- A platform port is complete when every pump the reference app runs has an owner.
-- When two input paths disagree, say so and hand verification to the one that failed.
-
-**linux — insertion is arm-then-click, and I had blamed the wrong thing**
-
-- When an experiment has two readings and one of them blames my tools, that is the one to distrust.
-- Read the interaction's own header before guessing at it.
-- A feature with no feedback is indistinguishable from a broken one
-- `TIDE_STANDALONE` restores its last session
-- `pkill -f <name>` matches the shell running it.
-
-**linux — E14: TIDE's own two modules are in the product, and half of Accept is met**
-
-- Control the tool before blaming the subject.
-- A backlog row's warnings age with the tree, and three of E14's had.
-- A per-target compile option is the wrong tool when a requirement belongs to one file.
-
-**linux — S17: name the folder, not the decision**
-
-- A message that names a DECISION cannot catch a wrong RESOLUTION.
-- Check whether the bug you were sent to fix is present in the tree you are fixing.
-- `set(PARENT_SCOPE)` from a function called in a subdirectory reaches that subdirectory, not the top level.
-- Dependencies here come from three places, not two
-
-**linux — A30: the lessons digest, and why the literal spec would have backfired**
-
-- A spec that says "copy X into a file every run reads" is a size decision in disguise, and it should be measured before it is implemented.
-- A generated index that silently covers half its input looks exactly like one that covers all of it.
-- Sentence-splitting on "." is wrong in any corpus that names files.
-- This project's writing conventions are load-bearing infrastructure.
-
-**linux — S21 verified at runtime, and three things I got wrong**
-
-- Data from a deliberately broken environment must be labelled at the moment it is written down.
-- A claim used to justify NOT doing work deserves more scrutiny than one used to justify doing it, not less.
-- Report a crash with a rate, or don't report it as a consequence.
-- Export the identity in every shell that commits, not once per task.
-- `libpipewire-0.3-dev` is all that stands between this box and a working `TIDE_STANDALONE`
-
-**macos — U2 was finished four days ago, and it was the last mac row**
-
-- Third stale-status row today
-- Measuring a proposed lint against the live tree before writing it has now paid off four times today
-
-**macos — C15 was C16: two ids, one job, and a NEXT block pointing three runs at it**
-
-- The duplicate-work check that matters is not about ids.
-- Writing a rule down is not the same as being able to follow it.
-
-**linux — S21: the Linux bundle's resources were staged outside it**
-
-- `$<TARGET_FILE_DIR>` is not inside the bundle on Linux
-- A silent cross-repo disagreement needs a test written from ONE side.
-- CI would not have caught this and still will not.
-
-**linux — #190: the Linux CI package set, measured**
-
-- A fail-fast dependency probe costs one CI round trip per missing package, and the cheap fix is to walk the chain locally.
-- "CI is green" would not have caught S21.
-- The runner's package set is partly luck.
-- `PKG_CONFIG_LIBDIR` pointed at a pruned copy of the system `.pc` files is an accurate, seconds-long stand-in for a differently-provisioned machine, and it isolates the variable better than a container would have
-
-**macos — C7e: the clean clone builds; the CI clause is one apt-get away**
-
-- "CI is green" and "a stranger can build it" are different claims, and C7e asks for the first while carve-out.md calls the second the real proof.
-- A fail-fast probe reports one missing dependency and hides the rest.
-
-**macos — C7d: TideSynth builds on its own**
-
-- A subproject you do not use can still block configure.
-- Copying a fiddly block verbatim beats improving it.
-
-**macos — C16: the last private include was three dead symbols**
-
-- A deletion is a legitimate answer to "narrow this to an interface", and it is cheaper to check for than to build toward.
-- Stale comments do not just mislead about behaviour — they set the expected SIZE of the work.
-
-**macos — C7b: TIDE's own source leaves the private repo**
-
-- Moving two folders together is cheaper than moving one.
-- A "same object count" acceptance clause is worth more than it looks.
-
-**macos — A24: the journal floor is one DATE, because seven days measures 651 KB**
-
-- Measure the remedy, not just the problem.
-- A24 nearly cited a taken ID.
-
-**macos — A23: duplicate-ID detection, and the three false alarms that shaped the rule**
-
-- Run a new lint against real history before believing it.
-- Two properties that look like one.
-
-**macos — A22: the row names the branch, not the PR; and SynthEdit's CI never runs on push**
-
-- A rule that cannot be obeyed in one step will be obeyed in two, and the second step is where the damage is.
-- "CI is green" means nothing until you know what triggers CI.
-
-**macos — the mac test drift is FMA contraction, and my own diagnosis was wrong first**
-
-- A hypothesis that explains the summary statistic is not a diagnosis.
-- Eliminating the obvious suspect is worth more than confirming it.
-- `-ffp-contract` is invisible in a fast-math discussion.
-
-**macos — C7c answered by removal, and the two questions that answer creates**
-
-- "Remove the feature" can be the right answer to a licensing-boundary question, and it is not one an agent would have proposed.
-- A one-line product decision can have load-bearing code underneath it.
 
 ## 2026-08-18
 
@@ -1255,3 +1137,130 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Do not build in the session scratchpad on Windows.
 - The mac run's "C14 and C10 are `SynthEditLib`, rejected as GATED" reads the gate too widely.
 - `origin/main` moved three times while this run built.
+
+**macos — C7c answered by removal, and the two questions that answer creates**
+
+- "Remove the feature" can be the right answer to a licensing-boundary question, and it is not one an agent would have proposed.
+- A one-line product decision can have load-bearing code underneath it.
+
+**macos — the mac test drift is FMA contraction, and my own diagnosis was wrong first**
+
+- A hypothesis that explains the summary statistic is not a diagnosis.
+- Eliminating the obvious suspect is worth more than confirming it.
+- `-ffp-contract` is invisible in a fast-math discussion.
+
+**macos — A22: the row names the branch, not the PR; and SynthEdit's CI never runs on push**
+
+- A rule that cannot be obeyed in one step will be obeyed in two, and the second step is where the damage is.
+- "CI is green" means nothing until you know what triggers CI.
+
+**macos — A23: duplicate-ID detection, and the three false alarms that shaped the rule**
+
+- Run a new lint against real history before believing it.
+- Two properties that look like one.
+
+**macos — A24: the journal floor is one DATE, because seven days measures 651 KB**
+
+- Measure the remedy, not just the problem.
+- A24 nearly cited a taken ID.
+
+**macos — C7b: TIDE's own source leaves the private repo**
+
+- Moving two folders together is cheaper than moving one.
+- A "same object count" acceptance clause is worth more than it looks.
+
+**macos — C16: the last private include was three dead symbols**
+
+- A deletion is a legitimate answer to "narrow this to an interface", and it is cheaper to check for than to build toward.
+- Stale comments do not just mislead about behaviour — they set the expected SIZE of the work.
+
+**macos — C7d: TideSynth builds on its own**
+
+- A subproject you do not use can still block configure.
+- Copying a fiddly block verbatim beats improving it.
+
+**macos — C7e: the clean clone builds; the CI clause is one apt-get away**
+
+- "CI is green" and "a stranger can build it" are different claims, and C7e asks for the first while carve-out.md calls the second the real proof.
+- A fail-fast probe reports one missing dependency and hides the rest.
+
+**linux — #190: the Linux CI package set, measured**
+
+- A fail-fast dependency probe costs one CI round trip per missing package, and the cheap fix is to walk the chain locally.
+- "CI is green" would not have caught S21.
+- The runner's package set is partly luck.
+- `PKG_CONFIG_LIBDIR` pointed at a pruned copy of the system `.pc` files is an accurate, seconds-long stand-in for a differently-provisioned machine, and it isolates the variable better than a container would have
+
+**linux — S21: the Linux bundle's resources were staged outside it**
+
+- `$<TARGET_FILE_DIR>` is not inside the bundle on Linux
+- A silent cross-repo disagreement needs a test written from ONE side.
+- CI would not have caught this and still will not.
+
+**macos — C15 was C16: two ids, one job, and a NEXT block pointing three runs at it**
+
+- The duplicate-work check that matters is not about ids.
+- Writing a rule down is not the same as being able to follow it.
+
+**macos — U2 was finished four days ago, and it was the last mac row**
+
+- Third stale-status row today
+- Measuring a proposed lint against the live tree before writing it has now paid off four times today
+
+**linux — S21 verified at runtime, and three things I got wrong**
+
+- Data from a deliberately broken environment must be labelled at the moment it is written down.
+- A claim used to justify NOT doing work deserves more scrutiny than one used to justify doing it, not less.
+- Report a crash with a rate, or don't report it as a consequence.
+- Export the identity in every shell that commits, not once per task.
+- `libpipewire-0.3-dev` is all that stands between this box and a working `TIDE_STANDALONE`
+
+**linux — A30: the lessons digest, and why the literal spec would have backfired**
+
+- A spec that says "copy X into a file every run reads" is a size decision in disguise, and it should be measured before it is implemented.
+- A generated index that silently covers half its input looks exactly like one that covers all of it.
+- Sentence-splitting on "." is wrong in any corpus that names files.
+- This project's writing conventions are load-bearing infrastructure.
+
+**linux — S17: name the folder, not the decision**
+
+- A message that names a DECISION cannot catch a wrong RESOLUTION.
+- Check whether the bug you were sent to fix is present in the tree you are fixing.
+- `set(PARENT_SCOPE)` from a function called in a subdirectory reaches that subdirectory, not the top level.
+- Dependencies here come from three places, not two
+
+**linux — E14: TIDE's own two modules are in the product, and half of Accept is met**
+
+- Control the tool before blaming the subject.
+- A backlog row's warnings age with the tree, and three of E14's had.
+- A per-target compile option is the wrong tool when a requirement belongs to one file.
+- `pkill -f <name>` matches the shell running it
+
+**linux — insertion is arm-then-click, and I had blamed the wrong thing**
+
+- When an experiment has two readings and one of them blames my tools, that is the one to distrust.
+- Read the interaction's own header before guessing at it.
+- A feature with no feedback is indistinguishable from a broken one
+- `TIDE_STANDALONE` restores its last session
+
+**linux — S26: the se_sdk timers never fired, and Jeff's mouse was the instrument that found it**
+
+- "It redraws" and "it refreshes" are different systems with different drivers, and the user who owns the product knew to distinguish them.
+- A platform port is complete when every pump the reference app runs has an owner.
+- When two input paths disagree, say so and hand verification to the one that failed.
+
+**macos — A31: the granularity was the whole design, and three measurements chose it**
+
+- A check's granularity is not a style choice — each candidate tier had a measurable false-alarm rate (14, 0, 6) and only one was shippable.
+- The C15/C16 collision left a fingerprint neither filer intended: both rows cite the same `file:line` verbatim.
+- The check's first catch was its own author, in the same commit that adds it.
+
+**macos — A32: the umbrella advisory, and the measurement that was already done**
+
+- A row that carries its own false-positive measurement is a different kind of spec: the build step is obedience, not design.
+- "Advisory" needs the reason printed with it, or it decays into noise.
+
+**macos — #222: two of today's merges only ever built standalone, and SE16-hosted TIDE lost configure entirely**
+
+- "Verified on this box" quietly became "verified in the only mode this box builds".
+- The second break was hiding behind the first, again.
