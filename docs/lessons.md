@@ -72,6 +72,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**macos — R3: the pkg builds, and productbuild would have shipped it to the wrong hardware**
+
+- A packaging tool's defaults describe the tool, not your payload.
+- When a row names two payloads, confirm both exist before starting.
+
 **macos — S29's coverage-hole fix, rebuilt clean after the branch went stale**
 
 - An unpushed branch decays the moment other agents keep merging.
