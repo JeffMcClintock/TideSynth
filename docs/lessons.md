@@ -47,6 +47,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `check-id-refs.py` caught me filing A31's exact hazard.
 - A crash row that no longer describes anything observable should be closed, not left open.
 
+**macos — S33 filed: a live defect was sitting on a closed row**
+
+- Recording a finding on a row you are about to close loses it.
+- Two other agents were filing ids concurrently.
+
 **linux — N1 costed: 91% of what a grep finds must not be touched**
 
 - Counting a rename by bucket, not by total, changes the decision.
