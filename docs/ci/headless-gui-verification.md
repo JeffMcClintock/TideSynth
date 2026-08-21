@@ -40,12 +40,32 @@ XDG_CONFIG_HOME=<scratch> \
   ./TIDE-Rack
 ```
 
-Stop it by pid when you are done — **never `pkill -f`**, which matches the shell
-running it (BACKLOG **S31**, hit three times):
+Stop it with the helper, which cannot kill the shell that runs it:
+
+```bash
+scripts/kill-named.sh TIDE-Rack
+scripts/kill-named.sh weston
+```
+
+**Why not `pkill -f`** (BACKLOG **S31**, hit three times): `-f` matches the full
+command line, and the shell running the command has the pattern in *its* command
+line, so it matches itself and dies — exit 144.
+
+**This is a Linux-only trap, which is why it kept surprising people.** Measured
+2026-08-22: BSD `pkill` (macOS) excludes the calling process *and all of its
+ancestors* by default — `man pkill`, the `-a` flag — so on a Mac the same
+command is already safe and the bug is invisible. GNU procps (Linux) excludes
+only the calling process itself. A mac box cannot reproduce this no matter how
+carefully it tries, so "it worked when I tested it" was true and useless.
+
+`scripts/kill-named.sh` walks the ancestor chain itself and spares it explicitly,
+so it behaves the same on both. The manual form still works if you prefer it —
+note it matches the process *name*, not the command line, which is what makes it
+safe:
 
 ```bash
 for p in $(pgrep -x TIDE-Rack); do kill "$p"; done
-for p in $(pgrep -x weston);         do kill "$p"; done
+for p in $(pgrep -x weston);    do kill "$p"; done
 ```
 
 ## What you keep, and what you give up

@@ -109,6 +109,104 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — S31: the trap only exists on Linux, and that is why writing it down four times did not work
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** took **S31** — `pkill -f <pattern>` killing the shell that runs it —
+and shipped `scripts/kill-named.sh` with a 7-case suite. The useful finding is
+not the script. It is *why* the lesson had failed to stick through two journals,
+one doc and three repeats.
+
+### The negative control refused to reproduce
+
+First move was to reproduce the bug, since a fix for a bug you have not seen is
+a guess. Backgrounded a probe, then ran `pkill -f $PAT` from a shell whose own
+command line contained `$PAT` — the exact shape of all three recorded hits.
+
+The shell survived. Exit 0.
+
+That is either a broken test or a wrong premise, and the way to tell is to ask
+whether the signal was even sent. Trapping `TERM` in the calling shell answers
+it:
+
+```
+  trap TERM; kill -TERM $$      -> ">>> got TERM", rc=143     (it CAN die)
+  trap TERM; pkill -f $PAT      -> ">>> finished normally"    (nothing arrived)
+```
+
+Not ignored — **never delivered**. Then `man pkill`:
+
+> **-a** Include process ancestors in the match list. By default, the current
+> pgrep or pkill process **and all of its ancestors are excluded**.
+
+**BSD `pkill` excludes ancestors by default. GNU procps excludes only itself.**
+So the trap is Linux-only. All three recorded hits were on the linux box. A mac
+or windows run cannot reproduce it however carefully it tries — *"it worked when
+I tested it"* was true, and useless.
+
+That is the actual reason four retellings failed: two of the three boxes reading
+the lesson could never see the behaviour it described.
+
+### The platform split forced the test design
+
+If cases only check behaviour — *does it kill the target, does the shell live* —
+then on macOS **they pass whether or not the filter works**, because the OS is
+already doing the filtering. I did not reason my way to that; I broke the
+ancestor walk on purpose (`p=1` before the loop, which is precisely the Linux
+bug) and re-ran:
+
+```
+  PASS  kills the named process
+  PASS  the calling shell survives (rc=0)      <- the bug is LIVE and invisible
+  FAIL  ancestor list contains the calling shell
+  FAIL  ancestor list contains the grandparent
+```
+
+So the suite asserts the ancestor list **directly**, through a
+`--print-ancestors` mode, instead of inferring it from behaviour the OS would
+mask. Second control, `is_ancestor` forced true: case 1 fails — it spares
+everything and kills nothing. Both breaks are caught; the restored script is 7/7.
+
+### What I did not verify
+
+**The suite has never run on Linux or Windows** — which is where the bug lives.
+It is POSIX `sh` with a `ps`-based ancestor walk and no `/proc` dependency, but
+that is an argument, not a measurement. One `sh tests/s31_kill_named_test.sh` on
+the linux box closes the row.
+
+**Learned:**
+
+- **When a negative control refuses to reproduce a documented bug, that is a
+  result, not a broken harness.** Chasing "why didn't it fire" turned a
+  three-line script into the actual explanation for why the lesson never stuck.
+- **`pkill -f` self-kill is a Linux-only trap.** BSD (macOS) excludes the caller
+  and all ancestors by default; GNU procps excludes only the caller. Check
+  `man pkill` for `-a` before assuming a `pkill` behaviour is portable.
+- **A lesson that two of three boxes cannot reproduce will not stick by being
+  written down again.** The fix is a mechanism that behaves identically
+  everywhere, or the platform caveat stated up front so the boxes that cannot
+  see it know they are not the audience.
+- **Test what the OS might be doing for you, directly.** If a platform makes
+  your safeguard redundant, your behavioural tests pass with the safeguard
+  removed — so they are not testing it. Assert the internal state instead, and
+  prove it by breaking the code and watching the right case fail.
+- **Ask whether the signal was delivered, not whether the process died.**
+  Trapping the signal separates "not sent" from "sent and ignored", which are
+  different bugs with different fixes.
+- **Silence expected noise in test output.** Every passing case printed
+  `Terminated: 15` from job control; starting probes in a detached subshell
+  removes it. Output that always appears is output nobody reads, so a real
+  failure hides in it.
+
+**Next:** **the linux box should run `sh tests/s31_kill_named_test.sh` once** —
+that is the only outstanding evidence, and it is the platform the bug is real on.
+Nothing else blocks the row.
+
+**Branch/PR:** `tide/mac/S31-kill-by-pid` — TideSynth.
+
+---
+
 ## 2026-08-22 — linux — #271: fixing the bundle name alone would have emptied the bundle
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
