@@ -1041,9 +1041,10 @@ enum class Quality : uint8_t
 	// RenderMode::Fast: geometry only, milliseconds. The interactive preview.
 	Draft,
 
-	// The product's working quality — the faceplate you normally see. Same
-	// budget the shipped panels have always used (128 paths tapering with
-	// area, 8 bounces).
+	// The product's working quality — the faceplate you normally see. 128
+	// paths tapering with area, and 12 bounces: the panels shipped with 8,
+	// which measured as a 1.37% energy loss on transmissive geometry for no
+	// saving at all, since roulette was already ending dim paths first.
 	Standard,
 
 	// The product's "this bitmap is worth staring at" quality: 4x the paths,
