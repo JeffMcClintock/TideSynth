@@ -200,6 +200,21 @@ tide_render_preview glass --size 1600 --quality ultra --png16 --out hero.png
 
 Scenes: `knob`, `materials`, `shapes`, `glass`, `glow`.
 
+## Tests
+
+`ctest` runs two suites, and they catch different things.
+
+`render_unit` is the **numeric** half: four properties the header claims in
+words, checked as numbers — progressive batches compose exactly, bloom carries
+its own alpha, the quality rungs are ordered, Fast and Full agree on coverage.
+Fourteen checks, no reference data.
+
+It earns its place because those failures are *invisible to the image test*.
+Anchoring the stratification grid to the batch size instead of the planned
+total, for example, leaves every single-call render untouched and silently
+breaks every progressive consumer — tried as a negative control, and
+`render_regression` passed while `render_unit` failed by 6400x its tolerance.
+
 ## Regression test
 
 `ctest -R render_regression` renders every demo scene at 160px in **both**

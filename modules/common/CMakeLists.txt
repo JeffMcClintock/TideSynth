@@ -119,4 +119,25 @@ if(TIDE_RENDER_PREVIEW)
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/references"
             "${CMAKE_CURRENT_BINARY_DIR}"
     )
+
+    # --- numeric unit test ---------------------------------------------------
+    #
+    # The other half of the suite. The image test above pins how things LOOK;
+    # this pins the properties no picture can show — that progressive batches
+    # compose exactly, that bloom carries its own alpha, that the quality rungs
+    # are ordered, that Fast and Full agree on coverage. Each of those would
+    # break with every reference image still matching.
+    #
+    # It needs no reference data and no PNG code, so unlike the image test it
+    # does not depend on the preview tool's option — but it does share the demo
+    # scenes, which is why it lives inside the same guard for now.
+    add_executable(tide_render_unit
+        tests/RenderUnit.cpp
+        DemoScenes.h
+    )
+    target_link_libraries(tide_render_unit PRIVATE tide_render)
+    tide_render_strict_fp(tide_render_unit)
+    set_target_properties(tide_render_unit PROPERTIES FOLDER "tests")
+
+    add_test(NAME render_unit COMMAND tide_render_unit)
 endif()
