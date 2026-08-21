@@ -1453,6 +1453,176 @@ float misWeight(float pdfA, float pdfB)
 }
 
 // ---------------------------------------------------------------------------
+// Procedural imperfection
+//
+// See Imperfection in the header for why this exists. The short version: a
+// surface with one roughness everywhere reads as CG no matter how correct the
+// light transport is.
+// ---------------------------------------------------------------------------
+
+// Integer hash, deliberately NOT the usual sin(dot(p, k)) * 43758.5453 trick.
+// That idiom is a portability trap here: its result depends on the platform's
+// sin implementation and on whether the compiler contracts the dot product, so
+// the committed reference images would stop being reproducible across
+// toolchains — the exact property this renderer spends a CMake function
+// defending. Integer arithmetic is bit-identical everywhere.
+//
+// The mixer is Chris Wellons' `lowbias32`, found by a search over multiply-xorshift
+// triples for minimum avalanche bias; it is public-domain and small enough to
+// verify by reading.
+uint32_t hashMix(uint32_t x)
+{
+	x ^= x >> 16;
+	x *= 0x7feb352du;
+	x ^= x >> 15;
+	x *= 0x846ca68bu;
+	x ^= x >> 16;
+	return x;
+}
+
+// A deterministic value in [0,1) for an integer lattice point.
+float latticeValue(int ix, int iy, int iz)
+{
+	uint32_t h = hashMix((uint32_t)(ix * 73856093) ^ (uint32_t)(iy * 19349663)
+		^ (uint32_t)(iz * 83492791));
+	h = hashMix(h);
+	return (float)(h >> 8) * (1.0f / 16777216.0f);
+}
+
+// Trilinear value noise with a smoothstep fade.
+//
+// VALUE noise rather than gradient (Perlin) noise: gradient noise is smoother
+// and better for organic shapes, and this wants neither. Surface wear is
+// blotchy, and value noise is a third of the code with no visible penalty at
+// the frequencies used here.
+float valueNoise(const Vec3& p)
+{
+	const float fx = std::floor(p.x), fy = std::floor(p.y), fz = std::floor(p.z);
+	const int ix = (int)fx, iy = (int)fy, iz = (int)fz;
+
+	const float tx = p.x - fx, ty = p.y - fy, tz = p.z - fz;
+
+	// Smoothstep, so the lattice does not show as a grid of creases.
+	const float ux = tx * tx * (3.0f - 2.0f * tx);
+	const float uy = ty * ty * (3.0f - 2.0f * ty);
+	const float uz = tz * tz * (3.0f - 2.0f * tz);
+
+	const auto mix = [](float a, float b, float t) { return a + (b - a) * t; };
+
+	const float x00 = mix(latticeValue(ix, iy, iz), latticeValue(ix + 1, iy, iz), ux);
+	const float x10 = mix(latticeValue(ix, iy + 1, iz), latticeValue(ix + 1, iy + 1, iz), ux);
+	const float x01 = mix(latticeValue(ix, iy, iz + 1), latticeValue(ix + 1, iy, iz + 1), ux);
+	const float x11 = mix(latticeValue(ix, iy + 1, iz + 1), latticeValue(ix + 1, iy + 1, iz + 1), ux);
+
+	return mix(mix(x00, x10, uy), mix(x01, x11, uy), uz);
+}
+
+// Fractal sum. Returns roughly [0,1), centred near 0.5.
+float fbm(const Vec3& p, int octaves)
+{
+	float sum = 0.0f;
+	float amplitude = 0.5f;
+	float total = 0.0f;
+	Vec3 q = p;
+
+	for (int i = 0; i < octaves; ++i)
+	{
+		sum += amplitude * valueNoise(q);
+		total += amplitude;
+		amplitude *= 0.5f;
+		q = q * 2.03f; // not exactly 2, so octaves do not align their lattices
+	}
+
+	return (total > 0.0f) ? (sum / total) : 0.5f;
+}
+
+// The direction surface features run along: the brush direction where there is
+// one, an arbitrary stable tangent otherwise. Shared with shadingFrame below so
+// the scratches cannot end up running across the grain they are meant to follow.
+Vec3 preferredTangent(const Material& m, const Vec3& normal, const Vec3& position)
+{
+	switch (m.brush)
+	{
+	case BrushMode::Fixed:
+		return m.brushAxis;
+
+	case BrushMode::Concentric:
+	case BrushMode::Radial:
+	{
+		const Vec3 radial = position - m.brushOrigin;
+		const Vec3 axis = normalize(m.brushAxis);
+		return (m.brush == BrushMode::Concentric)
+			? cross(axis, radial)
+			: radial - axis * dot(radial, axis);
+	}
+
+	default:
+		return makeFrame(normal).x;
+	}
+}
+
+// Perturbs `roughness` and `normal` in place. Both effects come from the same
+// noise field, one octave apart, so a scuffed patch is also a rougher patch —
+// which is what wear actually does to a surface.
+void applyImperfection(const Material& m, const Vec3& position, Vec3& normal, float& roughness)
+{
+	const Imperfection& imp = m.imperfection;
+	if (imp.roughness <= 0.0f && imp.scratch <= 0.0f)
+		return;
+
+	const int octaves = std::clamp(imp.octaves, 1, 6);
+	const float frequency = maxf(imp.frequency, 1.0e-3f);
+
+	// Build a frame whose X runs along the grain, then SQUASH the sampling
+	// position across it. Squashing the domain across the grain is what
+	// stretches the features along it — the noise is isotropic; the anisotropy
+	// is entirely in how it is sampled.
+	const Frame grain = makeFrameWithTangent(normal, preferredTangent(m, normal, position));
+	const float streak = maxf(imp.streak, 1.0f);
+
+	const Vec3 local{
+		dot(position, grain.x) / streak,
+		dot(position, grain.y),
+		dot(position, grain.z),
+	};
+	const Vec3 sample = local * frequency;
+
+	if (imp.roughness > 0.0f)
+	{
+		// Centred on 1 so the material's nominal roughness stays its average
+		// rather than becoming its floor.
+		const float wander = (fbm(sample, octaves) - 0.5f) * 2.0f;
+		roughness = maxf(roughness * (1.0f + imp.roughness * wander), 1.0e-3f);
+	}
+
+	if (imp.scratch > 0.0f)
+	{
+		// Central differences on the noise give a gradient; tilting the normal
+		// along it is the standard bump-mapping move. Sampled at twice the
+		// frequency, so the scratches are finer than the roughness blotching
+		// they sit inside.
+		const Vec3 fine = sample * 2.0f;
+		const float h = 0.5f;
+		const float gx = fbm(fine + Vec3{ h, 0.0f, 0.0f }, octaves)
+			- fbm(fine - Vec3{ h, 0.0f, 0.0f }, octaves);
+		const float gy = fbm(fine + Vec3{ 0.0f, h, 0.0f }, octaves)
+			- fbm(fine - Vec3{ 0.0f, h, 0.0f }, octaves);
+
+		// Clamped hard. A shading normal that departs too far from the
+		// geometric one gets its path dropped by the wo.z test in the
+		// integrator, which shows up as black speckle rather than as scratches.
+		const float amount = clampf(imp.scratch, 0.0f, 1.0f) * 0.25f;
+		const Vec3 tilted = normal
+			+ grain.x * (gx * amount)
+			+ grain.y * (gy * amount);
+
+		const Vec3 renormalised = normalize(tilted);
+		if (dot(renormalised, normal) > 0.2f)
+			normal = renormalised;
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Material dispatch
 // ---------------------------------------------------------------------------
 
@@ -1478,7 +1648,7 @@ Frame shadingFrame(const Material& m, const Vec3& normal, const Vec3& position,
 	switch (m.brush)
 	{
 	case BrushMode::Fixed:
-		return makeFrameWithTangent(normal, m.brushAxis);
+		return makeFrameWithTangent(normal, preferredTangent(m, normal, position));
 
 	case BrushMode::Concentric:
 	case BrushMode::Radial:
@@ -1487,12 +1657,11 @@ Frame shadingFrame(const Material& m, const Vec3& normal, const Vec3& position,
 		const Vec3 axis = normalize(m.brushAxis);
 
 		const float radialLenSq = dot(radial, radial);
-		const Vec3 around = cross(axis, radial);
 
 		// |axis x radial| / |radial| = sin(angle between them): 0 on the axis,
 		// 1 on the equator. Fully anisotropic above 0.15, matte at the centre.
 		const float sinAngle = (radialLenSq > 1.0e-12f)
-			? length(around) / std::sqrt(radialLenSq) : 0.0f;
+			? length(cross(axis, radial)) / std::sqrt(radialLenSq) : 0.0f;
 		const float t = clampf(sinAngle / 0.15f, 0.0f, 1.0f);
 		anisoScale = t * t * (3.0f - 2.0f * t);
 
@@ -1501,11 +1670,9 @@ Frame shadingFrame(const Material& m, const Vec3& normal, const Vec3& position,
 
 		// Concentric: the tangent runs AROUND the axis — the way the tool
 		// travelled on a lathe, so the highlight forms a ring. Radial: along
-		// the spoke instead, a sunburst finish.
-		const Vec3 preferred = (m.brush == BrushMode::Concentric)
-			? around
-			: radial - axis * dot(radial, axis);
-		return makeFrameWithTangent(normal, preferred);
+		// the spoke instead, a sunburst finish. Shared with the imperfection
+		// field so scratches follow the same grain.
+		return makeFrameWithTangent(normal, preferredTangent(m, normal, position));
 	}
 
 	default:
@@ -1677,13 +1844,20 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 		const Material& m = *hit.material;
 
 		// --- build the local frame -----------------------------------------
+		//
+		// Imperfection is applied FIRST, because it moves the shading normal
+		// and the frame has to be built around where the normal ended up.
+		Vec3 shadingNormal = hit.normal;
+		float roughness = m.roughness;
+		applyImperfection(m, hit.position, shadingNormal, roughness);
+
 		float anisoScale = 1.0f;
-		const Frame frame = shadingFrame(m, hit.normal, hit.position, anisoScale);
+		const Frame frame = shadingFrame(m, shadingNormal, hit.position, anisoScale);
 		const Vec3 wo = frame.toLocal(-direction);
 		if (wo.z <= 0.0f)
 			break; // shading normal disagrees with the geometry; drop the path
 
-		const Ggx ggx = makeGgx(m.roughness, m.anisotropy * anisoScale);
+		const Ggx ggx = makeGgx(roughness, m.anisotropy * anisoScale);
 		const ConductorIor& ior = derived[hit.objectIndex].ior;
 
 		// Whether next-event estimation runs at THIS vertex. Computed once and
@@ -1707,7 +1881,10 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 					const BsdfEval e = evalBsdf(m, ggx, ior, wo, wi);
 					if (e.pdf > 0.0f && !e.value.isBlack())
 					{
-						const Vec3 shadowOrigin = hit.position + hit.normal * kRayOffset;
+						// hit.normal, not the bumped shading normal: the offset
+					// exists to clear the actual surface, and a tilted normal
+					// would push the origin along the surface instead of off it.
+					const Vec3 shadowOrigin = hit.position + hit.normal * kRayOffset;
 						bool visible = false;
 
 						if (emitter.objectIndex >= 0)

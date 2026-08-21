@@ -166,7 +166,12 @@ inline Scene makeShapesScene(Camera& camera)
 
 	const Cell cells[] = {
 		{ Shape::Knurled,    recipes::brushedAluminium() },
-		{ Shape::ChamferBox, recipes::anodisedBlack() },
+		// WORN, because a dark anodised finish is where surface imperfection
+		// shows most and where its absence is most obvious — an even black
+		// face is the most synthetic-looking thing this renderer can produce.
+		// It is also the pin: nothing else in the suite exercises the
+		// imperfection field, which is off by default everywhere.
+		{ Shape::ChamferBox, recipes::worn(recipes::anodisedBlack(), 0.45f) },
 		{ Shape::Torus,      recipes::gold() },
 		{ Shape::Sphere,     recipes::copper() },
 		{ Shape::RoundBox,   recipes::glossyPlastic({ 0.10f, 0.28f, 0.62f }) },
@@ -199,8 +204,14 @@ inline Scene makeShapesScene(Camera& camera)
 		// (world Z through the origin) put the lathe somewhere left of the
 		// table: the grain came out running along the knob's axis, brushing it
 		// like a broom instead of turning it.
+		//
+		// Lightly worn as well: a knob is the one part on a panel that gets
+		// touched, so a pristine one is the least plausible object in the
+		// scene. Gentler than the anodised box's 0.45 — aluminium wears by
+		// polishing rather than by scuffing.
 		if (cell.shape == Shape::Knurled)
-			o.material = recipes::brushedAluminium(Vec3{ 0.0f, 1.0f, 0.0f }, centre);
+			o.material = recipes::worn(
+				recipes::brushedAluminium(Vec3{ 0.0f, 1.0f, 0.0f }, centre), 0.25f);
 
 		const Shape shape = cell.shape;
 		o.distance = [centre, shape](const Vec3& world)
