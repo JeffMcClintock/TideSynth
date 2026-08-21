@@ -67,7 +67,42 @@ Template:
 
 **Did:** what actually changed.
 **Result:** built / tested / failed, with the real output.
+### Correction: Ardour IS a host here, and it settles the question
+
+**Jeff asked "don't we have Ardour host?" — yes, and that makes three separate
+claims of mine wrong.** I wrote in the row, both PR bodies and the issue that
+closing this needed REAPER on a win/mac box. **Ardour 8.4 is installed on this
+box**, `ardour-vst3-scanner` answers precisely this question, and **my own memory
+note from 2026-08-19 records using it**, including the
+`LD_LIBRARY_PATH=/usr/lib/ardour8` quirk it needs.
+
+```
+BROKEN (main):  VST3 not a valid bundle:
+                  '.../TIDE_Rack_VST3.vst3/Contents/x86_64-linux/TIDE_Rack_VST3.so'
+FIXED  (both):  [Info]: Found Plugin: TIDE Rack
+                  uid=506C7567696E474D504920501951ED43 category="Instrument|Synth"
+                  n_outputs=2 n_midi_inputs=1
+```
+
+Ardour derives the payload name from the bundle name — exactly the rule GMPI's
+own comment states — so **the Linux VST3 is unloadable today, not merely oddly
+named**, and the fix is host-verified on the platform that has the bug. The
+scanned UID also matches the one in all five `.rpp` fixtures.
+
+**The lesson is not "use Ardour".** It is that I asserted an environment limit
+three times without testing it, while holding a note that contradicted it.
+"Not verifiable here" is a claim about the machine, and it deserves one command
+before it goes into a row, two PR bodies and an issue.
+
+Ardour's cache entry from the scan pointed into a scratch tree and was removed;
+Jeff's other nine cached plugins were left alone.
+
+
 **Learned:** anything the next run would otherwise rediscover the hard way.
+
+0. **"Not verifiable on this box" is a measurable claim, and I shipped it three
+   times unmeasured.** Ardour was installed the whole time and my own memory note
+   named the command. Check the machine before writing a limit into a row.
 **Next:** what should happen next, and why.
 **Branch/PR:** link.
 ```
