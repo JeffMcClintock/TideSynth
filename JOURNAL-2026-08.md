@@ -17628,3 +17628,82 @@ guessed at from here.
 
 ---
 
+## 2026-08-20 — macos — S25 does not reproduce on mac, and the negative result is the deliverable
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · seventh item
+
+**Did:** ran S25's own comparison on this box and returned the row to TODO
+with the platform scoped: **insert ≡ restore on mac**.
+
+Same protocol as the linux finding (fresh isolated HOME so the rack is
+genuinely empty — the session-restore trap is real on mac too, at
+`Library/Application Support/TIDE Rack/session.xml`, not `.config`): the
+Oscillator prefab click-placed from the browser renders as its two bare
+jacks with correct glyphs — no tofu, no grey panel — and the same instance
+restored after kill/relaunch renders identically. Screenshots committed
+beside the row.
+
+**What the negative result eliminates:** any platform-independent divergence
+between the freshly-inserted and restored paths. The E2a `PanelWndPosition`
+suspect behaves the same in both (the 20×66 child-union size is the
+documented measure mechanic, not a divergence). **What survives:** linux
+font/resource binding — tofu is missing glyphs, and the linux fresh-insert
+path failing to bind what its restore path binds fits everything measured.
+That diagnosis needs the linux box; this one cannot observe the path.
+
+**Learned:**
+
+1. **A cross-platform row can be closed on one platform and open on another,
+   and saying which is the whole value of a cheap reproduction.** Twenty
+   minutes here spared the linux box the half of the suspect list that
+   platform-independence just killed.
+
+**Next:**
+
+1. **linux box:** diff the font/resource binding between the two paths (the
+   S21 probe discipline — write it from the reader's side).
+2. Jeff's "nothing at all on insert" remains its own unreproduced report.
+
+**Branch/PR:** `tide/mac/S25-fresh-insert-tofu` — TideSynth only, row + evidence.
+
+---
+
+## 2026-08-20 — macos — E6's honest tell: renders that ignored your state now say so
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · eighth item
+
+**Did:** the wrappers-side arm of E6 — `render-audio`'s result JSON now
+carries `parametersUnprimed`, the count of non-scalar parameters the prime
+loop skipped. One counter, one field
+([GMPI_Wrappers#9](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/9)).
+
+**Verified live**, TIDE built with the branch as its wrappers override:
+`{peak: 0, parametersPrimed: 0, parametersUnprimed: 2, silent: true}` — the
+before-state is the row's own 2026-08-18 finding (no such field, `peak: 0`
+indistinguishable from a silent patch).
+
+**Scope honesty:** this is the row's "or, failing that" arm. The full Accept
+— a standalone render matching the live app's audio — needs a blob-capable
+prime, and that is a non-scalar setter in GMPI's `processor_holder`
+(PR-GATED) plus a real design question about blob event payload lifetime
+through the queued PinSet path. Proposing that half-baked into the most
+curated repo at midnight is exactly what the PR-GATED bar exists to slow
+down; it stays filed.
+
+**Learned:**
+
+1. **A row that names its own fallback scope can be half-shipped honestly** —
+   the field ships value now (every E2a-class measurement stops being fooled)
+   while the row keeps the full Accept visible instead of being closed on the
+   cheap arm.
+
+**Next:**
+
+1. The GMPI blob-prime, for whoever takes the design question to Jeff.
+2. E1c is the last small takeable row in this section.
+
+**Branch/PR:** `tide/mac/E6-unprimed-report` in GMPI_Wrappers
+([#9](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/9)) + TideSynth (bookkeeping).
+
+---
+
