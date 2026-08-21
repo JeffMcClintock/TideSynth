@@ -590,6 +590,280 @@ call, exactly as the previous entry left it.
 
 ---
 
+## 2026-08-21 — macos — S29 fixed, after measuring that S29's own recommendation was wrong
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** prepared the one-run-per-commit fix for `build.yml`, and corrected the
+row I wrote yesterday, whose recommended fix does not work.
+
+### The duplication is real and exact
+
+Every `build.yml` run for `tide/mac/macos-arm64`: **four shas, eight runs**,
+each an exact `push`/`pull_request` pair about four seconds apart. Cross-sha
+cancellation already works — older runs show `cancelled` — so it is only the
+same-sha pair that escapes.
+
+### My own fix was wrong, and one query showed it
+
+S29 recommended dropping `event_name` from the concurrency group. **That
+changes nothing**, because the group also keys on `github.ref`, and that is
+`refs/heads/<branch>` for push but **`refs/pull/<n>/merge`** for pull_request.
+Different refs, different groups, with or without `event_name`. I had reasoned
+about the key without checking what its components evaluate to.
+
+### What shipped instead, and why not the tidier variant
+
+An `if:` on the `guard` job: run on push, and on `pull_request` only when the
+PR head is a **fork**. Same-repo PRs are already covered by their push run,
+whose checks attach to the same sha and therefore show on the PR; `build`
+inherits the skip through `needs: guard`.
+
+The tidier-looking alternative is a concurrency group keyed on the head sha
+(`github.event.pull_request.head.sha || github.sha`), which really would unify
+the two events. **Rejected on the strength of S30:** that lets both runs QUEUE
+and then cancels one, and the scarce resource here is the macOS runner at ~5%
+completion — a run that queues and dies has already taken the slot. The `if:`
+never starts it.
+
+### Checked before handing it over
+
+YAML parses with `guard` and `build` intact and triggers unchanged; and
+**`main` has no required status checks**, so a skipped job cannot block a
+merge — which was the real risk of gating a job that everything else `needs:`.
+
+**Stated cost:** same-repo PRs stop being tested as a merge result and are
+tested as the branch tip. Fine while this repo squash-merges quickly.
+
+**Learned:**
+
+1. **A concurrency group is only as good as what its expressions evaluate to,
+   and `github.ref` is not the branch on a `pull_request` event.** I wrote a
+   recommendation from the shape of the key rather than its values, and it
+   would have shipped a no-op that looked like a fix — the worst kind, because
+   the duplication would have continued under a closed row.
+2. **The second-best fix won on a constraint from a different row.** Both
+   candidates halve the runs; only one avoids consuming a macOS slot before
+   cancelling, and that mattered only because S30 had measured the scarcity.
+
+**Next:** Jeff pushes it — the fleet token is `repo`-scope only by design.
+
+**Branch/PR:** `s29-one-run-per-commit` — workflow + row + journal.
+
+---
+
+## 2026-08-21 — linux — A12: the wall this row recorded was not there, and the check it wanted had a false alarm in it
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Second item this run, at Jeff's direction.** He interrupted with *"take next
+task"* after S23's PR was open, which overrides STEP 2's one-item rule. Recording
+that here because otherwise this entry reads as a run that helped itself to a
+second item.
+
+**Did:** took **A12** (a halted box is invisible to the fleet), built the
+detection half in `scripts/watchdog-digest.py`, and left one clause of its Accept
+explicitly unmet rather than pretending otherwise.
+
+### The row's stated blocker was not real
+
+A12 ends: *"Note the digest workflow lives in `.github/workflows/`, so a
+scheduled run cannot edit it — same wall as A3/A5/A6 and C9(a). Needs Jeff or an
+interactive session."*
+
+`.github/workflows/watchdog.yml:39` is:
+
+```yaml
+run: python3 scripts/watchdog-digest.py --repo-root .
+```
+
+**That is the whole of the workflow's involvement.** Every check lives in a
+script under `scripts/`, which a run may edit freely. The wall is real for
+A3/A5/A6 — those change *when and how* the workflow runs — but A12 only changes
+*what the digest says*, and nothing about that is gated. The row had inherited
+the constraint from its neighbours.
+
+### What was built
+
+`check_halted_boxes()` classifies each box and says, in the digest itself, what
+separates the two ways a box produces no work:
+
+| classification | rule |
+|---|---|
+| alive | an entry newer than 3 days |
+| **QUIET** | silent >= 3 days — ordinary if the machine was off |
+| **LIKELY HALTED** | silent >= 7 days — past any ordinary explanation |
+| **NO ENTRY EVER FOUND** | nothing in the journal or any archive |
+
+The discriminator is **the presence of an entry, not its content**: a box that
+ran and found nothing eligible still writes and pushes an entry saying so, and
+reads as alive. A box halted at STEP 0.7 cannot push anything at all, so silence
+is the only symptom it is capable of emitting.
+
+Plus `check_credential_expiry()` — a countdown to the bot token's **2026-11-07**
+expiry. That is the one fleet-wide halt known in advance, and without a countdown
+it arrives as three boxes going silent on the same day with nothing saying why.
+
+### The false alarm that was already shipping
+
+The old `check_journal_freshness()` read `JOURNAL.md` only. Rotation (A8/A24)
+moves entries out **by age**, so a box running normally but less often than the
+others has its last entry carried into the archive by somebody else's busy day —
+and the live file then reports `no entry found`, which is the same output as a
+box that has never run.
+
+It was doing exactly that, today, on the real repo:
+
+```
+before:  - windows: no entry found
+after:   - windows: alive -- last entry 2026-08-20 (1 day ago).
+```
+
+**The windows box was fine the whole time.** Its 2026-08-20 entry (`C14: the last
+private include was never needed`) had rotated into `JOURNAL-2026-08.md`. A
+watchdog whose most alarming output is its own artifact is worse than no
+watchdog, because the first real halt looks identical to the noise.
+
+Fixed by scanning `JOURNAL.md` **and** every `JOURNAL-<YYYY>-<MM>.md`, taking the
+max date per box rather than the first heading seen — the archive is not reliably
+ordered, so "first heading" was also wrong.
+
+**Result:** `python3 scripts/watchdog-digest.py --selftest` — 4 fixtures, all
+pass: alive / quiet / likely-halted / rotated-but-alive. Full digest builds
+end-to-end (`--dry-run`, rc=0, 8 sections, real GitHub data).
+
+### The clause I did not meet, and why it cannot be met here
+
+Accept asks that a halted box appear *"with the failing assertion"*. **No code in
+this repository can deliver that.** A run that fails STEP 0.7 holds no credential
+it is permitted to use — filing an issue or pushing a branch to report the
+failure is precisely what the step forbids, and using Jeff's keyring credential
+to do it is the bypass the whole assertion exists to prevent. So the assertion
+physically cannot leave that machine through any channel the fleet reads.
+
+The digest now says this in place and prints the three commands to run at that
+keyboard. Surfacing the assertion itself needs a channel outside GitHub auth, and
+that is a different item.
+
+Accept also asks for *"a deliberately induced halt... not by reasoning"*. The
+self-test is a **fixture**, not an induced halt on a real box, and the row says
+so. I could not induce a real one without breaking another machine's credentials.
+
+**Also, as STEP 4 bookkeeping:** flipped **C7** and **C7e** IN-REVIEW → DONE.
+Both were flagged by the digest's own IN-REVIEW check and confirmed independently
+via the API — [#165](https://github.com/JeffMcClintock/TideSynth/pull/165) and
+[#250](https://github.com/JeffMcClintock/TideSynth/pull/250), both `merged=true`.
+
+**Learned:**
+
+1. **A row can inherit a blocker from the rows filed beside it, and nobody
+   re-checks.** A12 said a scheduled run could not do it, citing A3/A5/A6. One
+   `grep` of the workflow showed it runs a single script and nothing else. **When
+   a row names the obstacle rather than showing it, look at the obstacle first —
+   it costs one command and it was the whole item here.**
+2. **A watchdog's own false alarms are the expensive kind.** `no entry found` for
+   a healthy box is not merely noise: it trains whoever reads the digest to
+   discount the exact line that will report the first real halt.
+3. **Rotation is a hazard for anything that reads the journal, not just for
+   readers of it.** Any check computing "how recently did X happen" from
+   `JOURNAL.md` alone silently inherits the rotation policy as its time window.
+4. **The archive is not reliably ordered**, so "first heading wins" is wrong
+   there; take the max. My own first pass at this used `head -1` and got
+   2026-08-18 for windows when the answer was 2026-08-20.
+5. **Some Accept clauses are unsatisfiable by construction, and saying so beats
+   half-meeting them.** "Report the failing assertion" cannot work when the
+   failure being reported is the loss of the only credential permitted to report
+   anything. That is worth writing down as a property, not logged as a shortfall.
+
+**Next:**
+
+1. **Jeff's call on the unmet clause** — if the failing assertion needs to reach
+   the fleet, it needs a channel that does not depend on the credential that just
+   failed. Worth its own row if he wants it.
+2. **The thresholds (3 / 7 days) are a first guess** from the fleet's roughly
+   daily cadence. If they prove noisy, they are two constants at the top of the
+   check.
+3. **S23** remains one `addr2line` from closed; **S32** before any further GUI
+   work on this box.
+
+**Machine left clean.** TideSynth is back on `main`, tree clean; both PRs are the
+only place this run's work lives. **One dirty file elsewhere, and it is not mine:**
+`~/SE/gmpi_ui/TEXT_LAYOUT_PLAN.md` carries a real content change (not CRLF churn —
+`git diff --ignore-all-space` is non-empty) dated **2026-08-19 17:41**, two days
+before this run started. That is Jeff's work in progress: not committed, not
+reverted, not stashed. The three CPM `_deps` checkouts I read from
+(`gmpi_ui-src`, `gmpi_wrappers-src`, `syntheditlib-src`) are all clean — this run
+only read them.
+
+**Branch/PR:** `tide/linux/A12-halted-box-digest` — TideSynth only.
+
+---
+
+## 2026-08-21 — macos — R3: the pkg builds, and productbuild would have shipped it to the wrong hardware
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** built the macOS pkg — [scripts/package-macos.sh](scripts/package-macos.sh)
+produces `TIDE-Rack-macOS.pkg` — and split the half of R3 that cannot be done.
+
+### Half the row was unbuildable, and checking first is what caught it
+
+R3 says *"AU → `Components`, VST3 → `VST3`"*. `SynthEditSem/CMakeLists.txt` sets
+`FORMATS_LIST GMPI VST3 STANDALONE`: **there is no AU target**, and **M1**, the
+row that would add one, is BLOCKED. Filed as **R3a**, `BLOCKED(M1)`.
+
+The script **fails** if the AU is missing rather than quietly packaging one
+plug-in where the docs promise two — a pkg that silently omits half its payload
+is worse than one that refuses to build.
+
+### The real find: productbuild lies about hardware
+
+`productbuild` writes `hostArchitectures="x86_64,arm64"` into the synthesized
+Distribution **regardless of what the payload actually contains**. TIDE is now
+arm64-only, so the pkg would have **installed happily on an Intel Mac** and the
+plug-in would then have failed to load with nothing explaining why.
+
+That is precisely the consequence R3's own row predicted this morning — *"the
+pkg will not run on an Intel Mac and nothing tells the user why"* — and it turns
+out macOS will tell them, if the pkg is honest. The script now derives
+`hostArchitectures` from `lipo` on the built binary and verifies the
+substitution landed; the shipped pkg reads `hostArchitectures="arm64"`, so the
+installer itself refuses the wrong hardware. Derived rather than hardcoded, so
+it stays correct if the ARM ruling is revisited.
+
+### Verified against the artefact, not the tool's own output
+
+- payload installs to `./Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3`, matching
+  distribution.md
+- a real `installer` run into a sandbox target: *"The install was successful"*,
+  placing a binary **byte-identical** to the build (same sha), and leaving no
+  stray receipt
+- `hostArchitectures="arm64"` read back out of the expanded pkg
+
+**Not signed, not notarized, and that is stated rather than implied.** Signing
+runs only when the two identity variables are in the environment; notarization
+(`notarytool` + `stapler`, modelled on `SynthEdit_cmake_mac.yml:223-244`)
+belongs to **R5**, which owns the secret store. The script prints which of the
+two artefacts it produced and says plainly that an unsigned pkg is not
+shippable.
+
+**Learned:**
+
+1. **A packaging tool's defaults describe the tool, not your payload.**
+   `productbuild` had no idea the binary was single-arch and cheerfully said it
+   would run anywhere. The check that caught it was reading the generated
+   Distribution rather than trusting "Wrote product to …".
+2. **When a row names two payloads, confirm both exist before starting.** Half
+   of R3 was blocked by a row nobody had connected to it, and the connection was
+   one grep of `FORMATS_LIST`.
+
+**Next:** R3a waits on M1. R5 wires notarization and is a workflow file, so
+Jeff pushes it. R2 (`win`) and R4 (`linux`) are now takeable on their boxes.
+
+**Branch/PR:** `tide/mac/R3-macos-pkg` — TideSynth only.
+
+---
+
 ## 2026-08-21 — macos — S29's coverage-hole fix, rebuilt clean after the branch went stale
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
