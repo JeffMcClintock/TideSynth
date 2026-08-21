@@ -1,0 +1,14 @@
+{
+  "case": "voice_midi_note",
+  "duration_s": 2.0,
+  "engine": null,
+  "evidence": "Same evidence as osc_naive_sine: one of \"the other two\" in prefab_oscillator.json, and part of E1a's 2026-08-14 macOS-vs-Linux-goldens table (JOURNAL-2026-08.md).",
+  "rate": 48000,
+  "recorded": "reconstructed",
+  "reference_sha256": "dec43dace444787cd8ea073af502e5a48884e790239dce98b7c192d968e26a61",
+  "seeded_on": {
+    "machine": null,
+    "release": null,
+    "system": "Linux"
+  }
+}

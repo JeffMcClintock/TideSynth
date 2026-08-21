@@ -304,6 +304,53 @@ class Result:
 # --------------------------------------------------------------------------
 
 
+def write_reference_provenance(ref_path: Path, case, rendered,
+                               cli: Path, modules: Path) -> Path:
+    """Record WHICH PLATFORM produced a reference, beside the reference.
+
+    BACKLOG E1c. A null-test number is uninterpretable without this. The same
+    residual means "rounding, ignore it" if both sides ran on one platform and
+    "cross-platform drift, size your gates for it" if they did not -- and
+    nothing in tests/references/ recorded which had happened. Establishing that
+    for E1c's four cases took reading a journal entry from nine days earlier;
+    the numbers were only comparable because one run happened to produce them
+    all, which is luck rather than method.
+
+    Written only by --update-refs, i.e. exactly when a reference is created, by
+    the run that created it. A sidecar rather than a field inside the WAV so
+    that the reference stays a plain file any tool can read, and so that
+    backfilled records can be marked as reconstructed (see `recorded`).
+    """
+    import platform as _platform
+
+    meta = {
+        "case": case.name,
+        "reference_sha256": rendered.sha256,
+        "seeded_on": {
+            "system": _platform.system(),        # Darwin / Linux / Windows
+            "release": _platform.release(),
+            "machine": _platform.machine(),      # arm64 / x86_64
+        },
+        "engine": engine_version(cli, modules),
+        "duration_s": case.duration,
+        "rate": case.rate,
+        # How this record came to exist -- one of:
+        #   measured       written by the run that seeded the reference. The
+        #                  only first-hand record; this function only ever
+        #                  writes this value.
+        #   reconstructed  backfilled afterwards from journal or case-file
+        #                  evidence, with that evidence quoted in `evidence`.
+        #                  Weaker: it says what someone wrote down later.
+        #   unknown        nobody recorded it and it could not be established.
+        #                  `seeded_on` is null. A cross-platform claim about
+        #                  such a case is not supported by anything.
+        "recorded": "measured",
+    }
+    out = ref_path.with_suffix(".provenance.json")
+    out.write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n")
+    return out
+
+
 def engine_version(cli: Path, modules: Path) -> str:
     """Best-effort engine build string, e.g. 'SynthEditCL V1.6.174'.
 
@@ -457,6 +504,7 @@ def run_case(cli: Path, modules: Path, case: Case, refs: Path,
         if update:
             ref_path.parent.mkdir(parents=True, exist_ok=True)
             ref_path.write_bytes(wav.read_bytes())
+            write_reference_provenance(ref_path, case, rendered, cli, modules)
             return Result(case.name, True, "reference updated",
                           peak_dbfs=rendered.peak_dbfs, sha256=rendered.sha256,
                           rendered_path=str(target) if target else None,
@@ -578,6 +626,38 @@ def selftest() -> int:
     ok_default, _, _, _ = null_test(_synth(loud), ref, plain.null_tolerance, plain.peak_tolerance)
     check(f"wide gates admit a {rms:.1f} dBFS residual", ok_wide, True)
     check("default gates reject the same residual", ok_default, False)
+
+    # E1c -- reference provenance. Covered here rather than only in a real
+    # --update-refs run, because --update-refs needs an engine and this file's
+    # whole point is that it runs without one. engine_version() degrades to
+    # "unknown (...)" against a nonexistent CLI, which is the behaviour we want
+    # anyway: a missing engine must not stop the platform being recorded.
+    import platform as _platform
+    with tempfile.TemporaryDirectory() as _tmp:
+        _ref = Path(_tmp) / "probe.wav"
+        _ref.write_bytes(b"not really a wav")
+
+        class _R:                       # only .sha256 is read
+            sha256 = "deadbeef"
+
+        _case = Case(name="probe", script=[], source="$x:0",
+                     duration=2.0, rate=48000)
+        _out = write_reference_provenance(_ref, _case, _R(),
+                                          Path("/nonexistent/SynthEditCL"),
+                                          Path("/nonexistent/modules"))
+        check("provenance lands beside the reference",
+              _out.name, "probe.provenance.json")
+        _meta = json.loads(_out.read_text())
+        check("provenance records the seeding platform",
+              _meta["seeded_on"]["system"], _platform.system())
+        check("provenance records the architecture",
+              _meta["seeded_on"]["machine"], _platform.machine())
+        check("provenance records the reference hash",
+              _meta["reference_sha256"], "deadbeef")
+        check("a first-hand record is marked measured",
+              _meta["recorded"], "measured")
+        check("a missing engine does not block the record",
+              _meta["engine"].startswith("unknown"), True)
 
     print(f"\nselftest: {'PASSED' if not failures else str(len(failures)) + ' FAILED'}")
     return 1 if failures else 0

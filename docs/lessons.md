@@ -56,6 +56,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A passing subset is a control, not noise.
 - Rebuild at the commit that produced the artifact before assuming drift.
 
+**macos — E1c: the hypothesis was already refuted by a table in this repo**
+
+- Before designing an experiment, check whether the repo already ran it.
+- When two cases differ by 50 dB, list every way they differ before believing the first explanation.
+- A measurement without its provenance is not a measurement.
+- Grade backfilled facts explicitly.
+- A harness that needs an engine should still have a mode that does not.
+
 **macos — S31: the trap only exists on Linux, and that is why writing it down four times did not work**
 
 - When a negative control refuses to reproduce a documented bug, that is a result, not a broken harness.

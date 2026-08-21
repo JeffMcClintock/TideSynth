@@ -1,0 +1,14 @@
+{
+  "case": "osc_naive_sine",
+  "duration_s": 2.0,
+  "engine": null,
+  "evidence": "tests/cases/prefab_oscillator.json states \"REFERENCE SEEDED ON macOS, 2026-08-18 -- unlike the other two, which came from Linux\"; on that date the only other references were osc_naive_sine and voice_midi_note. Corroborated by tests/cases/osc_naive_sine.json: \"Measured 2026-08-14 (E1a), macOS vs the Linux goldens\".",
+  "rate": 48000,
+  "recorded": "reconstructed",
+  "reference_sha256": "8a63e77b166e87242f227ead12122cb53a46a1f52ce96f014ee5d25d6217cf9c",
+  "seeded_on": {
+    "machine": null,
+    "release": null,
+    "system": "Linux"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "case": "prefab_envelope",
+  "duration_s": 2.0,
+  "engine": null,
+  "evidence": "No seeding statement in its case file and none found in the journal.",
+  "rate": 48000,
+  "recorded": "unknown",
+  "reference_sha256": "2d895db39af599bea723d166d655d7baa06a8ccf99bdb0e9fe7d0cf751ef3a32",
+  "seeded_on": null
+}
