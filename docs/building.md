@@ -185,14 +185,57 @@ from the module database"* that blames the user's installation; the fix is
 building both targets (P11 tracks making this self-consistent or at least
 honestly diagnosed).
 
-**On macOS it is worse: there is no install step at all.** The `TIDE_Rack`
-target's post-build copy has no mac counterpart — the fresh `TIDE-Rack.gmpi`
-lands only in `build/SynthEditSem/Release/`, and
-`/Library/Audio/Plug-Ins/GMPI/TIDE-Rack.gmpi` goes stale silently (found
-2026-08-16 at 3.5 months old, pre-P5 identity). Until P11 lands, refresh it
-by hand after building:
+### macOS: the build installs to a folder the scanner never reads
+
+**Corrected 2026-08-22 (macos) — this section previously said "there is no
+install step at all" on macOS. That is wrong, and wrong in a way that costs
+time: it sends you off to add an install step that already exists.** There is
+one. It installs to the wrong domain.
+
+| | path | who writes it |
+|---|---|---|
+| `SE_LOCAL_BUILD` installs to | `~/Library/Audio/Plug-Ins/GMPI` | `copy_plugin()`, `GMPI/gmpi_plugin.cmake:1225` |
+| the module scanner reads | `/Library/Audio/Plug-Ins/GMPI` | hard-coded, see below |
+
+The scan root is a string literal, not a domain lookup:
+`getPlatformPluginsFolder()` returns `"/Library/Audio/Plug-Ins/"`
+(`SynthEditLib/modules/se_sdk3_hosting/BundleInfo.cpp:152-164`), `"GMPI"` is
+appended in `SynthEdit/SynthEdit2/SynthEditApp.cpp:155-164`, and that one path
+is what `RefreshModuleData` scans (`SynthEditLib/EditorLib/Application.cpp:544`).
+**There is no `NSSearchPathForDirectoriesInDomains` anywhere in the scan path**,
+so unlike VST3 and AU — which search user *and* system by convention — the
+user domain is never consulted.
+
+**Measured, not inferred.** Across every `Plugin-Cache-16-override-*.xml` in
+`~/Library/Application Support/SynthEdit/`, all 602 recorded module paths are
+under `/Library/Audio/Plug-Ins/GMPI`. **Zero** user-domain paths have ever been
+recorded, in any cache file, at any date — so this is not a stale-cache
+artifact.
+
+So on macOS a locally built module is installed, and invisible. Copy it across
+to make a build visible to SynthEdit:
 
     cp -R build/SynthEditSem/Release/TIDE-Rack.gmpi "/Library/Audio/Plug-Ins/GMPI/TIDE-Rack.gmpi"
+
+**That may need `sudo`.** On this machine the folder happens to be owned by the
+developer and the plain `cp` works; on a fresh machine it is root-owned, which
+is why SynthEdit's own CI runs `sudo mkdir -p` and `sudo chmod 777` on it
+(`SynthEdit/.github/workflows/Export_Tests_mac.yml:34-35`). Check with
+`ls -ld /Library/Audio/Plug-Ins/GMPI` rather than assuming either way.
+
+**Who this actually affects.** *Not* TIDE. TIDE does no module scan at all —
+S1a removed it, and the module browser reads a force-linked in-memory list
+(`SynthEditSem/TideApp.cpp:434-442`, `SynthEditLib/UgDatabase.cpp`). This bites
+**SynthEdit the editor** when it consumes TIDE as a third-party module, which is
+the configuration P11's Windows symptom was found in.
+
+**One consequence of the N1a rename to watch for:** any
+`/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi` left over from before the rename is now
+a permanent orphan — the build emits `TIDE-Rack.gmpi`, so nothing will ever
+update the old name again, and the scanner will keep serving whatever was last
+copied there. Delete it rather than letting it shadow the current build. Both a
+system-domain (2026-08-16) and a user-domain (2026-05-07) copy were found on the
+mac box.
 
 (Note: the stale DB was ruled out as the cause of U2d's blank panels — see
 that row — so do not expect this copy to fix rendering; it fixes the

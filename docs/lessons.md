@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — P11's mac half had the right symptom and the wrong mechanism**
+
+- A stale row is most expensive when its symptom is right and its mechanism is wrong.
+- "The cache doesn't list X" is not evidence X is ignored
+- `SE_LOCAL_BUILD` on macOS does not do what its name implies.
+- Check `[ -w ]` before telling someone to use `sudo`.
+- The shared-citation lint (A31) earns its keep on rows you split.
+
 **linux — N1b: the rename's live docs, and a Linux-only gap N1a could not have seen**
 
 - Classify a doc by reading its opening, not its filename.

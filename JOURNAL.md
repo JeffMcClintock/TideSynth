@@ -74,6 +74,112 @@ Template:
 
 ---
 
+## 2026-08-22 — macos — P11's mac half had the right symptom and the wrong mechanism
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** took **P11**, re-measured its mac half, and corrected it. The row said
+the mac build has *no* module-database install step. It has one. It installs
+into a folder the scanner never reads — which produces the identical symptom and
+sends you somewhere completely different to fix it.
+
+### The row set the wrong expected difficulty
+
+> *"the mac build has NO counterpart to the win post-build module-DB copy at all"*
+
+Read that and the job is "add an install step". The job is not that.
+
+| | path | who |
+|---|---|---|
+| `SE_LOCAL_BUILD` installs to | `~/Library/Audio/Plug-Ins/GMPI` | `GMPI/gmpi_plugin.cmake:1225` |
+| the scanner reads | `/Library/Audio/Plug-Ins/GMPI` | hard-coded |
+
+`getPlatformPluginsFolder()` returns the string literal `"/Library/Audio/Plug-Ins/"`
+(`SynthEditLib/modules/se_sdk3_hosting/BundleInfo.cpp:152-164`); `"GMPI"` is
+appended in `SynthEdit/SynthEdit2/SynthEditApp.cpp:155-164`; that one path is
+everything `RefreshModuleData` scans. **There is no
+`NSSearchPathForDirectoriesInDomains` anywhere in the scan path** — so unlike
+VST3 and AU, which search user *and* system by convention, the user domain is
+never consulted. Filed as **S35**.
+
+### Two independent measurements, because one would not have settled it
+
+I started from the cache, not the code. `~/Library/Application Support/SynthEdit/`
+holds the `Plugin-Cache-16-override-*.xml` files the scan writes, and the newest
+recorded exactly one TIDE bundle: the **stale, system-domain, pre-rename**
+`/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi`.
+
+**That alone proves nothing** — that cache was written at 08:09 and the current
+`TIDE-Rack.gmpi` was installed at 21:57, so age explains it. The question that
+does settle it is *"does the scanner **ever** record a user-domain path?"*:
+
+```
+all Plugin-Cache-16-override-*.xml, every date:
+  602  /Library/Audio/Plug-Ins/GMPI
+    0  ~/Library/Audio/Plug-Ins/...        <- any user-domain path, of any kind
+```
+
+Zero, ever. Then the code confirmed the mechanism the cache implied.
+
+### TIDE is not affected — and that is the useful half
+
+TIDE does **no** module scan. S1a removed it; the browser reads a force-linked
+in-memory list (`SynthEditSem/TideApp.cpp:434-442`). So this never touches TIDE's
+own runtime. It bites **SynthEdit the editor** consuming TIDE as a third-party
+module, which is the configuration P11's Windows symptom was found in.
+
+### One thing N1a made permanent
+
+Any `/Library/Audio/Plug-Ins/GMPI/TIDE.gmpi` predating the rename is now an
+orphan: the build emits `TIDE-Rack.gmpi`, so nothing will ever update the old
+name again, and the scanner keeps serving whatever was last copied there. Two
+were sitting on this box — system-domain 2026-08-16, user-domain 2026-05-07.
+
+### An assumption of mine, caught by testing it
+
+I wrote that the hand-copy needs `sudo`, because the folder is system-wide.
+`[ -w /Library/Audio/Plug-Ins/GMPI ]` says otherwise **on this machine** — it is
+owned by the developer, presumably from an installer or an old `chmod`. On a
+fresh machine it is root-owned, which is why SynthEdit's CI runs `sudo mkdir -p`
+and `sudo chmod 777` on it
+(`SynthEdit/.github/workflows/Export_Tests_mac.yml:34-35`). The doc now says
+both and tells you to check, instead of asserting either.
+
+**Learned:**
+
+- **A stale row is most expensive when its symptom is right and its mechanism is
+  wrong.** "No install step" and "install step pointing at the wrong domain"
+  look identical from the outside and lead to opposite work. When a row's
+  mechanism claim is older than a few weeks, re-derive it before costing the
+  job — the symptom surviving is not evidence the explanation did.
+- **"The cache doesn't list X" is not evidence X is ignored** — it may just
+  predate X. The question that settles it is whether the artifact *ever* records
+  that class of thing, across every copy you have. One `grep` over all cache
+  files was worth more than reading the newest one carefully.
+- **`SE_LOCAL_BUILD` on macOS does not do what its name implies.** It installs,
+  and the install is invisible to the scanner. Anyone debugging "my rebuilt
+  module didn't take effect" on mac is looking at this.
+- **Check `[ -w ]` before telling someone to use `sudo`.** Folder ownership under
+  `/Library` is not uniform across machines; asserting it wastes the reader's
+  time in whichever direction you got it wrong.
+- **The shared-citation lint (A31) earns its keep on rows you split.** Filing S35
+  out of P11 duplicated two `file:line` citations across both. The right fix was
+  not to delete one at random but to decide which row *owns* each line: P11 owns
+  the evidence, S35 owns the line a fix would change.
+
+**Next:** **S35** is the real fix and it is **GATED** —
+`SynthEditLib/EditorLib/Application.cpp` needs Jeff. Its first task is not the
+extra `ScanFolder` call but the question that call raises: whether a bundle
+present in **both** domains produces duplicate module IDs. Both copies existed on
+this box, so that is testable rather than theoretical. **P11 itself stays open**
+for its Windows half and the misleading diagnostic, neither of which this touched.
+**Windows and Linux are unexamined** — `getPlatformPluginsFolder()` branches per
+platform and I measured only mac.
+
+**Branch/PR:** `tide/mac/P11-mac-module-visibility` — TideSynth, docs and backlog only.
+
+---
+
 ## 2026-08-22 — linux — N1b: the rename's live docs, and a Linux-only gap N1a could not have seen
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
