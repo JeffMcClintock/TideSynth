@@ -221,6 +221,161 @@ force-disables `TIDE_RENDER_PREVIEW` and no CI has ever executed it.
 
 ---
 
+## 2026-08-22 — macos — R4a: CLAP was in nobody's build, and my own Linux fix was a half-fix
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** took **R4**, split it, shipped the half that is not Linux-bound as
+**R4a**, and spent most of the item repairing a GMPI fix I had already opened —
+which is the part worth reading.
+
+### R4's Accept named a format nothing built
+
+R4 wants a Linux tarball carrying *"the VST3 and CLAP bundles"*.
+[docs/distribution.md](docs/distribution.md) lists CLAP as shipped on all three
+platforms, and R2 and R3 say the same thing. But `FORMATS_LIST` in
+[SynthEditSem/CMakeLists.txt](SynthEditSem/CMakeLists.txt) read
+`GMPI VST3 STANDALONE`, so **no platform was building a CLAP at all.** Three
+installer rows had been waiting on a one-word change nobody had noticed was
+missing, because a missing format produces no error — only an absent file.
+
+It cost one word. GMPI already had the wrapper wired, and the format picked up
+N1a's `OUTPUT_NAME` for free.
+
+**Measured on the artefact, not the build log** — the build succeeding says
+nothing about whether the thing it made is loadable:
+
+```
+TIDE-Rack.clap/Contents/MacOS/TIDE-Rack        arm64
+  nm -gU | grep clap_entry   ->  _clap_entry        (exactly 1 entry point)
+  Contents/Resources/Prefabs/{Oscillator,Envelope,MidiCv,Filter}.synthedit
+configure rc=0, build rc=0, 0 CMake errors, 0 compiler errors
+```
+
+### A suspect eliminated is still progress
+
+The CLAP bundle's `CFBundleIdentifier` is **present and empty**
+(`<string></string>`) — I first wrote "missing", because `PlistBuddy -c Print`
+returns nothing either way, and the distinction turned out to name the cause.
+It looked like a CLAP-specific plist gap until I checked the other formats as a
+control: `TIDE-Rack.vst3` and `TIDE-Rack.gmpi` are identical, and only the
+`.app` has a real one. **So CLAP is eliminated — this is pre-existing and
+belongs to the signing track, not here.**
+
+**One cause explains both symptoms.** The plugin formats fall through to CMake's
+stock `MacOSXBundleInfo.plist.in`, and `MACOSX_BUNDLE_GUI_IDENTIFIER` is set
+only on the STANDALONE branch (`GMPI/gmpi_plugin.cmake:775`), so the
+substitution yields an empty string — and that same stock template is why all
+four bundles also declare `CFBundlePackageType=APPL` rather than `BNDL`. The fix
+is one property per format, not a new plist. Filed as **R8** rather than fixed
+in passing.
+
+What `codesign` actually does with it is worth recording, because I tested it
+instead of assuming: it **succeeds**, inventing
+`TIDE-Rack-555549444341029c5cd537c59001e63d20c200d3` from the executable name
+and a hash. So it is not a signing blocker, but that string is what Gatekeeper
+and notarization tickets key on. R5 is where it bites.
+
+### The part I got wrong: I fixed the lines my grep returned
+
+Earlier this session I opened [GMPI#6](https://github.com/JeffMcClintock/GMPI/pull/6)
+for the Linux VST3 bundle-name mismatch N1a introduced. The linux box had found
+the same defect independently, **measured on Linux** rather than reasoned from
+the CMake, and filed it as [#271](https://github.com/JeffMcClintock/TideSynth/issues/271).
+It closed its own [GMPI#7](https://github.com/JeffMcClintock/GMPI/pull/7) under
+the first-filed rule and left me a review. All three of its points were correct
+and all three were mine to fix.
+
+**1. It was a half-fix that would have made things worse.**
+`SynthEditSem/CMakeLists.txt` stages the VST3's `Resources/` into a path spelled
+to match GMPI's expression character-for-character. Merging GMPI#6 alone gives
+Linux *two* bundles:
+
+```
+TIDE-Rack.vst3/Contents/x86_64-linux/TIDE-Rack.so    <- loadable, NO resources
+TIDE_Rack_VST3.vst3/Contents/Resources/Prefabs/…     <- resources, never loaded
+```
+
+A loadable plugin with no prefabs is the exact failure **S21** exists to prevent.
+[#274](https://github.com/JeffMcClintock/TideSynth/pull/274) is the companion and
+the two must land together.
+
+**2. I missed a second site.** `copy_plugin()` ships the same mismatched pair into
+`~/.vst3`. I had grepped for uses of the `vst3_bundle` *variable* and declared the
+class closed; that site spells `${TARGET_NAME}.vst3` directly, so my search could
+not have found it. **The grep was a proxy for the class and I mistook it for the
+class.**
+
+**3. My edit rewrote 1,274 lines.** `gmpi_plugin.cmake` is pure CRLF. I edited it
+with Python `open(p, 'w')`, whose text mode wrote LF, so a three-line change
+arrived as 1,288 insertions / 1,274 deletions — unreviewable, and `git blame`
+destroyed. Redone in binary mode: **10 insertions / 4 deletions**, matching the
+linux box's own diff exactly.
+
+### One I deliberately did not fix
+
+`${SUB_PROJECT_NAME}.appex` at `gmpi_plugin.cmake:1057`/`:1067`/`:1076`/`:1095`
+is structurally identical — `$<TARGET_BUNDLE_DIR:...>` copied to a target-named
+destination. I flagged it in the PR body and left it: an appex resolves through
+its `Info.plist` rather than by name-globbing, so the consequence is probably
+cosmetic, and TIDE builds no AU3, so **neither box can test it either way.** A
+speculative edit in a PR-GATED repo is worse than a note.
+
+**Learned:**
+
+- **A format missing from a build list produces no error, only an absent file.**
+  CLAP was named in `docs/distribution.md` and in three rows' Accept clauses
+  while being in nobody's `FORMATS_LIST`. Documents that describe an artifact
+  are not evidence the artifact is built; `ls` the build tree.
+- **Grepping for a variable name closes the uses of that variable, not the
+  defect class.** `copy_plugin()` had the identical bug and spelled the path
+  literally. Before claiming a class is fixed, search for the *shape* of the
+  defect — a hand-built path next to a generator expression — not the identifier
+  that happened to appear in the first instance.
+- **Never edit a CRLF file with Python text mode.** `open(p, 'w')` silently
+  normalises every line ending in the file. `open(p, 'rb')` / `'wb'` with
+  explicit `\r\n` keeps the diff to the lines actually changed. Check with
+  `d.count(b'\r\n')` against `d.count(b'\n')` before and after.
+- **Checking a control turns a bug report into an elimination.** The missing
+  `CFBundleIdentifier` looked like a CLAP defect until the other three bundles
+  were checked and had it too. One extra command moved it from R4a's blocker to
+  R8's finding.
+- **A duplicate found from two boxes is not waste** — the second box's review is
+  what caught two of the three defects in the first box's fix.
+- **Check a lint's EXIT CODE, never grep its output.** I ran
+  `check-id-refs.py 2>&1 | grep -viE "advisory|umbrella|E2|…"` to skip a known
+  advisory, and the filter swallowed a real `SHARED LOCATION` failure — CI
+  caught it on #275 instead. A check that distinguishes advisory from fatal
+  *in its return code* is telling you something a grep cannot. There is now a
+  helper that runs all seven the way `lint.yml` does and reports rc.
+- **Invoke a lint exactly as CI does or the local run means nothing.**
+  `check-prompt-provenance.py` and `check-journal-prepend.py` take **file
+  paths** to the base copies, not git refs. Passed refs, they fail on branches
+  CI has already marked green — a false alarm that trains you to ignore the
+  tool. `grep -nE "run: python3 scripts/" .github/workflows/lint.yml` is the
+  source of truth.
+- **Filing a row out of another row duplicates its citations.** Splitting R8
+  out of R4a, and S35 out of P11, each collided on a `file:line` a live row
+  already cited. Decide which row *owns* each line: the measurement row keeps
+  the evidence, the fix row keeps the line a patch would touch. R8's real
+  subject was `:775` (`MACOSX_BUNDLE_GUI_IDENTIFIER`) rather than N1's `:774`
+  (`MACOSX_BUNDLE_BUNDLE_NAME`) — the collision was also a sloppy citation.
+- **`gh pr edit` needs `read:org` and the agent token has only `repo`.** Use
+  `gh api -X PATCH repos/OWNER/REPO/pulls/N --input file.json` to set a body.
+  `gh pr comment` works fine.
+
+**Next:** **R4 stays on the `linux` box** — the tarball and `install.sh` cannot
+be built or verified here — and it should not be packaged until GMPI#6 and #274
+both land, or the tarball ships a bundle no host loads. **R4a** is in review.
+**R8** is R5's to hit and needs a naming decision from Jeff (publisher is
+*SynthEdit Limited* per R1). GMPI#6 is PR-GATED and complete; it needs Jeff, and
+it must merge with #274.
+
+**Branch/PR:** `tide/mac/R4-clap-and-tarball` — TideSynth. Upstream:
+[GMPI#6](https://github.com/JeffMcClintock/GMPI/pull/6) (rebuilt, PR-GATED).
+
+---
+
 ## 2026-08-22 — linux — #271: fixing the bundle name alone would have emptied the bundle
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
