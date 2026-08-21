@@ -140,7 +140,7 @@ of four rungs, so a consumer says how good rather than how:
 | | what it is | knob-sized bitmap |
 | --- | --- | --- |
 | `Draft` | `RenderMode::Fast`: geometry only | ~3 ms |
-| `Standard` | the shipped faceplate budget (128 paths, tapered, 8 bounces) | ~0.2 s |
+| `Standard` | the shipped faceplate budget (128 paths, tapered, 12 bounces) | ~0.2 s |
 | `High` | 4× the paths, softer clamp, roulette held back | ~1 s |
 | `Ultra` | marketing: no taper, **no radiance clamp**, roulette off, Gaussian filter, bloom | minutes |
 

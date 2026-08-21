@@ -2116,9 +2116,9 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 					if (e.pdf > 0.0f && !e.value.isBlack())
 					{
 						// hit.normal, not the bumped shading normal: the offset
-					// exists to clear the actual surface, and a tilted normal
-					// would push the origin along the surface instead of off it.
-					const Vec3 shadowOrigin = hit.position + hit.normal * kRayOffset;
+						// exists to clear the actual surface, and a tilted normal
+						// would push the origin along the surface instead of off it.
+						const Vec3 shadowOrigin = hit.position + hit.normal * kRayOffset;
 						bool visible = false;
 
 						if (emitter.objectIndex >= 0)
