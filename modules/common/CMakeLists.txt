@@ -64,7 +64,7 @@ endfunction()
 # -ffast-math.
 #
 # Note the flags are set on the FILE, so they apply in every target that
-# compiles it. That is the point: TIDE, TIDE_VST3 and TIDE_STANDALONE all
+# compiles it. That is the point: TIDE_Rack, TIDE_Rack_VST3 and TIDE_Rack_STANDALONE all
 # compile TiDEPanelGui.cpp, and all three must agree with the library.
 function(tide_render_strict_fp_sources)
     set_source_files_properties(${ARGV}
