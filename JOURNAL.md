@@ -74,6 +74,72 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — Linux CI is green, and the macOS job that would confirm it cannot say anything
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** prepared C7e's and C7's status on the evidence that exists, rather than
+on the evidence the clause asks for — and said which is which.
+
+### The apt-get landed and Linux went green
+
+Jeff pushed [#250](https://github.com/JeffMcClintock/TideSynth/pull/250). The
+step that has failed every Linux run since the matrix first fired now reads:
+
+```
+3. Install Linux deps: success
+4. Configure:          success     <- red for two days
+5. Build:              success
+6. File a platform issue on failure: skipped
+```
+
+That last line is the mechanism confirming it rather than me reading a log.
+**Nothing was hiding behind the fail-fast probe** — the measured four-package
+set was complete, which was the standing risk.
+
+### The macOS job on that PR is incapable of telling us anything
+
+Checked rather than assumed, because it is the difference between waiting and
+finishing: **#250 changes exactly one file**, and its only non-comment change is
+inside a step gated `if: matrix.platform == 'linux'`. The macOS job's definition
+is byte-identical to `main`'s. Its outcome carries **zero information about this
+change** — so waiting for it is waiting for a 5%-likely event to confirm a step
+that did not change.
+
+### So C7e is IN-REVIEW, not DONE, and the reason is written down
+
+The clause is *"three platforms run rather than skip, and pass, on a PR"*.
+Windows and Linux pass on #250; macOS is QUEUED. **All three platforms are
+proven — but not in one run**, and that is a CI-capacity fact (S30: macOS
+completes ~5% of runs here) rather than anything about TIDE. The two runs that
+did complete macOS recently both **passed**, and both were runs where **linux
+failed and macOS succeeded**.
+
+Flipping to DONE on that composite would be reading the clause loosely on my own
+authority, so it is IN-REVIEW with the argument attached and the call left to
+Jeff.
+
+**Learned:**
+
+1. **Ask what a pending check could possibly prove before waiting on it.** One
+   look at the diff showed the macOS job was gated out of every line that
+   changed. That reframed an hour of waiting as a decision to make.
+2. **"All three platforms pass" and "all three passed in one run" are different
+   claims, and only one of them is what an Accept clause usually means.** Saying
+   which one you have is the whole job when the weaker one is all that CI
+   capacity allows.
+
+**Next:**
+
+1. Jeff's call on whether the composite satisfies C7e; C7 moves with it.
+2. On closing, **C10 and R2-R6 unblock** — the release track has waited on this.
+3. **S30** (macOS starvation) and **S29** (duplicate runs) are the CI-capacity
+   rows this turned up; both want a workflow edit.
+
+**Branch/PR:** `tide/mac/C7-close` — TideSynth only, status and evidence.
+
+---
+
 ## 2026-08-21 — macos — STEP 4 bookkeeping: seven rows flipped on merged PRs
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
