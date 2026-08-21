@@ -74,6 +74,157 @@ Template:
 
 ---
 
+## 2026-08-21 — linux — S23: the session file is innocent, and the kernel had both crashes logged
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Did:** ran the one experiment the previous run left written but unrun, got a clean
+result — and then found the thing that actually answers S23 sitting in
+`journalctl`, which no run had read. Also filed **S32**, because `gnome-shell`
+segfaulted a fourth time and took Jeff's desktop down mid-run.
+
+### The experiment: the suspect file loads fine
+
+`~/.config/TIDE Rack/session.previous.xml` (17,866 bytes, md5
+`010ed62b3baa7bbdda95ee935108d6e7`) copied to `<scratch>/TIDE Rack/session.xml`,
+no `session.loading` beside it, launched as
+`XDG_CONFIG_HOME=<scratch> gdb -batch -ex run -ex bt --args ./TIDE_STANDALONE`.
+
+**Ran ~3 minutes, no signal.** Three things say the restore *succeeded* rather
+than merely failing to crash:
+
+| check | result |
+|---|---|
+| quarantine fired? | **no** — the scratch dir has no `session.previous.xml` afterwards, so `parametersAreReadable` passed and `host_.restoreState()` returned true |
+| did the app write its own state back? | **yes** — scratch `session.xml` 17,866 → **17,346** bytes, new mtime; the debounced save only runs in a healthy session |
+| does the rack draw? | **yes** — screenshot over the command channel, modules and patch points visible |
+
+**Jeff's own config was byte-identical before and after** — both md5s unchanged.
+`XDG_CONFIG_HOME` isolation does what `StandaloneSettings.cpp:49` promises.
+
+### The kernel had both original crashes, with an offset
+
+```
+Aug 20 17:32:58 TIDE_STANDALONE[23881]: segfault at fffffffffffffff8 ip 000062312e4f7627 ... in TIDE_STANDALONE[3b4627,62312e1cb000+404000]
+Aug 20 17:33:27 TIDE_STANDALONE[23924]: segfault at fffffffffffffff8 ip 000055bae7342627 ... in TIDE_STANDALONE[3b4627,55bae7016000+404000]
+```
+
+**Same module offset `3b4627` both times, under different ASLR bases.** So this
+is **one deterministic code site**, not a random smear — which is the single most
+useful fact anyone has produced about S23, and it was free.
+
+`0xfffffffffffffff8` is **-8**, and `error 5` decodes as a **user-mode READ of a
+mapped page**. That is the signature of reading 8 bytes *before* a null-ish base
+— `back()` on an empty container, `*(--it)` at `begin()`, a length stored ahead
+of a null data pointer — **not** a plain null `->field`.
+
+**And the 29-second gap proves the session file is innocent, independently of the
+replay.** Crash 1 at 17:32:58 leaves the breadcrumb, so the *next* launch
+quarantines the file — `session.previous.xml` is stamped **17:33**, exactly
+between the two — and comes up at defaults. **That defaults run crashed anyway at
+17:33:27, at the same offset.** So the second crash was not loading the
+quarantined file at all.
+
+Two hypotheses die and one hedge resolves:
+
+- **"the bad session file is the crash input"** — dead, from both directions.
+- **"the 28 clean runs were runs of an app that had thrown the file away"** — the
+  mechanism is real, but it is not why S23 stopped reproducing, because the
+  crash recurred *after* the quarantine.
+- **`session.previous.xml` IS a quarantine artifact**, not the `File > Revert to
+  Plugin Defaults` false positive the row hedged about — its 17:33 stamp sits
+  between the two crashes. (`keepCurrentAside` is reachable from exactly one
+  place, `StandaloneApp.cpp:353`, armed at `:180`.)
+
+**Not reproduced since:** zero `TIDE_STANDALONE` segfaults in `journalctl` after
+2026-08-20 17:33 — across the previous run's 28 controlled runs and ~1000 driven
+insertions, and this run's replay.
+
+### A lead I am labelling unreliable, on purpose
+
+`addr2line` on **today's** binary at `0x3b4627` gives `CContainer::OnEditContain()`
+at `SynthEditLib/EditorLib/CContainer.cpp:2338`, and `:2330` there does use a
+`dynamic_cast` result with no null check. Tempting — `OnEditContain` is the
+unlock-a-container path, which is exactly the rack gesture.
+
+**It is probably a coincidence and should not be spent on.** It is a *different
+binary* from the one that faulted, and a null `->Plugs.size()` would fault at a
+small **positive** offset, not at **-8**. The signature does not match. Recorded
+only so the next run does not re-derive it.
+
+### S32: the compositor, not the app
+
+`gnome-shell` **segfaulted at 18:28:59** — `code=dumped, status=11/SEGV` — and
+took the graphical session to the login screen. From the apport core:
+
+```
+wl_display_flush_clients -> wl_client_destroy -> libmutter-14
+  -> g_signal_handler_disconnect -> g_type_check_instance   SIGSEGV
+```
+
+A **use-after-free in mutter while destroying a disconnecting Wayland client**.
+Four occurrences in two days (`Aug 20 17:35:18`, `Aug 21 16:44:21`, `16:48:06`,
+`18:28:59`). **TIDE_STANDALONE did not crash** — no crash report for it; my own
+`timeout` terminated it.
+
+Stated carefully in both directions, because this journal has got it wrong twice:
+the crash landed within seconds of TIDE's SIGTERM and TIDE's `gmpi-wl` memfd was
+mapped in the compositor — **but** `wl_display_flush_clients` iterates every
+client and the core does not name which one, `/memfd:… (deleted)` is how every
+memfd appears, the 16:48 crash happened with TIDE not running, and TIDE's own
+backend handles a lost connection cleanly (`DrawingFrameWayland.h:3856-3868`)
+rather than faulting. **So "the compositor crash IS S23's 139" does not follow.**
+
+**Learned:**
+
+1. **`journalctl` keeps a kernel record of every segfault, with a module-relative
+   offset, and nobody in this fleet had looked.** Two runs spent hours on stress
+   loops and controlled-run counts for a crash the kernel had already located
+   twice. **Before trying to reproduce a crash, ask what the machine already
+   wrote down about it.**
+2. **The same module offset under two different ASLR bases means one
+   deterministic site.** The absolute `ip` differs and looks like noise; the
+   bracketed offset is the invariant, and it is the number worth keeping.
+3. **A fault at `0xfffffffffffffff8` is -8, and -8 is a signature, not an
+   address.** It says "read just before a base", which rules out the whole class
+   of plain null-`->field` explanations — including the one `addr2line` handed me.
+4. **A timeline can refute a hypothesis that a reproduction attempt cannot.** The
+   29-second gap between the two crashes, read against when the quarantine must
+   have fired, kills the session-file theory on its own — no build, no run.
+5. **Resolving an address in a rebuilt binary is not evidence.** It produced a
+   plausible, thematically perfect function name that the fault signature then
+   contradicted. The check that made it safe was asking whether the *symptom*
+   matched, not whether the *story* did.
+6. **A "GNOME Shell crashed" line and a login prompt are not the same event.** At
+   19:11 I read `Xwayland terminated` plus a shell restart as a fifth crash; it
+   was Jeff logging back in, and the greeter exiting normally. `loginctl` and the
+   `session opened/closed` lines told the truth in one command.
+
+**Next:**
+
+1. **S23 is one step from closed:** rebuild the tree as it stood on 2026-08-20
+   ~17:30 and `addr2line 0x3b4627` in *that* binary. `-g` does not change codegen
+   at `-O3`, so the offset should survive. **No more stress runs** — stress has
+   never reproduced it and this box cannot afford them.
+2. **S32 before any further GUI work here:** option (b), a nested or headless
+   compositor, is the one a run can adopt without touching Jeff's machine.
+3. **S31** is still open — the `pkill -f` trap.
+
+**Did not rebuild.** The item needed no build: the binary in `build/SynthEditSem/`
+was built at 16:27 today, after `main`'s last code commit (`da0bb37`, 16:01), and
+the only thing landed since is `c5c29ee`, docs-only. The previous run measured
+`main` building here rc=0 with 0 error lines at that same code state. Jeff had
+just logged back in and a full rebuild is CPU he was using.
+
+**Jeff's working tree and config left as found:** `~/TideSynth` was clean at
+start and is clean apart from this branch's two files; `~/.config/TIDE Rack/`
+is byte-identical (md5s above). All replay work happened in the session
+scratchpad.
+
+**Branch/PR:** `tide/linux/S23-session-replay` — TideSynth only, row and journal. No code change.
+
+---
+
 ## 2026-08-21 — linux — S23 did not reproduce, but a mechanism explains why it never would
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (claude-desktop 1.32885.1) · as **tide-rack-bot** (both paths)
@@ -965,102 +1116,6 @@ link lines, ALLOWED path. The ruling request is moot.
    with the open C10 PRs), **A12/B1** are workflow edits the token cannot push.
 
 **Branch/PR:** `tide/mac/P7d-uttype-framework` — TideSynth only, bookkeeping.
-
----
-
-## 2026-08-20 — macos — C10: 104 editor files leave the root, and the reference count fell as it was measured
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · third item (the #222 build break interrupted it mid-baseline)
-
-**Did:** re-homed the carve-out's editor files from `SynthEditLib`'s root into
-`EditorLib/`, beside their own CMakeLists. Branches
-`tide/mac/C10-rehome-editor` in **SynthEditLib** (the move) and **SynthEdit**
-(consumer rewrites) — those two must merge together; the TideSynth branch is
-bookkeeping only.
-
-### The move set is a measured list, not "the editor files"
-
-**104 files** = EditorLib's compiled root-level entries ∩ files the carve-out
-added since 2026-08-01 (`git log --diff-filter=A`). The intersection matters
-from both sides: EditorLib also compiles **3 root files that predate the
-carve-out** (`CancellationAnalyse.{cpp,h}`, `SafeMessageBox.h` — they stay),
-and the carve-out also added root files EditorLib does NOT compile
-(`SynthEditApp.{h,cpp}`, `ExportAsPlugin.{cpp,h}`, `ModulePicker.h` — the
-compile-direct/app-level set, deliberately untouched).
-
-### The consumer survey shrank fourfold under measurement
-
-A boundary-less grep first claimed ~33 build-file references across 10 files,
-including three in `se_au`'s pbxproj. With word boundaries and reading each
-hit: `se_au`'s three are **substrings** (`IDspPatchManager.h` ⊃
-"PatchManager.h", `UPlug.h` ⊃ "Plug.h", `HostVoiceControl.h` ⊃ "Control.h"),
-SE16's root CMakeLists refs are **comments**, SynthEditCL/Wayland/Juce refs
-are **comments**, and TideSynth's two refs are **comments**. What actually
-needed editing:
-
-| consumer | edit |
-|---|---|
-| `EditorLib/CMakeLists.txt` | 104 path prefixes + ONE `PUBLIC ${SYNTHEDITLIB_DIR}/EditorLib` include dir |
-| `CpuMeterGui.cpp` | 3 explicit `EditorLib/` include prefixes — it is compiled by the **DSP target**, the one consumer that links no EditorLib |
-| `SynthEdit2.vcxproj` + `.filters` | **6** literal paths (the other 8 grep hits are "moved to EditorLib" comments, now literally true) + the new dir in 4 AdditionalIncludeDirectories |
-| both SynthEditMac xcconfigs | HEADER_SEARCH_PATHS + the new dir |
-| pbxproj | one FuzzyMatch.h file ref |
-| `MidiAutomationWindowController.mm` | the one literal include — the same file the carve-out broke on 2026-08-20's CI fix |
-
-**52 SE16 source files include these headers bare** and needed nothing: CMake
-consumers inherit the PUBLIC dir, vcxproj/Xcode get it from their own include
-lists.
-
-### Verified before vs after, same tree, same metrics
-
-| check | before | after |
-|---|---|---|
-| SE16-hosted Ninja build | 1072/1072 rc=0 | 207/207 rc=0 (incremental) |
-| **compile-graph edges** | **941** | **941** |
-| ctest (S16-class env vars set) | 67/67 | 67/67 |
-| SynthEditMac `xcodebuild` | BUILD SUCCEEDED | BUILD SUCCEEDED |
-| `TIDE_STANDALONE` | — | runs, seeds 6 prefabs |
-| movers left at root | — | 0 |
-
-The 941 needed care: the base build tree's ninja graph was overwritten by the
-reconfigure, so the pre-move graph was **reconstructed from a detached
-worktree at origin/main** (configure-only) and both sides counted with the
-identical command. A "same object count" clause is only evidence when both
-numbers come from the same instrument.
-
-**Stated unverified:** `SynthEdit2.vcxproj` (WinUI3/MSBuild — the win box or
-the Store pipeline builds it; the edits are 6 path rewrites + 4 include-dir
-lines) and `SynthEditWayland` (linux; its refs were comments, its CMake
-consumers inherit the PUBLIC dir). `SynthEditJuce` is deprecated and not
-generated (#88).
-
-**Gate note, stated rather than assumed:** C10 edits `SynthEditLib` (GATED)
-as a filed stage of the C0-approved carve-out — the same standing C12a–f, C14
-and C16 ran under on all three boxes; the prompt's "C1-C7" enumeration has
-been acknowledged-stale since C12c, and the windows box's C14 lesson
-explicitly rebuked the narrow reading. Review still discharges it: nothing
-merges without Jeff.
-
-**Learned:**
-
-1. **A reference count taken without word boundaries is an upper bound, not a
-   work list.** 33 references shrank to ~15 real edits across four files once
-   substrings and comments were read; `se_au` — a whole Xcode project I
-   expected to edit — contained only substring matches.
-2. **"Same object count" needs the same instrument on both sides.** The build
-   log counts what compiled; the ninja graph counts what is scheduled, and `-c`
-   greps catch `python -c` too. Reconstructing the base graph from a detached
-   worktree cost one configure and made the numbers actually comparable.
-
-**Next:**
-
-1. **The win box should build `SynthEdit2.vcxproj`** on the SE16 branch before
-   or at merge — the one consumer neither CI nor this box exercises.
-2. S27 (tide_render references, filed during #222) and the E2 umbrella note
-   are unchanged.
-
-**Branch/PR:** `tide/mac/C10-rehome-editor` × 3 repos — SynthEditLib and
-SynthEdit must merge together; TideSynth is bookkeeping.
 
 ---
 
