@@ -74,6 +74,141 @@ Template:
 
 ---
 
+## 2026-08-21 — linux — A12: the wall this row recorded was not there, and the check it wanted had a false alarm in it
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Second item this run, at Jeff's direction.** He interrupted with *"take next
+task"* after S23's PR was open, which overrides STEP 2's one-item rule. Recording
+that here because otherwise this entry reads as a run that helped itself to a
+second item.
+
+**Did:** took **A12** (a halted box is invisible to the fleet), built the
+detection half in `scripts/watchdog-digest.py`, and left one clause of its Accept
+explicitly unmet rather than pretending otherwise.
+
+### The row's stated blocker was not real
+
+A12 ends: *"Note the digest workflow lives in `.github/workflows/`, so a
+scheduled run cannot edit it — same wall as A3/A5/A6 and C9(a). Needs Jeff or an
+interactive session."*
+
+`.github/workflows/watchdog.yml:39` is:
+
+```yaml
+run: python3 scripts/watchdog-digest.py --repo-root .
+```
+
+**That is the whole of the workflow's involvement.** Every check lives in a
+script under `scripts/`, which a run may edit freely. The wall is real for
+A3/A5/A6 — those change *when and how* the workflow runs — but A12 only changes
+*what the digest says*, and nothing about that is gated. The row had inherited
+the constraint from its neighbours.
+
+### What was built
+
+`check_halted_boxes()` classifies each box and says, in the digest itself, what
+separates the two ways a box produces no work:
+
+| classification | rule |
+|---|---|
+| alive | an entry newer than 3 days |
+| **QUIET** | silent >= 3 days — ordinary if the machine was off |
+| **LIKELY HALTED** | silent >= 7 days — past any ordinary explanation |
+| **NO ENTRY EVER FOUND** | nothing in the journal or any archive |
+
+The discriminator is **the presence of an entry, not its content**: a box that
+ran and found nothing eligible still writes and pushes an entry saying so, and
+reads as alive. A box halted at STEP 0.7 cannot push anything at all, so silence
+is the only symptom it is capable of emitting.
+
+Plus `check_credential_expiry()` — a countdown to the bot token's **2026-11-07**
+expiry. That is the one fleet-wide halt known in advance, and without a countdown
+it arrives as three boxes going silent on the same day with nothing saying why.
+
+### The false alarm that was already shipping
+
+The old `check_journal_freshness()` read `JOURNAL.md` only. Rotation (A8/A24)
+moves entries out **by age**, so a box running normally but less often than the
+others has its last entry carried into the archive by somebody else's busy day —
+and the live file then reports `no entry found`, which is the same output as a
+box that has never run.
+
+It was doing exactly that, today, on the real repo:
+
+```
+before:  - windows: no entry found
+after:   - windows: alive -- last entry 2026-08-20 (1 day ago).
+```
+
+**The windows box was fine the whole time.** Its 2026-08-20 entry (`C14: the last
+private include was never needed`) had rotated into `JOURNAL-2026-08.md`. A
+watchdog whose most alarming output is its own artifact is worse than no
+watchdog, because the first real halt looks identical to the noise.
+
+Fixed by scanning `JOURNAL.md` **and** every `JOURNAL-<YYYY>-<MM>.md`, taking the
+max date per box rather than the first heading seen — the archive is not reliably
+ordered, so "first heading" was also wrong.
+
+**Result:** `python3 scripts/watchdog-digest.py --selftest` — 4 fixtures, all
+pass: alive / quiet / likely-halted / rotated-but-alive. Full digest builds
+end-to-end (`--dry-run`, rc=0, 8 sections, real GitHub data).
+
+### The clause I did not meet, and why it cannot be met here
+
+Accept asks that a halted box appear *"with the failing assertion"*. **No code in
+this repository can deliver that.** A run that fails STEP 0.7 holds no credential
+it is permitted to use — filing an issue or pushing a branch to report the
+failure is precisely what the step forbids, and using Jeff's keyring credential
+to do it is the bypass the whole assertion exists to prevent. So the assertion
+physically cannot leave that machine through any channel the fleet reads.
+
+The digest now says this in place and prints the three commands to run at that
+keyboard. Surfacing the assertion itself needs a channel outside GitHub auth, and
+that is a different item.
+
+Accept also asks for *"a deliberately induced halt... not by reasoning"*. The
+self-test is a **fixture**, not an induced halt on a real box, and the row says
+so. I could not induce a real one without breaking another machine's credentials.
+
+**Also, as STEP 4 bookkeeping:** flipped **C7** and **C7e** IN-REVIEW → DONE.
+Both were flagged by the digest's own IN-REVIEW check and confirmed independently
+via the API — [#165](https://github.com/JeffMcClintock/TideSynth/pull/165) and
+[#250](https://github.com/JeffMcClintock/TideSynth/pull/250), both `merged=true`.
+
+**Learned:**
+
+1. **A row can inherit a blocker from the rows filed beside it, and nobody
+   re-checks.** A12 said a scheduled run could not do it, citing A3/A5/A6. One
+   `grep` of the workflow showed it runs a single script and nothing else. **When
+   a row names the obstacle rather than showing it, look at the obstacle first —
+   it costs one command and it was the whole item here.**
+2. **A watchdog's own false alarms are the expensive kind.** `no entry found` for
+   a healthy box is not merely noise: it trains whoever reads the digest to
+   discount the exact line that will report the first real halt.
+3. **Rotation is a hazard for anything that reads the journal, not just for
+   readers of it.** Any check computing "how recently did X happen" from
+   `JOURNAL.md` alone silently inherits the rotation policy as its time window.
+4. **The archive is not reliably ordered**, so "first heading wins" is wrong
+   there; take the max. My own first pass at this used `head -1` and got
+   2026-08-18 for windows when the answer was 2026-08-20.
+5. **Some Accept clauses are unsatisfiable by construction, and saying so beats
+   half-meeting them.** "Report the failing assertion" cannot work when the
+   failure being reported is the loss of the only credential permitted to report
+   anything. That is worth writing down as a property, not logged as a shortfall.
+
+**Next:**
+
+1. **Jeff's call on the unmet clause** — if the failing assertion needs to reach
+   the fleet, it needs a channel that does not depend on the credential that just
+   failed. Worth its own row if he wants it.
+2. **The thresholds (3 / 7 days) are a first guess** from the fleet's roughly
+   daily cadence. If they prove noisy, they are two constants at the top of the
+   check.
+3. **S23** remains one `addr2line` from closed; **S32** before any further GUI
+   work on this box.
+
+**Branch/PR:** `tide/linux/A12-halted-box-digest` — TideSynth only.
 ## 2026-08-21 — macos — S29 fixed, after measuring that S29's own recommendation was wrong
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
@@ -991,193 +1126,6 @@ That diagnosis needs the linux box; this one cannot observe the path.
 2. Jeff's "nothing at all on insert" remains its own unreproduced report.
 
 **Branch/PR:** `tide/mac/S25-fresh-insert-tofu` — TideSynth only, row + evidence.
-
----
-
-## 2026-08-20 — macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · sixth item
-
-**Did:** gave the module-arm state a cross cursor on mac.
-
-### The row's premise had moved again, in a useful direction
-
-S24 asks for a port of `SetCursorHandler` registration the way
-`WaylandMainWindow.cpp:72` does it. Measuring first found TIDE **already
-ships the affordance on Windows** — an inline `::SetCursor(IDC_CROSS)` in
-`SynthEditGui.cpp` (`dragInProgress` set at OM_DRAG_NEW_MODULE, re-asserted
-every pointer move, with its own comment: "GMPI doesn't expose setCursor on
-IInputHost, so we go straight to Win32"). So the smallest correct change is
-the AppKit analogue of TIDE's own mechanism, not new handler plumbing:
-`TideCursorMac.mm` — `[[NSCursor crosshairCursor] set]` — called at
-arm/disarm and re-asserted per move (AppKit cursor rects reset the cursor on
-their own schedule, exactly like WM_SETCURSOR). One `.mm`, a Darwin-only
-source entry, two `#ifdef __APPLE__` forks beside the `_WIN32` ones.
-
-### Verified to the machine's limit, then handed to the instrument that found it
-
-- builds rc=0; `tideShowCrossCursor` linked in the standalone (nm = 1).
-- the full path driven live over the command channel: browser click **armed**
-  (entry highlighted), rack click **placed a List Entry** at the click point
-  with fully populated properties — the arm/disarm/re-assert calls all on
-  that path, no crash. (The placed combo box also *draws* here — S25's tofu
-  did not manifest for this control in this build.)
-- **the pointer bitmap is the one thing a screenshot cannot carry** — the
-  screenshot API excludes the cursor. Jeff reported the stuck cursor, so per
-  S26's lesson the verification of the pixels goes to his mouse; the PR asks.
-
-**Linux deliberately not attempted:** the Wayland APP works because
-`WaylandToplevel` has its own `setCursor`; gmpi_ui's frames expose none, so a
-linux TIDE cursor needs either a gmpi_ui frame API (a design question, not a
-port) or a linux shortcut of its own. Left for the linux box rather than
-guessed at from here.
-
-**Learned:**
-
-1. **Third time today a row's central premise had moved before it was taken**
-   (P7d delivered elsewhere, E15's pin ruling unlanded, now S24's "defined
-   and never called" — TIDE grew a Win32 path someone added without touching
-   the row). Measuring the premise first is now the cheapest step of every
-   item.
-
-**Next:**
-
-1. **Jeff, with a real mouse:** browser-click a module — the pointer should
-   turn crosshair until the rack click lands (mac).
-2. **S25** (tofu) — did not reproduce for List Entry here; wants re-measuring
-   against the E15 panel stack before anyone chases it.
-
-**Branch/PR:** `tide/mac/S24-cross-cursor` — TideSynth only.
-
----
-
-## 2026-08-20 — macos — E15: the rack's faceplate is TIDE's own panel, and two breaks the swap flushed out
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · fifth item
-
-**Did:** swapped MIDI-CV's faceplate from `SE Rectangle XP` to `SE TiDE:Panel`
-and retired the Rectangle from TIDE entirely — both halves of the
-hardcoded-twice pair (`SynthEditSem/CMakeLists.txt` staging AND `TideApp.cpp`'s
-XML merge loop), per E2c's warning that missing either side fails silently.
-
-**Taken with `BLOCKED(E14)` in the status cell:** E14 is DONE, and BLOCKED(id)
-is defined as blocked-until-id-is-DONE, so the block had expired by its own
-definition. Recorded because the letter of "never start a BLOCKED item" and
-the definition point different ways for an expired blocker; the row now says
-which reading was used.
-
-### Every Accept clause, measured
-
-| clause | evidence |
-|---|---|
-| MIDI-CV rebuilt on `SE TiDE:Panel` | regenerated via SynthEditCL; `assert_all_modules_linked` clean, its note naming the id |
-| drawn in TIDE with legible captions | [docs/images/e15-midicv-tidepanel.png](docs/images/e15-midicv-tidepanel.png) — heading + PITCH/GATE/VEL/TRIG black on the light plate |
-| Rectangle gone, build green | build rc=0; `__GLOBAL__sub_I_RectangleGui.cpp` **0** and `__GLOBAL__sub_I_TiDEPanelGui.cpp` **1** in BOTH `TIDE.gmpi` and `TIDE_VST3` |
-
-### The two breaks the swap flushed out
-
-1. **The first regeneration drew captions overhanging the plate.** The panel
-   sizes ITSELF — RackUnits × 48 DIPs (`kRackUnitDips`) — and
-   `SubView::measure` unions the children, so the authored 105-DIP slot
-   produced a 48-wide plate under 58-wide labels. Fixed with `Rack Units 2`
-   (96 DIPs; the one pin the swap sets — per-instance geometry, where the
-   2026-08-19 ruling made *appearance* compile-time) and the faceplate grid
-   re-authored to 96. The residual 3.2-HP-per-U vs 15-DIP-HP mismatch is
-   E17's own open note, deliberately not settled here.
-2. **`TiDEPanel.gmpi` had never been built on mac, and could not be.**
-   `helpers/Timer.cpp`'s mac path is CFRunLoopTimer; the loadable-bundle link
-   line carries no frameworks, so the authoring bundle failed with undefined
-   `_kCFRunLoopCommonModes`. One APPLE-guarded CoreFoundation line. (TIDE's
-   static build never sees it — the wrappers already link CF; same class as
-   P7d, one repo over.)
-
-### The authoring pipeline on mac, recorded so nobody re-derives it
-
-SynthEditCL's factory scan root is **`SynthEditCL.app/Contents/PlugIns/`**
-(the rescan prints it), NOT `build/modules/` — the TiDE `.gmpi` bundles must
-be copied there, then `SynthEditCL -rescan`, then `build-prefabs.py --secl`.
-The other five prefabs regenerate byte-identical except handle churn (the V3
-lesson), so they were reverted; only `MidiCv.synthedit` is committed. And
-`TIDE_STANDALONE` restores its session even under an isolated `HOME`
-(`Library/Application Support/TIDE Rack/session.xml` on mac, not `.config`) —
-two identical screenshots cost a relaunch before the session file was found.
-
-**Flagged for Jeff, not acted on:** the row records a ruling that the panel
-"ships exactly two pins", but `main`'s registration XML declares SIX (Text,
-Text Color, Rack Units, Layout, Material, Panel Color). Rack Units earns its
-keep as instance geometry; whether Layout/Material/Panel Color go compile-time
-is the unimplemented half of that ruling.
-
-**Skipped on the way here, with reasons:** **N1** defers itself ("after C7,
-not during"; C7 waits on Jeff's apt-get, and a rename would double-conflict
-with the open C10 PRs). **P11**'s remaining half is the diagnostic at
-`DocOb.cpp:540` — GATED, not a build break; option (c) already landed in
-docs/building.md. **S16/S22/S18** are GATED (S18 is also a licensing question
-first). **E9**'s Accept needs a within-instance rate change no measurement has
-ever produced — the wrappers replace the instance instead. **E5** waits on
-rack styling (NEEDS-JEFF by its own text).
-
-**Learned:**
-
-1. **A module that measures itself is a different contract from a rectangle
-   that takes orders, and the prefab grid only worked because the old
-   faceplate obeyed it.** The swap surfaced the collision immediately —
-   authored geometry vs self-sizing panels — and E17's units note is where the
-   real reconciliation lives.
-2. **"It builds in the product" says nothing about the authoring path.** The
-   panel shipped statically into TIDE on three platforms while its loadable
-   authoring bundle had never linked on mac. The first prefab regeneration
-   needing it found that in one step.
-
-**Next:**
-
-1. **S24/S25** are the remaining takeable S-rows (cursor feedback; the tofu
-   render — S25 may interact with this swap and wants re-measuring on top of
-   it).
-2. **E2's next children** now have both the panel and the pipeline; E16/E17's
-   open notes gate the module list and sizing.
-
-**Branch/PR:** `tide/mac/E15-panel-swap` — TideSynth only.
-
----
-
-## 2026-08-20 — macos — P7d was already fixed, from a third direction, and its parked question is moot
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · fourth item
-
-**Did:** ran P7d's own Accept before building anything — `ninja GainGui_VST3`
-on a fresh `GMPI-plugins` configure, no extra flags — and it **passes**:
-rc=0, bundle produced, `otool -l` shows the UniformTypeIdentifiers load
-command with the UTType reference resolved. Closed the row as DONE.
-
-The fix is GMPI_Wrappers `3838493` — `gmpi_weak_frameworks()` in
-`wrapper/cmake/GmpiFrameworks.cmake`, included by **all five** wrappers, in
-the `-weak_framework` form `MacFileDialog.h`'s own comment specifies. Its
-comment even names this row's incident: *"GMPI-plugins macOS CI, July–August
-2026"*.
-
-**The row had parked itself waiting on a scope ruling** (may a run touch
-`GMPI-plugins`, or should gmpi_ui declare the framework?) — and the landed
-answer is a third place neither option named: the wrappers, which are what
-actually compile `DrawingFrameMac.mm`. No `GMPI-plugins` edit, no per-consumer
-link lines, ALLOWED path. The ruling request is moot.
-
-**Learned:**
-
-1. **A row that parks on a question can be closed by running its Accept —
-   check that before re-raising the question.** The ruling P7d wanted was
-   never given and never needed; the fix arrived while the row waited. Fourth
-   already-delivered row in two days (C15, U2, E14's naming note, now P7d) —
-   running the Accept first is cheaper than any of the work the row proposes.
-
-**Next:**
-
-1. Queue by file order continues: S-series GATED rows are skipped (not build
-   breaks), **N1 defers itself until C7 closes** ("do it after C7, not
-   during" — C7 waits on Jeff's apt-get, and a rename now would double-conflict
-   with the open C10 PRs), **A12/B1** are workflow edits the token cannot push.
-
-**Branch/PR:** `tide/mac/P7d-uttype-framework` — TideSynth only, bookkeeping.
 
 ---
 

@@ -34,7 +34,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 DIGEST_TITLE = "Fleet watchdog digest"
 DIGEST_MARKER = "<!-- watchdog-digest: do not edit by hand, regenerated every run -->"
@@ -246,29 +246,132 @@ def check_open_prs():
     return '\n'.join(lines)
 
 
-def check_journal_freshness(repo_root):
-    lines = ['\n### Days since each platform\'s last journal entry\n',
-             '(Not "missed its run window" -- this repo has no record of each box\'s '
-             'actual cron schedule, which lives in `~/.claude/scheduled-tasks/` on that '
-             'box, not here. This is the closest honest proxy.)\n']
-    path = os.path.join(repo_root, 'JOURNAL.md')
-    if not os.path.exists(path):
-        lines.append('JOURNAL.md not found.')
-        return '\n'.join(lines)
-    with open(path, encoding='utf-8') as f:
-        text = f.read()
+def latest_entry_per_platform(repo_root):
+    """Most recent journal entry date for each box, across the live journal AND
+    its archives.
+
+    Reading only JOURNAL.md is wrong for this check, and the failure is not
+    hypothetical: rotation (A8/A24) moves entries out by age, so a box that is
+    running normally but less often than the others has its last entry carried
+    into JOURNAL-<YYYY>-<MM>.md by somebody else's busy day. The live file then
+    says "no entry found", which is indistinguishable from a box that has never
+    run -- the exact confusion this check exists to remove."""
     latest = {}
-    for m in re.finditer(r'^## (\d{4}-\d{2}-\d{2}) — (windows|macos|linux) ', text, re.MULTILINE):
-        date_s, plat = m.groups()
-        if plat not in latest:
-            latest[plat] = date_s
+    names = ['JOURNAL.md'] + sorted(
+        (f for f in os.listdir(repo_root) if re.match(r'^JOURNAL-\d{4}-\d{2}\.md$', f)),
+        reverse=True)
+    for name in names:
+        path = os.path.join(repo_root, name)
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding='utf-8') as f:
+            text = f.read()
+        for m in re.finditer(r'^## (\d{4}-\d{2}-\d{2}) — (windows|macos|linux) ', text, re.MULTILINE):
+            date_s, plat = m.groups()
+            if plat not in latest or date_s > latest[plat]:
+                latest[plat] = date_s
+    return latest
+
+
+# Days of silence before a box is called quiet, and before it is called likely
+# halted. The fleet runs roughly daily, so one missed day is ordinary (a machine
+# off, a travel day) and three is not. Seven is past any explanation that does
+# not need somebody to look.
+QUIET_DAYS = 3
+HALTED_DAYS = 7
+
+# The bot credential's expiry, from docs/weekly-run-prompt.md's "Becoming the
+# agent" section. Hard-coded rather than queried because the digest runs in CI
+# under the workflow's GITHUB_TOKEN, not under the bot PAT, so asking the API
+# about "this token" would measure the wrong one. Update it when the token is
+# rotated -- and note the whole point of the countdown is that this date halts
+# ALL THREE boxes on the same day.
+TOKEN_EXPIRY = '2026-11-07'
+TOKEN_WARN_DAYS = 30
+
+
+def check_halted_boxes(repo_root):
+    """A12: a halted box is invisible to the fleet, and nothing escalates it.
+
+    A run that fails STEP 0.7's identity assertion is told to write a journal
+    entry and stop -- but it cannot PUSH that entry, because the thing it just
+    failed to obtain is the credential it would need. So a halted box emits
+    nothing at all, and silence is the only evidence there is.
+
+    That is why this check is about absence, and why it is careful to separate
+    the two ways a box can produce no work:
+
+      - it RAN AND DID NOTHING -- queue blocked, nothing eligible. The run still
+        writes and pushes a journal entry saying so. Visible, and fine.
+      - it HALTED -- or never woke. No entry, no branch, no PR. Invisible.
+
+    A recent entry means the box is alive whatever the entry says, so the
+    presence of an entry is the discriminator, not its content."""
+    lines = ['\n### Fleet liveness -- boxes that have gone quiet (A12)\n',
+             'A box that ran and found nothing to do still writes a journal entry, so it '
+             'appears here as fine. A box that halted at STEP 0.7 cannot push anything at '
+             'all -- it has no credential to push WITH -- so silence is the only symptom '
+             'it can produce, and this section is the thing that notices.\n']
+
+    latest = latest_entry_per_platform(repo_root)
+    today = datetime.now(timezone.utc)
+    flagged = []
+
     for plat in ('windows', 'macos', 'linux'):
-        if plat in latest:
-            d = datetime.strptime(latest[plat], '%Y-%m-%d').replace(tzinfo=timezone.utc)
-            days = (datetime.now(timezone.utc) - d).days
-            lines.append('- %s: last entry %s (%d day%s ago)' % (plat, latest[plat], days, '' if days == 1 else 's'))
+        if plat not in latest:
+            lines.append('- **%s: NO ENTRY EVER FOUND** -- in the journal or any archive. '
+                         'Either this box has never completed a run, or its entries predate '
+                         'the archives in this repo.' % plat)
+            flagged.append(plat)
+            continue
+        d = datetime.strptime(latest[plat], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+        days = (today - d).days
+        if days >= HALTED_DAYS:
+            lines.append('- **%s: LIKELY HALTED -- silent %d days** (last entry %s). '
+                         'Past any ordinary explanation. Check STEP 0.7 on that box by hand.'
+                         % (plat, days, latest[plat]))
+            flagged.append(plat)
+        elif days >= QUIET_DAYS:
+            lines.append('- **%s: QUIET -- silent %d days** (last entry %s). '
+                         'Ordinary if the machine was off; worth a look if it was not.'
+                         % (plat, days, latest[plat]))
+            flagged.append(plat)
         else:
-            lines.append('- %s: no entry found' % plat)
+            lines.append('- %s: alive -- last entry %s (%d day%s ago).'
+                         % (plat, latest[plat], days, '' if days == 1 else 's'))
+
+    if flagged:
+        lines.append('\n**What to do for a flagged box, and why the digest cannot do it for you.** '
+                     'Run STEP 0.7\'s two assertions on that machine:\n')
+        lines.append('```\ngh api user --jq .login\n'
+                     'gh api graphql -f query=\'{ viewer { login databaseId } }\'\n'
+                     'git config --global --get url."https://github.com/".insteadOf\n```\n')
+        lines.append('**The failing assertion cannot be reported from here.** A halted run holds '
+                     'no credential it is permitted to use, so it cannot file an issue, push a '
+                     'branch, or comment -- and using the developer\'s own credential to say so '
+                     'is precisely what STEP 0.7 forbids. Naming the silent box is therefore the '
+                     'most this repo can know; reading the assertion needs someone at that keyboard.')
+
+    return '\n'.join(lines)
+
+
+def check_credential_expiry():
+    """The one fleet-wide halt that is known in advance, so it should never
+    arrive as a surprise. When the bot token expires, all three boxes fail
+    STEP 0.7 on the same day and all three go silent together -- which the
+    check above would report as three simultaneous halts with no cause."""
+    lines = ['\n### Bot credential expiry\n']
+    expiry = datetime.strptime(TOKEN_EXPIRY, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    days = (expiry - datetime.now(timezone.utc)).days
+    if days < 0:
+        lines.append('- **EXPIRED %d days ago (%s).** Every box fails STEP 0.7 until the token '
+                     'is rotated; expect the section above to show all three as halted.'
+                     % (-days, TOKEN_EXPIRY))
+    elif days <= TOKEN_WARN_DAYS:
+        lines.append('- **Expires in %d days (%s)** -- rotate it before then, or all three boxes '
+                     'halt on the same day.' % (days, TOKEN_EXPIRY))
+    else:
+        lines.append('- Expires %s (%d days away).' % (TOKEN_EXPIRY, days))
     return '\n'.join(lines)
 
 
@@ -294,16 +397,82 @@ def build_digest(repo_root):
         check_needs_jeff(repo_root, rows),
         check_proposed(repo_root),
         check_open_prs(),
-        check_journal_freshness(repo_root),
+        check_halted_boxes(repo_root),
+        check_credential_expiry(),
     ]
     return '\n'.join(parts)
+
+
+def selftest():
+    """A12's Accept clause, made re-runnable.
+
+    The clause asks for a demonstration rather than an argument, and the honest
+    demonstration available to a script is a fixture: journals written with
+    known dates, checked for the classification each should produce. It does
+    NOT induce a real STEP 0.7 halt on a real box -- nothing in this repo can
+    do that, and the row should not be read as if it had.
+
+    The fourth case is the one worth having. It is the false alarm this check
+    shipped with: a box whose last entry has been ROTATED into the archive
+    reads as "no entry found" if you only open JOURNAL.md, which is the same
+    output as a box that never ran."""
+    import tempfile, shutil
+
+    today = datetime.now(timezone.utc)
+    def ago(n):
+        return (today - timedelta(days=n)).strftime('%Y-%m-%d')
+
+    cases = [
+        # (name, days-since-entry, which file it lives in, expected substring)
+        ('alive',         0, 'live',    'alive'),
+        ('quiet',         QUIET_DAYS,  'live',    'QUIET'),
+        ('halted',        HALTED_DAYS, 'live',    'LIKELY HALTED'),
+        ('rotated-alive', 1, 'archive', 'alive'),
+    ]
+
+    failures = []
+    for name, days, where, expect in cases:
+        d = tempfile.mkdtemp(prefix='watchdog-selftest-')
+        try:
+            entry = '## %s — windows — fixture\n\nbody\n\n' % ago(days)
+            # macos/linux always fresh, so only the windows line is under test
+            fresh = ''.join('## %s — %s — fixture\n\nbody\n\n' % (ago(0), p)
+                            for p in ('macos', 'linux'))
+            live = '# Journal\n\n' + fresh + (entry if where == 'live' else '')
+            with open(os.path.join(d, 'JOURNAL.md'), 'w', encoding='utf-8') as f:
+                f.write(live)
+            arch = '# Journal — archive\n\n' + (entry if where == 'archive' else '')
+            with open(os.path.join(d, 'JOURNAL-2026-08.md'), 'w', encoding='utf-8') as f:
+                f.write(arch)
+
+            out = check_halted_boxes(d)
+            line = next((l for l in out.split('\n') if l.startswith('- ') and 'windows' in l), '')
+            ok = expect in line
+            print('%-16s %-8s -> %s' % (name, 'PASS' if ok else 'FAIL', line.strip() or '(no windows line)'))
+            if not ok:
+                failures.append('%s: expected %r in %r' % (name, expect, line))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    if failures:
+        print('\nFAILED:')
+        for f in failures:
+            print('  ' + f)
+        return 1
+    print('\nall %d liveness classifications correct' % len(cases))
+    return 0
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--repo-root', default='.')
     ap.add_argument('--dry-run', action='store_true')
+    ap.add_argument('--selftest', action='store_true',
+                    help="check the fleet-liveness classifications against fixtures (A12's Accept)")
     args = ap.parse_args()
+
+    if args.selftest:
+        return selftest()
 
     body = build_digest(args.repo_root)
 

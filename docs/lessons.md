@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**linux — A12: the wall this row recorded was not there, and the check it wanted had a false alarm in it**
+
+- A row can inherit a blocker from the rows filed beside it, and nobody re-checks.
+- A watchdog's own false alarms are the expensive kind.
+- Rotation is a hazard for anything that reads the journal, not just for readers of it.
+- The archive is not reliably ordered
+- Some Accept clauses are unsatisfiable by construction, and saying so beats half-meeting them.
+
 **macos — S29 fixed, after measuring that S29's own recommendation was wrong**
 
 - A concurrency group is only as good as what its expressions evaluate to, and `github.ref` is not the branch on a `pull_request` event.
@@ -103,19 +111,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 **macos — S25 does not reproduce on mac, and the negative result is the deliverable**
 
 - A cross-platform row can be closed on one platform and open on another, and saying which is the whole value of a cheap reproduction.
-
-**macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut**
-
-- Third time today a row's central premise had moved before it was taken
-
-**macos — E15: the rack's faceplate is TIDE's own panel, and two breaks the swap flushed out**
-
-- A module that measures itself is a different contract from a rectangle that takes orders, and the prefab grid only worked because the old faceplate obeyed it.
-- "It builds in the product" says nothing about the authoring path.
-
-**macos — P7d was already fixed, from a third direction, and its parked question is moot**
-
-- A row that parks on a question can be closed by running its Accept — check that before re-raising the question.
 
 ## 2026-08-18
 
@@ -1278,3 +1273,16 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - A reference count taken without word boundaries is an upper bound, not a work list.
 - "Same object count" needs the same instrument on both sides.
+
+**macos — P7d was already fixed, from a third direction, and its parked question is moot**
+
+- A row that parks on a question can be closed by running its Accept — check that before re-raising the question.
+
+**macos — E15: the rack's faceplate is TIDE's own panel, and two breaks the swap flushed out**
+
+- A module that measures itself is a different contract from a rectangle that takes orders, and the prefab grid only worked because the old faceplate obeyed it.
+- "It builds in the product" says nothing about the authoring path.
+
+**macos — S24: the cross cursor was already there on Windows, and mac got the same shortcut**
+
+- Third time today a row's central premise had moved before it was taken
