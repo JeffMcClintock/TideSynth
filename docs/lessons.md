@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**windows — R2: the Windows installer, and the payload it must carry is not the file the build emits**
+
+- A packaging script's real job is deciding what the shipped layout IS, not copying a build tree into a zip.
+- `afxres.h` names a missing header and means a wrong Visual Studio instance.
+- Windows has no sandboxed installer run, so the way to prove one is to compile it twice.
+- The app version STEP 0.5 asks for IS discoverable on this box
+- A "portable" REAPER on Windows is neither portable nor unattended.
+
 **macos — S27: four suspects eliminated, and the reference box turns out to be x86_64**
 
 - An Apple Silicon Mac separates ISA from OS/libm in a way no other box can
@@ -99,36 +107,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - A guard that makes missing work silent turns a rename into a downgrade.
 - When the old artifact is still installed and shares an ID, matching numbers are not evidence.
-
-**linux — the compositor problem is solved, and S23 does not reproduce once you can safely look**
-
-- Fixing the tooling blocker was worth more than any single item it unblocked.
-- A headless compositor loses the view and keeps the verification
-- A negative result is only worth what its control is worth.
-- `check-id-refs.py` caught me filing A31's exact hazard.
-- A crash row that no longer describes anything observable should be closed, not left open.
-
-**macos — S33 filed: a live defect was sitting on a closed row**
-
-- Recording a finding on a row you are about to close loses it.
-- Two other agents were filing ids concurrently.
-
-**linux — N1 costed: 91% of what a grep finds must not be touched**
-
-- Counting a rename by bucket, not by total, changes the decision.
-- A grep total is not a work estimate when the repo keeps a historical record.
-- Ask which box can VERIFY a change before asking which box can make it.
-- A row that says "needs decisions rather than edits" is worth re-reading after its blocker clears.
-- When the developer overrides a standing rule, write down which rule and which instance.
-
-**linux — S23: what -8 means, measured — and the fleet has been bitten by this exact class before**
-
-- `/var/log/apport.log` names the executable path for crashes apport declined to report.
-- An address that lands mid-instruction is proof the binary is wrong
-- Negative fault addresses are arithmetic, and the arithmetic is worth measuring rather than recalling
-- `error 4` vs `error 5` separates a null dereference from a wild read
-- Grep the tree for your own crash signature before theorising.
-- A dead end closed with evidence is worth more than a lead kept alive on hope.
 
 ## 2026-08-18
 
@@ -1377,3 +1355,33 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Rotation is a hazard for anything that reads the journal, not just for readers of it.
 - The archive is not reliably ordered
 - Some Accept clauses are unsatisfiable by construction, and saying so beats half-meeting them.
+
+**linux — the compositor problem is solved, and S23 does not reproduce once you can safely look**
+
+- Fixing the tooling blocker was worth more than any single item it unblocked.
+- A headless compositor loses the view and keeps the verification
+- A negative result is only worth what its control is worth.
+- `check-id-refs.py` caught me filing A31's exact hazard.
+- A crash row that no longer describes anything observable should be closed, not left open.
+
+**macos — S33 filed: a live defect was sitting on a closed row**
+
+- Recording a finding on a row you are about to close loses it.
+- Two other agents were filing ids concurrently.
+
+**linux — N1 costed: 91% of what a grep finds must not be touched**
+
+- Counting a rename by bucket, not by total, changes the decision.
+- A grep total is not a work estimate when the repo keeps a historical record.
+- Ask which box can VERIFY a change before asking which box can make it.
+- A row that says "needs decisions rather than edits" is worth re-reading after its blocker clears.
+- When the developer overrides a standing rule, write down which rule and which instance.
+
+**linux — S23: what -8 means, measured — and the fleet has been bitten by this exact class before**
+
+- `/var/log/apport.log` names the executable path for crashes apport declined to report.
+- An address that lands mid-instruction is proof the binary is wrong
+- Negative fault addresses are arithmetic, and the arithmetic is worth measuring rather than recalling
+- `error 4` vs `error 5` separates a null dereference from a wild read
+- Grep the tree for your own crash signature before theorising.
+- A dead end closed with evidence is worth more than a lead kept alive on hope.
