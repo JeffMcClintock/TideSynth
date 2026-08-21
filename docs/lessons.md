@@ -72,6 +72,10 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**macos — S29's coverage-hole fix, rebuilt clean after the branch went stale**
+
+- An unpushed branch decays the moment other agents keep merging.
+
 **macos — the release track was free for three days and the backlog said otherwise**
 
 - A blocked row is never obviously wrong, so nothing ever re-reads it.

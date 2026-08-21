@@ -590,6 +590,40 @@ call, exactly as the previous entry left it.
 
 ---
 
+## 2026-08-21 — macos — S29's coverage-hole fix, rebuilt clean after the branch went stale
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** re-created the `startsWith(github.head_ref, 'tide/')` correction on a
+fresh branch off current `main`, because the original never got pushed and had
+drifted 17 files behind.
+
+**#258 merged the guard without the correction.** Checked directly rather than
+assumed: `main`'s `build.yml` has the bare `if:` with no `tide/` test, so every
+branch Jeff names by hand — none of which start with `tide/` — currently gets
+**zero build coverage**: no push run (outside `on: push: branches:`), and now no
+PR run either, because the guard skips all same-repo PRs unconditionally.
+
+**The old local branch was the wrong base to push.** `git diff origin/main
+s29-close-coverage-hole --stat` showed 17 files and 1263 deletions — journal
+rotation, a deleted doc, N1a's rename, all landed separately since. Force-pushing
+that would have reverted merged work. Deleted the stale branch and rebuilt the
+one-line fix directly on today's `main`: one file, 13 lines.
+
+**Learned:**
+
+1. **An unpushed branch decays the moment other agents keep merging.** The fix
+   was correct when written; by the time I went to push it, rebasing would have
+   cost more than re-deriving it. Re-creating small, mechanical diffs from a
+   current base is cheaper than reconciling a stale one.
+
+**Next:** Jeff pushes `s29-close-coverage-hole` — one file, the fleet token
+still has no `workflow` scope.
+
+**Branch/PR:** `s29-close-coverage-hole` — workflow + row + this entry.
+
+---
+
 ## 2026-08-21 — macos — the release track was free for three days and the backlog said otherwise
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
