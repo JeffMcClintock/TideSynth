@@ -109,6 +109,93 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — linux — E1c: the deciding case, and the control that makes it decide anything
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Did:** resolved R4's conflict first (STEP 1.5), then took **E1c** and built the
+one experiment macOS had narrowed it to. The Linux half is done; one macOS or
+Windows render finishes it.
+
+### The case
+
+`tests/cases/osc_naive_pitched.json` — the **same** `SE Oscillator (naive)` as
+`osc_naive_sine`, same duration, rate and source pin, differing only in that
+`Pitch` is driven from a patch point pinned to 5 V rather than free-running on
+the module default.
+
+### The control nobody had run, and it is the whole reason this experiment works
+
+**Both cases render at exactly 440.0 Hz** — zero-crossing count over the 2.0 s
+render, 95,999 frames at 48 kHz, identical for both. Pinning 5 V happens to
+reproduce the module's own default note.
+
+That is not a detail, it is the experiment's validity. Had the two rendered at
+different frequencies, any cross-platform residual would have been confounded by
+a different phase increment, and a `-123 dBFS` result would have proved nothing
+about the *driven-ness* of the input. I checked it because "same module, one pin
+changed" is only single-variable if the pin change does not move the note, and
+nothing in the row said whether it did.
+
+### Also confirmed while the harness was up
+
+`osc_naive_sine` renders **bit-identical** to its stored reference here —
+`null=-inf dBFS`. Its provenance record says `recorded: reconstructed`, inferred
+by macOS from journal archaeology; this corroborates the same conclusion by
+measurement. I did **not** rewrite that file — regenerating it would upgrade the
+label but discard the `evidence` field explaining how it was reconstructed, and
+it is another box's work.
+
+The new reference is seeded with first-hand provenance: `recorded: measured`,
+`SynthEditCL V1.6.186`, `x86_64`, sha256 `7ade35f2…`.
+
+### What is left, and why not here
+
+The residual is a **macOS-vs-Linux** quantity, so one platform cannot produce it.
+A second box renders `osc_naive_pitched` against this reference, and the outcome
+is binary and pre-committed in the row so it cannot be rationalised after the
+fact: **-123 dBFS** means the discriminator is the undriven pitch input (and
+`prefab_oscillator`/`prefab_filter` carry gates for a mechanism they do not
+exhibit); **-73 dBFS** means the module is the variable and `osc_naive_sine`'s
+stated reason stands.
+
+The new case ships with **provisional** drift-class gates copied from
+`osc_naive_sine`, and its `tolerance_reason` says so — gating it as if the answer
+were known would beg the question it exists to settle.
+
+**Learned:**
+
+1. **A "single-variable" experiment is a claim, and it is cheap to check.**
+   Pinning the pitch input could easily have changed the note; if it had, the
+   whole comparison would have been worthless and would have *looked* fine.
+   One zero-crossing count per render settled it.
+2. **The audio harness runs on Linux** — `tools/render_harness.py --cli
+   <SynthEditCL> --modules <folder>`, using the existing
+   `~/SE/build/SynthEditCL/SynthEditCL`. Nothing in the rows said so, and it
+   needs no REAPER.
+3. **The harness warns when the engine scanned module folders outside
+   `--modules`** (`~/.local/share/SynthEdit/modules` on this box), and says the
+   run therefore does not prove which module set rendered. True here; it is a
+   developer box. Worth reading rather than skipping on a result that matters.
+4. **Do not regenerate another box's provenance record to improve its label.**
+   `--update-refs` would have stamped `measured` over `reconstructed` and thrown
+   away the reasoning that made the reconstruction credible.
+
+**Next:**
+
+1. **One macOS or Windows render** of `osc_naive_pitched` against this reference
+   closes E1c. Everything needed is in the row and the case's `tolerance_reason`.
+2. If it lands in the rounding class, **`prefab_oscillator` and `prefab_filter`
+   want their gates revisited** — they are currently drift-class for a mechanism
+   their scripts would not exhibit.
+
+**Machine left clean.** Renders went to a scratch `--out`; the only tracked
+additions are the new case and its reference. TideSynth back on `main`.
+
+**Branch/PR:** `tide/linux/E1c-pitch-pinned` — TideSynth only.
+
+---
+
 ## 2026-08-22 — linux — R4: the tarball, and the CLAP's resources have nowhere to live
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)

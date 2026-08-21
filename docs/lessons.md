@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**linux — E1c: the deciding case, and the control that makes it decide anything**
+
+- A "single-variable" experiment is a claim, and it is cheap to check.
+- The audio harness runs on Linux
+- The harness warns when the engine scanned module folders outside `--modules`
+- Do not regenerate another box's provenance record to improve its label.
+
 **linux — R4: the tarball, and the CLAP's resources have nowhere to live**
 
 - Verify a two-repo fix from the shared branch, not from the branch that made it.
