@@ -142,14 +142,26 @@ int runScene(const tide::demo::SceneDef& def, tide::render::RenderMode mode,
 
 	const std::string actualPath = failureDir + "/"
 		+ std::string(def.name) + ((mode == RenderMode::Fast) ? "-fast" : "") + "-actual.png";
-	tide::png::write(actualPath, actual.data(), image.width, image.height);
+
+	// CHECKED, because the failure path is the one place a lie really costs.
+	// This used to announce "wrote <path>" unconditionally; when the failure
+	// directory did not exist the write silently failed and the message sent
+	// the reader to a file that was never there — during a real investigation,
+	// which is the worst possible moment to be misdirected.
+	const bool wrote = tide::png::write(actualPath, actual.data(), image.width, image.height);
 
 	std::printf("FAIL %-17s %.3f%% of pixels moved (limit %.3f%%), worst delta %d at (%d,%d)"
 		" (limit %d)\n",
 		name.c_str(), c.changedFraction * 100.0, kMaxChangedFraction * 100.0,
 		c.worstDelta, c.worstX, c.worstY, kMaxChannelDelta);
-	std::printf("     wrote %s — compare it against %s\n",
-		actualPath.c_str(), referencePath.c_str());
+
+	if (wrote)
+		std::printf("     wrote %s — compare it against %s\n",
+			actualPath.c_str(), referencePath.c_str());
+	else
+		std::printf("     could NOT write %s (does the directory exist?) — the reference"
+			" is %s\n", actualPath.c_str(), referencePath.c_str());
+
 	return 1;
 }
 }
