@@ -101,8 +101,8 @@ than asking the compositor, so a headless session gives up the *view* and keeps
 every bit of the *verification*.
 
 **Roughly ten launches this session** — control, resources-absent, mismatch, four
-shutdown trials, plus a continuous ten-minute run — with **zero `gnome-shell`
-crashes** and Jeff's login session (`loginctl` session 10) unchanged throughout.
+shutdown trials, plus a continuous **635 s (10 m 35 s)** run still answering the command
+channel at the ten-minute mark — with **zero `gnome-shell` crashes** and Jeff's login session (`loginctl` session 10) unchanged throughout.
 Against four crashes in the two days before, on a box where two runs lost their
 work to it.
 
