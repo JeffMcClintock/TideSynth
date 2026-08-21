@@ -325,6 +325,122 @@ his call, not a run's.
 
 ---
 
+## 2026-08-21 — linux — the compositor problem is solved, and S23 does not reproduce once you can safely look
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Fifth item this run, at Jeff's direction.** He installed `weston` in response to
+the previous entry's *"blocked on one `apt install`"* and said *"use it if you
+can"*. Two rows moved as a result, and one of them only because the other was
+fixed first.
+
+### S32: headless weston works, and costs nothing
+
+```bash
+weston --backend=headless --socket=tide-test --width=1400 --height=900 &
+WAYLAND_DISPLAY=tide-test XDG_CONFIG_HOME=<scratch> ./TIDE_STANDALONE
+```
+
+The headless backend needs no display, no seat and no GPU, and **nothing it does
+reaches `gnome-shell`** — so mutter's client-teardown bug cannot be triggered by
+anything a run does.
+
+**What I expected to lose and did not:** the MCP command channel works unchanged,
+and `gmpi_screenshot` returned a correct 1100x626 PNG with the rack drawn and the
+module browser fully populated. It renders from the app's **own** buffer rather
+than asking the compositor, so a headless session gives up the *view* and keeps
+every bit of the *verification*.
+
+**Roughly ten launches this session** — control, resources-absent, mismatch, four
+shutdown trials, plus a continuous **635 s (10 m 35 s)** run still answering the command
+channel at the ten-minute mark — with **zero `gnome-shell` crashes** and Jeff's login session (`loginctl` session 10) unchanged throughout.
+Against four crashes in the two days before, on a box where two runs lost their
+work to it.
+
+Recipe written up as [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md),
+including the one cosmetic wart (`Gdk-CRITICAL … gdk_seat_get_keyboard`, because
+headless advertises no keyboard) so the next run does not chase it, and the
+warning that nested-but-visible weston is only **partial** isolation — that
+compositor is itself a mutter client and its own exit still runs the bad path.
+
+### S23: the repro finally ran, and came back negative
+
+Only possible because S32 was fixed first. Three conditions, seven launches:
+
+| condition | result |
+|---|---|
+| control — resources present | 60 s, no fault |
+| **resources ABSENT** (the layout both crashes were in) | 60 s, plus **4 × 10 s runs, every one exit 0** |
+| **resources absent + the quarantined `session.previous.xml`** | 45 s, no fault |
+
+The third is the case nobody had tried: a patch saved when the modules existed,
+replayed when they do not. It was the best remaining hypothesis and it is dead.
+
+**The startup state was confirmed identical to the crash runs**, not merely
+similar — all four `missing from bundle resources`, `no Prefabs folder`, and
+`MidiCv.synthedit did not insert a container`. Zero `TIDE_STANDALONE` segfaults
+in `journalctl` throughout. A clean SIGTERM exit really is 0 here, so a 139 would
+have been unambiguous.
+
+**So the reproduction attempt is exhausted and should not be repeated.** Most
+likely it was fixed in passing by the churn since 2026-08-20 — E14, E15, S26 and
+Jeff's TiDEPanel/tide_render work all landed after it. The alternative is an
+ingredient nobody has named. Either way, more stress runs will not settle it.
+
+### What survives: S34
+
+The signature decode stands on its own, and it points at two **real** latent
+defects whether or not they caused S23 — two unguarded `back()` calls on
+`std::vector<UPlug*>`, which read `data[-1]` at address -8 when the vector is
+empty. Not a null-pointer fault, so no null check catches it. A third sibling is
+already guarded and is the model; `ClassicControlGuiBase.cpp:22-33` fixed the
+identical thing at -16 for **U2d** and set the convention (guard, log loudly,
+return). Both files are GATED and this is not a build break, so filed, not fixed.
+
+**Learned:**
+
+1. **Fixing the tooling blocker was worth more than any single item it
+   unblocked.** Two runs burned their runtime work on this box, and the previous
+   entry's honest answer was "blocked on Jeff". One `apt install` converted an
+   unrunnable experiment into a seven-launch A/B in twenty minutes.
+2. **A headless compositor loses the view and keeps the verification**, because
+   the screenshot path reads the app's own buffer. I assumed I would be trading
+   capability for safety and was wrong — worth knowing before anyone declines the
+   safe route to keep the pictures.
+3. **A negative result is only worth what its control is worth.** The
+   resources-absent run is meaningful *because* the log lines match the crash
+   runs exactly; without that, "it didn't crash" would just mean "I ran something
+   else."
+4. **`check-id-refs.py` caught me filing A31's exact hazard.** S34 and S23 both
+   cited `ug_adder2.cpp:81`, and the lint flagged the shared location within a
+   minute of my writing it — the check A31 shipped for precisely this, doing its
+   job on the run that had just re-read A31. Fixed by giving S34 the citations
+   and having S23 point at it.
+5. **A crash row that no longer describes anything observable should be closed,
+   not left open.** S23 has now consumed four runs. The useful residue is S34;
+   keeping the crash row open would keep drawing runs toward a repro that has
+   failed on ~35 launches.
+
+**Next:**
+
+1. **S34** — two `empty()` guards in `SynthEditLib`, minutes for Jeff or an
+   interactive session. Accept is in the row, including "build `SynthEditCL`
+   too", since it is shared and TIDE building is not evidence.
+2. **S23 should be closed as not-reproducible**, once S34 is on the board. Jeff's
+   call, not a run's — I have not set it DONE.
+3. **The mutter bug itself is untouched** and remains option (a) — Jeff's
+   decision about the VM's graphics stack, not TIDE's problem to fix.
+4. **Every future linux GUI item can now be verified here.** That includes the
+   **E14 clause-2 gap** (the rack placement gesture), which older rows call
+   unmeasurable on this box.
+
+**Machine left clean.** TideSynth back on `main`, tree clean. All experiments ran
+on a **copy** of the binary and resources in the scratchpad — Jeff's build tree
+was never modified. `~/.config/TIDE Rack/` is byte-identical (every run used a
+scratch `XDG_CONFIG_HOME`). Weston stopped by pid, not `pkill -f` (**S31**).
+`~/SE/gmpi_ui/TEXT_LAYOUT_PLAN.md` is still dirty from 2026-08-19 and is Jeff's.
+
+**Branch/PR:** `tide/linux/S32-headless-compositor` — TideSynth only. No product code change.
 ## 2026-08-21 — macos — S33 filed: a live defect was sitting on a closed row
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing · two other agents active (linux, renderer)

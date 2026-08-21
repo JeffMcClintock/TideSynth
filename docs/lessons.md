@@ -53,6 +53,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A guard that makes missing work silent turns a rename into a downgrade.
 - When the old artifact is still installed and shares an ID, matching numbers are not evidence.
 
+**linux — the compositor problem is solved, and S23 does not reproduce once you can safely look**
+
+- Fixing the tooling blocker was worth more than any single item it unblocked.
+- A headless compositor loses the view and keeps the verification
+- A negative result is only worth what its control is worth.
+- `check-id-refs.py` caught me filing A31's exact hazard.
+- A crash row that no longer describes anything observable should be closed, not left open.
+
 **macos — S33 filed: a live defect was sitting on a closed row**
 
 - Recording a finding on a row you are about to close loses it.
