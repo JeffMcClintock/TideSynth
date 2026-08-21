@@ -333,6 +333,49 @@ gmpi_plugin(
 	  AboutPane.h
 	  TideAppStubs.cpp
 )
+
+# BACKLOG M1 -- plist_util is an AU-ONLY helper, and TIDE's own global include
+# path breaks it.
+#
+# THE MECHANISM, measured 2026-08-22 rather than guessed. gmpi_plugin() builds
+# plist_util (GMPI/gmpi_plugin.cmake:377) only when the format list contains AU
+# or AU3, and compiles GMPI's Hosting/dynamic_linking.cpp into it. That file
+# does `using namespace wrapper::JmUnicodeConversions;`, which needs
+# GMPI_Wrappers/wrapper/common/unicode_conversion.h. THREE headers share that
+# name and they do not agree:
+#
+#   gmpi_wrappers  wrapper/common/unicode_conversion.h   namespace wrapper::JmUnicodeConversions   <- wanted
+#   syntheditlib   modules/shared/unicode_conversion.h   namespace JmUnicodeConversions            <- found
+#   gmpi_ui        helpers/unicode_conversion.h          namespace gmpi::unicode                   (unrelated)
+#
+# plist_util DOES ask for wrapper/common -- but as a TARGET-level PRIVATE dir,
+# and this project's ROOT CMakeLists.txt:269 adds SynthEditLib's modules/shared
+# with the DIRECTORY-scoped include_directories(), which CMake places FIRST.
+# Measured order on the failing compile line: syntheditlib/modules/shared at
+# position 3, gmpi_wrappers/wrapper/common at position 9. So the wrong header
+# wins by six places and the AU build fails with "no namespace named
+# 'JmUnicodeConversions' in 'wrapper'".
+#
+# This is S17's dependency-shadowing class, and it is why that row exists.
+# The narrow fix is here rather than in GMPI (PR-GATED) because the offending
+# path is OURS: we put it on every target in the project, including targets we
+# do not define. BEFORE puts the right directory ahead of the inherited ones.
+#
+# NOT guarded silently. N1a lost a session to `if(TARGET ...)` skipping without
+# a word, so this says so out loud when the target is absent.
+if(APPLE)
+    if(TARGET plist_util)
+        target_include_directories(plist_util BEFORE PRIVATE
+            "${GMPI_ADAPTORS}/wrapper/common")
+        message(STATUS "M1: plist_util include path corrected (wrapper/common first)")
+    elseif("AU" IN_LIST FORMATS_LIST OR "AU3" IN_LIST FORMATS_LIST)
+        message(FATAL_ERROR
+            "M1: FORMATS_LIST asks for AU but gmpi_plugin() created no plist_util "
+            "target. Either gmpi_plugin.cmake changed or the format name is wrong "
+            "-- do not let this skip silently.")
+    endif()
+endif()
+
 # BACKLOG U2e -- the classic controls' pin descriptions, registered at startup
 # by TideApp::InitInstance (the S1a design removed the scan that used to load
 # them). Staged from SynthEditLib's copy so it cannot drift. Contents/Resources
@@ -644,7 +687,29 @@ foreach(kind IN LISTS FORMATS_LIST)
 		)
 	endif()
 
-	set_property(TARGET ${SUB_PROJECT_NAME} PROPERTY CXX_STANDARD 20)
+	# BACKLOG M1 -- the AU target needs C++23; everything else stays at 20.
+	#
+	# Apple's AudioUnitSDK uses std::expected / std::unexpected (AUUtility.h,
+	# AUBuffer.h), which are C++23. Verified on this toolchain rather than
+	# assumed: a three-line program using std::expected compiles at -std=c++23
+	# and fails at -std=c++20 with "no member named 'expected' in namespace
+	# 'std'".
+	#
+	# THIS LINE IS WHY THE OBVIOUS FIX DOES NOT WORK. Setting CXX_STANDARD on
+	# the AU target anywhere earlier in this file is silently undone here, one
+	# loop iteration later -- the property is set, the configure message prints,
+	# and the compile still says -std=gnu++20. Measured by reading the failing
+	# compile line, not by trusting the property.
+	#
+	# Raised per-target rather than moving CMAKE_CXX_STANDARD, so one
+	# dependency's requirement does not change the language every other target
+	# is checked against.
+	if(SUB_PROJECT_NAME MATCHES "_AU$")
+		set_property(TARGET ${SUB_PROJECT_NAME} PROPERTY CXX_STANDARD 23)
+		set_property(TARGET ${SUB_PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
+	else()
+		set_property(TARGET ${SUB_PROJECT_NAME} PROPERTY CXX_STANDARD 20)
+	endif()
 endforeach()
 
 add_subdirectory(${GMPI_ADAPTORS} adaptors)

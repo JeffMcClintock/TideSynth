@@ -39,6 +39,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — M1 and M3 were never blocked by the carve-out, and the AU passes auval**
+
+- A `BLOCKED` row with no stated blocker is a claim nobody has retested.
+- A CMake property can be set, announced, and overwritten one loop later.
+- A working control on the same machine beats any amount of reading.
+- `OUTPUT_NAME` breaks every hand-derived sibling name, not just the one you fixed.
+- Fix the first error and expect the count to go UP.
+- Objective-C class names are process-global.
+
 **macos — loading the CLAP for the first time found that TIDE ships SynthEdit's identity**
 
 - Load the artifact in a real host before believing it works.
