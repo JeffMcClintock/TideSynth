@@ -46,6 +46,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The harness warns when the engine scanned module folders outside `--modules`
 - Do not regenerate another box's provenance record to improve its label.
 
+**linux — R4: the tarball, and the CLAP's resources have nowhere to live**
+
+- Verify a two-repo fix from the shared branch, not from the branch that made it.
+- "Where does this format keep its data?" is a packaging question with a different answer per format.
+- A bare `.so` plugin format has no namespace
+- Check for a validator before promising verification.
+
 **macos — STEP 4: six PRs merged in one go, and every NEXT cell went stale at once**
 
 - A batch merge invalidates the WHOLE NEXT block, not one cell.

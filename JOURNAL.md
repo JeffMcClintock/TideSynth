@@ -196,6 +196,94 @@ additions are the new case and its reference. TideSynth back on `main`.
 
 ---
 
+## 2026-08-22 — linux — R4: the tarball, and the CLAP's resources have nowhere to live
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Did:** synced all five repos, confirmed **#271 is genuinely fixed on `main`**,
+then took **R4** — the Linux tarball — and filed the one thing it cannot solve.
+
+### #271 closed, checked from `main` rather than from my own branches
+
+Both halves merged (GMPI#6 + #274), and the split-brain risk was the whole point
+of that pairing, so I re-checked from a **clean configure and build of `main`**.
+TIDE tracks GMPI by `GIT_TAG origin/main`, so a fresh configure fetches the fix:
+
+```
+TIDE-Rack.vst3/Contents/x86_64-linux/TIDE-Rack.so
+TIDE-Rack.vst3/Contents/Resources/…            (no stray TIDE_Rack_VST3.vst3)
+[Info]: Found Plugin: TIDE Rack   uid=506C7567696E474D504920501951ED43
+```
+
+One bundle, and Ardour loads it. Closed.
+
+### R4: the tarball
+
+`scripts/package-linux.sh` → `TIDE-Rack-Linux.tar.gz`, 5.7 MB, 32 entries, no
+spaces and no underscored shipped names (docs/distribution.md's rule, which
+exists because a space is `%20` in a permalink R6 promises never to change).
+
+**Verified by installing it, not by listing it:** untar into a scratch `HOME`,
+run `install.sh`, and Ardour's scanner finds the *installed* plugin at
+`~/.vst3/TIDE-Rack.vst3` with all six prefabs present. `install.sh` writes
+nothing outside `HOME`, needs no root, honours `VST3_DIR`/`CLAP_DIR` and is
+re-runnable.
+
+### The finding: a Linux CLAP has nowhere to put its data
+
+A Linux CLAP is a **bare shared object**, not a bundle directory — `gmpi_plugin.cmake`
+says so in as many words. So it carries no resources, and
+`BundleInfo::getBundleContentsFolder()` walks the module path for a `Contents`
+element and **falls back to `parent_path()`**. The lookup therefore lands beside
+the `.so`: **`~/.clap/Resources`, shared with every other CLAP installed the same
+way.**
+
+Confirmed it actually needs them rather than assuming: `TIDE-Rack.clap` contains
+the same `no Prefabs folder in bundle resources` and `%s missing from bundle
+resources` strings the VST3 does, and ships none itself — 7.6 MB against the
+VST3 bundle's 8.7 MB, the difference being the 160 KB `Resources`.
+
+**R4 ships it anyway**, because the alternative is an empty rack module browser —
+the S21 failure — and the `README.txt` documents the folder and offers a
+VST3-only install. The design problem is **S37**, with three options costed.
+
+**And the CLAP is packaged but never loaded**, because there is no CLAP host on
+this box: `clap-validator` and `clap-info` absent, and Ardour 8.4 has **no** CLAP
+support (`strings libardour.so.3` finds no `clap_entry`). All three checked, not
+assumed — which is the habit yesterday's Ardour correction was supposed to teach
+me.
+
+**Learned:**
+
+1. **Verify a two-repo fix from the shared branch, not from the branch that made
+   it.** Both halves merging is not the same as both halves reaching a consumer;
+   TIDE fetches GMPI by moving tag, so only a clean configure proves it.
+2. **"Where does this format keep its data?" is a packaging question with a
+   different answer per format.** The VST3 is self-contained and the CLAP is not,
+   on the same platform, in the same build — and only the CLAP leaks into a
+   shared directory.
+3. **A bare `.so` plugin format has no namespace**, so any resource convention
+   built on `parent_path()` is shared-by-construction. Worth knowing before
+   choosing that convention for a fourth format.
+4. **Check for a validator before promising verification.** I could verify the
+   VST3 half completely and the CLAP half not at all, and the honest package is
+   one that says which is which.
+
+**Next:**
+
+1. **S37** wants a CLAP host on some box before it can be measured at all; that
+   may be its real first step.
+2. **R4's tarball is not uploaded anywhere** — R6 owns the release plumbing, and
+   this row only produces the artifact.
+3. **The audio half of v0.1 still has not been run against the renamed
+   artifacts** — `render-and-measure.py` is REAPER-specific.
+
+**Machine left clean.** All builds and installs ran in scratch trees and a fake
+`HOME`; `~/.vst3`, `~/.clap` and the developer's build tree were not written to.
+Ardour cache entries from the scans pointed into scratch trees and were removed,
+leaving his nine own entries. All five repos synced and on their default branches.
+
+**Branch/PR:** `tide/linux/R4-linux-tarball` — TideSynth only.
 ## 2026-08-22 — macos — STEP 4: six PRs merged in one go, and every NEXT cell went stale at once
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
