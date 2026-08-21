@@ -1,0 +1,17 @@
+{
+  "description": "E1c's discriminator: the SAME module as osc_naive_sine -- SE Oscillator (naive) -- but with its Pitch input DRIVEN (pinned to 5 V) instead of free-running on the module default. Everything else is held constant: same module, same duration, same rate, same source pin. It exists to separate two explanations of the -73.5 dBFS cross-platform residual osc_naive_sine shows, which E1a's own table cannot separate because it never varied this input.",
+  "script": [
+    "--new",
+    "--add-module \"SE Patch Point in\"      60,100 --as pitch",
+    "--add-module \"SE Oscillator (naive)\" 260,100 --as osc",
+    "--connect $pitch:Output $osc:Pitch",
+    "--set-pin $pitch:Input 5"
+  ],
+  "source": "$osc:5",
+  "duration": 2.0,
+  "rate": 48000,
+
+  "null_tolerance_dbfs": -67.0,
+  "peak_diff_tolerance_dbfs": -62.0,
+  "tolerance_reason": "PROVISIONAL, and deliberately copied from osc_naive_sine rather than chosen: this case exists to find out which class it belongs to, so gating it as if the answer were known would beg the question. It carries the drift-class gates until a second platform renders against this reference, and MUST then be re-tightened or left alone on the evidence -- see E1c. What the two outcomes mean: if the cross-platform residual lands near -123 dBFS (rounding class, ~1 LSB) then the discriminator is the UNDRIVEN PITCH INPUT and not the module, which also means prefab_oscillator and prefab_filter carry drift-class gates for a mechanism their scripts do not exhibit. If it lands near -73 dBFS (drift class, ~12 LSB) then the module is the variable after all and osc_naive_sine's stated reason stands. Seeded on Linux 2026-08-22; the comparison half is a macOS or Windows render against this reference."
+}
