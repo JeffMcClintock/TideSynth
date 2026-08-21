@@ -109,6 +109,114 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — E1c: the hypothesis was already refuted by a table in this repo
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** took **E1c**, could not run its harness here, and found that the
+experiment it asks for is unnecessary — the hypothesis it names is contradicted
+by numbers already written down. Then fixed the thing that made establishing
+that take an afternoon.
+
+### The row asks the wrong question
+
+E1c says to test whether *"the core oscillator's phase increment is
+cross-platform stable where the naive one's is not"*. E1a's own table settles it:
+
+| case | oscillator | pitch input | residual | E1a's class |
+|---|---|---|---|---|
+| `osc_naive_sine` | `SE Oscillator (naive)` | **not connected** | **−73.5 dBFS** | 12 LSB, *"not rounding"* |
+| `voice_midi_note` | `SE Oscillator (naive)` | keyboard | −123.1 dBFS | 1 LSB, *"pure rounding"* |
+| `prefab_oscillator` | `Oscillator` (core) | patch point, 5 V | −131.1 dBFS | rounding |
+| `prefab_filter` | `Oscillator` (core) | patch point, 5 V | −121.4 dBFS | rounding |
+
+The top two are **the same module**, measured macOS-vs-Linux-goldens in one run,
+identical on three independent engines — and they are **50 dB apart**. The module
+cannot be the variable.
+
+What co-varies instead is visible in the scripts: `osc_naive_sine` is the only
+case whose **pitch input is connected to nothing**, so it free-runs on the module
+default. Every case that drives pitch — from a keyboard or from a pinned patch
+point, naive oscillator or core — is rounding class.
+
+So `prefab_oscillator` and `prefab_filter` are rounding-class cases carrying
+phase-drift-class gates, and their `tolerance_reason` cites a mechanism their own
+scripts do not exhibit. And the settling experiment is now **one** case, not two:
+the naive oscillator *with* pitch pinned. Rounding class confirms the pitch
+reading; −73 dB class restores the module reading.
+
+### The part that cost the time, and the part I fixed
+
+Every number above needed its platform pair established before it meant
+anything, and **nothing in `tests/references/` recorded that.** It took a journal
+entry from nine days earlier plus a sentence buried in a case description
+(*"REFERENCE SEEDED ON macOS, 2026-08-18 — unlike the other two, which came from
+Linux"*) to work out which WAV came from where.
+
+The four were comparable at all only because one run happened to produce them —
+luck, not method. A null-test residual means *"rounding, ignore it"* if both
+sides ran on one platform and *"cross-platform drift, size your gates for it"* if
+they did not, and those are opposite conclusions from the same number.
+
+So `--update-refs` now writes `tests/references/<case>.provenance.json` recording
+system, release, machine, engine build and the reference hash. Six existing
+references backfilled, honestly graded: three `reconstructed` with the evidence
+quoted, and **three `unknown`** — `prefab_envelope`, `prefab_filter`,
+`prefab_midi` — where nobody wrote it down and I could not establish it.
+
+`prefab_filter` is the interesting one. E1c calls its −121.4 figure a Linux
+verify *"against macOS-seeded references"*, which implies Darwin — but the
+reference file was added on 2026-08-20 and the measurement is dated 2026-08-19.
+Those do not line up, so recording Darwin would have been inventing a fact that
+merely sounded right. It is `unknown`.
+
+### Verification
+
+`--selftest` needs no engine, which is the whole point given the harness needs
+`SynthEditCL` and a Linux box. Six new cases, and both negative controls bite:
+hardcode the platform → the platform check fails; write the sidecar under the
+wrong name → the path check fails. Restored, the suite passes.
+
+### What I did NOT do
+
+**The gates are unchanged.** E1c's Accept requires a positive control —
+tightened gates passing on both platforms while failing a deliberate regression —
+and `verify.yml` is `ubuntu-24.04` only and needs `SynthEditCL` from the private
+repo. **Changing a gate without that control is exactly what created this row.**
+
+**Learned:**
+
+- **Before designing an experiment, check whether the repo already ran it.** E1c
+  named a hypothesis two existing measurements refute. The table was in
+  `JOURNAL-2026-08.md` and the module names were in the case files; nothing
+  needed to be rendered.
+- **When two cases differ by 50 dB, list every way they differ before believing
+  the first explanation.** "Naive vs core oscillator" was the obvious reading and
+  it was wrong — the same module appears on both sides. The undriven pitch input
+  was the only variable that actually tracked the split.
+- **A measurement without its provenance is not a measurement.** A null-test
+  residual supports opposite conclusions depending on whether the two sides ran
+  on the same platform. Record the platform pair *with the artifact*, at the
+  moment it is produced — reconstructing it later is archaeology and sometimes
+  impossible.
+- **Grade backfilled facts explicitly.** `measured` / `reconstructed` / `unknown`
+  keeps a later reader from treating a plausible inference as a record. Marking
+  `prefab_filter` unknown was more useful than recording the Darwin the row
+  implies, because the dates do not support it.
+- **A harness that needs an engine should still have a mode that does not.**
+  `--selftest` is why this change is verified at all from a box that cannot run
+  the real suite.
+
+**Next:** the one-case experiment (naive oscillator, pitch pinned to 5 V) settles
+the mechanism and wants a **Linux** box, since that is where `verify.yml` runs.
+Then the gates can be justified rather than inherited. **Re-seeding
+`prefab_envelope`, `prefab_filter` or `prefab_midi` fixes its `unknown` record as
+a side effect** — worth doing on whichever platform is going to own them.
+
+**Branch/PR:** `tide/mac/E1c-reference-provenance` — TideSynth.
+
+---
+
 ## 2026-08-22 — linux — #271: fixing the bundle name alone would have emptied the bundle
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)

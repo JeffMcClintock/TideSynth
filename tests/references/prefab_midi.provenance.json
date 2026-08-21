@@ -1,0 +1,10 @@
+{
+  "case": "prefab_midi",
+  "duration_s": 0.5,
+  "engine": null,
+  "evidence": "Its \"measured 2026-08-19 (macos)\" note is about a negative control, not about seeding the reference.",
+  "rate": 48000,
+  "recorded": "unknown",
+  "reference_sha256": "a99c6714b7f5fffd76ce0c2a928c0406a4be0a5537d77e19dc3fb480d3ecefef",
+  "seeded_on": null
+}

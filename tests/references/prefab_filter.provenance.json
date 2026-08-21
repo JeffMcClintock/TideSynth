@@ -1,0 +1,10 @@
+{
+  "case": "prefab_filter",
+  "duration_s": 2.0,
+  "engine": null,
+  "evidence": "BACKLOG E1c describes its -121.4 dBFS figure as coming from \"a verify run on Linux against macOS-seeded references\", which implies Darwin -- but the reference file postdates that measurement (added 2026-08-20 by commit 3f271ae, the measurement is 2026-08-19), so the two do not line up and the implication is not safe to record as fact. Re-seed or confirm.",
+  "rate": 48000,
+  "recorded": "unknown",
+  "reference_sha256": "7ff9d8601d415098e5d0c1a966ea8568171aa9df5f94c8bc6cf4ce8851f68a82",
+  "seeded_on": null
+}

@@ -1,0 +1,14 @@
+{
+  "case": "prefab_oscillator",
+  "duration_s": 2.0,
+  "engine": null,
+  "evidence": "tests/cases/prefab_oscillator.json says so in its own description: \"REFERENCE SEEDED ON macOS, 2026-08-18\".",
+  "rate": 48000,
+  "recorded": "reconstructed",
+  "reference_sha256": "27c83c32ad180810e40c643b59810adfe4a2bfbd61464b227de5f7a890b24ca3",
+  "seeded_on": {
+    "machine": null,
+    "release": null,
+    "system": "Darwin"
+  }
+}

@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — E1c: the hypothesis was already refuted by a table in this repo**
+
+- Before designing an experiment, check whether the repo already ran it.
+- When two cases differ by 50 dB, list every way they differ before believing the first explanation.
+- A measurement without its provenance is not a measurement.
+- Grade backfilled facts explicitly.
+- A harness that needs an engine should still have a mode that does not.
+
 **linux — #271: fixing the bundle name alone would have emptied the bundle**
 
 - When two files are documented as mirroring each other, changing one is a half-fix by construction.
