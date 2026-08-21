@@ -109,6 +109,101 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — STEP 4: six PRs merged in one go, and every NEXT cell went stale at once
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** bookkeeping, after Jeff merged the whole queue —
+[#272](https://github.com/JeffMcClintock/TideSynth/pull/272),
+[#275](https://github.com/JeffMcClintock/TideSynth/pull/275),
+[#276](https://github.com/JeffMcClintock/TideSynth/pull/276),
+[#278](https://github.com/JeffMcClintock/TideSynth/pull/278),
+[#279](https://github.com/JeffMcClintock/TideSynth/pull/279),
+[#280](https://github.com/JeffMcClintock/TideSynth/pull/280), plus
+[GMPI#6](https://github.com/JeffMcClintock/GMPI/pull/6) and
+[#274](https://github.com/JeffMcClintock/TideSynth/pull/274) together. Flipped
+**R2, R3, R4a, S31** to DONE with PR state verified rather than assumed, and
+re-pointed **all four** NEXT cells.
+
+### Every cell in the NEXT block was stale simultaneously
+
+That is the thing worth recording. The block is per-platform, so a single run
+normally invalidates one cell. Six items landing at once invalidated all four:
+
+| cell | pointed at | why it was dead |
+|---|---|---|
+| `win` | R2 | merged an hour earlier |
+| `mac` | N1a | DONE since 2026-08-22, two rows ago |
+| `linux` | S23 | that box already measured it as not reproducing |
+| `any` | C7b, C15 | both archived DONE |
+
+**And `check-next-block.py` passed on every one of them.** It reports "2
+take-target(s) checked across 4 NEXT rows" — its trigger set is deliberately
+narrow (A20/A27), matching imperative take-phrases and a leading bolded ID. The
+`any` cell names C7b and C15 as *history* rather than as "take this", which is
+exactly the shape it is designed not to flag, and which is nonetheless useless to
+the run that reads it.
+
+So the check is doing its documented job and the block still rotted. A cell can
+be *correct* and *worthless* at the same time.
+
+### A mistake worth its own line
+
+Rewriting the cells, I wrapped each in `**` — but they already began with a
+bolded take-target, so the result was `****P11**`. That breaks A27's rule
+directly: the check keys on the ID a cell *begins* with when bolded, and a
+four-asterisk prefix is not that. It passed anyway, because the ID was live and
+the regex still matched. Caught by looking at the rendered table rather than at
+the exit code.
+
+I also nearly left the **Why** column untouched while replacing every **Take**
+cell, which would have paired new instructions with a year-old justification —
+`win`'s Why still said *"Both default branches are GREEN, measured 2026-08-20"*.
+
+### What the four cells say now
+
+- **`win` → P11's Windows half.** Its own row, **P3**, is GATED — both files are
+  on the GATED list. The mac half turned out to be a *different mechanism*, so
+  the cell says explicitly not to assume the Windows one matches.
+- **`mac` → E9.** `SynthEditSem/SynthEdit.cpp`, TIDE's own, spec already settled.
+  R8 is mac's own row and is blocked on a naming decision from Jeff.
+- **`linux` → R4**, whose blockers all cleared today, plus two side-tasks that
+  **only Linux can do**: run `sh tests/s31_kill_named_test.sh` (S31's bug does not
+  exist on BSD), and render one E1c case (`verify.yml` is ubuntu-only).
+- **`any` → E9**, with the takeable set spelled out, because most of the 26-row
+  `any` queue is GATED and no run should re-derive that.
+
+**Learned:**
+
+- **A batch merge invalidates the WHOLE NEXT block, not one cell.** The block is
+  written as if one run changes one platform's cell. After a multi-PR merge,
+  re-read all four — three of the four here named work that had finished.
+- **`check-next-block.py` cannot see a cell that cites a dead row as history.**
+  Its narrow trigger set is the right trade (A20 argues it), but it means green
+  lint is not evidence the block is useful. Read the cells.
+- **Do not wrap a NEXT cell in `**` — it already starts bolded.** `****ID**`
+  breaks the leading-bolded-ID convention A27 depends on and still passes lint.
+- **When you replace the Take column, replace the Why column.** New instructions
+  under old reasoning is worse than either alone, because the reasoning is what a
+  run uses to decide whether the instruction still applies.
+- **Flip a row on verified PR state, not on memory of having pushed it.**
+  `gh pr view --json state,mergedAt` for each of the four took one command and is
+  the difference between bookkeeping and guessing.
+- **Not every leftover deserves a row.** S31's outstanding evidence is one command
+  on another platform; that belongs in the `linux` NEXT cell with "reopen S31 if
+  it fails", not in a new ID.
+
+**Next:** the queue is genuinely empty of mac-takeable work that does not need
+Jeff. **E9** is the mac cell and the largest live thing this box can both change
+and verify. **Waiting on Jeff:** **R5** (a `.github/workflows/**` file — this
+token has `repo` scope only, verified), **R8** (a naming decision, then a
+PR-GATED GMPI change), **S27**'s cross-platform reference decision, and **S30**,
+where **no macOS job completed on any of the eight PRs merged today**.
+
+**Branch/PR:** `tide/mac/step4-bookkeeping` — TideSynth, backlog and journal only.
+
+---
+
 ## 2026-08-22 — windows — R2: the Windows installer, and the payload it must carry is not the file the build emits
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)

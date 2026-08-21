@@ -39,6 +39,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — STEP 4: six PRs merged in one go, and every NEXT cell went stale at once**
+
+- A batch merge invalidates the WHOLE NEXT block, not one cell.
+- `check-next-block.py` cannot see a cell that cites a dead row as history.
+- Do not wrap a NEXT cell in `
+- When you replace the Take column, replace the Why column.
+- Flip a row on verified PR state, not on memory of having pushed it.
+- Not every leftover deserves a row.
+
 **windows — R2: the Windows installer, and the payload it must carry is not the file the build emits**
 
 - A packaging script's real job is deciding what the shipped layout IS, not copying a build tree into a zip.
