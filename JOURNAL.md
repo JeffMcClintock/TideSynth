@@ -109,6 +109,109 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — linux — S7: TIDE does write to the user's home, and does not spew skins — the guard is an accident
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Did:** took **S7** and did the runtime verification it asks for before any fix.
+The row's prediction is **half right**, and the half that is wrong is wrong in a
+way that makes the finding more interesting rather than less.
+
+### Confirmed: a launch writes outside the plugin's container
+
+Launching `TIDE-Rack` creates, from launch alone and with no user action:
+
+```
+<home>/SynthEdit Projects/
+<home>/SynthEdit Projects/skins/
+<home>/SynthEdit Projects/.resource_version     (contents: "0")
+```
+
+That is **PLAN constraint 4** (self-contained — nothing written outside the
+plugin's own container) and **constraint 8** (no skin folder, nothing
+skin-related written to the user's disk), both violated at startup.
+
+### Refuted: it does not spew the skin set
+
+`skins/` is created and stays **empty**. The copy is guarded by
+`if (exists(srcRoot))` with `srcRoot = GetHomeDir()/Resources/skins`
+(`SkinMgr.cpp:76-80`), and **TIDE's bundle ships no `Resources/skins`** — its
+`Resources/` holds `Prefabs/` and four pin XMLs, nothing else.
+
+**So the payload is absent, not blocked, and that is the actual finding.**
+`create_directories(destRoot)` runs unconditionally inside `shouldCopy`, and
+`shouldCopy` is `versionChanged || !exists(destRoot/"default")`. For TIDE
+`SE_APP_BUILD_NUMBER` is **0**, the stored version reads back **0**, and
+`default/` is never created — so **`shouldCopy` is true on every launch,
+forever**. The day someone adds a `skins/` to TIDE's resources, it starts
+copying them into every user's home silently. Nothing guards this; TIDE simply
+has nothing to copy yet.
+
+### The part that nearly went wrong
+
+`BundleInfo::getUserDocumentFolder()` resolves the home through
+**`getpwuid(getuid())->pw_dir`, deliberately ignoring `$HOME`**
+(`BundleInfo.cpp:343-351` — so a sandboxed macOS app sees the real home rather
+than its container). **`HOME=<scratch>` therefore does not sandbox this test at
+all**, and the obvious version of this experiment would have written into Jeff's
+real home while looking careful.
+
+Redirected instead with a 30-line `LD_PRELOAD` shim over `getpwuid`/`getpwuid_r`,
+**validated against a probe before being trusted** (`pw_dir=/home/jef` without,
+`pw_dir=<scratch>` with). Jeff's `~/SynthEdit Projects/` is byte-identical before
+and after — 713 entries, `find -printf '%T@ %p'` diff clean. The shim is
+committed as `tools/fakehome_shim.c` with its reasoning, because the next runtime
+test of "what does this write" needs it too.
+
+### Incidental, and worth separating from the above
+
+`SynthEditCL` wrote `.resource_version` = **186** into the *real*
+`~/SynthEdit Projects/` at 09:46 today — during this run's own **E1c** renders.
+So the machinery is live for SynthEdit itself, not merely theoretical. It is
+unrelated to the TIDE question and predates the S7 test; I noticed it only
+because I snapshotted the folder first.
+
+Also: the row cites `SE16/SynthEdit2/SkinMgr.cpp:27-30`. The carve-out moved that
+file; it is `SynthEditLib/EditorLib/SkinMgr.cpp` now. Still GATED.
+
+**Learned:**
+
+1. **`HOME=` is not a sandbox when the code uses `getpwuid`.** Two libraries in
+   this stack deliberately prefer it, for a good macOS reason. Check which one a
+   path comes from *before* running a write test, not after.
+2. **Validate a test harness against a probe before trusting its result.** A
+   silently-not-working `LD_PRELOAD` would have produced "TIDE writes nothing" —
+   a clean, wrong, reassuring answer.
+3. **"It does not do the bad thing" and "it cannot do the bad thing" are
+   different findings**, and only the second is a guard. Here the directory
+   creation is unconditional and only the payload is missing.
+4. **Snapshot the thing you are about to test before you test it.** The
+   `.resource_version` = 186 write was my own harness from an earlier item, and
+   without a baseline I would have attributed it to TIDE.
+
+**Next:**
+
+1. **The fix is GATED** (`SynthEditLib/EditorLib/SkinMgr.cpp`) and this is not a
+   build break, so A17 does not reach it. **Try the TIDE-side route first**: TIDE
+   never needs a user skin folder, so the goal is that `SkinMgr`'s constructor is
+   never reached, or is pointed at the bundle.
+2. **Accept is now stateable and cheap**: a TIDE launch creates nothing under the
+   user's home, demonstrated with the committed shim.
+3. **S2's sandbox audit overlaps** — whoever takes either should re-read the
+   other, as the row already says.
+
+**Machine left clean.** Everything ran under the shim in a scratch home; Jeff's
+`~/SynthEdit Projects/` verified byte-identical. weston and the standalone both
+stopped by pid (S31). TideSynth back on `main`.
+
+**Branch/PR:** `tide/linux/S7-skin-writes` — TideSynth only, row + journal + the shim. No product code change.
+
+---
+
+---
+
+---
+
 ## 2026-08-22 — macos — M1 and M3 were never blocked by the carve-out, and the AU passes auval
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present

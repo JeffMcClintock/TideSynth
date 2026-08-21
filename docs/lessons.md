@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**linux — S7: TIDE does write to the user's home, and does not spew skins — the guard is an accident**
+
+- `HOME=` is not a sandbox when the code uses `getpwuid`.
+- Validate a test harness against a probe before trusting its result.
+- "It does not do the bad thing" and "it cannot do the bad thing" are different findings
+- Snapshot the thing you are about to test before you test it.
+
 **macos — M1 and M3 were never blocked by the carve-out, and the AU passes auval**
 
 - A `BLOCKED` row with no stated blocker is a claim nobody has retested.
