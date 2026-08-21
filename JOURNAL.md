@@ -702,6 +702,71 @@ call, exactly as the previous entry left it.
 
 ---
 
+## 2026-08-21 — macos — R3: the pkg builds, and productbuild would have shipped it to the wrong hardware
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** built the macOS pkg — [scripts/package-macos.sh](scripts/package-macos.sh)
+produces `TIDE-Rack-macOS.pkg` — and split the half of R3 that cannot be done.
+
+### Half the row was unbuildable, and checking first is what caught it
+
+R3 says *"AU → `Components`, VST3 → `VST3`"*. `SynthEditSem/CMakeLists.txt` sets
+`FORMATS_LIST GMPI VST3 STANDALONE`: **there is no AU target**, and **M1**, the
+row that would add one, is BLOCKED. Filed as **R3a**, `BLOCKED(M1)`.
+
+The script **fails** if the AU is missing rather than quietly packaging one
+plug-in where the docs promise two — a pkg that silently omits half its payload
+is worse than one that refuses to build.
+
+### The real find: productbuild lies about hardware
+
+`productbuild` writes `hostArchitectures="x86_64,arm64"` into the synthesized
+Distribution **regardless of what the payload actually contains**. TIDE is now
+arm64-only, so the pkg would have **installed happily on an Intel Mac** and the
+plug-in would then have failed to load with nothing explaining why.
+
+That is precisely the consequence R3's own row predicted this morning — *"the
+pkg will not run on an Intel Mac and nothing tells the user why"* — and it turns
+out macOS will tell them, if the pkg is honest. The script now derives
+`hostArchitectures` from `lipo` on the built binary and verifies the
+substitution landed; the shipped pkg reads `hostArchitectures="arm64"`, so the
+installer itself refuses the wrong hardware. Derived rather than hardcoded, so
+it stays correct if the ARM ruling is revisited.
+
+### Verified against the artefact, not the tool's own output
+
+- payload installs to `./Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3`, matching
+  distribution.md
+- a real `installer` run into a sandbox target: *"The install was successful"*,
+  placing a binary **byte-identical** to the build (same sha), and leaving no
+  stray receipt
+- `hostArchitectures="arm64"` read back out of the expanded pkg
+
+**Not signed, not notarized, and that is stated rather than implied.** Signing
+runs only when the two identity variables are in the environment; notarization
+(`notarytool` + `stapler`, modelled on `SynthEdit_cmake_mac.yml:223-244`)
+belongs to **R5**, which owns the secret store. The script prints which of the
+two artefacts it produced and says plainly that an unsigned pkg is not
+shippable.
+
+**Learned:**
+
+1. **A packaging tool's defaults describe the tool, not your payload.**
+   `productbuild` had no idea the binary was single-arch and cheerfully said it
+   would run anywhere. The check that caught it was reading the generated
+   Distribution rather than trusting "Wrote product to …".
+2. **When a row names two payloads, confirm both exist before starting.** Half
+   of R3 was blocked by a row nobody had connected to it, and the connection was
+   one grep of `FORMATS_LIST`.
+
+**Next:** R3a waits on M1. R5 wires notarization and is a workflow file, so
+Jeff pushes it. R2 (`win`) and R4 (`linux`) are now takeable on their boxes.
+
+**Branch/PR:** `tide/mac/R3-macos-pkg` — TideSynth only.
+
+---
+
 ## 2026-08-21 — macos — S29's coverage-hole fix, rebuilt clean after the branch went stale
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
