@@ -1796,9 +1796,11 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 		previousBsdfPdf = bs.pdf;
 
 		// --- Russian roulette ----------------------------------------------
-		// Only after a few bounces: killing paths early saves little and adds
-		// noise exactly where the image is brightest.
-		if (bounce >= 3)
+		// Only after settings.rouletteDepth bounces: killing paths early saves
+		// little and adds noise exactly where the image is dimmest — glass
+		// interiors, bore shadows. A depth at or past maxBounces disables it,
+		// which is what the Ultra rung does.
+		if (bounce >= settings.rouletteDepth)
 		{
 			const float survive = clampf(throughput.maxComponent(), 0.0f, 0.95f);
 			if (rng.next() >= survive)
@@ -1906,6 +1908,60 @@ Vec3 shadeFast(const Hit& hit, const Vec3& rayDirection)
 		* std::pow(maxf(dot(normal, half), 0.0f), kFastSpecularPower);
 
 	return m.colour * (kFastAmbient + kFastKey * wrap + rim) + Vec3{ specular };
+}
+
+// ---------------------------------------------------------------------------
+// Pixel filtering and stratification
+// ---------------------------------------------------------------------------
+
+struct FilterOffset
+{
+	float x = 0.5f;
+	float y = 0.5f;
+};
+
+// Warp a uniform (u1, u2) into a sub-pixel offset drawn from the filter's own
+// distribution (filter importance sampling — see PixelFilter in the header for
+// why this and not splatting). Offsets are relative to the pixel's top-left
+// corner; Tent and Gaussian range outside [0,1), which is the point — that is
+// the sample reaching into what a splatting filter would have borrowed from
+// the neighbours.
+FilterOffset filterOffset(PixelFilter filter, float u1, float u2)
+{
+	switch (filter)
+	{
+	default:
+	case PixelFilter::Box:
+		return { u1, u2 };
+
+	case PixelFilter::Tent:
+	{
+		// Inverse CDF of the triangle on [-1, 1], one axis at a time (the 2D
+		// tent is separable).
+		const auto invTent = [](float u)
+		{
+			return (u < 0.5f) ? (safeSqrt(2.0f * u) - 1.0f)
+				: (1.0f - safeSqrt(2.0f - 2.0f * u));
+		};
+		return { 0.5f + invTent(u1), 0.5f + invTent(u2) };
+	}
+
+	case PixelFilter::Gaussian:
+	{
+		// Box-Muller, sigma 0.45px, CLAMPED at 1.25px rather than rejected:
+		// rejection would consume a variable number of RNG draws and shift
+		// every draw the path makes afterwards, and the sliver of mass parked
+		// on the clamp ring is far below anything visible.
+		constexpr float kSigma = 0.45f;
+		constexpr float kMaxRadius = 1.25f;
+
+		// 1 - u1 is in (0, 1], so the log is finite.
+		const float radius = minf(kMaxRadius,
+			kSigma * safeSqrt(-2.0f * std::log(maxf(1.0f - u1, 1.0e-7f))));
+		const float phi = 2.0f * kPi * u2;
+		return { 0.5f + radius * std::cos(phi), 0.5f + radius * std::sin(phi) };
+	}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -2039,12 +2095,18 @@ void addStudio(Scene& scene, const Studio& studio)
 	}
 }
 
-Image render(const Scene& scene, const Camera& camera, const Settings& settings)
+void renderProgressive(const Scene& scene, const Camera& camera, const Settings& settings,
+	Image& image, int sampleBegin, int sampleEnd)
 {
-	Image image;
-	image.width = (settings.width > 1) ? settings.width : 1;
-	image.height = (settings.height > 1) ? settings.height : 1;
-	image.rgba.assign((size_t)image.width * (size_t)image.height * 4, 0.0f);
+	// The first batch owns the allocation; later batches must arrive with the
+	// image exactly as the previous batch left it — see the header contract.
+	if (sampleBegin <= 0)
+	{
+		sampleBegin = 0;
+		image.width = (settings.width > 1) ? settings.width : 1;
+		image.height = (settings.height > 1) ? settings.height : 1;
+		image.rgba.assign((size_t)image.width * (size_t)image.height * 4, 0.0f);
+	}
 
 	const CameraBasis basis = makeCameraBasis(camera, settings);
 
@@ -2055,14 +2117,29 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 
 	const bool fast = (settings.mode == RenderMode::Fast);
 
+	// Fast mode is exact, so "progressive" means nothing to it: the first batch
+	// renders the whole image and later batches would only redo it.
+	if (fast && sampleBegin > 0)
+		return;
+
+	if (!fast && sampleEnd <= sampleBegin)
+		return;
+
 	// Fast mode's samples are a fixed sub-pixel GRID, not jittered draws: with
 	// no light transport the shade is exact, so jitter would add noise to an
 	// image that has none. It also makes the preview bit-deterministic without
 	// the RNG being involved at all.
 	const int fastGrid = std::clamp(settings.fastAntiAlias, 1, 8);
-	const int samplesPerPixel = fast
-		? (fastGrid * fastGrid) : std::max(settings.samplesPerPixel, 1);
+	const int samplesPerPixel = fast ? (fastGrid * fastGrid) : sampleEnd;
 	const float invSpp = 1.0f / (float)samplesPerPixel;
+
+	// Stratification is anchored to the PLANNED total from settings, not to
+	// this batch, so batches land in the same strata they would in a single
+	// call — that identity is the whole progressive contract. Samples past the
+	// grid (spp not a perfect square, or a caller running long) fall back to
+	// plain jitter, which is correct, just unstratified.
+	const int strataK = (int)std::sqrt((float)std::max(settings.samplesPerPixel, 1));
+	const int strataCount = strataK * strataK;
 
 	// Tiles rather than scanlines: a tile is a compact region of the image, so
 	// the threads working on it touch nearby geometry and the bounding-sphere
@@ -2116,6 +2193,17 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 					Vec3 sum{ 0.0f };
 					float alphaSum = 0.0f;
 
+					// Resume from the running average: multiplying it back up
+					// by sampleBegin recovers the sum this pixel had, so the
+					// batch is a straight continuation of the same estimator.
+					const size_t i = ((size_t)y * (size_t)image.width + (size_t)x) * 4;
+					if (!fast && sampleBegin > 0)
+					{
+						sum = Vec3{ image.rgba[i + 0], image.rgba[i + 1], image.rgba[i + 2] }
+							* (float)sampleBegin;
+						alphaSum = image.rgba[i + 3] * (float)sampleBegin;
+					}
+
 					if (fast)
 					{
 						for (int sy = 0; sy < fastGrid; ++sy)
@@ -2145,30 +2233,36 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 					}
 					else
 					{
-						for (int s = 0; s < samplesPerPixel; ++s)
+						for (int s = sampleBegin; s < sampleEnd; ++s)
 						{
 							// Seeded from the PIXEL, not from a shared counter,
 							// so the image does not depend on how the tiles were
 							// scheduled across threads.
 							Rng rng = seedRng((uint32_t)x, (uint32_t)y, (uint32_t)s, settings.seed);
 
-							// Jitter within the pixel for antialiasing. Plain
-							// stratification would be better still, but the
-							// sample counts here are high enough that the
-							// difference is below the noise floor.
-							//
 							// The two draws are SEPARATE STATEMENTS on purpose.
-							// Passing them straight into the call as two
-							// arguments reads better and is a determinism bug:
-							// C++ leaves argument evaluation order unspecified,
-							// so which draw becomes x and which becomes y is
-							// the compiler's choice, and the committed
-							// reference images stop being reproducible across
-							// toolchains. (Written that way once; the image
-							// regression caught it immediately.)
-							const float jitterX = rng.next();
-							const float jitterY = rng.next();
-							const Vec3 origin = rayOrigin(x, y, jitterX, jitterY);
+							// Passing them straight into a call as two arguments
+							// reads better and is a determinism bug: C++ leaves
+							// argument evaluation order unspecified, so which
+							// draw becomes x and which becomes y is the
+							// compiler's choice, and the committed reference
+							// images stop being reproducible across toolchains.
+							// (Written that way once; the image regression
+							// caught it immediately.)
+							float u1 = rng.next();
+							float u2 = rng.next();
+
+							// Stratify, then warp through the reconstruction
+							// filter — so the strata survive the warp and land
+							// as evenly spread FILTERED positions.
+							if (s < strataCount)
+							{
+								u1 = ((float)(s % strataK) + u1) / (float)strataK;
+								u2 = ((float)(s / strataK) + u2) / (float)strataK;
+							}
+
+							const FilterOffset f = filterOffset(settings.filter, u1, u2);
+							const Vec3 origin = rayOrigin(x, y, f.x, f.y);
 
 							const PathResult r = tracePath(scene, settings, emitters, derived,
 								origin, basis.forward, rng);
@@ -2177,7 +2271,6 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 						}
 					}
 
-					const size_t i = ((size_t)y * (size_t)image.width + (size_t)x) * 4;
 					image.rgba[i + 0] = sum.x * invSpp;
 					image.rgba[i + 1] = sum.y * invSpp;
 					image.rgba[i + 2] = sum.z * invSpp;
@@ -2200,17 +2293,184 @@ Image render(const Scene& scene, const Camera& camera, const Settings& settings)
 		for (std::thread& t : threads)
 			t.join();
 	}
+}
+
+Image render(const Scene& scene, const Camera& camera, const Settings& settings)
+{
+	Image image;
+	renderProgressive(scene, camera, settings, image,
+		0, std::max(settings.samplesPerPixel, 1));
+
+	if (settings.bloomStrength > 0.0f)
+		applyBloom(image, settings.bloomStrength, settings.bloomThreshold);
 
 	return image;
 }
 
-void writePixels(const Image& image, uint8_t* dst, int32_t bytesPerRow,
+// Three successive box blurs of equal radius converge on a Gaussian (central
+// limit theorem doing the work), each a running-sum sweep — O(pixels) per pass
+// regardless of radius, where a true Gaussian kernel at hero sizes would be a
+// hundred taps per pixel. Edges renormalise by the true window size instead of
+// borrowing zeros, so the halo does not dim against the frame border.
+namespace
+{
+void boxBlurPass(std::vector<float>& src, std::vector<float>& dst,
+	int width, int height, int radius, bool horizontal)
+{
+	const int lineCount = horizontal ? height : width;
+	const int lineLength = horizontal ? width : height;
+	const size_t strideAlong = horizontal ? 3 : (size_t)width * 3;
+	const size_t strideAcross = horizontal ? (size_t)width * 3 : 3;
+
+	for (int line = 0; line < lineCount; ++line)
+	{
+		const size_t base = (size_t)line * strideAcross;
+		for (int c = 0; c < 3; ++c)
+		{
+			float sum = 0.0f;
+			// Prime the window for position 0: [0, radius].
+			for (int j = 0; j <= std::min(radius, lineLength - 1); ++j)
+				sum += src[base + (size_t)j * strideAlong + c];
+
+			for (int pos = 0; pos < lineLength; ++pos)
+			{
+				const int lo = std::max(0, pos - radius);
+				const int hi = std::min(lineLength - 1, pos + radius);
+				dst[base + (size_t)pos * strideAlong + c] = sum / (float)(hi - lo + 1);
+
+				// Slide: drop `lo`, admit `hi + 1`.
+				if (pos + radius + 1 <= lineLength - 1)
+					sum += src[base + (size_t)(pos + radius + 1) * strideAlong + c];
+				if (pos - radius >= 0)
+					sum -= src[base + (size_t)(pos - radius) * strideAlong + c];
+			}
+		}
+	}
+}
+}
+
+void applyBloom(Image& image, float strength, float threshold)
+{
+	if (strength <= 0.0f || image.width <= 0 || image.height <= 0)
+		return;
+
+	const int w = image.width;
+	const int h = image.height;
+	const size_t count = (size_t)w * (size_t)h;
+
+	// Bright pass, straight off the premultiplied HDR: only what exceeds the
+	// threshold blooms, so lit surfaces stay put and sources and glints bleed.
+	std::vector<float> bright(count * 3);
+	for (size_t i = 0; i < count; ++i)
+		for (int c = 0; c < 3; ++c)
+			bright[i * 3 + c] = maxf(image.rgba[i * 4 + c] - threshold, 0.0f);
+
+	// Halo width scales with the frame (2% of the long side), so the look
+	// survives a resolution change instead of tightening into an outline.
+	const float sigma = clampf(0.02f * (float)std::max(w, h), 1.0f, 48.0f);
+	const int radius = std::max(1, (int)std::lround((std::sqrt(4.0f * sigma * sigma / 3.0f + 1.0f) - 1.0f) * 0.5f));
+
+	std::vector<float> scratch(count * 3);
+	for (int pass = 0; pass < 3; ++pass)
+	{
+		boxBlurPass(bright, scratch, w, h, radius, true);
+		boxBlurPass(scratch, bright, w, h, radius, false);
+	}
+
+	for (size_t i = 0; i < count; ++i)
+	{
+		const float r = strength * bright[i * 3 + 0];
+		const float g = strength * bright[i * 3 + 1];
+		const float b = strength * bright[i * 3 + 2];
+
+		image.rgba[i * 4 + 0] += r;
+		image.rgba[i * 4 + 1] += g;
+		image.rgba[i * 4 + 2] += b;
+
+		// The halo carries its own coverage. Without this, writePixels'
+		// unpremultiply zeroes every bloomed pixel outside the silhouette and
+		// the glow ends dead at the object's edge.
+		const float luma = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+		image.rgba[i * 4 + 3] = minf(image.rgba[i * 4 + 3] + luma, 1.0f);
+	}
+}
+
+int samplesFor(int width, int height, int base, int floor, int referencePixels)
+{
+	const double pixels = (double)std::max(width, 1) * (double)std::max(height, 1);
+	if (pixels <= (double)referencePixels)
+		return base;
+
+	// Taper by the square root of the area ratio: cost grows with WIDTH rather
+	// than area, which is what keeps a wide panel affordable in the product.
+	const double taper = std::sqrt((double)referencePixels / pixels);
+	return std::max(floor, (int)std::lround((double)base * taper));
+}
+
+Settings qualitySettings(Quality quality, int width, int height)
+{
+	Settings s;
+	s.width = width;
+	s.height = height;
+
+	switch (quality)
+	{
+	case Quality::Draft:
+		s.mode = RenderMode::Fast;
+		s.fastAntiAlias = 2;
+		break;
+
+	case Quality::Standard:
+		// The shipped faceplate budget, verbatim: TiDEPanel ran 128 paths
+		// tapering past a one-unit panel at 2x, floor 64, 8 bounces, before
+		// the numbers moved here.
+		s.samplesPerPixel = samplesFor(width, height, 128, 64);
+		s.maxBounces = 8;
+		s.clampRadiance = 12.0f;
+		s.rouletteDepth = 3;
+		s.filter = PixelFilter::Tent;
+		break;
+
+	case Quality::High:
+		// 4x the paths, roulette held back to bounce 8, the clamp loosened to
+		// only catch true outliers. About a second for a knob-sized bitmap —
+		// the background-refine quality, not the interactive one.
+		s.samplesPerPixel = samplesFor(width, height, 512, 128);
+		s.maxBounces = 12;
+		s.clampRadiance = 48.0f;
+		s.rouletteDepth = 8;
+		s.filter = PixelFilter::Tent;
+		break;
+
+	case Quality::Ultra:
+		// Marketing: no taper — a 4K frame gets the full count everywhere —
+		// no clamp (every caustic keeps its energy, paid for in samples),
+		// roulette effectively off, the Gaussian filter, bloom on. Minutes to
+		// hours, and nothing in the product should ask for it implicitly.
+		s.samplesPerPixel = 4096;
+		s.maxBounces = 24;
+		s.clampRadiance = 0.0f;
+		s.rouletteDepth = 24;
+		s.filter = PixelFilter::Gaussian;
+		s.bloomStrength = 0.06f;
+		break;
+	}
+
+	return s;
+}
+
+// One implementation for both bit depths: everything up to the very last line
+// — unpremultiply, tone map, exact sRGB encode, re-premultiply — is identical,
+// and duplicating it is how the 8- and 16-bit paths would drift apart. Only
+// the quantum differs: 255 or 65535.
+template <typename Word, int kMaxCode>
+void writePixelsImpl(const Image& image, Word* dst, int32_t bytesPerRow,
 	PixelOrder order, bool premultiply, float exposure, float whitePoint)
 {
 	if (!dst || image.width <= 0 || image.height <= 0)
 		return;
 
-	// Byte offsets of R, G and B within each 4-byte pixel. Alpha is last in
+	// Word offsets of R, G and B within each 4-word pixel. Alpha is last in
 	// both layouts, so only R and B ever swap.
 	const int rIndex = (order == PixelOrder::Rgba) ? 0 : 2;
 	const int bIndex = (order == PixelOrder::Rgba) ? 2 : 0;
@@ -2240,7 +2500,9 @@ void writePixels(const Image& image, uint8_t* dst, int32_t bytesPerRow,
 
 	for (int y = 0; y < image.height; ++y)
 	{
-		uint8_t* row = dst + (size_t)y * (size_t)bytesPerRow;
+		// bytesPerRow stays BYTES for both widths, matching what a locked
+		// bitmap reports.
+		Word* row = (Word*)((uint8_t*)dst + (size_t)y * (size_t)bytesPerRow);
 		for (int x = 0; x < image.width; ++x)
 		{
 			const size_t i = ((size_t)y * (size_t)image.width + (size_t)x) * 4;
@@ -2277,13 +2539,28 @@ void writePixels(const Image& image, uint8_t* dst, int32_t bytesPerRow,
 			// Matching the compositor wins over matching the textbook.
 			const float scale = premultiply ? alpha : 1.0f;
 
-			uint8_t* px = row + (size_t)x * 4;
-			px[rIndex] = (uint8_t)(clampf(channel[0] * scale, 0.0f, 1.0f) * 255.0f + 0.5f);
-			px[1] = (uint8_t)(clampf(channel[1] * scale, 0.0f, 1.0f) * 255.0f + 0.5f);
-			px[bIndex] = (uint8_t)(clampf(channel[2] * scale, 0.0f, 1.0f) * 255.0f + 0.5f);
-			px[3] = (uint8_t)(alpha * 255.0f + 0.5f);
+			constexpr float kMax = (float)kMaxCode;
+			Word* px = row + (size_t)x * 4;
+			px[rIndex] = (Word)(clampf(channel[0] * scale, 0.0f, 1.0f) * kMax + 0.5f);
+			px[1] = (Word)(clampf(channel[1] * scale, 0.0f, 1.0f) * kMax + 0.5f);
+			px[bIndex] = (Word)(clampf(channel[2] * scale, 0.0f, 1.0f) * kMax + 0.5f);
+			px[3] = (Word)(alpha * kMax + 0.5f);
 		}
 	}
+}
+
+void writePixels(const Image& image, uint8_t* dst, int32_t bytesPerRow,
+	PixelOrder order, bool premultiply, float exposure, float whitePoint)
+{
+	writePixelsImpl<uint8_t, 255>(image, dst, bytesPerRow, order, premultiply,
+		exposure, whitePoint);
+}
+
+void writePixels16(const Image& image, uint16_t* dst, int32_t bytesPerRow,
+	PixelOrder order, bool premultiply, float exposure, float whitePoint)
+{
+	writePixelsImpl<uint16_t, 65535>(image, dst, bytesPerRow, order, premultiply,
+		exposure, whitePoint);
 }
 
 }

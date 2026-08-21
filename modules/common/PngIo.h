@@ -97,43 +97,24 @@ inline FILE* openFile(const std::string& path, const char* mode)
 #endif
 	return f;
 }
-}
 
-// `rgba` is 8-bit, NON-premultiplied, width*height*4 bytes, top row first.
-//
-// NON-premultiplied is deliberate and is the opposite of what the GMPI bitmaps
-// want: PNG's spec stores unassociated alpha, so premultiplied data written
-// here would look correct only where alpha is 1 and would darken everywhere
-// else. The caller un-premultiplies before arriving.
-inline bool write(const std::string& path, const uint8_t* rgba, int width, int height)
+// Everything below the scanline bytes is shared between the 8- and 16-bit
+// writers: the zlib stored-block framing, the Adler, the chunk CRCs. `raw` is
+// the filter-prefixed scanline stream, `bitDepth` goes in the IHDR.
+inline bool writeRaw(const std::string& path, std::vector<uint8_t>& raw,
+	int width, int height, uint8_t bitDepth)
 {
-	if (width <= 0 || height <= 0 || !rgba)
-		return false;
-
-	using namespace detail;
-
 	std::vector<uint8_t> file(kSignature, kSignature + 8);
 
 	std::vector<uint8_t> ihdr;
 	put32(ihdr, (uint32_t)width);
 	put32(ihdr, (uint32_t)height);
-	ihdr.push_back(8); // bit depth
+	ihdr.push_back(bitDepth);
 	ihdr.push_back(6); // colour type 6 = truecolour with alpha
 	ihdr.push_back(0); // deflate
 	ihdr.push_back(0); // adaptive filtering
 	ihdr.push_back(0); // no interlace
 	putChunk(file, "IHDR", ihdr);
-
-	// Scanlines, each prefixed by its filter byte. Filter 0 (None) everywhere:
-	// filtering exists to help the compressor, and there is no compressor here.
-	std::vector<uint8_t> raw;
-	raw.reserve((size_t)height * (1 + (size_t)width * 4));
-	for (int y = 0; y < height; ++y)
-	{
-		raw.push_back(0);
-		const uint8_t* row = rgba + (size_t)y * (size_t)width * 4;
-		raw.insert(raw.end(), row, row + (size_t)width * 4);
-	}
 
 	// Adler-32 runs over the UNCOMPRESSED bytes, so it is computed from `raw`
 	// and not from the stored-block stream that wraps it.
@@ -167,13 +148,66 @@ inline bool write(const std::string& path, const uint8_t* rgba, int width, int h
 	putChunk(file, "IDAT", zlib);
 	putChunk(file, "IEND", {});
 
-	FILE* f = detail::openFile(path, "wb");
+	FILE* f = openFile(path, "wb");
 	if (!f)
 		return false;
 
 	const bool ok = std::fwrite(file.data(), 1, file.size(), f) == file.size();
 	std::fclose(f);
 	return ok;
+}
+}
+
+// `rgba` is 8-bit, NON-premultiplied, width*height*4 bytes, top row first.
+//
+// NON-premultiplied is deliberate and is the opposite of what the GMPI bitmaps
+// want: PNG's spec stores unassociated alpha, so premultiplied data written
+// here would look correct only where alpha is 1 and would darken everywhere
+// else. The caller un-premultiplies before arriving.
+inline bool write(const std::string& path, const uint8_t* rgba, int width, int height)
+{
+	if (width <= 0 || height <= 0 || !rgba)
+		return false;
+
+	// Scanlines, each prefixed by its filter byte. Filter 0 (None) everywhere:
+	// filtering exists to help the compressor, and there is no compressor here.
+	std::vector<uint8_t> raw;
+	raw.reserve((size_t)height * (1 + (size_t)width * 4));
+	for (int y = 0; y < height; ++y)
+	{
+		raw.push_back(0);
+		const uint8_t* row = rgba + (size_t)y * (size_t)width * 4;
+		raw.insert(raw.end(), row, row + (size_t)width * 4);
+	}
+
+	return detail::writeRaw(path, raw, width, height, 8);
+}
+
+// 16 bits per channel, for renders that will be GRADED rather than shipped:
+// the extra 8 bits are what survive a curve without banding. `rgba` is
+// width*height*4 uint16 samples in the machine's own byte order; PNG wants
+// each sample big-endian, so they are swapped on the way through. The reader
+// above stays 8-bit-only on purpose — references are 8-bit, and a 16-bit file
+// handed to it fails with a message instead of decoding wrongly.
+inline bool write16(const std::string& path, const uint16_t* rgba, int width, int height)
+{
+	if (width <= 0 || height <= 0 || !rgba)
+		return false;
+
+	std::vector<uint8_t> raw;
+	raw.reserve((size_t)height * (1 + (size_t)width * 8));
+	for (int y = 0; y < height; ++y)
+	{
+		raw.push_back(0);
+		const uint16_t* row = rgba + (size_t)y * (size_t)width * 4;
+		for (int x = 0; x < width * 4; ++x)
+		{
+			raw.push_back((uint8_t)(row[x] >> 8));
+			raw.push_back((uint8_t)(row[x] & 0xFF));
+		}
+	}
+
+	return detail::writeRaw(path, raw, width, height, 16);
 }
 
 // Reads a PNG written by `write` above. On failure `error` says why and the

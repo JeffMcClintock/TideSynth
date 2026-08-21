@@ -132,6 +132,40 @@ lights things by chance and will be noisy.
   one colour.** Curvature, chamfers and brushed anisotropy are what break that
   up. This is why the knob is domed by 4% and chamfered.
 
+## The quality ladder
+
+`qualitySettings(Quality, width, height)` returns a complete `Settings` for one
+of four rungs, so a consumer says how good rather than how:
+
+| | what it is | knob-sized bitmap |
+| --- | --- | --- |
+| `Draft` | `RenderMode::Fast`: geometry only | ~3 ms |
+| `Standard` | the shipped faceplate budget (128 paths, tapered, 8 bounces) | ~0.2 s |
+| `High` | 4× the paths, softer clamp, roulette held back | ~1 s |
+| `Ultra` | marketing: no taper, **no radiance clamp**, roulette off, Gaussian filter, bloom | minutes |
+
+`Standard` and `High` taper their sample count by √(area) past a one-unit
+panel (`samplesFor()`), which keeps big panels affordable in the product;
+`Ultra` deliberately does not — a 4K frame gets the full count everywhere.
+TiDEPanel's numbers moved here verbatim, so `Quality::Standard` *is* the
+shipped look and every consumer of the renderer ages together.
+
+The knobs the ladder turns are all public on `Settings` for hand-tuning:
+`filter` (Box / Tent / Gaussian reconstruction, via filter importance sampling
+so determinism survives), `rouletteDepth`, `clampRadiance`, and
+`bloomStrength`/`bloomThreshold` (a post-pass lens halo that carries its own
+alpha, so composited glows survive premultiplied output).
+
+Renders can also be **progressive**: `renderProgressive()` accumulates sample
+ranges into an existing image, and because every sample is seeded by pixel and
+index, `[0,64)` then `[64,128)` is bit-identical to `[0,128)` in one call
+(verified to 2e-7) — show the first batch, refine in place, pay nothing for
+the interruptions.
+
+For grading, `writePixels16` + `tide::png::write16` emit 16-bit-per-channel
+PNG (`--png16` on the preview tool): same tone map and exact sRGB encode, with
+the 8 extra bits that survive a curve without banding.
+
 ## Fast mode
 
 `Settings::mode = RenderMode::Fast` (or `--fast` on the preview tool) replaces
@@ -161,6 +195,7 @@ anisotropy. Brushed and polished aluminium look identical. Anything about
 ```bash
 tide_render_preview shapes --size 640 --spp 640 --out shapes.png
 tide_render_preview shapes --size 640 --fast --out quick.png
+tide_render_preview glass --size 1600 --quality ultra --png16 --out hero.png
 ```
 
 Scenes: `knob`, `materials`, `shapes`, `glass`, `glow`.
