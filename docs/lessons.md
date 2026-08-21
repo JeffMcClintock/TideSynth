@@ -39,6 +39,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-21
 
+**macos — S29 fixed, after measuring that S29's own recommendation was wrong**
+
+- A concurrency group is only as good as what its expressions evaluate to, and `github.ref` is not the branch on a `pull_request` event.
+- The second-best fix won on a constraint from a different row.
+
 **linux — S23: the session file is innocent, and the kernel had both crashes logged**
 
 - `journalctl` keeps a kernel record of every segfault, with a module-relative offset, and nobody in this fleet had looked.

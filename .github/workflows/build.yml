@@ -65,6 +65,37 @@ jobs:
   # which is the one outcome this file must never produce dishonestly.
   guard:
     name: guard
+    # BACKLOG S29 -- ONE RUN PER COMMIT.
+    #
+    # This workflow triggers on `push: ["main", "tide/**"]` AND on
+    # `pull_request:`, so a same-repo branch with a PR fired the whole
+    # three-platform matrix TWICE on the same sha. Measured 2026-08-21 on
+    # tide/mac/macos-arm64: four shas, eight runs, each a push/pull_request
+    # pair about four seconds apart.
+    #
+    # The concurrency block below does NOT catch this, and it is worth knowing
+    # why before anyone "simplifies" it: its group keys on `github.ref`, which
+    # is `refs/heads/<branch>` for push and `refs/pull/<n>/merge` for
+    # pull_request. Different refs, different groups. Dropping `event_name`
+    # from that key -- the obvious fix, and the one BACKLOG S29 originally
+    # recommended -- changes nothing for exactly this reason.
+    #
+    # So the duplicate is prevented here instead: run on push, and on
+    # pull_request ONLY when the PR comes from a fork, where no push event
+    # reaches this repo. Same-repo PRs are already covered by their push run,
+    # whose checks attach to the same sha and therefore appear on the PR.
+    #
+    # Chosen over a sha-based concurrency group deliberately. That would let
+    # both runs QUEUE and then cancel one -- and on this repo the scarce
+    # resource is the macOS runner (S30: ~5% of runs complete), so a run that
+    # queues and dies has already taken the slot. This never starts it.
+    #
+    # THE COST, stated: same-repo PRs are no longer tested as a merge result,
+    # only as the branch tip. Acceptable while this repo squash-merges quickly;
+    # revisit if main starts moving under long-lived PRs.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read

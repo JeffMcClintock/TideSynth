@@ -74,6 +74,68 @@ Template:
 
 ---
 
+## 2026-08-21 — macos — S29 fixed, after measuring that S29's own recommendation was wrong
+
+**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** prepared the one-run-per-commit fix for `build.yml`, and corrected the
+row I wrote yesterday, whose recommended fix does not work.
+
+### The duplication is real and exact
+
+Every `build.yml` run for `tide/mac/macos-arm64`: **four shas, eight runs**,
+each an exact `push`/`pull_request` pair about four seconds apart. Cross-sha
+cancellation already works — older runs show `cancelled` — so it is only the
+same-sha pair that escapes.
+
+### My own fix was wrong, and one query showed it
+
+S29 recommended dropping `event_name` from the concurrency group. **That
+changes nothing**, because the group also keys on `github.ref`, and that is
+`refs/heads/<branch>` for push but **`refs/pull/<n>/merge`** for pull_request.
+Different refs, different groups, with or without `event_name`. I had reasoned
+about the key without checking what its components evaluate to.
+
+### What shipped instead, and why not the tidier variant
+
+An `if:` on the `guard` job: run on push, and on `pull_request` only when the
+PR head is a **fork**. Same-repo PRs are already covered by their push run,
+whose checks attach to the same sha and therefore show on the PR; `build`
+inherits the skip through `needs: guard`.
+
+The tidier-looking alternative is a concurrency group keyed on the head sha
+(`github.event.pull_request.head.sha || github.sha`), which really would unify
+the two events. **Rejected on the strength of S30:** that lets both runs QUEUE
+and then cancels one, and the scarce resource here is the macOS runner at ~5%
+completion — a run that queues and dies has already taken the slot. The `if:`
+never starts it.
+
+### Checked before handing it over
+
+YAML parses with `guard` and `build` intact and triggers unchanged; and
+**`main` has no required status checks**, so a skipped job cannot block a
+merge — which was the real risk of gating a job that everything else `needs:`.
+
+**Stated cost:** same-repo PRs stop being tested as a merge result and are
+tested as the branch tip. Fine while this repo squash-merges quickly.
+
+**Learned:**
+
+1. **A concurrency group is only as good as what its expressions evaluate to,
+   and `github.ref` is not the branch on a `pull_request` event.** I wrote a
+   recommendation from the shape of the key rather than its values, and it
+   would have shipped a no-op that looked like a fix — the worst kind, because
+   the duplication would have continued under a closed row.
+2. **The second-best fix won on a constraint from a different row.** Both
+   candidates halve the runs; only one avoids consuming a macOS slot before
+   cancelling, and that mattered only because S30 had measured the scarcity.
+
+**Next:** Jeff pushes it — the fleet token is `repo`-scope only by design.
+
+**Branch/PR:** `s29-one-run-per-commit` — workflow + row + journal.
+
+---
+
 ## 2026-08-21 — linux — S23: the session file is innocent, and the kernel had both crashes logged
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
