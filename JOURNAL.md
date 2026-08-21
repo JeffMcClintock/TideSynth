@@ -109,6 +109,93 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — linux — E1c: the deciding case, and the control that makes it decide anything
+
+**Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
+
+**Did:** resolved R4's conflict first (STEP 1.5), then took **E1c** and built the
+one experiment macOS had narrowed it to. The Linux half is done; one macOS or
+Windows render finishes it.
+
+### The case
+
+`tests/cases/osc_naive_pitched.json` — the **same** `SE Oscillator (naive)` as
+`osc_naive_sine`, same duration, rate and source pin, differing only in that
+`Pitch` is driven from a patch point pinned to 5 V rather than free-running on
+the module default.
+
+### The control nobody had run, and it is the whole reason this experiment works
+
+**Both cases render at exactly 440.0 Hz** — zero-crossing count over the 2.0 s
+render, 95,999 frames at 48 kHz, identical for both. Pinning 5 V happens to
+reproduce the module's own default note.
+
+That is not a detail, it is the experiment's validity. Had the two rendered at
+different frequencies, any cross-platform residual would have been confounded by
+a different phase increment, and a `-123 dBFS` result would have proved nothing
+about the *driven-ness* of the input. I checked it because "same module, one pin
+changed" is only single-variable if the pin change does not move the note, and
+nothing in the row said whether it did.
+
+### Also confirmed while the harness was up
+
+`osc_naive_sine` renders **bit-identical** to its stored reference here —
+`null=-inf dBFS`. Its provenance record says `recorded: reconstructed`, inferred
+by macOS from journal archaeology; this corroborates the same conclusion by
+measurement. I did **not** rewrite that file — regenerating it would upgrade the
+label but discard the `evidence` field explaining how it was reconstructed, and
+it is another box's work.
+
+The new reference is seeded with first-hand provenance: `recorded: measured`,
+`SynthEditCL V1.6.186`, `x86_64`, sha256 `7ade35f2…`.
+
+### What is left, and why not here
+
+The residual is a **macOS-vs-Linux** quantity, so one platform cannot produce it.
+A second box renders `osc_naive_pitched` against this reference, and the outcome
+is binary and pre-committed in the row so it cannot be rationalised after the
+fact: **-123 dBFS** means the discriminator is the undriven pitch input (and
+`prefab_oscillator`/`prefab_filter` carry gates for a mechanism they do not
+exhibit); **-73 dBFS** means the module is the variable and `osc_naive_sine`'s
+stated reason stands.
+
+The new case ships with **provisional** drift-class gates copied from
+`osc_naive_sine`, and its `tolerance_reason` says so — gating it as if the answer
+were known would beg the question it exists to settle.
+
+**Learned:**
+
+1. **A "single-variable" experiment is a claim, and it is cheap to check.**
+   Pinning the pitch input could easily have changed the note; if it had, the
+   whole comparison would have been worthless and would have *looked* fine.
+   One zero-crossing count per render settled it.
+2. **The audio harness runs on Linux** — `tools/render_harness.py --cli
+   <SynthEditCL> --modules <folder>`, using the existing
+   `~/SE/build/SynthEditCL/SynthEditCL`. Nothing in the rows said so, and it
+   needs no REAPER.
+3. **The harness warns when the engine scanned module folders outside
+   `--modules`** (`~/.local/share/SynthEdit/modules` on this box), and says the
+   run therefore does not prove which module set rendered. True here; it is a
+   developer box. Worth reading rather than skipping on a result that matters.
+4. **Do not regenerate another box's provenance record to improve its label.**
+   `--update-refs` would have stamped `measured` over `reconstructed` and thrown
+   away the reasoning that made the reconstruction credible.
+
+**Next:**
+
+1. **One macOS or Windows render** of `osc_naive_pitched` against this reference
+   closes E1c. Everything needed is in the row and the case's `tolerance_reason`.
+2. If it lands in the rounding class, **`prefab_oscillator` and `prefab_filter`
+   want their gates revisited** — they are currently drift-class for a mechanism
+   their scripts would not exhibit.
+
+**Machine left clean.** Renders went to a scratch `--out`; the only tracked
+additions are the new case and its reference. TideSynth back on `main`.
+
+**Branch/PR:** `tide/linux/E1c-pitch-pinned` — TideSynth only.
+
+---
+
 ## 2026-08-22 — macos — STEP 4: six PRs merged in one go, and every NEXT cell went stale at once
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
@@ -1356,233 +1443,6 @@ that `TIDE-Rack.vst3` is now this branch's build rather than yesterday's;
 call, exactly as the previous entry left it.
 
 **Branch/PR:** `tide/mac/N1a-rename` — [#268](https://github.com/JeffMcClintock/TideSynth/pull/268), TideSynth only. One CMake block.
-
----
-
-## 2026-08-21 — macos — R3: the pkg builds, and productbuild would have shipped it to the wrong hardware
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** built the macOS pkg — [scripts/package-macos.sh](scripts/package-macos.sh)
-produces `TIDE-Rack-macOS.pkg` — and split the half of R3 that cannot be done.
-
-### Half the row was unbuildable, and checking first is what caught it
-
-R3 says *"AU → `Components`, VST3 → `VST3`"*. `SynthEditSem/CMakeLists.txt` sets
-`FORMATS_LIST GMPI VST3 STANDALONE`: **there is no AU target**, and **M1**, the
-row that would add one, is BLOCKED. Filed as **R3a**, `BLOCKED(M1)`.
-
-The script **fails** if the AU is missing rather than quietly packaging one
-plug-in where the docs promise two — a pkg that silently omits half its payload
-is worse than one that refuses to build.
-
-### The real find: productbuild lies about hardware
-
-`productbuild` writes `hostArchitectures="x86_64,arm64"` into the synthesized
-Distribution **regardless of what the payload actually contains**. TIDE is now
-arm64-only, so the pkg would have **installed happily on an Intel Mac** and the
-plug-in would then have failed to load with nothing explaining why.
-
-That is precisely the consequence R3's own row predicted this morning — *"the
-pkg will not run on an Intel Mac and nothing tells the user why"* — and it turns
-out macOS will tell them, if the pkg is honest. The script now derives
-`hostArchitectures` from `lipo` on the built binary and verifies the
-substitution landed; the shipped pkg reads `hostArchitectures="arm64"`, so the
-installer itself refuses the wrong hardware. Derived rather than hardcoded, so
-it stays correct if the ARM ruling is revisited.
-
-### Verified against the artefact, not the tool's own output
-
-- payload installs to `./Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3`, matching
-  distribution.md
-- a real `installer` run into a sandbox target: *"The install was successful"*,
-  placing a binary **byte-identical** to the build (same sha), and leaving no
-  stray receipt
-- `hostArchitectures="arm64"` read back out of the expanded pkg
-
-**Not signed, not notarized, and that is stated rather than implied.** Signing
-runs only when the two identity variables are in the environment; notarization
-(`notarytool` + `stapler`, modelled on `SynthEdit_cmake_mac.yml:223-244`)
-belongs to **R5**, which owns the secret store. The script prints which of the
-two artefacts it produced and says plainly that an unsigned pkg is not
-shippable.
-
-**Learned:**
-
-1. **A packaging tool's defaults describe the tool, not your payload.**
-   `productbuild` had no idea the binary was single-arch and cheerfully said it
-   would run anywhere. The check that caught it was reading the generated
-   Distribution rather than trusting "Wrote product to …".
-2. **When a row names two payloads, confirm both exist before starting.** Half
-   of R3 was blocked by a row nobody had connected to it, and the connection was
-   one grep of `FORMATS_LIST`.
-
-**Next:** R3a waits on M1. R5 wires notarization and is a workflow file, so
-Jeff pushes it. R2 (`win`) and R4 (`linux`) are now takeable on their boxes.
-
-**Branch/PR:** `tide/mac/R3-macos-pkg` — TideSynth only.
-
----
-
-## 2026-08-21 — macos — S29's coverage-hole fix, rebuilt clean after the branch went stale
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** re-created the `startsWith(github.head_ref, 'tide/')` correction on a
-fresh branch off current `main`, because the original never got pushed and had
-drifted 17 files behind.
-
-**#258 merged the guard without the correction.** Checked directly rather than
-assumed: `main`'s `build.yml` has the bare `if:` with no `tide/` test, so every
-branch Jeff names by hand — none of which start with `tide/` — currently gets
-**zero build coverage**: no push run (outside `on: push: branches:`), and now no
-PR run either, because the guard skips all same-repo PRs unconditionally.
-
-**The old local branch was the wrong base to push.** `git diff origin/main
-s29-close-coverage-hole --stat` showed 17 files and 1263 deletions — journal
-rotation, a deleted doc, N1a's rename, all landed separately since. Force-pushing
-that would have reverted merged work. Deleted the stale branch and rebuilt the
-one-line fix directly on today's `main`: one file, 13 lines.
-
-**Learned:**
-
-1. **An unpushed branch decays the moment other agents keep merging.** The fix
-   was correct when written; by the time I went to push it, rebasing would have
-   cost more than re-deriving it. Re-creating small, mechanical diffs from a
-   current base is cheaper than reconciling a stale one.
-
-**Next:** Jeff pushes `s29-close-coverage-hole` — one file, the fleet token
-still has no `workflow` scope.
-
-**Branch/PR:** `s29-close-coverage-hole` — workflow + row + this entry.
-
----
-
-## 2026-08-21 — macos — the release track was free for three days and the backlog said otherwise
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** unblocked **R2, R3, R4, R5**; gave **R6** a *named* blocker instead of a
-blanket one; corrected the section header that caused all of it.
-
-### The stale gate
-
-`## Release & distribution — blocked on V1 (nothing to ship yet)`. **V1 closed
-2026-08-18.** One row also said *"Needs C7"* — **C7 closed 2026-08-21**. Neither
-had been revisited, so five rows advertised a shut door that had been open for
-three days, on the one track that turns a working plugin into something a user
-can install.
-
-This is A32's failure with the polarity reversed: A32 catches rows that look
-*live* and are finished; this is rows that look *blocked* and are free. Nothing
-detects it, because a `BLOCKED` status is never wrong-looking on its own.
-
-### Four are free, and one is not — which is why I did not flip all five
-
-**R2 / R3 / R4** need an artefact and a signing identity: all three platforms
-build from a clean public clone, N1a gave the artefacts their shipped names
-(`TIDE-Rack.vst3` / `.gmpi` / `.app`), and R1 settled signing. Free.
-
-**R5**'s own named blocker was C7, now gone — but it is a
-`.github/workflows/**` file, so a run can author and verify it and **cannot push
-it**. That constraint is recorded on the row rather than discovered by the next
-taker.
-
-**R6 is genuinely not free**, and flipping it with its siblings would have been
-the lazy read. It replaces the honest *"nothing to download yet"* card with
-`releases/latest/download/<asset>` permalinks, and **those 404 until a release
-exists**. So it moves from `BLOCKED` to **`BLOCKED(R5)`** — same status, real
-information, and eligibility now lives in the status column where STEP 2 reads
-it.
-
-**Learned:**
-
-1. **A blocked row is never obviously wrong, so nothing ever re-reads it.** The
-   fleet has a lint for stale-live rows (A32) and none for stale-blocked ones,
-   and the second kind is more expensive: it hides work that could have started.
-2. **"Unblock the section" is not the same as "unblock every row in it."** Four
-   of five were free; the fifth had a real dependency the blanket status was
-   concealing. Naming the blocker is worth more than clearing it.
-
-**Next:** R3 is `mac` and now takeable here. R2 is `win`, R4 is `linux`, R5
-wants Jeff's push.
-
-**Branch/PR:** `tide/mac/R-unblock` — TideSynth only, statuses and header.
-
----
-
-## 2026-08-21 — macos — N1a: the rename shipped, and it silently unlinked half the build first
-
-**Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing · linux + renderer agents also active
-
-**Did:** carried the TIDE Rack rename through the build. Shipped artifacts are
-now `TIDE-Rack.vst3` / `.gmpi` / `.app`; targets stay `TIDE_Rack` /
-`TIDE_Rack_VST3` / `TIDE_Rack_STANDALONE`.
-
-### The finding: a rename that skips work instead of failing
-
-Two loops built target names by hand — `set(_tide_target TIDE)` and
-`TIDE_${_fmt}` — instead of deriving from `PROJECT_NAME`. **Every use of
-`_tide_target` sits behind `if(TARGET ...)`**, so renaming the project did not
-break those loops, it made them **no-ops**: no `tide_render` link, no resource
-staging, no diagnostic.
-
-It surfaced only as `fatal error: 'TidePathTracer.h' file not found`, and only
-because `TiDEPanelGui.cpp` happens to include that header. **Without that
-include the build would have gone green and shipped bundles containing zero
-prefabs** — an empty module browser, which is exactly S21's failure wearing a
-different hat. All four sites now derive from `${PROJECT_NAME}`.
-
-N1a's scope list was careful and still missed these, because it searched for
-`TIDE_VST3`-shaped strings and these are the bare `TIDE`.
-
-### Checked before renaming, not after
-
-- **Identity does not move.** `id`, `name`, `vendor` come from the `<Plugin>`
-  element in `SynthEdit.cpp`, not `PROJECT_NAME` — so saved host sessions still
-  resolve. That was the one thing worth knowing before touching anything.
-- **`${PROJECT_NAME}.xml` is not in play** (no `HAS_XML`, no `TIDE.xml`), so
-  distribution.md's second warning does not apply here.
-- **The STANDALONE's bundle id does follow `PROJECT_NAME`**
-  (`com.gmpi.standalone.${PROJECT_NAME}`), so that dev tool gets a fresh
-  preferences container. Stated rather than discovered later.
-
-### The measurement, and why the first pass of it was worthless
-
-Baseline `v1-rack.rpp`: peak **−6.3 dBFS**, rms **−17.0**, 2 patch cables.
-After the rename: identical. **That proved nothing**, because the old
-`TIDE_VST3.vst3` was still installed and carries the same plugin ID — REAPER
-could have loaded either. So the old bundle was **moved aside** and the render
-repeated: same numbers with only `TIDE-Rack.vst3` present. That is the
-difference between "the numbers match" and "the artifact under test produced
-them".
-
-All five fixtures then pass in isolation — `v1-rack` −6.3/−17.0, `v1-rack-midi`
-−6.3/−17.0, `v3-midi-pitch` −6.2/−21.1, `v3-midi-gate` −6.3/−21.2, and
-`v1-rack-uncabled` **silence**, the negative control. `--control` PASSes.
-**Jeff's original bundle was restored immediately afterwards.**
-
-**Left for Jeff, deliberately:** `~/Library/Audio/Plug-Ins/VST3/TIDE_VST3.vst3`
-(16 Aug) is now stale — nothing produces that name any more — and sits beside
-the new bundle, so a DAW scan lists both. Deleting from his plugin folder is
-his call, not a run's.
-
-**Learned:**
-
-1. **A guard that makes missing work silent turns a rename into a downgrade.**
-   `if(TARGET x)` is the right shape for an optional format and the wrong shape
-   for a name that must exist; the same line cannot tell the two apart. Deriving
-   the name from `PROJECT_NAME` removes the question.
-2. **When the old artifact is still installed and shares an ID, matching
-   numbers are not evidence.** Moving it aside cost one minute and converted a
-   plausible result into a proof.
-
-**Next:**
-
-1. N1's remaining buckets (B and C) are untouched — this was bucket A only.
-2. The stale installed bundle wants Jeff's decision.
-
-**Branch/PR:** `tide/mac/N1a-rename` — TideSynth only.
 
 ---
 
