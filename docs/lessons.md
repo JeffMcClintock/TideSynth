@@ -37,6 +37,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 
+## 2026-08-21
+
+**macos — the release track was free for three days and the backlog said otherwise**
+
+- A blocked row is never obviously wrong, so nothing ever re-reads it.
+- "Unblock the section" is not the same as "unblock every row in it."
+
 ## 2026-08-22
 
 **macos — N1a: OUTPUT_NAME renamed three things, and only one of them had an extension**
