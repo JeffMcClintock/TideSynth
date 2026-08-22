@@ -50,7 +50,11 @@ OUT_DIR="${2:-$BUILD_DIR/package}"
 PRODUCT="TIDE Rack"          # display form  -- docs/distribution.md
 ASSET="TIDE-Rack-macOS.pkg"  # shipped form  -- constant, version lives in the tag
 IDENTIFIER="com.synthedit.tiderack"
-VERSION="${TIDE_RACK_VERSION:-0.1.0}"
+# Kept in step with SynthEdit.cpp's <Plugin version="...">, which is what the
+# BUNDLES report. CI sets TIDE_RACK_VERSION from the tag, so this fallback is
+# only for a local run -- but it is what shipped when nothing set the variable,
+# and it said 0.1.0 while the bundles said 1.0.0.
+VERSION="${TIDE_RACK_VERSION:-0.1.1}"
 
 VST3_SRC="$BUILD_DIR/SynthEditSem/TIDE-Rack.vst3"
 [ -d "$VST3_SRC" ] || { echo "error: no TIDE-Rack.vst3 in $BUILD_DIR/SynthEditSem" >&2; exit 1; }

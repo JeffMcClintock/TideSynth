@@ -413,7 +413,7 @@ public:
 		const static std::string xmlstr(R"XML(
 <?xml version="1.0" encoding="UTF-8"?>
 <PluginList>
-    <Plugin id="TIDE Synth: TIDE Rack" name="TIDE Rack" vendor="TIDE Synth" category="Experimental">
+    <Plugin id="TIDE Synth: TIDE Rack" name="TIDE Rack" vendor="TIDE Synth" category="Experimental" version="0.1.1">
 		<Parameters>
 			<Parameter id="0" name="controllerPtr" ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 			<Parameter id="1" name="chunk"         ignorePatchChange="true" datatype="blob"/>

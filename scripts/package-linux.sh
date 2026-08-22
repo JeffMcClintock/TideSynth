@@ -14,7 +14,11 @@ SRC="$BUILD_DIR/SynthEditSem"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
-PKG="TIDE-Rack-Linux"
+# The tarball had NO version in its name, so two releases produced two
+# identically-named files. CI sets TIDE_RACK_VERSION from the tag; the fallback
+# matches SynthEdit.cpp's <Plugin version="...">.
+VERSION="${TIDE_RACK_VERSION:-0.1.1}"
+PKG="TIDE-Rack-Linux-$VERSION"
 ROOT="$STAGE/$PKG"
 mkdir -p "$ROOT"
 
