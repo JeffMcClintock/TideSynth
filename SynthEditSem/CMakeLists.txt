@@ -391,7 +391,13 @@ gmpi_plugin(
 # already produces TIDE-Rack.app in this same directory, and two bundles cannot
 # share a name. The suffix also tells a user what the app is for, which matters
 # because its only job is to carry the extension: macOS registers the AUv3 from
-# it automatically, with no launch required (measured 2026-08-22).
+# it once the app has been LAUNCHED. "with no launch required" is what this
+# comment used to say, and it was wrong: re-measured 2026-08-23, the extension
+# does NOT register from a copy alone. Not from ~/Applications after 30s, and
+# not from /Applications after 5s, 15s or 30s -- `pluginkit -m -i <id> -v`
+# returns "(no matches)" throughout. Within 12 seconds of `open`ing the app it
+# is registered. So the install story is a copy PLUS a first launch, and
+# docs/distribution.md says so now.
 if(APPLE AND TARGET ${PROJECT_NAME}_AU3App)
     set_target_properties(${PROJECT_NAME}_AU3App PROPERTIES
         OUTPUT_NAME "TIDE-Rack-AUv3"

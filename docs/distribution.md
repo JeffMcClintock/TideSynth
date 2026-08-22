@@ -65,9 +65,16 @@ naming section, BACKLOG **N1**).
 | Platform | Artifact (constant name) | Contents & install destination | Signing |
 |---|---|---|---|
 | Windows | `TIDE-Rack-Windows.exe` (Inno Setup) + `TIDE-Rack-Windows.zip` | `TIDE-Rack.vst3` → `C:\Program Files\Common Files\VST3\` | Azure Trusted Signing (installer **and** the .vst3 inside it) |
-| macOS | `TIDE-Rack-macOS.pkg` | **AUv3** → `/Applications/TIDE-Rack-AUv3.app` (the extension rides inside it; macOS registers it with no launch), VST3 → `/Library/Audio/Plug-Ins/VST3/` | Developer ID + **notarize + staple** — an unnotarized pkg is effectively unopenable on modern macOS |
+| macOS | `TIDE-Rack-macOS.pkg` | **AUv3** → `/Applications/TIDE-Rack-AUv3.app` (the extension rides inside it; **the app must be LAUNCHED ONCE** before the AU appears — measured 2026-08-23, see the note below), VST3 → `/Library/Audio/Plug-Ins/VST3/` | Developer ID + **notarize + staple** — an unnotarized pkg is effectively unopenable on modern macOS |
 | iOS | — none on the website — | AUv3 ships inside a container app — the SAME wrapper macOS now uses — **App Store only**; the website links the App Store page as a plain text link | App Store pipeline (M2/M3 territory) |
 | Linux | `TIDE-Rack-Linux.tar.gz` | `TIDE-Rack.vst3/` → `~/.vst3/`, CLAP → `~/.clap/`, plus a short `install.sh` that copies them | none — no signing convention on Linux |
+
+**The macOS AUv3 needs one launch.** Copying `TIDE-Rack-AUv3.app` into
+`/Applications` is NOT enough for the Audio Unit to appear in a host: measured
+2026-08-23, `pluginkit` reports "(no matches)" 30 seconds after a copy to either
+`/Applications` or `~/Applications`, and reports the extension within 12 seconds
+of the app being opened. Whatever tells the user how to install this has to tell
+them to open it once. The pkg puts the app in place; it cannot open it for them.
 
 Notes:
 
