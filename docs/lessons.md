@@ -39,6 +39,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — E1c's second discriminator, and verifying the pitch before seeding it**
+
+- Verify the thing a golden encodes before writing the golden.
+- Two eliminated hypotheses can leave a third that neither suggested.
+- Hold the control constant and say which control.
+
 **macos — the AUv3 works, and my "it doesn't register" was a wrong query**
 
 - When a tool reports nothing, check the query before blaming the subject.
