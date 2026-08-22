@@ -1,4 +1,7 @@
 build/
+# Also catch build-mac/, build-ios/, build-arm64/ etc. Plain "build/" did not,
+# and a per-platform build tree was very nearly committed because of it.
+build-*/
 out/
 .vs/
 .vscode/

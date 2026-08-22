@@ -71,6 +71,44 @@ define must be **directory-scoped**: gmpi_ui's `.mm` sources compile into severa
 targets per plugin (SynthEditLib, AU3_Wrapper, CLAP_Wrapper, AU_Wrapper), so a
 target-scoped define would reach almost none of them.
 
+## 2026-08-22 — macos — M2 iOS configure: two fixes, then a gate (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Interactive session at Jeff's direction, working the loop, not the Saturday scheduled run. The commit is authored **Jeff McClintock** rather than the bot -- `check-commit-authorship.py` reports it and does not fail it, and STEP 4 forbids rewriting anything already pushed. The push itself went as `tide-rack-bot`.
+
+Took M2 (iOS AUv3) expecting to write a wrapper. The row was sized for that. A wrapper
+landed 2026-08-19 and S40 made AUv3 the shipped macOS format, so the real question was
+only whether iOS configures and builds. It now does, to within three errors.
+
+**My own M1 guard was the first blocker, and it was a false positive.** I added it last
+week to stop AU/AU3 silently skipping when `plist_util` is missing. On iOS there is
+legitimately no such target: `gmpi_plugin.cmake` compiles a *host* copy via a custom
+command, because a Mac cannot load an iOS-built module. My check turned a real
+invariant into a hard error on a platform it had never been run against. Guard now
+excludes iOS.
+
+**Second was nine `to_chars is unavailable` errors, and none of them were about code.**
+`CMAKE_OSX_DEPLOYMENT_TARGET` was set unconditionally, so macOS 13.3 leaked into the
+iOS build, where libc++ marks `std::to_chars` as introduced in iOS 16.3. Nine errors,
+one availability attribute. Now platform-aware; macOS verified still 13.3, rc=0.
+
+**iOS is 18.0, and that is the version before 26.** Jeff's ruling: target only the most
+recent couple of iOS versions, so TIDE can use the newest C++ and STL instead of
+working around old runtimes. I set 25.0 for "one before 26" and the compiler rejected
+it outright -- invalid version number. Apple jumped 18 to 26 to match the year; 19
+through 25 never existed. I probed the toolchain rather than reason about it further:
+16.3, 17.0, 18.0 and 26.0 accepted, 25.0 not. Worth the thirty seconds -- I would have
+written the same wrong number again.
+
+**What is left is one class, three files, and two are behind a gate.** macOS-only Cocoa
+sources compiled for iOS: `DrawingFrameMac.mm` wants `AudioUnit/AUCocoaUIView.h`,
+`AssignControllerDialogMac.mm` and `SynthEditCocoaView.mm` want `Cocoa/Cocoa.h`. iOS is
+UIKit. They need excluding from an iOS build -- mechanically small, but the latter two
+live in `SynthEditLib`, which is GATED. **So M2 stops here and needs Jeff or an
+interactive session.** I did not attempt `simctl install` or a launch; the build has to
+finish first, and it does not yet.
+
 ## Rotation — do this as part of STEP 4, every run
 
 Every run on three machines reads this file in full, so its size is a cost paid

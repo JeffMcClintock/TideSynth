@@ -28,7 +28,29 @@ if(MSVC)
 endif()
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo" CACHE STRING "" FORCE)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3" CACHE STRING "Minimum MacOS deployment version")
+# BACKLOG M2 -- this was set unconditionally and the macOS value leaked into
+# iOS builds, where 13.3 is meaningless and actively harmful: libc++'s <format>
+# floating-point path calls std::to_chars, marked "introduced in iOS 16.3", so
+# every translation unit that formats a float failed to compile. Nine errors,
+# all the same availability attribute, none of them a code problem.
+#
+# The iOS figure follows Jeff's ruling (2026-08-22): TIDE targets only the most
+# recent couple of iOS versions, deliberately, so it can use the newest C++ and
+# STL rather than working around old runtimes.
+#
+# 18.0 IS THE VERSION BEFORE 26, NOT A TYPO. Apple jumped iOS 18 -> 26 to align
+# with the year, so 19 through 25 do not exist -- the toolchain rejects
+# -mios-simulator-version-min=25.0 outright as an invalid version number, which
+# is how this was found. Probed rather than assumed: 16.3, 17.0, 18.0 and 26.0
+# are accepted, 25.0 is not.
+#
+# RAISE THIS as iOS moves; it is a policy knob, not a compatibility floor
+# discovered by trial. It comfortably clears the 16.3 that std::to_chars needs.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "18.0" CACHE STRING "Minimum iOS deployment version")
+else()
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3" CACHE STRING "Minimum MacOS deployment version")
+endif()
 # TIDE Rack is arm64-only on macOS, ruled by Jeff 2026-08-21: *"lets change
 # macOS to ARM-only, for faster building. Any straggler who wants intel can
 # build it themselves."* Roughly halves the macOS build -- the universal

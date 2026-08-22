@@ -403,7 +403,17 @@ if(APPLE)
         target_include_directories(plist_util BEFORE PRIVATE
             "${GMPI_ADAPTORS}/wrapper/common")
         message(STATUS "M1: plist_util include path corrected (wrapper/common first)")
-    elseif("AU" IN_LIST FORMATS_LIST OR "AU3" IN_LIST FORMATS_LIST)
+    # NOT on iOS. Cross-compiling, plist_util has to RUN on the building Mac, so
+    # gmpi_plugin.cmake compiles a HOST copy with a custom command
+    # (GMPI_AU3_PLIST_UTIL_HOST) and never creates a target called `plist_util`.
+    # There is nothing to correct the include path of, and nothing wrong.
+    #
+    # This guard is mine (M1) and it was a FALSE POSITIVE that blocked every iOS
+    # configure outright -- found 2026-08-22 taking the first step of M2. A check
+    # written to stop a silent skip became a hard error on a platform it had
+    # never been run against.
+    elseif(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS"
+           AND ("AU" IN_LIST FORMATS_LIST OR "AU3" IN_LIST FORMATS_LIST))
         message(FATAL_ERROR
             "M1: FORMATS_LIST asks for AU but gmpi_plugin() created no plist_util "
             "target. Either gmpi_plugin.cmake changed or the format name is wrong "
