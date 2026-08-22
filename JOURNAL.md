@@ -109,6 +109,70 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — STEP 4 after v0.1.0, and a branch I pushed and never opened
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** bookkeeping after the first release run. **R3a, R4, S30 and S39** all
+flipped to DONE, and one branch that had been pushed with no PR finally landed.
+
+### The branch nobody was waiting on
+
+`tide/mac/R5-installer-cert-finding` — the write-up of *why* the macOS leg failed
+— was committed and pushed hours ago, and **no PR was ever opened for it.** I
+pushed it, Jeff asked about ccache in the same breath, and I never came back.
+
+It surfaced only because a STEP 4 sweep asked which IN-REVIEW rows had merged
+PRs, and R5's had no PR at all. Nothing was lost, but the finding sat invisible
+while the thing it describes was being fixed.
+
+### Four rows, and what closed them
+
+- **R3a** — confirmed in CI, not just locally: v0.1.0 built the AU, `codesign`
+  called the component *"valid on disk"*, and `pkgbuild` added both payloads on a
+  machine that had never seen the change.
+- **R4** — the Linux leg of v0.1.0 succeeded, so `package-linux.sh` is exercised
+  on a real tag rather than only on the box that wrote it.
+- **S30** — closed on measurement rather than on the fixes landing: 71.5 and 60.1
+  min before ccache, 0.3 and 0.2 min after. **Both caveats kept**: the exact
+  speedup is not established, and both post-ccache runs were docs-only merges.
+- **S39** — the answer was in the code the whole time. `Initialize()` carried a
+  TODO stating the mechanism precisely, ending *"This is work still to be done"*.
+  A row I filed as "unknown to fix" was a named pattern waiting to be applied.
+
+### The one that is worth remembering
+
+S39 said *"nobody has looked at what it means"*. Looking took one grep, and the
+answer was a comment the original author had left explaining exactly what was
+missing and what to copy. The row's cost estimate — *"small to measure, unknown
+to fix"* — was wrong in the direction that matters: reading the code the row
+pointed at would have sized it in minutes.
+
+**Learned:**
+
+- **A pushed branch with no PR is invisible.** Nothing checks for it — not the
+  lints, not the row status, not the PR list. The STEP 4 sweep found it only
+  because the row it belonged to had no PR to verify. Open the PR in the same
+  breath as the push.
+- **"Unknown to fix" deserves one grep before it is written.** S39's mechanism
+  was documented in the function the row named. An honest unknown and an
+  unread comment look identical on a row.
+- **A row can be closed by a run rather than by a commit.** R3a and R4 were
+  already merged; what closed them was v0.1.0 exercising them on machines that
+  had never seen them. Worth distinguishing "landed" from "demonstrated".
+
+**Next:** **M1's AUv3 half** is the largest thing this box can still both change
+and verify — the wrapper exists, TIDE builds an appex from one word, and GMPI#10
+fixed the name mismatch. **What is unproven is registration**: the extension did
+not appear via `pluginkit`/`auval` with an ad-hoc signature, and whether that is
+expected is the question to settle before `AU3` joins the shipped list.
+**M2's row is four days stale** — it treats authoring an AUv3 wrapper as the
+blocker, and one landed 2026-08-19.
+
+**Branch/PR:** `tide/mac/step4-after-v010` — TideSynth, bookkeeping only.
+
+---
+
 ## 2026-08-22 — macos — v0.1.0: Windows and Linux shipped, macOS wanted a certificate nobody had sent
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
