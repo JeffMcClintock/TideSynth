@@ -139,5 +139,5 @@ void* newSynthEditController() // see FactorySpecial
 
 //namespace
 //{
-//	auto r = gmpi::Register<SynthEditController>::withId("SE SynthEdit");
+//	auto r = gmpi::Register<SynthEditController>::withId("TIDE Synth: TIDE Rack");
 //}
