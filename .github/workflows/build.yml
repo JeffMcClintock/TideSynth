@@ -134,6 +134,7 @@ jobs:
       contents: read
     outputs:
       buildable: ${{ steps.check.outputs.buildable }}
+      mac_runner: ${{ steps.macrunner.outputs.labels }}
     steps:
       # No submodules: this only needs to know whether one file exists at the
       # root, and recursive submodule fetch is most of a checkout's cost.
@@ -151,11 +152,59 @@ jobs:
             echo "::notice::No root CMakeLists.txt yet (BACKLOG C7) — skipping the build matrix. This is the known pre-C7 state, not a regression."
           fi
 
+      # SELF-HOSTED macOS. `tidesynth-m1` is the M1 in Jeff's office, registered
+      # to this repo. Measured against the GitHub-hosted runner on the same
+      # commit: Configure 16s against 57s, doing the identical cold dependency
+      # fetch. That ratio, not the build step, is the whole gain here -- S30
+      # already got Build down to ~23s with ccache.
+      #
+      # THIS REPO IS PUBLIC, and that is why the label set is computed here
+      # instead of written literally into the matrix below. A self-hosted runner
+      # executes whatever the job tells it to, on a machine that also holds the
+      # private SE16 checkout, an SSH key, and a gh token with `repo` scope. A
+      # fork PR must therefore never reach it: forks stay on GitHub's
+      # macos-latest, which is disposable and holds nothing of Jeff's.
+      #
+      # A same-repo PR is trusted here for the same reason the `if:` above trusts
+      # it -- its head is a branch in this repo, and only collaborators can push.
+      #
+      # BELT AND BRACES, because otherwise one careless edit to this file is the
+      # entire defence. Repo Settings -> Actions is set to
+      # `all_external_contributors` (REST: actions/permissions/
+      # fork-pr-contributor-approval), so a fork PR needs a human click before
+      # ANY runner picks it up. Two independent halves; keep both.
+      - id: macrunner
+        shell: bash
+        env:
+          # Via env rather than inlined into the `if` below: a fork's branch name
+          # reaches this step as data, and interpolating it straight into a shell
+          # test is how a branch named `$(...)` would get to run here.
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$IS_FORK" = "true" ]; then
+            echo 'labels=["macos-latest"]' >> "$GITHUB_OUTPUT"
+            echo "::notice::Fork PR — macOS stays on the GitHub-hosted runner."
+          else
+            echo 'labels=["self-hosted","macOS","ARM64","m1"]' >> "$GITHUB_OUTPUT"
+            echo "::notice::macOS routed to the self-hosted runner tidesynth-m1."
+          fi
+
   build:
     name: ${{ matrix.name }}
     needs: guard
     if: needs.guard.outputs.buildable == 'true'
-    runs-on: ${{ matrix.os }}
+    # macOS is routed by the guard job above; windows and linux take matrix.os
+    # unchanged. `matrix.os` stays populated for macOS on purpose -- it is what
+    # the fork branch falls back to, and dropping it would make this line the
+    # only record of which hosted image macOS ever used.
+    #
+    # The `|| '["macos-latest"]'` is not decoration: if `guard` is ever skipped
+    # (its `if:` can skip it), `mac_runner` arrives as an empty string and bare
+    # fromJSON('') is a hard workflow error rather than a skipped job. The `if:`
+    # above should already prevent that -- this is what stops a future edit to
+    # the guard's condition turning into an unparseable workflow instead.
+    runs-on: ${{ matrix.name == 'macos' && fromJSON(needs.guard.outputs.mac_runner || '["macos-latest"]') || matrix.os }}
 
     # `continue-on-error: true` was here from this file's first commit, and it
     # made the whole matrix decorative: every run reported success whatever the
@@ -260,7 +309,12 @@ jobs:
       # change every run, so an exact-key hit is rare and a PREFIX hit -- last
       # run's cache, warm for the dependencies -- is the normal case.
       - name: Restore ccache
-        if: matrix.name != 'windows'
+        # Skipped on the self-hosted M1: ~/.ccache there is a real directory that
+        # survives between jobs, so this step would download a copy of a cache the
+        # machine already holds and upload it again at Post -- pure cost. On
+        # GitHub-hosted runners it is still the only thing making ccache work at
+        # all, so the condition is `github-hosted`, not a label test.
+        if: matrix.name != 'windows' && runner.environment == 'github-hosted'
         uses: actions/cache@v6
         with:
           path: ~/.ccache
@@ -281,9 +335,56 @@ jobs:
           fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $extra
 
+      # `--parallel` WITH NO NUMBER IS NOT "one job per core". It is `make -j`
+      # with no limit at all -- this repo configures with the default generator,
+      # so that is GNU make starting a job for every ready target at once. On
+      # macOS, the runner image with the least RAM of the three, that is the
+      # difference between compiling and paging.
+      #
+      # Measured on an 8-core/8 GB M1, same tree, cold ccache, idle machine
+      # between each, identical 536 compiles:
+      #
+      #   --parallel      23m26s   user 28m36s   sys 56m41s   swap grew to 5 GB
+      #   --parallel 4     2m37s   user  8m41s   sys  1m13s   swap stable
+      #   --parallel 6     1m59s   user  9m58s   sys  1m22s   swap stable
+      #   --parallel 8     1m51s   user 11m14s   sys  1m32s   swap stable
+      #
+      # NOTE WHAT THAT DOES AND DOES NOT SAY. The core count is not the problem
+      # -- -j8, one job per core, is the FASTEST row. Unbounded is the problem,
+      # and the sys column is where it shows: 56 minutes of CPU spent in the
+      # kernel rather than in the compiler. Sampled mid-run, that build had a
+      # dozen compilers at 0% CPU and 0 MB resident, every one blocked on the
+      # pager, load average 65 on 8 cores. Any finite number beats it by an
+      # order of magnitude; 4 vs 8 is noise beside that.
+      #
+      # So do not "fix" a slow build here by lowering the number, and do not drop
+      # the number to get the cores back -- dropping it is what costs 20 minutes.
+      #
+      # WHY THIS MAY MATTER MORE THAN THE GREEN RUNS SUGGEST: today the Build
+      # step takes ~23s because ccache hits almost everything, so there is
+      # nothing to run in parallel and the bug cannot show itself. It bites on a
+      # COLD cache -- a dependency bump, a runner image roll, an evicted cache.
+      # That is the shape S30 recorded above: pre-ccache, macOS took ~60 minutes
+      # against linux 5 and windows 10 on the same 495 objects. This has not been
+      # proven to be that cause, but it is a better fit than the runner being 5x
+      # slower at arithmetic, and it is two lines to rule out.
+      #
+      # CMAKE_BUILD_PARALLEL_LEVEL cannot do this from the outside: an explicit
+      # `--parallel` beats the environment variable and still yields bare `-j`
+      # (verified 2026-08-23). The number has to be passed right here. BUILD_JOBS
+      # is the override for any machine that wants to pick its own; nothing sets
+      # it today, so all three platforms use their own core count.
       - name: Build
         id: build
-        run: cmake --build build --config Release --parallel
+        shell: bash
+        run: |
+          set -euo pipefail
+          jobs="${BUILD_JOBS:-}"
+          if [ -z "$jobs" ]; then
+            jobs=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+          fi
+          echo "::notice::Building with -j${jobs}"
+          cmake --build build --config Release --parallel "$jobs"
 
       # Always, including on a failed build -- a cache that is not being hit is
       # the thing worth seeing, and a red run is when you most want to know.
