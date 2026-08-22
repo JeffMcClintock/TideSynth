@@ -64,6 +64,78 @@ jobs:
             libfontconfig1-dev libasound2-dev \
             libxext-dev libharfbuzz-dev libdbus-1-dev libpng-dev
 
+      # ORDER IS DELIBERATE: credentials are checked BEFORE the build, not after.
+      #
+      # This step used to sit after Build. Both of v0.1.0's failed attempts were
+      # credential problems -- a missing Developer ID Installer certificate, then
+      # a passphrase that did not match the archive -- and each was discovered
+      # only after ~60 minutes of compiling on a macOS runner. Roughly two hours
+      # spent to learn something knowable in thirty seconds.
+      #
+      # Nothing here depends on the build, and the keychain is created with a
+      # 6-hour timeout, so it comfortably outlives the compile that follows.
+      # --- macOS: import the Developer ID cert into a throwaway keychain -----
+      #
+      # A temporary keychain rather than the login one: it is deleted with the
+      # runner, and it cannot prompt. The password is per-run and never leaves
+      # the job.
+      - name: Import signing certificate (macOS)
+        if: matrix.name == 'macos'
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+
+          # Secrets set through the GitHub WEB UI can carry a trailing newline
+          # or space that the CLI would never add, and PKCS#12 treats one extra
+          # byte in the passphrase as a wrong password. v0.1.0 lost a run to
+          # exactly that: "SecKeychainItemImport: MAC verification failed during
+          # PKCS12 import (wrong password?)" after the secret was set in the
+          # browser. Strip whitespace from both rather than make the operator
+          # guess which field is subtly wrong.
+          APPLE_CERT_P12_BASE64="$(printf '%s' "$APPLE_CERT_P12_BASE64" | tr -d '[:space:]')"
+          APPLE_CERT_PASSWORD="$(printf '%s' "$APPLE_CERT_PASSWORD" | tr -d '[:cntrl:]')"
+
+          printf '%s' "$APPLE_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+
+          # Report the SHAPE of the decoded file without revealing it. A
+          # truncated or mis-pasted base64 shows up here as an implausible size
+          # or a failed integrity check, which distinguishes "bad certificate
+          # data" from "bad passphrase" -- the two produce similar-looking
+          # import failures and need completely different fixes.
+          p12_bytes=$(wc -c < "$RUNNER_TEMP/cert.p12" | tr -d ' ')
+          echo "==> decoded PKCS#12 is ${p12_bytes} bytes"
+          if [ "$p12_bytes" -lt 1000 ]; then
+            echo "::error::The decoded certificate is only ${p12_bytes} bytes, which is too small to be a"
+            echo "::error::PKCS#12 containing a private key. APPLE_CERT_P12_BASE64 is probably truncated"
+            echo "::error::or not base64. This is a CERTIFICATE DATA problem, not a passphrase one."
+            exit 1
+          fi
+          if ! openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -nokeys -passin pass:"$APPLE_CERT_PASSWORD" -legacy >/dev/null 2>&1; then
+            echo "::error::The passphrase in APPLE_CERT_PASSWORD does not open APPLE_CERT_P12_BASE64."
+            echo "::error::The file decoded to a plausible ${p12_bytes} bytes, so the CERTIFICATE is fine"
+            echo "::error::and the PASSPHRASE is wrong -- they must come from the SAME export. Note a"
+            echo "::error::secret set through the web UI can carry a trailing newline; this step already"
+            echo "::error::strips whitespace, so a failure here means the values genuinely disagree."
+            exit 1
+          fi
+          echo "==> passphrase opens the archive"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          echo "==> identities now available to this job:"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+
       # --- ccache (S30) -----------------------------------------------------
       #
       # Added 2026-08-22, after v0.1.0's first run: build.yml got ccache and this
@@ -127,33 +199,6 @@ jobs:
         if: always() && matrix.name != 'windows'
         shell: bash
         run: ccache -s
-
-      # --- macOS: import the Developer ID cert into a throwaway keychain -----
-      #
-      # A temporary keychain rather than the login one: it is deleted with the
-      # runner, and it cannot prompt. The password is per-run and never leaves
-      # the job.
-      - name: Import signing certificate (macOS)
-        if: matrix.name == 'macos'
-        env:
-          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
-          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
-        run: |
-          set -euo pipefail
-          KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
-          KEYCHAIN_PASSWORD="$(uuidgen)"
-          echo "$APPLE_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
-            -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
-          security set-key-partition-list -S apple-tool:,apple: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
-          rm -f "$RUNNER_TEMP/cert.p12"
-          echo "==> identities now available to this job:"
-          security find-identity -v -p codesigning "$KEYCHAIN"
 
       - name: Package (macOS)
         if: matrix.name == 'macos'
