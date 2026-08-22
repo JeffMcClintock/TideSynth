@@ -160,7 +160,7 @@ include_directories(
 #
 # Verified before enabling, not after: the component registers
 # (aumu Drck Dsyh) and `auval` reports AU VALIDATION SUCCEEDED.
-set(FORMATS_LIST GMPI VST3 CLAP AU STANDALONE)
+set(FORMATS_LIST GMPI VST3 CLAP AU3 STANDALONE)
 
 #  HAS_VST3
 gmpi_plugin(
@@ -377,6 +377,25 @@ gmpi_plugin(
 # path is OURS: we put it on every target in the project, including targets we
 # do not define. BEFORE puts the right directory ahead of the inherited ones.
 #
+# S40 -- the AUv3 containing app is a SHIPPED, USER-VISIBLE bundle: it installs
+# into /Applications and Finder shows its name. gmpi_plugin.cmake names it after
+# the CMake target, giving "TIDE_Rack_AU3App" -- underscored, which
+# docs/distribution.md reserves for internal target names and is not something to
+# put in front of a customer.
+#
+# "TIDE-Rack-AUv3" rather than plain "TIDE-Rack" because the STANDALONE format
+# already produces TIDE-Rack.app in this same directory, and two bundles cannot
+# share a name. The suffix also tells a user what the app is for, which matters
+# because its only job is to carry the extension: macOS registers the AUv3 from
+# it automatically, with no launch required (measured 2026-08-22).
+if(APPLE AND TARGET ${PROJECT_NAME}_AU3App)
+    set_target_properties(${PROJECT_NAME}_AU3App PROPERTIES
+        OUTPUT_NAME "TIDE-Rack-AUv3"
+        MACOSX_BUNDLE_BUNDLE_NAME "TIDE Rack (AUv3)"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.tidesynth.tiderack.au3app")
+    message(STATUS "S40: AUv3 containing app named TIDE-Rack-AUv3.app")
+endif()
+
 # NOT guarded silently. N1a lost a session to `if(TARGET ...)` skipping without
 # a word, so this says so out loud when the target is absent.
 if(APPLE)

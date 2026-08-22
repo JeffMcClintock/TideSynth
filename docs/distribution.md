@@ -65,8 +65,8 @@ naming section, BACKLOG **N1**).
 | Platform | Artifact (constant name) | Contents & install destination | Signing |
 |---|---|---|---|
 | Windows | `TIDE-Rack-Windows.exe` (Inno Setup) + `TIDE-Rack-Windows.zip` | `TIDE-Rack.vst3` → `C:\Program Files\Common Files\VST3\` | Azure Trusted Signing (installer **and** the .vst3 inside it) |
-| macOS | `TIDE-Rack-macOS.pkg` | AU → `/Library/Audio/Plug-Ins/Components/`, VST3 → `/Library/Audio/Plug-Ins/VST3/` | Developer ID + **notarize + staple** — an unnotarized pkg is effectively unopenable on modern macOS |
-| iOS | — none on the website — | AUv3 ships inside a container app, **App Store only**; the website links the App Store page as a plain text link | App Store pipeline (M2/M3 territory) |
+| macOS | `TIDE-Rack-macOS.pkg` | **AUv3** → `/Applications/TIDE-Rack-AUv3.app` (the extension rides inside it; macOS registers it with no launch), VST3 → `/Library/Audio/Plug-Ins/VST3/` | Developer ID + **notarize + staple** — an unnotarized pkg is effectively unopenable on modern macOS |
+| iOS | — none on the website — | AUv3 ships inside a container app — the SAME wrapper macOS now uses — **App Store only**; the website links the App Store page as a plain text link | App Store pipeline (M2/M3 territory) |
 | Linux | `TIDE-Rack-Linux.tar.gz` | `TIDE-Rack.vst3/` → `~/.vst3/`, CLAP → `~/.clap/`, plus a short `install.sh` that copies them | none — no signing convention on Linux |
 
 Notes:
