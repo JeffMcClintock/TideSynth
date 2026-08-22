@@ -144,7 +144,23 @@ include_directories(
 # no other change. Verified on macOS/arm64 2026-08-22: builds rc=0 with zero
 # errors, correct bundle layout, and `nm` finds exactly one exported entry
 # point (clap_entry) -- see the journal entry for the commands.
-set(FORMATS_LIST GMPI VST3 CLAP STANDALONE)
+# AU joined the list 2026-08-22 (BACKLOG M1/M3), and only after four separate
+# things were fixed -- it is worth knowing it was never one switch:
+#
+#   1. a header shadowing, because THIS project's root include_directories()
+#      put SynthEditLib's modules/shared ahead of GMPI_Wrappers' wrapper/common
+#      for every target, including plist_util, which is AU-only (S17's class)
+#   2. Apple's AudioUnitSDK needs C++23 (std::expected), and the exception has
+#      to live inside the format loop below or it is silently overwritten
+#   3. two "here to satisfy linker" fallbacks in AU2_Wrapper.cpp were strong
+#      symbols and collided with EditorLib/SynthEditLib (GMPI_Wrappers#11)
+#   4. plist_util DERIVED CFBundleExecutable as "<stem>_AU", which is wrong the
+#      moment OUTPUT_NAME is set -- the component then built fine and macOS
+#      silently refused to register it (GMPI#8; issue #271's class, third site)
+#
+# Verified before enabling, not after: the component registers
+# (aumu Drck Dsyh) and `auval` reports AU VALIDATION SUCCEEDED.
+set(FORMATS_LIST GMPI VST3 CLAP AU STANDALONE)
 
 #  HAS_VST3
 gmpi_plugin(
