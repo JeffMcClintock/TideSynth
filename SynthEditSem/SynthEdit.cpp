@@ -384,16 +384,36 @@ public:
 		//             `vendor` defaults it to "GMPI" (xml_spec_reader.cpp:532-535),
 		//             which is why hosts listed this as "SynthEdit (GMPI)".
 		//
-		// DO NOT RENAME id -- it is not cosmetic. The VST3 class UID is *hashed
-		// from this string*: textIdtoUuid(plugin->id, ...) at
-		// GMPI_Wrappers/wrapper/VST3/MyVstPluginFactory.cpp:244-245, feeding
-		// info->cid. Change it and the plug-in's identity changes, so every host
-		// project that already loaded TIDE fails to find it on reload. "SE
-		// SynthEdit" is permanent, and users never see it.
+		//   id     -- TIDE'S OWN IDENTITY, and the single string every format
+		//             derives its identity from. Renamed 2026-08-22 (BACKLOG R9);
+		//             it was "SE SynthEdit", a fossil of the original "SynthEdit
+		//             in the DAW" framing, from before the pivot to TIDE Rack.
+		//
+		// WHAT THIS ONE STRING CONTROLS -- all four formats, which is why it is
+		// worth getting right once:
+		//
+		//   VST3  class GUID = djb2 hash of this string, textIdtoUuid() at
+		//         GMPI_Wrappers/wrapper/VST3/MyVstPluginFactory.cpp:200
+		//   CLAP  clap_descriptor.id, verbatim (Factory_CLAP.cpp:25)
+		//   GMPI  the id, verbatim
+		//   AU    manufacturer and subtype, via to4charId() on the two halves
+		//         either side of the colon (plist_util.cpp:262-271)
+		//
+		// THE COLON IS LOAD-BEARING. "Vendor: Product" is the convention the other
+		// GMPI plugins follow ("GMPI: Freq Analyser", "GMPI: GmpiSawDemo"), and
+		// plist_util splits on it for the AU's four-character codes. Without one
+		// there is no vendor half -- which is how the old id produced the subtype
+		// "Syhd", SynthEdit's rather than TIDE's.
+		//
+		// RENAMING IT IS A BREAKING CHANGE, and that is affordable exactly once.
+		// The GUID is a pure function of this string, so a host project saved with
+		// an older build stops finding the plug-in. Jeff ruled 2026-08-22: none of
+		// this has ever shipped, so there is nothing to be compatible with. After
+		// 1.0 that stops being true -- treat this string as frozen from then on.
 		const static std::string xmlstr(R"XML(
 <?xml version="1.0" encoding="UTF-8"?>
 <PluginList>
-    <Plugin id="SE SynthEdit" name="TIDE Rack" vendor="TIDE Synth" category="Experimental">
+    <Plugin id="TIDE Synth: TIDE Rack" name="TIDE Rack" vendor="TIDE Synth" category="Experimental">
 		<Parameters>
 			<Parameter id="0" name="controllerPtr" ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 			<Parameter id="1" name="chunk"         ignorePatchChange="true" datatype="blob"/>

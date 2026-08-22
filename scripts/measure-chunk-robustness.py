@@ -3,6 +3,15 @@
 
     python3 scripts/measure-chunk-robustness.py [--keep]
 
+*** THIS TOOL CRASHES REAPER ONCE, ON PURPOSE, EVERY RUN. ***
+
+The `skeleton` case is a KNOWN LIMIT (E10): a <Module> with no <PatchManager>
+passes TIDE's guard and dies inside the engine, and the engine fix is GATED. So
+a run leaves a REAPER crash report in ~/Library/Logs/DiagnosticReports and the
+suite still reports PASS -- rc=0 -- because refusing every chunk TIDE *can*
+guard is what is being measured. If you are sitting at the machine, expect one
+crash and do not go looking for a regression. When E10 lands, this stops.
+
 TIDE's whole patch is one blob parameter, restored by the host from the project
 file. Nothing between the host's bytes and SeAudioMaster::BuildDspGraph
 validated its shape, and BuildDspGraph trusts it completely -- so a corrupt,
@@ -129,7 +138,7 @@ def write_project(path, out_wav, tone, chunk):
         '  <TRACK\n    NAME chunk-robustness\n    NCHAN 2\n    FX 1\n'
         '    <FXCHAIN\n      SHOW 0\n      LASTSEL 0\n      DOCKED 0\n      BYPASS 0 0 0\n'
         '      <VST "VST3i: TIDE Rack (TIDE Synth)" TIDE-Rack.vst3 0 "" '
-        '1386065673{506C7567696E474D504920501951ED43} ""\n%s\n      >\n'
+        '1386065673{506C7567696E474D50492050A2A07287} ""\n%s\n      >\n'
         '      FLOATPOS 0 0 0 0\n      WAK 0 0\n    >\n'
         # An audio item so the render has something to write even when the rack
         # is silent, and a note so the processor is exercised with real events.

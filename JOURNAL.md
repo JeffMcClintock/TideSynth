@@ -109,6 +109,122 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — R9: TIDE owns its identity, and the id was a fossil of the old product
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** Jeff ruled R9. The id was `SE SynthEdit` because TIDE was originally
+going to be *"SynthEdit in the DAW"*; the product pivoted to TIDE Rack and the
+id never followed. **None of it has ever shipped**, so backward compatibility —
+the entire basis of the `DO NOT RENAME` comment — does not apply.
+
+`id="SE SynthEdit"` → `id="TIDE Synth: TIDE Rack"`. One string.
+
+### The comment was right, and its premise was gone
+
+`SynthEdit.cpp` carried an explicit **DO NOT RENAME**, reasoning that the VST3
+GUID is hashed from the string so *"every host project that already loaded TIDE
+fails to find it on reload"*. That is exactly correct. It just assumed such
+projects exist.
+
+Worth recording that it never mentioned **uniqueness** — that `SE SynthEdit` is
+SynthEdit's own shell id (`SynthEdit/synthedit_as_sem.synthedit:56`), so TIDE's
+identity was never TIDE's to keep. The comment reasoned about migration and
+visibility; the gap was ownership.
+
+### The colon was the missing half
+
+`plist_util` splits `Vendor: Product` to derive the AU's four-character codes.
+Probing the installed CLAPs showed the convention plainly:
+
+```
+FreqAnalyser_CLAP   id="GMPI: Freq Analyser"
+SawDemo_CLAP        id="GMPI: GmpiSawDemo"
+TIDE-Rack           id="SE SynthEdit"          <- no colon, so no vendor half
+```
+
+That is *why* the AU subtype was `Syhd` — SynthEdit's, not TIDE's. The rename
+fixes the AU codes as a side effect of getting the shape right.
+
+### Predicted first, then measured
+
+The temptation is to change the string and read off whatever appears. Instead I
+reimplemented djb2 and `to4charId` in Python and **checked the model against the
+OLD values** — it reproduced the shipped subtype `Syhd` and the GUID tail
+`1951ED43` exactly. Only then did I trust its predictions:
+
+| | before | predicted | built |
+|---|---|---|---|
+| CLAP / GMPI id | `SE SynthEdit` | `TIDE Synth: TIDE Rack` | ✓ |
+| AU manufacturer | `Dsyh` | `Dsyh` | ✓ |
+| AU subtype | `Syhd` | `Drck` | ✓ |
+| VST3 GUID tail | `1951ED43` | `A2A07287` | ✓ (via fixtures) |
+
+One thing the model got **wrong**, and I did not paper over it: I also predicted
+REAPER's leading decimal (`1386065673`) from `getVst2Id64`, and got
+`1734972482`. Mismatch — so that number is not what I assumed. Rather than guess,
+I changed only the GUID and let the render decide. It works, so REAPER keys on
+the GUID and that decimal is something else. **Still unexplained, and labelled as
+such** rather than quietly dropped.
+
+### The negative control is the proof
+
+Rendering the *un-updated* `v1-rack.rpp` against the renamed plugin:
+
+```
+peak= -inf dBFS  rms= -inf dBFS  -> SILENCE
+```
+
+REAPER cannot find it. That is the identity change working. Then all five
+fixtures re-pointed and re-rendered, each matching its documented figure —
+including `v1-rack-uncabled`, whose silence is its job.
+
+**That control has a cost I did not think about**: it pops a modal "VST not
+found" in REAPER, on the machine Jeff is sitting at. It did.
+
+### A live tool was carrying the old GUID
+
+`scripts/measure-chunk-robustness.py` (E10's repro harness) embeds the project
+XML including the GUID. It would have gone silently stale — measuring a plugin
+REAPER could no longer find, and reporting that as robustness. Updated, re-run,
+PASS.
+
+Running it also **crashes REAPER once, by design** — the `skeleton` case is E10's
+KNOWN LIMIT and the engine fix is GATED. Jeff saw the crash and reasonably asked.
+The tool now says so in its header, in capitals, so nobody else has to wonder.
+
+**Learned:**
+
+- **Validate a derivation model against the CURRENT value before trusting its
+  prediction.** Reproducing `Syhd` and `1951ED43` is what made `Drck` and
+  `A2A07287` claims rather than hopes — and it is what exposed that my VST2-id
+  model was wrong while the GUID model was right.
+- **When part of a model fails, say so and route around it.** The decimal did not
+  match; changing only the GUID and letting the render decide beat guessing, and
+  the unexplained part is now written down instead of forgotten.
+- **A "DO NOT RENAME" comment is an argument, not a law.** Read what it assumes.
+  This one assumed shipped projects; there were none. It was still worth having —
+  it named the exact mechanism, which is why the change took an hour instead of a
+  day.
+- **Grep for the identifier in TOOLS, not just in source.** The old GUID was
+  embedded in a Python harness that would have kept "passing" against a plugin
+  that no longer existed.
+- **A negative control that makes a GUI app prompt is not free when someone is at
+  the keyboard.** Worth saying out loud before running it, not after.
+- **If a tool crashes something on purpose, put that in its header in capitals.**
+  Expected-crash-as-designed is indistinguishable from a regression to whoever
+  happens to be watching.
+
+**Next:** **R8** is the other half of this decision — bundle identifiers, sharing
+the naming scheme this ruling just set. **AU is still not in `FORMATS_LIST`**;
+M1/M3's PRs merged, so that is now one word plus a verification. **The window
+closes at 1.0** — the GUID is a pure function of this string, and the comment now
+says to treat it as frozen from the first release.
+
+**Branch/PR:** `tide/mac/R9-tide-owns-its-id` — TideSynth.
+
+---
+
 ## 2026-08-22 — macos — M1 and M3 fixed properly, and the override my own notes warned about
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present

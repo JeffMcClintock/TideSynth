@@ -39,6 +39,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — R9: TIDE owns its identity, and the id was a fossil of the old product**
+
+- Validate a derivation model against the CURRENT value before trusting its prediction.
+- When part of a model fails, say so and route around it.
+- A "DO NOT RENAME" comment is an argument, not a law.
+- Grep for the identifier in TOOLS, not just in source.
+- A negative control that makes a GUI app prompt is not free when someone is at the keyboard.
+- If a tool crashes something on purpose, put that in its header in capitals.
+
 **macos — M1 and M3 fixed properly, and the override my own notes warned about**
 
 - FetchContent's source override makes `_deps/<name>-src` ABSENT, not populated.
