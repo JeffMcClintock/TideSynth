@@ -8,6 +8,49 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — I broke the Linux release with the class I spent all day fixing (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+v0.1.1 failed. Windows succeeded, macOS failed at notarization (Apple, below),
+and **`build-linux` failed because of me**:
+
+    ##[error]missing or empty asset: TIDE-Rack-Linux.tar.gz
+
+R10 renamed the tarball to `TIDE-Rack-Linux-0.1.1.tar.gz` while `release.yml`'s
+asset check still expected the old name. **Two places that must agree and I
+changed one** — the exact class I fixed four times today: the AU2 class name
+beside its string, the MIDI menu beside its handler, the appex name beside its
+executable, the XML chooser beside its consumer. I wrote the commit messages for
+all four and then introduced a fresh instance.
+
+**And the rename was wrong on its own terms, which one line of the file I was
+editing would have told me.** `release.yml`'s header says: *"Asset names carry NO
+version (docs/distribution.md): the version lives in the tag, so
+`releases/latest/download/TIDE-Rack-macOS.pkg` is a permalink R6 can promise
+never to change."* Two identically-named files across releases is the POINT.
+I had justified the rename in a comment as fixing a problem that was a
+deliberate design decision, stated in the file, which I had not read.
+
+Reverted the name. The rest of R10 stands and is what actually matters: the
+version lives in the tag and INSIDE the artifacts — `<Plugin version="0.1.1">`
+drives every bundle, `--version "$VERSION"` drives the pkg metadata — not in the
+filenames.
+
+**The notarization retry worked exactly as designed and did not help.** The log
+shows `notarytool submit (attempt 4 of 4)` and then *"Apple's notary service
+still failing after 4 attempts"* — so the code from #311 ran, correctly
+identified four consecutive 500s as transient, and backed off through all of
+them. **Apple returned HTTP 500 at 07:22, 10:40 and 20:58 UTC**, which is not a
+blip; it is a service that has been failing all day. The retry covers about
+fifteen minutes. Nothing in TIDE can fix that, and the right response is to wait
+rather than burn another build.
+
+**Verified:** the Linux tarball name matches `release.yml`'s expectation again
+(`TIDE-Rack-Linux.tar.gz`), and the version is still carried inside the
+artifacts. **Not verified:** the Linux packager was not executed — this is a
+name match by inspection, and the proof is the next release run.
+
 ## 2026-08-23 — macos — "bump to 0.1.1" was not a one-number change (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
