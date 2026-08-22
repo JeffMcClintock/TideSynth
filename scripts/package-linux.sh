@@ -14,11 +14,15 @@ SRC="$BUILD_DIR/SynthEditSem"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
-# The tarball had NO version in its name, so two releases produced two
-# identically-named files. CI sets TIDE_RACK_VERSION from the tag; the fallback
-# matches SynthEdit.cpp's <Plugin version="...">.
-VERSION="${TIDE_RACK_VERSION:-0.1.1}"
-PKG="TIDE-Rack-Linux-$VERSION"
+# NO VERSION IN THIS NAME, DELIBERATELY. I put one here in R10 and it broke the
+# v0.1.1 release: release.yml's asset check expects TIDE-Rack-Linux.tar.gz, and
+# more importantly release.yml's own header says why the names are version-free
+# -- "the version lives in the tag, so releases/latest/download/... is a
+# permalink R6 can promise never to change". Two identically-named files across
+# releases is the POINT; they are distinguished by their release, not by their
+# filename. The version belongs INSIDE the artifacts, which is what the rest of
+# R10 does.
+PKG="TIDE-Rack-Linux"
 ROOT="$STAGE/$PKG"
 mkdir -p "$ROOT"
 
