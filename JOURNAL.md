@@ -8,6 +8,53 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — "bump to 0.1.1" was not a one-number change (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Jeff asked to increment the version. Before touching anything I looked for where
+the version lives, and found **four consumers giving four different answers,
+none of them the tag**:
+
+  - the BUNDLES said `1.0.0` — GMPI's documented default for a `<Plugin>` tag
+    with no `version` attribute, and TIDE's carried none;
+  - `package-macos.sh` fell back to a hardcoded `0.1.0`;
+  - `package-windows.ps1` read `$env:TIDE_RACK_VERSION`, which **nothing ever
+    set**, so it got an empty string;
+  - `package-linux.sh` put no version in the tarball name at all, so two
+    releases would have produced two identically-named files.
+
+`release.yml` mentioned `TIDE_RACK_VERSION` **zero times**. Tagging `v0.1.1`
+would have shipped artifacts labelled 1.0.0, 0.1.0, nothing, and nothing.
+
+**Fixed by giving it one source.** `SynthEdit.cpp`'s `<Plugin>` tag now carries
+`version="0.1.1"`, which every bundle derives from; `release.yml` derives
+`TIDE_RACK_VERSION` from the tag; the two shell packagers' fallbacks match it.
+
+**The release.yml half is a shell step, not a job-level `env:`, and I got that
+wrong first.** The leading `v` has to come off, and I wrote
+`substring(github.ref_name, 1)` — **GitHub's expression syntax has no substring
+function.** The YAML parsed happily, because it is just a string until Actions
+evaluates it; nothing would have complained until a tagged release ran. Replaced
+with `${GITHUB_REF_NAME#v}` in a `shell: bash` step, so the one script also runs
+on the Windows runner.
+
+**Verified by building:** all four macOS bundles — `.vst3`, `.clap`, `.gmpi` and
+the AUv3 app — report **0.1.1** where the same build previously reported
+`1.0.0`. The tag-strip was exercised directly (`v0.1.1` → `0.1.1`).
+
+**And the first build after the change still said 1.0.0**, which was worth the
+five minutes it cost. The local GMPI checkout was **14 commits stale**, so
+`gmpi_find_plugin_element` still preferred a MODULE source for the plugin XML
+and never saw the new attribute. GMPI#12's `<PluginList>` preference is what
+makes this work, and the stale build was an accidental demonstration of the very
+bug that PR fixed. `git pull` in the local checkouts, rebuild, 0.1.1 everywhere.
+[[cmake-local-repo-overrides]] warns about exactly this and I still hit it.
+
+**Not verified:** no packager was executed — they need signing identities and a
+release environment — so the version reaching the installer FILENAMES is by
+inspection, not by run. Windows and Linux packaging were not exercised at all.
+
 ## 2026-08-23 — macos — TIDE Rack installs on iOS. The blocker was a folder (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)

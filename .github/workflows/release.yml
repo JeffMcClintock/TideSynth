@@ -52,6 +52,29 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # THE TAG NEVER REACHED THE PACKAGERS. All three read TIDE_RACK_VERSION
+      # and nothing ever set it: package-macos.sh fell back to a hardcoded
+      # 0.1.0, package-windows.ps1 got an EMPTY version, and the Linux tarball
+      # carried none at all -- while the bundles themselves said 1.0.0, GMPI's
+      # default for a <Plugin> tag with no version attribute. Four consumers,
+      # four different answers, none of them the tag.
+      #
+      # A shell step rather than a job-level env: because the leading "v" has to
+      # come off, and GitHub's expression syntax has no substring function --
+      # format/startsWith/contains cannot do it. shell: bash so the one script
+      # works on the Windows runner too.
+      - name: Derive the version from the tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          if [ -z "$version" ]; then
+            echo "::error::could not derive a version from ref '$GITHUB_REF_NAME'"
+            exit 1
+          fi
+          echo "TIDE_RACK_VERSION=$version" >> "$GITHUB_ENV"
+          echo "==> TIDE_RACK_VERSION=$version (from tag $GITHUB_REF_NAME)"
+
       # Same list build.yml installs, kept deliberately identical -- a release
       # that builds against a different dependency set from CI is a release
       # nothing has actually tested.
