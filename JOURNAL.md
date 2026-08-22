@@ -8,6 +8,56 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — M1 closes, and it takes two of my own claims down with it (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+M1 was never blocked on work — its row says so: *"BLOCKED ON A RULING, NOT ON
+WORK"*. AU2 and AU3 share fourCCs, so `AU3` stayed out of `FORMATS_LIST` until
+Jeff chose. **He chose: S40 dropped AU2**, so the clash is gone by construction
+and the row only needed evidence.
+
+**The evidence, from plain `main`:** `AU3` is in `FORMATS_LIST`, the build is
+rc=0 with zero errors and produces all five artifacts, the extension registers,
+and `auval -v aumu Drck Dsyh` reports *"version 3 implementation"*, *"Loaded
+AudioUnit out-of-process: true"*, **AU VALIDATION SUCCEEDED**, rc=0.
+
+**Then two things in the row turned out to be wrong, and both were mine.**
+
+**The identifier it cites is stale.** `pluginkit -m -i
+com.gmpi.au3.TIDE_Rack.extension -v` returns "(no matches)" — GMPI#13 made the
+appex id derive from the containing app, so it is now
+`com.tidesynth.tiderack.au3app.extension`. Anyone following the row's own
+command would conclude registration is broken. That is precisely the false
+negative this row already records me making once, preserved in amber and waiting
+for the next person.
+
+**"macOS registers the AUv3 automatically, with no launch required" is wrong.**
+I wrote that during S40, in `SynthEditSem/CMakeLists.txt` and — much worse — in
+user-facing `docs/distribution.md`. Re-measured today, deliberately, because the
+first `pluginkit` query came back empty and I wanted to know whether that was
+the stale id or a real gap:
+
+  - `~/Applications`, 30s after the copy: **(no matches)**
+  - `/Applications`, at 5s, 15s and 30s: **(no matches)**
+  - within **12 seconds of `open`ing the app**: registered, and reporting
+    version 0.1.1, which is R10's wiring showing up in a third place
+
+So the install story is a copy **plus a first launch**. A user who follows the
+docs as they stood installs the pkg, opens their DAW, and finds nothing. The pkg
+puts the app in place and cannot open it for them, so whatever tells the user how
+to install this has to tell them to open it once. Both places corrected.
+
+**What made the difference was not being satisfied by the first "(no matches)".**
+The tempting read was "stale id, mystery solved" — the id WAS stale, and fixing
+it alone would have left the doc bug shipping.
+
+**Not verified:** the extension was never opened in a real DAW; `auval` is the
+evidence, not a host. Nothing was tested on a clean machine, so whether the first
+launch is needed once per install or once per user is unmeasured. The dev build
+was removed from `/Applications` and `~/Applications` afterwards, so this box is
+back to where it started.
+
 ## 2026-08-23 — macos — I broke the Linux release with the class I spent all day fixing (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
