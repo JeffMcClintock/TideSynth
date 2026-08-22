@@ -283,6 +283,37 @@ if(APPLE)
   enable_language(OBJCXX)
 endif()
 
+# S38. Give every Objective-C class in this build a TIDE-specific name.
+#
+# The Objective-C runtime has ONE FLAT, PROCESS-WIDE CLASS NAMESPACE, so two
+# GMPI plugins loaded into one host that export the same class name do not get
+# one each: whichever loads first wins and every later one silently receives
+# the first one's implementation. macOS prints "is implemented in both ... This
+# may cause spurious casting failures and mysterious crashes" and carries on.
+# The _01/_03/_04 suffixes already on those names separate SDK VERSIONS; they
+# can never separate two plugins built from the SAME version, which is the case
+# a user hits by installing two GMPI plugins.
+#
+# Measured on this mac 2026-08-22: of 25 installed AU components exporting ObjC
+# classes, 19 carried a unique per-plugin GUID and 6 carried the literal
+# UNPATCHED placeholder GUID_GOES_HERE_PLUS_SOME_MORE_CHAR. Loading three of
+# those six in one process reproduced the warning for every shared class;
+# loading two plugins with distinct GUIDs produced none.
+#
+# DIRECTORY-SCOPED, NOT TARGET-SCOPED, AND THAT IS DELIBERATE. gmpi_ui's .mm
+# sources are compiled into SEVERAL targets per plugin -- SynthEditLib,
+# AU3_Wrapper, CLAP_Wrapper, AU_Wrapper and more -- so a define set on the
+# plugin target alone would reach almost none of them. One build tree is one
+# plugin, so setting it here is both correct and impossible to miss.
+#
+# The general fix belongs in GMPI's gmpi_plugin.cmake so that EVERY GMPI plugin
+# gets a distinct suffix; that repo is PR-GATED and the proposal is a separate
+# PR. This line fixes TIDE now and does not wait on it.
+if(APPLE)
+  string(REGEX REPLACE "[^A-Za-z0-9_]" "_" _tide_objc_suffix "${CMAKE_PROJECT_NAME}")
+  add_compile_definitions(GMPI_OBJC_SUFFIX=_${_tide_objc_suffix})
+endif()
+
 set(DSP_CORE ${syntheditlib_folder})
 set(se_sdk_folder ${DSP_CORE}/modules/se_sdk3)
 set(se_shared_folder ${DSP_CORE}/modules/shared)
