@@ -641,12 +641,47 @@ foreach(kind IN LISTS FORMATS_LIST)
     # on Windows only: neither emits a PDB, and neither emits an import library
     # for a MODULE. Keyed off the TARGET name, which is unique by construction
     # (`${PROJECT_NAME}_${kind}`), rather than a hand-written per-format string.
+    # BACKLOG R8 -- give every bundle a CFBundleIdentifier that TIDE owns.
+    #
+    # Until now NONE of the plug-in formats had a usable one. CMake's stock
+    # MacOSXBundleInfo.plist.in substitutes MACOSX_BUNDLE_GUI_IDENTIFIER, and
+    # nothing set it for a plug-in target -- GMPI sets it only for STANDALONE
+    # (gmpi_plugin.cmake:775) -- so the key was emitted PRESENT AND EMPTY:
+    #
+    #     <key>CFBundleIdentifier</key>
+    #     <string></string>
+    #
+    # codesign then invents one from the executable name plus a hash, observed as
+    # "TIDE-Rack-a330dda6894e6d221c12682d5774c181b4845f8b". Signing still
+    # SUCCEEDS, which is why this stayed invisible -- but that string is the unit
+    # Gatekeeper, notarization tickets and any future update logic key on, and it
+    # matches no convention TIDE controls.
+    #
+    # Scheme: reverse-DNS on tidesynth.com, the product domain, with a per-format
+    # suffix. Distinct per format ON PURPOSE -- all four bundles can be installed
+    # side by side, and macOS treats the identifier as the unit of identity, so
+    # sharing one across them is the same class of collision R9 just removed from
+    # the plug-in id. The standalone keeps the bare identifier because it is the
+    # application rather than one of the plug-in formats.
+    #
+    # This is TIDE overriding a GMPI default in TIDE's own file, which is why it
+    # lands here rather than upstream. THE AU IS NOT COVERED: its plist is written
+    # by plist_util, not by CMake, so it needs --bundle-id passed from
+    # gmpi_plugin.cmake (PR-GATED). Tracked on R8.
+    string(TOLOWER "${kind}" _tide_format_suffix)
+    if(kind STREQUAL "STANDALONE")
+        set(_tide_bundle_id "com.tidesynth.tiderack")
+    else()
+        set(_tide_bundle_id "com.tidesynth.tiderack.${_tide_format_suffix}")
+    endif()
+
     set_target_properties(${SUB_PROJECT_NAME} PROPERTIES
         OUTPUT_NAME "TIDE-Rack"
         PDB_NAME "${SUB_PROJECT_NAME}"
         COMPILE_PDB_NAME "${SUB_PROJECT_NAME}"
         ARCHIVE_OUTPUT_NAME "${SUB_PROJECT_NAME}"
-        MACOSX_BUNDLE_BUNDLE_NAME "TIDE Rack")
+        MACOSX_BUNDLE_BUNDLE_NAME "TIDE Rack"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "${_tide_bundle_id}")
 
 	# U3 — EditorScreenshot is gone from this list along with the breadcrumb
 	# bar it existed for. That was TIDE's last link-time dependency on a

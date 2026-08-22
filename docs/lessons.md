@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — R8: every bundle now has an identifier TIDE owns, and codesign stops inventing one**
+
+- "Present and empty" and "absent" are different bugs.
+- `codesign` succeeding is not evidence of a correct identity.
+- An override needs a fresh build directory.
+- Test the no-op claim on a pass-through argument.
+- Keep the enabling change separate from the identity change.
+
 **macos — R9: TIDE owns its identity, and the id was a fossil of the old product**
 
 - Validate a derivation model against the CURRENT value before trusting its prediction.

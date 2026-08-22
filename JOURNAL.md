@@ -109,6 +109,111 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — R8: every bundle now has an identifier TIDE owns, and codesign stops inventing one
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** R8, the other half of R9's decision. Scheme follows the ruling that TIDE
+owns its identity: reverse-DNS on `tidesynth.com`, per format.
+
+```
+TIDE-Rack.gmpi        com.tidesynth.tiderack.gmpi
+TIDE-Rack.vst3        com.tidesynth.tiderack.vst3
+TIDE-Rack.clap        com.tidesynth.tiderack.clap
+TIDE-Rack.component   com.tidesynth.tiderack.au
+TIDE-Rack.app         com.tidesynth.tiderack
+```
+
+Per format on purpose: all of them can be installed side by side, macOS treats
+the identifier as the unit of identity, and sharing one across them is the same
+class of collision R9 removed from the plug-in id. The standalone takes the bare
+form because it is the application, not one of the plug-in formats.
+
+### The proof is one line
+
+```
+before:  Identifier=TIDE-Rack-a330dda6894e6d221c12682d5774c181b4845f8b
+after:   Identifier=com.tidesynth.tiderack.vst3
+```
+
+`codesign` was inventing an identifier from the executable name plus a hash. It
+**succeeded** either way, which is exactly why this sat unnoticed — but that
+string is what Gatekeeper, notarization tickets and any future update logic key
+on.
+
+### One symptom, two causes, two fixes
+
+**The plug-in formats had the key present and EMPTY.** CMake's stock
+`MacOSXBundleInfo.plist.in` substitutes `MACOSX_BUNDLE_GUI_IDENTIFIER`, and
+nothing set it for a plug-in target — GMPI sets it for STANDALONE only
+(`gmpi_plugin.cmake:775`). So TIDE sets it per target in its own file, beside
+the `OUTPUT_NAME` it already sets. No upstream change needed.
+
+**The AU had the key ABSENT.** Its plist comes from `plist_util`, not CMake, and
+the emitting block was `#if 0`'d out over a *"bundle ID not matching"* warning.
+[GMPI#9](https://github.com/JeffMcClintock/GMPI/pull/9) passes
+`--bundle-id "$<TARGET_PROPERTY:...,MACOSX_BUNDLE_GUI_IDENTIFIER>"`, so the
+plug-in declares it once and both plist paths pick it up.
+
+Reading "present and empty" as the same problem as "absent" would have sent me
+to one fix for two mechanisms — the plug-in formats never needed `plist_util`,
+and the AU could not be fixed from TIDE's file at all.
+
+### The claim I had to test rather than assert
+
+"The GMPI change is a no-op for plugins that set nothing" is the kind of sentence
+that sounds obviously true and hides an empty-argument bug. So:
+
+```
+plist_util … --bundle-id ""              -> 0 CFBundleIdentifier keys
+plist_util … --bundle-id com.example.x   -> 1 CFBundleIdentifier key
+```
+
+Empty passes through the generator expression, `plist_util` omits the key, and
+an existing caller's plist is unchanged.
+
+### S17's guard earned its keep, twice
+
+Configuring with `-DGMPI_SDK_FOLDER_OVERRIDE=` into a tree that already had a
+fetched `gmpi` failed with *"'gmpi' has a local override AND a fetched copy; the
+build would silently compile one of them while the log names the other."*
+
+Exactly right, and exactly the failure it was written for. It cost me two
+configures to learn that an override needs a **fresh build directory** — the
+cache remembers, so a tree that has ever been configured one way poisons the
+other. Worth knowing before blaming the override.
+
+**Learned:**
+
+- **"Present and empty" and "absent" are different bugs.** They present
+  identically — `PlistBuddy -c Print` returns nothing for both — and they have
+  different causes and different fixes. Check which one you have before choosing
+  where to fix it.
+- **`codesign` succeeding is not evidence of a correct identity.** It invents an
+  identifier from a hash when the plist has none, so signing works and the
+  artifact is still wrong in the field that matters downstream.
+- **An override needs a fresh build directory.** `FETCHCONTENT_SOURCE_DIR_*` and
+  `*_FOLDER_OVERRIDE` are cached, so a tree configured without one keeps the
+  fetched copy and S17 refuses — correctly. Do not debug the override; delete
+  the tree.
+- **Test the no-op claim on a pass-through argument.** An empty string surviving
+  a generator expression into a CLI parser is exactly where a "harmless default"
+  quietly becomes a usage error.
+- **Keep the enabling change separate from the identity change.** `AU` stays out
+  of `FORMATS_LIST` here so a bisect can tell "we turned on AU" from "we set
+  identifiers" — even though the AU path is now proven twice over.
+
+**Next:** **`com.tidesynth.tiderack.au` is latent** until `AU` joins
+`FORMATS_LIST`, which is M1's last step and now fully proven — the AU registers
+and `auval` passes with the new identifier and R9's new `Drck` subtype.
+**Notarization is still unverified**: this removes the synthesised identifier
+**R5** would have met, but no submission has been made.
+
+**Branch/PR:** `tide/mac/R8-bundle-identifiers` — TideSynth, plus
+[GMPI#9](https://github.com/JeffMcClintock/GMPI/pull/9) for the AU half.
+
+---
+
 ## 2026-08-22 — macos — R9: TIDE owns its identity, and the id was a fossil of the old product
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
