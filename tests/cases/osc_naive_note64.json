@@ -1,0 +1,17 @@
+{
+  "description": "E1c's SECOND discriminator, and the one the first left open. osc_naive_sine (undriven pitch) and osc_naive_pitched (pitch pinned to 5 V) both measure -73.5 dBFS cross-platform, which killed the 'undriven input' hypothesis -- but voice_midi_note uses the SAME SE Oscillator (naive) and measures -123.1. The only remaining difference between them is the PITCH VALUE: 440.0 Hz against MIDI note 64. This case is the naive oscillator at note 64's value and nothing else changed, so it separates 'the residual depends on the specific phase increment' from 'something in the voice chain does the work'. 4.583333 V = 5 V minus 5 semitones, on the 1 V/octave convention where 5 V is 440 Hz (note 69).",
+  "script": [
+    "--new",
+    "--add-module \"SE Patch Point in\"      60,100 --as pitch",
+    "--add-module \"SE Oscillator (naive)\" 260,100 --as osc",
+    "--connect $pitch:Output $osc:Pitch",
+    "--set-pin $pitch:Input 4.583333"
+  ],
+  "source": "$osc:\"Audio Out\"",
+  "duration": 2.0,
+  "rate": 48000,
+
+  "null_tolerance_dbfs": -67.0,
+  "peak_diff_tolerance_dbfs": -62.0,
+  "tolerance_reason": "PROVISIONAL, copied from osc_naive_sine exactly as osc_naive_pitched's were, and for the same reason: this case exists to find out which class it belongs to, so gating it as though the answer were known would beg the question. It carries drift-class gates until a second platform renders against this reference, and MUST then be re-tightened or left alone on the evidence. WHAT THE TWO OUTCOMES MEAN: near -123 dBFS (rounding class, ~1 LSB) and the discriminator is the PITCH VALUE -- 440.0 Hz happens to have a phase increment that rounds differently across platforms and note 64's does not -- which would explain every case on the board and make prefab_oscillator/prefab_filter's wide gates plainly wrong. Near -73 dBFS (drift class, ~12 LSB) and the pitch value is NOT the variable, which leaves the voice chain (ADSR/VCA) as the remaining explanation for voice_midi_note and is a much less comfortable place to be. Seeded on macOS; the comparison half is a Linux or Windows render against this reference."
+}

@@ -1,0 +1,13 @@
+{
+  "case": "osc_naive_note64",
+  "duration_s": 2.0,
+  "engine": "SynthEditCL V1.6.186",
+  "rate": 48000,
+  "recorded": "measured",
+  "reference_sha256": "9f867f5e4d968ceb87377ef72132a97cd9819f1e292957b21c09b571daf6c287",
+  "seeded_on": {
+    "machine": "arm64",
+    "release": "25.3.0",
+    "system": "Darwin"
+  }
+}

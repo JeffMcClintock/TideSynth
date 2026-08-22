@@ -109,6 +109,88 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — E1c's second discriminator, and verifying the pitch before seeding it
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** built the case the first experiment left open, and seeded its reference
+on macOS. One Linux or Windows render finishes it.
+
+### Where E1c actually stands
+
+```
+osc_naive_sine      naive osc, pitch UNDRIVEN          -73.5 dBFS
+osc_naive_pitched   naive osc, pitch pinned to 5 V     -73.5 dBFS
+voice_midi_note     naive osc, MIDI note 64            -123.1 dBFS
+```
+
+The first two killed my *undriven pitch input* hypothesis — driving the input
+changes nothing. But the third uses the **same module** and sits 50 dB away, so
+"the module is the variable" does not survive either. The only difference left
+between them is the **pitch value**: 440.0 Hz against note 64.
+
+`osc_naive_note64.json` is the naive oscillator at 4.583333 V — 5 V minus five
+semitones, on the 1 V/octave convention where 5 V is 440 Hz — and nothing else
+changed.
+
+### The step I nearly skipped
+
+I almost seeded the reference straight after the render. **A golden seeded on an
+unverified frequency makes every later residual meaningless**, so I counted zero
+crossings first:
+
+```
+measured  329.50 Hz      (95999 frames @ 48 kHz)
+note 64   329.63 Hz      -> inside the counting resolution over 2.0 s
+```
+
+Only then did I write the reference. That is the same discipline the linux box
+applied to the first case — it verified both cases rendered at *exactly* 440.0 Hz
+before trusting them — and it is what makes these single-variable rather than
+merely single-edit.
+
+Level is held constant as a second control: all three `osc_naive_*` cases peak at
+**−6.0 dBFS**, so a difference in residual cannot be a difference in level.
+
+### Pre-committed, again
+
+The case's own `tolerance_reason` states both outcomes before anyone has seen the
+number:
+
+- near **−123 dBFS** → the discriminator is the **pitch value**; 440.0 Hz happens
+  to have a phase increment that rounds differently across platforms and note
+  64's does not. That explains every case on the board and makes
+  `prefab_oscillator`/`prefab_filter`'s wide gates plainly wrong.
+- near **−73 dBFS** → the pitch value is not the variable, which leaves the
+  ADSR/VCA voice chain as the remaining explanation for `voice_midi_note`, and is
+  a much less comfortable place to be.
+
+Gates stay provisional drift-class, copied from `osc_naive_sine`, and the case
+says so — gating it as though the answer were known would beg the question.
+
+**Learned:**
+
+- **Verify the thing a golden encodes before writing the golden.** A reference is
+  a claim; seeding one at an unconfirmed frequency would have produced a number
+  that looked like evidence and was not. Thirty seconds of zero-crossing counting
+  buys that.
+- **Two eliminated hypotheses can leave a third that neither suggested.** "Which
+  module" and "is the input driven" both died; the pitch VALUE was never
+  considered until both were gone, and it was visible in the fixtures the whole
+  time.
+- **Hold the control constant and say which control.** All three cases peak at
+  −6.0 dBFS, which is what lets a residual difference mean something. Naming it
+  in the row costs a sentence and stops the next person re-checking.
+
+**Next:** **a Linux or Windows render of `osc_naive_note64`** against this
+macOS-seeded reference settles it. Either platform can. **E1c stays TODO** — and
+its real cost is still `prefab_oscillator` and `prefab_filter` carrying
+drift-class gates, which this case informs but does not fix.
+
+**Branch/PR:** `tide/mac/E1c-pitch-value` — TideSynth.
+
+---
+
 ## 2026-08-22 — macos — the AUv3 works, and my "it doesn't register" was a wrong query
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
