@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — AU is on, and four rows closed on one build**
+
+- Enable the thing that exercises the most decisions at once.
+- A prediction confirmed on a real artifact is worth more than the same value read off a build.
+- "It builds" is not "nothing broke".
+- Put the history at the switch.
+- File the leftover warning as a row, immediately.
+
 **macos — R8: every bundle now has an identifier TIDE owns, and codesign stops inventing one**
 
 - "Present and empty" and "absent" are different bugs.

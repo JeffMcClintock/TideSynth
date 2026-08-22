@@ -109,6 +109,104 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — AU is on, and four rows closed on one build
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** added `AU` to `FORMATS_LIST` — one word, and the last step of a chain
+that took four separate fixes across three repos. TIDE now builds **five**
+formats from plain `main`:
+
+```
+TIDE-Rack.gmpi  .vst3  .clap  .component  .app     rc=0, 0 errors
+```
+
+That closes **M1**, **M3**, **R8** and **R9**, and unblocks **R3a**.
+
+### One build, three rows verified at once
+
+The AU is the only artifact where all three identity decisions are visible
+together, so enabling it tested all of them in a single measurement:
+
+```
+CFBundleExecutable  TIDE-Rack   == binary TIDE-Rack     (M3 — GMPI#8)
+CFBundleIdentifier  com.tidesynth.tiderack.au           (R8 — GMPI#9)
+manufacturer/subtype  Dsyh / Drck                       (R9)
+auval               AU VALIDATION SUCCEEDED, rc=0
+```
+
+`Drck` is the code R9 *predicted* before the rename went in. Seeing it arrive on
+a real artifact, validated by Apple's own tool, is what turns that prediction
+into a fact.
+
+**And this time nothing was hand-patched.** Both earlier AU measurements edited
+the installed bundle to get there; this is the build's own output.
+
+### Regression check, because "it builds" is not "nothing broke"
+
+Adding a format to a shared list is exactly the kind of change that can disturb
+its neighbours. So the other two were re-measured rather than assumed:
+
+```
+v1-rack.rpp        -6.3 dBFS / -17.0 rms   (documented figure)
+v3-midi-pitch.rpp  -6.2 dBFS / -21.1 rms   (documented figure)
+CLAP host probe    PASSED
+```
+
+### The four blockers, recorded where the switch is
+
+`FORMATS_LIST` now carries a comment naming all four, because "AU is just one
+word" is true today and was wildly false a day ago:
+
+1. a header shadowing caused by **TIDE's own** root `include_directories()`
+   putting SynthEditLib's `modules/shared` ahead of GMPI_Wrappers' for every
+   target — including `plist_util`, which is AU-only (S17's class)
+2. AudioUnitSDK needing C++23, where the exception must sit **inside** the
+   format loop or a later `set_property` silently overwrites it
+3. two strong "here to satisfy linker" fallbacks colliding at link time
+4. `plist_util` **deriving** `CFBundleExecutable` — issue #271's class in a
+   third site, and the one that made a successful build produce a component
+   macOS silently refused
+
+### A warning I did not bury
+
+`auval` passes with one warning: *"Can Initialize Unit to un-supported num
+channels: InputChan:0, OutputChan:1"* — the unit accepted a mono-out
+configuration it does not advertise. **Filed as S39** rather than left in M3's
+tail, because a closed row is where a live finding goes to be invisible (A32,
+and I have made that exact mistake before with `setBlob` on E6).
+
+I have not measured whether it matters. The row says so.
+
+**Learned:**
+
+- **Enable the thing that exercises the most decisions at once.** The AU was the
+  only artifact carrying M3's, R8's and R9's changes simultaneously, so one
+  `auval` run verified three rows. Choosing *which* verification to run is worth
+  as much as running it.
+- **A prediction confirmed on a real artifact is worth more than the same value
+  read off a build.** `Drck` was predicted from a reimplementation of
+  `to4charId` before the rename; Apple's validator agreeing is independent
+  confirmation of the whole chain.
+- **"It builds" is not "nothing broke".** Adding a format to a shared list needs
+  the other formats re-measured, not assumed — two renders and a probe.
+- **Put the history at the switch.** `set(FORMATS_LIST ... AU ...)` now carries
+  all four blockers in a comment, because the one-word diff makes it look like it
+  always could have been one word.
+- **File the leftover warning as a row, immediately.** M3 closing is exactly when
+  its unexamined warning would have stopped being visible.
+
+**Next:** **R3a** — the AU half of the macOS `.pkg`; `scripts/package-macos.sh`
+stages `TIDE-Rack.component` into `/Library/Audio/Plug-Ins/Components` beside the
+payloads it already carries. The artifact exists, registers and validates.
+**AUv3 (`AU3`) is still unbuilt** — M1 named it and only the AU2 path shipped;
+worth its own row before anyone claims AU support is complete. **Still Jeff's:**
+**R5** (a `.github/workflows/**` file) and **S30** (macOS CI).
+
+**Branch/PR:** `tide/mac/M1-enable-au` — TideSynth.
+
+---
+
 ## 2026-08-22 — macos — R8: every bundle now has an identifier TIDE owns, and codesign stops inventing one
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
