@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — ccache went into build.yml and not release.yml, and the numbers are in**
+
+- Two workflows that build the same thing need the same fixes.
+- Correlate a duration and its statistics to the same run before quoting a ratio.
+- Say what a cache key prefix couples.
+- An option sized against an old measurement expires with it.
+
 **macos — R3a: the AU goes into the pkg, before the first tag**
 
 - Check the preconditions of a release before cutting the tag, not after.

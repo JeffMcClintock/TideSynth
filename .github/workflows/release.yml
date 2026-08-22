@@ -64,11 +64,69 @@ jobs:
             libfontconfig1-dev libasound2-dev \
             libxext-dev libharfbuzz-dev libdbus-1-dev libpng-dev
 
+      # --- ccache (S30) -----------------------------------------------------
+      #
+      # Added 2026-08-22, after v0.1.0's first run: build.yml got ccache and this
+      # file did not, so a RELEASE always paid the full ~60 minutes on macOS --
+      # the one place the wait is felt, because someone is waiting on a tag.
+      #
+      # THE KEY PREFIX IS DELIBERATELY THE SAME AS build.yml's. A tag run can
+      # read caches created on the default branch, so a release starts warm from
+      # whatever main last compiled instead of from nothing. That only works
+      # while the prefix matches; change one and change both.
+      #
+      # Using a cache for a SIGNED, SHIPPED artifact is a deliberate choice, not
+      # an oversight. ccache keys on the preprocessed source, the compiler and
+      # the flags, so a hit is a byte-identical object -- the same guarantee an
+      # incremental local build relies on. If that assumption is ever in doubt,
+      # deleting the cache entry (or bumping this prefix) forces a cold build.
+      - name: Install ccache
+        if: matrix.name != 'windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.name }}" = "macos" ]; then
+            brew list ccache >/dev/null 2>&1 || brew install ccache
+          else
+            sudo apt-get install -y ccache
+          fi
+          ccache --set-config cache_dir="$HOME/.ccache"
+          ccache --set-config max_size=2G
+          # Dependencies are re-fetched into a build-dir-relative path each run,
+          # so absolute paths differ and would defeat every hash.
+          ccache --set-config hash_dir=false
+          ccache --zero-stats
+
+      - name: Restore ccache
+        if: matrix.name != 'windows'
+        uses: actions/cache@v6
+        with:
+          path: ~/.ccache
+          key: ccache-${{ matrix.name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ matrix.name }}-
+
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra=""
+          if [ "${{ matrix.name }}" != "windows" ]; then
+            # OBJCXX too, or the .mm Cocoa layer -- the mac-specific half -- is
+            # the one part that stays uncached.
+            extra="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_OBJCXX_COMPILER_LAUNCHER=ccache"
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $extra
 
       - name: Build
         run: cmake --build build --config Release --parallel
+
+      # Always, including on failure: a release that took an hour because the
+      # cache missed is worth knowing about, and a red run is when you ask.
+      - name: ccache statistics
+        if: always() && matrix.name != 'windows'
+        shell: bash
+        run: ccache -s
 
       # --- macOS: import the Developer ID cert into a throwaway keychain -----
       #
