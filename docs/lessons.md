@@ -37,6 +37,17 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 
+## 2026-08-23
+
+**macos — three red signals, three different mechanisms, and none of them a defect in this repo**
+
+- A race cannot be verified fixed by watching CI go green.
+- `origin/main` is not a snapshot when you fetch more than one repo.
+- A self-healing break still costs three sessions.
+- Three red signals on one platform in one hour is not evidence of one cause.
+- Read the first error, not the loudest.
+- A checkout error that names `.gitmodules` means someone committed a directory.
+
 ## 2026-08-22
 
 **macos — STEP 4, and the hour-long feedback loop that caused two of today's failures**
@@ -92,204 +103,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Correlate a duration and its statistics to the same run before quoting a ratio.
 - Say what a cache key prefix couples.
 - An option sized against an old measurement expires with it.
-
-**macos — R3a: the AU goes into the pkg, before the first tag**
-
-- Check the preconditions of a release before cutting the tag, not after.
-- A comment that was true when written is a liability the moment its subject changes.
-- Put the check where the artifact is sealed.
-- Sign every bundle in the payload, not the first one.
-
-**macos — E1c's deciding render: my hypothesis is refuted, and the row is still open**
-
-- A pre-committed binary outcome is worth the effort of setting up.
-- Answering the experiment's question is not the same as answering the row's.
-- Check the confounds on the case you are ARGUING FROM, not just the one you ran.
-- A residual can be a property of the VALUE, not the code.
-
-**macos — R5: the release workflow, and the credentials were already there**
-
-- Check the ENVIRONMENTS before concluding a repo has no secrets.
-- A protected environment is a better gate than a trigger condition.
-- Sign before you package, not after.
-- Two Apple certificates, not one.
-- `security find-identity -v -p codesigning` hides Installer certificates.
-- Identically-named certificates are a live hazard, not a tidiness issue.
-- Look up every action version.
-- When behaviour cannot be tested, assert structure.
-
-**macos — S30's two fixes, and a design that could not have worked**
-
-- `matrix` is not available to job-level `concurrency`
-- Check the context list before writing an expression that reads naturally.
-- A compiler cache that hashes absolute paths never hits across CI runs.
-- Print the cache statistics unconditionally.
-- When you cannot measure the benefit, ship the measurement.
-
-**macos — S30 re-measured: the queue is gone, the build is the problem**
-
-- Re-measure a row before recommending against it, especially a performance one.
-- A cancellation rate is a symptom of DURATION, not only of policy.
-- Compare work done, not just time taken.
-- A stale diagnosis is worse than no diagnosis
-
-**macos — AU is on, and four rows closed on one build**
-
-- Enable the thing that exercises the most decisions at once.
-- A prediction confirmed on a real artifact is worth more than the same value read off a build.
-- "It builds" is not "nothing broke".
-- Put the history at the switch.
-- File the leftover warning as a row, immediately.
-
-**macos — R8: every bundle now has an identifier TIDE owns, and codesign stops inventing one**
-
-- "Present and empty" and "absent" are different bugs.
-- `codesign` succeeding is not evidence of a correct identity.
-- An override needs a fresh build directory.
-- Test the no-op claim on a pass-through argument.
-- Keep the enabling change separate from the identity change.
-
-**macos — R9: TIDE owns its identity, and the id was a fossil of the old product**
-
-- Validate a derivation model against the CURRENT value before trusting its prediction.
-- When part of a model fails, say so and route around it.
-- A "DO NOT RENAME" comment is an argument, not a law.
-- Grep for the identifier in TOOLS, not just in source.
-- A negative control that makes a GUI app prompt is not free when someone is at the keyboard.
-- If a tool crashes something on purpose, put that in its header in capitals.
-
-**macos — M1 and M3 fixed properly, and the override my own notes warned about**
-
-- FetchContent's source override makes `_deps/<name>-src` ABSENT, not populated.
-- A two-PR fix can have an ORDER, not just a pairing.
-- `#if 0` around a correctness feature is a bug with a comment.
-- "The flags are optional so nothing changes" is a claim, and a cheap one to test.
-- Verify from a plain build before claiming a fix.
-
-**linux — S7: TIDE does write to the user's home, and does not spew skins — the guard is an accident**
-
-- `HOME=` is not a sandbox when the code uses `getpwuid`.
-- Validate a test harness against a probe before trusting its result.
-- "It does not do the bad thing" and "it cannot do the bad thing" are different findings
-- Snapshot the thing you are about to test before you test it.
-
-**macos — M1 and M3 were never blocked by the carve-out, and the AU passes auval**
-
-- A `BLOCKED` row with no stated blocker is a claim nobody has retested.
-- A CMake property can be set, announced, and overwritten one loop later.
-- A working control on the same machine beats any amount of reading.
-- `OUTPUT_NAME` breaks every hand-derived sibling name, not just the one you fixed.
-- Fix the first error and expect the count to go UP.
-- Objective-C class names are process-global.
-
-**macos — loading the CLAP for the first time found that TIDE ships SynthEdit's identity**
-
-- Load the artifact in a real host before believing it works.
-- A stale caveat is most dangerous when it is your own and hours old.
-- Write the host when the DAW is the expensive part.
-- When a rename touches `name` and `vendor`, check `id`.
-- Follow an identifier to what is DERIVED from it.
-- Verify a hash claim by computing it.
-
-**linux — E1c: the deciding case, and the control that makes it decide anything**
-
-- A "single-variable" experiment is a claim, and it is cheap to check.
-- The audio harness runs on Linux
-- The harness warns when the engine scanned module folders outside `--modules`
-- Do not regenerate another box's provenance record to improve its label.
-
-**linux — R4: the tarball, and the CLAP's resources have nowhere to live**
-
-- Verify a two-repo fix from the shared branch, not from the branch that made it.
-- "Where does this format keep its data?" is a packaging question with a different answer per format.
-- A bare `.so` plugin format has no namespace
-- Check for a validator before promising verification.
-
-**macos — STEP 4: six PRs merged in one go, and every NEXT cell went stale at once**
-
-- A batch merge invalidates the WHOLE NEXT block, not one cell.
-- `check-next-block.py` cannot see a cell that cites a dead row as history.
-- Do not wrap a NEXT cell in `
-- When you replace the Take column, replace the Why column.
-- Flip a row on verified PR state, not on memory of having pushed it.
-- Not every leftover deserves a row.
-
-**windows — R2: the Windows installer, and the payload it must carry is not the file the build emits**
-
-- A packaging script's real job is deciding what the shipped layout IS, not copying a build tree into a zip.
-- `afxres.h` names a missing header and means a wrong Visual Studio instance.
-- Windows has no sandboxed installer run, so the way to prove one is to compile it twice.
-- The app version STEP 0.5 asks for IS discoverable on this box
-- A "portable" REAPER on Windows is neither portable nor unattended.
-
-**macos — S27: four suspects eliminated, and the reference box turns out to be x86_64**
-
-- An Apple Silicon Mac separates ISA from OS/libm in a way no other box can
-- `$?` after a pipeline is the LAST command's status.
-- Check whether a hand-rolled RNG is actually the portable kind before blaming it.
-- `sqrt` is not a cross-platform divergence source.
-- A passing subset is a control, not noise.
-- Rebuild at the commit that produced the artifact before assuming drift.
-
-**macos — E1c: the hypothesis was already refuted by a table in this repo**
-
-- Before designing an experiment, check whether the repo already ran it.
-- When two cases differ by 50 dB, list every way they differ before believing the first explanation.
-- A measurement without its provenance is not a measurement.
-- Grade backfilled facts explicitly.
-- A harness that needs an engine should still have a mode that does not.
-
-**macos — S31: the trap only exists on Linux, and that is why writing it down four times did not work**
-
-- When a negative control refuses to reproduce a documented bug, that is a result, not a broken harness.
-- `pkill -f` self-kill is a Linux-only trap.
-- A lesson that two of three boxes cannot reproduce will not stick by being written down again.
-- Test what the OS might be doing for you, directly.
-- Ask whether the signal was delivered, not whether the process died.
-- Silence expected noise in test output.
-
-**macos — R4a: CLAP was in nobody's build, and my own Linux fix was a half-fix**
-
-- A format missing from a build list produces no error, only an absent file.
-- Grepping for a variable name closes the uses of that variable, not the defect class.
-- Never edit a CRLF file with Python text mode.
-- Checking a control turns a bug report into an elimination.
-- A duplicate found from two boxes is not waste
-- Check a lint's EXIT CODE, never grep its output.
-- Invoke a lint exactly as CI does or the local run means nothing.
-- Filing a row out of another row duplicates its citations.
-- `gh pr edit` needs `read:org` and the agent token has only `repo`.
-
-**linux — #271: fixing the bundle name alone would have emptied the bundle**
-
-- When two files are documented as mirroring each other, changing one is a half-fix by construction.
-- A build that succeeds can still package nothing.
-- `GMPI_SDK_FOLDER_OVERRIDE` makes a PR-GATED change testable
-- Write to a CRLF file with Python and you get a 1,280-line diff.
-- Prove a no-op instead of claiming one.
-
-**macos — P11's mac half had the right symptom and the wrong mechanism**
-
-- A stale row is most expensive when its symptom is right and its mechanism is wrong.
-- "The cache doesn't list X" is not evidence X is ignored
-- `SE_LOCAL_BUILD` on macOS does not do what its name implies.
-- Check `[ -w ]` before telling someone to use `sudo`.
-- The shared-citation lint (A31) earns its keep on rows you split.
-
-**linux — N1b: the rename's live docs, and a Linux-only gap N1a could not have seen**
-
-- Classify a doc by reading its opening, not its filename.
-- A doc you wrote yesterday is not exempt from going stale.
-- The first build on a platform after a cross-platform rename is a real test.
-- When two things must agree, check them against each other, not against spec.
-- "Verified on two platforms" is not "verified".
-
-**macos — N1a: OUTPUT_NAME renamed three things, and only one of them had an extension**
-
-- `OUTPUT_NAME` is three renames, and only the one with an extension is collision-proof.
-- `LNK1201` names disk space, privilege and path, and means none of them.
-- Configure twice and diff the generated build system.
-- A build that does not install is a measurement trap.
 
 ## 2026-08-18
 
@@ -1587,3 +1400,203 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - A packaging tool's defaults describe the tool, not your payload.
 - When a row names two payloads, confirm both exist before starting.
+
+## 2026-08-22
+
+**macos — R3a: the AU goes into the pkg, before the first tag**
+
+- Check the preconditions of a release before cutting the tag, not after.
+- A comment that was true when written is a liability the moment its subject changes.
+- Put the check where the artifact is sealed.
+- Sign every bundle in the payload, not the first one.
+
+**macos — E1c's deciding render: my hypothesis is refuted, and the row is still open**
+
+- A pre-committed binary outcome is worth the effort of setting up.
+- Answering the experiment's question is not the same as answering the row's.
+- Check the confounds on the case you are ARGUING FROM, not just the one you ran.
+- A residual can be a property of the VALUE, not the code.
+
+**macos — R5: the release workflow, and the credentials were already there**
+
+- Check the ENVIRONMENTS before concluding a repo has no secrets.
+- A protected environment is a better gate than a trigger condition.
+- Sign before you package, not after.
+- Two Apple certificates, not one.
+- `security find-identity -v -p codesigning` hides Installer certificates.
+- Identically-named certificates are a live hazard, not a tidiness issue.
+- Look up every action version.
+- When behaviour cannot be tested, assert structure.
+
+**macos — S30's two fixes, and a design that could not have worked**
+
+- `matrix` is not available to job-level `concurrency`
+- Check the context list before writing an expression that reads naturally.
+- A compiler cache that hashes absolute paths never hits across CI runs.
+- Print the cache statistics unconditionally.
+- When you cannot measure the benefit, ship the measurement.
+
+**macos — S30 re-measured: the queue is gone, the build is the problem**
+
+- Re-measure a row before recommending against it, especially a performance one.
+- A cancellation rate is a symptom of DURATION, not only of policy.
+- Compare work done, not just time taken.
+- A stale diagnosis is worse than no diagnosis
+
+**macos — AU is on, and four rows closed on one build**
+
+- Enable the thing that exercises the most decisions at once.
+- A prediction confirmed on a real artifact is worth more than the same value read off a build.
+- "It builds" is not "nothing broke".
+- Put the history at the switch.
+- File the leftover warning as a row, immediately.
+
+**macos — R8: every bundle now has an identifier TIDE owns, and codesign stops inventing one**
+
+- "Present and empty" and "absent" are different bugs.
+- `codesign` succeeding is not evidence of a correct identity.
+- An override needs a fresh build directory.
+- Test the no-op claim on a pass-through argument.
+- Keep the enabling change separate from the identity change.
+
+**macos — R9: TIDE owns its identity, and the id was a fossil of the old product**
+
+- Validate a derivation model against the CURRENT value before trusting its prediction.
+- When part of a model fails, say so and route around it.
+- A "DO NOT RENAME" comment is an argument, not a law.
+- Grep for the identifier in TOOLS, not just in source.
+- A negative control that makes a GUI app prompt is not free when someone is at the keyboard.
+- If a tool crashes something on purpose, put that in its header in capitals.
+
+**macos — M1 and M3 fixed properly, and the override my own notes warned about**
+
+- FetchContent's source override makes `_deps/<name>-src` ABSENT, not populated.
+- A two-PR fix can have an ORDER, not just a pairing.
+- `#if 0` around a correctness feature is a bug with a comment.
+- "The flags are optional so nothing changes" is a claim, and a cheap one to test.
+- Verify from a plain build before claiming a fix.
+
+**linux — S7: TIDE does write to the user's home, and does not spew skins — the guard is an accident**
+
+- `HOME=` is not a sandbox when the code uses `getpwuid`.
+- Validate a test harness against a probe before trusting its result.
+- "It does not do the bad thing" and "it cannot do the bad thing" are different findings
+- Snapshot the thing you are about to test before you test it.
+
+**macos — M1 and M3 were never blocked by the carve-out, and the AU passes auval**
+
+- A `BLOCKED` row with no stated blocker is a claim nobody has retested.
+- A CMake property can be set, announced, and overwritten one loop later.
+- A working control on the same machine beats any amount of reading.
+- `OUTPUT_NAME` breaks every hand-derived sibling name, not just the one you fixed.
+- Fix the first error and expect the count to go UP.
+- Objective-C class names are process-global.
+
+**macos — loading the CLAP for the first time found that TIDE ships SynthEdit's identity**
+
+- Load the artifact in a real host before believing it works.
+- A stale caveat is most dangerous when it is your own and hours old.
+- Write the host when the DAW is the expensive part.
+- When a rename touches `name` and `vendor`, check `id`.
+- Follow an identifier to what is DERIVED from it.
+- Verify a hash claim by computing it.
+
+**linux — E1c: the deciding case, and the control that makes it decide anything**
+
+- A "single-variable" experiment is a claim, and it is cheap to check.
+- The audio harness runs on Linux
+- The harness warns when the engine scanned module folders outside `--modules`
+- Do not regenerate another box's provenance record to improve its label.
+
+**linux — R4: the tarball, and the CLAP's resources have nowhere to live**
+
+- Verify a two-repo fix from the shared branch, not from the branch that made it.
+- "Where does this format keep its data?" is a packaging question with a different answer per format.
+- A bare `.so` plugin format has no namespace
+- Check for a validator before promising verification.
+
+**macos — STEP 4: six PRs merged in one go, and every NEXT cell went stale at once**
+
+- A batch merge invalidates the WHOLE NEXT block, not one cell.
+- `check-next-block.py` cannot see a cell that cites a dead row as history.
+- Do not wrap a NEXT cell in `
+- When you replace the Take column, replace the Why column.
+- Flip a row on verified PR state, not on memory of having pushed it.
+- Not every leftover deserves a row.
+
+**windows — R2: the Windows installer, and the payload it must carry is not the file the build emits**
+
+- A packaging script's real job is deciding what the shipped layout IS, not copying a build tree into a zip.
+- `afxres.h` names a missing header and means a wrong Visual Studio instance.
+- Windows has no sandboxed installer run, so the way to prove one is to compile it twice.
+- The app version STEP 0.5 asks for IS discoverable on this box
+- A "portable" REAPER on Windows is neither portable nor unattended.
+
+**macos — S27: four suspects eliminated, and the reference box turns out to be x86_64**
+
+- An Apple Silicon Mac separates ISA from OS/libm in a way no other box can
+- `$?` after a pipeline is the LAST command's status.
+- Check whether a hand-rolled RNG is actually the portable kind before blaming it.
+- `sqrt` is not a cross-platform divergence source.
+- A passing subset is a control, not noise.
+- Rebuild at the commit that produced the artifact before assuming drift.
+
+**macos — E1c: the hypothesis was already refuted by a table in this repo**
+
+- Before designing an experiment, check whether the repo already ran it.
+- When two cases differ by 50 dB, list every way they differ before believing the first explanation.
+- A measurement without its provenance is not a measurement.
+- Grade backfilled facts explicitly.
+- A harness that needs an engine should still have a mode that does not.
+
+**macos — S31: the trap only exists on Linux, and that is why writing it down four times did not work**
+
+- When a negative control refuses to reproduce a documented bug, that is a result, not a broken harness.
+- `pkill -f` self-kill is a Linux-only trap.
+- A lesson that two of three boxes cannot reproduce will not stick by being written down again.
+- Test what the OS might be doing for you, directly.
+- Ask whether the signal was delivered, not whether the process died.
+- Silence expected noise in test output.
+
+**macos — R4a: CLAP was in nobody's build, and my own Linux fix was a half-fix**
+
+- A format missing from a build list produces no error, only an absent file.
+- Grepping for a variable name closes the uses of that variable, not the defect class.
+- Never edit a CRLF file with Python text mode.
+- Checking a control turns a bug report into an elimination.
+- A duplicate found from two boxes is not waste
+- Check a lint's EXIT CODE, never grep its output.
+- Invoke a lint exactly as CI does or the local run means nothing.
+- Filing a row out of another row duplicates its citations.
+- `gh pr edit` needs `read:org` and the agent token has only `repo`.
+
+**linux — #271: fixing the bundle name alone would have emptied the bundle**
+
+- When two files are documented as mirroring each other, changing one is a half-fix by construction.
+- A build that succeeds can still package nothing.
+- `GMPI_SDK_FOLDER_OVERRIDE` makes a PR-GATED change testable
+- Write to a CRLF file with Python and you get a 1,280-line diff.
+- Prove a no-op instead of claiming one.
+
+**macos — P11's mac half had the right symptom and the wrong mechanism**
+
+- A stale row is most expensive when its symptom is right and its mechanism is wrong.
+- "The cache doesn't list X" is not evidence X is ignored
+- `SE_LOCAL_BUILD` on macOS does not do what its name implies.
+- Check `[ -w ]` before telling someone to use `sudo`.
+- The shared-citation lint (A31) earns its keep on rows you split.
+
+**linux — N1b: the rename's live docs, and a Linux-only gap N1a could not have seen**
+
+- Classify a doc by reading its opening, not its filename.
+- A doc you wrote yesterday is not exempt from going stale.
+- The first build on a platform after a cross-platform rename is a real test.
+- When two things must agree, check them against each other, not against spec.
+- "Verified on two platforms" is not "verified".
+
+**macos — N1a: OUTPUT_NAME renamed three things, and only one of them had an extension**
+
+- `OUTPUT_NAME` is three renames, and only the one with an extension is collision-proof.
+- `LNK1201` names disk space, privilege and path, and means none of them.
+- Configure twice and diff the generated build system.
+- A build that does not install is a measurement trap.
