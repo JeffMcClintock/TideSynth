@@ -213,8 +213,28 @@ jobs:
           fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $extra
 
+      # `--parallel` with no number is `make -j` with NO LIMIT here -- this job
+      # configures with the default generator, so on mac and linux that is GNU
+      # make starting a job for every ready target. Measured on an 8-core/8 GB
+      # M1: unbounded 23m26s (sys 56m41s, paging) against 1m51s at -j8. The core
+      # count is not the problem, unbounded is. See build.yml's Build step for
+      # the full table and the reasoning.
+      #
+      # This file matters more than build.yml for the same bug: it builds what
+      # actually ships.
+      #
+      # CMAKE_BUILD_PARALLEL_LEVEL cannot fix it from outside -- an explicit
+      # `--parallel` beats the env var and still yields bare `-j`.
       - name: Build
-        run: cmake --build build --config Release --parallel
+        shell: bash
+        run: |
+          set -euo pipefail
+          jobs="${BUILD_JOBS:-}"
+          if [ -z "$jobs" ]; then
+            jobs=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+          fi
+          echo "::notice::Building with -j${jobs}"
+          cmake --build build --config Release --parallel "$jobs"
 
       # Always, including on failure: a release that took an hour because the
       # cache missed is worth knowing about, and a red run is when you ask.
