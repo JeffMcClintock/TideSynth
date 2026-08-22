@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — S38 is three problems, not seven instances of one**
+
+- Read the mechanism before costing the fix.
+- A per-class question needs a per-class answer.
+- A correct sibling is evidence about the design.
+- Grep for string-based class lookup before renaming an Objective-C class.
+- Confirm an override reached the compiler, not just the command line.
+
 **macos — E1c's second discriminator, and verifying the pitch before seeding it**
 
 - Verify the thing a golden encodes before writing the golden.
