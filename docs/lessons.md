@@ -39,6 +39,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — STEP 4 after v0.1.0, and a branch I pushed and never opened**
+
+- A pushed branch with no PR is invisible.
+- "Unknown to fix" deserves one grep before it is written.
+- A row can be closed by a run rather than by a commit.
+
 **macos — v0.1.0: Windows and Linux shipped, macOS wanted a certificate nobody had sent**
 
 - A configuration variable naming a credential is not the credential.
