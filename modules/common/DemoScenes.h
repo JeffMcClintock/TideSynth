@@ -31,7 +31,11 @@ inline Object makeFloor(float height, Vec3 colour = { 0.66f, 0.66f, 0.68f })
 	floor.material = recipes::paint(colour);
 	floor.material.cameraVisible = true;
 	floor.unbounded = true;
-	floor.distance = [height](const Vec3& p) { return sdPlane(p, Vec3{ 0.0f, 1.0f, 0.0f }, height); };
+	// Analytic: same field sdPlane(p, {0,1,0}, height) described, intersected
+	// exactly instead of marched — see AnalyticForm in TidePathTracer.h.
+	floor.analytic = AnalyticForm::Plane;
+	floor.planeNormal = { 0.0f, 1.0f, 0.0f };
+	floor.planeOffset = height;
 	return floor;
 }
 

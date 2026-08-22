@@ -1148,16 +1148,53 @@ struct Hit
 // makes the optimisation invisible.
 constexpr float kBoundsSlack = 0.01f;
 
-float objectDistance(const Object& o, const Vec3& p)
+// The hot per-object data for the march, packed once per render. The Object
+// struct interleaves what the scan needs (four floats of bounds) with what it
+// does not (an 88-byte Material, a 32-byte std::function), so scanning Objects
+// directly touches two cache lines per object to read sixteen bytes. Packing
+// also lets the analytic objects be separated out ONCE instead of re-tested
+// per query, and the reject radius be squared ONCE instead of per query.
+struct MarchEntry
 {
-	if (!o.unbounded)
+	Vec3 centre;          // bounding sphere centre
+	float radius;         // bounding sphere radius
+	float rejectRadiusSq; // (radius + kBoundsSlack)^2 — the reject test, squared
+	int objectIndex;      // into scene.objects
+	bool cameraVisible;
+	bool bounded;         // false: no usable bounds, field evaluated every query
+};
+
+struct MarchList
+{
+	std::vector<MarchEntry> marched; // every non-analytic object
+	std::vector<int> analytic;       // indices of the analytic objects
+};
+
+MarchList buildMarchList(const Scene& scene)
+{
+	MarchList list;
+	list.marched.reserve(scene.objects.size());
+
+	for (size_t i = 0; i < scene.objects.size(); ++i)
 	{
-		const float toBounds = length(p - o.boundsCentre) - o.boundsRadius;
-		if (toBounds > kBoundsSlack)
-			return toBounds;
+		const Object& o = scene.objects[i];
+		if (o.analytic != AnalyticForm::None)
+		{
+			list.analytic.push_back((int)i);
+			continue;
+		}
+
+		MarchEntry e;
+		e.centre = o.boundsCentre;
+		e.radius = o.boundsRadius;
+		e.rejectRadiusSq = (o.boundsRadius + kBoundsSlack) * (o.boundsRadius + kBoundsSlack);
+		e.objectIndex = (int)i;
+		e.cameraVisible = o.material.cameraVisible;
+		e.bounded = !o.unbounded;
+		list.marched.push_back(e);
 	}
 
-	return o.distance(p);
+	return list;
 }
 
 // The whole scene as one field, plus which object was nearest.
@@ -1175,25 +1212,56 @@ float objectDistance(const Object& o, const Vec3& p)
 // the negation applied to the medium alone, the field's minimum is once again a
 // true lower bound on the distance to the nearest SURFACE, whichever object
 // owns it.
-float sceneDistance(const Scene& scene, const Vec3& p, bool primary, int insideIndex, int& nearest)
+float sceneDistance(const Scene& scene, const MarchList& march, const Vec3& p,
+	bool primary, int insideIndex, int& nearest)
 {
 	float best = kMaxTraceDistance;
 	nearest = -1;
 
-	for (size_t i = 0; i < scene.objects.size(); ++i)
+	for (const MarchEntry& e : march.marched)
 	{
-		const Object& o = scene.objects[i];
-		if (primary && !o.material.cameraVisible)
+		if (primary && !e.cameraVisible)
 			continue; // marched straight through, as if it were not there
 
-		float d = objectDistance(o, p);
-		if ((int)i == insideIndex)
+		float d;
+		if (e.bounded)
+		{
+			const Vec3 v = p - e.centre;
+			const float distSq = dot(v, v);
+			if (distSq > e.rejectRadiusSq)
+			{
+				// Outside the bounds, so this object contributes exactly
+				// sqrt(distSq) - radius. Before paying the square root — the
+				// longest-latency instruction in the whole scan — ask whether
+				// that value could even beat `best`: it can, only if
+				// distSq < (best + radius)^2. Most of the time the scan is
+				// looking at an object the ray is nowhere near, the answer is
+				// no, and the sqrt never happens.
+				if (e.objectIndex != insideIndex)
+				{
+					const float beat = best + e.radius;
+					if (distSq >= beat * beat)
+						continue;
+				}
+				d = std::sqrt(distSq) - e.radius;
+			}
+			else
+			{
+				d = scene.objects[e.objectIndex].distance(p);
+			}
+		}
+		else
+		{
+			d = scene.objects[e.objectIndex].distance(p);
+		}
+
+		if (e.objectIndex == insideIndex)
 			d = -d;
 
 		if (d < best)
 		{
 			best = d;
-			nearest = (int)i;
+			nearest = e.objectIndex;
 		}
 	}
 
@@ -1211,7 +1279,7 @@ float sceneDistance(const Scene& scene, const Vec3& p, bool primary, int insideI
 // is exactly what the backface test downstream expects. Tapping the negated
 // field instead would hand back an inward normal at the medium's boundary, the
 // backface test would read every glass exit as an entry, and eta would invert.
-Vec3 sceneNormal(const Scene& scene, const Vec3& p, bool primary)
+Vec3 sceneNormal(const Scene& scene, const MarchList& march, const Vec3& p, bool primary)
 {
 	constexpr float h = 1.5f * kSurfaceEpsilon;
 	int ignored = 0;
@@ -1222,10 +1290,10 @@ Vec3 sceneNormal(const Scene& scene, const Vec3& p, bool primary)
 	const Vec3 k3{ 1.0f, 1.0f, 1.0f };
 
 	const Vec3 n =
-		k0 * sceneDistance(scene, p + k0 * h, primary, -1, ignored) +
-		k1 * sceneDistance(scene, p + k1 * h, primary, -1, ignored) +
-		k2 * sceneDistance(scene, p + k2 * h, primary, -1, ignored) +
-		k3 * sceneDistance(scene, p + k3 * h, primary, -1, ignored);
+		k0 * sceneDistance(scene, march, p + k0 * h, primary, -1, ignored) +
+		k1 * sceneDistance(scene, march, p + k1 * h, primary, -1, ignored) +
+		k2 * sceneDistance(scene, march, p + k2 * h, primary, -1, ignored) +
+		k3 * sceneDistance(scene, march, p + k3 * h, primary, -1, ignored);
 
 	return normalize(n);
 }
@@ -1238,8 +1306,9 @@ Vec3 sceneNormal(const Scene& scene, const Vec3& p, bool primary)
 // for callers that only need to know WHETHER something was hit: shadow rays and
 // the emissive-object confirmation probe, which between them are most of the
 // rays in a lit scene.
-bool marchObjects(const Scene& scene, const Vec3& origin, const Vec3& direction,
-	float maxDistance, bool primary, int insideIndex, bool wantNormal, Hit& hit)
+bool marchObjects(const Scene& scene, const MarchList& march, const Vec3& origin,
+	const Vec3& direction, float maxDistance, bool primary, int insideIndex,
+	bool wantNormal, Hit& hit)
 {
 	float t = kRayOffset;
 	int nearest = -1;
@@ -1247,7 +1316,7 @@ bool marchObjects(const Scene& scene, const Vec3& origin, const Vec3& direction,
 	for (int step = 0; step < kMaxMarchSteps && t < maxDistance; ++step)
 	{
 		const Vec3 p = origin + direction * t;
-		const float d = sceneDistance(scene, p, primary, insideIndex, nearest);
+		const float d = sceneDistance(scene, march, p, primary, insideIndex, nearest);
 
 		// Mostly CONSTANT, unlike the usual advice.
 		//
@@ -1278,7 +1347,7 @@ bool marchObjects(const Scene& scene, const Vec3& origin, const Vec3& direction,
 			// wrong angles — which reads as glass that is too dark and muddy
 			// rather than as anything obviously broken.
 			if (wantNormal)
-				hit.normal = sceneNormal(scene, p, primary);
+				hit.normal = sceneNormal(scene, march, p, primary);
 			return true;
 		}
 
@@ -1286,6 +1355,15 @@ bool marchObjects(const Scene& scene, const Vec3& origin, const Vec3& direction,
 		// guarantee. maxf keeps a degenerate zero distance from stalling the
 		// loop entirely; without it a ray that lands exactly on a CSG seam
 		// spins for all kMaxMarchSteps and then reports a miss.
+		//
+		// Over-relaxation (stepping omega*d with an overlap check, Keinert et
+		// al. 2014) was tried here and MEASURED SLOWER on these scenes, at
+		// both omega 1.3 and 1.6. Once the walls and floors became analytic
+		// (see AnalyticForm) the remaining field is dominated by
+		// bounding-sphere distances, which are already generous; relaxation
+		// had nothing left to save and paid bookkeeping plus re-samples on
+		// every retraction. If a future scene is dense with tight SDFs, that
+		// is the experiment to rerun.
 		t += maxf(d, kSurfaceEpsilon * 0.5f);
 	}
 
@@ -1344,12 +1422,198 @@ bool intersectSphereLight(const Light& l, const Vec3& origin, const Vec3& direct
 	return true;
 }
 
+// --- analytic objects ------------------------------------------------------
+//
+// Exact ray intersection for the three AnalyticForm shapes. Each returns the
+// RAW outward normal — outward in the same sense the SDF gradient would be —
+// so the caller's backface handling works on marched and analytic hits alike.
+//
+// A ray that STARTS buried in the solid reports a hit at kRayOffset, which is
+// what the march does in the same situation (the field comes back negative on
+// the first step). It only arises when a shadow or bounce origin lands within
+// kRayOffset of one of these surfaces, and matching the march's answer keeps
+// the two paths interchangeable.
+bool intersectAnalytic(const Object& o, const Vec3& origin, const Vec3& direction,
+	float maxDistance, float& tOut, Vec3& normalOut)
+{
+	switch (o.analytic)
+	{
+	case AnalyticForm::Plane:
+	{
+		// sdPlane's field, evaluated at the origin: positive above the surface.
+		const float s0 = dot(origin, o.planeNormal) + o.planeOffset;
+		if (s0 <= 0.0f)
+		{
+			tOut = kRayOffset;
+			normalOut = o.planeNormal;
+			return kRayOffset < maxDistance;
+		}
+
+		const float denom = dot(direction, o.planeNormal);
+		if (denom >= 0.0f)
+			return false; // parallel, or heading away from the surface
+
+		// Any positive t is a real crossing. Requiring t > kRayOffset here —
+		// the way the light intersectors do — would let a ray born within
+		// kRayOffset of the plane (a bounce off geometry touching the floor)
+		// tunnel straight through it; and unlike a light, the plane cannot be
+		// self-hit by its own bounce rays, because those all have denom > 0
+		// and were rejected above.
+		const float t = -s0 / denom;
+		if (t >= maxDistance)
+			return false;
+
+		tOut = t;
+		normalOut = o.planeNormal;
+		return true;
+	}
+
+	case AnalyticForm::Box:
+	case AnalyticForm::RoomInterior:
+	{
+		// Slab test, written with explicit near-zero checks rather than the
+		// divide-through-infinity idiom so it cannot depend on IEEE infinity
+		// arithmetic — the same caution the rest of the file applies to NaN.
+		const Vec3 q = origin - o.boxCentre;
+
+		float tNear = -kMaxTraceDistance;
+		float tFar = kMaxTraceDistance;
+		int nearAxis = 0, farAxis = 0;
+
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			const float d = direction[axis];
+			const float x = q[axis];
+			const float half = o.boxHalfExtents[axis];
+
+			if (std::fabs(d) < 1.0e-12f)
+			{
+				if (std::fabs(x) > half)
+				{
+					// Parallel to this slab and outside it: the ray misses the
+					// box, which for a room means it flies inside the SOLID —
+					// but a real ray in a real scene starts inside the room,
+					// where |x| <= half on every axis, so this branch is the
+					// box missing, both forms handled below.
+					tNear = kMaxTraceDistance;
+					tFar = -kMaxTraceDistance;
+				}
+				continue;
+			}
+
+			const float inv = 1.0f / d;
+			float t0 = (-half - x) * inv;
+			float t1 = (half - x) * inv;
+			if (t0 > t1)
+			{
+				const float tmp = t0; t0 = t1; t1 = tmp;
+			}
+			if (t0 > tNear) { tNear = t0; nearAxis = axis; }
+			if (t1 < tFar) { tFar = t1; farAxis = axis; }
+		}
+
+		const bool missesBox = (tNear > tFar);
+
+		if (o.analytic == AnalyticForm::Box)
+		{
+			if (missesBox || tFar <= kRayOffset)
+				return false;
+
+			if (tNear > kRayOffset)
+			{
+				if (tNear >= maxDistance)
+					return false;
+				tOut = tNear;
+				// Entering face: outward is against the ray on that axis.
+				normalOut = (nearAxis == 0)
+					? Vec3{ direction.x > 0.0f ? -1.0f : 1.0f, 0.0f, 0.0f }
+					: (nearAxis == 1)
+						? Vec3{ 0.0f, direction.y > 0.0f ? -1.0f : 1.0f, 0.0f }
+						: Vec3{ 0.0f, 0.0f, direction.z > 0.0f ? -1.0f : 1.0f };
+				return true;
+			}
+
+			// Origin inside the solid box: buried.
+			tOut = kRayOffset;
+			normalOut = Vec3{ 0.0f, 1.0f, 0.0f };
+			return kRayOffset < maxDistance;
+		}
+
+		// RoomInterior: solid OUTSIDE the box. The normal case is an origin
+		// inside the hollow, where the surface ahead is the box EXIT and the
+		// outward gradient points back INTO the room.
+		const bool inside = !missesBox && tNear <= kRayOffset && tFar > kRayOffset;
+		if (!inside)
+		{
+			// Outside the hollow means buried in the solid — mirror the march.
+			tOut = kRayOffset;
+			normalOut = Vec3{ 0.0f, 1.0f, 0.0f };
+			return kRayOffset < maxDistance;
+		}
+
+		if (tFar >= maxDistance)
+			return false;
+
+		tOut = tFar;
+		normalOut = (farAxis == 0)
+			? Vec3{ direction.x > 0.0f ? -1.0f : 1.0f, 0.0f, 0.0f }
+			: (farAxis == 1)
+				? Vec3{ 0.0f, direction.y > 0.0f ? -1.0f : 1.0f, 0.0f }
+				: Vec3{ 0.0f, 0.0f, direction.z > 0.0f ? -1.0f : 1.0f };
+		return true;
+	}
+
+	case AnalyticForm::None:
+		break;
+	}
+
+	return false;
+}
+
 // The nearest hit against geometry AND lights.
-Hit intersect(const Scene& scene, const Vec3& origin, const Vec3& direction,
-	float maxDistance, bool primary, int insideIndex, bool wantNormal = true)
+Hit intersect(const Scene& scene, const MarchList& march, const Vec3& origin,
+	const Vec3& direction, float maxDistance, bool primary, int insideIndex,
+	bool wantNormal = true)
 {
 	Hit hit;
-	marchObjects(scene, origin, direction, maxDistance, primary, insideIndex, wantNormal, hit);
+
+	// Closed-form objects first: they are exact and nearly free, and — the
+	// real prize — the nearest analytic hit CAPS the march below. A bounce ray
+	// heading for a wall used to shrink its steps all the way in; now the wall
+	// is a ceiling on t and the march gives up the moment it passes it.
+	float analyticT = maxDistance;
+	int analyticIndex = -1;
+	Vec3 analyticNormal;
+
+	for (const int i : march.analytic)
+	{
+		const Object& o = scene.objects[i];
+		if (primary && !o.material.cameraVisible)
+			continue; // same rule the march applies
+
+		float t = 0.0f;
+		Vec3 n;
+		if (intersectAnalytic(o, origin, direction, analyticT, t, n))
+		{
+			analyticT = t;
+			analyticIndex = i;
+			analyticNormal = n;
+		}
+	}
+
+	marchObjects(scene, march, origin, direction,
+		(analyticIndex >= 0) ? analyticT : maxDistance,
+		primary, insideIndex, wantNormal, hit);
+
+	if (analyticIndex >= 0 && !hit.valid)
+	{
+		hit.valid = true;
+		hit.t = analyticT;
+		hit.position = origin + direction * analyticT;
+		hit.material = &scene.objects[analyticIndex].material;
+		hit.objectIndex = analyticIndex;
+		hit.normal = analyticNormal; // exact — no field taps needed
+	}
 
 	float closest = hit.valid ? hit.t : maxDistance;
 
@@ -1408,13 +1672,26 @@ Hit intersect(const Scene& scene, const Vec3& origin, const Vec3& direction,
 // paints the coloured caustic under a piece of coloured glass. Trying to "fix"
 // this by letting shadow rays pass tinted through glass produces a flat coloured
 // patch with no bright core, which reads as a decal rather than as light.
-bool occluded(const Scene& scene, const Vec3& origin, const Vec3& direction, float distance)
+bool occluded(const Scene& scene, const MarchList& march, const Vec3& origin,
+	const Vec3& direction, float distance)
 {
+	// An analytic blocker settles the question without a march at all, and
+	// there is no nearest-hit bookkeeping to do — ANY hit inside the interval
+	// is an answer.
+	const float limit = distance - kRayOffset * 4.0f;
+	for (const int i : march.analytic)
+	{
+		float t = 0.0f;
+		Vec3 n;
+		if (intersectAnalytic(scene.objects[i], origin, direction, limit, t, n))
+			return true;
+	}
+
 	Hit hit;
 	// wantNormal = false: a shadow ray only asks WHETHER, never WHERE, so the
 	// four-tap gradient at the blocking surface would be pure waste — and
 	// blocked shadow rays are a large share of all rays in a lit scene.
-	return marchObjects(scene, origin, direction, distance - kRayOffset * 4.0f,
+	return marchObjects(scene, march, origin, direction, limit,
 		false, -1, false, hit);
 }
 
@@ -1551,8 +1828,10 @@ std::vector<Emitter> buildEmitters(const Scene& scene)
 		// An UNBOUNDED emissive object cannot be aimed at — there is no finite
 		// cone to sample. It still glows and still lights things by chance; it
 		// simply is not importance sampled. Skipping it here is what keeps the
-		// pdf bookkeeping honest.
-		if (o.unbounded || o.boundsRadius <= 0.0f || o.boundsRadius >= 1.0e8f)
+		// pdf bookkeeping honest. Analytic objects are excluded outright:
+		// Emissive is not a supported material for them (see AnalyticForm).
+		if (o.analytic != AnalyticForm::None
+			|| o.unbounded || o.boundsRadius <= 0.0f || o.boundsRadius >= 1.0e8f)
 			continue;
 
 		Emitter e;
@@ -1973,7 +2252,7 @@ std::vector<ObjectDerived> buildDerived(const Scene& scene)
 
 PathResult tracePath(const Scene& scene, const Settings& settings,
 	const std::vector<Emitter>& emitters, const std::vector<ObjectDerived>& derived,
-	Vec3 origin, Vec3 direction, Rng& rng)
+	const MarchList& march, Vec3 origin, Vec3 direction, Rng& rng)
 {
 	PathResult result;
 
@@ -1998,7 +2277,7 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 	{
 		const bool primary = (bounce == 0);
 
-		const Hit hit = intersect(scene, origin, direction, kMaxTraceDistance, primary, mediumIndex);
+		const Hit hit = intersect(scene, march, origin, direction, kMaxTraceDistance, primary, mediumIndex);
 
 		if (!hit.valid)
 		{
@@ -2133,7 +2412,7 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 							// target; cone samples that miss used to keep
 							// marching to the far room wall before failing.
 							// wantNormal false: only the identity matters here.
-							const Hit probe = intersect(scene, shadowOrigin, ls.direction,
+							const Hit probe = intersect(scene, march, shadowOrigin, ls.direction,
 								ls.distance + kRayOffset * 4.0f, false, -1, false);
 							if (probe.valid && probe.objectIndex == emitter.objectIndex)
 							{
@@ -2143,7 +2422,7 @@ PathResult tracePath(const Scene& scene, const Settings& settings,
 						}
 						else
 						{
-							visible = !occluded(scene, shadowOrigin, ls.direction, ls.distance);
+							visible = !occluded(scene, march, shadowOrigin, ls.direction, ls.distance);
 						}
 
 						if (visible && !ls.radiance.isBlack())
@@ -2467,15 +2746,17 @@ void addStudio(Scene& scene, const Studio& studio)
 	if (studio.enableRoom)
 	{
 		// The room. Invisible to the camera, so it lights and reflects without
-		// ever appearing as a background.
+		// ever appearing as a background. Analytic rather than marched: as an
+		// unbounded SDF it was evaluated on nearly every step of every ray —
+		// measured at 81% of ALL distance-function calls on the knob scene —
+		// for a shape whose exact intersection is a slab test.
 		Object room;
 		room.material.kind = MaterialKind::Diffuse;
 		room.material.colour = studio.wallColour;
 		room.material.cameraVisible = false;
 		room.unbounded = true;
-
-		const Vec3 half = studio.roomHalfExtents;
-		room.distance = [half](const Vec3& p) { return sdRoomInterior(p, half); };
+		room.analytic = AnalyticForm::RoomInterior;
+		room.boxHalfExtents = studio.roomHalfExtents;
 		scene.add(std::move(room));
 	}
 
@@ -2525,6 +2806,7 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 	// must not be touched while a render is in flight.
 	const std::vector<Emitter> emitters = buildEmitters(scene);
 	const std::vector<ObjectDerived> derived = buildDerived(scene);
+	const MarchList march = buildMarchList(scene);
 
 	const bool fast = (settings.mode == RenderMode::Fast);
 
@@ -2675,7 +2957,7 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 								// call the full render makes for its camera ray,
 								// so camera-invisible geometry stays invisible
 								// and the alpha channel comes out identical.
-								const Hit hit = intersect(scene, ray.origin, ray.direction,
+								const Hit hit = intersect(scene, march, ray.origin, ray.direction,
 									kMaxTraceDistance, true, -1);
 								if (!hit.valid)
 									continue;
@@ -2739,7 +3021,7 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 							const CameraRay ray = cameraRay(x, y, f.x, f.y, lensU, lensV);
 
 							const PathResult r = tracePath(scene, settings, emitters, derived,
-								ray.origin, ray.direction, rng);
+								march, ray.origin, ray.direction, rng);
 							sum += r.radiance;
 							alphaSum += r.alpha;
 						}

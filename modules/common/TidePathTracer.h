@@ -690,6 +690,31 @@ Transform makeTransform(const Vec3& origin, const Vec3& axis, float degrees, flo
 // Scene
 // ---------------------------------------------------------------------------
 
+// Shapes the renderer intersects in CLOSED FORM instead of marching.
+//
+// WHY THESE THREE EXIST. Profiling (Apple M1, knob and glass demo scenes)
+// showed 81-95% of ALL distance-function invocations were the room, the floor
+// and the ceiling/floor slabs — shapes whose exact ray intersection is a
+// handful of flops. Marched, each one costs an indirect call on every step of
+// every ray, and being unbounded it can never be rejected. Intersected in
+// closed form, the whole object drops out of the marched field entirely, and —
+// the second, less obvious win — its hit distance CAPS the march, so a ray
+// heading for a wall stops at the wall instead of stepping toward
+// kMaxTraceDistance.
+//
+// AN ANALYTIC OBJECT MUST BE OPAQUE (Diffuse, Plastic or Metal). Glass needs an
+// interior segment, and interiors live in the marched field, which an analytic
+// object is no longer part of. Emissive needs bounding-cone importance
+// sampling, and a plane has no bounds to subtend a cone. Neither restriction
+// bites: these shapes exist for walls and floors.
+enum class AnalyticForm : uint8_t
+{
+	None,         // an SDF, sphere traced as always
+	Plane,        // the solid half-space where dot(p, normal) + offset < 0
+	Box,          // a solid axis-aligned box
+	RoomInterior, // the complement of a box: solid everywhere OUTSIDE it
+};
+
 // One object is one distance function plus one material. CSG BETWEEN objects is
 // a plain union, which is what you want anyway once the parts have different
 // materials; CSG WITHIN an object is done inside its own lambda with the op*
@@ -698,7 +723,8 @@ Transform makeTransform(const Vec3& origin, const Vec3& axis, float degrees, flo
 // std::function costs an indirect call per sphere-tracing step. That is the
 // single biggest cost in this renderer and it is accepted knowingly: it buys a
 // scene description that is ordinary C++, so a knob is a function rather than a
-// data format with a parser. `bounds` is what keeps it affordable — see below.
+// data format with a parser. `bounds` is what keeps it affordable — see below —
+// and `analytic` is what removes the walls and floors from the ledger entirely.
 struct Object
 {
 	std::function<float(const Vec3&)> distance;
@@ -716,6 +742,22 @@ struct Object
 
 	// Set for the room, which must not have a bounding sphere applied at all.
 	bool unbounded = false;
+
+	// Anything other than None replaces `distance` wholesale: the object is
+	// intersected exactly and never marched, `distance` may be left empty, and
+	// the normal at a hit is the true face normal rather than a four-tap
+	// gradient estimate. Fill in the fields the chosen form reads:
+	//   Plane        planeNormal (unit, points OUT of the solid), planeOffset —
+	//                the same two numbers sdPlane takes, so a floor converts by
+	//                copying its arguments across.
+	//   Box          boxCentre, boxHalfExtents.
+	//   RoomInterior boxCentre, boxHalfExtents — solid OUTSIDE the box, hollow
+	//                inside, exactly sdRoomInterior's sign convention.
+	AnalyticForm analytic = AnalyticForm::None;
+	Vec3 planeNormal{ 0.0f, 1.0f, 0.0f };
+	float planeOffset = 0.0f;
+	Vec3 boxCentre{ 0.0f, 0.0f, 0.0f };
+	Vec3 boxHalfExtents{ 1.0f, 1.0f, 1.0f };
 };
 
 // ---------------------------------------------------------------------------

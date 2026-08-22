@@ -984,14 +984,17 @@ void addPanelStudio(tide::render::Scene& scene, float k)
 		return framedRect(position, frameAt(position), halfWidth, halfHeight, emission);
 	};
 
-	// Walls.
+	// Walls. Analytic rather than marched — as an unbounded SDF the room was
+	// evaluated on nearly every step of every ray; a slab test is exact and
+	// nearly free. See AnalyticForm in TidePathTracer.h.
 	{
 		Object room;
 		room.material.kind = MaterialKind::Diffuse;
 		room.material.colour = kWallColour;
 		room.material.cameraVisible = false;
 		room.unbounded = true;
-		room.distance = [half](const Vec3& p) { return sdRoomInterior(p, half); };
+		room.analytic = AnalyticForm::RoomInterior;
+		room.boxHalfExtents = half;
 		scene.add(std::move(room));
 	}
 
@@ -1009,10 +1012,11 @@ void addPanelStudio(tide::render::Scene& scene, float k)
 		slab.material.colour = colour;
 		slab.material.cameraVisible = false;
 		slab.unbounded = true;
-		slab.distance = [half, centre, t](const Vec3& p)
-		{
-			return sdBox(p - centre, Vec3{ half.x, t, half.z });
-		};
+		// Analytic box: the same sdBox(p - centre, ...) solid, intersected
+		// exactly instead of marched.
+		slab.analytic = AnalyticForm::Box;
+		slab.boxCentre = centre;
+		slab.boxHalfExtents = Vec3{ half.x, t, half.z };
 		scene.add(std::move(slab));
 	};
 	addSlab(-half.y + 0.05f * k, kFloorColour);
