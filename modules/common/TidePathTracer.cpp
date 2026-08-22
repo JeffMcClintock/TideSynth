@@ -1160,20 +1160,58 @@ struct MarchEntry
 	float radius;         // bounding sphere radius
 	float rejectRadiusSq; // (radius + kBoundsSlack)^2 — the reject test, squared
 	int objectIndex;      // into scene.objects
-	bool cameraVisible;
+	const std::function<float(const Vec3&)>* field; // the object's own distance
 	bool bounded;         // false: no usable bounds, field evaluated every query
+};
+
+Vec3 rectNormal(const Light& l); // defined with the light intersectors below
+
+// Per-light constants, hoisted for the same reason MarchEntry exists: a rect
+// light's normal is normalize(cross(halfU, halfV)) — a cross product and a
+// square root — and intersectRectLight was recomputing it for every light on
+// every camera and bounce ray in the frame, along with both squared extents.
+// All of it is fixed the moment the scene is. Same values, computed once.
+struct LightCache
+{
+	Vec3 normal;   // rectNormal(l), for Rect lights; unused for Sphere
+	float lenSqU;  // maxf(dot(halfU, halfU), 1e-12f) — the divisor as before
+	float lenSqV;
 };
 
 struct MarchList
 {
-	std::vector<MarchEntry> marched; // every non-analytic object
-	std::vector<int> analytic;       // indices of the analytic objects
+	// TWO copies of the marched set, one per kind of ray. Primary rays skip
+	// camera-invisible objects; every other ray sees everything. The scan used
+	// to make that choice per entry per step with a branch inside its hottest
+	// loop; pre-filtering moves it to one pointer pick per march. Measured
+	// neutral on the three-object demo scenes — the predictor was eating the
+	// branch — but the scan is the code whose cost scales with object count,
+	// and the panels carry dozens. The duplication is a few dozen bytes.
+	std::vector<MarchEntry> marched;        // every non-analytic object
+	std::vector<MarchEntry> marchedPrimary; // the camera-visible subset
+	std::vector<int> analytic;              // indices of the analytic objects
+	std::vector<LightCache> lights;         // parallel to scene.lights
+
+	const std::vector<MarchEntry>& forRay(bool primary) const
+	{
+		return primary ? marchedPrimary : marched;
+	}
 };
 
 MarchList buildMarchList(const Scene& scene)
 {
 	MarchList list;
 	list.marched.reserve(scene.objects.size());
+
+	list.lights.reserve(scene.lights.size());
+	for (const Light& l : scene.lights)
+	{
+		LightCache c;
+		c.normal = rectNormal(l);
+		c.lenSqU = maxf(dot(l.halfU, l.halfU), 1.0e-12f);
+		c.lenSqV = maxf(dot(l.halfV, l.halfV), 1.0e-12f);
+		list.lights.push_back(c);
+	}
 
 	for (size_t i = 0; i < scene.objects.size(); ++i)
 	{
@@ -1189,9 +1227,17 @@ MarchList buildMarchList(const Scene& scene)
 		e.radius = o.boundsRadius;
 		e.rejectRadiusSq = (o.boundsRadius + kBoundsSlack) * (o.boundsRadius + kBoundsSlack);
 		e.objectIndex = (int)i;
-		e.cameraVisible = o.material.cameraVisible;
+		// The field is called through this pointer rather than through
+		// scene.objects[objectIndex], so an evaluation no longer detours
+		// through the 144-byte Object to find the std::function inside it.
+		// (Pointer into the scene — same lifetime contract as Emitter::light:
+		// the scene must not move while a render is in flight.)
+		e.field = &o.distance;
 		e.bounded = !o.unbounded;
 		list.marched.push_back(e);
+
+		if (o.material.cameraVisible)
+			list.marchedPrimary.push_back(e);
 	}
 
 	return list;
@@ -1212,17 +1258,14 @@ MarchList buildMarchList(const Scene& scene)
 // the negation applied to the medium alone, the field's minimum is once again a
 // true lower bound on the distance to the nearest SURFACE, whichever object
 // owns it.
-float sceneDistance(const Scene& scene, const MarchList& march, const Vec3& p,
-	bool primary, int insideIndex, int& nearest)
+float sceneDistance(const std::vector<MarchEntry>& entries, const Vec3& p,
+	int insideIndex, int& nearest)
 {
 	float best = kMaxTraceDistance;
 	nearest = -1;
 
-	for (const MarchEntry& e : march.marched)
+	for (const MarchEntry& e : entries)
 	{
-		if (primary && !e.cameraVisible)
-			continue; // marched straight through, as if it were not there
-
 		float d;
 		if (e.bounded)
 		{
@@ -1247,12 +1290,12 @@ float sceneDistance(const Scene& scene, const MarchList& march, const Vec3& p,
 			}
 			else
 			{
-				d = scene.objects[e.objectIndex].distance(p);
+				d = (*e.field)(p);
 			}
 		}
 		else
 		{
-			d = scene.objects[e.objectIndex].distance(p);
+			d = (*e.field)(p);
 		}
 
 		if (e.objectIndex == insideIndex)
@@ -1273,16 +1316,27 @@ float sceneDistance(const Scene& scene, const MarchList& march, const Vec3& p,
 // version is marginally more accurate and 50% more expensive, and since the
 // field is only ever C0 at CSG seams anyway, the extra accuracy buys nothing
 // visible.
-// Always taken on the PLAIN field (insideIndex = -1), even when the march that
-// found the surface ran with a negated medium. The surface is the same surface
-// from either side, and the plain field's gradient is its OUTWARD normal — which
-// is exactly what the backface test downstream expects. Tapping the negated
-// field instead would hand back an inward normal at the medium's boundary, the
-// backface test would read every glass exit as an entry, and eta would invert.
-Vec3 sceneNormal(const Scene& scene, const MarchList& march, const Vec3& p, bool primary)
+//
+// The taps are on the HIT OBJECT'S OWN field, not the whole scene's. The union
+// only differs within the tap radius (a couple of ten-thousandths of a unit)
+// of a CONTACT between two objects, where the union gave a normal creased by
+// the neighbour and the owner's field gives the owner's own smooth one —
+// sub-pixel either way, and the owner's is at least as defensible a shading
+// normal at a seam. What the whole-scene version cost for that: every tap was
+// a full sceneDistance scan — every marched object's bounds test — times four,
+// on every shading hit in the render, scaling with scene size for a value that
+// only the seam pixels could even in principle notice. (The panels carry
+// dozens of objects where the demo scenes carry three.)
+//
+// Always taken on the PLAIN field, even when the march that found the surface
+// ran with a negated medium. The surface is the same surface from either side,
+// and the plain field's gradient is its OUTWARD normal — which is exactly what
+// the backface test downstream expects. Tapping the negated field instead
+// would hand back an inward normal at the medium's boundary, the backface test
+// would read every glass exit as an entry, and eta would invert.
+Vec3 objectNormal(const Object& o, const Vec3& p)
 {
 	constexpr float h = 1.5f * kSurfaceEpsilon;
-	int ignored = 0;
 
 	const Vec3 k0{ 1.0f, -1.0f, -1.0f };
 	const Vec3 k1{ -1.0f, -1.0f, 1.0f };
@@ -1290,10 +1344,10 @@ Vec3 sceneNormal(const Scene& scene, const MarchList& march, const Vec3& p, bool
 	const Vec3 k3{ 1.0f, 1.0f, 1.0f };
 
 	const Vec3 n =
-		k0 * sceneDistance(scene, march, p + k0 * h, primary, -1, ignored) +
-		k1 * sceneDistance(scene, march, p + k1 * h, primary, -1, ignored) +
-		k2 * sceneDistance(scene, march, p + k2 * h, primary, -1, ignored) +
-		k3 * sceneDistance(scene, march, p + k3 * h, primary, -1, ignored);
+		k0 * o.distance(p + k0 * h) +
+		k1 * o.distance(p + k1 * h) +
+		k2 * o.distance(p + k2 * h) +
+		k3 * o.distance(p + k3 * h);
 
 	return normalize(n);
 }
@@ -1313,10 +1367,14 @@ bool marchObjects(const Scene& scene, const MarchList& march, const Vec3& origin
 	float t = kRayOffset;
 	int nearest = -1;
 
+	// One list pick, in place of a visibility branch on every entry of every
+	// scan — see MarchList.
+	const std::vector<MarchEntry>& entries = march.forRay(primary);
+
 	for (int step = 0; step < kMaxMarchSteps && t < maxDistance; ++step)
 	{
 		const Vec3 p = origin + direction * t;
-		const float d = sceneDistance(scene, march, p, primary, insideIndex, nearest);
+		const float d = sceneDistance(entries, p, insideIndex, nearest);
 
 		// Mostly CONSTANT, unlike the usual advice.
 		//
@@ -1347,7 +1405,7 @@ bool marchObjects(const Scene& scene, const MarchList& march, const Vec3& origin
 			// wrong angles — which reads as glass that is too dark and muddy
 			// rather than as anything obviously broken.
 			if (wantNormal)
-				hit.normal = sceneNormal(scene, march, p, primary);
+				hit.normal = objectNormal(scene.objects[nearest], p);
 			return true;
 		}
 
@@ -1374,10 +1432,10 @@ bool marchObjects(const Scene& scene, const MarchList& march, const Vec3& origin
 
 Vec3 rectNormal(const Light& l) { return normalize(cross(l.halfU, l.halfV)); }
 
-bool intersectRectLight(const Light& l, const Vec3& origin, const Vec3& direction,
-	float maxDistance, float& tOut)
+bool intersectRectLight(const Light& l, const LightCache& cache, const Vec3& origin,
+	const Vec3& direction, float maxDistance, float& tOut)
 {
-	const Vec3 n = rectNormal(l);
+	const Vec3 n = cache.normal;
 	const float denom = dot(direction, n);
 	if (denom * denom < 1.0e-12f)
 		return false; // parallel to the plane
@@ -1392,8 +1450,8 @@ bool intersectRectLight(const Light& l, const Vec3& origin, const Vec3& directio
 	// Project into the rectangle's own axes. Dividing by the SQUARED length
 	// converts the projection into the [-1,1] parameterisation directly.
 	const Vec3 d = origin + direction * t - l.position;
-	const float uu = dot(d, l.halfU) / maxf(dot(l.halfU, l.halfU), 1.0e-12f);
-	const float vv = dot(d, l.halfV) / maxf(dot(l.halfV, l.halfV), 1.0e-12f);
+	const float uu = dot(d, l.halfU) / cache.lenSqU;
+	const float vv = dot(d, l.halfV) / cache.lenSqV;
 	if (uu < -1.0f || uu > 1.0f || vv < -1.0f || vv > 1.0f)
 		return false;
 
@@ -1632,7 +1690,7 @@ Hit intersect(const Scene& scene, const MarchList& march, const Vec3& origin,
 
 		float t = 0.0f;
 		const bool got = (l.shape == LightShape::Rect)
-			? intersectRectLight(l, origin, direction, closest, t)
+			? intersectRectLight(l, march.lights[i], origin, direction, closest, t)
 			: intersectSphereLight(l, origin, direction, closest, t);
 
 		if (got)
@@ -1646,7 +1704,7 @@ Hit intersect(const Scene& scene, const MarchList& march, const Vec3& origin,
 			hit.light = &l;
 			hit.lightIndex = (int)i;
 			hit.normal = (l.shape == LightShape::Rect)
-				? rectNormal(l)
+				? march.lights[i].normal
 				: normalize(hit.position - l.position);
 		}
 	}
@@ -1796,6 +1854,12 @@ struct Emitter
 	int objectIndex = -1;         // index into Scene::objects, or -1
 	Vec3 proxyCentre{};           // bounding sphere, for objectIndex only
 	float proxyRadius = 0.0f;
+
+	// Rect lights only — the same hoist LightCache makes for the ray tests,
+	// made here for the samplers: sampleEmitter and emitterPdf were paying the
+	// normalize(cross()) and 4|u x v| on every NEE sample and every MIS weight.
+	Vec3 rectN{};
+	float rectArea = 0.0f;
 };
 
 std::vector<Emitter> buildEmitters(const Scene& scene)
@@ -1816,6 +1880,11 @@ std::vector<Emitter> buildEmitters(const Scene& scene)
 		Emitter e;
 		e.light = &l;
 		e.lightIndex = (int)i;
+		if (l.shape == LightShape::Rect)
+		{
+			e.rectN = rectNormal(l);
+			e.rectArea = 4.0f * length(cross(l.halfU, l.halfV));
+		}
 		emitters.push_back(e);
 	}
 
@@ -1877,7 +1946,7 @@ LightSample sampleEmitter(const Emitter& emitter, const Vec3& from, float u1, fl
 		s.distance = std::sqrt(distSq);
 		s.direction = delta * (1.0f / s.distance);
 
-		float cosLight = -dot(s.direction, rectNormal(l));
+		float cosLight = -dot(s.direction, emitter.rectN);
 		if (!l.twoSided && cosLight <= 0.0f)
 			return s; // shading point is behind a one-sided window
 
@@ -1887,7 +1956,7 @@ LightSample sampleEmitter(const Emitter& emitter, const Vec3& from, float u1, fl
 
 		// Area to solid angle: pdf_A * r^2 / cos. A rectangle spanned by two
 		// HALF extents has area 4|u x v|.
-		const float area = 4.0f * length(cross(l.halfU, l.halfV));
+		const float area = emitter.rectArea;
 		if (area <= 0.0f)
 			return s;
 
@@ -1927,11 +1996,11 @@ float emitterPdf(const Emitter& emitter, const Vec3& from, const Vec3& direction
 
 	if (l.shape == LightShape::Rect)
 	{
-		const float cosLight = std::fabs(dot(direction, rectNormal(l)));
+		const float cosLight = std::fabs(dot(direction, emitter.rectN));
 		if (cosLight <= 1.0e-6f)
 			return 0.0f;
 
-		const float area = 4.0f * length(cross(l.halfU, l.halfV));
+		const float area = emitter.rectArea;
 		if (area <= 0.0f)
 			return 0.0f;
 

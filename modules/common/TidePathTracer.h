@@ -38,6 +38,19 @@
 // here is allowed to depend on them. Guards are explicit range and denominator
 // tests instead. This is called out again at each site that would otherwise be
 // written the usual way.
+//
+// The SDF helpers below are called from inside scene lambdas, on every step of
+// every sphere-traced ray — the hottest call sites in the renderer. MSVC leaves
+// them as out-of-line calls even at /Ob2 (profiled: sdBox, sdCylinder and
+// sdChamferCylinder alone were ~18% of a Full render as separate frames, their
+// Vec3 arguments bouncing through memory at each boundary), so the hot ones ask
+// for inlining in the strongest terms the compiler has.
+#if defined(_MSC_VER)
+	#define TIDE_RENDER_INLINE __forceinline
+#else
+	#define TIDE_RENDER_INLINE inline __attribute__((always_inline))
+#endif
+
 namespace tide::render
 {
 
@@ -78,12 +91,12 @@ constexpr Vec3 cross(const Vec3& a, const Vec3& b)
 {
 	return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x };
 }
-inline float length(const Vec3& v) { return std::sqrt(dot(v, v)); }
+TIDE_RENDER_INLINE float length(const Vec3& v) { return std::sqrt(dot(v, v)); }
 constexpr float lengthSquared(const Vec3& v) { return dot(v, v); }
 
 // Returns the Z axis on a zero-length input rather than a NaN. Under /fp:fast a
 // 0/0 here would propagate silently into the whole image.
-inline Vec3 normalize(const Vec3& v)
+TIDE_RENDER_INLINE Vec3 normalize(const Vec3& v)
 {
 	const float lenSq = dot(v, v);
 	if (lenSq <= 0.0f)
@@ -100,7 +113,7 @@ constexpr Vec3 maxv(const Vec3& a, const Vec3& b)
 {
 	return { a.x > b.x ? a.x : b.x, a.y > b.y ? a.y : b.y, a.z > b.z ? a.z : b.z };
 }
-inline Vec3 absv(const Vec3& v) { return { std::fabs(v.x), std::fabs(v.y), std::fabs(v.z) }; }
+TIDE_RENDER_INLINE Vec3 absv(const Vec3& v) { return { std::fabs(v.x), std::fabs(v.y), std::fabs(v.z) }; }
 inline Vec3 expv(const Vec3& v) { return { std::exp(v.x), std::exp(v.y), std::exp(v.z) }; }
 constexpr Vec3 lerp(const Vec3& a, const Vec3& b, float t) { return a + (b - a) * t; }
 constexpr float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -109,7 +122,7 @@ constexpr float minf(float a, float b) { return a < b ? a : b; }
 // Every sqrt in this renderer goes through here. Round-off routinely drives
 // quantities like (1 - cos^2) a hair below zero, and /fp:fast turns the
 // resulting NaN into undefined behaviour rather than a visible black pixel.
-inline float safeSqrt(float v) { return std::sqrt(maxf(0.0f, v)); }
+TIDE_RENDER_INLINE float safeSqrt(float v) { return std::sqrt(maxf(0.0f, v)); }
 
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kInvPi = 0.31830988618379067154f;
@@ -467,14 +480,14 @@ inline Material glow(Vec3 colour, float strength = 6.0f)
 // have been rewritten against this file's Vec3 rather than copied verbatim.
 // ---------------------------------------------------------------------------
 
-inline float sdSphere(const Vec3& p, float radius)
+TIDE_RENDER_INLINE float sdSphere(const Vec3& p, float radius)
 {
 	return length(p) - radius;
 }
 
 // Exact. `halfExtents` is half the side length on each axis, so a 2x2x2 cube is
 // halfExtents = 1.
-inline float sdBox(const Vec3& p, const Vec3& halfExtents)
+TIDE_RENDER_INLINE float sdBox(const Vec3& p, const Vec3& halfExtents)
 {
 	const Vec3 q = absv(p) - halfExtents;
 	// Outside distance is the length of the positive part; inside distance is
@@ -488,7 +501,7 @@ inline float sdBox(const Vec3& p, const Vec3& halfExtents)
 // A box with its edges filleted. `radius` is subtracted from the extents, so
 // the overall size is unchanged — which is what you want when rounding a
 // faceplate that has to stay the same size.
-inline float sdRoundBox(const Vec3& p, const Vec3& halfExtents, float radius)
+TIDE_RENDER_INLINE float sdRoundBox(const Vec3& p, const Vec3& halfExtents, float radius)
 {
 	return sdBox(p, halfExtents - Vec3{ radius }) - radius;
 }
@@ -497,7 +510,7 @@ inline float sdRoundBox(const Vec3& p, const Vec3& halfExtents, float radius)
 // different from a fillet under a hard light: a chamfer produces one crisp
 // highlight line per edge, a fillet produces a smeared band. Panel hardware is
 // usually chamfered.
-inline float sdChamferBox(const Vec3& p, const Vec3& halfExtents, float chamfer)
+TIDE_RENDER_INLINE float sdChamferBox(const Vec3& p, const Vec3& halfExtents, float chamfer)
 {
 	const float box = sdBox(p, halfExtents);
 
@@ -523,7 +536,7 @@ inline float sdChamferBox(const Vec3& p, const Vec3& halfExtents, float chamfer)
 
 // Exact. A cylinder along the Z axis — Z-up matches the orthographic front view
 // this renderer is built for, so a knob body needs no rotation.
-inline float sdCylinder(const Vec3& p, float radius, float halfHeight)
+TIDE_RENDER_INLINE float sdCylinder(const Vec3& p, float radius, float halfHeight)
 {
 	const float d = length(Vec3{ p.x, p.y, 0.0f }) - radius;
 	const float h = std::fabs(p.z) - halfHeight;
@@ -535,14 +548,14 @@ inline float sdCylinder(const Vec3& p, float radius, float halfHeight)
 // A cylinder whose top and bottom rims are filleted by `radius`. The workhorse
 // for knob bodies: the fillet is what catches the light and gives the rim its
 // bright edge.
-inline float sdRoundCylinder(const Vec3& p, float radius, float halfHeight, float round)
+TIDE_RENDER_INLINE float sdRoundCylinder(const Vec3& p, float radius, float halfHeight, float round)
 {
 	return sdCylinder(p, radius - round, halfHeight - round) - round;
 }
 
 // A cylinder whose rims are chamfered instead. `chamfer` is the 45-degree cut
 // measured along each axis.
-inline float sdChamferCylinder(const Vec3& p, float radius, float halfHeight, float chamfer)
+TIDE_RENDER_INLINE float sdChamferCylinder(const Vec3& p, float radius, float halfHeight, float chamfer)
 {
 	const float body = sdCylinder(p, radius, halfHeight);
 	const float rho = length(Vec3{ p.x, p.y, 0.0f });
@@ -552,14 +565,14 @@ inline float sdChamferCylinder(const Vec3& p, float radius, float halfHeight, fl
 
 // Exact. A torus in the XY plane, `major` from the axis to the tube centre and
 // `minor` the tube radius.
-inline float sdTorus(const Vec3& p, float major, float minor)
+TIDE_RENDER_INLINE float sdTorus(const Vec3& p, float major, float minor)
 {
 	const float q = length(Vec3{ p.x, p.y, 0.0f }) - major;
 	return length(Vec3{ q, p.z, 0.0f }) - minor;
 }
 
 // A capped cone along Z. Bounded, not exact.
-inline float sdCappedCone(const Vec3& p, float radiusBottom, float radiusTop, float halfHeight)
+TIDE_RENDER_INLINE float sdCappedCone(const Vec3& p, float radiusBottom, float radiusTop, float halfHeight)
 {
 	const float rho = length(Vec3{ p.x, p.y, 0.0f });
 	const Vec3 k1{ radiusTop, halfHeight, 0.0f };
@@ -574,7 +587,7 @@ inline float sdCappedCone(const Vec3& p, float radiusBottom, float radiusTop, fl
 }
 
 // An infinite plane through the origin. `normal` must be unit length.
-inline float sdPlane(const Vec3& p, const Vec3& normal, float offset)
+TIDE_RENDER_INLINE float sdPlane(const Vec3& p, const Vec3& normal, float offset)
 {
 	return dot(p, normal) + offset;
 }
@@ -596,23 +609,23 @@ inline float sdPlane(const Vec3& p, const Vec3& normal, float offset)
 // the complement form costs the same and has no invalid region, so a camera
 // accidentally placed outside a visible room fails loudly at the wall instead
 // of undefined-ly.
-inline float sdRoomInterior(const Vec3& p, const Vec3& halfExtents)
+TIDE_RENDER_INLINE float sdRoomInterior(const Vec3& p, const Vec3& halfExtents)
 {
 	return -sdBox(p, halfExtents);
 }
 
 // --- combination -----------------------------------------------------------
 
-inline float opUnion(float a, float b) { return minf(a, b); }
-inline float opIntersect(float a, float b) { return maxf(a, b); }
+TIDE_RENDER_INLINE float opUnion(float a, float b) { return minf(a, b); }
+TIDE_RENDER_INLINE float opIntersect(float a, float b) { return maxf(a, b); }
 // Subtracts `b` from `a`.
-inline float opSubtract(float a, float b) { return maxf(a, -b); }
+TIDE_RENDER_INLINE float opSubtract(float a, float b) { return maxf(a, -b); }
 
 // Polynomial smooth minimum: a fillet of radius ~k where the two shapes meet.
 // Beware — this UNDERSTATES the distance near the joint, so it is not
 // Lipschitz-1 there and an aggressive k can let the sphere tracer step through
 // thin features. Keep k small relative to the shapes being joined.
-inline float opSmoothUnion(float a, float b, float k)
+TIDE_RENDER_INLINE float opSmoothUnion(float a, float b, float k)
 {
 	if (k <= 0.0f)
 		return minf(a, b);
@@ -621,7 +634,7 @@ inline float opSmoothUnion(float a, float b, float k)
 	return b + (a - b) * h - k * h * (1.0f - h);
 }
 
-inline float opSmoothSubtract(float a, float b, float k)
+TIDE_RENDER_INLINE float opSmoothSubtract(float a, float b, float k)
 {
 	if (k <= 0.0f)
 		return maxf(a, -b);
@@ -640,7 +653,7 @@ inline float opSmoothSubtract(float a, float b, float k)
 // last sector meets the first, which shows up as a visible crack. Folding the
 // angle into a half-sector about the sector centre (rather than wrapping it)
 // makes the field symmetric across every boundary and removes the seam.
-inline Vec3 opPolarRepeat(const Vec3& p, int count)
+TIDE_RENDER_INLINE Vec3 opPolarRepeat(const Vec3& p, int count)
 {
 	if (count < 1)
 		return p;
@@ -672,14 +685,14 @@ struct Transform
 	float scale = 1.0f;
 
 	// World point -> local point.
-	Vec3 toLocal(const Vec3& p) const
+	TIDE_RENDER_INLINE Vec3 toLocal(const Vec3& p) const
 	{
 		const Vec3 d = p - origin;
 		return Vec3{ dot(d, axisX), dot(d, axisY), dot(d, axisZ) } * (1.0f / scale);
 	}
 
 	// The matching correction for a distance evaluated in local space.
-	float toWorldDistance(float localDistance) const { return localDistance * scale; }
+	TIDE_RENDER_INLINE float toWorldDistance(float localDistance) const { return localDistance * scale; }
 };
 
 // Rotation about an arbitrary unit axis, as a frame. Degrees, because scene
