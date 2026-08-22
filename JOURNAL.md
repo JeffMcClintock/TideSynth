@@ -109,6 +109,90 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — v0.1.0: Windows and Linux shipped, macOS wanted a certificate nobody had sent
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** cut `v0.1.0` and watched the pipeline run for the first time. **Windows
+and Linux succeeded, signing included.** macOS failed at `Package (macOS)`:
+
+```
+productbuild: error: Could not find appropriate signing identity for
+              "Developer ID Installer: SynthEdit Limited (36SNPLRFK3)"
+```
+
+### The correction, and it is mine
+
+Earlier today I wrote on R5 that the missing credential was *"now
+provisioned"*, because `APPLE_INSTALLER_SIGNING_IDENTITY` had appeared in the
+`release` environment between one check and the next.
+
+**The variable was provisioned. The certificate was not.** The workflow logs the
+keychain after import, and it held exactly one identity — `E112A74081E6…`, the
+Developer ID **Application** cert. `APPLE_CERT_P12_BASE64` carries only that
+one, so `productbuild` had nothing to sign the pkg with.
+
+Naming an identity is not the same as shipping its private key, and I treated a
+variable appearing as evidence that the credential behind it existed. It is not
+even weak evidence — the two are stored in different places, by different
+mechanisms, for different reasons.
+
+**The logging is what caught it in seconds.** I put `security find-identity -v
+-p codesigning` at the end of the import step "so the job says what it can
+actually sign with". That line turned a one-word error into a diagnosis.
+
+### Two risks this run retired
+
+**The ambiguity hazard is dead.** I flagged that the mac box holds two valid,
+identically-named Developer ID Application certs, and that if
+`APPLE_CERT_P12_BASE64` carried both, `codesign` would fail as *"ambiguous"*. It
+carries one. `codesign` signed cleanly, and the risk is now closed by
+measurement rather than left open as a caveat.
+
+**R3a is confirmed in CI, not just locally.** Everything up to `productbuild`
+worked on macOS: the AU built, `codesign` reported the component *"valid on
+disk"* and *"satisfies its Designated Requirement"*, and `pkgbuild` added
+**both** payloads. The change I landed an hour before the tag did what it
+claimed on a machine that had never seen it.
+
+### What this cost, and what it did not
+
+The failed leg cost about an hour of macOS build time and no artifacts —
+`publish` is `needs: build`, so it skipped rather than publishing a partial
+release. **No half-finished release was created, and no tag needs deleting.**
+That is `fail-fast: false` plus a gated publish doing exactly their job.
+
+**Learned:**
+
+- **A configuration variable naming a credential is not the credential.** They
+  live in different stores. Seeing `APPLE_INSTALLER_SIGNING_IDENTITY` appear
+  told me its *name* was known, and I wrote "provisioned" — which is a claim
+  about the private key, and I had checked nothing about the private key.
+- **Log what the job can actually do, not what it was configured to do.**
+  Printing the keychain's identities after import turned this from "signing
+  failed" into "the keychain has one cert and it is the wrong kind" with no
+  extra round trip.
+- **A release that fails before `publish` costs time and nothing else.**
+  `needs: build` meant no partial release, no orphaned assets and no tag to
+  delete. Worth keeping in mind against the temptation to publish per-platform
+  as each finishes.
+- **Two platforms passing is real evidence.** Azure Trusted Signing is now
+  proven end to end on a real tag, which no amount of structural assertion could
+  have established.
+
+**Next:** **Jeff exports a `.p12` containing BOTH identities** — both are on the
+mac box (`security find-identity -v` lists `D55D4DDE…` "Developer ID Installer",
+valid to 2027-02-01) — base64s it and updates `APPLE_CERT_P12_BASE64`. **No
+workflow change is needed**: `security import` handles a multi-identity P12 and
+the import step already passes `-T /usr/bin/productbuild`. Then re-run the
+failed job. **Notarization is still unverified** — the run never reached
+`notarytool`, so Apple has never seen a submission and **R6** is blocked on the
+same question it was this morning.
+
+**Branch/PR:** `tide/mac/R5-installer-cert-finding` — TideSynth, backlog and journal only.
+
+---
+
 ## 2026-08-22 — macos — ccache went into build.yml and not release.yml, and the numbers are in
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing

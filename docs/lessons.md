@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — v0.1.0: Windows and Linux shipped, macOS wanted a certificate nobody had sent**
+
+- A configuration variable naming a credential is not the credential.
+- Log what the job can actually do, not what it was configured to do.
+- A release that fails before `publish` costs time and nothing else.
+- Two platforms passing is real evidence.
+
 **macos — ccache went into build.yml and not release.yml, and the numbers are in**
 
 - Two workflows that build the same thing need the same fixes.
