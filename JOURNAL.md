@@ -183,6 +183,98 @@ installing the pkg** (unsigned here), and `/Applications` is reasoned from
 
 ---
 
+## 2026-08-22 — macos — S38 is three problems, not seven instances of one
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** took S38 — seven Objective-C class names shared between GMPI plugins.
+The row treated it as one uniform problem and sized the fix as *"suffix every
+Objective-C class in the UI layer"*. It is three different problems, and one of
+them was already solved.
+
+### The scheme is deliberate, which changes the question
+
+`DrawingFrameMac.mm:573`:
+
+> *"Objective-C can't handle loading the same class into different plugins, give
+> each iteration of this class a unique name"*
+
+So two plugins on the **same** gmpi_ui share the name **and the body** — harmless,
+whichever wins. The danger is only ever **two different bodies under one name**.
+
+That turns "seven classes collide" into a question with a per-class answer: *has
+the suffix been bumped whenever the class changed?* Which is measurable by
+diffing each `@implementation` between its introducing commit and HEAD.
+
+### The per-class answer
+
+```
+GMPI_VIEW_VERSION_03           38 commits   CHANGED 8556 -> 10835 chars   STALE
+GMPI_KEY_LISTENER_VERSION_03   38 commits   byte-identical                fine
+GMPI_MAC_ColorPanelTarget_03    0 commits   fresh                         fine
+GMPI_EVENT_HELPER_CLASSNAME_03  0 commits   fresh                         fine
+GMPI_VIEW_MAKER_VERSION_02        —         introducing commit not found  UNCHECKED
+GMPI_KeyListenerView              —         NO SUFFIX AT ALL              worse
+GMPI_EscapableTextField           —         NO SUFFIX AT ALL              worse
+```
+
+**One stale suffix, fixed.** `GMPI_VIEW_VERSION_03`'s body grew by 27% across 38
+commits under the same name, so an old plugin and a new one export it with
+different implementations. Bumped to `_04` and verified where it counts — the
+shipped TIDE binary carries `GMPI_VIEW_VERSION_04` once and `_03` zero times.
+
+**The sibling is what makes this a discipline lapse rather than a design flaw.**
+`GMPI_KEY_LISTENER_VERSION_03` is byte-identical across the *same* 38 commits and
+correctly needs nothing. Had both drifted, the scheme itself would be suspect.
+
+**Two are worse than the row says.** `GMPI_KeyListenerView` and
+`GMPI_EscapableTextField` have no suffix at all, so they can never be
+disambiguated — any two plugins collide on them regardless of version. Still
+open, and it is two small changes rather than the sweeping one the row costed.
+
+### What I checked before renaming anything
+
+No `NSClassFromString` or `objc_getClass` anywhere in `gmpi_ui`. A class renamed
+out from under a string lookup would fail at runtime and only in the path that
+does the lookup — the worst possible failure to introduce while "fixing" a
+collision.
+
+### An override that silently did nothing, again
+
+I built TIDE with `-DGMPI_UI_SDK_FOLDER_OVERRIDE=…` and the dependency report
+said `[fetched]`. The variable is `GMPI_UI_FOLDER_OVERRIDE` — no `SDK`. Had I not
+checked the report and grepped the compiled source for `_04`, I would have
+"verified" the fix against a build that never contained it.
+
+**Learned:**
+
+- **Read the mechanism before costing the fix.** The version suffixes were not
+  a half-measure someone abandoned; they are a working scheme with one lapsed
+  instance. The row's *"suffix every Objective-C class"* estimate was an order of
+  magnitude out because nobody had read the comment three lines above.
+- **A per-class question needs a per-class answer.** "Seven classes collide"
+  invited one sweeping fix. Diffing each implementation against its introducing
+  commit gave four verdicts, and only one needed work.
+- **A correct sibling is evidence about the design.** `KEY_LISTENER` being
+  byte-identical across the same commits is what distinguishes "someone forgot"
+  from "this does not work".
+- **Grep for string-based class lookup before renaming an Objective-C class.**
+  `NSClassFromString` turns a compile-time-safe rename into a runtime failure.
+- **Confirm an override reached the compiler, not just the command line.** Wrong
+  variable name, `[fetched]` in the report, and a "verified" fix that was never
+  built. Checking the artifact for the new symbol is the check that cannot lie.
+
+**Next:** the two **unversioned** classes are the remaining work — two small
+changes in `MacKeyListener.h` and `MacTextEdit.h`. `GMPI_VIEW_MAKER_VERSION_02`
+is **unchecked rather than cleared**. And the row's original question is still
+open: whether a collision has ever caused an observed misbehaviour, as distinct
+from the condition being demonstrably able to produce one.
+
+**Branch/PR:** `tide/mac/S38-measured` — TideSynth; the fix is
+[gmpi_ui#11](https://github.com/JeffMcClintock/gmpi_ui/pull/11).
+
+---
+
 ## 2026-08-22 — macos — E1c's second discriminator, and verifying the pitch before seeding it
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
