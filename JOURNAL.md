@@ -109,6 +109,103 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — M1 and M3 fixed properly, and the override my own notes warned about
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** finished what the previous item diagnosed. M1's link failure and M3's
+registration failure both have fixes in review, and this time the verification
+ran against a **plain build** rather than a hand-patched bundle.
+
+- [GMPI_Wrappers#11](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/11) — `--exe-name` / `--bundle-id`, and two weak fallbacks
+- [GMPI#8](https://github.com/JeffMcClintock/GMPI/pull/8) — pass `$<TARGET_FILE_BASE_NAME:...>` to `plist_util`
+
+### The order is a hard constraint, not a preference
+
+`plist_util` rejects unknown arguments with `usage()` and exit 2, and it runs in
+a POST_BUILD step. So merging the GMPI half first **breaks every AU build**.
+#11 first, then #8. Stated at the top of both PRs, because a reviewer taking
+them in PR-number order would get it backwards.
+
+### `#if 0` was hiding R8's AU half
+
+The AU2 emitter had `CFBundleIdentifier` commented out with *"build warning
+about bundle ID not matching"*. Someone silenced a warning and the cost was **no
+identifier at all** — which is why `codesign` invents `TIDE-Rack-a330dda6…`.
+`--bundle-id` is opt-in, so the default output is unchanged and nobody gets the
+old warning back unless they ask for it.
+
+### The override my own memory warned me about, and I still checked wrong
+
+TIDE has "Using local …" overrides for the VST3 SDK, SynthEditLib, GMPI and
+gmpi_ui — **four**, and none for GMPI_Wrappers, which is fetched by
+`SynthEditSem` with plain `FetchContent_Declare`. So the override is
+`-DFETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS=…`.
+
+I set it, then checked whether it took by looking in
+`build/_deps/gmpi_wrappers-src` — which **does not exist when the override
+works**, because FetchContent uses the given directory instead. I read that
+absence as "override ignored" and nearly went hunting for a bug that was not
+there. The real check is the cache and the dependency report:
+
+```
+GMPI_Wrappers <- .../wt-gw [fetched]
+```
+
+**Small correction worth noting:** S17's provenance report labels a
+`FETCHCONTENT_SOURCE_DIR_*` override as `[fetched]`. It is accurate about the
+path, which is the load-bearing half, but the label is wrong.
+
+### Backwards compatibility, measured rather than asserted
+
+The tempting claim is "the flags are optional, so nothing changes". I ran the
+tool three ways instead:
+
+```
+default        CFBundleExecutable = TIDE-Rack_AU    CFBundleIdentifier absent
+--exe-name     CFBundleExecutable = TIDE-Rack       CFBundleIdentifier absent
+--bundle-id    ...                                  CFBundleIdentifier present
+
+diff(default, --exe-name)  ->  CFBundleExecutable, and nothing else
+```
+
+### And the end-to-end result
+
+From a plain build with both branches in place and no hand-editing: rc=0, zero
+errors, `CFBundleExecutable` matches the binary, `auval -a` lists
+`aumu Syhd Dsyh - TIDE Synth:TIDE Rack`, and **`AU VALIDATION SUCCEEDED`**.
+
+**Learned:**
+
+- **FetchContent's source override makes `_deps/<name>-src` ABSENT, not
+  populated.** Checking for the directory to confirm an override is backwards.
+  Check `CMakeCache.txt` or the dependency report instead.
+- **A two-PR fix can have an ORDER, not just a pairing.** When the consumer
+  passes a flag the provider must already understand, the provider merges first
+  or the build breaks. Say so at the top of both, since PR numbers imply the
+  opposite order here.
+- **`#if 0` around a correctness feature is a bug with a comment.** The AU's
+  missing bundle identifier was a silenced warning, and the silence cost more
+  than the warning did.
+- **"The flags are optional so nothing changes" is a claim, and a cheap one to
+  test.** Three runs and a diff turned it into evidence.
+- **Verify from a plain build before claiming a fix.** The previous item proved
+  the AU *could* validate by hand-patching the installed bundle; that is a
+  different claim from "the build produces something that validates", and only
+  the second one is worth anything to a user.
+
+**Next:** **merge order is #11 then #8.** After both, the TIDE-side remainder is
+one word — `AU` into `FORMATS_LIST` — and **R3a unblocks**. **AUv3 (`AU3`) is
+still unbuilt**; M1 names it and only the AU2 path was exercised. This box's
+NEXT cell now points at **S38** (the Objective-C class collisions, reproducible
+on any mac with two GMPI plugins installed) since M1/M3 are waiting on other
+repos.
+
+**Branch/PR:** `tide/mac/M1-M3-in-review` — TideSynth bookkeeping only; the code
+is in the two PRs above.
+
+---
+
 ## 2026-08-22 — linux — S7: TIDE does write to the user's home, and does not spew skins — the guard is an accident
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)

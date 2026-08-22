@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — M1 and M3 fixed properly, and the override my own notes warned about**
+
+- FetchContent's source override makes `_deps/<name>-src` ABSENT, not populated.
+- A two-PR fix can have an ORDER, not just a pairing.
+- `#if 0` around a correctness feature is a bug with a comment.
+- "The flags are optional so nothing changes" is a claim, and a cheap one to test.
+- Verify from a plain build before claiming a fix.
+
 **linux — S7: TIDE does write to the user's home, and does not spew skins — the guard is an accident**
 
 - `HOME=` is not a sandbox when the code uses `getpwuid`.
