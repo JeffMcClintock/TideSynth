@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — R3a: the AU goes into the pkg, before the first tag**
+
+- Check the preconditions of a release before cutting the tag, not after.
+- A comment that was true when written is a liability the moment its subject changes.
+- Put the check where the artifact is sealed.
+- Sign every bundle in the payload, not the first one.
+
 **macos — E1c's deciding render: my hypothesis is refuted, and the row is still open**
 
 - A pre-committed binary outcome is worth the effort of setting up.
