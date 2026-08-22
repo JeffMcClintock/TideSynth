@@ -8,6 +8,48 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-22 — macos — S38 remainder: the obvious place for the fix is the wrong one (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Interactive session at Jeff's direction, working the loop.
+
+The plan was to move the per-plugin suffix into `gmpi_plugin.cmake` so every
+GMPI plugin gets one instead of only TIDE. **It does not fit there, and finding
+out cost one configure rather than an argument.**
+
+The definition has to be directory-scoped and set before any
+`add_subdirectory()`, because gmpi_ui's `.mm` sources compile into SEVERAL
+targets per plugin -- `SynthEditLib`, `AU3_Wrapper`, `CLAP_Wrapper`,
+`AU_Wrapper` -- living in different directories, several configured before the
+one that calls `gmpi_plugin()`. So I wrote a helper for plugins to call at their
+top level. TIDE cannot call it: it includes `gmpi_plugin.cmake` from
+`SynthEditSem/CMakeLists.txt:29`, which is `add_subdirectory()`'d after
+`SynthEditLib`, so at line 286 the function does not exist yet --
+`Unknown CMake command "gmpi_objc_class_suffix"`. A plain
+`add_compile_definitions(GMPI_OBJC_SUFFIX=_TIDE_Rack)` has no such
+ordering requirement, which is why that is what TIDE ships and what #309 does.
+
+**So GMPI#11 ships the CHECK instead, and the check is the part that was
+actually worth having.** A plugin that never sets the suffix builds perfectly
+and collides with every other GMPI plugin the user has installed; the only
+symptom is a runtime warning nobody reads. `gmpi_plugin()` now warns at
+configure time, names the project, and accepts either form -- the helper's
+global property, or the definition found on the directory's inherited
+`COMPILE_DEFINITIONS`, so it will not nag TIDE for doing it the simple way.
+
+**Verified against MERGED upstream, not my own branches**, since gmpi_ui#13 and
+GMPI_Wrappers#13 landed: no suffix set -> the warning fires and names
+`TIDE_Rack`; helper called from the top level -> `Unknown CMake command`; plain
+define -> configure rc=0, no warning, build rc=0, and the resulting VST3 exports
+all six ObjC classes suffixed `_TIDE_Rack` with zero unsuffixed leftovers.
+
+**Not verified:** Windows and Linux configures (the feature returns early, it is
+APPLE-only), and no other GMPI plugin was configured against the new warning --
+which is exactly why it is a WARNING and not a FATAL_ERROR. The three AU3
+classes are still unsuffixed, deliberately, for the plist reasons in
+GMPI_Wrappers#13.
+
 ## 2026-08-22 — macos — S38: the fix already exists in this codebase, and it fails open (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
