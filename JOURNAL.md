@@ -8,6 +8,67 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — TIDE in GarageBand: the editor is blank, and four suspects are dead (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Jeff offered to try it in GarageBand, which closed the gap M1 shipped with —
+*"the extension was never opened in a real DAW; auval is the evidence, not a
+host."* It should have been closed before M1 merged, not after.
+
+**IT LOADS AND IT DOES NOT DRAW.** GarageBand lists it under AU Instruments >
+TIDE Synth > TIDE Rack, instantiates it, exposes its parameters in Smart
+Controls, and runs it out-of-process with no crash report. Its editor opens a
+1100x600 window containing **nothing** but a ~28x26pt fragment top-left.
+
+**Four suspects eliminated, each by measurement, none by reading code.**
+
+1. **"The empty rack measures tiny."** My theory, and wrong. Jeff authorised
+   temporary logging; `measure()` returns **1100.0 x 600.0** and
+   `preferredContentSize` is set to exactly that. The window really is that big.
+2. **"The wiring never completes."** It completes. `connectEditorToUnit`
+   early-returns once while `_audioUnit` is still null — by design — is
+   re-entered when the unit arrives, and then `createNativeView` returns a
+   **valid view at 1100x600** and `initUi` returns with `subviews=1`.
+3. **"It is silent, so the DSP is broken."** Jeff heard the metronome and no
+   plug-in audio. But `TideApp.cpp:546` creates a blank document — *"creates an
+   empty main container"* — so **an empty rack is silent by design.** Jeff asked
+   the question that killed this one: *"does tide load a playable patch by
+   default?"* It does not. Silence was never the bug; the bug is that you cannot
+   build a patch in an editor that will not draw.
+4. **"The timer is not wired up."** Jeff's hypothesis, and the best of the four
+   because it is where the drawing actually comes from. Instrumented: in the
+   AUv3 `Timer::start` runs on the **main thread**, with
+   `CFRunLoopGetCurrent() == CFRunLoopGetMain()`, and the callback **fires
+   repeatedly**. The timer is fine.
+
+**NEGATIVE CONTROL, and it is what makes all of this a real bug rather than a
+misconfiguration: the STANDALONE renders perfectly** — same build, same engine,
+full module browser and rack.
+
+**THE LIVE LEAD came out of eliminating suspect 4, not out of confirming it.**
+The standalone starts **THREE** timers; the AUv3 starts **ONE**. Two
+timer-driven subsystems never start inside the extension.
+`SynthEditLib/ModulePicker.h` declares two `gmpi::TimerClient` subclasses — the
+module browser, which the standalone shows and the AUv3 does not. That is where
+I would look next.
+
+**Filed as M4.** All diagnostic logging lived on throwaway branches in `gmpi_ui`
+and `GMPI_Wrappers`, both now deleted; `grep TIDEDIAG` is clean in every repo.
+The dev build was removed from `/Applications`, and both GarageBand projects
+touched — Jeff's own "Test Preset Change" and my scratch "Untitled" — were
+closed **without saving**.
+
+**Also seen and NOT diagnosed:** closing the editor made GarageBand report *"An
+Audio Unit plug-in reported a problem which might cause the system to become
+unstable"*, with the appex process gone and **no crash report written**. The
+teardown path (`dealloc` -> `gmpi_onCloseNativeView`) is the obvious suspect and
+is unmeasured. It is in M4's row so it is not lost.
+
+**Not verified:** why the view does not paint. Everything upstream of the draw
+is now eliminated, which is progress, but the draw path itself was never
+instrumented.
+
 ## 2026-08-23 — macos — M1 closes, and it takes two of my own claims down with it (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
