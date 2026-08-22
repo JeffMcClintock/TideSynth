@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — S40 ruled: AUv3 only, and the install story is a copy**
+
+- Measure the install story before costing a format change.
+- `set -euo pipefail` can kill a guard before it speaks.
+- A non-zero exit is not evidence a guard fired.
+- A format that ships as an app inherits a naming decision the build never had to make.
+
 **macos — E1c's second discriminator, and verifying the pitch before seeding it**
 
 - Verify the thing a golden encodes before writing the golden.

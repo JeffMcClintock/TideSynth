@@ -109,6 +109,80 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — S40 ruled: AUv3 only, and the install story is a copy
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** Jeff ruled S40 — AU3 for macOS and iOS, drop AU2. *"Works in Apple DAWs.
+Other DAWs on Apple tend to support VST3 and or CLAP. If we can omit AU2, just to
+save some work and time, let's do so. Won't be difficult to add later anyhow."*
+
+Implemented: `FORMATS_LIST` is `GMPI VST3 CLAP AU3 STANDALONE`, the `.component`
+is gone, and `TIDE-Rack-AUv3.app` takes its place in the pkg.
+
+### The expensive part turned out to be free
+
+An AUv3 ships as an **app**, not a plug-in bundle, so the obvious worry was the
+install story: does the extension register from a pkg-installed app, or does the
+user have to launch it, or does the pkg need a postinstall script?
+
+Measured rather than assumed:
+
+```
+baseline (nothing installed)                    0 Drck entries
+copy app in, no launch, no pluginkit            1 Drck entry
+explicit pluginkit -a afterwards                1 (unchanged)
+```
+
+**macOS registers it on the copy alone.** So the pkg needs no postinstall script,
+which is the single thing that could have made "drop AU2" cost real time.
+
+### The app is user-visible, so it needed a name
+
+`gmpi_plugin.cmake` names the containing app after the CMake target —
+`TIDE_Rack_AU3App.app` — which is underscored, a form `distribution.md` reserves
+for internal target names, and it lands in `/Applications` where Finder shows it
+to the customer.
+
+Now `TIDE-Rack-AUv3.app`, `CFBundleName "TIDE Rack (AUv3)"`, R8's identifier
+scheme. **Not plain `TIDE-Rack.app`**: the STANDALONE format already produces
+that in the same directory, and two bundles cannot share a name.
+
+### A guard of mine was defeated by `set -e`
+
+The new "app contains no .appex" check ran `find` on a possibly-missing directory
+inside a command substitution. Under `set -euo pipefail` that kills the script
+**before** the message prints — so the negative control produced **rc=1 and zero
+bytes of output**. A guard whose whole purpose is to say what went wrong, exiting
+silently.
+
+It only surfaced because I ran the control and looked at the output rather than
+just the exit code. `rc=1` alone looks like the guard working.
+
+**Learned:**
+
+- **Measure the install story before costing a format change.** "AUv3 ships as an
+  app" sounds like installer work; the extension registers on a plain copy, and
+  the whole concern evaporated in one three-line experiment.
+- **`set -euo pipefail` can kill a guard before it speaks.** A command
+  substitution containing a failing pipeline aborts the script, so the carefully
+  written error message never runs. Test the precondition, then run the command.
+- **A non-zero exit is not evidence a guard fired.** Both look like `rc=1`. Read
+  the output, not just the status — mine had none.
+- **A format that ships as an app inherits a naming decision the build never had
+  to make.** Plug-in bundles live in paths nobody reads; this one has an icon in
+  `/Applications`.
+
+**Next:** **R6** still wants a completed release, and the v0.1.0 rerun is still
+building. **The pkg's payload changed shape today** — component out, app in — so
+whatever the current run produces is already one revision behind. **NOT verified:
+installing the pkg** (unsigned here), and `/Applications` is reasoned from
+`~/Applications` working rather than separately measured.
+
+**Branch/PR:** `tide/mac/S40-au3-only` — TideSynth.
+
+---
+
 ## 2026-08-22 — macos — E1c's second discriminator, and verifying the pitch before seeding it
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present

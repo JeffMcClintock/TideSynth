@@ -7,19 +7,27 @@
 # Produces the asset docs/distribution.md names, installing to the locations
 # it specifies:
 #
-#     TIDE-Rack.vst3       ->  /Library/Audio/Plug-Ins/VST3/
-#     TIDE-Rack.component  ->  /Library/Audio/Plug-Ins/Components/
+#     TIDE-Rack.vst3        ->  /Library/Audio/Plug-Ins/VST3/
+#     TIDE-Rack-AUv3.app    ->  /Applications/
 #
-# THE AU IS HERE AS OF 2026-08-22 (BACKLOG R3a). This header used to say it was
-# "deliberately not here" because TIDE built no AU and M1 was BLOCKED. M1 landed:
-# `FORMATS_LIST` now reads `GMPI VST3 CLAP AU STANDALONE`, the component
-# registers, and `auval` reports AU VALIDATION SUCCEEDED.
+# THE AU SHIPS AS AN AUv3, NOT A .component, as of 2026-08-22 (BACKLOG S40,
+# Jeff ruling). AU2 and AU3 declare the SAME four-character codes, so macOS
+# registers only one and the other is unreachable -- measured: with both
+# installed, `auval -a` lists a single `aumu Drck Dsyh` and loads the v3. Rather
+# than ship a component no host would reach, TIDE ships the v3 alone. It covers
+# Apple's own DAWs; other macOS hosts overwhelmingly take VST3 or CLAP, which
+# this pkg and the Linux tarball already carry.
+#
+# AN AUv3 SHIPS AS AN APP, which is why the payload below is a .app rather than
+# a plug-in bundle: the extension lives inside it, and macOS registers the
+# extension automatically once the app is in /Applications -- no launch, no
+# `pluginkit` call, measured 2026-08-22.
 #
 # The AU is REQUIRED, not optional. distribution.md's macOS row lists it, and a
 # pkg that silently omits half its stated payload is worse than one that fails
-# to build -- so this script exits non-zero if the component is missing rather
-# than quietly shipping a VST3-only installer. The .gmpi is not shipped to end
-# users at all (distribution.md).
+# to build -- so this script exits non-zero if the app is missing rather than
+# quietly shipping a VST3-only installer. The .gmpi is not shipped to end users
+# at all (distribution.md).
 #
 # SIGNING IS NOT DONE HERE WITHOUT CREDENTIALS, and that is deliberate rather
 # than unfinished. An unsigned, unnotarized pkg is effectively unopenable on
@@ -47,26 +55,40 @@ VERSION="${TIDE_RACK_VERSION:-0.1.0}"
 VST3_SRC="$BUILD_DIR/SynthEditSem/TIDE-Rack.vst3"
 [ -d "$VST3_SRC" ] || { echo "error: no TIDE-Rack.vst3 in $BUILD_DIR/SynthEditSem" >&2; exit 1; }
 
-AU_SRC="$BUILD_DIR/SynthEditSem/TIDE-Rack.component"
+AU_SRC="$BUILD_DIR/SynthEditSem/TIDE-Rack-AUv3.app"
 if [ ! -d "$AU_SRC" ]; then
-    echo "error: no TIDE-Rack.component in $BUILD_DIR/SynthEditSem" >&2
-    echo "       The AU is part of the shipped payload (docs/distribution.md)." >&2
-    echo "       Configure with AU in FORMATS_LIST -- SynthEditSem/CMakeLists.txt." >&2
+    echo "error: no TIDE-Rack-AUv3.app in $BUILD_DIR/SynthEditSem" >&2
+    echo "       The AUv3 is part of the shipped payload (docs/distribution.md)." >&2
+    echo "       Configure with AU3 in FORMATS_LIST -- SynthEditSem/CMakeLists.txt." >&2
     exit 1
 fi
 
-# A plist naming the wrong executable is what made this component unregistrable
-# for a day (GMPI#8, issue #271's class). It BUILDS and INSTALLS fine when it is
-# wrong and macOS simply declines it -- so check the two halves agree here,
-# where the artefact is about to be sealed into a pkg, rather than trusting the
-# build got it right.
-au_exe="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$AU_SRC/Contents/Info.plist" 2>/dev/null || true)"
-if [ ! -f "$AU_SRC/Contents/MacOS/$au_exe" ]; then
-    echo "error: the AU's CFBundleExecutable is '$au_exe' but Contents/MacOS/$au_exe is missing." >&2
-    echo "       macOS will refuse to register this component. See BACKLOG M3." >&2
+# The extension is the whole point of the app; an app that ships without it
+# installs cleanly and provides nothing, which no later check would catch.
+# Guarded rather than inlined: under `set -euo pipefail`, a `find` on a missing
+# directory fails inside the command substitution and kills the script BEFORE
+# the message below can print -- so the guard produced a silent exit 1, which is
+# the exact failure mode it exists to prevent. Measured, not theorised.
+AU_APPEX=""
+if [ -d "$AU_SRC/Contents/PlugIns" ]; then
+    AU_APPEX="$(find "$AU_SRC/Contents/PlugIns" -maxdepth 1 -name '*.appex' 2>/dev/null | head -1 || true)"
+fi
+if [ -z "$AU_APPEX" ]; then
+    echo "error: $AU_SRC contains no .appex in Contents/PlugIns." >&2
+    echo "       The AUv3 extension is what makes this app worth installing." >&2
     exit 1
 fi
-echo "==> AU executable check: CFBundleExecutable='$au_exe' matches the binary"
+
+# A plist naming an executable that is not there builds and installs fine, and
+# macOS silently declines to load it (GMPI#8/#10, issue #271's class). Check the
+# two halves agree here, where the artefact is about to be sealed into a pkg.
+au_exe="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$AU_APPEX/Contents/Info.plist" 2>/dev/null || true)"
+if [ ! -f "$AU_APPEX/Contents/MacOS/$au_exe" ]; then
+    echo "error: the appex's CFBundleExecutable is '$au_exe' but Contents/MacOS/$au_exe is missing." >&2
+    echo "       macOS will refuse to load this extension. See BACKLOG M3." >&2
+    exit 1
+fi
+echo "==> AUv3 check: appex $(basename "$AU_APPEX"), CFBundleExecutable='$au_exe' matches its binary"
 
 # Refuse to ship a single-arch binary silently: the ARM-only ruling
 # (docs/decisions.md, 2026-08-21) means this pkg will not run on an Intel Mac
@@ -81,8 +103,8 @@ esac
 rm -rf "$OUT_DIR/root" "$OUT_DIR/component.pkg"
 mkdir -p "$OUT_DIR/root/Library/Audio/Plug-Ins/VST3"
 cp -R "$VST3_SRC" "$OUT_DIR/root/Library/Audio/Plug-Ins/VST3/"
-mkdir -p "$OUT_DIR/root/Library/Audio/Plug-Ins/Components"
-cp -R "$AU_SRC" "$OUT_DIR/root/Library/Audio/Plug-Ins/Components/"
+mkdir -p "$OUT_DIR/root/Applications"
+cp -R "$AU_SRC" "$OUT_DIR/root/Applications/"
 
 # --- sign the payload, if we were given an identity ------------------------
 if [ -n "${APPLE_CERTIFICATE_SIGNING_IDENTITY:-}" ]; then
@@ -91,7 +113,7 @@ if [ -n "${APPLE_CERTIFICATE_SIGNING_IDENTITY:-}" ]; then
     # pkg is exactly the shape that passes a casual check and fails Gatekeeper.
     for bundle in \
         "$OUT_DIR/root/Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3" \
-        "$OUT_DIR/root/Library/Audio/Plug-Ins/Components/TIDE-Rack.component"
+        "$OUT_DIR/root/Applications/TIDE-Rack-AUv3.app"
     do
         codesign --force --timestamp --options runtime \
                  --sign "$APPLE_CERTIFICATE_SIGNING_IDENTITY" "$bundle"
