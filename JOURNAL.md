@@ -109,6 +109,82 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — ccache went into build.yml and not release.yml, and the numbers are in
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** Jeff asked whether the macOS build was still slow and whether a
+self-hosted runner was needed. Both halves of the answer turned out to be
+measurements I had promised and not yet taken.
+
+### The gap: I fixed CI and not releases
+
+S30 added ccache to `build.yml`. `release.yml` has **zero** ccache references —
+I wrote them as separate items and never went back. So every release paid the
+full ~60 minutes on macOS, which is the one place the wait is actually felt,
+because a person is standing there waiting on a tag.
+
+Now fixed, with the cache key prefix **deliberately matching `build.yml`'s**: a
+tag run can read caches created on the default branch, so a release starts warm
+from whatever `main` last compiled rather than from nothing.
+
+### The measurement I owed
+
+macOS `Build` step, either side of the ccache merge:
+
+```
+02:36   71.5 min    before
+02:36   60.1 min    before
+03:26    0.3 min    after
+04:21    0.2 min    after
+```
+
+**I was about to report that as "60 minutes to 15 seconds" and stopped.** The
+one hit-rate sample I pulled read **66.5% (1068 hits / 537 misses)** — and 537
+C++ compiles do not finish in twelve seconds. Correlating properly showed I had
+taken the duration from one run and the statistics from another.
+
+So what is solid is narrower than the headline: **both post-ccache macOS builds
+finished in well under a minute against 60+ before.** The exact speedup is not
+established, and both post-ccache runs were docs-and-backlog merges whose C++ was
+largely unchanged — a run that genuinely recompiles will be slower than 0.2 min.
+
+That is still decisive for the question Jeff asked. **No self-hosted runner is
+needed:** that option was sized against a 60-minute build, and the build is no
+longer 60 minutes.
+
+### A choice worth naming rather than sliding past
+
+This caches the build of a **signed, shipped artifact**. ccache keys on
+preprocessed source, compiler and flags, so a hit is a byte-identical object —
+the same assumption an incremental local build makes every day. It is a
+deliberate trade, not an oversight, and the comment at the point of use says how
+to force a cold build if it is ever in doubt.
+
+**Learned:**
+
+- **Two workflows that build the same thing need the same fixes.** I treated
+  "CI is slow" and "releases are slow" as one problem and fixed one file. The
+  release path is the one with a human waiting on it.
+- **Correlate a duration and its statistics to the same run before quoting a
+  ratio.** 66.5% hits alongside a twelve-second build is a contradiction, and the
+  contradiction was mine — two different runs. The narrower claim survives; the
+  headline number did not.
+- **Say what a cache key prefix couples.** `release.yml` sharing `build.yml`'s
+  prefix is what makes a release start warm, and it silently stops working if
+  either is changed alone.
+- **An option sized against an old measurement expires with it.** The
+  self-hosted runner was the right answer to a 60-minute build. It is not the
+  right answer to this one, and nothing about the runner changed.
+
+**Next:** the v0.1.0 rerun is in flight and will **not** benefit from this — it
+started before this branch exists. The first release that does is the next tag.
+**Notarization is still the unproven step**; nothing here touches it.
+
+**Branch/PR:** `tide/mac/S30-ccache-in-release` — TideSynth.
+
+---
+
 ## 2026-08-22 — macos — R3a: the AU goes into the pkg, before the first tag
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
