@@ -17,6 +17,16 @@
 
 #ifdef __APPLE__
 
+#include <TargetConditionals.h>
+
+// __APPLE__ IS DEFINED ON iOS TOO, and AppKit is macOS-only, so the real
+// implementation needs the narrower test. iOS gets an empty one rather than
+// being excluded from the build: SynthEditGui.cpp calls this unconditionally
+// on pointer move, and making the CALLER platform-aware would spread the
+// condition across shared code for an affordance that simply does not exist
+// on a touch screen. There is no cursor to show.
+#if TARGET_OS_OSX
+
 #import <AppKit/AppKit.h>
 
 void tideShowCrossCursor(bool show)
@@ -26,5 +36,13 @@ void tideShowCrossCursor(bool show)
     else
         [[NSCursor arrowCursor] set];
 }
+
+#else
+
+void tideShowCrossCursor(bool /*show*/)
+{
+}
+
+#endif // TARGET_OS_OSX
 
 #endif
