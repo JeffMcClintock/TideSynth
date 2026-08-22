@@ -109,6 +109,140 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — R5: the release workflow, and the credentials were already there
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** wrote `.github/workflows/release.yml` — tag `v*` → build, sign, notarize,
+publish one Release with constant-name assets and `SHA256SUMS.txt`. **Jeff must
+push it**; the fleet token carries `repo` scope only, checked again rather than
+remembered.
+
+### The credentials already existed, and nothing said so
+
+I went looking for what R5 would need Jeff to provision. Repo-level secrets are
+genuinely empty — `{"total_count":0,"secrets":[]}`, readable and zero. But the
+repo has **environments**, and `release` is fully stocked:
+
+```
+secrets    APPLE_CERT_P12_BASE64  APPLE_CERT_PASSWORD
+           APPLE_ID  APPLE_ID_PASSWORD  APPLE_TEAM_ID
+           AZURE_CLIENT_ID  AZURE_CLIENT_SECRET  AZURE_TENANT_ID
+variables  APPLE_SIGNING_IDENTITY
+           AZURE_CODESIGN_ACCOUNT  AZURE_CODESIGN_ENDPOINT  AZURE_CODESIGN_PROFILE
+```
+
+R1 recorded the *identities*; nothing recorded that they are already wired into
+a GitHub environment. I nearly wrote a workflow that asked Jeff to add them.
+
+**And it carries `required_reviewers: JeffMcClintock`.** Any job naming that
+environment pauses for approval before a secret is decrypted. That is a stronger
+guarantee than this row's own "never on PRs" clause and it cost nothing to
+adopt — so the build job names the environment, and the eight signing secrets
+are unreachable without a human.
+
+### One credential was missing — and Jeff provisioned it the same session
+
+`productbuild --sign` needs a **Developer ID *Installer*** certificate. That is a
+different certificate from the *Application* one that signs bundles, and
+`package-macos.sh:95` reads `APPLE_INSTALLER_SIGNING_IDENTITY` — which does not
+exist in the environment.
+
+Without it the pkg is payload-signed but **not installer-signed**, which
+`notarytool` refuses to notarize and macOS refuses to install. The workflow fails
+the job with a named error rather than publishing that quietly.
+
+**It exists now.** Jeff asked where to find it; `security find-identity -v` on the
+mac box has exactly one — `Developer ID Installer: SynthEdit Limited
+(36SNPLRFK3)`, valid to 2027-02-01 — and the `release` environment already
+carried a matching `APPLE_INSTALLER_SIGNING_IDENTITY` by the time I looked again.
+**Note the policy flag matters:** `security find-identity -v -p codesigning` does
+NOT list Installer certificates, because signing a `.pkg` is a different policy
+from signing code. Searching with the codesigning filter would have concluded the
+cert was absent when it was sitting right there.
+
+**And a hazard the same command turned up:** the box holds **two valid,
+identically-named** `Developer ID Application: SynthEdit Limited (36SNPLRFK3)`
+certificates — `E112A740…` from 2026-03-26 and `CEFB950D…` from 2026-08-08.
+`codesign` matches on the common name, so if `APPLE_CERT_P12_BASE64` carries
+both, signing fails with *"ambiguous (matches N identities)"*. I cannot inspect
+the P12, so this is a **named risk, not a diagnosis** — documented at the point
+of use, with the fix (use the SHA-1 hash; a hash cannot be ambiguous).
+
+### A design error I made and caught before shipping it
+
+My first draft signed the Windows artifacts *after* packaging, with one
+`files-folder: dist, filter: exe` step. That is wrong, and wrong in the way that
+looks right: the packager **copies** the built DLL into the bundle, the zip and
+the installer, so signing afterwards leaves three unsigned copies inside signed
+containers. `distribution.md` says the installer *and the .vst3 inside it*.
+
+Windows now signs in two passes — DLL, then package, then installer — with a
+`Get-AuthenticodeSignature` check that the installer's signature is `Valid`
+rather than merely present.
+
+### What could be verified, and what could not
+
+A release workflow cannot be run without cutting a real tag, so I asserted its
+structure instead of its behaviour. Ten checks, all passing:
+
+```
+trigger is push-tags only            top-level permissions are read-only
+no pull_request / _target trigger    build gated on the release environment
+build has no write permission        publish is the only writer
+publish touches no signing secrets   matrix does not fail-fast
+windows: sign -> package -> sign     every asset verified before upload
+```
+
+Every third-party action was checked against its registry rather than guessed —
+and that caught one: I wrote `azure/trusted-signing-action@v0`, which **does not
+exist**. It is at v2. I also read its `action.yml` to confirm the eleven input
+names I used are real.
+
+**Not verified, and it cannot be:** that any of this runs. No tag has been cut,
+nothing has been notarized, and Apple's verdict on a real submission is the open
+question **R6** depends on.
+
+**Learned:**
+
+- **Check the ENVIRONMENTS before concluding a repo has no secrets.**
+  `actions/secrets` returning `total_count: 0` is not the whole picture;
+  `actions/environments` and then `environments/<name>/secrets` is. I was one
+  API call from writing a workflow that asked for credentials that already
+  existed.
+- **A protected environment is a better gate than a trigger condition.**
+  "Only runs on tags" is a property of the workflow file, which anyone who can
+  push a tag inherits. `required_reviewers` is a property of the credential, and
+  it holds even if the trigger is wrong.
+- **Sign before you package, not after.** Any packager that copies a payload
+  into a container makes post-hoc signing produce something that passes a casual
+  signature check and ships unsigned code inside.
+- **Two Apple certificates, not one.** *Developer ID Application* signs bundles;
+  *Developer ID Installer* signs `.pkg`. One variable named `APPLE_SIGNING_IDENTITY`
+  reads like it covers both and does not.
+- **`security find-identity -v -p codesigning` hides Installer certificates.**
+  Signing a `.pkg` is a different policy from signing code, so the codesigning
+  filter omits exactly the cert you are looking for. Use bare
+  `security find-identity -v` before concluding a certificate is missing.
+- **Identically-named certificates are a live hazard, not a tidiness issue.**
+  Two valid certs sharing a common name make `codesign -s "<name>"` ambiguous.
+  The SHA-1 hash is accepted wherever a name is, and cannot collide.
+- **Look up every action version.** `@v0` was a plausible-looking guess for a
+  Microsoft action and it does not exist. The registry answers in one call, and
+  a wrong version is a failure that only appears at release time.
+- **When behaviour cannot be tested, assert structure.** Ten parsed-YAML
+  assertions are not a substitute for running it, but they are the difference
+  between "it looks right" and "the secrets are provably behind a gate".
+
+**Next:** **Jeff pushes the branch**, then adds a **Developer ID Installer**
+certificate plus an `APPLE_INSTALLER_SIGNING_IDENTITY` variable to the `release`
+environment — until then the mac leg fails by design. **R6** wants a real tag;
+nothing here has been executed. **R3a** is still the next mac item.
+
+**Branch/PR:** `tide/mac/R5-release-workflow` — authored, unpushed.
+
+---
+
 ## 2026-08-22 — macos — S30's two fixes, and a design that could not have worked
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing

@@ -39,6 +39,17 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — R5: the release workflow, and the credentials were already there**
+
+- Check the ENVIRONMENTS before concluding a repo has no secrets.
+- A protected environment is a better gate than a trigger condition.
+- Sign before you package, not after.
+- Two Apple certificates, not one.
+- `security find-identity -v -p codesigning` hides Installer certificates.
+- Identically-named certificates are a live hazard, not a tidiness issue.
+- Look up every action version.
+- When behaviour cannot be tested, assert structure.
+
 **macos — S30's two fixes, and a design that could not have worked**
 
 - `matrix` is not available to job-level `concurrency`
