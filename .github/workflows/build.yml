@@ -52,9 +52,30 @@ on:
 # `cancelled`, not `failure`, so `failure()` is false and the issue never gets
 # filed. That would silently kill the mechanism A5 exists to provide, and it
 # would look exactly like the 403 did: nothing in the feed, nothing to see.
+#
+# S30, 2026-08-22: `cancel-in-progress` is now FALSE, and the reason is a
+# measurement rather than a preference.
+#
+# macOS builds take ~60 minutes against linux 5 and windows 10 -- not because it
+# does more (the same run compiled 495 objects on macOS and 496 on Windows) but
+# because the runner is ~5x slower at the same work. A 60-minute job offers a
+# 60-minute window for a newer push to kill it, and macOS was cancelled 17 of 28
+# jobs (61%) against 14 of 56 (25%) for the other two. The practical effect was
+# never knowing whether macOS passed.
+#
+# Cancelling is not free either way -- it was also destroying a quarter of the
+# windows and linux runs, which cost 5-10 minutes each to redo.
+#
+# WHAT THIS DOES NOT DO IS PILE UP RUNS. GitHub keeps at most one PENDING run per
+# group: a third arrival supersedes the second, so the group holds one running
+# and one queued and the newest push always gets its turn. The cost is latency on
+# a rapidly-pushed branch -- macOS results arrive later -- not an unbounded queue.
+#
+# Revisit if the ccache step below brings macOS near the other platforms; at
+# 5-10 minutes a side, cancelling would be cheap again.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # Is there anything to build yet? Pre-C7 there is not, and the three matrix
@@ -201,13 +222,75 @@ jobs:
             libfontconfig1-dev libasound2-dev \
             libxext-dev libharfbuzz-dev libdbus-1-dev libpng-dev
 
+      # --- ccache (S30) -----------------------------------------------------
+      #
+      # macOS spends ~54 minutes of a ~60-minute job compiling, and 56% of those
+      # compiles come from FETCHED DEPENDENCIES -- syntheditlib-src, gmpi_ui-src
+      # and friends -- which change far less often than TIDE's own code. Those
+      # are the objects a compiler cache is for.
+      #
+      # macOS and Linux only. ccache's MSVC support is not in the same state, and
+      # Windows builds in 10 minutes, so it is not where the problem is.
+      #
+      # HOW MUCH THIS ACTUALLY SAVES IS NOT YET KNOWN. 56% is a share of compile
+      # COUNT, not of wall-clock, and dependency objects are not necessarily the
+      # slow ones. That is why the summary step below prints `ccache -s`: the
+      # next few runs measure the answer instead of anyone estimating it.
+      - name: Install ccache
+        if: matrix.name != 'windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.name }}" = "macos" ]; then
+            brew list ccache >/dev/null 2>&1 || brew install ccache
+          else
+            sudo apt-get install -y ccache
+          fi
+          # One cache path on both platforms, so the cache key below does not
+          # have to branch and the restore cannot silently miss.
+          ccache --set-config cache_dir="$HOME/.ccache"
+          ccache --set-config max_size=2G
+          # Dependency sources are fetched fresh each run into a path containing
+          # the build dir, so absolute paths differ between runs and would defeat
+          # every hash. Hashing content instead of paths is what makes this work.
+          ccache --set-config hash_dir=false
+          ccache --zero-stats
+
+      # restore-keys matters more than the exact key here: TIDE's own sources
+      # change every run, so an exact-key hit is rare and a PREFIX hit -- last
+      # run's cache, warm for the dependencies -- is the normal case.
+      - name: Restore ccache
+        if: matrix.name != 'windows'
+        uses: actions/cache@v6
+        with:
+          path: ~/.ccache
+          key: ccache-${{ matrix.name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ matrix.name }}-
+
       - name: Configure
         id: configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra=""
+          if [ "${{ matrix.name }}" != "windows" ]; then
+            # OBJCXX as well as C/CXX: the mac build compiles .mm sources, and
+            # leaving them uncached would exempt exactly the Cocoa layer.
+            extra="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_OBJCXX_COMPILER_LAUNCHER=ccache"
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $extra
 
       - name: Build
         id: build
         run: cmake --build build --config Release --parallel
+
+      # Always, including on a failed build -- a cache that is not being hit is
+      # the thing worth seeing, and a red run is when you most want to know.
+      - name: ccache statistics
+        if: always() && matrix.name != 'windows'
+        shell: bash
+        run: ccache -s
 
       # A failing build on mac or linux is only useful if the machine that owns
       # that platform finds out about it. See docs/agent-setup.md, which calls

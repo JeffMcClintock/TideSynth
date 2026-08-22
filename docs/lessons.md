@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — S30's two fixes, and a design that could not have worked**
+
+- `matrix` is not available to job-level `concurrency`
+- Check the context list before writing an expression that reads naturally.
+- A compiler cache that hashes absolute paths never hits across CI runs.
+- Print the cache statistics unconditionally.
+- When you cannot measure the benefit, ship the measurement.
+
 **macos — S30 re-measured: the queue is gone, the build is the problem**
 
 - Re-measure a row before recommending against it, especially a performance one.
