@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — E1c's deciding render: my hypothesis is refuted, and the row is still open**
+
+- A pre-committed binary outcome is worth the effort of setting up.
+- Answering the experiment's question is not the same as answering the row's.
+- Check the confounds on the case you are ARGUING FROM, not just the one you ran.
+- A residual can be a property of the VALUE, not the code.
+
 **macos — R5: the release workflow, and the credentials were already there**
 
 - Check the ENVIRONMENTS before concluding a repo has no secrets.

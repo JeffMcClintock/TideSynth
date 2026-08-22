@@ -109,6 +109,95 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — E1c's deciding render: my hypothesis is refuted, and the row is still open
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff asking what is next
+
+**Did:** ran the macOS half of the experiment the linux box built. It was
+waiting on this platform specifically, `SynthEditCL` was already built here, and
+the outcome was **pre-committed** on the row so it could not be rationalised
+afterwards.
+
+### The answer, and it is not the one I predicted
+
+```
+osc_naive_pitched   null=-73.5 dBFS  peakdiff=-68.7   (pitch PINNED to 5 V)
+osc_naive_sine      null=-73.5 dBFS  peakdiff=-68.7   (pitch UNDRIVEN)
+```
+
+Identical. **Driving the pitch input changes nothing.**
+
+By the row's own pre-commitment that is the *"module is the variable after all"*
+branch. **The undriven-pitch-input hypothesis was mine**, argued in this journal
+two entries ago from the fact that `osc_naive_sine` was the only case with an
+unconnected pitch pin. It is dead, and it took one render to kill — which is
+exactly what the linux box built the case for.
+
+Worth noting the design that made it decisive: both cases render at *exactly*
+440.0 Hz, verified by zero-crossing count before either was trusted. Had the
+frequencies differed, a different phase increment would have confounded the
+residual and the experiment would have proved nothing.
+
+### But the row is NOT closed, and saying it was would be the real error
+
+`voice_midi_note` uses the **same** `SE Oscillator (naive)` and lands at
+**−123.1 dBFS / −90.3 peakdiff (1 LSB)** against these two at −73.5 / −68.7
+(12 LSB). If the module were the variable, all three would agree. They do not.
+
+So I checked the two obvious confounds rather than reporting the binary and
+stopping:
+
+- **level** — `voice_midi_note` peaks at **−6.6 dBFS** against the oscillators'
+  −6.0. Its smaller residual is not a quieter signal.
+- **RMS averaging over an enveloped render** — its **peakdiff** is 1 LSB, so the
+  worst single sample is genuinely better, not merely averaged down by a decay.
+
+Both dead. What actually differs is the **pitch value**: `voice_midi_note` plays
+MIDI note 64 (≈329.63 Hz) while both `osc_naive_*` cases sit at 440.0 Hz. And
+E1a already tied this residual to *"a frequency offset of 0.15 ppm = ~2.5 ULP at
+single precision"* — a property of **the specific pitch value's phase
+increment**, not of the module and not of whether the input is driven.
+
+The next single-variable case writes itself: the naive oscillator with pitch
+pinned to note 64's value instead of 5 V.
+
+### What I did not change
+
+**The gates.** The new case's own `tolerance_reason` says to re-tighten *or leave
+alone on the evidence*, and the evidence says leave them: at −73.5 dBFS it is
+genuinely drift-class. **`prefab_oscillator` and `prefab_filter` are untouched
+and unresolved** — they use the CORE `Oscillator` at 5 V and measure −131.1 /
+−121.4, so they remain rounding-class cases carrying drift-class gates. That is
+the part of E1c with a real cost, and this run did not address it.
+
+**Learned:**
+
+- **A pre-committed binary outcome is worth the effort of setting up.** Writing
+  both interpretations down *before* the render meant the −73.5 could not be
+  read as anything other than "my hypothesis is wrong". I would not trust myself
+  to be that clean about it afterwards.
+- **Answering the experiment's question is not the same as answering the row's.**
+  The case settled "is it the driven input" definitively and left "why does
+  `voice_midi_note` differ" exactly where it was. Reporting the binary and
+  closing would have buried a contradiction the same data contains.
+- **Check the confounds on the case you are ARGUING FROM, not just the one you
+  ran.** `voice_midi_note` was my counter-example, so its level and its peakdiff
+  were the things that had to be eliminated — two renders, and both candidate
+  explanations died.
+- **A residual can be a property of the VALUE, not the code.** 440 Hz and 329.63
+  Hz have different phase increments and therefore different rounding behaviour
+  in single precision. "Which module" and "which input" were both the wrong axis.
+
+**Next:** **one more case** — naive oscillator, pitch pinned to MIDI note 64's
+value — settles whether the discriminator is the pitch value. It can run on
+either platform against a reference seeded on the other. **E1c stays TODO**:
+`prefab_oscillator` and `prefab_filter` still carry drift-class gates for a
+mechanism their scripts do not exhibit, and that is the row's actual cost.
+
+**Branch/PR:** `tide/mac/E1c-mac-half` — TideSynth.
+
+---
+
 ## 2026-08-22 — macos — R5: the release workflow, and the credentials were already there
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
