@@ -39,6 +39,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — STEP 4, and the hour-long feedback loop that caused two of today's failures**
+
+- Put the cheap failure first.
+- A stale row is found by sweeps, not by people.
+- The question asked is not always the question that matters.
+
 **macos — S40 ruled: AUv3 only, and the install story is a copy**
 
 - Measure the install story before costing a format change.
