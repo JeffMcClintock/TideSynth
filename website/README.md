@@ -2,10 +2,13 @@
 
 The tidesynth.com holding page. BACKLOG **W1**.
 
-One file, `index.html`. No build step, no dependencies, no JavaScript, and no
-external requests of any kind — no fonts, no CDN, no analytics. W1 says "no
-trackers"; having nothing to load is the cheapest way to keep that true and to
-keep it verifiable by reading one file.
+`index.html`, plus the two encodes of the hero image it serves. No build step,
+no dependencies, no JavaScript, and no external requests of any kind — no
+fonts, no CDN, no analytics. W1 says "no trackers"; having nothing third-party
+to load is the cheapest way to keep that true and to keep it verifiable by
+reading one file. The images do not weaken that — they are same-origin files
+Pages serves next to the page, so a loaded page makes exactly two requests and
+both go to tidesynth.com.
 
 To preview it, open `index.html` in a browser. There is nothing to install.
 
@@ -32,6 +35,74 @@ Two things not to "fix":
   `SynthEditLib`. See BACKLOG **N1**.
 - **There is no bare "TIDE" left in the visible copy**, deliberately. It is
   ambiguous now that it prefixes both names. Write "TIDE Rack" or "TIDE Synth".
+
+## The hero image — done
+
+**Live since 2026-08-22.** `hero.avif` (19 KB), with `hero.jpg` (71 KB) as the
+fallback, encoded from `../docs/images/hero-master.png`. The masters stay in
+`docs/`; only the encodes ship.
+
+**What it is, and why it earns the space.** The wordmark reads downwards — T,
+i, D, E — standing over water, and its reflection reads **EDiT**. The two
+halves share the word `synth` at the waterline, so the picture says *TiDE
+synth* and *synth EDiT* at once. That is the same relationship the naming
+section above needs three paragraphs to establish, and the picture lands it
+before anyone reads a word.
+
+**The artwork is shaped for the slot, and that is why it fits.** The original
+render is 1024×1536 — a 2:3 portrait, far too tall to sit above a paragraph of
+text without shoving the page off the screen. What ships is 1024×1061, and it
+was **not uniformly squashed**: measured against the original, the top 795 rows
+are byte-identical, and only the reflection *below the waterline* is
+compressed, to 36% of its height. The wordmark is untouched, and the
+foreshortening falls on the one element where it reads as correct rather than
+as distortion — a reflection on a water plane receding from the viewer does
+exactly that. Both files are kept: `hero-master.png` is what ships,
+`hero-original-tall.png` is the 2:3 render it came from.
+
+**The band it sits in** takes the artwork's own shape (`aspect-ratio:
+1024/1061`) and is capped at `80vh`. Measured in a browser at 700×1000,
+390×844 and 812×375, the artwork fills it exactly in all three — zero
+letterbox in either axis, painted ratio 0.9651 against a source ratio of
+0.9651. The `80vh` cap is there for the short, wide viewport — a phone held
+sideways — where rather than let a full-width picture shove the page below the
+fold, the aspect ratio wins and the band shrinks *proportionally*, to 290×300
+at 812×375. So the picture is never letterboxed and never distorted, which
+makes `object-fit: contain` and the `#00030a` background belt and braces rather
+than load-bearing. Keep them anyway: `#00030a` is the artwork's own corner
+colour, measured rather than guessed (the four corners run `rgb(0,3,7)` to
+`rgb(1,3,9)`), so if some future viewport does make the band show, its edges
+dissolve into the picture instead of framing it.
+
+**`object-fit: cover` would destroy it.** cover crops, and there is nothing
+here to crop: the wordmark runs from the top of the T down through the last
+letter of its own reflection. Lose either end and the idea is gone.
+
+**Two things measured rather than assumed:**
+
+- **10-bit AVIF, not 8-bit.** Most of this image sits below `rgb(0,10,20)`,
+  where 8-bit AVIF has too few levels to model the gradient and visibly
+  blotches in the sky. Boosting both encodes 4× against the master shows it
+  plainly. The recipe is `libaom, crf 20, yuv444p10le`; re-encode from the PNG
+  master, never from a previous encode.
+- **The page still makes zero external requests.** Loaded, it fetches
+  `index.html` and `hero.avif` and nothing else — `hero.jpg` is only fetched by
+  browsers without AVIF, which since Edge 121 is a small remainder. Never move
+  either file to a CDN or an image host; that would trade the one property this
+  page is built around for a few kilobytes.
+
+**The rejected alternative**, so it is not re-proposed: a second render of the
+same idea set in a neon Tokyo skyline, kept as `hero-alt-tokyo.png`. It was
+dropped because the reflection — the entire point — competes with the
+surrounding neon and stops reading at a glance, and because 415 of its 1536
+rows are empty black.
+
+**One judgement call, flagged rather than hidden.** The artwork carries the
+*organisation's* name, and this page leads with the *product*. It is placed
+above the `h1` anyway, so a visitor gets org mark → `TIDE Rack` → the sentence
+tying the two together, which answers "why did tidesynth.com hand me something
+called TIDE Rack" faster than the prose did alone. If that reads wrong, move
+the block below the tagline; nothing else depends on its position.
 
 ## The donation link — done
 

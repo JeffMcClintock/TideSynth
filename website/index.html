@@ -69,6 +69,23 @@
 
   main { max-width: 34rem; margin: 0 auto; }
 
+  /* The hero. The reasoning is beside the markup, further down. */
+  .hero {
+    display: block;
+    aspect-ratio: 1024 / 1061;
+    max-height: 80vh;
+    margin: 0 0 2.5rem;
+    background: #00030a;
+    border-radius: .5rem;
+    overflow: hidden;
+  }
+  .hero img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
   h1 {
     font-size: clamp(2.75rem, 11vw, 4rem);
     line-height: 1;
@@ -137,6 +154,69 @@
 
 <body>
 <main>
+
+  <!-- THE HERO -- added 2026-08-22.
+
+       THE ARTWORK IS ALREADY SHAPED FOR THIS SLOT, and that is why it fits.
+       The original render is 1024x1536 -- a 2:3 portrait, far too tall to sit
+       above a paragraph of text without shoving the page off the screen. What
+       ships is 1024x1061, and it was NOT uniformly squashed: measured against
+       the original, the top 795 rows are byte-identical, and only the
+       reflection BELOW the waterline is compressed, to 36% of its height. So
+       the wordmark itself is untouched, and the foreshortening falls on the
+       one element where it reads as correct rather than as distortion -- a
+       reflection on a water plane receding from the viewer does exactly that.
+       Master: docs/images/hero-master.png. Re-encode from that, never from a
+       previous encode; the taller original is kept beside it as
+       hero-original-tall.png.
+
+       THE BAND is what the picture sits in: aspect-ratio 1024/1061, so it
+       takes the artwork's own shape, capped at 80vh. Measured in a browser at
+       700x1000, 390x844 and 812x375, the artwork fills it exactly in all
+       three -- zero letterbox in either axis, painted ratio 0.9651 against a
+       source ratio of 0.9651. The 80vh cap is there for the short, wide
+       viewport (a phone held sideways): rather than let a full-width picture
+       shove the whole page below the fold, the aspect-ratio wins and the band
+       shrinks PROPORTIONALLY, to 290x300 at 812x375. So the picture is never
+       letterboxed and never distorted, which makes object-fit: contain and the
+       #00030a background belt and braces rather than load-bearing. Keep them
+       anyway: #00030a is the artwork's own corner colour, measured rather than
+       guessed (the four corners run rgb(0,3,7) to rgb(1,3,9)), so if some
+       future viewport does make the band show, its edges dissolve into the
+       picture instead of framing it.
+
+       Do NOT swap object-fit: contain for cover. cover crops, and there is
+       nothing here to crop: the wordmark runs from the top of the T down
+       through the last letter of its own reflection, which spells EDiT. Lose
+       either end and the idea is gone.
+
+       PLACEMENT ABOVE THE h1 is a judgement call, flagged rather than hidden:
+       the artwork carries the ORGANISATION's name (TIDE Synth) and README.md
+       says this page leads with the PRODUCT. It still does -- the h1 directly
+       below is TIDE Rack. The sequence a visitor gets is org mark, product
+       name, then the sentence tying the two together, which answers "why did
+       tidesynth.com hand me something called TIDE Rack" faster than the prose
+       did alone. If it reads wrong, move this block below the tagline; nothing
+       else depends on the position.
+
+       ZERO EXTERNAL REQUESTS STILL HOLDS, and must. These are same-origin
+       files served by Pages next to the page; nothing third-party loads, so
+       the footer's promise is unchanged. Never move them to a CDN or an image
+       host -- that would trade the one property this page is built around for
+       a few kilobytes.
+
+       ENCODING, recorded so it is not re-derived. hero.avif is 10-bit AVIF
+       (libaom, crf 20, yuv444p10le), 19 KB. The 10 bits are not a flourish:
+       most of this image sits below rgb(0,10,20), and the 8-bit encode of the
+       same source blotches visibly there -- too few levels to model a near-
+       black gradient. Checked by boosting both 4x against the master. hero.jpg
+       is the fallback for browsers without AVIF (Edge only got it in 121), at
+       71 KB, and only those browsers ever fetch it. -->
+  <picture class="hero">
+    <source srcset="hero.avif" type="image/avif">
+    <img src="hero.jpg" width="1024" height="1061" decoding="async"
+         alt="TiDE, in neon, standing over dark water; the reflection beneath it reads EDiT.">
+  </picture>
 
   <h1>TIDE Rack</h1>
 

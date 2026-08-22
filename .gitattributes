@@ -16,3 +16,5 @@
 
 # Binaries: never convert, never diff as text.
 *.png binary
+*.jpg binary
+*.avif binary
