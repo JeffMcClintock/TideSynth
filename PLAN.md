@@ -26,6 +26,16 @@ first.
 **The domain stays `tidesynth.com`** — it is already paid for, and it now reads
 as the organisation's site rather than the product's, which is consistent.
 
+**Spelling — amended 2026-08-22 by Jeff: the name is set `TiDE`, with a
+lower-case `i`, on purpose.** *"lets note that we spell TIDE 'TiDE' (lower-case
+'i') make it a bit quirky on purpose."* This is orthography and nothing else —
+the product is TiDE Rack, the organisation is TiDE Synth, and **N1 is not
+reopened**. It binds *prose*, anywhere the name is written out. It does **not**
+bind identifiers: the `TIDE_Rack` targets and artifacts, the `TideSynth` repo,
+the `TideRack` Ko-fi handle. Only the website's visible copy was converted on
+the day, so both spellings will be in the tree for a long time and that is
+intended. Ruling and scope: [docs/decisions.md](docs/decisions.md).
+
 This renames the thing this document has called "TIDE Synth" throughout.
 Everything below still describes the product, which is now TIDE Rack. Enforcement
 — the rename across docs, binaries, targets and release assets — is BACKLOG

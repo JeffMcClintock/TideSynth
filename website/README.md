@@ -14,14 +14,14 @@ To preview it, open `index.html` in a browser. There is nothing to install.
 
 ## Naming — read before editing copy
 
-Per [PLAN.md](../PLAN.md), decided 2026-08-08: the **product** is **TIDE Rack**;
-the **organisation** is **TIDE Synth**, which may ship more than one plugin.
+Per [PLAN.md](../PLAN.md), decided 2026-08-08: the **product** is **TiDE Rack**;
+the **organisation** is **TiDE Synth**, which may ship more than one plugin.
 `tidesynth.com` is the organisation's address and is not changing.
 
 So the page **leads with the product** — that is what a visitor came for — and
-states the relationship exactly once, early: *"TIDE Rack is the first plugin
-from TIDE Synth — hence the address."* A reader who typed `tidesynth.com` and
-landed on something called TIDE Rack needs that resolved in the first screen,
+states the relationship exactly once, early: *"TiDE Rack is the first plugin
+from TiDE Synth — hence the address."* A reader who typed `tidesynth.com` and
+landed on something called TiDE Rack needs that resolved in the first screen,
 not in a footer.
 
 If a second plugin ever ships, this page becomes a list and the organisation
@@ -33,8 +33,17 @@ Two things not to "fix":
 - **The repo links say `TideSynth` and should.** The repository is the
   organisation's and keeps its name — the same answer the carve-out gave for
   `SynthEditLib`. See BACKLOG **N1**.
-- **There is no bare "TIDE" left in the visible copy**, deliberately. It is
-  ambiguous now that it prefixes both names. Write "TIDE Rack" or "TIDE Synth".
+- **There is no bare "TiDE" left in the visible copy**, deliberately. It is
+  ambiguous now that it prefixes both names. Write "TiDE Rack" or "TiDE Synth".
+- **The lower-case `i` is not a typo — do not "correct" it to `TIDE`.** Decided
+  2026-08-22: the name is set `TiDE`, on purpose, to be a little quirky. It is
+  orthography only and does not reopen **N1**; the names themselves are
+  unchanged. It binds prose, not identifiers — `TIDE_Rack.vst3`, the
+  `TideSynth` repo and the `TideRack` Ko-fi handle all keep their own spelling,
+  as do verbatim quotations of anything written before that date. This page's
+  copy was converted the day it was ruled; most of the rest of the tree was
+  not, so all-caps `TIDE` elsewhere is expected rather than stale. Ruling and
+  scope: [../docs/decisions.md](../docs/decisions.md).
 
 ## The hero image — done
 
@@ -99,9 +108,9 @@ rows are empty black.
 
 **One judgement call, flagged rather than hidden.** The artwork carries the
 *organisation's* name, and this page leads with the *product*. It is placed
-above the `h1` anyway, so a visitor gets org mark → `TIDE Rack` → the sentence
+above the `h1` anyway, so a visitor gets org mark → `TiDE Rack` → the sentence
 tying the two together, which answers "why did tidesynth.com hand me something
-called TIDE Rack" faster than the prose did alone. If that reads wrong, move
+called TiDE Rack" faster than the prose did alone. If that reads wrong, move
 the block below the tagline; nothing else depends on its position.
 
 ## The donation link — done
@@ -153,22 +162,24 @@ The in-plugin side is **not** this — that is BACKLOG **D1**, design-note only.
 
 ## The SynthEdit Ltd credit — done
 
-**Live in the footer: "TIDE Synth — by SynthEdit Ltd"**, linking to
+**Live in the footer: "TiDE Synth — by SynthEdit Ltd"**, linking to
 <https://www.synthedit.com/>. BACKLOG **D2**, implementing the **R1(a)** ruling
 of 2026-08-13.
 
-**Why it exists**, so it is not read as marketing: TIDE ships **signed under the
+**Why it exists**, so it is not read as marketing: TiDE ships **signed under the
 existing `SynthEdit Limited` identity**, because a second certificate profile is
 not affordable. A user therefore meets that company name in a Gatekeeper or UAC
 prompt whether or not this page mentions it — and an unexpected company name in
 an OS security dialog is a reason to cancel an install. The credit's job is that
-they meet it *here first*, on TIDE's own terms.
+they meet it *here first*, on TiDE's own terms.
 
 Three things not to "fix":
 
-- **The wording is R1(a)'s, verbatim, and names the *organisation*.** Not "TIDE
+- **The wording is R1(a)'s and names the *organisation*.** R1(a) wrote it "TIDE
+  Synth" in August 2026, before the spelling was settled; the 2026-08-22 ruling
+  restyled the four letters and changed not one word of the line. Not "TiDE
   Rack by SynthEdit Ltd" — that drops the middle term this whole site exists to
-  explain (TIDE Rack is a product of TIDE Synth; TIDE Synth is SynthEdit Ltd's).
+  explain (TiDE Rack is a product of TiDE Synth; TiDE Synth is SynthEdit Ltd's).
   See the naming section above.
 - **Footer, not masthead.** R1(a) says "placed subtly". A banner would be
   advertising; a footer line is provenance.
@@ -180,7 +191,7 @@ The in-plugin half of D2 is a placement spec only, not built:
 
 ## The "open source" wording
 
-The page says TIDE is open source under the ISC licence. That became true on
+The page says TiDE is open source under the ISC licence. That became true on
 2026-08-07, when the repo went public and **L1** was resolved (ISC, matching
 GMPI and gmpi_ui) with LICENSE files landed in both `TideSynth` and
 `SynthEditLib`. Before that day the phrase would have been false — public with
