@@ -109,6 +109,92 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — S30's two fixes, and a design that could not have worked
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** the two changes Jeff picked — stop cancelling macOS, and cache the
+build. Both in `.github/workflows/build.yml`, so **Jeff pushes**.
+
+### The design I tried first, and why it is impossible
+
+The obvious fix is per-platform cancellation: keep cancelling the fast
+platforms, exempt the slow one.
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.name }}
+  cancel-in-progress: ${{ matrix.name != 'macos' }}
+```
+
+**Job-level `concurrency` may only use the `github`, `inputs` and `vars`
+contexts. `matrix` is not among them.** I checked GitHub's workflow-syntax
+reference rather than trusting my recollection, and it is explicit. That YAML
+would have parsed, and then behaved in some way I had not designed.
+
+So the change is the blunt one: `cancel-in-progress: false` for everything.
+Which turns out to be defensible on its own numbers — cancelling was destroying
+**25% of windows and linux runs too**, each costing 5–10 minutes to redo.
+
+**And it does not pile up runs**, which was my worry: GitHub keeps at most **one
+pending** run per group, a third arrival superseding the second. So a group holds
+one running plus one queued, and the newest push always gets its turn. The cost
+is latency on a rapidly-pushed branch, not an unbounded queue.
+
+### ccache, and the two settings that are load-bearing
+
+`hash_dir=false`. Dependency sources are re-fetched each run into a path
+containing the build directory, so absolute paths differ between runs and would
+defeat every hash. Hashing content instead of paths is what makes a cross-run hit
+possible **at all** — without it the cache would be installed, populated, and
+never hit, which looks like "ccache does not help here".
+
+`CMAKE_OBJCXX_COMPILER_LAUNCHER` alongside C and CXX. The mac build compiles
+`.mm` sources; leaving OBJCXX unset would exempt exactly the Cocoa layer — the
+mac-specific half of a mac-specific problem.
+
+And `restore-keys` matters more than the exact key: TIDE's own sources change
+every run, so an exact-key hit is rare and the normal case is a **prefix** hit
+that is warm for the dependencies.
+
+### I still have not measured the payoff, and said so in the workflow
+
+The 56% figure is a share of compile **count**, not wall-clock, and dependency
+objects are not necessarily the slow ones. Rather than quote it as a saving, the
+workflow prints `ccache -s` on **every** run including failed ones — a cache that
+is not being hit is the thing worth seeing, and a red run is when you most want
+to know. The next few runs measure the answer.
+
+**Learned:**
+
+- **`matrix` is not available to job-level `concurrency`** — only `github`,
+  `inputs`, `vars`. Per-platform cancellation inside a matrix is not expressible;
+  it needs separate jobs or a blunt workflow-level setting.
+- **Check the context list before writing an expression that reads naturally.**
+  `${{ matrix.name != 'macos' }}` looks obviously fine and is not, and the
+  failure would have been silent rather than a parse error.
+- **A compiler cache that hashes absolute paths never hits across CI runs.**
+  `hash_dir=false` is the difference between a working cache and one that is
+  populated and useless — and the useless version looks like evidence that
+  caching does not help.
+- **Print the cache statistics unconditionally.** `if: always()` on `ccache -s`
+  means a failed build still tells you whether the cache is working, which is
+  exactly when the question comes up.
+- **When you cannot measure the benefit, ship the measurement.** Saying "56% of
+  compiles" as though it were "56% faster" would have been a guess wearing a
+  number's clothes.
+
+**Next:** **Jeff pushes the branch.** Then the first two or three runs answer
+what ccache is actually worth, and **the concurrency choice should be revisited**
+— if ccache brings macOS near 5–10 minutes, cancelling becomes cheap again and
+the latency cost of not cancelling stops being worth paying.
+
+**Branch/PR:** `tide/mac/S30-concurrency-and-ccache` — authored, unpushed.
+
+---
+
+---
+
 ## 2026-08-22 — macos — S30 re-measured: the queue is gone, the build is the problem
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
