@@ -187,7 +187,11 @@ gmpi_plugin(
 
 	  SynthEdit.cpp
 	  SynthEditGui.cpp
-	  $<$<PLATFORM_ID:Darwin>:${CMAKE_CURRENT_SOURCE_DIR}/TideCursorMac.mm>  # S24 cross cursor
+	  $<$<PLATFORM_ID:Darwin,iOS>:${CMAKE_CURRENT_SOURCE_DIR}/TideCursorMac.mm>  # S24 cross cursor;
+	  # iOS TOO, and not because iOS has a cursor -- it does not. PLATFORM_ID is
+	  # "iOS" there, not "Darwin", so this file was simply not compiled and
+	  # SynthEditGui.cpp failed to link against tideShowCrossCursor. The file
+	  # itself supplies an empty implementation on iOS; see TideCursorMac.mm.
 	  SynthEditController.cpp
 	  TideApp.h
 	  TideApp.cpp

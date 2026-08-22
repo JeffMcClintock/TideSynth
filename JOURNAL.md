@@ -8,6 +8,80 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-22 — macos — M2: iOS builds. Four defects, three of them one class (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Interactive session at Jeff's direction, so the GATED SynthEditLib half was in
+scope. iOS went from a hard configure failure to a clean rc=0 build producing a
+signed app and appex. It does NOT install yet; that is measured and scoped below.
+
+**THREE OF THE FOUR ARE THE SAME MISTAKE: `APPLE` MEANS macOS TO THE AUTHOR AND
+BOTH PLATFORMS TO THE COMPILER.**
+
+1. `SynthEditLib/CMakeLists.txt`, `IF(APPLE AND SE_GRAPHICS_SUPPORT)` compiled
+   NSView subclasses and a native modal dialog for iOS. Split it. Cocoa_Gfx.h /
+   CocoaGfx.h STAY on both -- despite the name they are Core Graphics and Core
+   Text, and gmpi_ui's own iOS backend includes CocoaGfx.h directly. iOS now
+   gets `DrawingFrameIos.mm`, which existed all along and had simply never been
+   reachable from here.
+2. `TideCursorMac.mm` was gated `$<$<PLATFORM_ID:Darwin>:...>`. On iOS
+   PLATFORM_ID is "iOS", so the file was not compiled at all and SynthEditGui.cpp
+   failed to link against `tideShowCrossCursor`. Compiled on iOS now with an
+   empty body -- `__APPLE__` is true there too, so the real AppKit version needs
+   `TARGET_OS_OSX`. The caller stays platform-free: there is no cursor on a
+   touch screen, and spreading the condition into shared code for one affordance
+   would be worse.
+3. `gmpi_plugin.cmake` copied the appex as `${SUB_PROJECT_NAME}.appex`, the
+   TARGET name, while the bundle is named by OUTPUT_NAME -- **issue #271's class
+   yet again, a derived name beside a real one.** On macOS cosmetic. On iOS
+   fatal, and the error names nothing: codesign says *"bundle format
+   unrecognized, invalid, or unsuitable"*. An iOS bundle is FLAT and for a flat
+   bundle codesign takes the executable name from the BUNDLE'S OWN NAME, not
+   from CFBundleExecutable. **Measured rather than reasoned: the identical
+   bundle signs rc=0 as `TIDE-Rack.appex` and rc=1 as `TIDE_Rack_AU3.appex`.**
+
+**The fourth is a different shape but the same disease -- one rule stated
+twice.** `gmpi_find_plugin_element()` accepted any source containing a
+`<Plugin>` tag, but `plist_util --xml` requires a `<PluginList>` wrapper. A
+MODULE source legitimately has the former without the latter, so CMake handed
+plist_util `modules/TiDEknob.cpp` and it exited *"No <PluginList> element"*.
+Unseen until now because only the iOS AU3 path feeds a FILE to plist_util;
+every other format derives its plist from the built binary.
+
+**IT BUILDS, AND IT DOES NOT INSTALL. Do not confuse the two.** `simctl install`
+fails. What that cost to narrow down, all measured:
+  - the containing app installs **rc=0 on its own** with PlugIns removed, so the
+    appex is what iOS rejects;
+  - an extension's bundle id must be PREFIXED by its container's. TIDE's are
+    `com.gmpi.au3.TIDE_Rack.extension` against `com.tidesynth.tiderack.au3app`,
+    which share nothing. Setting a prefixed id **changed the error**, which is
+    how the rule was confirmed rather than assumed;
+  - it still fails after that, with *"Failed to create app extension
+    placeholder"*. The appex plist lacks iOS bundle keys `plist_util` never
+    emits -- `MinimumOSVersion`, `CFBundleSupportedPlatforms`, `UIDeviceFamily`.
+    Adding `MinimumOSVersion` alone did not fix it, so it is not just that one.
+  - `NSExtensionPointIdentifier`, `NSExtensionPrincipalClass` and
+    `factoryFunction` are all present and correct, so the extension declaration
+    itself is fine.
+
+**Deliberately NOT fixed here:** the appex bundle id. Deriving it from the
+containing app's id is the right answer but changes macOS's shipped identity,
+which deserves its own change and its own verification rather than riding along
+with a build fix.
+
+**Verified.** iOS: clean build from an empty tree, rc=0, zero failures; one
+correctly-named appex; `codesign -v` passes on both the .app and the nested
+.appex; arm64. macOS negative control: rc=0 and still all five formats --
+`.vst3`, `.clap`, `.gmpi`, `.app`, AUv3 app. All four repo overrides confirmed
+local, so the edits were genuinely in the binaries.
+
+**Not verified.** Nothing was run on a device or simulator -- the install is the
+blocker above. Device (non-simulator) builds were never configured. And the
+wider class is far from done: **31 files in SynthEditLib use `__APPLE__` and
+only 2 use `TARGET_OS_*`.** This fixed the sites that block the build, not the
+population.
+
 ## 2026-08-22 — macos — S38 remainder: the obvious place for the fix is the wrong one (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
@@ -3527,4 +3601,3 @@ call, exactly as the previous entry left it.
 **Branch/PR:** `tide/mac/N1a-rename` — [#268](https://github.com/JeffMcClintock/TideSynth/pull/268), TideSynth only. One CMake block.
 
 ---
-
