@@ -246,12 +246,66 @@ jobs:
         run: |
           set -euo pipefail
           PKG="$GITHUB_WORKSPACE/dist/TIDE-Rack-macOS.pkg"
-          echo "==> notarytool submit (waits for Apple's verdict)"
-          xcrun notarytool submit "$PKG" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_ID_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait
+
+          # RETRY APPLE'S SERVER, NEVER APPLE'S VERDICT. v0.1.0 died here on
+          # "HTTP status code: 500. Internal Server Error / Please try again at
+          # a later time" -- Apple's notary service, not us. Everything before
+          # it had succeeded, so a whole release run was lost to a server that
+          # asked to be retried.
+          #
+          # A REJECTION IS NOT A TRANSIENT FAILURE and retrying one would waste
+          # an hour re-uploading a package Apple has already examined and said
+          # no to, while burying the reason. So a verdict of Invalid exits
+          # immediately -- and prints WHY, which this step never used to do.
+          attempts=4
+          delay=60
+          n=1
+          while : ; do
+            echo "==> notarytool submit (attempt $n of $attempts; waits for Apple's verdict)"
+            set +e
+            out=$(xcrun notarytool submit "$PKG" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_ID_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait 2>&1)
+            rc=$?
+            set -e
+            printf '%s\n' "$out"
+
+            # Some notarytool versions exit 0 even when the verdict is Invalid,
+            # so the verdict is checked separately from the exit code.
+            if [ $rc -eq 0 ] && ! printf '%s' "$out" | grep -q "status: Invalid"; then
+              break
+            fi
+
+            if printf '%s' "$out" | grep -q "status: Invalid"; then
+              echo "==> Apple examined the package and REJECTED it. Not retrying."
+              id=$(printf '%s' "$out" | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+              if [ -n "$id" ]; then
+                echo "==> reasons (notarytool log $id):"
+                xcrun notarytool log "$id" \
+                  --apple-id "$APPLE_ID" \
+                  --password "$APPLE_ID_PASSWORD" \
+                  --team-id "$APPLE_TEAM_ID" || true
+              fi
+              exit 1
+            fi
+
+            if ! printf '%s' "$out" | grep -qE "HTTP status code: 5[0-9][0-9]|Please try again|connection was lost|timed out|Could not connect|Unable to (find|connect)"; then
+              echo "==> not a transient server failure; not retrying."
+              exit $rc
+            fi
+
+            if [ $n -ge $attempts ]; then
+              echo "==> Apple's notary service still failing after $attempts attempts."
+              exit $rc
+            fi
+
+            echo "==> transient server failure; retrying in ${delay}s"
+            sleep "$delay"
+            n=$((n + 1))
+            delay=$((delay * 2))
+          done
           echo "==> staple"
           xcrun stapler staple "$PKG"
           echo "==> verify the staple survived, rather than trusting the exit code"
