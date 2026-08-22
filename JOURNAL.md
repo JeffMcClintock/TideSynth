@@ -8,7 +8,11 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
-## 2026-08-22 - macos - M2 iOS configure: two fixes, then a gate
+## 2026-08-22 — macos — M2 iOS configure: two fixes, then a gate (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Interactive session at Jeff's direction, working the loop, not the Saturday scheduled run. The commit is authored **Jeff McClintock** rather than the bot -- `check-commit-authorship.py` reports it and does not fail it, and STEP 4 forbids rewriting anything already pushed. The push itself went as `tide-rack-bot`.
 
 Took M2 (iOS AUv3) expecting to write a wrapper. The row was sized for that. A wrapper
 landed 2026-08-19 and S40 made AUv3 the shipped macOS format, so the real question was
