@@ -109,6 +109,80 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — R3a: the AU goes into the pkg, before the first tag
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** Jeff asked for a `v0.1.0` tag. Checking the preconditions first turned
+up that `package-macos.sh` still carried this, in its header:
+
+> *"WHAT IS DELIBERATELY NOT HERE: the AU … TIDE does not build one … BACKLOG M1
+> is BLOCKED."*
+
+**M1 landed earlier today.** So a `v0.1.0` cut right then would have published a
+macOS pkg missing a payload `distribution.md` promises — behind a
+`releases/latest/download` permalink R6 undertakes never to change. Jeff chose
+to land R3a first.
+
+### What the packager does now
+
+Stages `TIDE-Rack.component` into `/Library/Audio/Plug-Ins/Components` beside the
+VST3, signs both in one loop, and **refuses to build without it**. The AU is
+required, not optional: a pkg that silently omits half its stated payload is
+worse than one that fails to build.
+
+**Verified by expanding the pkg**, not by trusting the build:
+
+```
+/Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3
+/Library/Audio/Plug-Ins/Components/TIDE-Rack.component
+    CFBundleExecutable   TIDE-Rack     (== the binary)
+    CFBundleIdentifier   com.tidesynth.tiderack.au
+    manufacturer/subtype Dsyh / Drck
+```
+
+### The guard that exists because this cost a day
+
+The script now asserts `CFBundleExecutable` names a binary that is actually
+present. That is the M3/GMPI#8 failure — a plist naming the wrong executable
+**builds and installs fine**, and macOS simply declines to register the
+component. The moment the artefact is sealed into a pkg is the last place that
+check is cheap.
+
+Both guards negative-controlled rather than assumed:
+
+```
+component removed          -> error: no TIDE-Rack.component
+CFBundleExecutable wrong   -> error: ... Contents/MacOS/TIDE-Rack_AU is missing
+restored                   -> AU executable check passes, pkg written
+```
+
+**Learned:**
+
+- **Check the preconditions of a release before cutting the tag, not after.**
+  The stale header was three lines of comment and would have become a published
+  artifact with a permanent URL. Releases are the one place "we'll fix it in the
+  next one" costs a version number.
+- **A comment that was true when written is a liability the moment its subject
+  changes.** "M1 is BLOCKED" was accurate for weeks and wrong for six hours, and
+  six hours was enough to nearly ship on it.
+- **Put the check where the artifact is sealed.** The AU executable-name
+  mismatch is invisible at build time and invisible at install time; it only
+  shows up when a host declines to load. Packaging is the last cheap moment.
+- **Sign every bundle in the payload, not the first one.** An unsigned component
+  inside a signed pkg passes a casual check and fails Gatekeeper.
+
+**Next:** **cut `v0.1.0`.** The pipeline has never been executed: the tag will
+pause at the `release` environment for Jeff's approval, then build, sign,
+notarize and publish. **NOT verified here: installing the pkg** — this box
+produces an unsigned, unnotarized one and the script says so. Whether macOS
+accepts the installed AU end-to-end is what the release run answers, and **R6**
+depends on it.
+
+**Branch/PR:** `tide/mac/R3a-au-in-pkg` — TideSynth.
+
+---
+
 ## 2026-08-22 — macos — E1c's deciding render: my hypothesis is refuted, and the row is still open
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff asking what is next
