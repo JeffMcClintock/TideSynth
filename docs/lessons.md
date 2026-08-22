@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — S30 re-measured: the queue is gone, the build is the problem**
+
+- Re-measure a row before recommending against it, especially a performance one.
+- A cancellation rate is a symptom of DURATION, not only of policy.
+- Compare work done, not just time taken.
+- A stale diagnosis is worse than no diagnosis
+
 **macos — AU is on, and four rows closed on one build**
 
 - Enable the thing that exercises the most decisions at once.

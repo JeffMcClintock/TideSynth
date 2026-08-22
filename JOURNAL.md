@@ -109,6 +109,86 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — S30 re-measured: the queue is gone, the build is the problem
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
+
+**Did:** Jeff asked what he needs to do for S30. Before answering I re-measured
+it, because the row's numbers are from 2026-08-21 and a great deal has merged
+since. **The row's diagnosis no longer holds.**
+
+### What the row says, and what is true today
+
+S30 says: starvation, caused by a **1h+ queue** for hosted macOS runners meeting
+`cancel-in-progress`. Measured over the last 25 build runs, per job
+`created_at → started_at → completed_at`:
+
+| | queue median | build median |
+|---|---|---|
+| macos | **0.1 min** (max 41.6) | **59.5 min** |
+| linux | 0.0 min | 5.2 min |
+| windows | 0.0 min | 10.0 min |
+
+**The queue is gone.** What remains is a macOS *build* that takes an hour.
+
+And it is not doing more work. The same run compiled **495** objects on macOS
+and **496** on Windows — so macOS is roughly **5× slower per unit of work**,
+not busier. A step breakdown puts 54.3 of those minutes in `Build` and 0.8 in
+`Configure`, so it is compilation, not setup.
+
+That is what feeds the cancellations: a 60-minute job offers a 60-minute window
+for a newer push to kill it. macOS is cancelled **17 of 28** jobs (61%) against
+**14 of 56** (25%) for windows and linux.
+
+### The good news the row does not have
+
+Completion is **32%** (9/28), not the **5%** recorded yesterday — most likely
+the arm64-only change plus S29 removing duplicate runs. Still 2.4× worse than
+the other platforms, but the row understates the current state by a lot.
+
+### Why this changes the answer
+
+The row's options were chosen against a queue, so they are now mis-weighted:
+
+- **self-hosted runner** — still works, and is now the *definitive* fix rather
+  than merely a queue bypass; the same build takes minutes on Jeff's own Mac
+- **drop macOS from the per-branch matrix** — still hides it rather than fixing it
+- **cache the build** — *new, and cheapest*. 56% of the macOS compiles come from
+  fetched dependencies that change rarely, so `ccache` attacks most of the hour
+  for a few lines of YAML
+- **stop cancelling macOS specifically** — *also new*. The completion rate is a
+  `concurrency` policy choice **independent of duration**, and separating the two
+  levers was not visible while the diagnosis was "the queue"
+
+**Learned:**
+
+- **Re-measure a row before recommending against it, especially a performance
+  one.** S30's mechanism was correct when filed and wrong a day later. Answering
+  "what should I do" from the row's own numbers would have sent Jeff after a
+  queue that no longer exists.
+- **A cancellation rate is a symptom of DURATION, not only of policy.** The
+  longer a job runs the wider its window to be cancelled, so "why is it always
+  cancelled" and "why does it take an hour" can be the same question — and the
+  fix for one may be the fix for both.
+- **Compare work done, not just time taken.** macOS at 54 min next to Windows at
+  10 could have meant macOS builds more. Counting compiles — 495 vs 496 — turns
+  "slower" into "5× slower at the same job", which is a different problem with
+  different fixes.
+- **A stale diagnosis is worse than no diagnosis**, because it stops the next
+  person measuring. This row had a mechanism, numbers and options, all internally
+  consistent and all describing yesterday.
+
+**Next:** the decision is **Jeff's** — self-hosted runner (definitive, most
+setup), `ccache` in `build.yml` (cheapest, needs his push, unmeasured payoff), or
+a `concurrency` change that stops cancelling macOS (fixes the completion rate
+without touching the hour). **NOT MEASURED:** how much `ccache` would actually
+remove — 56% is a share of compile *count*, not wall-clock, and that is one
+cached run away from being known.
+
+**Branch/PR:** `tide/mac/S30-remeasure` — TideSynth, backlog and journal only.
+
+---
+
 ## 2026-08-22 — macos — AU is on, and four rows closed on one build
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
