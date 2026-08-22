@@ -109,6 +109,66 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — STEP 4, and the hour-long feedback loop that caused two of today's failures
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** bookkeeping — **S29** and **S40** to DONE — and recorded on R5 the fix
+that matters most from this stretch.
+
+### S29 had been stale for hours
+
+Its PR merged long ago and nobody flipped the row. Confirmed by consequence
+rather than by the merge: `build.yml` on `main` carries the
+`startsWith(github.head_ref, 'tide/')` test, which is precisely the clause #258
+shipped without. That is the second row today found stale by a sweep rather than
+by anyone noticing — the first was R5's branch pushed with no PR.
+
+### The fix worth remembering
+
+The certificate import ran **after** the build. Both of v0.1.0's failed attempts
+were credential problems:
+
+| attempt | failed at | knowable at |
+|---|---|---|
+| 1 | `Package` — missing Developer ID Installer certificate | ~30 s |
+| 2 | `Import` — passphrase did not match the archive | ~30 s |
+
+Each surfaced only after **~60 minutes of compiling**. About two hours today
+spent learning something knowable in thirty seconds, and I wrote that ordering
+myself.
+
+Nothing in the import depends on the build, and the keychain has a 6-hour
+timeout, so it simply moves. What made it visible was Jeff asking why the build
+was still slow — the question was about ccache, and the answer that mattered was
+about step order.
+
+**And the import now says which secret is wrong.** `MAC verification failed
+during PKCS12 import (wrong password?)` cannot distinguish a bad passphrase from
+bad certificate data, and those need opposite fixes.
+
+**Learned:**
+
+- **Put the cheap failure first.** A credential check is seconds and a compile is
+  an hour; running them in that order costs nothing and saves the hour every time
+  the credential is wrong. I had them backwards and paid twice before noticing.
+- **A stale row is found by sweeps, not by people.** S29 sat IN-REVIEW for hours
+  with its work merged; R5's branch sat pushed with no PR. Both surfaced only
+  when something systematically asked "which rows disagree with reality?"
+- **The question asked is not always the question that matters.** "Is it still
+  slow?" was about ccache. The expensive slowness was ordering, and it only came
+  out because answering properly meant reading the whole job.
+
+**Next:** the mac cell now points at **M2**, whose row is the most out-of-date
+thing on the board — it treats authoring an AUv3 wrapper as its blocker, one
+landed 2026-08-19, and **S40 just made AUv3 the shipped macOS format**. What
+remains is genuinely iOS, and a Mac is the only machine that can attempt it.
+**Re-cost that row before working it.**
+
+**Branch/PR:** `tide/mac/step4-s29-s40` — TideSynth, bookkeeping only.
+
+---
+
 ## 2026-08-22 — macos — S40 ruled: AUv3 only, and the install story is a copy
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
