@@ -1660,13 +1660,35 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	// THROUGH, and the room is hidden from the camera so the panel keeps a
 	// transparent background -- without a backing every hole would be a
 	// see-through gap onto the host's canvas.
-	const auto addBacking = [&scene](const Vec3& centre, const Vec3& half)
+	// CLIPPED TO THE PLATE'S OWN PLAN OUTLINE, which is not decoration.
+	//
+	// A backing is a BOX sized to the hole cluster it hides, plus a margin, and
+	// nothing previously kept it inside the panel. A full-width vent bank sits
+	// a few DIPs from the top edge, so its backing reached into both top
+	// corners -- and there the plate's rounded corner curves away while the
+	// square backing behind it does not, leaving the backing exposed OUTSIDE
+	// the silhouette as a near-black wedge (it is 0.012 paint, and it is
+	// camera-visible by design, since blocking primary rays through the holes
+	// is its whole job). Measured on the 5-unit panel: both top corners came
+	// back sRGB ~36 against any background instead of the background itself.
+	//
+	// Intersecting with the panel's own 2D profile fixes every case at once,
+	// whatever the layout puts near an edge, and costs nothing where the
+	// backing was already inside. What is visible THROUGH the holes is
+	// untouched: the holes are well inside the plate, and this only trims the
+	// backing where the plate itself has already ended.
+	const auto addBacking = [&scene, halfW, halfH, cornerR](const Vec3& centre, const Vec3& half)
 	{
 		Object backing;
 		backing.material = recipes::paint({ 0.012f, 0.012f, 0.012f });
 		backing.boundsCentre = centre;
 		backing.boundsRadius = length(half) + 0.01f;
-		backing.distance = [centre, half](const Vec3& p) { return sdBox(p - centre, half); };
+		backing.distance = [centre, half, halfW, halfH, cornerR](const Vec3& p)
+		{
+			return opIntersect(
+				sdBox(p - centre, half),
+				sdRoundRect2D(p.x, p.y, 0.0f, 0.0f, halfW, halfH, cornerR));
+		};
 		scene.add(std::move(backing));
 	};
 
