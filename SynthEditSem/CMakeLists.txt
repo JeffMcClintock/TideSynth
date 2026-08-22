@@ -506,7 +506,20 @@ foreach(_fmt ${FORMATS_LIST})
     continue()
   endif()
 
-  if(APPLE)
+  if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    # AN iOS BUNDLE IS FLAT: resources live at the bundle ROOT, with no
+    # Resources/ subdirectory. That is not a tidiness preference -- an appex
+    # carrying a Resources/ folder FAILS TO INSTALL, and the error names nothing
+    # useful: simctl says "Missing bundle ID / Failed to create app extension
+    # placeholder". Measured by bisection: the identical appex installs rc=0
+    # with the folder's contents moved to the root and rc=2 with them in
+    # Resources/, and removing only the XMLs or only the Prefabs did not help --
+    # it is the subdirectory itself, not anything in it.
+    #
+    # TARGET_BUNDLE_CONTENT_DIR is already the bundle root on iOS, so this is
+    # the same expression as below minus the /Resources.
+    set(_tide_resources "$<TARGET_BUNDLE_CONTENT_DIR:${_tide_target}>")
+  elseif(APPLE)
     set(_tide_resources "$<TARGET_BUNDLE_CONTENT_DIR:${_tide_target}>/Resources")
   elseif(UNIX)
     # Linux gets its own branch because TARGET_FILE_DIR is NOT inside the bundle

@@ -8,6 +8,67 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — TIDE Rack installs on iOS. The blocker was a folder (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Two fixes, measured after each as Jeff asked. `simctl install` now returns **0**
+on the unmodified build output.
+
+**FIRST, A CORRECTION I OWE THE RECORD.** I told Jeff this needed "a GMPI-wide
+identity decision", then corrected that to "TIDE's own file, ALLOWED". Both were
+wrong. The appex's `CFBundleIdentifier` is written by `plist_util` from a value
+baked into its COMMAND LINE at GMPI configure time, so no TIDE target property
+could ever have changed it. Reading `plist_util.cpp`'s usage string settled in
+one command what I had twice asserted from memory.
+
+**Fix 1 — the extension id (GMPI).** An extension's id must be PREFIXED by its
+containing app's. GMPI's comment already said so, and its code then wrote both
+halves from one string a plugin may replace. TIDE replaces it: S40 renamed the
+containing app to `com.tidesynth.tiderack.au3app` — **and renamed only the app.**
+The extension kept `com.gmpi.au3.TIDE_Rack.extension`, the two shared no prefix,
+and macOS never complained because macOS does not enforce the rule. Now DERIVED
+from the app target as a generator expression. **Measured:** the extension came
+out `com.tidesynth.tiderack.au3app.extension` with TIDE setting nothing.
+Install still failed, which is why there was a second fix.
+
+**Fix 2 — and it was not the plist at all.** I had assumed missing iOS plist
+keys. Only bisection showed otherwise. Eliminated in turn, each by experiment:
+`MinimumOSVersion`, `LSRequiresIPhoneOS`, `CFBundleSupportedPlatforms`,
+`DTPlatformName`, `UIDeviceFamily` — added all five by hand, still rc=2. Version
+match with the container — already matched. Malformed plist — read the whole
+file, well-formed. `NSExtension*` keys — all correct.
+
+**Then: deleting `Resources/` from the appex made it install.** But removing
+only the XMLs did not, and removing only `Prefabs` did not. **It was the
+subdirectory itself.** An iOS bundle is FLAT — resources belong at the bundle
+ROOT — and TIDE staged them into `Resources/`, the macOS layout, because the
+destination was `$<TARGET_BUNDLE_CONTENT_DIR>/Resources` on all Apple platforms.
+Moving the contents to the root: **rc=0**.
+
+That is the same root cause as the codesign defect earlier today, where a flat
+bundle takes its executable name from the bundle name. **Third time iOS's flat
+layout has broken something written against macOS**, and the error named it in
+none of the three cases — this one said *"Missing bundle ID"*, about a bundle
+whose id was present and correct.
+
+**A process note worth keeping.** I pushed the GMPI half onto GMPI#12's branch
+after Jeff had already merged it, leaving an orphaned commit — the one end state
+STEP 5 forbids. Caught by checking, moved to a fresh branch off `main`, stale
+branch deleted. The lesson is STEP 4's, and it is cheap: **check the PR is still
+open before pushing a follow-up**, because on an actively-merging day it may not
+be.
+
+**Verified.** iOS: clean build rc=0, `simctl install` **rc=0** on the build
+output with nothing edited by hand, app registered as
+`com.tidesynth.tiderack.au3app`. macOS negative control: rc=0, all five formats,
+and the appex still uses `Contents/Resources` — the flat layout is iOS-only.
+
+**Not verified.** The app was installed, **not launched**, and the Audio Unit was
+never opened in an iOS host — so nothing here says TIDE RUNS on iOS, only that it
+installs. Device (non-simulator) builds were never configured. The `__APPLE__`
+population in SynthEditLib is still 31 files against 2 using `TARGET_OS_*`.
+
 ## 2026-08-23 — macos — three red signals, three different mechanisms, and none of them a defect in this repo
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.34493.1** (agent 2.1.237) · as **tide-rack-bot** (both paths)
