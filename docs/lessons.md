@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-22
 
+**macos — the AUv3 works, and my "it doesn't register" was a wrong query**
+
+- When a tool reports nothing, check the query before blaming the subject.
+- Two wrong diagnoses in a row, both pointing at someone else's code, is a signal about the instrument.
+- Sharing fourCCs between v2 and v3 is correct AND means one is unreachable.
+- Prove the artifact works before asking which artifact to ship.
+
 **macos — STEP 4 after v0.1.0, and a branch I pushed and never opened**
 
 - A pushed branch with no PR is invisible.

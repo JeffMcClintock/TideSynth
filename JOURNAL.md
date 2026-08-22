@@ -109,6 +109,92 @@ Jeff's other nine cached plugins were left alone.
 
 ---
 
+## 2026-08-22 — macos — the AUv3 works, and my "it doesn't register" was a wrong query
+
+**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
+
+**Did:** took the mac cell's item — settle whether the AUv3's registration
+failure was expected. It was not a failure at all.
+
+### I reported a defect that did not exist
+
+Earlier today I wrote that the extension "did not register via `pluginkit`/`auval`
+with an ad-hoc signature" and put that on the row as the unproven part.
+
+```
+pluginkit -mv | grep -i tide                             -> nothing
+pluginkit -m -i com.gmpi.au3.TIDE_Rack.extension -v      -> lists it
+```
+
+The first form does not enumerate the extension; the second queries it directly.
+**My query was wrong and I called it an extension problem.** Then:
+
+```
+auval -v aumu Drck Dsyh
+    This AudioUnit is a version 3 implementation.
+    Loaded AudioUnit out-of-process: true
+    AU VALIDATION SUCCEEDED           rc=0
+```
+
+Under an ad-hoc signature. The AUv3 has worked the whole time.
+
+Worth noting how the earlier session went wrong twice in the same direction:
+first I stripped the sandbox entitlement with my own `codesign --deep` and
+suspected the wrapper, then I used a query that cannot return the answer and
+suspected the wrapper again. Both times the tooling was fine and my instrument
+was not.
+
+### And then the actual finding
+
+AU2 and AU3 declare the **same four-character codes**. With both installed:
+
+```
+auval -a          ->  exactly ONE  aumu Drck Dsyh
+auval -v          ->  "version 3 implementation", out-of-process
+```
+
+**The `.component` never loads.** That is by construction — the AU3 README says
+the v3 plist derivation is *"the same one the AU2 `.component` gets, so v2 and v3
+share their fourCCs"*, which is correct practice for one product shipping both,
+and it means exactly one is reachable.
+
+**It matters right now** because R3a added `TIDE-Rack.component` to the macOS pkg
+hours ago. Enabling `AU3` today would ship a component that can never load —
+worse than not shipping it, because the user sees it installed.
+
+So `AU3` stays out of `FORMATS_LIST` and the choice is filed as **S40**. That is
+a product decision — v3 only, v2 only, or distinct subtypes — not something to
+settle by measurement.
+
+**Learned:**
+
+- **When a tool reports nothing, check the query before blaming the subject.**
+  `pluginkit -mv` and `pluginkit -m -i <id>` answer different questions, and only
+  one of them can find an extension by identifier. I built a row's "unproven"
+  clause on the wrong one.
+- **Two wrong diagnoses in a row, both pointing at someone else's code, is a
+  signal about the instrument.** Stripping entitlements with my own `codesign`,
+  then querying with the wrong `pluginkit` form — the wrapper was correct both
+  times.
+- **Sharing fourCCs between v2 and v3 is correct AND means one is unreachable.**
+  Both halves are true, and the second only shows up if you install both and
+  count what `auval -a` returns.
+- **Prove the artifact works before asking which artifact to ship.** The S40
+  decision is cheap to make precisely because registration and validation are
+  already demonstrated; asking Jeff to choose between a working thing and an
+  untested one would have been a worse question.
+
+**Next:** **S40 is Jeff's ruling** and blocks `AU3` shipping. **M2 is now much
+smaller than its row says** — it treats authoring an AUv3 wrapper as the blocker,
+one landed 2026-08-19, and the macOS half is proven; what remains is genuinely
+iOS (simulator install, sandbox rules). **A separate small finding** from the
+same run: the AUv3 warns *"CurrentPreset property is deprectated. AU should
+implement PresentPreset"* — recorded on S40, unexamined.
+
+**Branch/PR:** `tide/mac/M1-au3-registration` — TideSynth, backlog and journal only.
+
+---
+
 ## 2026-08-22 — macos — STEP 4 after v0.1.0, and a branch I pushed and never opened
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
