@@ -8,6 +8,189 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — linux — S37: the collision is unreachable, because the Linux CLAP has no GUI at all
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+Third item this session, at Jeff's direction: the next Linux-specific task.
+**S37** is the only genuinely Linux-specific `TODO` — `X1` and `X2` are the only
+`platform: linux` rows and both are `BLOCKED`, `S32` and `R4` are `DONE`.
+
+**Did:** took the first step S37 names for itself — *"whoever takes this needs a
+CLAP host first, and that may be the real first step"* — and it turned the row
+over.
+
+### A CLAP host, without downloading one
+
+`clap-validator` and `clap-info` are not installed here and Ardour 8.4 has no
+CLAP support at all, which is why nobody had ever loaded a TIDE CLAP anywhere.
+**The CLAP entry ABI is a C struct in a header the build already fetches**
+(`free-audio/clap`, already a FetchContent dependency), so the host is 190 lines
+and needs no third-party binary:
+[tools/clap_probe.c](tools/clap_probe.c). dlopen → `clap_entry->init` → factory
+→ create → init → activate, plus optional `--gui` and `--state`.
+
+**TIDE Rack's CLAP loads, instantiates and activates.** First time on any
+machine:
+
+    plugins: 1
+      [0] id=TIDE Synth: TIDE Rack  name=TIDE Rack  vendor=TIDE Synth  version=0.1.1
+          init OK
+          activate OK (48k, 1..512)
+
+### And the row's premise does not survive contact
+
+S37 says the Linux CLAP *"reads its module data from `~/.clap/Resources`"* and
+collides with every other CLAP installed the same way. **It does not read it.
+Measured, not inferred:** `strace -e trace=file` across **every** path a host can
+reach headlessly — init, activate, `gui->create`, `state->save`, `state->load` —
+shows **zero** accesses to `Resources`, `PlugIns`, `Prefabs` or any `.se.xml`.
+The only syscalls naming the install directory are the `readlink` and `dlopen` of
+the `.clap` itself.
+
+**A/B, because absence of a syscall is a weak claim on its own:** the same probe
+against an install with the `Resources` folder **deleted** behaves identically —
+init OK, activate OK, gui created, and `state->save` produces **86 bytes both
+times, byte-identical**. A plugin that needed those resources could not be
+indifferent to their absence.
+
+### Why: the Linux CLAP has no windowing backend linked into it
+
+    $ ldd TIDE-Rack.clap
+      libstdc++  libm  libgcc_s  libc          <- and nothing else
+
+No X11, no xcb, no Wayland. `nm -D --undefined-only` finds no `XOpenDisplay`,
+`XCreateWindow`, `wl_display_connect` or `wl_surface_commit`, and neither
+`DrawingFrameX11` nor `DrawingFrameWayland` appears in the binary — though
+gmpi_ui ships both.
+
+So the editor — and `TideApp`, which is what actually reads the bundle's
+`Resources` (`SynthEditSem/TideApp.cpp:506` and `:616`, the two *"missing from
+bundle resources"* strings the row read off the binary) — is never constructed.
+**The strings are in the binary because the translation unit is compiled in, not
+because that code can run.**
+
+**`GMPI_Wrappers/wrapper/CLAP/Editor_CLAP.cpp:34` agrees, and says so in a
+comment block:** `guiIsApiSupported()` has arms for Cocoa and Win32, and its
+Linux X11 arm is **commented out**. The prose four lines above it reads *"pretty
+obviously, mac supports cocoa, windows supports win32, and linux supports X11"*.
+Measured against the built artifact, the commented-out code is the honest one:
+there is no X11 backend in there to support.
+
+### The defect that IS live, filed as S43
+
+`guiIsApiSupported` returning false for every API is correct given the above.
+**`guiCreate` returning TRUE is not.** My probe asked about x11, wayland, win32
+and cocoa — all `0` — and `get_preferred_api` declined; then it called
+`create` anyway and got:
+
+    gui created, size 1100x600
+
+A conformant host consults `is_api_supported` first and would simply report that
+TIDE Rack has no editor. A host that does not — and `guiCreate`'s own comment
+says it *"assume[s] our host follows the protocol that it only calls us with
+values which are supported"* — is told an editor exists, and will then hand
+`guiSetParent` a window the plugin has no code to use.
+
+**So the Linux CLAP's GUI story is: honest at the query, dishonest at the
+create.** Filed as **S43**; `GMPI_Wrappers` is ALLOWED, but which way to fix it
+is a product question (does the Linux CLAP ship a GUI at all, and over which
+API?) rather than a one-line uncomment, so it is filed rather than fixed.
+
+### What this does to S37
+
+**Back to TODO, with its premise corrected rather than its options costed.** All
+three options — (a) bundle directory, (b) namespaced folder, (c) embed — solve a
+collision that cannot currently happen. **The prior question is S43's:** if the
+Linux CLAP gains a GUI, the editor starts reading `getBundleContentsFolder() /
+"Resources"`, and *then* S37 is real and its options matter. Sizing them before
+that is guessing at a shape.
+
+**One thing the row understates and it is worth keeping:** the shared folder is
+not only `Resources`. `BundleInfo.cpp:699` derives `semFolder` the same way —
+`getBundleContentsFolder() / "PlugIns"` — so a GMPI CLAP that scanned for modules
+would share **that** directory too. Moot today for the same reason, and it
+widens the blast radius whenever S43 is answered.
+
+**And R4 ships a `Resources` folder beside the Linux CLAP that nothing reads.**
+That is not a bug to fix today — it is exactly right the moment S43 is — but
+its `README.txt` currently tells a user to install a folder for no present
+benefit, which is worth knowing before anyone treats it as evidence the CLAP
+works.
+
+**Learned:**
+
+- **A probe that stops before the code under test reports a healthy subject and
+  proves nothing.** My first version ended at `activate` and returned rc=0 with
+  the `Resources` folder deleted. The resource read is on the controller, not the
+  processor, so the interesting question was two extensions further on. I nearly
+  wrote "the CLAP is fine".
+- **`ldd` answers "can this code path exist" faster than any amount of reading.**
+  Six lines of output settled what the commented-out X11 arm, the `TideApp`
+  strings and the row's own mechanism paragraph left ambiguous.
+- **I nearly filed a bug inside `#if 1`'s dead `#else`.** `BundleInfo.cpp:693`
+  has `path.find(L"TIDE") == 0` where all five siblings use `!= npos` — a real
+  defect, in an arm that never compiles because the `#if` above it is literally
+  `#if 1`. **This is S33's lesson twice in one week**, and the only reason it
+  cost a minute instead of a session is checking the preprocessor before the
+  logic.
+- **A strings match is evidence the file was compiled, not that the code
+  runs.** The row inferred the CLAP needs resources from `strings` finding the
+  same diagnostics the VST3 has. Both binaries compile `TideApp.cpp`; only one
+  can reach it.
+- **Absence of a syscall wants an A/B.** "strace shows nothing" is much weaker
+  than "strace shows nothing AND deleting the folder changes nothing AND the
+  saved state is byte-identical".
+
+- **A23's duplicate-id race is real and I hit it inside one session.** I read the
+  next free id as S42, worked for an hour, and by commit time the mac box had
+  landed its own S42 from a branch cut off the same `main`. `check-id-refs.py`
+  caught it; renumbered to S43 before pushing. The row's own mitigation — re-check
+  the id against freshly-fetched `origin/main` **at commit time, not at read
+  time** — is the whole lesson, and it cost one command.
+- **The shared-citation check (A31) fired on my own two rows**, because S37's
+  re-framing and S43 both cited `Editor_CLAP.cpp:34`. They are genuinely
+  different jobs, so S43 keeps the line and S37 now names the file and the
+  function without it. That is the check working as designed on a real split.
+
+**Not verified:**
+
+- **No real CLAP host.** `clap_probe` is mine and deliberately minimal — it
+  returns NULL for every host extension, so a plugin that needs `timer-support`
+  or `posix-fd-support` to build its editor would fail here for a reason a real
+  host would not have. That is precisely the condition the commented-out X11 arm
+  tested for, so it is the obvious confound and I cannot rule it out from here.
+  **What makes the conclusion survive it anyway is `ldd`:** an X11 backend that is
+  not linked cannot be enabled by a host extension.
+- **Windows and macOS CLAPs** were not probed. `guiIsApiSupported` has live arms
+  for both, so this is Linux-specific by construction, but "by construction" is
+  not a measurement.
+- **The 86-byte state.** That looks small for a rack, and an empty default
+  document may legitimately be that size — `TideApp` creates a blank container by
+  default. I did not establish which, and it is not S37's question. Recorded
+  because a CLAP that cannot persist a patch would fail V1's acceptance clause,
+  and nobody has checked.
+
+**Next:**
+
+1. **S43 is the prior question** and it is a product decision before it is a
+   code change.
+2. **S37 stays filed and unsizable until S43 lands.** Do not cost its options.
+3. **`tools/clap_probe.c` is now the box's CLAP host** — the thing S37 said was
+   the real first step. It is 190 lines with no dependencies beyond the fetched
+   headers, so the next CLAP question on any platform is cheap to answer.
+
+**Machine left clean.** All work in a throwaway worktree under the session
+scratchpad; the probe and both scratch installs live there. **Jeff's `~/.clap`
+was read and never written** — it holds two GMPI CLAPs (`FreqAnalyser_CLAP`,
+`SawDemo_CLAP`), neither of which carries bundle resources, which is why no
+`~/.clap/Resources` exists on this box and the collision has never been observed
+in the wild either. No plug-in was installed. All six repos are on their default
+branches and clean.
+
+**Branch/PR:** `tide/linux/S37-clap-resources` — TideSynth: one new tool, the
+backlog and the journal. S43 filed. No product code change.
+
 ## 2026-08-23 — windows — P11: the diagnostic can't name the file, so it stops naming the cause (interactive, Jeff directing)
 
 **Did:** took P11's Windows-only piece off the win NEXT cell — option (b), fix
