@@ -8,6 +8,170 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — linux — STEP 1: #156 verified green on Linux, and the 44 failures reproduce on demand
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** took no backlog item. **STEP 1 outranked STEP 2** — there are three open
+`platform:linux` issues, and one of them was actionable. Verified
+[#156](https://github.com/JeffMcClintock/TideSynth/issues/156) on this platform
+and closed it. **Zero product code changed**; this repo gets the two row updates,
+a re-pointed NEXT cell and this entry.
+
+### Why #156 and not the other two
+
+STEP 1 says a platform issue outranks backlog work, so the first job was working
+out which of the three is mine. Written down because the next Linux run will meet
+the same three:
+
+| issue | author | verdict |
+|---|---|---|
+| [#291](https://github.com/JeffMcClintock/TideSynth/issues/291) render references re-baked on the wrong box | Jeff | **not mine** — the fix is [#349](https://github.com/JeffMcClintock/TideSynth/pull/349), open and green from the windows box. Taking it would be the duplicate-work collision STEP 2 exists to prevent. |
+| [#88](https://github.com/JeffMcClintock/TideSynth/issues/88) `SynthEditJuce` misses `Dialogs_editor2.cpp` | bot | **not takeable** — `SE16/SynthEditJuce/` is on neither STEP 5 list, so GATED by default. Not a build break either: the target is deprecated and reachable from no build on any box, so A17's exception does not stretch to it. |
+| [#156](https://github.com/JeffMcClintock/TideSynth/issues/156) ctest 44/67 on Linux from macOS-hardcoded paths | bot | **this one.** Its stated cause was fixed by **S16** + **S42**, and *both rows say in bold "NOT VERIFIED: Windows and Linux"*. The verification is the work. |
+
+STEP 1's bot-issue rule — *"re-verify the finding on your own platform before
+acting on it"* — is the whole item here rather than a preamble to it.
+
+### The measurement
+
+Fresh scratch worktree of `SE16` at `origin/master` **`63ce2bb8e`** (the merge of
+[SynthEdit#74](https://github.com/JeffMcClintock/SynthEdit/pull/74)), overrides
+pointed at scratch worktrees of `SynthEditLib` `fb55275`, `TideSynth` `1364801`,
+`gmpi_ui` `6aa8871`, `GMPI` `83b9de7`. Ninja, Release, GCC.
+
+**The checkout path is the point.** It is
+`.../scratchpad/wref/SE16` — not `~/SE/SE16`, not any developer's checkout, and
+not the path baked into the fixtures. S16's Accept is *"from a checkout at any
+path"*, and a build in the usual place cannot test that clause at all.
+
+Configure **rc=0**. `cmake --build --target dsp_tests` is **327/327, rc=0, 0
+errors** — and pulling in `SynthEditCL` and `cancellation` on its own is S16's
+`add_dependencies` working, which the row says was necessary but not sufficient.
+
+**Both defaults reached the binary, checked with `strings` rather than assumed:**
+
+```
+SE_BUILD_FOLDER_DEFAULT    -> .../scratchpad/build-se16
+SE_UNITTEST_FOLDER_DEFAULT -> .../scratchpad/wref/SE16/UnitTest
+/Users/jeffmcclintock       -> 0 occurrences
+```
+
+**ctest with `SE_BUILD_FOLDER` and `SE_CANCELLATION_FOLDER` deliberately unset:**
+
+```
+100% tests passed out of 73
+```
+
+**rc=0, stable across two consecutive runs.** Zero `not found` lines, zero
+`32512`, and **zero references to the dead `/Users/jeffmcclintock/` checkout** —
+against the 536 S42 measured mid-arc on macOS.
+
+### The negative control, which is what makes the green mean anything
+
+A suite that cannot fail reports 100% for the same reason a fixed one does. So,
+same binary, same run, one variable:
+
+| `SE_BUILD_FOLDER` | result |
+|---|---|
+| unset (the CMake default) | **73/73 pass, rc=0** |
+| `/Users/jeffmcclintock/SynthEdit/build/` | **44 failed of 73, rc=8** |
+
+**44 is the exact number in #156's title.** The issue's headline failure
+reproduces on demand and disappears on demand, and the variable is the one thing
+S16 changed.
+
+One difference from #156's era, recorded because the next person will grep for
+the old signature and not find it: the failure no longer surfaces as `system()`
+returning `32512`. S16 added an explicit existence check, so
+`Basics.Cancellation_Utility_Exists` and `TestUI.CancellationUtilExists` fail
+first and name the missing helper. Better diagnostic, different string.
+
+### The one red I had to chase, and it was not a defect
+
+The first ctest run was **63/64 with `ui_tests_NOT_BUILT` failing**, which looks
+exactly like a broken target. It is `gtest_discover_tests`' placeholder for
+`ui_tests` — a `gmpi_ui` target registered at configure time that I had never
+built, because I built `--target dsp_tests` and nothing else. Building `ui_tests`
+(7/7, rc=0) turned 64 tests into 74 and the suite green.
+
+Worth separating the two numbers, because they are both quoted in this project
+and they are not the same suite: **`dsp_tests` is 63 of 63 here, which is exactly
+the 63 the macOS run measured** — same size, both platforms, which is stronger
+agreement than a pass rate. The 73 is `dsp_tests` + `ui_tests`; one further test
+is `Disabled`. **#156's own "67" is a third number** from a differently-configured
+tree, so do not read a mismatch against it as a regression.
+
+`synth_ui_tests` was **not** generated: `GMPI_UI_TESTS_FOLDER` defaults to
+`C:/SE/gimpi_ui_tests`, and this box's clone is at `~/SE/gimpi_ui_tests`. Not
+part of this issue; noted so nobody reads its absence as breakage.
+
+### Both default branches build on Linux — no platform issue to file
+
+STEP 3 asks every run that builds anything to say whether its platform's default
+branch also builds, and this run built two trees, so both answers are first-hand
+rather than inherited from CI:
+
+| tree | result |
+|---|---|
+| `SE16` `origin/master` `63ce2bb8e` | `dsp_tests` chain **327/327** + `ui_tests` **7/7**, rc=0, 0 errors |
+| `TideSynth` `origin/main` `1364801` | **483/483, rc=0, 0 errors**, all four Linux artifacts |
+
+The TIDE artifacts, from an unmodified `main`: `TIDE-Rack` (standalone),
+`TIDE-Rack.clap`, `TIDE-Rack.gmpi`, and the `TIDE-Rack.vst3` bundle carrying
+`TIDE-Rack.so`. **So there is no `platform:linux` build break to file**, and the
+three open Linux issues are all about tests and packaging rather than compilation.
+
+**Verified:** configure rc=0; `dsp_tests` 327/327 rc=0; `ui_tests` 7/7 rc=0;
+ctest 73/73 rc=0 twice; `strings` control on the binary; the 44-failure negative
+control; TIDE's own default branch built (below).
+
+**Not verified:**
+
+- **Windows.** Both S16 and S42 still say "NOT VERIFIED" for it and this run does
+  not change that. The rows now say Linux is done and Windows is not.
+- **`synth_ui_tests`**, for the folder-default reason above.
+- **`SE16`'s full tree.** I built the `dsp_tests` and `ui_tests` chains, not all
+  of `SE16`, so this says nothing about `SynthEditWayland` or #88.
+
+**Learned:**
+
+- **A "NOT VERIFIED on your platform" line in a DONE row is a work item, and
+  nothing points at it.** S16 and S42 both carried one for a day. The thing that
+  surfaced it was not the backlog — it was an open `platform:{PLATFORM}` issue
+  describing the same defect, which STEP 1 forces every run to read first.
+- **The negative control was one environment variable and it is the whole
+  entry.** Everything else here is "the tests pass", which is what a suite with
+  its fixtures missing also reports once it stops being able to fail. Reproducing
+  #156's own 44 is what turns that into a measurement.
+- **`gtest_discover_tests` registers a `<target>_NOT_BUILT` placeholder**, so a
+  partial build produces a red test that names a target rather than a defect.
+  Building one target and running the whole suite will always look like this.
+- **Three quoted pass counts for one suite — 63, 67, 73 — and all three are
+  correct.** They differ by which targets the tree generated. Quote the target
+  with the number or the next run reads a configuration difference as a
+  regression.
+- **A scratch worktree is not just tidiness here, it is the test.** "From a
+  checkout at any path" is unfalsifiable from the developer's own checkout.
+
+**Next:**
+
+1. **Windows is the remaining half of S16/S42.** Same recipe, one command, and
+   the negative control transfers unchanged.
+2. **#88's `SynthEditJuce` half needs an owner who can say "by inspection"** —
+   it is one line, in a GATED path, in a target no box builds.
+3. **S23 remains this box's take-target** and needs no ruling; the linux NEXT
+   cell is re-pointed at it and says why S43(ii) and S37 are no longer options.
+
+**Machine left clean.** Five throwaway worktrees under the session scratchpad,
+one per repo, plus two scratch build trees. **Nothing was built in any of Jeff's
+checkouts** and `~/SE/build` was not touched. No compositor was started, nothing
+was installed, and no plug-in was copied anywhere. All six repos were clean and on
+their default branches at the start and are back on them at the end.
+
+**Branch/PR:** `tide/linux/issue-156` — TideSynth only: the S16 and S42 rows, the
+linux NEXT cell, and this entry. **No product code change in any repo.**
+
 ## 2026-08-24 — macos — S35: the scanner searches both plug-in domains now (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
@@ -874,238 +1038,6 @@ journal. **Merging one without the other is harmless:** TIDE fetches
 only records it and supplies the verifier.
 
 ---
-
-## 2026-08-23 — windows — S36: the Windows resources move beside the binary, and my first attempt at "beside" was wrong (interactive, Jeff directing)
-
-**Did:** took S36's option (a) off the `any` queue — its own row records that #314 retired
-the objection against it (dropping the race meant the destination could finally
-move without reintroducing the collision). Windows resources now land where the
-runtime actually looks, and packaging was updated to match.
-
-### The mechanism, read rather than assumed
-
-`BundleInfo::getResourceFolder()` for a non-bundle Windows plug-in
-(`pluginIsBundle == false`, which every unpackaged dev-tree binary is) returns
-`getImbeddedFileFolder()` verbatim — the binary's own directory, **no subfolder
-appended**. `getResource()` then does `getResourceFolder() + resourceId`, a
-plain concatenation, and `seedPrefabsFromBundle()` does `resourceFolder /
-"Prefabs"`. So the four pin XMLs and `Prefabs/` belong **loose in `Release\`**,
-mixed in with the binaries — not in a `Resources` subfolder at all, on this one
-platform.
-
-### My first attempt got that wrong, and testing the row's own Accept caught it
-
-Read "point the Windows arm at `$<TARGET_FILE_DIR>`, drop the `/..`" and
-implemented it as `$<TARGET_FILE_DIR>/Resources` — dropping the `/..` but
-keeping a `/Resources` suffix, by analogy with the bundle-platform arms right
-above it in the same file. Built, ran the row's own Accept command on the
-freshly built standalone, and it printed the exact same four `missing from
-bundle resources` lines and `no Prefabs folder` as before the fix — a clean
-compile and a clean build log said nothing about this being wrong. Only running
-the binary caught it. Reading `getImbeddedFileFolder()`'s actual return value —
-the bare directory, not a subfolder of it — is what gave the real answer:
-`$<TARGET_FILE_DIR>` alone, no suffix.
-
-### Packaging had to change with it, not just the CMake line
-
-`package-windows.ps1` previously copied the whole staged `Resources` directory
-into the bundle's `Contents\Resources\`. With the dev-tree destination now the
-bare `Release\` folder, doing the same thing would have copied every target's
-binaries, PDBs, `.lib`s and `.exp`s into the shipped bundle too. Rewrote it to
-pick the four known XMLs and `Prefabs\` out of `Release\` by name — the same
-list `SynthEditSem/CMakeLists.txt`'s `_tide_xmls` already enumerates, and the
-same "these two lists must move together" rule `TideApp.cpp:496` already states
-for its own read of the identical set.
-
-**The packaged bundle's own layout is unchanged** — still `Contents\x86_64-win\
-TIDE-Rack.vst3` + `Contents\Resources\{4 xmls, Prefabs\}`, which is what makes
-`pluginIsBundle` true for the installed copy and routes it through the
-bundle-aware code path this row never touches.
-
-### Verified
-
-Row's own Accept, on the freshly built standalone, nothing copied by hand:
-
-```
-TIDE: ControlsXp.xml enriched 2 of 18 described class(es)
-TIDE: MidiPlayer2.xml enriched 2 of 7 described class(es)
-TIDE: Converters.xml enriched 26 of 70 described class(es)
-TIDE: VaFilters.xml enriched 2 of 7 described class(es)
-TIDE: 6 rack prefab(s) seeded from the bundle
-```
-
-Zero `missing from bundle resources` or `no Prefabs folder` lines (`grep -c`
-against the run log: 0).
-
-**The #314 race fix, re-checked because I edited the same block:** 20 parallel
-relinks (`cmake --build --parallel`, deleting the binaries and the loose
-resources between each), **0 failures**.
-
-**Packaging, end to end:** `package-windows.ps1` against this build, unsigned
-(no Azure credentials on this box, same as every prior run) — assembled bundle
-contains exactly 10 files, the four XMLs and six `.synthedit` prefabs, nothing
-else. No binaries, PDBs, `.lib`s or `.exp`s leaked into `Resources\` — checked
-by listing the assembled tree, not assumed from the script logic.
-
-**Not verified:** the packaged bundle was not loaded in a real VST3 host this
-run — the bundle-aware code path and the shipped layout are unchanged by this
-fix (same files, same place), and R2's own prior verification already covers
-that path; re-proving it would be re-verifying something this row does not
-touch. macOS and Linux are untouched — the edited arm is `if(WIN32)` /
-`if(UNIX AND ...)`-gated and neither ran.
-
-**Learned:**
-
-- **A clean build and a clean log are not evidence the destination is right.**
-  My first attempt compiled, linked, and staged files into *a* folder without
-  any error — it was simply the wrong folder, and nothing short of running the
-  Accept command surfaced that.
-- **"Drop the `/..`" meant drop it entirely, not shorten it by one segment.**
-  The row's own wording was correct; I filled in the wrong generator expression
-  from pattern-matching the bundle arms beside it rather than reading what
-  `getImbeddedFileFolder()` actually returns.
-- **A destination change to a build-tree path can force a packaging-script
-  change even when the shipped layout doesn't move.** The dev-tree consumer and
-  the packaging consumer read the same CMake output through two different
-  assumptions (loose files vs. a clean `Resources` subtree), and moving the
-  first broke the second's "copy the whole folder" shortcut.
-
-**Next:** S36 is the last of the resource-staging defects this cluster of rows
-(#314, S21, S36) named; nothing else on the `any`/`win` queue currently touches
-this file. **P3** remains this platform's only own-boxed row and is GATED,
-needing Jeff.
-
-**Branch/PR:** `tide/win/S36-resource-destination` — TideSynth, [#339](https://github.com/JeffMcClintock/TideSynth/pull/339).
-
----
-
-## 2026-08-23 — linux — A34: the scan warning now reports a finding instead of a probe, and S37's inference is corrected
-
-**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
-
-Fifth item this session, at Jeff's direction. **A34** — the row this box filed
-an hour earlier while running E1c.
-
-**Did:** `tools/render_harness.py` warned about every folder the engine *looked
-at*. It now warns about folders that actually **contain** modules.
-
-### The change
-
-`folder_has_modules()` classifies a scanned folder, and the warning fires only
-on the populated subset. **Conservative by construction, because the two
-mistakes do not cost the same:** a missed warning silently attributes a
-measurement to the wrong module set; a spurious one costs a reader a moment. So
-it searches recursively, matches `.sem` and `.gmpi` on the suffix (a `.gmpi` may
-be a file *or* a bundle directory), and returns true on anything it cannot rule
-out — an unreadable folder, or one too large to walk inside a 20,000-entry cap.
-
-`.xml` does not count: the engine package pairs each `.sem` with an `.xml` pin
-descriptor, and a folder holding only descriptors can load nothing.
-
-**The report keeps both lists** — `foreign_module_sources` is still the raw
-probe list, and `populated_module_sources` is the new finding — so nothing that
-consumed the old field loses anything.
-
-### Demonstrated three ways, which is one more than the row asked for
-
-Same engine, same case, only `XDG_DATA_HOME` differing:
-
-| scan folder | probed | populated | warning |
-|---|---:|---:|---|
-| **absent** | 1 | 0 | **silent** |
-| **exists, empty** | 1 | 0 | **silent** |
-| **one `.gmpi` planted** | 1 | **1** | **fires, and names it** |
-
-The row's Accept asks for absent-or-empty silent and populated loud. Splitting
-absent from empty is the case that matters most, because **absent is what CI
-does** — `/home/runner/.local/share/SynthEdit/modules` on a runner that has no
-such directory is precisely the false alarm that made this row.
-
-Full suite unchanged at **8/8**, and silent under isolation.
-
-**Seven engine-free selftest cases** cover the classifier both directions —
-absent, empty, descriptors-only, `.sem`, `.gmpi`-as-directory, a module nested
-below the folder, and the filter itself. A one-sided test would pass on a
-classifier that only ever says "no".
-
-### CORRECTION, and it is the more important half of this entry
-
-**Jeff: *"CLAP does ship a GUI. I suspect DAWs support only X11."* He is right
-and my S37/S43 conclusion was wrong.**
-
-I wrote that the Linux CLAP *"has no GUI backend linked"* and therefore
-*"`is_api_supported` returning false is honest"*. The measurement was sound; the
-inference was not. **The honest reading is that the CLAP wrapper is unfinished
-on Linux.** Four artifacts, one build:
-
-| artifact | links libX11/xcb | links wayland |
-|---|---:|---:|
-| `TIDE-Rack` (standalone) | 0 | **1** |
-| `TIDE-Rack.so` (**VST3**) | **2** | **1** |
-| `TIDE-Rack.clap` | 0 | 0 |
-| `TIDE-Rack.gmpi` | 0 | 0 |
-
-**The VST3 links both; the CLAP links neither**, and the source lists say why
-outright: `wrapper/CLAP/CMakeLists.txt` has a `WIN32` block and an `APPLE` block
-and **no Linux arm at all**, while `wrapper/VST3/` ships
-`SEVSTGUIEditorLinux.{h,cpp}` (X11) *and* `SEVSTGUIEditorWayland.{h,cpp}`.
-
-**Jeff's X11 suspicion is backed by that wrapper's own design:** its CMake calls
-X11 *"the only Linux embedding"* before VST3 3.8.0 and makes Wayland
-conditional, falling back to *"X11 editor only"*.
-
-**And my instrument was wrong in a way worth recording.** I grepped `nm` for
-`DrawingFrameX11` and `DrawingFrameWayland` and got zero — but the VST3 uses its
-own `SEVSTGUIEditor*` classes, so that grep returns zero on the binary that
-**does** have an X11 editor. It was never a test of the thing I claimed.
-**`ldd` was the reliable indicator and I had it in front of me the whole time.**
-
-**Ruling, from Jeff, in session:** *"if CLAP wrapper lacks GUI support, we need
-to add it."* So S43's option (ii) is authorised and is no longer an open product
-question — it is the next job, with `SEVSTGUIEditorLinux` as the pattern.
-
-**Learned:**
-
-- **A negative grep is only evidence if you know the symbol would be there.**
-  Zero hits for `DrawingFrameX11` felt like proof and was not — the working
-  sibling scores zero on the same test. Confirm the instrument fires on a known
-  positive before quoting its silence.
-- **"Compare the artifact against a sibling that works" beats any amount of
-  reading.** One `ldd` table across four formats said in four lines what three
-  code-reading sessions had got backwards.
-- **A conservative classifier needs its false branch tested hardest.** The
-  interesting selftest cases here are the ones that must stay silent, because a
-  classifier that always warns is exactly the bug being fixed.
-- **Splitting "absent" from "empty" was worth the extra case**, because absent
-  is the case CI actually hits and the one the old wording denied could happen.
-
-**Not verified:**
-
-- **The CI half of A34's Accept** — *"the `verify` job green with no warning"* —
-  needs this merged and a run on `main`. It is silent locally under both the
-  absent and empty layouts, and CI's is the absent one, so it should hold;
-  should is not measured.
-- **Windows and macOS** never run this harness (`verify.yml` is `ubuntu-24.04`),
-  so the classifier's behaviour on their path conventions is untested.
-- **Nothing about S43 (ii) is started.** This entry only corrects the record and
-  records the ruling.
-
-**Next:**
-
-1. **S43 (ii) is now the job** — give the CLAP wrapper a Linux arm mirroring
-   `wrapper/VST3/SEVSTGUIEditorLinux`, restore the commented-out X11 arm in
-   `guiIsApiSupported`, and let `CLAP_WINDOW_API_X11` do what hosts use. Jeff has
-   ruled it in.
-2. **S37 is unblocked by the same ruling** — once the Linux CLAP has an editor,
-   the editor reads `getBundleContentsFolder() / "Resources"` and S37's collision
-   becomes real and sizable for the first time.
-
-**Machine left clean.** One throwaway worktree under the session scratchpad, with
-the engine package extracted inside it. All six repos synced to their default
-branches at Jeff's request and clean. Nothing installed.
-
-**Branch/PR:** `tide/linux/A34-scan-warning` — TideSynth, one tool plus backlog
-and journal. No product code change.
 
 ## Rotation — do this as part of STEP 4, every run
 
