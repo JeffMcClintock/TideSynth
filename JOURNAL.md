@@ -151,6 +151,12 @@ Linux renders exactly. It is in the case file as an inference, labelled as one.
   fleet have recorded "the engine scanned folders outside `--modules`" as a
   caveat. `XDG_DATA_HOME` at an empty directory removes it, and the identical
   numbers prove the caveat was harmless *here* rather than assuming it.
+- **A warning that fires on every run is not a caveat, it is noise — and the way
+  to find out is to check its own claim.** The harness annotates this one
+  *"never on a clean CI runner"*; the `verify` job on this very branch emits it,
+  naming `/home/runner/.local/share/SynthEdit/modules`. The engine probes the
+  XDG path whether or not it exists, so the warning reports the probe rather
+  than a finding. Filed as **A34**.
 - **`recorded: "unknown"` provenance can sometimes be settled by measurement.**
   If same-platform renders come back bit-identical, a non-zero residual is itself
   evidence about which platform seeded the reference.
@@ -182,8 +188,8 @@ scratchpad; the engine package was downloaded there and is not installed. Jeff's
 synced to their default branches at the start of this item at his request, were
 clean then, and are clean now.
 
-**Branch/PR:** `tide/linux/E1c-note64` — TideSynth, three test cases plus the
-journal and backlog. No product code change.
+**Branch/PR:** `tide/linux/E1c-note64` — TideSynth, [#333](https://github.com/JeffMcClintock/TideSynth/pull/333); three test cases plus the
+journal and backlog. A34 filed. No product code change.
 
 ## 2026-08-23 — linux — the render references fail on Linux too, and the tolerance that merged four hours ago does not reach it
 
