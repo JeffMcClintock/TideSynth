@@ -79,11 +79,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The uninstall case is the one that makes a shared-folder bug undeniable.
 - The plugin's own diagnostics were the instrument.
 
-**windows — S22: the repo where the trap was found was the one that never got the fix (interactive, Jeff directing)**
-
-- "Fixed in repo A, filed for repo B" can leave the bug in the repo that taught you about it.
-- A guard needs its positive control run, not just its passing case.
-
 ## 2026-08-18
 
 **windows — the Marathon design language, researched from source and revised live by Jeff (interactive session, Jeff directing)**
@@ -1736,3 +1731,8 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Two real bugs fixed on the way to the wrong place are still two real bugs.
 - The third instance is the one to generalise from.
 - A blank window has two very different causes and they look identical from outside
+
+**windows — S22: the repo where the trap was found was the one that never got the fix (interactive, Jeff directing)**
+
+- "Fixed in repo A, filed for repo B" can leave the bug in the repo that taught you about it.
+- A guard needs its positive control run, not just its passing case.
