@@ -8,6 +8,60 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — S16: the missing-binary defect is gone, and it was hiding another (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Took S16 — the mac suite 44/57 red for a hardcoded build path. Fixed in
+[SynthEdit#72](https://github.com/JeffMcClintock/SynthEdit/pull/72).
+
+**The row under-counted: FOUR hardcoded sites, not two.** It names the `build/`
+pair; the `UnitTest/` pair (`projecttests.cpp:78`, `layouttests.cpp:45`) had the
+identical defect and would have been left behind by a fix that trusted the row.
+
+Both now derive from `tests/CMakeLists.txt` — `CMAKE_BINARY_DIR` and the repo
+root — the same trick `synth_ui_tests` already used for `REFERENCE_IMAGES_DIR`.
+**A missing define is a compile error, not a silent fallback.** A default
+pointing at someone else's home directory is precisely how this survived long
+enough for the C-stage rows to quote "92 tests all RC=0", a Windows number.
+
+**The path fix alone changed NOTHING measurable, and saying so matters.**
+`dsp_tests` shells out to `SynthEditCL` and `cancellation`; building the test
+target does not build them. Deriving the path only moved the failure from "wrong
+directory" to "right directory, still empty". `add_dependencies` was the other
+half. Necessary but not sufficient — if I had stopped at the count I would have
+reported a fix that fixed nothing.
+
+**Measured, same checkout, before and after:**
+
+| | before | after |
+|---|---|---|
+| failed | 44 | 40 |
+| passed | 13 | 17 |
+| "No such file or directory" | **82** | **0** |
+| references to the dead checkout | **0** | **536** |
+
+**82 to 0 is the row's defect, gone.** The four-test swing is small because the
+other 40 were never blocked on the binary.
+
+**And the last column is a second defect this one was masking.** 46 `.synthedit`
+fixtures under `UnitTest/` bake in absolute paths to
+`/Users/jeffmcclintock/SynthEdit/`, a checkout that no longer exists. Those
+references appear **only after** the fix, because until the harness stopped
+dying on a missing binary the tests never got far enough to load a fixture.
+Filed as **S42**. A further 89 files carry absolute paths to the CURRENT
+checkout — correct today, wrong on any other machine, so the same defect not yet
+triggered.
+
+**Not verified:** Windows and Linux. The change is symmetric — both platforms'
+hardcodes are replaced by the same derived defines — but only macOS was run.
+
+**Separately, and Jeff should know: his `SynthEdit/build` tree cannot
+reconfigure at all.** S17 reports `gmpi_wrappers` has both a local override and
+a fetched copy. It predates this change — a clean tree fails identically, which
+I checked by stashing before blaming myself — so I built in a scratch directory
+rather than delete 3.4 GB of his.
+
 ## 2026-08-23 — linux — E1c: the deciding render lands at −140 dBFS, and neither the module nor the pitch is the variable on its own
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
