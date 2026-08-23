@@ -114,11 +114,42 @@ rewrite is permitted. It is superseded and wants a human to delete it.
 - Twenty reference PNGs hashed against their two sources; all twenty identical.
 - Clean rebuild, no warnings.
 
+### CI closed all three of the gaps this entry was going to list as unverified, and the prediction held
+
+The PR's own run — [#349](https://github.com/JeffMcClintock/TideSynth/pull/349),
+all three render jobs **pass**, `main`'s `build.yml` line unchanged:
+
+| job | resolved set | result |
+|---|---|---|
+| **render-windows** | `tests/references/windows-linux` | 10/10 — `shapes` **0.083%, delta 10**, everything else 0.000% |
+| **render-linux** | `tests/references/windows-linux` | 10/10 — **0.000% on all ten**, worst delta 2 |
+| **render-macos** | `tests/references/macos` | 10/10 — `knob` 0.023% delta 17, everything else 0.000% |
+
+**Three things fall out of that table, and none of them were guaranteed.**
+
+**The Linux prediction was right for the stated reason.** I wrote before the run
+that Linux should read 0.000% rather than Windows' 0.083%, because the images
+came off an ubuntu runner and Linux is comparing against its own bake. It reads
+**0.000% on all ten**. The 0.083% is specifically the Windows-vs-Linux gap, not
+noise in the set.
+
+**Two different Windows machines agree exactly.** This box (MSVC 14.51, local)
+and `windows-latest` both read `shapes` at **0.083%, worst delta 10** and
+everything else at 0.000%. Same figure to three decimals on unrelated hardware,
+which is the reproducibility the whole image-test design claims and rarely gets
+to demonstrate across machines.
+
+**`macos` is picked and passes**, so the `#if defined(__APPLE__)` arm is measured
+rather than reasoned — and it is not a trivial pass: `knob` moves 0.023% at delta
+17 on `macos-latest` against references baked on a Mac, so that set has real
+runner-to-runner variation and still lands well inside the limits.
+
+**And the workflow was never touched.** Three platforms resolved three sets from
+one unchanged command line, which is the whole claim of putting the selection in
+the binary.
+
 **Not verified:**
 
-- **Linux.** The other half of `windows-linux/` is still unmeasured on a Linux box. The images came from an ubuntu runner, so the expectation is 0.000% everywhere rather than 0.083% — Linux should agree with its own bake more closely than Windows does. **That is a prediction, and it is the Linux box's to check.**
-- **macOS.** The `macos/` set is unmoved bytes and the resolver picks it under `__APPLE__`, but no Mac ran this. That arm is reasoning here, not measurement.
-- **CI.** `main`'s workflow line is unchanged and needs to be, which is the point — but the render job has not run with the new binary. The first run on this PR is the test.
 - **`ctest` end-to-end.** `modules/common` alone registers `add_test` without ever calling `enable_testing()` — that lives in `modules/CMakeLists.txt:58`, one level up — so `ctest` in a standalone `modules/common` build reports that no tests were found. Pre-existing, unrelated to this change, and not worth a row: the parent build is the one that runs it. I verified the argument instead of the harness.
 
 **Learned:**
@@ -139,8 +170,8 @@ rewrite is permitted. It is superseded and wants a human to delete it.
 
 **Next:**
 
-1. **A Linux run of `windows-linux/`** finishes the set's verification. One build, one command, and the prediction is 0.000% across the board.
-2. **`main`'s render job goes green on Windows and Linux when this merges**, which is [#291](https://github.com/JeffMcClintock/TideSynth/issues/291)'s remedy. That issue is `platform:linux`-labelled and is not only Linux's.
+1. **[#291](https://github.com/JeffMcClintock/TideSynth/issues/291) closes when this merges** — its remedy is exactly this PR, and all three render jobs are green on the branch. The issue is `platform:linux`-labelled and was never only Linux's; Windows fails five of the same ten scenes. Commented there with the numbers rather than closing it, since it is Jeff's issue and the fix has not landed yet.
+2. **Any future intended look change now has to be re-approved in BOTH sets**, on a machine of each family, or the platform that was not re-baked goes red. The README says so; nothing enforces it, and that is the obvious next defect this arrangement can produce.
 3. **`origin/tide/mac/S27-render-ci` wants deleting by a human** once this merges, along with the mac-box worktree registered against it.
 4. **The `any` queue now has no ungated row at all.** Both cells say so; the next scheduled run on any box should expect to find nothing takeable and stop rather than invent work.
 
