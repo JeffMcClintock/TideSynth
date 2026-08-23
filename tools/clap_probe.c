@@ -351,6 +351,25 @@ int main(int argc, char **argv)
 									for (int q = 0; q < nseen && q < 6; ++q)
 										printf("        colour[%d] = 0x%06lx\n", q, seen[q] & 0xffffffUL);
 									if (nseen <= 1) rc = 1;
+									// Dump it, so "it painted" is something a human can check.
+									const char *dump = getenv("CLAP_PROBE_PPM");
+									if (dump) {
+										FILE *f = fopen(dump, "wb");
+										if (f) {
+											fprintf(f, "P6\n%u %u\n255\n", tw, th);
+											for (unsigned y = 0; y < th; ++y)
+												for (unsigned x = 0; x < tw; ++x) {
+													unsigned long v = XGetPixel(img, x, y);
+													unsigned char rgb[3] = {
+														(unsigned char)((v >> 16) & 0xff),
+														(unsigned char)((v >> 8) & 0xff),
+														(unsigned char)(v & 0xff) };
+													fwrite(rgb, 1, 3, f);
+												}
+											fclose(f);
+											printf("      wrote %s\n", dump);
+										}
+									}
 									XDestroyImage(img);
 								}
 							}

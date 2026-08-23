@@ -8,6 +8,124 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — linux — the CLAP editor PAINTS, and the cause was M4's defect on a third wrapper
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+Follow-up to this morning's S43(ii) entry, which ended *"it embeds, the host
+drives it, and it paints nothing"*. Jeff: *"keep going. add temporary logging if
+it helps."* It helped, and the answer came in one run.
+
+**A separate entry rather than an edit to that one** — it merged as
+[#340](https://github.com/JeffMcClintock/TideSynth/pull/340) while I was working,
+and a log you edit is not a log.
+
+### The logging, and what it killed
+
+Three temporary probes in `gmpi_ui/backends/DrawingFrameX11.cpp`'s `present()`:
+entry state, every early-return, and — the one that mattered — the client's own
+output surface.
+
+**`present()` was doing everything right:**
+
+    present#1: display=.. window=.. client=.. dirtyAll=1 w=1100 h=600
+    present: calling client->render
+    present: BLIT 1100x600 at 0,0 via XShmPutImage
+
+**And the client was writing an entirely blank surface:**
+
+    client surface: 1100x600 stride=1104 nonzero-samples=0 first=0x00000000
+
+**So windowing was never the problem.** Not the linking, not the embedding, not
+the size, not the pump. And the two bugs I had already found and fixed on the way
+— `Editor_CLAP::width/height` stuck at their `{100}` defaults, and `arrange()`
+never called — were both real and neither was ever going to move this.
+
+### The cause: `wrapper/CLAP` never created the plug-in's Controller at all
+
+`PluginSubtype::Controller` appeared **nowhere** in the CLAP wrapper directory.
+AU3 gained exactly this in **M4**; VST3 has always had it.
+
+The chain is written out in `AU3_Wrapper.mm` by whoever fixed it there, and it is
+worth quoting because it predicts precisely what I measured: with no
+`initialize()` the plug-in controller never publishes its `seApp` pointer through
+parameter 0, so the editor's `notifyPin(0)` arrives with a **zero-byte payload
+instead of 8**, so the editor's guard on that size fails, so its whole GUI is
+never constructed.
+
+Created and initialised against the wrapper's controller holder, and **held** on
+`Processor_CLAP` rather than merely initialised — it publishes state through the
+holder and must outlive the editor that reads it, the same reason `AU3Core` holds
+its one.
+
+**Same probe, same display, after:**
+
+    client surface: 1100x600 nonzero-samples=41250 first=0x29102910
+    window 0x600002 content: 64 distinct colours sampled  <-- IT PAINTED
+
+The captured window shows the **module browser category tree** — All, Controls,
+Conversion, Diagnostic, Effects, Experimental, Filters, Flow Control,
+Input-Output, Logic, Math, MIDI, Modifiers, Old, Special, Sub-Controls, TiDE,
+Waveform — the module list beneath it, and the **rack rails with their mounting
+holes**. That is TIDE Rack's editor, in a CLAP host, on Linux.
+
+**Housekeeping.** All diagnostics were temporary: `grep TIDEDIAG` is clean in all
+six repos, and the `gmpi_ui` worktree they lived in is back to `origin/main` with
+an empty `git status` — nothing of that repo is in either PR. Whole TIDE tree
+**rc=0**, all four Linux artifacts.
+
+**Learned:**
+
+- **Instrument the LAST link first.** I spent the session on windowing — linking,
+  embedding, sizing, the event loop — and the answer was one line showing the
+  client's own surface was all zeroes. `nonzero-samples=0` on the first run would
+  have pointed at content immediately and skipped every windowing theory. The
+  chain here is long and I started at the end I had just built.
+- **Two real bugs fixed on the way to the wrong place are still two real bugs.**
+  The `{100}` size and the missing `arrange()` were genuine, and fixing something
+  true is not evidence you are on the path to the cause.
+- **The third instance is the one to generalise from.** AU3 (M4), now CLAP; VST3
+  was always correct. *"Does this wrapper create the plug-in's `<Controller/>`?"*
+  is one grep, and it is now the first question to ask of any wrapper whose
+  editor misbehaves.
+- **A blank window has two very different causes and they look identical from
+  outside** — nothing drew, or something drew nothing. Reading the client's
+  surface separates them in one measurement; everything upstream of it cannot.
+
+**Not verified:**
+
+- **`state->save` still returns 86 bytes**, and my earlier inference that this
+  meant "no document" was **wrong** — the editor plainly has content now. What 86
+  bytes actually represents is unmeasured, and I have removed the claim rather
+  than repair it.
+- **`guiShow`/`guiHide` are still unimplemented**, so `show()` returns false from
+  the clap-helpers base. The editor draws regardless, because
+  `X11DrawingFrame::open()` maps its own window — so this is a gap, not a
+  blocker, and a host that respects `show()` may still hide it.
+- **macOS and Windows were not built.** The controller creation is NOT inside a
+  platform guard — it runs on every platform — so those two are the ones to
+  check before this merges. On Linux it is measured; elsewhere it is reasoning.
+- **No real DAW.** Everything is our own probe on a headless Xwayland.
+
+**Next:**
+
+1. **S37 is live for the first time.** The editor draws, so it reads
+   `getBundleContentsFolder() / "Resources"` — the shared-folder collision that
+   row describes is finally observable and its options finally sizable.
+2. **Build the CLAP on macOS and Windows** before merging, since the controller
+   change is unguarded.
+3. **A real DAW on Linux** — Bitwig or Reaper — is the honest next test.
+
+**Machine left clean.** Three throwaway worktrees under the session scratchpad,
+one per repo; the `gmpi_ui` one is unmodified and exists only because the
+diagnostics lived there. Headless weston stopped. All six repos on their default
+branches and clean. Nothing installed.
+
+**Branch/PR:** `tide/linux/S43ii-clap-x11` in both repos —
+[GMPI_Wrappers#16](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/16) now
+carries the controller fix as a second commit; this repo gets the probe's
+screenshot dump plus the row and this entry.
+
 ## 2026-08-23 — windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)
 
 **Did:** S36 confirmed merged and flipped to DONE — [#339](https://github.com/JeffMcClintock/TideSynth/pull/339)
