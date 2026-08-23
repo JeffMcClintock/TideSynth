@@ -8,6 +8,61 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — S27: the symptom is gone, the row's own prediction came true (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Took S27 intending to answer its open question — *which transcendental dominates*
+— and the first measurement made that question moot.
+
+**The 5-of-10 failures at 35-67% do not reproduce.** On current `main`, arm64
+passes **all ten checks**, worst 0.023%. Jeff re-baked the references at
+`246399a` on 2026-08-22, after this row was measured. The row's headline was
+stale and I would have spent the day chasing a fixed bug if I had started from
+its hypothesis instead of from a run.
+
+**But the row predicted its own successor, and it was right.** It warned that
+`shapes` cross-ISA sat at 0.396% against a 0.400% limit — *"1% of margin ...
+borderline flaky"*. It has crossed. Building the same dependency-free project
+**x86_64 on this same Mac** — same OS, same libm, same compiler, only the ISA
+differing — `shapes` fails at **0.444%**. Three consecutive runs give 0.444% and
+worst delta 14 at (122,42), byte for byte: deterministic, not flaky.
+
+**Fixed by taking one of the three options the row offers Jeff — the measured
+tolerance.** `kMaxChangedFraction` 0.004 -> 0.008. Per-scene worst cross-ISA:
+
+    glow 0.014%   glass 0.111%   materials 0.181%   knob 0.191%   shapes 0.444%
+
+so 0.008 is ~1.8x the worst. **`kMaxChannelDelta` (40) is untouched**, and never
+came close — worst delta anywhere cross-ISA is 20.
+
+**Loosening a tolerance without proving the test still bites is just weakening
+it, so I measured that too.** Perturbing the key light and re-rendering:
+
+    kFastKey 0.90 (baseline)   0.023% moved   0 FAILs
+    kFastKey 0.85 (-5.6%)     24.820% moved   4 FAILs
+    kFastKey 0.80 (-11%)      98.799% moved   5 FAILs
+    kFastKey 0.70 (-22%)     100.000% moved   5 FAILs
+
+There is no band between 0.4% and 0.8% for a real regression to hide in — the
+metric goes from 0.02% to 25% with nothing in between. My first probe was a 1%
+light change, which the test did NOT catch; that is not a hole, it is 1% of a
+~230 pixel landing at the 2-level channel floor. Worth recording because it
+briefly looked like a hole.
+
+**The finding that matters most is none of the above: NOTHING RUNS THIS TEST.**
+`tide_render_regression` appears in no workflow, and TIDE's root still
+force-disables it (`CMakeLists.txt:380`, `FORCE`). No CI on any platform has
+ever run it. The cross-platform divergence this row exists to worry about would
+be invisible, and the 1%-of-margin warning sat in the backlog until someone
+happened to build the other architecture by hand.
+
+**Correction to the row's hypothesis:** it names *"exp/pow"*. The tracer contains
+**no `exp` at all** — its 19 transcendentals are cos 7, sin 6, log 4, pow 2.
+
+**Not verified:** anything about Windows or Linux. This box cannot render there,
+which is exactly why the CI gap matters.
+
 ## 2026-08-23 — macos — S33 is WONTFIX: the stub is inside a comment (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)

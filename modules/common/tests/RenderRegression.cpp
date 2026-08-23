@@ -41,8 +41,26 @@ constexpr int kChannelTolerance = 2;
 
 // ...and no more than this fraction of pixels may be changed. A handful of
 // pixels along a silhouette can legitimately flip when the maths is reordered;
-// a percent of the frame cannot.
-constexpr double kMaxChangedFraction = 0.004;
+// a large part of the frame cannot.
+//
+// RAISED FROM 0.004 TO 0.008 ON MEASUREMENT, 2026-08-23 (S27). A DIFFERENT ISA
+// is the same class of variation this limit exists to swallow, and 0.004 was
+// too tight for it: building this project x86_64 and arm64 on ONE Mac -- same
+// OS, same libm, same compiler, only the instruction set differing -- moves
+// 0.444% of `shapes` against references baked on arm64. Deterministic, not
+// flaky: three consecutive runs give 0.444% and worst delta 14 at (122,42),
+// byte for byte.
+//
+// The worst case measured across all ten checks, per scene:
+//
+//   glow 0.014%   glass 0.111%   materials 0.181%   knob 0.191%   shapes 0.444%
+//
+// 0.008 is ~1.8x the worst of those. The guard that actually catches a broken
+// BSDF or a lost light is kMaxChannelDelta below, and it is nowhere near
+// tripping -- the worst delta any scene produced cross-ISA is 20 against a
+// limit of 40, while a real regression moves pixels "by tens of levels".
+// Loosening the count while leaving the depth limit alone keeps that intact.
+constexpr double kMaxChangedFraction = 0.008;
 
 // Regardless of how few pixels moved, none of them may move this far. This is
 // what catches a small but catastrophic change — a highlight that vanished, a
