@@ -112,6 +112,134 @@ needing Jeff.
 
 ---
 
+## 2026-08-23 — linux — A34: the scan warning now reports a finding instead of a probe, and S37's inference is corrected
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+Fifth item this session, at Jeff's direction. **A34** — the row this box filed
+an hour earlier while running E1c.
+
+**Did:** `tools/render_harness.py` warned about every folder the engine *looked
+at*. It now warns about folders that actually **contain** modules.
+
+### The change
+
+`folder_has_modules()` classifies a scanned folder, and the warning fires only
+on the populated subset. **Conservative by construction, because the two
+mistakes do not cost the same:** a missed warning silently attributes a
+measurement to the wrong module set; a spurious one costs a reader a moment. So
+it searches recursively, matches `.sem` and `.gmpi` on the suffix (a `.gmpi` may
+be a file *or* a bundle directory), and returns true on anything it cannot rule
+out — an unreadable folder, or one too large to walk inside a 20,000-entry cap.
+
+`.xml` does not count: the engine package pairs each `.sem` with an `.xml` pin
+descriptor, and a folder holding only descriptors can load nothing.
+
+**The report keeps both lists** — `foreign_module_sources` is still the raw
+probe list, and `populated_module_sources` is the new finding — so nothing that
+consumed the old field loses anything.
+
+### Demonstrated three ways, which is one more than the row asked for
+
+Same engine, same case, only `XDG_DATA_HOME` differing:
+
+| scan folder | probed | populated | warning |
+|---|---:|---:|---|
+| **absent** | 1 | 0 | **silent** |
+| **exists, empty** | 1 | 0 | **silent** |
+| **one `.gmpi` planted** | 1 | **1** | **fires, and names it** |
+
+The row's Accept asks for absent-or-empty silent and populated loud. Splitting
+absent from empty is the case that matters most, because **absent is what CI
+does** — `/home/runner/.local/share/SynthEdit/modules` on a runner that has no
+such directory is precisely the false alarm that made this row.
+
+Full suite unchanged at **8/8**, and silent under isolation.
+
+**Seven engine-free selftest cases** cover the classifier both directions —
+absent, empty, descriptors-only, `.sem`, `.gmpi`-as-directory, a module nested
+below the folder, and the filter itself. A one-sided test would pass on a
+classifier that only ever says "no".
+
+### CORRECTION, and it is the more important half of this entry
+
+**Jeff: *"CLAP does ship a GUI. I suspect DAWs support only X11."* He is right
+and my S37/S43 conclusion was wrong.**
+
+I wrote that the Linux CLAP *"has no GUI backend linked"* and therefore
+*"`is_api_supported` returning false is honest"*. The measurement was sound; the
+inference was not. **The honest reading is that the CLAP wrapper is unfinished
+on Linux.** Four artifacts, one build:
+
+| artifact | links libX11/xcb | links wayland |
+|---|---:|---:|
+| `TIDE-Rack` (standalone) | 0 | **1** |
+| `TIDE-Rack.so` (**VST3**) | **2** | **1** |
+| `TIDE-Rack.clap` | 0 | 0 |
+| `TIDE-Rack.gmpi` | 0 | 0 |
+
+**The VST3 links both; the CLAP links neither**, and the source lists say why
+outright: `wrapper/CLAP/CMakeLists.txt` has a `WIN32` block and an `APPLE` block
+and **no Linux arm at all**, while `wrapper/VST3/` ships
+`SEVSTGUIEditorLinux.{h,cpp}` (X11) *and* `SEVSTGUIEditorWayland.{h,cpp}`.
+
+**Jeff's X11 suspicion is backed by that wrapper's own design:** its CMake calls
+X11 *"the only Linux embedding"* before VST3 3.8.0 and makes Wayland
+conditional, falling back to *"X11 editor only"*.
+
+**And my instrument was wrong in a way worth recording.** I grepped `nm` for
+`DrawingFrameX11` and `DrawingFrameWayland` and got zero — but the VST3 uses its
+own `SEVSTGUIEditor*` classes, so that grep returns zero on the binary that
+**does** have an X11 editor. It was never a test of the thing I claimed.
+**`ldd` was the reliable indicator and I had it in front of me the whole time.**
+
+**Ruling, from Jeff, in session:** *"if CLAP wrapper lacks GUI support, we need
+to add it."* So S43's option (ii) is authorised and is no longer an open product
+question — it is the next job, with `SEVSTGUIEditorLinux` as the pattern.
+
+**Learned:**
+
+- **A negative grep is only evidence if you know the symbol would be there.**
+  Zero hits for `DrawingFrameX11` felt like proof and was not — the working
+  sibling scores zero on the same test. Confirm the instrument fires on a known
+  positive before quoting its silence.
+- **"Compare the artifact against a sibling that works" beats any amount of
+  reading.** One `ldd` table across four formats said in four lines what three
+  code-reading sessions had got backwards.
+- **A conservative classifier needs its false branch tested hardest.** The
+  interesting selftest cases here are the ones that must stay silent, because a
+  classifier that always warns is exactly the bug being fixed.
+- **Splitting "absent" from "empty" was worth the extra case**, because absent
+  is the case CI actually hits and the one the old wording denied could happen.
+
+**Not verified:**
+
+- **The CI half of A34's Accept** — *"the `verify` job green with no warning"* —
+  needs this merged and a run on `main`. It is silent locally under both the
+  absent and empty layouts, and CI's is the absent one, so it should hold;
+  should is not measured.
+- **Windows and macOS** never run this harness (`verify.yml` is `ubuntu-24.04`),
+  so the classifier's behaviour on their path conventions is untested.
+- **Nothing about S43 (ii) is started.** This entry only corrects the record and
+  records the ruling.
+
+**Next:**
+
+1. **S43 (ii) is now the job** — give the CLAP wrapper a Linux arm mirroring
+   `wrapper/VST3/SEVSTGUIEditorLinux`, restore the commented-out X11 arm in
+   `guiIsApiSupported`, and let `CLAP_WINDOW_API_X11` do what hosts use. Jeff has
+   ruled it in.
+2. **S37 is unblocked by the same ruling** — once the Linux CLAP has an editor,
+   the editor reads `getBundleContentsFolder() / "Resources"` and S37's collision
+   becomes real and sizable for the first time.
+
+**Machine left clean.** One throwaway worktree under the session scratchpad, with
+the engine package extracted inside it. All six repos synced to their default
+branches at Jeff's request and clean. Nothing installed.
+
+**Branch/PR:** `tide/linux/A34-scan-warning` — TideSynth, one tool plus backlog
+and journal. No product code change.
+
 ## 2026-08-23 — linux — S43: the CLAP now refuses an API it just said it did not support
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
