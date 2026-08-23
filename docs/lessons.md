@@ -81,14 +81,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A row that names its own precedent site is most of the fix.
 - Check the cell's own "before doing anything else" instruction before doing anything else.
 
-**linux — S43(ii): the Linux CLAP has an X11 editor. It embeds, the host drives it, and it paints nothing**
-
-- A macro that is never defined is worse than a `#if 0`, because it reads as live code.
-- Structure beats pixels on a headless server.
-- The teardown order bug was mine, in the probe.
-- Mixed line endings in one repo.
-- A CMake block inserted next to the right line can still land in the wrong `if()`.
-
 ## 2026-08-18
 
 **windows — the Marathon design language, researched from source and revised live by Jeff (interactive session, Jeff directing)**
@@ -1708,6 +1700,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Three red signals on one platform in one hour is not evidence of one cause.
 - Read the first error, not the loudest.
 - A checkout error that names `.gitmodules` means someone committed a directory.
+
+**linux — S43(ii): the Linux CLAP has an X11 editor. It embeds, the host drives it, and it paints nothing**
+
+- A macro that is never defined is worse than a `#if 0`, because it reads as live code.
+- Structure beats pixels on a headless server.
+- The teardown order bug was mine, in the probe.
+- Mixed line endings in one repo.
+- A CMake block inserted next to the right line can still land in the wrong `if()`.
 
 **windows — S36: the Windows resources move beside the binary, and my first attempt at "beside" was wrong (interactive, Jeff directing)**
 
