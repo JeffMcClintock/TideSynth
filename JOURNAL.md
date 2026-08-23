@@ -8,6 +8,115 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — linux — S25's Accept passes; the tofu that survives is a different bug (interactive, Jeff directing)
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** ran S25's own Accept on current `main` instead of building toward its
+diagnosis. **It passes.** The row is closed by measurement, and what is left of
+the symptom is split out as **S45**.
+
+No product code changed.
+
+### The measurement
+
+`main` `44be26e` — which already carries Jeff's *"new tide-specific patch-points
+(don't draw anything)"* — `TIDE_Rack_STANDALONE`, RelWithDebInfo, headless
+weston, driven through the `gmpi-standalone` command channel. **Isolated `HOME`,
+with `~/.config/TIDE Rack/session.xml` confirmed absent at launch** — that is the
+trap the 2026-08-20 entry says contaminated three earlier observations, and it is
+still the first thing to check.
+
+Insertion is **arm-then-click**, not a drag (2026-08-20). Click `Prefabs`, click
+`Oscillator`, click the rack.
+
+| | result |
+|---|---|
+| freshly inserted `Oscillator` | `TIDE Oscillator`, X 4264 Y 3832 **W 20 H 66** — two bare jacks |
+| after kill + relaunch (restored) | **identical** — same jacks, same pixels, same position |
+| only difference in the crop | the **blue selection border**, which a fresh insert has and a restore does not |
+
+**That is the mac result.** So insert ≡ restore now holds on both platforms, and
+the cross-platform divergence this row existed for is gone.
+
+**The stronger control:** the entire 1100×626 window, before and after a restart,
+is **byte-identical** — SHA-256 `97b33b66…` both times, `ImageChops.difference`
+bbox `None`. Not "looks the same".
+
+### What did not go away, and why it cannot be this row
+
+The seeded root MIDI-CV facade's pin captions still draw as missing-glyph boxes.
+**They do it in both paths** — which is exactly why it is not S25, whose entire
+subject is a *difference* between the two paths. Filed as **S45**.
+
+Four things are eliminated on the way, and they are the value of the session:
+
+1. **Not a missing font stack.** The module browser, in the **same window, same
+   process**, renders `Fixed Values (Volts)`, `Volts to Float2` and the rest
+   perfectly. Whatever is broken is one text path, not the text system.
+2. **Not fontconfig and not a missing font file.** `strace` shows four real fonts
+   opened — `DejaVuSans.ttf`, `LiberationSans-Regular.ttf`, `NotoSans-Regular.ttf`,
+   `UbuntuSans[wdth,wght].ttf` — **zero `ENOENT` on any `.ttf`/`.otf`**, and
+   `/etc/fonts/conf.avail/*` read. **This refutes the row's own leading suspect**,
+   *"the linux font/resource-binding suspect"*, in the sense the row meant it.
+3. **Not the source strings.** `Resources/Prefabs/MidiCv.synthedit` has **zero
+   non-ASCII bytes**.
+4. **Not insert-vs-restore**, per the byte-identical window above.
+
+The surviving lead, recorded on S45 as a lead and **not** as a diagnosis:
+`ModuleViewStruct.cpp:1155` asks for `createTextFormat(9.0f, {}, …)` — an **empty
+font family** — while the browser side (`EditorLib/CUG.cpp:3410`) calls
+`createTextFormat()` with none. Whether those resolve differently is unmeasured.
+
+### A trap I checked and cleared, so nobody spends the session on it
+
+`gmpi_ui/helpers/FontProvider.h` gates its fontconfig matcher behind
+`__has_include(<fontconfig/fontconfig.h>)` — the exact silent-compile-out shape
+S43(ii) documented, and it looked like the answer. **It is not:** the header is at
+`/usr/include/fontconfig/fontconfig.h`, a default system include path, so it
+compiles in whether or not CMake adds anything. Written down because the pattern
+is genuinely dangerous elsewhere and will attract the next reader too.
+
+**Verified:** build 312/312 rc=0, 0 errors; Accept run as written; byte-identical
+window across restart; `strace` font census; the prefab byte scan.
+
+**Not verified:**
+
+- **The diagnosis of S45.** Eliminations only. I did not instrument the font
+  resolution, which is the next step and is written on the row.
+- **Jeff's "nothing at all on insert"** is still unreproduced and still not
+  assumed to be either bug — though it is worth noting the freshly-inserted
+  Oscillator draws **two small jacks and no faceplate**, which on a full rack
+  could easily read as "nothing appeared".
+- **Windows.** Unmeasured for either symptom.
+
+**Learned:**
+
+- **Run a row's Accept before building toward its diagnosis.** S25 handed me a
+  suspect list and a next step; the Accept took twenty minutes and made the whole
+  list moot. Sixth re-point in a row where the cell aimed at work already done.
+- **A symptom that appears in BOTH arms of a comparison cannot be evidence about
+  the comparison.** The tofu was real every time anyone looked, which is why it
+  kept being attached to a row about insert-vs-restore; the thing that separates
+  them is asking whether the *other* arm has it too.
+- **The same window rendering some text correctly is the cheapest possible
+  elimination**, and it was visible in the very first screenshot. It kills "fonts
+  are broken on this box" before any tooling.
+- **`__has_include` guards deserve a check, not a conclusion.** This one looked
+  exactly like S43(ii)'s and is inert here because the header sits in a default
+  system path.
+- **`pgrep -f <pattern>` self-kill bit me twice in one session**, both times on a
+  pattern containing my own build path. The journal has warned about this three
+  times. `pgrep -x <exename>` does not have the problem.
+
+**Machine left clean.** Headless weston stopped, the standalone stopped, all work
+in scratch worktrees and a scratch `HOME`; **nothing was written to Jeff's
+`~/.config`** and nothing installed. All six repos on their default branches and
+clean.
+
+**Branch/PR:** `tide/linux/S25-fresh-insert-tofu` — TideSynth only: the S25 and
+S37 rows, the new S45 row, the linux NEXT cell, three screenshots and this entry.
+
 ## 2026-08-24 — linux — S37: CLAP has no bundle on Linux, so TIDE ships a semi-bundle instead (interactive, Jeff directing)
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
@@ -941,51 +1050,6 @@ and whose branch is gone from origin. Neither is this run's. `SE16`,
 branches at the start and were never touched.
 
 **Branch/PR:** `tide/win/S44-s27-reference-split` — [#349](https://github.com/JeffMcClintock/TideSynth/pull/349), TideSynth only.
-
-## 2026-08-23 — macos — E10: the host-crashing chunk is fixed (interactive)
-
-**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
-
-Fixed in [SynthEditLib#35](https://github.com/JeffMcClintock/SynthEditLib/pull/35).
-**TIDE's probe crashes REAPER once on purpose every run. It now crashes it zero
-times** — six cases rc=0, no new crash reports written.
-
-**The row had already done the hard part** — it named `BuildDspGraph` returning
-void as the structural defect, listed the sites, and warned that moving one line
-would not do it. All true. It returns `bool` now, four derefs are guarded, and
-both `SynthRuntime` call sites honour the result.
-
-**The round trip is the part worth keeping.** My first version also did
-`generator.reset()` on failure. That MOVED the crash instead of removing it:
-modules register themselves with the master during the build, so destroying it
-left those registrations dangling and `SeAudioMaster::MidiIn` crashed on freed
-memory. The probe still said rc=-11 and I could easily have read that as "the
-fix does not work". What settled it was comparing the two crash reports:
-
-    before   QueryIntAttribute <- ug_container::BuildPatchManager
-             <- SeAudioMaster::BuildDspGraph <- SynthRuntime::prepareToPlay
-    after    SeAudioMaster::MidiIn
-
-Different stacks. The original site WAS closed; I had opened a new one. Dropping
-the reset — leaving the master constructed but unopened, which the "unprepared"
-path already handles — closed both.
-
-**A near miss earlier in the same item.** After the first build I checked for a
-marker string in the installed binary, found none, and nearly concluded my code
-had not been compiled. It had: the marker was inside `_RPT0`, which compiles out
-in Release. The build log naming `[local override]` and compiling
-`SynthRuntime.cpp` was the real evidence. Absence of a debug string proves
-nothing.
-
-**Verified:** all six probe cases rc=0, including the real REAPER chunk as a
-positive control; zero new crash reports across a full run. Jeff's installed
-VST3 was backed up before I replaced it with a test build and restored
-afterwards.
-
-**Not verified:** Windows and Linux — platform-neutral C++, macOS only.
-
-**Follow-up:** the probe now prints *"skeleton: NO LONGER CRASHES -- has E10
-landed?"*, which is its own request to be updated once this merges.
 
 ## Rotation — do this as part of STEP 4, every run
 

@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**linux — S25's Accept passes; the tofu that survives is a different bug (interactive, Jeff directing)**
+
+- Run a row's Accept before building toward its diagnosis.
+- A symptom that appears in BOTH arms of a comparison cannot be evidence about the comparison.
+- The same window rendering some text correctly is the cheapest possible elimination
+- `__has_include` guards deserve a check, not a conclusion.
+- `pgrep -f <pattern>` self-kill bit me twice in one session
+
 **linux — S37: CLAP has no bundle on Linux, so TIDE ships a semi-bundle instead (interactive, Jeff directing)**
 
 - "Can we use a bundle?" and "can we get a private directory?" are different questions, and only the second one mattered.
