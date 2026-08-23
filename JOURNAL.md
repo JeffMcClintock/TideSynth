@@ -108,7 +108,7 @@ touch. macOS and Linux are untouched — the edited arm is `if(WIN32)` /
 this file. **P3** remains this platform's only own-boxed row and is GATED,
 needing Jeff.
 
-**Branch/PR:** `tide/win/S36-resource-destination` — TideSynth.
+**Branch/PR:** `tide/win/S36-resource-destination` — TideSynth, [#339](https://github.com/JeffMcClintock/TideSynth/pull/339).
 
 ---
 
