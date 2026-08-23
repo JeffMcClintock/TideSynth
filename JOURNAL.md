@@ -8,6 +8,66 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — M4 root cause: the AU3 wrapper never initialises the controller (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+The blank AUv3 editor is one cause, and every symptom follows from it.
+
+**`GMPI_Wrappers/wrapper/AU3` contains ZERO calls to a controller/editor
+`initialize(`.** VST3 has six. CLAP has one. **AU2 also has zero**, which
+predicts the AU2 editor is blank for the same reason — untestable here, since
+S40 dropped AU2.
+
+**The chain, each link measured rather than reasoned:**
+
+1. AU3 never calls it, so `SynthEditController.cpp`'s
+   `initialize(gmpi::api::IUnknown* phost, int32_t phandle)` never runs.
+   Instrumented both sides: the standalone logs
+   `publish seApp: host=0x16ce64400 seApp=0x736cc8658 size=8`; **the AUv3 logs
+   no publish line at all.** The pointer is never SENT — it is not lost in
+   transit, which is what I had assumed twice.
+2. So the editor's `notifyPin(0)` arrives empty — `ctrlPtrSize=0 expect=8`
+   against `ctrlPtrSize=8` in the standalone.
+3. So `SynthEditGui.cpp:694`'s guard
+   `if (pinId == 0 && controllerPtr.value.size() == sizeof(seApp))` fails, and
+   the entire GUI-construction block is skipped — host wrappers,
+   `onOpenContainerView`, `startTimer(500)`.
+4. So no GUI timer clients register. The AUv3 registers only
+   `(anonymous namespace)::AU3Core period=15`; the standalone registers
+   `SynthEditGui` (500), `TiDEPanelGui` (100) and **three** `gmpi::ui::Form`
+   (16). That is the 3-vs-1 asymmetry from yesterday, explained.
+5. So `invalidateRect` is called **zero** times against six.
+6. So `drawRect` — which IS called, twice, at the full 1100x600, on a view
+   genuinely in a window — paints an empty scene.
+
+**S33 was eliminated, and it deserved better than a guess.** The pointer travels
+as a blob, and `processor_holder.h`'s `setBlob` is a stub with its store
+commented out — so it looked certain. **I implemented `setBlob` properly, built,
+and re-ran: still `ctrlPtrSize=0`.** The value is never published, so no
+transport fix can help. S33 is a real latent defect and is **not** this one. The
+speculative fix was discarded rather than shipped on a hunch.
+
+**What made this tractable was Jeff's two corrections**, neither of which I would
+have found alone: *"does tide load a playable patch by default?"* killed the
+silence theory, and *"standalone loads the last document automatically, plugin
+should not"* killed a control I was leaning on. Both times I was about to build
+on something false.
+
+**THE FIX IS NOT WRITTEN AND NOT TESTED.** The obvious shape is for AU3 to call
+the controller's `initialize(host, handle)` as VST3 and CLAP do — but nothing was
+built or run to confirm it, and the ordering against
+`AU3_ViewController::loadView`, which creates the editor BEFORE the audio unit
+exists, is unexamined. Saying "the fix is one call" without running it would be
+exactly the kind of claim this whole investigation kept disproving.
+
+**Housekeeping:** every diagnostic branch (`tmp/pin-diagnosis`,
+`s33/processor-setblob`, and the earlier timer/draw ones) is deleted;
+`grep TIDEDIAG` returns nothing in any repo. Dev build removed from
+`/Applications`. GarageBand was force-quit at the end while holding only my own
+scratch project — Jeff's own project was closed unsaved much earlier and never
+reopened for writing.
+
 ## 2026-08-23 — macos — the AUv3 view is asked to paint and paints nothing (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
