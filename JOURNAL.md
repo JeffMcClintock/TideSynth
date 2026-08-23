@@ -191,6 +191,107 @@ branches and clean.
 **Branch/PR:** `tide/linux/S37-clap-resources` — TideSynth: one new tool, the
 backlog and the journal. S43 filed. No product code change.
 
+## 2026-08-23 — windows — P11: the diagnostic can't name the file, so it stops naming the cause (interactive, Jeff directing)
+
+**Did:** took P11's Windows-only piece off the win NEXT cell — option (b), fix
+the export diagnostic that blames the user's installation for what is actually a
+partial multi-target build.
+
+### What the NEXT cell asked for, and what it turned out to need
+
+The cell's own words: *"make the export diagnostic name the stale `TIDE.gmpi`
+instead of telling the user their installation is broken."* The row's own Accept
+is looser and is what I actually built to: *"...or produces a message that names
+the mismatch **it can actually detect**."*
+
+**Naming the specific file honestly isn't achievable without either of two
+things I didn't do.** `FlagRequiredModuleForExport` (`SynthEditLib/EditorLib/
+DocOb.cpp`) gets a module type id string and nothing else when the lookup
+misses — there is no live `Module_Info` to ask for a `Filename()`, because the
+whole point is that nothing registered that id. Naming `TIDE-Rack.gmpi`
+specifically would need either hardcoding a product name into a shared,
+general-purpose diagnostic — the header comment already frames the mechanism
+generically, `libControls.gmpi` is its own worked example, and `SynthEditLib`
+has no business knowing `TIDE` exists — or new provenance-tracking
+infrastructure (recording which file last supplied which id, persisted across
+scans) that nobody sized and this row didn't ask for.
+
+**So the message now says what it can prove instead of guessing what it
+can't.** It used to assert one cause — *"this installation is broken"* — and
+that assertion was **wrong** in the case P11 measured: `TIDE_VST3` built alone
+leaves `TIDE`'s own module-database entry stale, which looks, from
+`GetById()`'s perspective, identical to a genuinely incomplete scan. The new
+text names both mechanisms and gives an action for either: re-scan, and if a
+build produced this, rebuild every target of the plugin in question.
+
+### Verified by building, not by reading the diff
+
+Built `TIDE_Rack_VST3` alone from `TideSynth`, against
+[SynthEditLib#33](https://github.com/JeffMcClintock/SynthEditLib/pull/33) —
+the exact reproduction the row names, via the four `_FOLDER_OVERRIDE` variables
+pointed at local checkouts:
+
+```
+configure rc=0  (-- Using local SynthEditLib folder)
+build --target TIDE_Rack_VST3  rc=0, 0 errors
+```
+
+**Read the string back out of the built binary rather than trusting the source
+edit** — this project has been burned by exactly that gap before (verify the
+artifact, not the command line). `TIDE-Rack.vst3` contains the new text
+verbatim (1 UTF-16LE hit on `"rebuild every one of its"`), and the old
+`"this installation is broken"` string is **absent** (0 hits) — not merely
+unreached, genuinely gone from the compiled output.
+
+Full tree also builds clean afterward: `cmake --build build --config Release
+--parallel`, rc=0, 0 errors, all four Windows targets.
+
+### The accident this session nearly compounded
+
+Made the edit directly in Jeff's live `SynthEditLib` checkout (which was clean)
+instead of a worktree — caught before committing anything, by `git status`
+showing modified files on `main`. Fixed by creating a branch **in place** and
+switching to it (`git checkout -b`, which carries uncommitted changes with it),
+rather than stashing or discarding. Then, still cd'd into that live checkout
+rather than the intended `TideSynth` worktree, two `git worktree add` calls
+landed against `SynthEditLib` instead — one reused the branch name and errored
+harmlessly, the second silently created a second worktree and branch
+(`tide/win/P11-diagnostic-build`) in the wrong repo. Both cleaned up (`git
+worktree remove --force`, `git branch -D`) before anything was pushed. **The
+common cause was assuming cwd carried across calls the way I intended rather
+than checking it** — `pwd` before the first `worktree add` would have caught
+this before it needed cleaning up at all.
+
+**Not verified:** `SynthEdit2` (the WinUI3 desktop editor, `FlagRequiredModule
+ForExport`'s other real caller) was not built — its `.vcxproj` links out of
+Jeff's own Debug tree, so verifying it means writing into a tree this session
+must not touch, per [[se16-scratch-ninja-build]]. macOS, Linux and iOS were not
+exercised — this touches no platform-specific code, but nobody ran them.
+
+**Learned:**
+
+- **A NEXT cell's paraphrase and a row's own Accept can disagree, and the row
+  wins.** "Name the stale `TIDE.gmpi`" is a previous run's gloss; "names the
+  mismatch it can actually detect" is what P11 itself commits to, and it is
+  the honest, buildable version of the same intent.
+- **A diagnostic that can't tell two causes apart should say so, not guess.**
+  The false specific claim ("this installation is broken") was worse than a
+  correct general one, because it sent the reader to repair the wrong thing.
+- **`cd` inside a command chain does not substitute for checking cwd before
+  the NEXT command that assumes it.** Two accidental worktrees in the wrong
+  repo, from the same root cause, in one session.
+
+**Next:** **S35** is the mac-side companion — the actual scan-domain mismatch
+this row measured but didn't fix, and it is GATED (`SynthEditLib`) plus
+PR-GATED (`GMPI`), so it needs Jeff either way. **P3** remains this platform's
+only own-boxed row and is GATED for the same reason P11 was.
+
+**Branch/PR:** `tide/win/P11-diagnostic-build` — TideSynth, backlog and journal
+only. Product change is [SynthEditLib#33](https://github.com/JeffMcClintock/SynthEditLib/pull/33),
+not merged.
+
+---
+
 ## 2026-08-23 — macos — S16: the missing-binary defect is gone, and it was hiding another (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
