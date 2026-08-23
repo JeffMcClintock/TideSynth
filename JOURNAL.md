@@ -173,7 +173,7 @@ registered from the build tree with `pluginkit -a` and **deregistered with
 All six repos were clean and on their default branches at the start and are back
 on them at the end.
 
-**Branch/PR:** `tide/mac/E9-au-rate-verify` — TideSynth: one new test probe, one
+**Branch/PR:** `tide/mac/E9-au-rate-verify` — [#347](https://github.com/JeffMcClintock/TideSynth/pull/347). TideSynth: one new test probe, one
 flag on an existing script, the backlog and this entry. No product code change.
 
 ## 2026-08-23 — macos — E10: the host-crashing chunk is fixed (interactive)
