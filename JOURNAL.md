@@ -8,6 +8,53 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — E18: the probe stops excusing the case E10 fixed (interactive)
+
+**Prompt:** merged. sync. continue.
+
+E9, E10 and S35 all merged, so I flipped the three IN-REVIEW rows to DONE and
+re-pointed the mac NEXT cell (it still announced E9 as IN-REVIEW; that is the
+fourth time this cell has gone stale in two days).
+
+E10 landing made `scripts/measure-chunk-robustness.py` wrong in a way that would
+have quietly stayed wrong. Its `skeleton` case — `<Module>` with no
+`<PatchManager>`, the one shape TIDE's own guard cannot see — was expectation
+`known-limit`: reported, never failed, because the engine fix was GATED. The
+probe even printed `NO LONGER CRASHES -- has E10 landed?`, which is the script
+asking to be updated. Left alone it would have gone on passing whether or not
+E10 held.
+
+The case is now expectation `survive`: no `TIDE: REFUSED` line is expected (TIDE
+genuinely cannot catch that shape), but the host must not die, and a crash is a
+hard FAIL naming `SeAudioMaster::BuildDspGraph`. E10 now has a regression test
+instead of an excuse.
+
+Measured both directions on this box, same probe, minutes apart — that is the
+whole point of the change, so both halves were run:
+
+| binary | skeleton | REAPER crash reports | new logic |
+|---|---|---|---|
+| pre-E10 (Aug 23 release build) | `rc=-11` SIGSEGV | 2 → 3 | exit 1, FAIL |
+| SynthEditLib main, E10 merged | `rc=0` rendered | 2 → 2 | exit 0, PASS |
+
+The crash-report count is the independent evidence: `rc` alone is the probe's
+own reading of its own run, and I wanted something outside the probe to agree.
+The E10 build was configured with all four local overrides confirmed by their
+`Using local ...` lines, so the SynthEditLib under test was the merged one.
+
+The docstring's `*** THIS TOOL CRASHES REAPER ONCE, ON PURPOSE, EVERY RUN ***`
+banner was true when written and is now false. Anyone reading it would expect a
+crash and not investigate one. Rewritten to say the opposite, with the two
+measurements recorded inline.
+
+Jeff's installed plug-in was backed up before the swap and restored afterwards,
+byte-identical — what is in `~/Library/Audio/Plug-Ins/VST3` is the Aug 23
+release build he had, not my Debug build. The two REAPER crash reports the runs
+produced were left in place rather than deleted: they are his data, and the
+pre-E10 one is real evidence.
+
+**Not verified:** Windows and Linux. The probe drives REAPER and has only ever
+been run on macOS, so the new failure path is unexercised there.
 ## 2026-08-24 — macos — S5: the folder-info null deref, measured then guarded (interactive)
 
 **Prompt:** sync all repos. next task

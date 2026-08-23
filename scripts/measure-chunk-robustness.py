@@ -3,14 +3,15 @@
 
     python3 scripts/measure-chunk-robustness.py [--keep]
 
-*** THIS TOOL CRASHES REAPER ONCE, ON PURPOSE, EVERY RUN. ***
+This used to crash REAPER once per run, on purpose. It no longer does: E10
+landed in SynthEditLib (BuildDspGraph returns false instead of walking off a
+half-built graph), and the `skeleton` case -- the one chunk TIDE's own guard
+cannot catch -- now renders instead of segfaulting. A crash report appearing in
+~/Library/Logs/DiagnosticReports during a run IS a regression now.
 
-The `skeleton` case is a KNOWN LIMIT (E10): a <Module> with no <PatchManager>
-passes TIDE's guard and dies inside the engine, and the engine fix is GATED. So
-a run leaves a REAPER crash report in ~/Library/Logs/DiagnosticReports and the
-suite still reports PASS -- rc=0 -- because refusing every chunk TIDE *can*
-guard is what is being measured. If you are sitting at the machine, expect one
-crash and do not go looking for a regression. When E10 lands, this stops.
+Measured 2026-08-24, same machine, same probe, minutes apart:
+    pre-E10 binary   skeleton rc=-11 (SIGSEGV), a new REAPER crash report
+    E10 merged       skeleton rc=0 rendered, crash-report count unchanged
 
 TIDE's whole patch is one blob parameter, restored by the host from the project
 file. Nothing between the host's bytes and SeAudioMaster::BuildDspGraph
@@ -33,12 +34,11 @@ in git.
 
 The positive control is the REAL chunk lifted out of tests/hosts/v3-midi-pitch.rpp,
 because a hand-written skeleton is not good enough: `<Document><DSP><Module/>`
-satisfies everything TIDE can check and STILL crashes the engine (a <Module> with
-no <PatchManager> reaches ug_container.cpp:1469 unguarded). That case is included
-and reported as a KNOWN LIMIT rather than a failure -- it is what E10 has to fix
-in SynthEditLib, and it is the honest boundary of the TIDE-side guard: TIDE can
-refuse chunks that are the wrong SHAPE, it cannot validate the engine's whole
-schema.
+satisfies everything TIDE can check (a <Module> with no <PatchManager> used to
+reach ug_container.cpp:1469 unguarded). It is kept as the `survive` case, and it
+marks the honest boundary of the TIDE-side guard: TIDE can refuse chunks that are
+the wrong SHAPE, it cannot validate the engine's whole schema -- so that one is
+caught below TIDE, by E10's guard, and prints no `TIDE: REFUSED` line.
 
 Writes only to a temp dir. Needs the TIDE VST3 installed where REAPER can see it
 (the build's post-build step does that).
@@ -87,15 +87,16 @@ def real_chunk():
 #   "render"      must load and play -- refusing it would be a false positive
 #   "refuse"      must be refused, and must not crash
 #   "quiet"       nothing to refuse, nothing to build
-#   "known-limit" passes TIDE's guard and still crashes: E10's job, reported not failed
+#   "survive"     passes TIDE's guard by shape and is refused deeper, by E10's guard
+#                 in SeAudioMaster::BuildDspGraph. No TIDE: REFUSED line, no crash.
 CASES = [
     ("valid",     None,
      "the real chunk from tests/hosts/v3-midi-pitch.rpp -- the positive control",
      "render"),
     ("skeleton",  b'<?xml version="1.0" ?>\n<Document>\n  <DSP>\n'
                   b'    <Module Id="1" Type="Container"/>\n  </DSP>\n</Document>\n',
-     "<Module> with no <PatchManager>: passes TIDE's guard, dies in the engine",
-     "known-limit"),
+     "<Module> with no <PatchManager>: passes TIDE's guard, refused by E10 in the engine",
+     "survive"),
     ("empty",     b"", "no chunk at all: the instance never prepares", "quiet"),
     ("notxml",    b"this is not xml at all", "bytes that do not parse", "refuse"),
     ("badroot",   b"<Patch/>", "parses cleanly, but the root is not <Document> (crashed pre-fix)",
@@ -165,7 +166,6 @@ def main():
     write_tone(tone)
 
     failures = []
-    limits = []
     for name, chunk, why, expect in CASES:
         if chunk is None:
             chunk = real_chunk()
@@ -188,11 +188,12 @@ def main():
         for l in dict.fromkeys(tide):        # de-duplicated: two instances log
             print("      " + l)
 
-        if expect == "known-limit":
-            limits.append("%s: %s (%s)" % (
-                name, "still crashes, as expected until E10" if crashed
-                      else "NO LONGER CRASHES -- has E10 landed?",
-                "rc=%d" % rc))
+        if expect == "survive":
+            if crashed:
+                failures.append(
+                    "%s crashed the host (rc=%d) -- E10's guard in "
+                    "SeAudioMaster::BuildDspGraph has regressed or is not in this build"
+                    % (name, rc))
         elif crashed:
             failures.append("%s crashed the host (rc=%d)" % (name, rc))
         elif expect == "render" and refused:
@@ -201,17 +202,13 @@ def main():
             failures.append("%s was accepted -- the guard did not catch it" % name)
 
     print()
-    for l in limits:
-        print("KNOWN LIMIT (E10, GATED engine fix): " + l)
-    if limits:
-        print()
     if failures:
         print("FAIL")
         for f in failures:
             print("  " + f)
     else:
-        print("PASS -- every malformed chunk was refused, the real document was not,")
-        print("        and no case TIDE can guard took the host down.")
+        print("PASS -- every malformed chunk was refused or survived, the real document")
+        print("        was not refused, and nothing took the host down.")
     if args.keep:
         print("\n  artefacts kept in %s" % workdir)
     return 1 if failures else 0
