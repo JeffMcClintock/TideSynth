@@ -67,7 +67,28 @@ naming section, BACKLOG **N1**).
 | Windows | `TIDE-Rack-Windows.exe` (Inno Setup) + `TIDE-Rack-Windows.zip` | `TIDE-Rack.vst3` → `C:\Program Files\Common Files\VST3\` | Azure Trusted Signing (installer **and** the .vst3 inside it) |
 | macOS | `TIDE-Rack-macOS.pkg` | **AUv3** → `/Applications/TIDE-Rack-AUv3.app` (the extension rides inside it; **the app must be LAUNCHED ONCE** before the AU appears — measured 2026-08-23, see the note below), VST3 → `/Library/Audio/Plug-Ins/VST3/` | Developer ID + **notarize + staple** — an unnotarized pkg is effectively unopenable on modern macOS |
 | iOS | — none on the website — | AUv3 ships inside a container app — the SAME wrapper macOS now uses — **App Store only**; the website links the App Store page as a plain text link | App Store pipeline (M2/M3 territory) |
-| Linux | `TIDE-Rack-Linux.tar.gz` | `TIDE-Rack.vst3/` → `~/.vst3/`, CLAP → `~/.clap/`, plus a short `install.sh` that copies them | none — no signing convention on Linux |
+| Linux | `TIDE-Rack-Linux.tar.gz` | `TIDE-Rack.vst3/` → `~/.vst3/`, **`TIDE-Rack/` (the CLAP *and* its `Resources/`, one folder) → `~/.clap/`** — see the semi-bundle note below — plus a short `install.sh` that copies them | none — no signing convention on Linux |
+
+**The Linux CLAP ships as a "semi-bundle", and it is not optional tidiness.**
+CLAP has no bundle format on Linux — `clap/entry.h` is explicit that
+*"plugin_path is the path to the DSO (Linux, Windows), or the bundle (macOS)"* —
+so the macOS trick of hiding resources inside `TIDE-Rack.clap/Contents/` does not
+work. Measured in REAPER 7.43 (2026-08-24): a true bundle layout is **not
+discovered at all**, while a plug-in in a plain subdirectory **is**, because the
+same header requires each search directory to be *"recursively searched"*.
+
+So TIDE ships `~/.clap/TIDE-Rack/` holding the `.clap` and its `Resources/`.
+`BundleInfo::getBundleContentsFolder()` finds no `Contents` element and returns
+`parent_path()`, which is now that private folder — **no code change in
+SynthEditLib**, and none of the compatibility risk of moving the fallback for
+every non-bundled GMPI consumer.
+
+What it fixes (**S37**): resources used to land directly in `~/.clap`, shared
+with every other CLAP installed the same way. Two GMPI-based CLAPs overwrite each
+other's same-named files, and uninstalling either deletes files the other has
+come to rely on. Verified by `strace` against an install that still has the old
+shared `~/.clap/Resources` present and populated: **6 reads under
+`TIDE-Rack/Resources/`, 0 under the shared folder.**
 
 **The macOS AUv3 needs one launch.** Copying `TIDE-Rack-AUv3.app` into
 `/Applications` is NOT enough for the Audio Unit to appear in a host: measured

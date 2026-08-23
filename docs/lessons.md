@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**linux — S37: CLAP has no bundle on Linux, so TIDE ships a semi-bundle instead (interactive, Jeff directing)**
+
+- "Can we use a bundle?" and "can we get a private directory?" are different questions, and only the second one mattered.
+- A negative control that leaves the hazard in place beats one that removes it.
+- The expensive option was expensive because of who else it touched, not because of its size.
+- A row's own wording can smuggle in a false premise that survives three runs.
+- `weston --backend=headless --xwayland` plus an isolated `HOME` makes a real commercial DAW a scriptable instrument on this box.
+
 **linux — the A4 auto-merge trap, hit a third time, and the branch DELETION is the new half**
 
 - A `gh pr view` state check is worth nothing in the same unconditional command block as the push it is meant to gate.
@@ -70,14 +78,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A resolver needs its wrong branch tested, not its right one.
 - Byte-identity to a source is worth asserting mechanically.
 - A branch can be stranded because of what it contains, not because someone forgot.
-
-## 2026-08-23
-
-**linux — S37 is real: another plugin's uninstall permanently breaks TIDE Rack**
-
-- A premise that fails measurement can be waiting on a different bug.
-- The uninstall case is the one that makes a shared-folder bug undeniable.
-- The plugin's own diagnostics were the instrument.
 
 ## 2026-08-18
 
@@ -1736,3 +1736,9 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - "Fixed in repo A, filed for repo B" can leave the bug in the repo that taught you about it.
 - A guard needs its positive control run, not just its passing case.
+
+**linux — S37 is real: another plugin's uninstall permanently breaks TIDE Rack**
+
+- A premise that fails measurement can be waiting on a different bug.
+- The uninstall case is the one that makes a shared-folder bug undeniable.
+- The plugin's own diagnostics were the instrument.
