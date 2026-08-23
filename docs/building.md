@@ -1,11 +1,59 @@
-# Building TIDE on Windows
+# Building TiDE Rack
 
-Verified 2026-08-06 on the Windows machine (BACKLOG P1). Both Debug and Release
-produced working binaries from a clean CMake configure.
+Windows-first, with the macOS-specific traps in their own sections near the
+bottom. Originally verified 2026-08-06 (BACKLOG P1); the standalone path below
+re-verified end to end on 2026-08-24.
 
-TIDE has no build of its own — it is the `SynthEditSem` subdirectory of the
-private `SynthEdit` repo at `C:\SE\SE16`, so you configure the whole SE16 tree
-and build two targets out of it. That changes at carve-out stage C7.
+## Two independent choices, not one fork
+
+**Corrected 2026-08-24 (windows, interactive) — twice, and the second correction
+matters more than the first.**
+
+**(1)** This file opened by saying *"TIDE has no build of its own … That changes
+at carve-out stage C7"*, in the present tense, for the three days after C7
+closed. It is the first thing a reader sees, and the only recipe the file gave
+needed the private `SE16` repo — so someone with a fresh public clone would have
+concluded they could not build at all.
+
+**(2)** The first attempt at this section then replaced that with a *different*
+wrong claim: a two-row table pairing "standalone superproject" with *fetched*
+siblings and "via SE16" with *local* ones, as though you had to take them
+together. **You do not.** Jeff, reading the draft: *"if I'm building on the dev
+box, why would I clone tide as a dependency and not use local copy?"* Quite —
+and the answer is that you would not, and nothing stops you.
+
+**These are two separate choices. Pick one from each column.**
+
+| choice | option | what it means |
+|---|---|---|
+| **which root** | `C:/SE/TideSynth` | TiDE's own `CMakeLists.txt`, added at carve-out stage **C7d**. Needs no `SE16` on disk. **Use this unless you want SE16's other targets.** |
+| | `C:/SE/SE16` | the whole SynthEdit tree. Only needed when you also want `SynthEditCL`, `SynthEdit2` or SE16's own test suite in the same build. |
+| **where the siblings come from** | **the four `*_FOLDER_OVERRIDE` variables** | your local working copies at `C:/SE/…`, which you can edit, push and pull as you go. **This is the dev-box default.** |
+| | omit them | each sibling is fetched fresh from its own `main`. |
+
+**On this machine, the default is the TideSynth root WITH all four overrides** —
+verified 2026-08-24, configure rc=0 in 11 s reporting `[local override]` for
+SynthEditLib, GMPI, gmpi_ui and GMPI_Wrappers.
+
+**The fetch-everything build is not a second way to develop; it answers exactly
+one question:** *does this build without my uncommitted local work?* That is
+what CI runs and what a stranger's clone does, so it is the right check before
+tagging a release or when a green local build and a red CI run disagree. It is
+the wrong default for daily work, because every sibling change you have not
+pushed is invisible to it.
+
+**`GMPI_WRAPPER_FOLDER_OVERRIDE` is declared in `SynthEditSem/CMakeLists.txt:3`
+rather than the root**, unlike the other three — it still works from the command
+line, it is just not where you would look for it.
+
+**`VST3_SDK_FOLDER_OVERRIDE` is used but never declared** in the root's cache
+block, so it is settable only via `-D` and invisible to `cmake-gui`. Recorded on
+BACKLOG **S22**, which fixed the same gap in SE16 and left this one filed.
+
+The original opening, for the record: *"TIDE has no build of its own — it is
+the `SynthEditSem` subdirectory of the private `SynthEdit` repo at
+`C:\SE\SE16`, so you configure the whole SE16 tree and build two targets out
+of it. That changes at carve-out stage C7."*
 
 ## Prerequisites
 
@@ -18,7 +66,10 @@ and build two targets out of it. That changes at carve-out stage C7.
 
 ## The four overrides are the normal path, not an optimisation
 
-**Always pass all four.** These are not third-party libraries that occasionally
+**They apply to either root** — TiDE's own and SE16's alike. The only build that
+deliberately omits them is the release check above.
+
+**Pass all four or none.** These are not third-party libraries that occasionally
 need a version bump — they implement a large part of the application's own
 functionality and change daily, so the intended workflow is to build against
 working copies you can edit, push and pull as you go. On this machine they are:
@@ -42,20 +93,29 @@ other from a months-old clone, and the Linux box built and shipped a VST3 that n
 host could load. Whether to pin the tags was considered and declined — see
 BACKLOG **X4** — precisely because the override *is* the answer.
 
-**Read the configure banner. It tells you which path every dependency took:**
+**Read the configure banner. It tells you which path every dependency took.**
+Since **S17** there are two forms, and the second is the one worth reading —
+the older `Using local … folder` / `Fetching … from github` lines say *whether*
+a dependency was local, while the provenance block says *which directory*, which
+is the question you actually have:
 
 ```
--- Using local SynthEditLib folder
--- Using local GMPI folder
--- Using local GMPI-UI folder
--- Using local GMPI WRAPPERS folder
--- Fetching CLAP SDK from github
+-- TIDE dependency provenance -- 8 resolved:
+--   vst3_sdk <- C:/Users/jef/.cpm/vst3_sdk/<hash>/vst3_sdk [CPM cache]
+--   SynthEditLib <- C:/SE/SynthEditLib [local override]
+--   GMPI <- C:/SE/GMPI [local override]
+--   gmpi_ui <- C:/SE/gmpi_ui [local override]
+--   CLAP <- <build>/_deps/clap-src [fetched]
+--   clap_helpers <- <build>/_deps/clap_helpers-src [fetched]
+--   harfbuzz <- C:/Users/jef/.cpm/harfbuzz/<hash>/harfbuzz [CPM cache]
+--   GMPI_Wrappers <- C:/SE/GMPI_Wrappers [local override]
 ```
 
-An unexpected `Fetching` on any of those four means you forgot a `-D` and are
-building against stale code. If a build behaves impossibly and your source looks
-right, confirm with `git log -1` in `build/_deps/<dep>-src` before trusting the
-tree.
+An unexpected `[fetched]` on one of the four means you forgot a `-D` and are
+building against stale code. S17 also added `tide_check_not_shadowed`, which
+**fails the configure outright** if an override is set while a fetched copy of
+the same dependency sits in `build/_deps/` — the E12 shape, where the class
+layout being read was not the one being compiled.
 
 Genuinely fetched every time, and fine to leave alone: the VST3 SDK (via CPM
 into `%USERPROFILE%\.cpm`), HarfBuzz (CPM), AudioUnitSDK, CLAP and clap-helpers
@@ -66,10 +126,16 @@ minute.
 
 ## The MFC trap — read this before you file a build bug
 
-Two files that TIDE links through `EditorLib` include an MFC header on Windows:
+Two files that TiDE links through `EditorLib` include an MFC header on Windows.
+**Both moved to the public repo in the carve-out — paths corrected 2026-08-24;
+this file still named their pre-C3 `SE16/SynthEdit2/` homes:**
 
-- `SE16/SynthEdit2/CContainer.cpp:8` — `#include "afxres.h"` under `#ifdef _WIN32`
-- `SE16/SynthEdit2/MfcDocPresenter.cpp:4` — same
+- `SynthEditLib/EditorLib/CContainer.cpp:8` — `#include "afxres.h"` under `#ifdef _WIN32`
+- `SynthEditLib/EditorLib/MfcDocPresenter.cpp:4` — same
+
+Those are the same two files BACKLOG **P3** exists to de-MFC, which is the trap
+inside the trap: a reader who greps the backlog for the failing filenames finds
+a known open code item and stops looking at their toolchain.
 
 `afxres.h` ships only with the Visual Studio **MFC** component, in
 `VC\Tools\MSVC\<ver>\atlmfc\include`. It is on the default include path
@@ -86,9 +152,14 @@ If you do not pin the instance, CMake picks **BuildTools**, and the build dies
 with two errors and nothing else:
 
 ```
-C:\SE\SE16\SynthEdit2\CContainer.cpp(8,10): error C1083: Cannot open include file: 'afxres.h': No such file or directory [<build>\EditorLib\EditorLib.vcxproj]
-C:\SE\SE16\SynthEdit2\MfcDocPresenter.cpp(4,10): error C1083: Cannot open include file: 'afxres.h': No such file or directory [<build>\EditorLib\EditorLib.vcxproj]
+...\EditorLib\CContainer.cpp(8,10): error C1083: Cannot open include file: 'afxres.h': No such file or directory [<build>\EditorLib\EditorLib.vcxproj]
+...\EditorLib\MfcDocPresenter.cpp(4,10): error C1083: Cannot open include file: 'afxres.h': No such file or directory [<build>\EditorLib\EditorLib.vcxproj]
 ```
+
+**The prefix differs by which build you ran**, which is worth knowing because it
+is the one clue that says which tree you are in: a standalone superproject build
+reports `<build>\_deps\syntheditlib-src\EditorLib\…`, an SE16 build with the
+overrides reports `C:\SE\SynthEditLib\EditorLib\…`.
 
 The message is misleading — the header is not missing from the machine, the
 build is just looking inside the wrong VS install. Pin the instance (below), or
@@ -99,13 +170,72 @@ already configured against the wrong one, delete the build directory.
 
 ## Commands that work
 
-From PowerShell. Substitute your own build directory.
+`CMAKE_GENERATOR_INSTANCE` is required on this machine for **every** variant
+below — see the MFC trap above. Substitute your own build directory.
 
-Configure:
+### The dev-box default: TiDE's own root, local siblings
+
+```bash
+cmake -S C:/SE/TideSynth -B C:/SE/_scratch/bt -DCMAKE_GENERATOR_INSTANCE="C:/Program Files/Microsoft Visual Studio/18/Community" -DSYNTHEDITLIB_FOLDER_OVERRIDE=C:/SE/SynthEditLib -DGMPI_SDK_FOLDER_OVERRIDE=C:/SE/GMPI -DGMPI_UI_FOLDER_OVERRIDE=C:/SE/gmpi_ui -DGMPI_WRAPPER_FOLDER_OVERRIDE=C:/SE/GMPI_Wrappers
+```
+
+```bash
+cmake --build C:/SE/_scratch/bt --config Release --target TIDE_Rack TIDE_Rack_VST3 TIDE_Rack_STANDALONE
+```
+
+Verified 2026-08-24: **configure rc=0 in 11 s**, banner reporting
+`[local override]` for all four siblings. Add `TIDE_Rack_CLAP` for the CLAP;
+`TIDE_Rack_AU3` is macOS-only and does not exist in a Windows generate.
+
+**Read the banner every time.** It names the resolved path of every dependency:
+
+```
+--   dep SynthEditLib: C:/SE/SynthEditLib   [local override]
+--   dep GMPI: C:/SE/GMPI                   [local override]
+--   dep gmpi_ui: C:/SE/gmpi_ui             [local override]
+--   dep GMPI_Wrappers: C:/SE/GMPI_Wrappers [local override]
+--   dep vst3_sdk: …/.cpm/vst3_sdk/…        [CPM cache]
+--   dep CLAP: <build>/_deps/clap-src       [fetched]
+```
+
+An unexpected `[fetched]` on one of the four means you dropped a `-D` and are
+compiling against someone else's `main` — see the silent-freeze warning below,
+because that mistake does not heal on the next configure.
+
+### The release check: nothing local at all
+
+```bash
+cmake -S C:/SE/TideSynth -B C:/SE/_scratch/bt-clean -DCMAKE_GENERATOR_INSTANCE="C:/Program Files/Microsoft Visual Studio/18/Community"
+```
+
+Same build, every sibling fetched from its own `main`. **This is not a second
+way to develop** — it answers *"does this build without my uncommitted local
+work?"*, which is what CI runs and what a stranger's clone gets. Run it before
+tagging a release, or when a green local build and a red CI run disagree.
+
+Verified 2026-08-24 from a cold tree: **configure rc=0 in 25 s, build rc=0,
+zero `error C` / `error LNK` lines and zero warnings**, about five minutes wall
+clock, producing all three artifacts.
+
+### If you also want SynthEditCL, SynthEdit2 or SE16's test suite
 
 ```bash
 cmake -S C:/SE/SE16 -B C:/SE/build-tide-p1 -G "Visual Studio 18 2026" -A x64 -DCMAKE_GENERATOR_INSTANCE="C:/Program Files/Microsoft Visual Studio/18/Community" -DGMPI_SDK_FOLDER_OVERRIDE=C:/SE/GMPI -DGMPI_UI_FOLDER_OVERRIDE=C:/SE/gmpi_ui -DGMPI_WRAPPER_FOLDER_OVERRIDE=C:/SE/GMPI_Wrappers -DSYNTHEDITLIB_FOLDER_OVERRIDE=C:/SE/SynthEditLib
 ```
+
+The SE16 root is the *only* thing this buys you. It is not a different way of
+building TiDE.
+
+### Where the output lands, and what sits beside it
+
+`<build>/SynthEditSem/Release/` — flat files; Windows builds no VST3 bundle.
+
+**The four pin-descriptor XMLs and `Prefabs/` are staged LOOSE in that same
+directory**, mixed in with the binaries, not in a `Resources/` subfolder. That
+looks wrong and is right: for a non-bundle Windows plug-in
+`BundleInfo::getResourceFolder()` returns the binary's own directory with no
+subfolder appended (S36). If a run prints `missing from bundle resources` or
+`no Prefabs folder in bundle resources`, that staging is what to check.
 
 ## Current target and artifact names (N1a, 2026-08-22)
 
@@ -113,11 +243,13 @@ The canonical list. Older documents under `docs/` are **dated records** and name
 the pre-rename artifacts on purpose — check the date at the top of one before
 believing a name in it.
 
-| | CMake target | shipped file |
-|---|---|---|
-| GMPI | `TIDE_Rack` | `TIDE-Rack.gmpi` |
-| VST3 | `TIDE_Rack_VST3` | `TIDE-Rack.vst3` (bundle); the binary inside is `TIDE-Rack.so` on Linux |
-| standalone | `TIDE_Rack_STANDALONE` | `TIDE-Rack` |
+| | CMake target | shipped file | platforms |
+|---|---|---|---|
+| GMPI | `TIDE_Rack` | `TIDE-Rack.gmpi` | all |
+| VST3 | `TIDE_Rack_VST3` | `TIDE-Rack.vst3` (bundle); the binary inside is `TIDE-Rack.so` on Linux | all |
+| CLAP | `TIDE_Rack_CLAP` | `TIDE-Rack.clap` | all |
+| AUv3 | `TIDE_Rack_AU3` | — | **macOS/iOS only** |
+| standalone | `TIDE_Rack_STANDALONE` | `TIDE-Rack` (`TIDE-Rack.exe` on Windows) | all |
 
 PDBs stay **target**-named — `TIDE_Rack.pdb`, `TIDE_Rack_VST3.pdb`,
 `TIDE_Rack_STANDALONE.pdb` — which is deliberate, not an oversight (N1a).
@@ -137,8 +269,13 @@ Build both plugin formats:
 cmake --build C:/SE/build-tide-p1 --config Release --target TIDE_Rack TIDE_Rack_VST3
 ```
 
-`TIDE_Rack` is the GMPI target, `TIDE_Rack_VST3` the VST3 one — see
-`SE16/SynthEditSem/CMakeLists.txt:41` (`FORMATS_LIST GMPI VST3`).
+The authority for that list is `SynthEditSem/CMakeLists.txt`'s `FORMATS_LIST`.
+**Corrected 2026-08-24 — this line read `SE16/SynthEditSem/CMakeLists.txt:41`
+(`FORMATS_LIST GMPI VST3`), and both halves had drifted:** the file is now in
+the TideSynth repo rather than under `SE16`, the setting is at **line 163**, and
+it reads `GMPI VST3 CLAP AU3 STANDALONE`. Three formats had been added since
+anyone updated this sentence, which is why a line number in prose is worth
+re-reading rather than trusting — grep `FORMATS_LIST` instead.
 
 Swap `Release` for `Debug` for a debug build; both were verified.
 
@@ -185,35 +322,57 @@ from the module database"* that blames the user's installation; the fix is
 building both targets (P11 tracks making this self-consistent or at least
 honestly diagnosed).
 
-### macOS: the build installs to a folder the scanner never reads
+### macOS: the build installed to a folder the scanner never read — FIXED 2026-08-23 (S35)
 
-**Corrected 2026-08-22 (macos) — this section previously said "there is no
-install step at all" on macOS. That is wrong, and wrong in a way that costs
-time: it sends you off to add an install step that already exists.** There is
-one. It installs to the wrong domain.
+**This section described a live defect until 2026-08-23. It is fixed, and the
+description is kept because the mechanism explains any stale build you still
+have lying around.** `SynthEditLib` now scans the user domain as well:
+`getUserPluginsFolder()` (`modules/se_sdk3_hosting/BundleInfo.cpp:170`) is the
+user-domain twin of `getPlatformPluginsFolder()`, and
+`EditorLib/Application.cpp:567-581` scans it after the system one. Landed as
+[SynthEditLib#36](https://github.com/JeffMcClintock/SynthEditLib/pull/36).
+
+**It changes nothing on Windows or Linux, by design** — `getUserPluginsFolder()`
+returns empty on both. Windows has no per-user plug-ins convention, and Linux
+already keeps everything under the per-user data dir, so a second scan would be
+the same folder. Empty means no second scan.
+
+**The user path is derived from `ModulePath`, not hardcoded**, so if you have
+repointed `ModulePath` you keep one scan rather than silently gaining a folder.
+
+**What it looked like before, and why a stale install can still bite you.**
 
 | | path | who writes it |
 |---|---|---|
 | `SE_LOCAL_BUILD` installs to | `~/Library/Audio/Plug-Ins/GMPI` | `copy_plugin()`, `GMPI/gmpi_plugin.cmake:1225` |
-| the module scanner reads | `/Library/Audio/Plug-Ins/GMPI` | hard-coded, see below |
+| the module scanner used to read, only | `/Library/Audio/Plug-Ins/GMPI` | hard-coded |
 
-The scan root is a string literal, not a domain lookup:
+The scan root was a string literal, not a domain lookup:
 `getPlatformPluginsFolder()` returns `"/Library/Audio/Plug-Ins/"`
-(`SynthEditLib/modules/se_sdk3_hosting/BundleInfo.cpp:152-164`), `"GMPI"` is
+(`SynthEditLib/modules/se_sdk3_hosting/BundleInfo.cpp:152`), `"GMPI"` is
 appended in `SynthEdit/SynthEdit2/SynthEditApp.cpp:155-164`, and that one path
-is what `RefreshModuleData` scans (`SynthEditLib/EditorLib/Application.cpp:544`).
-**There is no `NSSearchPathForDirectoriesInDomains` anywhere in the scan path**,
-so unlike VST3 and AU — which search user *and* system by convention — the
-user domain is never consulted.
+was all `RefreshModuleData` scanned. There was no
+`NSSearchPathForDirectoriesInDomains` anywhere in it, so unlike VST3 and AU —
+which search user *and* system by convention — the user domain was never
+consulted. Measured on one mac before the fix: **7 modules in the system domain,
+9 in the user domain, none of the 9 visible.**
 
 **Measured, not inferred.** Across every `Plugin-Cache-16-override-*.xml` in
-`~/Library/Application Support/SynthEdit/`, all 602 recorded module paths are
-under `/Library/Audio/Plug-Ins/GMPI`. **Zero** user-domain paths have ever been
-recorded, in any cache file, at any date — so this is not a stale-cache
-artifact.
+`~/Library/Application Support/SynthEdit/`, all 602 recorded module paths were
+under `/Library/Audio/Plug-Ins/GMPI`. **Zero** user-domain paths had ever been
+recorded, in any cache file, at any date — so it was not a stale-cache artifact.
 
-So on macOS a locally built module is installed, and invisible. Copy it across
-to make a build visible to SynthEdit:
+**Do not use that cache count to check the fix — it stays zero either way.** The
+caches store module metadata without absolute paths, so a user-domain module
+that is now being scanned adds no user-domain path to them. Verify with
+`SynthEditCL -rescan` and read its output instead: it prints a second
+`Scanning for 3rd-party SEMs in (user domain): …` line, and duplicates of
+factory SEMs are correctly reported as `Module FOUND TWICE!`. Whoever fixed this
+nearly read the unchanged zero as the fix not working.
+
+**With the fix, a locally built module is simply found where it was installed.**
+The copy below is no longer needed on an up-to-date `SynthEditLib`, and is kept
+for anyone building against an older one:
 
     cp -R build/SynthEditSem/Release/TIDE-Rack.gmpi "/Library/Audio/Plug-Ins/GMPI/TIDE-Rack.gmpi"
 
