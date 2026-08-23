@@ -25572,3 +25572,179 @@ platform's only own-boxed row and is GATED.
 change is [SynthEdit#73](https://github.com/JeffMcClintock/SynthEdit/pull/73), not merged.
 
 ---
+
+## 2026-08-23 — linux — S37 is real: another plugin's uninstall permanently breaks TIDE Rack
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+Seventh item this session, at Jeff's direction. **S37**, which this box re-framed
+this morning as *"the premise does not survive measurement"* — and which S43(ii)
+made true a few hours later.
+
+**This entry supersedes that re-framing, and the reason is the interesting part:
+the premise was false because the CLAP had no editor, not because the reasoning
+was wrong.** Now that it draws, it reads the folder, and the collision is
+observable for the first time.
+
+### The premise, confirmed
+
+`strace` on a clean `main` build, CLAP embedded and drawing:
+
+    Resources/ControlsXp.xml    Resources/Converters.xml
+    Resources/MidiPlayer2.xml   Resources/Prefabs/Envelope.synthedit
+    Resources/Prefabs           Resources/Prefabs/MidiCv.synthedit  …
+
+This morning the same command showed **zero** accesses. With the folder absent it
+emits exactly the diagnostics the row quoted off the binary — *"no Prefabs folder
+in bundle resources"*, *"%s missing from bundle resources"* — which are now
+reached rather than merely compiled.
+
+### The collision, measured in three steps
+
+A shared install directory, exactly as R4's `README.txt` tells a user to set up.
+
+| step | prefabs TIDE loads | TIDE's own diagnostics |
+|---|---:|---|
+| **1. TIDE alone** | **6** | none |
+| **2. a second GMPI CLAP installed alongside** | **7** | `ControlsXp.xml enriched 0 of 0 … ZERO` |
+| **3. that plugin UNINSTALLED** | 6 | `ControlsXp.xml missing from bundle resources - those controls will have no pins` |
+
+**Step 2 is data leaking between products.** TIDE's rack module browser offers
+**7** prefabs, one of which belongs to the other plugin. And the other plugin's
+`ControlsXp.xml` — same name, different product — overwrote TIDE's, which TIDE
+reports itself: it went from enriching classes to **`0 of 0`**, so TIDE's own
+controls silently lost their pin descriptions.
+
+**Step 3 is the one that decides this row.** The other plugin's uninstaller
+removes the files its package shipped. One of those names is `ControlsXp.xml` —
+**which by then was TIDE's file**. Uninstalling an unrelated plugin leaves TIDE
+Rack permanently degraded, and nothing in TIDE can detect or prevent it.
+
+That is no longer a hypothesis about `parent_path()`. It is three commands.
+
+### Which option, and why not the one the row leads with
+
+The row offers (a) make the Linux CLAP a bundle directory, (b) namespace the
+folder, (c) embed the resources.
+
+**(a) is not forbidden by the spec but rests on host behaviour I cannot verify
+here.** `clap/entry.h` says a host should search *"for files and/or bundles as
+appropriate in your OS ending with the extension `.clap`"* — so bundles are
+contemplated, and "as appropriate in your OS" is exactly the ambiguity. On Linux
+the convention is a bare shared object, the search is **recursive**, and a
+directory `TIDE-Rack.clap/` containing a `TIDE-Rack.clap` is the kind of thing
+different hosts will resolve differently. **Testing that needs real hosts, which
+this box does not have** — the row said so and it is still true.
+
+**(b) is host-independent and is what I would recommend.** One function derives
+both shared paths, and it already knows the module's own filename:
+
+    BundleInfo.cpp:299   getBundleContentsFolder() / "Resources"
+    BundleInfo.cpp:699   getBundleContentsFolder() / "PlugIns"
+
+Deriving a per-module subfolder in the non-bundle fallback fixes both at once
+and stays generic — every GMPI plugin gets its own, with no per-plugin
+configuration. **Note it is both folders, not just `Resources`**; the row named
+one and I flagged the second this morning.
+
+**What it costs, and this is why it is Jeff's:** that fallback is what EVERY
+non-bundled GMPI consumer uses — the Linux `.gmpi`, the standalone, and Windows.
+Changing it moves where all of them look, so it is a compatibility break for
+anything already installed, not a Linux-CLAP-only fix. `SynthEditLib` is GATED
+and this is not a build break, so it is filed rather than attempted.
+
+**Status changed to NEEDS-JEFF** with a `Default in effect` and a `Decide-by`,
+per the escalation template, so an unanswered question cannot quietly become the
+answer — and so the next run does not pick this up and rediscover that it cannot
+act.
+
+**Learned:**
+
+- **A premise that fails measurement can be waiting on a different bug.** I
+  closed this row's premise as unreachable this morning with good evidence, and
+  the evidence was about the missing editor, not about the reasoning. Re-testing
+  a "does not reproduce" row after the thing that blocked it lands is cheap and
+  it was the whole of this item.
+- **The uninstall case is the one that makes a shared-folder bug undeniable.**
+  Two plugins overwriting each other reads as an edge case; *plugin B's
+  uninstaller deleting plugin A's file* does not, and it is the same mechanism.
+- **The plugin's own diagnostics were the instrument.** `enriched 0 of 0 …
+  ZERO` and `missing from bundle resources` did the measuring; I did not have to
+  instrument anything. Worth remembering that TideApp already narrates this.
+
+**Not verified:**
+
+- **Whether Linux CLAP hosts load a `.clap` directory** — option (a)'s
+  precondition, and unanswerable without real hosts.
+- **The second plugin was TIDE's own binary under another name**, with a small
+  hand-made resource set. A genuinely different GMPI plugin that ships resources
+  would be a better subject; none exists on this box (Jeff's two CLAPs carry
+  none, which is why no `~/.clap/Resources` has ever appeared here).
+- **Windows.** The same `parent_path()` fallback applies there, and the same
+  `%COMMONPROGRAMFILES%\CLAP` sharing, but nothing was measured on it.
+
+**Next:**
+
+1. **Jeff picks (a), (b) or (c).** The measurement is done and the recommendation
+   is (b) with its cost stated.
+2. **`PlugIns` travels with `Resources`** whichever is chosen.
+3. **R4's `README.txt` currently documents the shared folder as the install**,
+   which is now known to be unsafe alongside another GMPI CLAP. Worth a sentence
+   even before the fix lands.
+
+**Machine left clean.** One throwaway worktree under the session scratchpad;
+headless weston stopped. **Jeff's `~/.clap` was never written to** — every
+install in this experiment was in the scratchpad. All six repos on their default
+branches and clean. Nothing installed.
+
+**Branch/PR:** `tide/linux/S37-clap-collision` — TideSynth, backlog and journal
+only. No code change: every fix location is GATED or PR-GATED.
+
+---
+
+## 2026-08-23 — macos — the mac test suite is green: 63 of 63 (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+S42, the row I filed an hour ago while fixing S16. Fixed in
+[SynthEdit#74](https://github.com/JeffMcClintock/SynthEdit/pull/74).
+
+**The whole arc, one checkout, measured at each step:**
+
+| | as found | after S16 | after S42 |
+|---|---|---|---|
+| failed | 44 | 40 | **0** |
+| passed | 13 | 17 | **63** |
+| refs to the dead checkout | 0 | 536 | **0** |
+
+`63 tests from 16 suites, rc=0`, stable across two consecutive runs.
+
+**The middle column is the whole argument.** Dead-path references appear only
+AFTER S16, because until the harness stopped dying on a missing binary the tests
+never got far enough to load a fixture. One defect was hiding the other, and the
+count barely moved when the first was fixed — 44 to 40 — which is exactly the
+shape that tempts you to call a fix a failure.
+
+**Why not just rewrite the 46 files.** That re-bakes some other machine's path,
+and the format gives no relative affordance: the value is a plug VALUE, a string
+the patch concatenates, not a file reference the loader resolves. So `render2()`
+normalises at run time — any absolute path up to and including a `UnitTest`
+component becomes this checkout's folder. The copy goes NEXT TO the original
+rather than into a temp directory, so anything resolved relative to the
+project's own location still works, and it is deleted after the render. A
+fixture needing no rewrite returns early and is rendered untouched, so this
+costs nothing once the fixtures are clean.
+
+**Two mistakes on the way, both caught by the compiler rather than by me.** I
+inserted the helper inside another function's body ("function definition is not
+allowed here"), and I anchored the cleanup on `return system(command.c_str());`
+which appears three times in the file. Reverting and re-deriving the insertion
+points from the parsed file was faster than patching the patch.
+
+**This also completes S16's Accept** — *"dsp_tests on mac reports the same pass
+count as CI, from a checkout at any path"* — which S16 alone could not reach.
+
+**Not verified: Windows and Linux.** The regex accepts both separators and both
+root shapes, but only macOS was run.
+
+---
