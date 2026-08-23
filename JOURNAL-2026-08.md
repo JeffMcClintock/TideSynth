@@ -24909,3 +24909,235 @@ TideSynth.
 product code change. Issues: #310 and #307 closed, #314 filed, #306 commented.
 
 ---
+
+## 2026-08-23 — linux — A34: the scan warning now reports a finding instead of a probe, and S37's inference is corrected
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+Fifth item this session, at Jeff's direction. **A34** — the row this box filed
+an hour earlier while running E1c.
+
+**Did:** `tools/render_harness.py` warned about every folder the engine *looked
+at*. It now warns about folders that actually **contain** modules.
+
+### The change
+
+`folder_has_modules()` classifies a scanned folder, and the warning fires only
+on the populated subset. **Conservative by construction, because the two
+mistakes do not cost the same:** a missed warning silently attributes a
+measurement to the wrong module set; a spurious one costs a reader a moment. So
+it searches recursively, matches `.sem` and `.gmpi` on the suffix (a `.gmpi` may
+be a file *or* a bundle directory), and returns true on anything it cannot rule
+out — an unreadable folder, or one too large to walk inside a 20,000-entry cap.
+
+`.xml` does not count: the engine package pairs each `.sem` with an `.xml` pin
+descriptor, and a folder holding only descriptors can load nothing.
+
+**The report keeps both lists** — `foreign_module_sources` is still the raw
+probe list, and `populated_module_sources` is the new finding — so nothing that
+consumed the old field loses anything.
+
+### Demonstrated three ways, which is one more than the row asked for
+
+Same engine, same case, only `XDG_DATA_HOME` differing:
+
+| scan folder | probed | populated | warning |
+|---|---:|---:|---|
+| **absent** | 1 | 0 | **silent** |
+| **exists, empty** | 1 | 0 | **silent** |
+| **one `.gmpi` planted** | 1 | **1** | **fires, and names it** |
+
+The row's Accept asks for absent-or-empty silent and populated loud. Splitting
+absent from empty is the case that matters most, because **absent is what CI
+does** — `/home/runner/.local/share/SynthEdit/modules` on a runner that has no
+such directory is precisely the false alarm that made this row.
+
+Full suite unchanged at **8/8**, and silent under isolation.
+
+**Seven engine-free selftest cases** cover the classifier both directions —
+absent, empty, descriptors-only, `.sem`, `.gmpi`-as-directory, a module nested
+below the folder, and the filter itself. A one-sided test would pass on a
+classifier that only ever says "no".
+
+### CORRECTION, and it is the more important half of this entry
+
+**Jeff: *"CLAP does ship a GUI. I suspect DAWs support only X11."* He is right
+and my S37/S43 conclusion was wrong.**
+
+I wrote that the Linux CLAP *"has no GUI backend linked"* and therefore
+*"`is_api_supported` returning false is honest"*. The measurement was sound; the
+inference was not. **The honest reading is that the CLAP wrapper is unfinished
+on Linux.** Four artifacts, one build:
+
+| artifact | links libX11/xcb | links wayland |
+|---|---:|---:|
+| `TIDE-Rack` (standalone) | 0 | **1** |
+| `TIDE-Rack.so` (**VST3**) | **2** | **1** |
+| `TIDE-Rack.clap` | 0 | 0 |
+| `TIDE-Rack.gmpi` | 0 | 0 |
+
+**The VST3 links both; the CLAP links neither**, and the source lists say why
+outright: `wrapper/CLAP/CMakeLists.txt` has a `WIN32` block and an `APPLE` block
+and **no Linux arm at all**, while `wrapper/VST3/` ships
+`SEVSTGUIEditorLinux.{h,cpp}` (X11) *and* `SEVSTGUIEditorWayland.{h,cpp}`.
+
+**Jeff's X11 suspicion is backed by that wrapper's own design:** its CMake calls
+X11 *"the only Linux embedding"* before VST3 3.8.0 and makes Wayland
+conditional, falling back to *"X11 editor only"*.
+
+**And my instrument was wrong in a way worth recording.** I grepped `nm` for
+`DrawingFrameX11` and `DrawingFrameWayland` and got zero — but the VST3 uses its
+own `SEVSTGUIEditor*` classes, so that grep returns zero on the binary that
+**does** have an X11 editor. It was never a test of the thing I claimed.
+**`ldd` was the reliable indicator and I had it in front of me the whole time.**
+
+**Ruling, from Jeff, in session:** *"if CLAP wrapper lacks GUI support, we need
+to add it."* So S43's option (ii) is authorised and is no longer an open product
+question — it is the next job, with `SEVSTGUIEditorLinux` as the pattern.
+
+**Learned:**
+
+- **A negative grep is only evidence if you know the symbol would be there.**
+  Zero hits for `DrawingFrameX11` felt like proof and was not — the working
+  sibling scores zero on the same test. Confirm the instrument fires on a known
+  positive before quoting its silence.
+- **"Compare the artifact against a sibling that works" beats any amount of
+  reading.** One `ldd` table across four formats said in four lines what three
+  code-reading sessions had got backwards.
+- **A conservative classifier needs its false branch tested hardest.** The
+  interesting selftest cases here are the ones that must stay silent, because a
+  classifier that always warns is exactly the bug being fixed.
+- **Splitting "absent" from "empty" was worth the extra case**, because absent
+  is the case CI actually hits and the one the old wording denied could happen.
+
+**Not verified:**
+
+- **The CI half of A34's Accept** — *"the `verify` job green with no warning"* —
+  needs this merged and a run on `main`. It is silent locally under both the
+  absent and empty layouts, and CI's is the absent one, so it should hold;
+  should is not measured.
+- **Windows and macOS** never run this harness (`verify.yml` is `ubuntu-24.04`),
+  so the classifier's behaviour on their path conventions is untested.
+- **Nothing about S43 (ii) is started.** This entry only corrects the record and
+  records the ruling.
+
+**Next:**
+
+1. **S43 (ii) is now the job** — give the CLAP wrapper a Linux arm mirroring
+   `wrapper/VST3/SEVSTGUIEditorLinux`, restore the commented-out X11 arm in
+   `guiIsApiSupported`, and let `CLAP_WINDOW_API_X11` do what hosts use. Jeff has
+   ruled it in.
+2. **S37 is unblocked by the same ruling** — once the Linux CLAP has an editor,
+   the editor reads `getBundleContentsFolder() / "Resources"` and S37's collision
+   becomes real and sizable for the first time.
+
+**Machine left clean.** One throwaway worktree under the session scratchpad, with
+the engine package extracted inside it. All six repos synced to their default
+branches at Jeff's request and clean. Nothing installed.
+
+**Branch/PR:** `tide/linux/A34-scan-warning` — TideSynth, one tool plus backlog
+and journal. No product code change.
+
+## 2026-08-23 — windows — S36: the Windows resources move beside the binary, and my first attempt at "beside" was wrong (interactive, Jeff directing)
+
+**Did:** took S36's option (a) off the `any` queue — its own row records that #314 retired
+the objection against it (dropping the race meant the destination could finally
+move without reintroducing the collision). Windows resources now land where the
+runtime actually looks, and packaging was updated to match.
+
+### The mechanism, read rather than assumed
+
+`BundleInfo::getResourceFolder()` for a non-bundle Windows plug-in
+(`pluginIsBundle == false`, which every unpackaged dev-tree binary is) returns
+`getImbeddedFileFolder()` verbatim — the binary's own directory, **no subfolder
+appended**. `getResource()` then does `getResourceFolder() + resourceId`, a
+plain concatenation, and `seedPrefabsFromBundle()` does `resourceFolder /
+"Prefabs"`. So the four pin XMLs and `Prefabs/` belong **loose in `Release\`**,
+mixed in with the binaries — not in a `Resources` subfolder at all, on this one
+platform.
+
+### My first attempt got that wrong, and testing the row's own Accept caught it
+
+Read "point the Windows arm at `$<TARGET_FILE_DIR>`, drop the `/..`" and
+implemented it as `$<TARGET_FILE_DIR>/Resources` — dropping the `/..` but
+keeping a `/Resources` suffix, by analogy with the bundle-platform arms right
+above it in the same file. Built, ran the row's own Accept command on the
+freshly built standalone, and it printed the exact same four `missing from
+bundle resources` lines and `no Prefabs folder` as before the fix — a clean
+compile and a clean build log said nothing about this being wrong. Only running
+the binary caught it. Reading `getImbeddedFileFolder()`'s actual return value —
+the bare directory, not a subfolder of it — is what gave the real answer:
+`$<TARGET_FILE_DIR>` alone, no suffix.
+
+### Packaging had to change with it, not just the CMake line
+
+`package-windows.ps1` previously copied the whole staged `Resources` directory
+into the bundle's `Contents\Resources\`. With the dev-tree destination now the
+bare `Release\` folder, doing the same thing would have copied every target's
+binaries, PDBs, `.lib`s and `.exp`s into the shipped bundle too. Rewrote it to
+pick the four known XMLs and `Prefabs\` out of `Release\` by name — the same
+list `SynthEditSem/CMakeLists.txt`'s `_tide_xmls` already enumerates, and the
+same "these two lists must move together" rule `TideApp.cpp:496` already states
+for its own read of the identical set.
+
+**The packaged bundle's own layout is unchanged** — still `Contents\x86_64-win\
+TIDE-Rack.vst3` + `Contents\Resources\{4 xmls, Prefabs\}`, which is what makes
+`pluginIsBundle` true for the installed copy and routes it through the
+bundle-aware code path this row never touches.
+
+### Verified
+
+Row's own Accept, on the freshly built standalone, nothing copied by hand:
+
+```
+TIDE: ControlsXp.xml enriched 2 of 18 described class(es)
+TIDE: MidiPlayer2.xml enriched 2 of 7 described class(es)
+TIDE: Converters.xml enriched 26 of 70 described class(es)
+TIDE: VaFilters.xml enriched 2 of 7 described class(es)
+TIDE: 6 rack prefab(s) seeded from the bundle
+```
+
+Zero `missing from bundle resources` or `no Prefabs folder` lines (`grep -c`
+against the run log: 0).
+
+**The #314 race fix, re-checked because I edited the same block:** 20 parallel
+relinks (`cmake --build --parallel`, deleting the binaries and the loose
+resources between each), **0 failures**.
+
+**Packaging, end to end:** `package-windows.ps1` against this build, unsigned
+(no Azure credentials on this box, same as every prior run) — assembled bundle
+contains exactly 10 files, the four XMLs and six `.synthedit` prefabs, nothing
+else. No binaries, PDBs, `.lib`s or `.exp`s leaked into `Resources\` — checked
+by listing the assembled tree, not assumed from the script logic.
+
+**Not verified:** the packaged bundle was not loaded in a real VST3 host this
+run — the bundle-aware code path and the shipped layout are unchanged by this
+fix (same files, same place), and R2's own prior verification already covers
+that path; re-proving it would be re-verifying something this row does not
+touch. macOS and Linux are untouched — the edited arm is `if(WIN32)` /
+`if(UNIX AND ...)`-gated and neither ran.
+
+**Learned:**
+
+- **A clean build and a clean log are not evidence the destination is right.**
+  My first attempt compiled, linked, and staged files into *a* folder without
+  any error — it was simply the wrong folder, and nothing short of running the
+  Accept command surfaced that.
+- **"Drop the `/..`" meant drop it entirely, not shorten it by one segment.**
+  The row's own wording was correct; I filled in the wrong generator expression
+  from pattern-matching the bundle arms beside it rather than reading what
+  `getImbeddedFileFolder()` actually returns.
+- **A destination change to a build-tree path can force a packaging-script
+  change even when the shipped layout doesn't move.** The dev-tree consumer and
+  the packaging consumer read the same CMake output through two different
+  assumptions (loose files vs. a clean `Resources` subtree), and moving the
+  first broke the second's "copy the whole folder" shortcut.
+
+**Next:** S36 is the last of the resource-staging defects this cluster of rows
+(#314, S21, S36) named; nothing else on the `any`/`win` queue currently touches
+this file. **P3** remains this platform's only own-boxed row and is GATED,
+needing Jeff.
+
+**Branch/PR:** `tide/win/S36-resource-destination` — TideSynth, [#339](https://github.com/JeffMcClintock/TideSynth/pull/339).
+
+---
