@@ -11709,6 +11709,7 @@ written outside `TideSynth` and the scratch dir.
 script plus rows. (Branch name rather than PR number in the row, per A22.)
 
 ---
+
 ## 2026-08-18 — macos — S13 (Jeff directing)
 
 **Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
@@ -11946,6 +11947,7 @@ changed in any repo. All eight repos on their default branch and clean.
 **Branch/PR:** `tide/mac/issue-117` — TideSynth backlog and journal only.
 
 ---
+
 ## 2026-08-18 — macos — S13 verified by A/B, and a wrong assumption corrected
 
 **Prompt:** 397330d · claude-opus-5[1m] · app 2.1.229 · as tide-rack-bot
@@ -15313,6 +15315,7 @@ C7a's and C14's own CMake comments both predicted the two would "want ONE fix". 
 **Branch/PR:** [SynthEditLib#27](https://github.com/JeffMcClintock/SynthEditLib/pull/27) + [SynthEdit#62](https://github.com/JeffMcClintock/SynthEdit/pull/62) + [#177](https://github.com/JeffMcClintock/TideSynth/pull/177), all on branch `tide/win/C14-licensing-seam`. **Merging any one without the other two breaks the build**, and it is said in each body.
 
 **Machine state.** All three repos were worked in **throwaway worktrees**; Jeff's own checkouts were never switched and are on their default branches. **`C:\SE\SynthEditLib` was already dirty** with his work in progress — `CUG.cpp`, real content (`git diff --ignore-all-space` shows it, so not CRLF churn) — and was left exactly as found, per STEP 5's third dirt category. `check-commit-authorship.py` clean in all three repos; `check-commit-completeness.py` recorded and verified on every commit; `check-no-direct-commits.py` clean on both GATED repos.
+
 ## 2026-08-20 — macos — a mac build break from the carve-out, and five test failures CI has been hiding for a week
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** (Claude Code CLI version not resolvable on this box) · as **tide-rack-bot** (both paths)
@@ -15448,6 +15451,7 @@ an agent's call. The reporting half — removing `continue-on-error` — is a
 Two repos; the SynthEdit half is the whole fix and this half is the record, so
 neither blocks the other. Throwaway worktrees; every checkout left on its default
 branch and clean.
+
 ## 2026-08-20 — macos — C7c answered by removal, and the two questions that answer creates
 
 **Prompt:** eba799e · Opus 5 (1M context), claude-opus-5[1m] · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths)
@@ -15677,7 +15681,6 @@ until Jeff next kicks one off.
 
 **Branch/PR:** [#183](https://github.com/JeffMcClintock/TideSynth/pull/183), branch
 `tide/mac/A22-pr-link` — TideSynth only, docs and backlog.
-
 
 ## 2026-08-20 — macos — A23: duplicate-ID detection, and the three false alarms that shaped the rule
 
@@ -16618,6 +16621,7 @@ whether to force-push a re-authored commit.
 **Branch/PR:** `tide/linux/S21-runtime-verification` — TideSynth only.
 
 ---
+
 ## 2026-08-20 — linux — A30: the lessons digest, and why the literal spec would have backfired
 
 **Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths)
@@ -16996,6 +17000,7 @@ inserted kept showing up in what I called fresh instances.
 **Branch/PR:** `tide/linux/E14-insert-gesture` — TideSynth only, docs and rows.
 
 ---
+
 ## 2026-08-20 — linux — S26: the se_sdk timers never fired, and Jeff's mouse was the instrument that found it
 
 **Prompt:** 35e4ee6 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 · as **tide-rack-bot** (both paths) · interactive, Jeff directing
@@ -17096,6 +17101,7 @@ differently is **unexplained and worth suspicion** — noted, not theorised.
 **Branch/PR:** `tide/linux/S26-pump-se-timers` — [#213](https://github.com/JeffMcClintock/TideSynth/pull/213).
 
 ---
+
 ## 2026-08-20 — macos — A31: the granularity was the whole design, and three measurements chose it
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present
@@ -17345,6 +17351,7 @@ configure).
    was TideSynth-side. Unchanged.
 
 **Branch/PR:** `tide/mac/issue-222` — TideSynth only.
+
 ## 2026-08-20 — macos — C10: 104 editor files leave the root, and the reference count fell as it was measured
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · scheduled run, Jeff present · third item (the #222 build break interrupted it mid-baseline)
@@ -17866,6 +17873,7 @@ belong.
    decision.
 
 **Branch/PR:** `tide/mac/macos-arm64` + [SynthEditLib#31](https://github.com/JeffMcClintock/SynthEditLib/pull/31) + [GMPI_Wrappers#10](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/10).
+
 ## 2026-08-21 — macos — Linux CI is green, and the macOS job that would confirm it cannot say anything
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
@@ -18692,6 +18700,7 @@ reverted, not stashed. The three CPM `_deps` checkouts I read from
 only read them.
 
 **Branch/PR:** `tide/linux/A12-halted-box-digest` — TideSynth only.
+
 ## 2026-08-21 — linux — the compositor problem is solved, and S23 does not reproduce once you can safely look
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app 2.1.220 (Claude Code) · as **tide-rack-bot** (both paths)
@@ -19122,6 +19131,7 @@ against Jeff's desktop this item — all of it was log reading, disassembly, and
 **Branch/PR:** `tide/linux/S23-addr2line` — TideSynth only, row and journal. No code change.
 
 ---
+
 ## 2026-08-21 — macos — N1a: the rename shipped, and it silently unlinked half the build first
 
 **Prompt:** f7ae1a4 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing · linux + renderer agents also active
@@ -20757,6 +20767,7 @@ Ardour cache entries from the scans pointed into scratch trees and were removed,
 leaving his nine own entries. All five repos synced and on their default branches.
 
 **Branch/PR:** `tide/linux/R4-linux-tarball` — TideSynth only.
+
 ## 2026-08-22 — macos — STEP 4: six PRs merged in one go, and every NEXT cell went stale at once
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
@@ -21621,6 +21632,7 @@ clone; Jeff's `~/TideSynth/build` and his `~/.vst3` were not written to. TideSyn
 back on `main` after this branch.
 
 **Branch/PR:** `tide/linux/issue-271` → [#274](https://github.com/JeffMcClintock/TideSynth/pull/274), with [GMPI#7](https://github.com/JeffMcClintock/GMPI/pull/7).
+
 ## 2026-08-22 — macos — P11's mac half had the right symptom and the wrong mechanism
 
 **Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
@@ -21831,6 +21843,7 @@ standalone both stopped by pid (**S31**), scratch `XDG_CONFIG_HOME` throughout s
 2026-08-19 edit went out as gmpi_ui#10 earlier today.
 
 **Branch/PR:** `tide/linux/N1b-live-docs` — TideSynth only. No code change.
+
 ## 2026-08-22 — macos — N1a: OUTPUT_NAME renamed three things, and only one of them had an extension
 
 **Prompt:** 5146a61 · Opus 5 (1M context), claude-opus-5[1m] · app Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
@@ -22857,6 +22870,7 @@ blocker above. Device (non-simulator) builds were never configured. And the
 wider class is far from done: **31 files in SynthEditLib use `__APPLE__` and
 only 2 use `TARGET_OS_*`.** This fixed the sites that block the build, not the
 population.
+
 ## 2026-08-23 — linux — S43: the CLAP now refuses an API it just said it did not support
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
@@ -24074,6 +24088,7 @@ filing step already carried, which is unchanged.
 **Branch/PR:** `tide/win/S41-close-issue-on-green` — TideSynth.
 
 ---
+
 ## 2026-08-23 — macos — STEP 4: five rows land, and the mac NEXT cell is re-pointed (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
@@ -24209,6 +24224,7 @@ exactly the kind of claim this whole investigation kept disproving.
 `/Applications`. GarageBand was force-quit at the end while holding only my own
 scratch project — Jeff's own project was closed unsaved much earlier and never
 reopened for writing.
+
 ## 2026-08-23 — windows — #314 reproduced here: 5 failures in 25 builds of plain `main`, then 0 in 40
 
 **Prompt:** 5146a612b · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
@@ -25142,71 +25158,6 @@ needing Jeff.
 
 ---
 
-## 2026-08-23 — windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)
-
-**Did:** S36 confirmed merged and flipped to DONE — [#339](https://github.com/JeffMcClintock/TideSynth/pull/339)
-landed while this session's sync ran. Then took **S34** off the `any` queue: two
-unguarded `plugs.back()` calls on `std::vector<UPlug*>`, GATED (`SynthEditLib`),
-takeable here because this is interactive with Jeff directing.
-
-### S34
-
-Both sites fault at exactly **-8** when `plugs` is empty — `data[-1]` on an
-8-byte pointer element, not a null-pointer read, so no null check catches it.
-Same class the fleet already fixed once at -16 for `ClassicControlGuiBase.cpp`'s
-16-byte `widgets` elements (**U2d**). The row named both sites, the exact
-mechanism, and a third sibling (`ug_oversampler.cpp:337`) that already guards
-the identical pattern — nothing here needed re-deriving, only applying.
-
-`ug_adder2.cpp:81` — first line of `NewConnection()`, TIDE's automatic input
-summing, reachable whenever a graph is built from a restored patch with an
-empty pin list, which is exactly what a missing bundle resource causes.
-`ug_feedback_delays.cpp:72` — `BypassFeedbackModule()`, identical shape.
-
-**Fix:** guard, one loud stderr line naming what will not work, return rather
-than crash — `ClassicControlGuiBase.cpp`'s own established pattern, and its
-comment states the rule this copies: *"a host where those don't fire must not
-bring the whole process down. Loud, not silent."*
-
-**Verified by building, per the row's own Accept** — `SynthEditCL` (this
-repo's Release config is a shared library, so TIDE building alone would not be
-evidence): a scratch Ninja tree, `SYNTHEDITLIB_FOLDER_OVERRIDE` on the fix
-branch, `262/262` targets, rc=0, zero errors. Both new stderr strings read back
-out of the built `SynthEditCL.exe` verbatim. Smoke-ran the exe: scans modules,
-exits cleanly on an unrecognised verb, no crash.
-
-**Not verified:** neither path was exercised at runtime with a genuinely empty
-`plugs` vector — the row itself frames this as latent UB surfaced by
-investigation (S23), not a currently-reproducing crash, so the fix is
-defensive against a reachable condition rather than a reproduction of a live
-symptom.
-
-### The stale-row catch
-
-The win NEXT cell (written by this box a session ago) still said *"S36 is
-IN-REVIEW, no PR link yet — check whether it has one and whether it merged
-before doing anything else with it."* It had, ten minutes before this run
-started. Confirmed via `gh pr view` before touching anything else — flipping a
-row on verified PR state, not on memory of having pushed it, per the standing
-lesson this backlog's own history keeps recording.
-
-**Learned:**
-
-- **A row that names its own precedent site is most of the fix.** S34 named
-  both defect locations, the exact fault address to expect, and a working
-  sibling to copy. The work was verifying and applying, not investigating.
-- **Check the cell's own "before doing anything else" instruction before doing
-  anything else.** It was there specifically so this wouldn't be skipped.
-
-**Next:** the `any` queue still carries several other GATED rows (S5, S3g,
-S22, S18) that want either Jeff or another interactive session; none was
-sized as tightly as S34 was.
-
-**Branch/PR:** `tide/win/S34-guard-record` — TideSynth, bookkeeping only.
-Product change is [SynthEditLib#34](https://github.com/JeffMcClintock/SynthEditLib/pull/34), not merged.
-
----
-
 ## 2026-08-23 — linux — S43(ii): the Linux CLAP has an X11 editor. It embeds, the host drives it, and it paints nothing
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
@@ -25358,3 +25309,186 @@ journal. **Merging one without the other is harmless:** TIDE fetches
 only records it and supplies the verifier.
 
 ---
+
+## 2026-08-23 — windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)
+
+**Did:** S36 confirmed merged and flipped to DONE — [#339](https://github.com/JeffMcClintock/TideSynth/pull/339)
+landed while this session's sync ran. Then took **S34** off the `any` queue: two
+unguarded `plugs.back()` calls on `std::vector<UPlug*>`, GATED (`SynthEditLib`),
+takeable here because this is interactive with Jeff directing.
+
+### S34
+
+Both sites fault at exactly **-8** when `plugs` is empty — `data[-1]` on an
+8-byte pointer element, not a null-pointer read, so no null check catches it.
+Same class the fleet already fixed once at -16 for `ClassicControlGuiBase.cpp`'s
+16-byte `widgets` elements (**U2d**). The row named both sites, the exact
+mechanism, and a third sibling (`ug_oversampler.cpp:337`) that already guards
+the identical pattern — nothing here needed re-deriving, only applying.
+
+`ug_adder2.cpp:81` — first line of `NewConnection()`, TIDE's automatic input
+summing, reachable whenever a graph is built from a restored patch with an
+empty pin list, which is exactly what a missing bundle resource causes.
+`ug_feedback_delays.cpp:72` — `BypassFeedbackModule()`, identical shape.
+
+**Fix:** guard, one loud stderr line naming what will not work, return rather
+than crash — `ClassicControlGuiBase.cpp`'s own established pattern, and its
+comment states the rule this copies: *"a host where those don't fire must not
+bring the whole process down. Loud, not silent."*
+
+**Verified by building, per the row's own Accept** — `SynthEditCL` (this
+repo's Release config is a shared library, so TIDE building alone would not be
+evidence): a scratch Ninja tree, `SYNTHEDITLIB_FOLDER_OVERRIDE` on the fix
+branch, `262/262` targets, rc=0, zero errors. Both new stderr strings read back
+out of the built `SynthEditCL.exe` verbatim. Smoke-ran the exe: scans modules,
+exits cleanly on an unrecognised verb, no crash.
+
+**Not verified:** neither path was exercised at runtime with a genuinely empty
+`plugs` vector — the row itself frames this as latent UB surfaced by
+investigation (S23), not a currently-reproducing crash, so the fix is
+defensive against a reachable condition rather than a reproduction of a live
+symptom.
+
+### The stale-row catch
+
+The win NEXT cell (written by this box a session ago) still said *"S36 is
+IN-REVIEW, no PR link yet — check whether it has one and whether it merged
+before doing anything else with it."* It had, ten minutes before this run
+started. Confirmed via `gh pr view` before touching anything else — flipping a
+row on verified PR state, not on memory of having pushed it, per the standing
+lesson this backlog's own history keeps recording.
+
+**Learned:**
+
+- **A row that names its own precedent site is most of the fix.** S34 named
+  both defect locations, the exact fault address to expect, and a working
+  sibling to copy. The work was verifying and applying, not investigating.
+- **Check the cell's own "before doing anything else" instruction before doing
+  anything else.** It was there specifically so this wouldn't be skipped.
+
+**Next:** the `any` queue still carries several other GATED rows (S5, S3g,
+S22, S18) that want either Jeff or another interactive session; none was
+sized as tightly as S34 was.
+
+**Branch/PR:** `tide/win/S34-guard-record` — TideSynth, bookkeeping only.
+Product change is [SynthEditLib#34](https://github.com/JeffMcClintock/SynthEditLib/pull/34), not merged.
+
+---
+
+## 2026-08-23 — linux — the CLAP editor PAINTS, and the cause was M4's defect on a third wrapper
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+Follow-up to this morning's S43(ii) entry, which ended *"it embeds, the host
+drives it, and it paints nothing"*. Jeff: *"keep going. add temporary logging if
+it helps."* It helped, and the answer came in one run.
+
+**A separate entry rather than an edit to that one** — it merged as
+[#340](https://github.com/JeffMcClintock/TideSynth/pull/340) while I was working,
+and a log you edit is not a log.
+
+### The logging, and what it killed
+
+Three temporary probes in `gmpi_ui/backends/DrawingFrameX11.cpp`'s `present()`:
+entry state, every early-return, and — the one that mattered — the client's own
+output surface.
+
+**`present()` was doing everything right:**
+
+    present#1: display=.. window=.. client=.. dirtyAll=1 w=1100 h=600
+    present: calling client->render
+    present: BLIT 1100x600 at 0,0 via XShmPutImage
+
+**And the client was writing an entirely blank surface:**
+
+    client surface: 1100x600 stride=1104 nonzero-samples=0 first=0x00000000
+
+**So windowing was never the problem.** Not the linking, not the embedding, not
+the size, not the pump. And the two bugs I had already found and fixed on the way
+— `Editor_CLAP::width/height` stuck at their `{100}` defaults, and `arrange()`
+never called — were both real and neither was ever going to move this.
+
+### The cause: `wrapper/CLAP` never created the plug-in's Controller at all
+
+`PluginSubtype::Controller` appeared **nowhere** in the CLAP wrapper directory.
+AU3 gained exactly this in **M4**; VST3 has always had it.
+
+The chain is written out in `AU3_Wrapper.mm` by whoever fixed it there, and it is
+worth quoting because it predicts precisely what I measured: with no
+`initialize()` the plug-in controller never publishes its `seApp` pointer through
+parameter 0, so the editor's `notifyPin(0)` arrives with a **zero-byte payload
+instead of 8**, so the editor's guard on that size fails, so its whole GUI is
+never constructed.
+
+Created and initialised against the wrapper's controller holder, and **held** on
+`Processor_CLAP` rather than merely initialised — it publishes state through the
+holder and must outlive the editor that reads it, the same reason `AU3Core` holds
+its one.
+
+**Same probe, same display, after:**
+
+    client surface: 1100x600 nonzero-samples=41250 first=0x29102910
+    window 0x600002 content: 64 distinct colours sampled  <-- IT PAINTED
+
+The captured window shows the **module browser category tree** — All, Controls,
+Conversion, Diagnostic, Effects, Experimental, Filters, Flow Control,
+Input-Output, Logic, Math, MIDI, Modifiers, Old, Special, Sub-Controls, TiDE,
+Waveform — the module list beneath it, and the **rack rails with their mounting
+holes**. That is TIDE Rack's editor, in a CLAP host, on Linux.
+
+**Housekeeping.** All diagnostics were temporary: `grep TIDEDIAG` is clean in all
+six repos, and the `gmpi_ui` worktree they lived in is back to `origin/main` with
+an empty `git status` — nothing of that repo is in either PR. Whole TIDE tree
+**rc=0**, all four Linux artifacts.
+
+**Learned:**
+
+- **Instrument the LAST link first.** I spent the session on windowing — linking,
+  embedding, sizing, the event loop — and the answer was one line showing the
+  client's own surface was all zeroes. `nonzero-samples=0` on the first run would
+  have pointed at content immediately and skipped every windowing theory. The
+  chain here is long and I started at the end I had just built.
+- **Two real bugs fixed on the way to the wrong place are still two real bugs.**
+  The `{100}` size and the missing `arrange()` were genuine, and fixing something
+  true is not evidence you are on the path to the cause.
+- **The third instance is the one to generalise from.** AU3 (M4), now CLAP; VST3
+  was always correct. *"Does this wrapper create the plug-in's `<Controller/>`?"*
+  is one grep, and it is now the first question to ask of any wrapper whose
+  editor misbehaves.
+- **A blank window has two very different causes and they look identical from
+  outside** — nothing drew, or something drew nothing. Reading the client's
+  surface separates them in one measurement; everything upstream of it cannot.
+
+**Not verified:**
+
+- **`state->save` still returns 86 bytes**, and my earlier inference that this
+  meant "no document" was **wrong** — the editor plainly has content now. What 86
+  bytes actually represents is unmeasured, and I have removed the claim rather
+  than repair it.
+- **`guiShow`/`guiHide` are still unimplemented**, so `show()` returns false from
+  the clap-helpers base. The editor draws regardless, because
+  `X11DrawingFrame::open()` maps its own window — so this is a gap, not a
+  blocker, and a host that respects `show()` may still hide it.
+- **macOS and Windows were not built.** The controller creation is NOT inside a
+  platform guard — it runs on every platform — so those two are the ones to
+  check before this merges. On Linux it is measured; elsewhere it is reasoning.
+- **No real DAW.** Everything is our own probe on a headless Xwayland.
+
+**Next:**
+
+1. **S37 is live for the first time.** The editor draws, so it reads
+   `getBundleContentsFolder() / "Resources"` — the shared-folder collision that
+   row describes is finally observable and its options finally sizable.
+2. **Build the CLAP on macOS and Windows** before merging, since the controller
+   change is unguarded.
+3. **A real DAW on Linux** — Bitwig or Reaper — is the honest next test.
+
+**Machine left clean.** Three throwaway worktrees under the session scratchpad,
+one per repo; the `gmpi_ui` one is unmodified and exists only because the
+diagnostics lived there. Headless weston stopped. All six repos on their default
+branches and clean. Nothing installed.
+
+**Branch/PR:** `tide/linux/S43ii-clap-x11` in both repos —
+[GMPI_Wrappers#16](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/16) now
+carries the controller fix as a second commit; this repo gets the probe's
+screenshot dump plus the row and this entry.
