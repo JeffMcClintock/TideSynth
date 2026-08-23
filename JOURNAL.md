@@ -8,6 +8,161 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — windows — #314 reproduced here: 5 failures in 25 builds of plain `main`, then 0 in 40
+
+**Prompt:** 5146a612b · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
+
+**Did:** STEP 1. The only open `platform:win` issue is
+[#314](https://github.com/JeffMcClintock/TideSynth/issues/314), filed from the
+macos box, which said plainly that it could not run any of it and that whoever
+took it should *"reproduce locally under `--parallel` ... and verify by
+construction, not by exit code."* That is what this run is.
+
+### The issue is evidence, not instruction, so it got reproduced before it got fixed
+
+**It reproduces on the unmodified tree, at a rate nothing in CI would suggest.**
+A full Release build of `origin/main` (rc=0, all four Windows artifacts), then 25
+iterations of: delete the four binaries and `build/SynthEditSem/Resources`, then
+`cmake --build --config Release --parallel`.
+
+```
+ITER  8  Error copying file (if different) ... MidiPlayer2/MidiPlayer2.xml -> .../Release/../Resources/MidiPlayer2.xml
+ITER 14  Error copying file (if different) ... ControlsXp/ControlsXp.xml   -> .../Release/../Resources/ControlsXp.xml
+ITER 19  Error copying file (if different) ... VaFilters/VaFilters.xml     -> .../Release/../Resources/VaFilters.xml
+ITER 20  Error copying directory ... TideModules/prefabs -> .../Release/../Resources/Prefabs
+ITER 23  Error copying file (if different) ... ControlsXp/ControlsXp.xml   -> .../Release/../Resources/ControlsXp.xml
+RESULT: 5 failures out of 25
+```
+
+Iteration 20 is the CI failure verbatim, down to the unnormalised
+`Release/../Resources` the issue read off the log. **20% here against roughly one
+Windows job in twelve in CI** — the mechanism is the same and the exposure is
+not, because a local relink puts all four targets in the staging window at once
+while a CI build spreads them across a cold compile.
+
+**Four racers, confirmed rather than inferred.** The issue could only infer
+`TIDE_Rack_STANDALONE`'s participation from `FORMATS_LIST`. The control build's
+log has all four: `Staging rack prefabs (TIDE_Rack)`, `(TIDE_Rack_VST3)`,
+`(TIDE_Rack_CLAP)`, `(TIDE_Rack_STANDALONE)`. On Windows `AU3` builds no target,
+so it is four and not five.
+
+### The fix, and why it is a shared target rather than a moved directory
+
+`SynthEditSem/CMakeLists.txt` now stages Windows resources **once**, in a
+`TIDE_Rack_stage_resources` custom target that every format target
+`add_dependencies` on, instead of hanging the identical five copies off four
+targets' `POST_BUILD`. `_tide_xmls` was hoisted out of the per-format loop so the
+new target and the surviving per-target commands read the same list — the file's
+own comment already forbids two copies of it.
+
+**Every other platform is untouched and keeps the per-target commands**, because
+there each format target owns its own bundle directory and there is nothing
+shared to collide over. The Windows arm sets `_tide_resources` to the empty
+string, which is what skips the per-target copies; the arm's comment says so,
+because "no resources on Windows" is exactly the wrong reading of that line.
+
+**The A/B, on the real tree, same box, same recipe:**
+
+| tree | parallel builds | failures |
+|---|---|---|
+| `origin/main` (`2d15e13f3`) | 25 | **5** |
+| the same tree + this fix | 40 | **0** |
+
+`0.8^40` is about `1.3e-4`, so the fixed tree is not a lucky run of the broken
+one.
+
+**And a synthetic control, because 5-in-25 is a rate and not a mechanism.** Four
+executables, one output directory, the identical five copies into one
+`$<TARGET_FILE_DIR>/../Resources`, and a 200-file prefabs directory to widen the
+copy window: **8 failures in 20** with the copies per-target, **0 in 30** behind
+one shared target. Same shape, same error text, no TIDE in it at all.
+
+**The staged output is byte-identical to what `main` produces** — `diff -r`
+between the control tree's `Resources` and the fixed tree's is clean: four XMLs
+and six prefabs, same place, same content. This changes when the copies run, not
+what they write or where.
+
+### Two things I checked because they are how a dedup like this goes wrong
+
+- **Building one format target still stages.** `cmake --build --target
+  TIDE_Rack_VST3` on a tree with `Resources` deleted brings the staging target in
+  via `add_dependencies` and produces all four XMLs and six prefabs. A
+  build-everything-only fix would have looked identical in every measurement
+  above.
+- **A no-op build costs 0.9 s and rewrites nothing.** A custom target has no
+  outputs, so its commands run on every build where a `POST_BUILD` ran only on a
+  relink. All five are `*_if_different`, so the staged mtimes are unchanged; the
+  cost is five stat-and-skip invocations.
+
+### Not fixed, deliberately
+
+**S36's destination is untouched.** The resources still land one directory above
+the binary, so a Windows developer build still has an empty module browser —
+that is S36's defect, not this one, and the two are independent. Recorded on that
+row: dropping the `/..` would not have helped here, and now that the staging is
+de-duplicated, S36's (a) is a one-expression change with no race left attached to
+it.
+
+`scripts/package-windows.ps1` reads the same destination and needed no change;
+its comment naming `POST_BUILD` as the writer did, and got one.
+
+**The default branch builds on Windows.** `origin/main` at `2d15e13f3`: configure
+rc=0, build rc=0, `TIDE-Rack.gmpi` / `.vst3` / `.clap` / `.exe` all emitted. No
+new platform issue to file.
+
+**Learned:**
+
+- **A race whose CI rate is about 8% was 20% on a developer's box, and the
+  difference is the compile.** CI spreads four link steps across a cold build; a
+  local relink puts them in the same 6 ms. Anyone judging "how often does this
+  really fire" from the CI history alone would have under-rated it by more than
+  twofold.
+- **Reproduce in the real tree even when a synthetic repro is easier.** I wrote
+  the four-target synthetic first because it was cheap and gave a loud signal. It
+  was the real tree that produced the CI error *verbatim*, including the
+  `Release/../Resources` spelling — which is what makes this the same bug rather
+  than a bug of the same shape.
+- **Delete the outputs, not the build tree, to re-run a POST_BUILD race.**
+  Twenty-five iterations took 48 seconds because only the four link steps and the
+  staging re-ran. A fresh configure per iteration would have made the same
+  experiment cost an hour, and I would have run five iterations instead of
+  twenty-five.
+- **A dedup has a second failure mode the first one hides: building one target.**
+  Moving work out of `POST_BUILD` into a shared target is only correct if the
+  dependency edges are there, and every measurement of the race passes whether
+  they are or not.
+
+**Not verified:** CI itself — this is verified on this box against a local
+`main`, and by construction rather than by watching a run go green, which is the
+one thing #314 says proves nothing. The four sibling repos on this box are 2, 3,
+3 and 8 commits behind their `origin/main` and were **not** pulled (they are
+Jeff's checkouts, they were clean, and this change is TIDE-only CMake), so CI
+will build the same file against slightly newer siblings than I did. macOS and
+Linux were not built — the change is inside `if(WIN32)` and an `else()` arm those
+platforms never reach, but nobody ran them.
+
+**Machine left clean.** All work in two throwaway worktrees, `C:/SE/wt314` and
+`C:/SE/wt314c`, removed afterwards; nothing was built in `C:/SE/TideSynth`, and
+no plug-in was installed. `C:/SE/TideSynth` had one pre-existing dirty file,
+`tools/tidepanel-screenshot.synthedit` — a real content diff, not CRLF churn
+(`git diff --ignore-all-space` shows it) — so it is Jeff's work in progress and
+was left exactly as found. `SE16`, `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers` and
+`GMPI` were clean and on their default branches at the start, were not written
+to, and still are.
+
+**Next:**
+
+1. **S36 is the natural follow-on and it is now smaller than its row says** — its
+   (a) is one expression, the objection that it would not fix the race is spent,
+   and it is `any` platform so it does not have to wait for this box.
+2. **#314 stays open until the PR merges**, which closes it. A green CI run on
+   this branch is not evidence either way, for the reason the issue gives.
+3. **The win NEXT cell still points at P11**, untouched by this run.
+
+**Branch/PR:** `tide/win/issue-314` — TideSynth.
+
+---
+
 ## 2026-08-23 — macos — TIDE in GarageBand: the editor is blank, and four suspects are dead (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
@@ -759,622 +914,3 @@ Jeff's other nine cached plugins were left alone.
 ```
 
 ---
-
-## 2026-08-22 — macos — STEP 4, and the hour-long feedback loop that caused two of today's failures
-
-**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
-
-**Did:** bookkeeping — **S29** and **S40** to DONE — and recorded on R5 the fix
-that matters most from this stretch.
-
-### S29 had been stale for hours
-
-Its PR merged long ago and nobody flipped the row. Confirmed by consequence
-rather than by the merge: `build.yml` on `main` carries the
-`startsWith(github.head_ref, 'tide/')` test, which is precisely the clause #258
-shipped without. That is the second row today found stale by a sweep rather than
-by anyone noticing — the first was R5's branch pushed with no PR.
-
-### The fix worth remembering
-
-The certificate import ran **after** the build. Both of v0.1.0's failed attempts
-were credential problems:
-
-| attempt | failed at | knowable at |
-|---|---|---|
-| 1 | `Package` — missing Developer ID Installer certificate | ~30 s |
-| 2 | `Import` — passphrase did not match the archive | ~30 s |
-
-Each surfaced only after **~60 minutes of compiling**. About two hours today
-spent learning something knowable in thirty seconds, and I wrote that ordering
-myself.
-
-Nothing in the import depends on the build, and the keychain has a 6-hour
-timeout, so it simply moves. What made it visible was Jeff asking why the build
-was still slow — the question was about ccache, and the answer that mattered was
-about step order.
-
-**And the import now says which secret is wrong.** `MAC verification failed
-during PKCS12 import (wrong password?)` cannot distinguish a bad passphrase from
-bad certificate data, and those need opposite fixes.
-
-**Learned:**
-
-- **Put the cheap failure first.** A credential check is seconds and a compile is
-  an hour; running them in that order costs nothing and saves the hour every time
-  the credential is wrong. I had them backwards and paid twice before noticing.
-- **A stale row is found by sweeps, not by people.** S29 sat IN-REVIEW for hours
-  with its work merged; R5's branch sat pushed with no PR. Both surfaced only
-  when something systematically asked "which rows disagree with reality?"
-- **The question asked is not always the question that matters.** "Is it still
-  slow?" was about ccache. The expensive slowness was ordering, and it only came
-  out because answering properly meant reading the whole job.
-
-**Next:** the mac cell now points at **M2**, whose row is the most out-of-date
-thing on the board — it treats authoring an AUv3 wrapper as its blocker, one
-landed 2026-08-19, and **S40 just made AUv3 the shipped macOS format**. What
-remains is genuinely iOS, and a Mac is the only machine that can attempt it.
-**Re-cost that row before working it.**
-
-**Branch/PR:** `tide/mac/step4-s29-s40` — TideSynth, bookkeeping only.
-
----
-
-## 2026-08-22 — macos — S40 ruled: AUv3 only, and the install story is a copy
-
-**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** Jeff ruled S40 — AU3 for macOS and iOS, drop AU2. *"Works in Apple DAWs.
-Other DAWs on Apple tend to support VST3 and or CLAP. If we can omit AU2, just to
-save some work and time, let's do so. Won't be difficult to add later anyhow."*
-
-Implemented: `FORMATS_LIST` is `GMPI VST3 CLAP AU3 STANDALONE`, the `.component`
-is gone, and `TIDE-Rack-AUv3.app` takes its place in the pkg.
-
-### The expensive part turned out to be free
-
-An AUv3 ships as an **app**, not a plug-in bundle, so the obvious worry was the
-install story: does the extension register from a pkg-installed app, or does the
-user have to launch it, or does the pkg need a postinstall script?
-
-Measured rather than assumed:
-
-```
-baseline (nothing installed)                    0 Drck entries
-copy app in, no launch, no pluginkit            1 Drck entry
-explicit pluginkit -a afterwards                1 (unchanged)
-```
-
-**macOS registers it on the copy alone.** So the pkg needs no postinstall script,
-which is the single thing that could have made "drop AU2" cost real time.
-
-### The app is user-visible, so it needed a name
-
-`gmpi_plugin.cmake` names the containing app after the CMake target —
-`TIDE_Rack_AU3App.app` — which is underscored, a form `distribution.md` reserves
-for internal target names, and it lands in `/Applications` where Finder shows it
-to the customer.
-
-Now `TIDE-Rack-AUv3.app`, `CFBundleName "TIDE Rack (AUv3)"`, R8's identifier
-scheme. **Not plain `TIDE-Rack.app`**: the STANDALONE format already produces
-that in the same directory, and two bundles cannot share a name.
-
-### A guard of mine was defeated by `set -e`
-
-The new "app contains no .appex" check ran `find` on a possibly-missing directory
-inside a command substitution. Under `set -euo pipefail` that kills the script
-**before** the message prints — so the negative control produced **rc=1 and zero
-bytes of output**. A guard whose whole purpose is to say what went wrong, exiting
-silently.
-
-It only surfaced because I ran the control and looked at the output rather than
-just the exit code. `rc=1` alone looks like the guard working.
-
-**Learned:**
-
-- **Measure the install story before costing a format change.** "AUv3 ships as an
-  app" sounds like installer work; the extension registers on a plain copy, and
-  the whole concern evaporated in one three-line experiment.
-- **`set -euo pipefail` can kill a guard before it speaks.** A command
-  substitution containing a failing pipeline aborts the script, so the carefully
-  written error message never runs. Test the precondition, then run the command.
-- **A non-zero exit is not evidence a guard fired.** Both look like `rc=1`. Read
-  the output, not just the status — mine had none.
-- **A format that ships as an app inherits a naming decision the build never had
-  to make.** Plug-in bundles live in paths nobody reads; this one has an icon in
-  `/Applications`.
-
-**Next:** **R6** still wants a completed release, and the v0.1.0 rerun is still
-building. **The pkg's payload changed shape today** — component out, app in — so
-whatever the current run produces is already one revision behind. **NOT verified:
-installing the pkg** (unsigned here), and `/Applications` is reasoned from
-`~/Applications` working rather than separately measured.
-
-**Branch/PR:** `tide/mac/S40-au3-only` — TideSynth.
-
----
-
-## 2026-08-22 — macos — S38 is three problems, not seven instances of one
-
-**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
-
-**Did:** took S38 — seven Objective-C class names shared between GMPI plugins.
-The row treated it as one uniform problem and sized the fix as *"suffix every
-Objective-C class in the UI layer"*. It is three different problems, and one of
-them was already solved.
-
-### The scheme is deliberate, which changes the question
-
-`DrawingFrameMac.mm:573`:
-
-> *"Objective-C can't handle loading the same class into different plugins, give
-> each iteration of this class a unique name"*
-
-So two plugins on the **same** gmpi_ui share the name **and the body** — harmless,
-whichever wins. The danger is only ever **two different bodies under one name**.
-
-That turns "seven classes collide" into a question with a per-class answer: *has
-the suffix been bumped whenever the class changed?* Which is measurable by
-diffing each `@implementation` between its introducing commit and HEAD.
-
-### The per-class answer
-
-```
-GMPI_VIEW_VERSION_03           38 commits   CHANGED 8556 -> 10835 chars   STALE
-GMPI_KEY_LISTENER_VERSION_03   38 commits   byte-identical                fine
-GMPI_MAC_ColorPanelTarget_03    0 commits   fresh                         fine
-GMPI_EVENT_HELPER_CLASSNAME_03  0 commits   fresh                         fine
-GMPI_VIEW_MAKER_VERSION_02        —         introducing commit not found  UNCHECKED
-GMPI_KeyListenerView              —         NO SUFFIX AT ALL              worse
-GMPI_EscapableTextField           —         NO SUFFIX AT ALL              worse
-```
-
-**One stale suffix, fixed.** `GMPI_VIEW_VERSION_03`'s body grew by 27% across 38
-commits under the same name, so an old plugin and a new one export it with
-different implementations. Bumped to `_04` and verified where it counts — the
-shipped TIDE binary carries `GMPI_VIEW_VERSION_04` once and `_03` zero times.
-
-**The sibling is what makes this a discipline lapse rather than a design flaw.**
-`GMPI_KEY_LISTENER_VERSION_03` is byte-identical across the *same* 38 commits and
-correctly needs nothing. Had both drifted, the scheme itself would be suspect.
-
-**Two are worse than the row says.** `GMPI_KeyListenerView` and
-`GMPI_EscapableTextField` have no suffix at all, so they can never be
-disambiguated — any two plugins collide on them regardless of version. Still
-open, and it is two small changes rather than the sweeping one the row costed.
-
-### What I checked before renaming anything
-
-No `NSClassFromString` or `objc_getClass` anywhere in `gmpi_ui`. A class renamed
-out from under a string lookup would fail at runtime and only in the path that
-does the lookup — the worst possible failure to introduce while "fixing" a
-collision.
-
-### An override that silently did nothing, again
-
-I built TIDE with `-DGMPI_UI_SDK_FOLDER_OVERRIDE=…` and the dependency report
-said `[fetched]`. The variable is `GMPI_UI_FOLDER_OVERRIDE` — no `SDK`. Had I not
-checked the report and grepped the compiled source for `_04`, I would have
-"verified" the fix against a build that never contained it.
-
-**Learned:**
-
-- **Read the mechanism before costing the fix.** The version suffixes were not
-  a half-measure someone abandoned; they are a working scheme with one lapsed
-  instance. The row's *"suffix every Objective-C class"* estimate was an order of
-  magnitude out because nobody had read the comment three lines above.
-- **A per-class question needs a per-class answer.** "Seven classes collide"
-  invited one sweeping fix. Diffing each implementation against its introducing
-  commit gave four verdicts, and only one needed work.
-- **A correct sibling is evidence about the design.** `KEY_LISTENER` being
-  byte-identical across the same commits is what distinguishes "someone forgot"
-  from "this does not work".
-- **Grep for string-based class lookup before renaming an Objective-C class.**
-  `NSClassFromString` turns a compile-time-safe rename into a runtime failure.
-- **Confirm an override reached the compiler, not just the command line.** Wrong
-  variable name, `[fetched]` in the report, and a "verified" fix that was never
-  built. Checking the artifact for the new symbol is the check that cannot lie.
-
-**Next:** the two **unversioned** classes are the remaining work — two small
-changes in `MacKeyListener.h` and `MacTextEdit.h`. `GMPI_VIEW_MAKER_VERSION_02`
-is **unchecked rather than cleared**. And the row's original question is still
-open: whether a collision has ever caused an observed misbehaviour, as distinct
-from the condition being demonstrably able to produce one.
-
-**Branch/PR:** `tide/mac/S38-measured` — TideSynth; the fix is
-[gmpi_ui#11](https://github.com/JeffMcClintock/gmpi_ui/pull/11).
-
----
-
-## 2026-08-22 — macos — E1c's second discriminator, and verifying the pitch before seeding it
-
-**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
-
-**Did:** built the case the first experiment left open, and seeded its reference
-on macOS. One Linux or Windows render finishes it.
-
-### Where E1c actually stands
-
-```
-osc_naive_sine      naive osc, pitch UNDRIVEN          -73.5 dBFS
-osc_naive_pitched   naive osc, pitch pinned to 5 V     -73.5 dBFS
-voice_midi_note     naive osc, MIDI note 64            -123.1 dBFS
-```
-
-The first two killed my *undriven pitch input* hypothesis — driving the input
-changes nothing. But the third uses the **same module** and sits 50 dB away, so
-"the module is the variable" does not survive either. The only difference left
-between them is the **pitch value**: 440.0 Hz against note 64.
-
-`osc_naive_note64.json` is the naive oscillator at 4.583333 V — 5 V minus five
-semitones, on the 1 V/octave convention where 5 V is 440 Hz — and nothing else
-changed.
-
-### The step I nearly skipped
-
-I almost seeded the reference straight after the render. **A golden seeded on an
-unverified frequency makes every later residual meaningless**, so I counted zero
-crossings first:
-
-```
-measured  329.50 Hz      (95999 frames @ 48 kHz)
-note 64   329.63 Hz      -> inside the counting resolution over 2.0 s
-```
-
-Only then did I write the reference. That is the same discipline the linux box
-applied to the first case — it verified both cases rendered at *exactly* 440.0 Hz
-before trusting them — and it is what makes these single-variable rather than
-merely single-edit.
-
-Level is held constant as a second control: all three `osc_naive_*` cases peak at
-**−6.0 dBFS**, so a difference in residual cannot be a difference in level.
-
-### Pre-committed, again
-
-The case's own `tolerance_reason` states both outcomes before anyone has seen the
-number:
-
-- near **−123 dBFS** → the discriminator is the **pitch value**; 440.0 Hz happens
-  to have a phase increment that rounds differently across platforms and note
-  64's does not. That explains every case on the board and makes
-  `prefab_oscillator`/`prefab_filter`'s wide gates plainly wrong.
-- near **−73 dBFS** → the pitch value is not the variable, which leaves the
-  ADSR/VCA voice chain as the remaining explanation for `voice_midi_note`, and is
-  a much less comfortable place to be.
-
-Gates stay provisional drift-class, copied from `osc_naive_sine`, and the case
-says so — gating it as though the answer were known would beg the question.
-
-**Learned:**
-
-- **Verify the thing a golden encodes before writing the golden.** A reference is
-  a claim; seeding one at an unconfirmed frequency would have produced a number
-  that looked like evidence and was not. Thirty seconds of zero-crossing counting
-  buys that.
-- **Two eliminated hypotheses can leave a third that neither suggested.** "Which
-  module" and "is the input driven" both died; the pitch VALUE was never
-  considered until both were gone, and it was visible in the fixtures the whole
-  time.
-- **Hold the control constant and say which control.** All three cases peak at
-  −6.0 dBFS, which is what lets a residual difference mean something. Naming it
-  in the row costs a sentence and stops the next person re-checking.
-
-**Next:** **a Linux or Windows render of `osc_naive_note64`** against this
-macOS-seeded reference settles it. Either platform can. **E1c stays TODO** — and
-its real cost is still `prefab_oscillator` and `prefab_filter` carrying
-drift-class gates, which this case informs but does not fix.
-
-**Branch/PR:** `tide/mac/E1c-pitch-value` — TideSynth.
-
----
-
-## 2026-08-22 — macos — the AUv3 works, and my "it doesn't register" was a wrong query
-
-**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · LOOP mode, Jeff present
-
-**Did:** took the mac cell's item — settle whether the AUv3's registration
-failure was expected. It was not a failure at all.
-
-### I reported a defect that did not exist
-
-Earlier today I wrote that the extension "did not register via `pluginkit`/`auval`
-with an ad-hoc signature" and put that on the row as the unproven part.
-
-```
-pluginkit -mv | grep -i tide                             -> nothing
-pluginkit -m -i com.gmpi.au3.TIDE_Rack.extension -v      -> lists it
-```
-
-The first form does not enumerate the extension; the second queries it directly.
-**My query was wrong and I called it an extension problem.** Then:
-
-```
-auval -v aumu Drck Dsyh
-    This AudioUnit is a version 3 implementation.
-    Loaded AudioUnit out-of-process: true
-    AU VALIDATION SUCCEEDED           rc=0
-```
-
-Under an ad-hoc signature. The AUv3 has worked the whole time.
-
-Worth noting how the earlier session went wrong twice in the same direction:
-first I stripped the sandbox entitlement with my own `codesign --deep` and
-suspected the wrapper, then I used a query that cannot return the answer and
-suspected the wrapper again. Both times the tooling was fine and my instrument
-was not.
-
-### And then the actual finding
-
-AU2 and AU3 declare the **same four-character codes**. With both installed:
-
-```
-auval -a          ->  exactly ONE  aumu Drck Dsyh
-auval -v          ->  "version 3 implementation", out-of-process
-```
-
-**The `.component` never loads.** That is by construction — the AU3 README says
-the v3 plist derivation is *"the same one the AU2 `.component` gets, so v2 and v3
-share their fourCCs"*, which is correct practice for one product shipping both,
-and it means exactly one is reachable.
-
-**It matters right now** because R3a added `TIDE-Rack.component` to the macOS pkg
-hours ago. Enabling `AU3` today would ship a component that can never load —
-worse than not shipping it, because the user sees it installed.
-
-So `AU3` stays out of `FORMATS_LIST` and the choice is filed as **S40**. That is
-a product decision — v3 only, v2 only, or distinct subtypes — not something to
-settle by measurement.
-
-**Learned:**
-
-- **When a tool reports nothing, check the query before blaming the subject.**
-  `pluginkit -mv` and `pluginkit -m -i <id>` answer different questions, and only
-  one of them can find an extension by identifier. I built a row's "unproven"
-  clause on the wrong one.
-- **Two wrong diagnoses in a row, both pointing at someone else's code, is a
-  signal about the instrument.** Stripping entitlements with my own `codesign`,
-  then querying with the wrong `pluginkit` form — the wrapper was correct both
-  times.
-- **Sharing fourCCs between v2 and v3 is correct AND means one is unreachable.**
-  Both halves are true, and the second only shows up if you install both and
-  count what `auval -a` returns.
-- **Prove the artifact works before asking which artifact to ship.** The S40
-  decision is cheap to make precisely because registration and validation are
-  already demonstrated; asking Jeff to choose between a working thing and an
-  untested one would have been a worse question.
-
-**Next:** **S40 is Jeff's ruling** and blocks `AU3` shipping. **M2 is now much
-smaller than its row says** — it treats authoring an AUv3 wrapper as the blocker,
-one landed 2026-08-19, and the macOS half is proven; what remains is genuinely
-iOS (simulator install, sandbox rules). **A separate small finding** from the
-same run: the AUv3 warns *"CurrentPreset property is deprectated. AU should
-implement PresentPreset"* — recorded on S40, unexamined.
-
-**Branch/PR:** `tide/mac/M1-au3-registration` — TideSynth, backlog and journal only.
-
----
-
-## 2026-08-22 — macos — STEP 4 after v0.1.0, and a branch I pushed and never opened
-
-**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** bookkeeping after the first release run. **R3a, R4, S30 and S39** all
-flipped to DONE, and one branch that had been pushed with no PR finally landed.
-
-### The branch nobody was waiting on
-
-`tide/mac/R5-installer-cert-finding` — the write-up of *why* the macOS leg failed
-— was committed and pushed hours ago, and **no PR was ever opened for it.** I
-pushed it, Jeff asked about ccache in the same breath, and I never came back.
-
-It surfaced only because a STEP 4 sweep asked which IN-REVIEW rows had merged
-PRs, and R5's had no PR at all. Nothing was lost, but the finding sat invisible
-while the thing it describes was being fixed.
-
-### Four rows, and what closed them
-
-- **R3a** — confirmed in CI, not just locally: v0.1.0 built the AU, `codesign`
-  called the component *"valid on disk"*, and `pkgbuild` added both payloads on a
-  machine that had never seen the change.
-- **R4** — the Linux leg of v0.1.0 succeeded, so `package-linux.sh` is exercised
-  on a real tag rather than only on the box that wrote it.
-- **S30** — closed on measurement rather than on the fixes landing: 71.5 and 60.1
-  min before ccache, 0.3 and 0.2 min after. **Both caveats kept**: the exact
-  speedup is not established, and both post-ccache runs were docs-only merges.
-- **S39** — the answer was in the code the whole time. `Initialize()` carried a
-  TODO stating the mechanism precisely, ending *"This is work still to be done"*.
-  A row I filed as "unknown to fix" was a named pattern waiting to be applied.
-
-### The one that is worth remembering
-
-S39 said *"nobody has looked at what it means"*. Looking took one grep, and the
-answer was a comment the original author had left explaining exactly what was
-missing and what to copy. The row's cost estimate — *"small to measure, unknown
-to fix"* — was wrong in the direction that matters: reading the code the row
-pointed at would have sized it in minutes.
-
-**Learned:**
-
-- **A pushed branch with no PR is invisible.** Nothing checks for it — not the
-  lints, not the row status, not the PR list. The STEP 4 sweep found it only
-  because the row it belonged to had no PR to verify. Open the PR in the same
-  breath as the push.
-- **"Unknown to fix" deserves one grep before it is written.** S39's mechanism
-  was documented in the function the row named. An honest unknown and an
-  unread comment look identical on a row.
-- **A row can be closed by a run rather than by a commit.** R3a and R4 were
-  already merged; what closed them was v0.1.0 exercising them on machines that
-  had never seen them. Worth distinguishing "landed" from "demonstrated".
-
-**Next:** **M1's AUv3 half** is the largest thing this box can still both change
-and verify — the wrapper exists, TIDE builds an appex from one word, and GMPI#10
-fixed the name mismatch. **What is unproven is registration**: the extension did
-not appear via `pluginkit`/`auval` with an ad-hoc signature, and whether that is
-expected is the question to settle before `AU3` joins the shipped list.
-**M2's row is four days stale** — it treats authoring an AUv3 wrapper as the
-blocker, and one landed 2026-08-19.
-
-**Branch/PR:** `tide/mac/step4-after-v010` — TideSynth, bookkeeping only.
-
----
-
-## 2026-08-22 — macos — v0.1.0: Windows and Linux shipped, macOS wanted a certificate nobody had sent
-
-**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** cut `v0.1.0` and watched the pipeline run for the first time. **Windows
-and Linux succeeded, signing included.** macOS failed at `Package (macOS)`:
-
-```
-productbuild: error: Could not find appropriate signing identity for
-              "Developer ID Installer: SynthEdit Limited (36SNPLRFK3)"
-```
-
-### The correction, and it is mine
-
-Earlier today I wrote on R5 that the missing credential was *"now
-provisioned"*, because `APPLE_INSTALLER_SIGNING_IDENTITY` had appeared in the
-`release` environment between one check and the next.
-
-**The variable was provisioned. The certificate was not.** The workflow logs the
-keychain after import, and it held exactly one identity — `E112A74081E6…`, the
-Developer ID **Application** cert. `APPLE_CERT_P12_BASE64` carries only that
-one, so `productbuild` had nothing to sign the pkg with.
-
-Naming an identity is not the same as shipping its private key, and I treated a
-variable appearing as evidence that the credential behind it existed. It is not
-even weak evidence — the two are stored in different places, by different
-mechanisms, for different reasons.
-
-**The logging is what caught it in seconds.** I put `security find-identity -v
--p codesigning` at the end of the import step "so the job says what it can
-actually sign with". That line turned a one-word error into a diagnosis.
-
-### Two risks this run retired
-
-**The ambiguity hazard is dead.** I flagged that the mac box holds two valid,
-identically-named Developer ID Application certs, and that if
-`APPLE_CERT_P12_BASE64` carried both, `codesign` would fail as *"ambiguous"*. It
-carries one. `codesign` signed cleanly, and the risk is now closed by
-measurement rather than left open as a caveat.
-
-**R3a is confirmed in CI, not just locally.** Everything up to `productbuild`
-worked on macOS: the AU built, `codesign` reported the component *"valid on
-disk"* and *"satisfies its Designated Requirement"*, and `pkgbuild` added
-**both** payloads. The change I landed an hour before the tag did what it
-claimed on a machine that had never seen it.
-
-### What this cost, and what it did not
-
-The failed leg cost about an hour of macOS build time and no artifacts —
-`publish` is `needs: build`, so it skipped rather than publishing a partial
-release. **No half-finished release was created, and no tag needs deleting.**
-That is `fail-fast: false` plus a gated publish doing exactly their job.
-
-**Learned:**
-
-- **A configuration variable naming a credential is not the credential.** They
-  live in different stores. Seeing `APPLE_INSTALLER_SIGNING_IDENTITY` appear
-  told me its *name* was known, and I wrote "provisioned" — which is a claim
-  about the private key, and I had checked nothing about the private key.
-- **Log what the job can actually do, not what it was configured to do.**
-  Printing the keychain's identities after import turned this from "signing
-  failed" into "the keychain has one cert and it is the wrong kind" with no
-  extra round trip.
-- **A release that fails before `publish` costs time and nothing else.**
-  `needs: build` meant no partial release, no orphaned assets and no tag to
-  delete. Worth keeping in mind against the temptation to publish per-platform
-  as each finishes.
-- **Two platforms passing is real evidence.** Azure Trusted Signing is now
-  proven end to end on a real tag, which no amount of structural assertion could
-  have established.
-
-**Next:** **Jeff exports a `.p12` containing BOTH identities** — both are on the
-mac box (`security find-identity -v` lists `D55D4DDE…` "Developer ID Installer",
-valid to 2027-02-01) — base64s it and updates `APPLE_CERT_P12_BASE64`. **No
-workflow change is needed**: `security import` handles a multi-identity P12 and
-the import step already passes `-T /usr/bin/productbuild`. Then re-run the
-failed job. **Notarization is still unverified** — the run never reached
-`notarytool`, so Apple has never seen a submission and **R6** is blocked on the
-same question it was this morning.
-
-**Branch/PR:** `tide/mac/R5-installer-cert-finding` — TideSynth, backlog and journal only.
-
----
-
-## 2026-08-22 — macos — ccache went into build.yml and not release.yml, and the numbers are in
-
-**Prompt:** e214f06 · Fable 5 (claude-fable-5) · app: Claude desktop **1.32885.1** · as **tide-rack-bot** (both paths) · interactive, Jeff directing
-
-**Did:** Jeff asked whether the macOS build was still slow and whether a
-self-hosted runner was needed. Both halves of the answer turned out to be
-measurements I had promised and not yet taken.
-
-### The gap: I fixed CI and not releases
-
-S30 added ccache to `build.yml`. `release.yml` has **zero** ccache references —
-I wrote them as separate items and never went back. So every release paid the
-full ~60 minutes on macOS, which is the one place the wait is actually felt,
-because a person is standing there waiting on a tag.
-
-Now fixed, with the cache key prefix **deliberately matching `build.yml`'s**: a
-tag run can read caches created on the default branch, so a release starts warm
-from whatever `main` last compiled rather than from nothing.
-
-### The measurement I owed
-
-macOS `Build` step, either side of the ccache merge:
-
-```
-02:36   71.5 min    before
-02:36   60.1 min    before
-03:26    0.3 min    after
-04:21    0.2 min    after
-```
-
-**I was about to report that as "60 minutes to 15 seconds" and stopped.** The
-one hit-rate sample I pulled read **66.5% (1068 hits / 537 misses)** — and 537
-C++ compiles do not finish in twelve seconds. Correlating properly showed I had
-taken the duration from one run and the statistics from another.
-
-So what is solid is narrower than the headline: **both post-ccache macOS builds
-finished in well under a minute against 60+ before.** The exact speedup is not
-established, and both post-ccache runs were docs-and-backlog merges whose C++ was
-largely unchanged — a run that genuinely recompiles will be slower than 0.2 min.
-
-That is still decisive for the question Jeff asked. **No self-hosted runner is
-needed:** that option was sized against a 60-minute build, and the build is no
-longer 60 minutes.
-
-### A choice worth naming rather than sliding past
-
-This caches the build of a **signed, shipped artifact**. ccache keys on
-preprocessed source, compiler and flags, so a hit is a byte-identical object —
-the same assumption an incremental local build makes every day. It is a
-deliberate trade, not an oversight, and the comment at the point of use says how
-to force a cold build if it is ever in doubt.
-
-**Learned:**
-
-- **Two workflows that build the same thing need the same fixes.** I treated
-  "CI is slow" and "releases are slow" as one problem and fixed one file. The
-  release path is the one with a human waiting on it.
-- **Correlate a duration and its statistics to the same run before quoting a
-  ratio.** 66.5% hits alongside a twelve-second build is a contradiction, and the
-  contradiction was mine — two different runs. The narrower claim survives; the
-  headline number did not.
-- **Say what a cache key prefix couples.** `release.yml` sharing `build.yml`'s
-  prefix is what makes a release start warm, and it silently stops working if
-  either is changed alone.
-- **An option sized against an old measurement expires with it.** The
-  self-hosted runner was the right answer to a 60-minute build. It is not the
-  right answer to this one, and nothing about the runner changed.
-
-**Next:** the v0.1.0 rerun is in flight and will **not** benefit from this — it
-started before this branch exists. The first release that does is the next tag.
-**Notarization is still the unproven step**; nothing here touches it.
-
-**Branch/PR:** `tide/mac/S30-ccache-in-release` — TideSynth.
-
----
-

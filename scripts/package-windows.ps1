@@ -112,9 +112,14 @@ if (-not (Test-Path -LiteralPath $binSrc -PathType Leaf)) {
     throw "no $BUNDLE in $BuildDir\SynthEditSem\Release -- build the Release config first (cmake --build $BuildDir --config Release)"
 }
 
-# Where SynthEditSem's POST_BUILD steps stage the pin XMLs and Prefabs\ on
-# Windows. Read from CMake's actual destination rather than from where the
-# runtime would look for them; see the header.
+# Where SynthEditSem stages the pin XMLs and Prefabs\ on Windows. Read from
+# CMake's actual destination rather than from where the runtime would look for
+# them; see the header.
+#
+# On Windows this is written ONCE, by the TIDE_Rack_stage_resources custom
+# target, not by each format target's POST_BUILD -- issue #314. The destination
+# is unchanged, so nothing here had to move; the name is recorded because a
+# future edit to that target is an edit to this script's input.
 $resSrc = Join-Path $BuildDir 'SynthEditSem\Resources'
 if (-not (Test-Path -LiteralPath $resSrc -PathType Container)) {
     throw @"

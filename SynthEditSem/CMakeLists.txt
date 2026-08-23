@@ -502,6 +502,99 @@ tide_render_strict_fp_sources(${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEPanel/T
 # so it needs the resources embedded rather than copied. Nothing does that yet;
 # on Windows the standalone will report the missing folder on stderr and run
 # with an empty Prefabs group rather than misbehaving.
+
+# U2e — the classic controls' pin descriptions; E2a — the sub-controls'.
+# Merge-only enrichment for classes TIDE already links (see the loop in
+# TideApp::InitInstance), so an entry whose .cpp is not in the source list
+# above is skipped rather than becoming a phantom browser entry.
+# MidiPlayer2.xml joined for BACKLOG V3/E7: SE MIDItoGate2 registers with
+# sesdk::Register<>::withId, so its pins live in that file rather than inline
+# in its .cpp the way MidiToCv2's do -- without it the class is linked but has
+# no pins, and TIDE's browser does not list it at all.
+# ONE list, used by EVERY staging block below -- the shared Windows target,
+# the per-target commands, and the installed-bundle re-stage. Hoisted out of
+# the per-format loop with #314 so the Windows target, which is built once
+# outside that loop, reads the same list rather than a copy of it.
+#
+# It used to be a loop here and a hand-enumerated pair of copies for the
+# installed bundle, which meant adding an XML got it into the build tree and NOT
+# into the plugin the DAW loads -- silently, and indistinguishable from the
+# module not being linked. Cost a debugging cycle on V3; do not split them
+# again.
+set(_tide_xmls
+  ControlsXp/ControlsXp.xml
+  MidiPlayer2/MidiPlayer2.xml
+  Converters/Converters.xml
+  # E2c -- SE SV Filter4's pins. Oscillator HD is NOT here on purpose: its XML
+  # is inline in its own .cpp, so it needs no staging.
+  VaFilters/VaFilters.xml
+)
+
+# WINDOWS STAGES ONCE, NOT ONCE PER FORMAT TARGET -- issue #314.
+#
+# On Windows every format target links into ONE directory, so the sibling
+# expression below resolves to the SAME destination for all of them, and the
+# per-target POST_BUILD copies then run concurrently under `--parallel` and
+# collide: `Error copying directory ... Release/../Resources/Prefabs: Permission
+# denied`, MSB3073. Measured on this box 2026-08-23 in a four-target repro of
+# this exact shape: 8 failures in 20 builds with the copies attached per target,
+# 0 in 30 with them behind one shared target. CI shows the same thing at a much
+# lower rate -- the same commit passed on re-run with nothing changed -- which is
+# why the fix cannot be validated by watching a build go green.
+#
+# Every other platform gives each format target its own bundle directory, so
+# there is nothing shared to race over and they keep the per-target commands.
+#
+# This does NOT move the destination. That the resources land one directory
+# ABOVE the binary, where a non-bundled Windows plug-in never looks, is a
+# separate defect -- BACKLOG S36 -- and dropping the `/..` would not have fixed
+# the race anyway: `Release\` is just as shared as `SynthEditSem\`.
+if(WIN32)
+  set(_tide_format_targets "")
+  foreach(_fmt ${FORMATS_LIST})
+    if(_fmt STREQUAL "GMPI")
+      set(_tide_target ${PROJECT_NAME})
+    else()
+      set(_tide_target ${PROJECT_NAME}_${_fmt})
+    endif()
+    if(TARGET ${_tide_target})
+      list(APPEND _tide_format_targets ${_tide_target})
+    endif()
+  endforeach()
+
+  if(_tide_format_targets)
+    # Any of them anchors the generator expression: sharing the output directory
+    # is precisely the property that makes this block necessary.
+    list(GET _tide_format_targets 0 _tide_stage_anchor)
+    set(_tide_shared_resources "$<TARGET_FILE_DIR:${_tide_stage_anchor}>/../Resources")
+
+    set(_tide_stage_cmds "")
+    foreach(_tide_xml ${_tide_xmls})
+      get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
+      list(APPEND _tide_stage_cmds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${SYNTHEDITLIB_DIR}/modules/${_tide_xml}"
+          "${_tide_shared_resources}/${_tide_xml_leaf}")
+    endforeach()
+
+    add_custom_target(${PROJECT_NAME}_stage_resources ALL
+      # Created explicitly because this target runs BEFORE any format target
+      # links, so the Release/ directory the path is spelled relative to may not
+      # exist yet on a clean tree.
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${_tide_shared_resources}"
+      ${_tide_stage_cmds}
+      COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/../TideModules/prefabs"
+        "${_tide_shared_resources}/Prefabs"
+      COMMENT "Staging rack prefabs and pin XMLs (once, shared by every format target)"
+      VERBATIM
+    )
+    foreach(_tide_target ${_tide_format_targets})
+      add_dependencies(${_tide_target} ${PROJECT_NAME}_stage_resources)
+    endforeach()
+  endif()
+endif()
+
 foreach(_fmt ${FORMATS_LIST})
   if(_fmt STREQUAL "GMPI")
     set(_tide_target ${PROJECT_NAME})
@@ -555,54 +648,40 @@ foreach(_fmt ${FORMATS_LIST})
       set(_tide_resources "$<TARGET_FILE_DIR:${_tide_target}>/Resources")
     endif()
   else()
-    # Windows bundle layout: the binary sits in Contents/<arch>/, so Resources
-    # is its sibling. Left exactly as it was on purpose -- S21 was found on
-    # Linux, and Windows is not verifiable from there, so it gets its own branch
-    # rather than a shared expression tuned for one of the two.
-    set(_tide_resources "$<TARGET_FILE_DIR:${_tide_target}>/../Resources")
+    # Windows stages ONCE, in ${PROJECT_NAME}_stage_resources above -- issue
+    # #314. An empty destination here is what skips the per-target copies; it is
+    # not "no resources on Windows".
+    #
+    # The layout that target writes is the one this arm used to write, unchanged:
+    # the binary sits in Contents/<arch>/, so Resources is its sibling. Left
+    # exactly as it was on purpose -- S21 was found on Linux, and Windows is not
+    # verifiable from there, so it gets its own branch rather than a shared
+    # expression tuned for one of the two.
+    set(_tide_resources "")
   endif()
 
-  # U2e — the classic controls' pin descriptions; E2a — the sub-controls'.
-  # Merge-only enrichment for classes TIDE already links (see the loop in
-  # TideApp::InitInstance), so an entry whose .cpp is not in the source list
-  # above is skipped rather than becoming a phantom browser entry.
-  # MidiPlayer2.xml joined for BACKLOG V3/E7: SE MIDItoGate2 registers with
-  # sesdk::Register<>::withId, so its pins live in that file rather than inline
-  # in its .cpp the way MidiToCv2's do -- without it the class is linked but has
-  # no pins, and TIDE's browser does not list it at all.
-  # ONE list, used by BOTH staging blocks below. It used to be a loop here and
-  # a hand-enumerated pair of copies for the installed bundle, which meant
-  # adding an XML got it into the build tree and NOT into the plugin the DAW
-  # loads -- silently, and indistinguishable from the module not being linked.
-  # Cost a debugging cycle on V3; do not split them again.
-  set(_tide_xmls
-    ControlsXp/ControlsXp.xml
-    MidiPlayer2/MidiPlayer2.xml
-    Converters/Converters.xml
-    # E2c -- SE SV Filter4's pins. Oscillator HD is NOT here on purpose: its XML
-    # is inline in its own .cpp, so it needs no staging.
-    VaFilters/VaFilters.xml
-  )
-  foreach(_tide_xml ${_tide_xmls})
-    get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
+  if(NOT _tide_resources STREQUAL "")
+    foreach(_tide_xml ${_tide_xmls})
+      get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
+      add_custom_command(TARGET ${_tide_target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${SYNTHEDITLIB_DIR}/modules/${_tide_xml}"
+          "${_tide_resources}/${_tide_xml_leaf}"
+        VERBATIM
+      )
+    endforeach()
+
+    # E2a — the rack prefabs. copy_directory_if_different so adding a prefab to
+    # TideModules/ needs no CMake edit; TideApp::seedPrefabsFromBundle enumerates
+    # whatever lands here.
     add_custom_command(TARGET ${_tide_target} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${SYNTHEDITLIB_DIR}/modules/${_tide_xml}"
-        "${_tide_resources}/${_tide_xml_leaf}"
+      COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/../TideModules/prefabs"
+        "${_tide_resources}/Prefabs"
+      COMMENT "Staging rack prefabs (${_tide_target})"
       VERBATIM
     )
-  endforeach()
-
-  # E2a — the rack prefabs. copy_directory_if_different so adding a prefab to
-  # TideModules/ needs no CMake edit; TideApp::seedPrefabsFromBundle enumerates
-  # whatever lands here.
-  add_custom_command(TARGET ${_tide_target} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/../TideModules/prefabs"
-      "${_tide_resources}/Prefabs"
-    COMMENT "Staging rack prefabs (${_tide_target})"
-    VERBATIM
-  )
+  endif()
 
   # ...and again into the INSTALLED bundle, because of POST_BUILD ordering.
   #
