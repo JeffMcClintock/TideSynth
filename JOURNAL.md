@@ -8,6 +8,50 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — S33 is WONTFIX: the stub is inside a comment (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Took S33 — *"`GmpiParameter::setBlob` is a STUB that returns `true`, so every
+blob a processor is told to store is silently discarded"* — and it is not true.
+
+**`Hosting/processor_holder.h` lines 71-158 are ONE COMMENT BLOCK**, and both
+`struct GmpiParameter` (line 72) and its `setBlob` (line 135) are inside it.
+Line 11 of the same file includes `controller_holder.h`, whose `setBlob` is a
+correct implementation. Nothing is discarded.
+
+**I did not spot this by reading, and that is the point.** I read the same code
+twice, on two different days, and both times saw a live stub. What settled it
+was a log line **inside** the commented-out `setBlob`: it never fires, while
+blobs reach the processor normally in the same run — **13232 bytes on parameter
+1**, TIDE's S12 document-sync XML.
+
+Before that I had already run an A/B: "stub" against "properly implemented",
+built and measured. **13216 bytes versus 13227** — no difference, because both
+builds compiled the identical comment. I had a working hypothesis, a mechanism,
+two call sites and a fix; the only thing missing was the code being real.
+
+**This block has now cost two investigations.** It was filed as S33, and chased
+again during M4 as a candidate cause of the blank AUv3 editor — where I wrote
+the fix, built it, tested it, and discarded it when the symptom did not move. It
+did not move because I had edited a comment.
+
+Marked as dead in [GMPI#14](https://github.com/JeffMcClintock/GMPI/pull/14),
+comment-only, TIDE builds against it rc=0. **Not deleted** — 87 lines of
+reference code is not mine to remove on my own judgement, and the PR asks
+whether it was left deliberately.
+
+**Two process notes worth keeping.** A `git worktree add` succeeded while the
+following `git checkout -B` failed on a branch already held by another
+worktree, so a heredoc ran in a tree I had not meant to be in; I checked the
+main checkout was clean rather than assuming. And `check-backlog-diff.py`
+reported row **A33** missing, which looked like damage and was not: A33 had
+landed in `main` from another box after my branch was cut. Rebasing fixed it.
+Reading the failure before reacting to it was worth the minute.
+
+**Not verified:** whether the dead block is deliberate reference or an accident.
+That is Jeff's call.
+
 ## 2026-08-23 — windows — S41: nothing ever closed a platform issue, and the option the row favoured would not have helped (interactive, Jeff directing)
 
 **Did:** S41 — the CI mechanism that files a `platform:<p>` issue on a red build
