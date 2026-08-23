@@ -3,7 +3,7 @@
     <WindowLayout>
         <MainWindow l="380" t="380" r="3260" b="1917" monitor="\\.\DISPLAY1" ml="0" mt="0" mr="3840" mb="2160"/>
     </WindowLayout>
-    <master_container type="Container" handle="94852515" name="Main" PanelLocationZoom="1" StructLocationZoom="1" ViewOpenFlags="384" skin="default3">
+    <master_container type="Container" handle="94852515" name="Main" PanelLocationZoom="10" StructLocationZoom="1" ViewOpenFlags="384" skin="default3">
         <plugs>
             <plug idx="7"/>
         </plugs>
@@ -24,7 +24,7 @@
                     <plug default="5" idx="2"/>
                 </plugs>
                 <structRect l="96" r="360" t="96" b="552"/>
-                <panelRect l="3416" r="3656" t="3640" b="4020"/>
+                <panelRect l="3672" r="3912" t="3880" b="4264"/>
             </module>
             <module type="SE Rectangle XP" handle="1991779248">
                 <plugs>
@@ -36,12 +36,12 @@
             </module>
         </modules>
         <lines/>
-        <PanelLocationCenter x="3984" y="3984"/>
+        <PanelLocationCenter x="3905.833" y="3898.9666"/>
         <StructLocationCenter x="3984" y="3984"/>
         <PanelWndPosition l="0" r="0" t="0" b="0"/>
         <PanelLocation l="0" r="500" t="0" b="500"/>
         <StructLocation l="0" r="500" t="0" b="500"/>
-        <PanelScroll x="3734" y="3734"/>
+        <PanelScroll x="3655" y="3648"/>
         <StructScroll x="3734" y="3734"/>
         <PanelWndOffset cx="-99999" cy="-99999"/>
         <panel_rect l="3732" r="4212" t="3732" b="4212"/>
