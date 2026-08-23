@@ -37,72 +37,62 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 
+## 2026-08-24
+
+**macos — E9: the AU absorbs a rate change, and the pitch is the proof**
+
+- A probe that prints the option it requested is not reporting a measurement.
+- When every failure mode collapses onto the same wrong number, the right number is strong evidence.
+- A backgrounded build you think you killed is still building.
+- Check whether a row's blocker is still real before believing the row is closed.
+- A fixture saved for one format can drive another without being re-authored
+- `pluginkit -a <appex>` registers an AUv3 straight out of a build tree
+
 ## 2026-08-23
 
-**macos — three red signals, three different mechanisms, and none of them a defect in this repo**
+**linux — S37 is real: another plugin's uninstall permanently breaks TIDE Rack**
 
-- A race cannot be verified fixed by watching CI go green.
-- `origin/main` is not a snapshot when you fetch more than one repo.
-- A self-healing break still costs three sessions.
-- Three red signals on one platform in one hour is not evidence of one cause.
-- Read the first error, not the loudest.
-- A checkout error that names `.gitmodules` means someone committed a directory.
+- A premise that fails measurement can be waiting on a different bug.
+- The uninstall case is the one that makes a shared-folder bug undeniable.
+- The plugin's own diagnostics were the instrument.
 
-## 2026-08-22
+**windows — S22: the repo where the trap was found was the one that never got the fix (interactive, Jeff directing)**
 
-**macos — STEP 4, and the hour-long feedback loop that caused two of today's failures**
+- "Fixed in repo A, filed for repo B" can leave the bug in the repo that taught you about it.
+- A guard needs its positive control run, not just its passing case.
 
-- Put the cheap failure first.
-- A stale row is found by sweeps, not by people.
-- The question asked is not always the question that matters.
+**linux — the CLAP editor PAINTS, and the cause was M4's defect on a third wrapper**
 
-**macos — S40 ruled: AUv3 only, and the install story is a copy**
+- Instrument the LAST link first.
+- Two real bugs fixed on the way to the wrong place are still two real bugs.
+- The third instance is the one to generalise from.
+- A blank window has two very different causes and they look identical from outside
 
-- Measure the install story before costing a format change.
-- `set -euo pipefail` can kill a guard before it speaks.
-- A non-zero exit is not evidence a guard fired.
-- A format that ships as an app inherits a naming decision the build never had to make.
+**windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)**
 
-**macos — S38 is three problems, not seven instances of one**
+- A row that names its own precedent site is most of the fix.
+- Check the cell's own "before doing anything else" instruction before doing anything else.
 
-- Read the mechanism before costing the fix.
-- A per-class question needs a per-class answer.
-- A correct sibling is evidence about the design.
-- Grep for string-based class lookup before renaming an Objective-C class.
-- Confirm an override reached the compiler, not just the command line.
+**linux — S43(ii): the Linux CLAP has an X11 editor. It embeds, the host drives it, and it paints nothing**
 
-**macos — E1c's second discriminator, and verifying the pitch before seeding it**
+- A macro that is never defined is worse than a `#if 0`, because it reads as live code.
+- Structure beats pixels on a headless server.
+- The teardown order bug was mine, in the probe.
+- Mixed line endings in one repo.
+- A CMake block inserted next to the right line can still land in the wrong `if()`.
 
-- Verify the thing a golden encodes before writing the golden.
-- Two eliminated hypotheses can leave a third that neither suggested.
-- Hold the control constant and say which control.
+**windows — S36: the Windows resources move beside the binary, and my first attempt at "beside" was wrong (interactive, Jeff directing)**
 
-**macos — the AUv3 works, and my "it doesn't register" was a wrong query**
+- A clean build and a clean log are not evidence the destination is right.
+- "Drop the `/..`" meant drop it entirely, not shorten it by one segment.
+- A destination change to a build-tree path can force a packaging-script change even when the shipped layout doesn't move.
 
-- When a tool reports nothing, check the query before blaming the subject.
-- Two wrong diagnoses in a row, both pointing at someone else's code, is a signal about the instrument.
-- Sharing fourCCs between v2 and v3 is correct AND means one is unreachable.
-- Prove the artifact works before asking which artifact to ship.
+**linux — A34: the scan warning now reports a finding instead of a probe, and S37's inference is corrected**
 
-**macos — STEP 4 after v0.1.0, and a branch I pushed and never opened**
-
-- A pushed branch with no PR is invisible.
-- "Unknown to fix" deserves one grep before it is written.
-- A row can be closed by a run rather than by a commit.
-
-**macos — v0.1.0: Windows and Linux shipped, macOS wanted a certificate nobody had sent**
-
-- A configuration variable naming a credential is not the credential.
-- Log what the job can actually do, not what it was configured to do.
-- A release that fails before `publish` costs time and nothing else.
-- Two platforms passing is real evidence.
-
-**macos — ccache went into build.yml and not release.yml, and the numbers are in**
-
-- Two workflows that build the same thing need the same fixes.
-- Correlate a duration and its statistics to the same run before quoting a ratio.
-- Say what a cache key prefix couples.
-- An option sized against an old measurement expires with it.
+- A negative grep is only evidence if you know the symbol would be there.
+- "Compare the artifact against a sibling that works" beats any amount of reading.
+- A conservative classifier needs its false branch tested hardest.
+- Splitting "absent" from "empty" was worth the extra case
 
 ## 2026-08-18
 
@@ -1600,3 +1590,126 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `LNK1201` names disk space, privilege and path, and means none of them.
 - Configure twice and diff the generated build system.
 - A build that does not install is a measurement trap.
+
+**macos — ccache went into build.yml and not release.yml, and the numbers are in**
+
+- Two workflows that build the same thing need the same fixes.
+- Correlate a duration and its statistics to the same run before quoting a ratio.
+- Say what a cache key prefix couples.
+- An option sized against an old measurement expires with it.
+
+**macos — v0.1.0: Windows and Linux shipped, macOS wanted a certificate nobody had sent**
+
+- A configuration variable naming a credential is not the credential.
+- Log what the job can actually do, not what it was configured to do.
+- A release that fails before `publish` costs time and nothing else.
+- Two platforms passing is real evidence.
+
+**macos — STEP 4 after v0.1.0, and a branch I pushed and never opened**
+
+- A pushed branch with no PR is invisible.
+- "Unknown to fix" deserves one grep before it is written.
+- A row can be closed by a run rather than by a commit.
+
+**macos — the AUv3 works, and my "it doesn't register" was a wrong query**
+
+- When a tool reports nothing, check the query before blaming the subject.
+- Two wrong diagnoses in a row, both pointing at someone else's code, is a signal about the instrument.
+- Sharing fourCCs between v2 and v3 is correct AND means one is unreachable.
+- Prove the artifact works before asking which artifact to ship.
+
+**macos — E1c's second discriminator, and verifying the pitch before seeding it**
+
+- Verify the thing a golden encodes before writing the golden.
+- Two eliminated hypotheses can leave a third that neither suggested.
+- Hold the control constant and say which control.
+
+**macos — S38 is three problems, not seven instances of one**
+
+- Read the mechanism before costing the fix.
+- A per-class question needs a per-class answer.
+- A correct sibling is evidence about the design.
+- Grep for string-based class lookup before renaming an Objective-C class.
+- Confirm an override reached the compiler, not just the command line.
+
+**macos — S40 ruled: AUv3 only, and the install story is a copy**
+
+- Measure the install story before costing a format change.
+- `set -euo pipefail` can kill a guard before it speaks.
+- A non-zero exit is not evidence a guard fired.
+- A format that ships as an app inherits a naming decision the build never had to make.
+
+**macos — STEP 4, and the hour-long feedback loop that caused two of today's failures**
+
+- Put the cheap failure first.
+- A stale row is found by sweeps, not by people.
+- The question asked is not always the question that matters.
+
+## 2026-08-23
+
+**linux — S43: the CLAP now refuses an API it just said it did not support**
+
+- I hit the CRLF trap the journal documents, on the first try.
+- A guard needs the passing case tested, not just the failing one.
+- An unenforced assumption written in a comment is a defect with documentation.
+
+**linux — S37: the collision is unreachable, because the Linux CLAP has no GUI at all**
+
+- A probe that stops before the code under test reports a healthy subject and proves nothing.
+- `ldd` answers "can this code path exist" faster than any amount of reading.
+- I nearly filed a bug inside `#if 1`'s dead `#else`.
+- A strings match is evidence the file was compiled, not that the code runs.
+- Absence of a syscall wants an A/B.
+- A23's duplicate-id race is real and I hit it inside one session.
+- The shared-citation check (A31) fired on my own two rows
+
+**windows — P11: the diagnostic can't name the file, so it stops naming the cause (interactive, Jeff directing)**
+
+- A NEXT cell's paraphrase and a row's own Accept can disagree, and the row wins.
+- A diagnostic that can't tell two causes apart should say so, not guess.
+- `cd` inside a command chain does not substitute for checking cwd before the NEXT command that assumes it.
+
+**linux — E1c: the deciding render lands at −140 dBFS, and neither the module nor the pitch is the variable on its own**
+
+- A pre-committed binary outcome is worth the setup, and worth distrusting when it lands.
+- A regression control must separate the two gates, not merely fail.
+- Check the engine version against the reference's before believing a cross-platform residual.
+- A scan warning can be eliminated instead of noted.
+- A warning that fires on every run is not a caveat, it is noise — and the way to find out is to check its own claim.
+- `recorded: "unknown"` provenance can sometimes be settled by measurement.
+
+**linux — the render references fail on Linux too, and the tolerance that merged four hours ago does not reach it**
+
+- A tolerance is calibrated against a variable, and the variable is not in the number.
+- The largest number in a table is worth checking before it drives a decision.
+- A comparator that ignores alpha is measuring pixels the product never shows
+- Two boxes agreeing to two decimals from opposite directions is worth more than either measurement.
+- Run the cheap control before the expensive fix.
+- A check that has only ever seen the easy case is untested, not proven.
+- When a lint fails, prove the artefact by hand before believing either of you.
+- A dependency-free subproject is a gift.
+
+**windows — S41: nothing ever closed a platform issue, and the option the row favoured would not have helped (interactive, Jeff directing)**
+
+- An option written into a row is a hypothesis, not a plan.
+- Read the Accept clause as the specification and the options as guesses.
+- A mechanism with one half is worse than none, because it looks complete.
+- Test the boring branch.
+
+**windows — #314 reproduced here: 5 failures in 25 builds of plain `main`, then 0 in 40**
+
+- A race whose CI rate is about 8% was 20% on a developer's box, and the difference is the compile.
+- Reproduce in the real tree even when a synthetic repro is easier.
+- Delete the outputs, not the build tree, to re-run a POST_BUILD race.
+- A dedup has a second failure mode the first one hides: building one target.
+- The platform that differs is not the platform with the bug.
+- "Nothing shared to collide over" is a claim about a generator expression, and one command settles it.
+
+**macos — three red signals, three different mechanisms, and none of them a defect in this repo**
+
+- A race cannot be verified fixed by watching CI go green.
+- `origin/main` is not a snapshot when you fetch more than one repo.
+- A self-healing break still costs three sessions.
+- Three red signals on one platform in one hour is not evidence of one cause.
+- Read the first error, not the loudest.
+- A checkout error that names `.gitmodules` means someone committed a directory.
