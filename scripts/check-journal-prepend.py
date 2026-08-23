@@ -40,15 +40,46 @@ ENTRY = re.compile(r'^## (\d{4}-\d{2}-\d{2}) — .+$', re.MULTILINE)
 # between two entries -- it is not part of either entry's own content.
 TRAILING_SEPARATOR = re.compile(r'\n+-{3,}\s*$')
 
+# ANY level-2 heading, dated or not. An entry ends where the next `## ` section
+# begins, and the sections below the entries -- "## Rotation", the "## YYYY-MM-DD"
+# template -- are sections, not entries.
+ANY_HEADING = re.compile(r'^## ', re.MULTILINE)
+
 
 def split_entries(text):
     """Return the list of entry blocks (heading through the char before the
-    next heading, or EOF), each including its own trailing blank lines."""
+    next heading, or EOF), each including its own trailing blank lines.
+
+    BOUNDED BY THE NEXT `## ` OF ANY KIND, not by the next DATED one, and the
+    difference is not cosmetic. JOURNAL.md ends with two undated `## ` sections
+    -- the rotation rule and the entry template. Bounding on ENTRY alone let
+    the oldest entry swallow both of them, so its block was its own text plus
+    ~4.5 KB of trailer that belongs to no entry.
+
+    That made the check fail on the one operation it is supposed to police
+    alongside a prepend: A ROTATION. Rotating the oldest entries out changes
+    WHICH entry is last, so the trailer moves from one entry's block to
+    another's, and two comparisons break at once -- the entry newly promoted to
+    last looks edited (its canonical grew by the trailer) and the entry rotated
+    out cannot be matched against its archived copy (the archive holds the
+    entry, not the trailer). Both are false alarms; the file is correct.
+
+    Measured 2026-08-23 (linux) on a rotation of four entries: `three red
+    signals` was reported missing while sitting in the file, and `M2 iOS
+    configure` was reported missing while sitting in JOURNAL-2026-08.md.
+    canonical() below exists for the same CLASS of bug at the entry/entry
+    boundary -- this is the entry/section boundary, which it cannot reach,
+    because a whole trailing section is not a `---`.
+    """
     starts = [m.start() for m in ENTRY.finditer(text)]
     if not starts:
         return []
-    bounds = starts + [len(text)]
-    return [text[bounds[i]:bounds[i + 1]] for i in range(len(starts))]
+    heads = [m.start() for m in ANY_HEADING.finditer(text)]
+    out = []
+    for s in starts:
+        later = [h for h in heads if h > s]
+        out.append(text[s:later[0]] if later else text[s:])
+    return out
 
 
 def canonical(entry):
