@@ -8,6 +8,89 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — linux — the A4 auto-merge trap, hit a third time, and the branch DELETION is the new half
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**A correction to the entry directly below**, not a second item. That entry ends
+*"Machine left clean"* and names no trap, because [#351](https://github.com/JeffMcClintock/TideSynth/pull/351)
+merged after it was written. A separate entry rather than an edit, for the reason
+#121 established: a log you edit is not a log.
+
+**Nothing is wrong on `main`.** The rows and the entry landed in `9e5cb27`, whose
+own subject carries `(#351)`. This is about how the run ENDED.
+
+### What happened
+
+STEP 4's A22 dance is: name the branch, push, open the PR, then push one more
+commit adding the PR number — *"Check the PR is still open before you push that
+follow-up, and if it has already merged, DROP it."* I did check. It said `OPEN`.
+I made the commit. Then I ran the re-check and the push **in the same command
+block**, chained unconditionally:
+
+```
+gh pr view 351 --json state --jq .state   ->  MERGED
+git push                                  ->  * [new branch]
+```
+
+**The check fired correctly and I pushed anyway**, because I had already decided
+to push when I wrote the block. STEP 4's rule is not "check", it is "check, and
+branch on the answer" — a check whose result cannot stop the next command is
+decoration.
+
+### The new half: auto-delete means the follow-up RE-CREATES the branch
+
+#120/#121 landed a follow-up on a branch whose PR had merged. Here the branch was
+**already deleted** by merge auto-delete, so `git push` did not update anything —
+`* [new branch]` — it **brought the branch back from the dead**, with a commit
+nobody had asked to review.
+
+That is strictly worse than #120/#121 and it does not look worse: the push output
+is a cheerful `[new branch]` line identical to a first push. **The tell is that a
+follow-up push should never say `[new branch]`.** If it does, the PR closed and
+auto-delete ran.
+
+### Fixed, by deleting rather than by a second PR
+
+Deleted `origin/tide/linux/issue-156`. STEP 4 says pushing nothing is always safe
+here and *"a commit whose only content is a link is not worth a second PR"* — and
+A22's whole point is that **the branch name in the row is what makes the follow-up
+optional**. Both rows name the branch, `9e5cb27`'s subject names the PR, so the
+deleted commit carried nothing that is not already on `main`.
+
+Checked before deleting that it was mine and that its parent was on `main`. The
+three remaining remote branches belong to other boxes and were left alone.
+
+**Verified:** `9e5cb27` is on `origin/main` and contains both row updates and the
+entry; `git ls-remote --heads` shows no `tide/linux/**` branch; PR #351 `MERGED`;
+issue #156 `CLOSED`.
+
+**Not verified:** whether auto-delete is repo policy or was configured per-PR —
+I observed the effect, not the setting.
+
+**Learned:**
+
+- **A `gh pr view` state check is worth nothing in the same unconditional command
+  block as the push it is meant to gate.** Run it, read it, then decide. This is
+  the third time this fleet has met the A4 auto-merge race and the first time the
+  check was actually present and still did not help.
+- **A follow-up push that reports `[new branch]` has re-created a deleted branch,
+  not updated one.** With auto-delete on, the A22 follow-up window closes by
+  removing the branch, so the failure mode is resurrection rather than a stranded
+  commit — and the output looks like success.
+- **The A22 follow-up is optional by design, so "drop it" is cheap.** The instinct
+  to salvage the commit with a second PR is the expensive branch, and STEP 4
+  already ruled it out; deleting is the one-command answer.
+- **A merge that happens between writing an entry and pushing it makes that entry
+  wrong about its own ending.** Cheaper to prepend a correction than to leave
+  *"machine left clean"* as the last word on a run that left a stray branch.
+
+**Machine left clean**, now genuinely: no `tide/linux/**` branch on the remote,
+all scratch worktrees removed, all six repos on their default branches with clean
+trees, nothing built in any of Jeff's checkouts, nothing installed.
+
+**Branch/PR:** `tide/linux/issue-156-followup` — TideSynth, this entry only.
+
 ## 2026-08-24 — linux — STEP 1: #156 verified green on Linux, and the 44 failures reproduce on demand
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
@@ -884,158 +967,6 @@ sized as tightly as S34 was.
 
 **Branch/PR:** `tide/win/S34-guard-record` — TideSynth, bookkeeping only.
 Product change is [SynthEditLib#34](https://github.com/JeffMcClintock/SynthEditLib/pull/34), not merged.
-
----
-
-## 2026-08-23 — linux — S43(ii): the Linux CLAP has an X11 editor. It embeds, the host drives it, and it paints nothing
-
-**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
-
-Sixth item this session, at Jeff's direction — *"do any linux-only task"*, after
-he ruled: *"if CLAP wrapper lacks GUI support, we need to add it"* and *"I
-suspect DAWs support only X11."*
-
-**Read the last section before reading the rest as a success.** The editor
-embeds at the right size and the host loop drives it. It does not paint.
-
-### What was actually wrong, and it was not the CMake alone
-
-`wrapper/CLAP/CMakeLists.txt` had a `WIN32` block, an `APPLE` block, and **no
-Linux arm at all**. But the deeper finding is the macros:
-
-**`IS_LINUX` and `HAS_GUI` are defined NOWHERE in the repo — 11 uses, zero
-definitions.** Every block guarded by them has always compiled to nothing, which
-is why the bodies in `Processor_CLAP.cpp` still name **`ClapSawDemo`**, the demo
-class this wrapper was derived from. The Windows and macOS editors work because
-they are guarded by `_WIN32` and `__APPLE__` instead, and one block was forced
-live by hand with `#if 1 //HAS_GUI`.
-
-So this was a dormant, never-compiled skeleton — not a wiring oversight. I used
-`__linux__` for everything new and **left the dead blocks exactly as found**,
-annotated: reviving them would change Windows and macOS too, and that is not
-this item's to do.
-
-### What shipped
-
-Mirrors `wrapper/VST3`'s X11 arm source-for-source, deliberately — that editor
-is older and working, and this project's own lesson is that copying a fiddly
-block verbatim beats improving it in passing.
-
-- CMake: `DrawingFrameX11` plus the CPU renderer stack and the same six
-  `REQUIRED` pkg-config deps. Those headers select their implementation with
-  `__has_include`, so a **missing** include path does not fail the build — it
-  silently compiles a plugin that draws no text. REQUIRED and PUBLIC for that
-  reason.
-- `X11DrawingFrame` on `Editor_CLAP`, wired as its header specifies:
-  `wireTextStack`, menu font, `setFallbackHost` **before** any `setHost`.
-- `guiIsApiSupported` answers X11 again, gated on the host offering **both**
-  timer and posix-fd support — the frame runs no loop of its own, so without
-  them we cannot drive it and yes would be the lie option (i) just removed.
-- `guiSetParent` embeds and registers the fd + a 16 ms timer; `guiDestroy`
-  unregisters **before** closing, because the host's loop holds that fd.
-- `onPosixFd`/`onTimer` drive `processEvents()`/`onTimer()`.
-
-### Two bugs found by running it, both fixed
-
-- **`Editor_CLAP::width/height` stay at `{100}`** unless a host calls
-  `set_size` — and `getSize()` measures but **never stores**. A host that
-  accepts `get_size()`'s answer embedded a **100x100** editor into an 1100x600
-  window, which is exactly what the probe showed. Now refreshed unless the host
-  chose.
-- **Nothing called `arrange()`** on that path, so the client had no layout.
-
-### Verified, with a real X11 CLAP host
-
-`tools/clap_probe.c` grew `--embed`: it offers the posix-fd and timer
-extensions, creates a parent window, embeds, and **pumps** — polls the fd the
-plugin registered and ticks its timer. Without the pump an embedded editor is a
-window that never paints, so a probe stopping at `set_parent` would report
-success and show nothing.
-
-On an isolated Xwayland (weston headless per **S32**; Jeff's session untouched
-throughout, `gnome-shell` never restarted):
-
-| | before | after |
-|---|---|---|
-| `is_api_supported(x11)` | **0** | **1** |
-| `ldd` libX11/xcb | **0** | **2** |
-| `X11DrawingFrame` symbols | **0** | **89** |
-| `set_parent` | n/a | **OK** |
-| child window | none | **0x600002, 1100x600, IsViewable** |
-| host loop | n/a | **fd 4 + 16 ms timer, 226 ticks, unregistered in order** |
-
-Whole TIDE tree **rc=0**, all four Linux artifacts, and the standalone and VST3
-link exactly what they linked before.
-
-### WHAT IS NOT DONE: it paints nothing
-
-**The child window is uniformly `0x000000`.** Embedding, sizing and the event
-loop are demonstrated; pixels are not. I found and fixed the two causes I could
-identify and **neither moved it**, so the remaining cause is something else and
-I have not named it. Saying "the Linux CLAP has a GUI now" would be exactly the
-kind of claim this fleet keeps having to retract.
-
-Three leads, none chased to ground:
-
-1. **`guiShow`/`guiHide` are not implemented at all**, so `show()` returns false
-   from the clap-helpers base. Not needed for embedding; a host may still call it.
-2. **`state->save` returns 86 bytes**, which looks like no document. That is the
-   shape of **M4** on the AUv3 — a controller that never receives the document —
-   and would explain having nothing to draw.
-3. **gmpi_ui's own X11 backend may never have been GUI-verified either.** Its
-   `x11_menu_test` reports *"frame open, 300x200"* here and then fails on
-   synthetic input, so it does not settle paint either way. The VST3's Linux
-   verification on this box was `ardour-vst3-scanner`, which scans and does not
-   open an editor.
-
-**Learned:**
-
-- **A macro that is never defined is worse than a `#if 0`, because it reads as
-  live code.** `IS_LINUX && HAS_GUI` looked like a platform gate and was a
-  tombstone. Checking `grep -rn IS_LINUX` for a *definition* rather than for
-  *uses* took one command and reframed the whole item.
-- **Structure beats pixels on a headless server.** `XQueryTree` +
-  `XGetWindowAttributes` said "child 0x600002, 1100x600, IsViewable"
-  unambiguously; the pixel sample needed the child window, the right teardown
-  order, and still only answers half the question.
-- **The teardown order bug was mine, in the probe.** Closing my display before
-  `gui->destroy` produced `BadWindow` on `X_DestroyWindow` — the plugin
-  destroying a child of a window I had already freed. A real host tears the
-  plugin GUI down first; the probe now does too.
-- **Mixed line endings in one repo.** `Editor_CLAP.cpp` is CRLF and
-  `Processor_CLAP.h` is LF. I hit the CRLF trap earlier today and then nearly hit
-  its mirror image; `file` on the target before editing is the cheap check.
-- **A CMake block inserted next to the right line can still land in the wrong
-  `if()`.** Mine went inside `if(APPLE)` and silently did nothing on Linux; the
-  tell was `flags.make` carrying none of the include dirs while the VST3's
-  carried all of them.
-
-**Not verified:** paint, as above. macOS and Windows were not built — the change
-is inside `if(UNIX AND NOT APPLE)` and `#if defined(__linux__)`, and their
-artifacts link what they always did, but neither was compiled. And no real DAW:
-the probe is ours.
-
-**Next:**
-
-1. **Chase the paint.** Lead 2 is the one I would take first — if the CLAP holds
-   no document, the editor has nothing to draw and this is M4's shape on a third
-   wrapper.
-2. **`guiShow`/`guiHide`** are a small, separate gap.
-3. **S37 becomes real when the editor does** — once it draws, it reads
-   `getBundleContentsFolder() / "Resources"` and the shared-folder collision is
-   finally observable.
-
-**Machine left clean.** Two throwaway worktrees under the session scratchpad, one
-per repo. The headless weston is still running on its own socket and can be
-killed with `pkill -x weston`; it touched nothing of Jeff's. All six repos are on
-their default branches and clean. Nothing installed.
-
-**Branch/PR:** `tide/linux/S43ii-clap-x11` in **both** repos —
-[GMPI_Wrappers#16](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/16) is
-the change; TideSynth carries the probe's `--embed` mode, the backlog and the
-journal. **Merging one without the other is harmless:** TIDE fetches
-`GMPI_Wrappers` at `origin/main`, so the editor lands with that PR and this one
-only records it and supplies the verifier.
 
 ---
 

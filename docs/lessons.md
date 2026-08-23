@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**linux — the A4 auto-merge trap, hit a third time, and the branch DELETION is the new half**
+
+- A `gh pr view` state check is worth nothing in the same unconditional command block as the push it is meant to gate.
+- A follow-up push that reports `[new branch]` has re-created a deleted branch, not updated one.
+- The A22 follow-up is optional by design, so "drop it" is cheap.
+- A merge that happens between writing an entry and pushing it makes that entry wrong about its own ending.
+
 **linux — STEP 1: #156 verified green on Linux, and the 44 failures reproduce on demand**
 
 - A "NOT VERIFIED on your platform" line in a DONE row is a work item, and nothing points at it.
@@ -80,14 +87,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - A row that names its own precedent site is most of the fix.
 - Check the cell's own "before doing anything else" instruction before doing anything else.
-
-**linux — S43(ii): the Linux CLAP has an X11 editor. It embeds, the host drives it, and it paints nothing**
-
-- A macro that is never defined is worse than a `#if 0`, because it reads as live code.
-- Structure beats pixels on a headless server.
-- The teardown order bug was mine, in the probe.
-- Mixed line endings in one repo.
-- A CMake block inserted next to the right line can still land in the wrong `if()`.
 
 ## 2026-08-18
 
@@ -1721,3 +1720,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A clean build and a clean log are not evidence the destination is right.
 - "Drop the `/..`" meant drop it entirely, not shorten it by one segment.
 - A destination change to a build-tree path can force a packaging-script change even when the shipped layout doesn't move.
+
+**linux — S43(ii): the Linux CLAP has an X11 editor. It embeds, the host drives it, and it paints nothing**
+
+- A macro that is never defined is worse than a `#if 0`, because it reads as live code.
+- Structure beats pixels on a headless server.
+- The teardown order bug was mine, in the probe.
+- Mixed line endings in one repo.
+- A CMake block inserted next to the right line can still land in the wrong `if()`.
