@@ -8,6 +8,37 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — STEP 4: five rows land, and the mac NEXT cell is re-pointed (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Bookkeeping, done by checking rather than by memory. Every PR linked from every
+IN-REVIEW row was queried for its state; all five rows had **all** their PRs
+merged, so all five flip to DONE:
+
+| row | PRs |
+|---|---|
+| M1 | GMPI#8, GMPI#13, GMPI_Wrappers#11, TideSynth#318 |
+| M2 | GMPI#12, GMPI#13, SynthEditLib#32, TideSynth#308, #312 |
+| M4 | GMPI_Wrappers#14 |
+| S38 | GMPI#11, GMPI_Wrappers#13, gmpi_ui#11, gmpi_ui#13, TideSynth#281, #309 |
+| R10 | GMPI#12 |
+
+Status only — the rows stay in place, which is this file's convention: 36 DONE
+rows already live in `BACKLOG.md` rather than being moved out.
+
+**The mac NEXT cell said "take M1", and M1 is now DONE** — the same staleness
+the cell's own history complains about, where a box empties its target and the
+cell keeps naming it. Re-pointed at **S33**, with the reason spelled out so the
+next reader does not have to re-derive it.
+
+**Two open PRs are the Windows box's** (`tide/win/S41-close-issue-on-green`,
+`tide/win/issue-314`) and were left alone.
+
+**Not verified:** DONE here means every linked PR merged, which is what the
+status means. It does not mean each row's Accept was re-run today; M2 in
+particular still carries its own "installed, not launched" caveat in its text.
+
 ## 2026-08-23 — macos — the AUv3 editor draws (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
