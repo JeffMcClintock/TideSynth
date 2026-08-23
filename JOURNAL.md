@@ -8,6 +8,110 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — windows — S36: the Windows resources move beside the binary, and my first attempt at "beside" was wrong (interactive, Jeff directing)
+
+**Did:** took S36's option (a) off the `any` queue — its own row records that #314 retired
+the objection against it (dropping the race meant the destination could finally
+move without reintroducing the collision). Windows resources now land where the
+runtime actually looks, and packaging was updated to match.
+
+### The mechanism, read rather than assumed
+
+`BundleInfo::getResourceFolder()` for a non-bundle Windows plug-in
+(`pluginIsBundle == false`, which every unpackaged dev-tree binary is) returns
+`getImbeddedFileFolder()` verbatim — the binary's own directory, **no subfolder
+appended**. `getResource()` then does `getResourceFolder() + resourceId`, a
+plain concatenation, and `seedPrefabsFromBundle()` does `resourceFolder /
+"Prefabs"`. So the four pin XMLs and `Prefabs/` belong **loose in `Release\`**,
+mixed in with the binaries — not in a `Resources` subfolder at all, on this one
+platform.
+
+### My first attempt got that wrong, and testing the row's own Accept caught it
+
+Read "point the Windows arm at `$<TARGET_FILE_DIR>`, drop the `/..`" and
+implemented it as `$<TARGET_FILE_DIR>/Resources` — dropping the `/..` but
+keeping a `/Resources` suffix, by analogy with the bundle-platform arms right
+above it in the same file. Built, ran the row's own Accept command on the
+freshly built standalone, and it printed the exact same four `missing from
+bundle resources` lines and `no Prefabs folder` as before the fix — a clean
+compile and a clean build log said nothing about this being wrong. Only running
+the binary caught it. Reading `getImbeddedFileFolder()`'s actual return value —
+the bare directory, not a subfolder of it — is what gave the real answer:
+`$<TARGET_FILE_DIR>` alone, no suffix.
+
+### Packaging had to change with it, not just the CMake line
+
+`package-windows.ps1` previously copied the whole staged `Resources` directory
+into the bundle's `Contents\Resources\`. With the dev-tree destination now the
+bare `Release\` folder, doing the same thing would have copied every target's
+binaries, PDBs, `.lib`s and `.exp`s into the shipped bundle too. Rewrote it to
+pick the four known XMLs and `Prefabs\` out of `Release\` by name — the same
+list `SynthEditSem/CMakeLists.txt`'s `_tide_xmls` already enumerates, and the
+same "these two lists must move together" rule `TideApp.cpp:496` already states
+for its own read of the identical set.
+
+**The packaged bundle's own layout is unchanged** — still `Contents\x86_64-win\
+TIDE-Rack.vst3` + `Contents\Resources\{4 xmls, Prefabs\}`, which is what makes
+`pluginIsBundle` true for the installed copy and routes it through the
+bundle-aware code path this row never touches.
+
+### Verified
+
+Row's own Accept, on the freshly built standalone, nothing copied by hand:
+
+```
+TIDE: ControlsXp.xml enriched 2 of 18 described class(es)
+TIDE: MidiPlayer2.xml enriched 2 of 7 described class(es)
+TIDE: Converters.xml enriched 26 of 70 described class(es)
+TIDE: VaFilters.xml enriched 2 of 7 described class(es)
+TIDE: 6 rack prefab(s) seeded from the bundle
+```
+
+Zero `missing from bundle resources` or `no Prefabs folder` lines (`grep -c`
+against the run log: 0).
+
+**The #314 race fix, re-checked because I edited the same block:** 20 parallel
+relinks (`cmake --build --parallel`, deleting the binaries and the loose
+resources between each), **0 failures**.
+
+**Packaging, end to end:** `package-windows.ps1` against this build, unsigned
+(no Azure credentials on this box, same as every prior run) — assembled bundle
+contains exactly 10 files, the four XMLs and six `.synthedit` prefabs, nothing
+else. No binaries, PDBs, `.lib`s or `.exp`s leaked into `Resources\` — checked
+by listing the assembled tree, not assumed from the script logic.
+
+**Not verified:** the packaged bundle was not loaded in a real VST3 host this
+run — the bundle-aware code path and the shipped layout are unchanged by this
+fix (same files, same place), and R2's own prior verification already covers
+that path; re-proving it would be re-verifying something this row does not
+touch. macOS and Linux are untouched — the edited arm is `if(WIN32)` /
+`if(UNIX AND ...)`-gated and neither ran.
+
+**Learned:**
+
+- **A clean build and a clean log are not evidence the destination is right.**
+  My first attempt compiled, linked, and staged files into *a* folder without
+  any error — it was simply the wrong folder, and nothing short of running the
+  Accept command surfaced that.
+- **"Drop the `/..`" meant drop it entirely, not shorten it by one segment.**
+  The row's own wording was correct; I filled in the wrong generator expression
+  from pattern-matching the bundle arms beside it rather than reading what
+  `getImbeddedFileFolder()` actually returns.
+- **A destination change to a build-tree path can force a packaging-script
+  change even when the shipped layout doesn't move.** The dev-tree consumer and
+  the packaging consumer read the same CMake output through two different
+  assumptions (loose files vs. a clean `Resources` subtree), and moving the
+  first broke the second's "copy the whole folder" shortcut.
+
+**Next:** S36 is the last of the resource-staging defects this cluster of rows
+(#314, S21, S36) named; nothing else on the `any`/`win` queue currently touches
+this file. **P3** remains this platform's only own-boxed row and is GATED,
+needing Jeff.
+
+**Branch/PR:** `tide/win/S36-resource-destination` — TideSynth.
+
+---
+
 ## 2026-08-23 — linux — S43: the CLAP now refuses an API it just said it did not support
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)

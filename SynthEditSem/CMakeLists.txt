@@ -590,11 +590,27 @@ if(_tide_shared_targets)
   # is precisely the property that put them in this list.
   list(GET _tide_shared_targets 0 _tide_stage_anchor)
   if(WIN32)
-    # Windows bundle layout: the binary sits in Contents/<arch>/, so Resources
-    # is its sibling. Unchanged by this fix -- that the resources land one
-    # directory ABOVE the binary, where a non-bundled Windows plug-in never
-    # looks, is a separate defect (BACKLOG S36).
-    set(_tide_shared_resources "$<TARGET_FILE_DIR:${_tide_stage_anchor}>/../Resources")
+    # BACKLOG S36 -- Windows builds no bundle at all (gmpi_plugin.cmake's VST3
+    # `else()` arm is a bare `SUFFIX ".vst3"`), so there is no `Contents/<arch>/`
+    # for a `Resources` sibling to exist beside. A non-bundled Windows plug-in
+    # resolves `getResourceFolder()` to `getImbeddedFileFolder()`
+    # (BundleInfo.cpp), which returns the DLL's OWN directory verbatim, no
+    # subfolder appended -- confirmed by reading `getResource()`'s path
+    # construction (`getResourceFolder() + resourceId`, a plain concatenation)
+    # and `seedPrefabsFromBundle()`'s `resourceFolder / "Prefabs"`. So there is
+    # no "Resources" folder to stage into on this platform at all -- the XMLs
+    # and Prefabs/ belong directly beside the binary.
+    #
+    # First attempt at this row appended `/Resources` here anyway, by analogy
+    # with the bundle-platform arms below. Built, ran the standalone, and it
+    # still reported every resource missing -- caught by testing the row's own
+    # Accept command rather than trusting the CMake edit. Reading
+    # `getImbeddedFileFolder()`'s actual return value (the bare directory) is
+    # what found the real answer.
+    #
+    # `scripts/package-windows.ps1`'s `$resSrc` moves in lockstep with this
+    # line -- the two must agree, per that script's own header comment.
+    set(_tide_shared_resources "$<TARGET_FILE_DIR:${_tide_stage_anchor}>")
   else()
     set(_tide_shared_resources "$<TARGET_FILE_DIR:${_tide_stage_anchor}>/Resources")
   endif()
