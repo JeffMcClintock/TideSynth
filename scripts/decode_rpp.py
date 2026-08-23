@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 """Decode the TIDE VST state out of a REAPER .rpp and report what the chunk holds.
 
-Usage: decode_rpp.py <project.rpp>
+Usage: decode_rpp.py [--preset-out <file>] <project.rpp>
+
+--preset-out writes the OUTER <Preset> element -- the GMPI preset XML, the thing
+`gmpiController.getPreset()` returns and `setPresetXmlFromDaw()` accepts -- to a
+file, rather than only reporting on it. That is what a non-VST3 host needs to
+restore the same rack: the AU3 wrapper carries it verbatim as the GMPIPRESET key
+of `fullState` (GMPI_Wrappers/wrapper/AU3/AU3_Wrapper.mm:509,522), so a fixture
+saved from REAPER's VST3 can drive the AU without being re-authored by hand.
+Used by tests/e9_au_rate_probe.mm (BACKLOG E9).
+
+The inner <Document> is what the existing report already writes per-Param; the
+two are different things and it is worth keeping them straight -- the document
+alone is NOT restorable, because the wrapper looks for the <Preset> wrapper.
 """
 import base64
 import re
@@ -33,7 +45,19 @@ def vst_blocks(text):
 
 
 def main():
-    path = sys.argv[1]
+    args = sys.argv[1:]
+    preset_out = None
+    if args and args[0] == '--preset-out':
+        if len(args) < 3:
+            print('usage: decode_rpp.py [--preset-out <file>] <project.rpp>')
+            return 2
+        preset_out = args[1]
+        args = args[2:]
+    if len(args) != 1:
+        print('usage: decode_rpp.py [--preset-out <file>] <project.rpp>')
+        return 2
+
+    path = args[0]
     text = open(path, 'r', errors='replace').read()
 
     found_any = False
@@ -65,6 +89,15 @@ def main():
             preset = m.group(0) if m else raw
             print(f'    outer preset: {len(preset)} bytes')
 
+            if preset_out:
+                # Only the first block's preset is written. A .rpp with two TIDE
+                # instances would need the caller to say which; none of the
+                # fixtures has one, and guessing silently is worse than the
+                # limitation.
+                open(preset_out, 'wb').write(preset)
+                print(f'    preset written: {preset_out}')
+                preset_out = None
+
             for pm in re.finditer(rb'<Param\s+id="(\d+)"\s+val="([^"]*)"', preset):
                 pid = pm.group(1).decode()
                 val = pm.group(2)
@@ -94,4 +127,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main() or 0)
