@@ -24,7 +24,7 @@
 //       -Ibuild/_deps/clap-src/include
 //
 // Usage:
-//   clap_probe <path-to.clap> [--activate] [--gui] [--state]
+//   clap_probe <path-to.clap> [--activate] [--gui] [--state] [--embed SECS]
 //
 // --gui is the option that matters for S37. The resource lookup does NOT
 // happen in the processor's init or activate -- measured: with the Resources
@@ -44,11 +44,56 @@
 
 #include <clap/clap.h>
 
+// --embed turns this from a loader into a real X11 host: it creates a parent
+// window, offers the two extensions an X11 editor cannot live without
+// (posix-fd and timer), embeds the plugin, and then PUMPS -- polling the fd the
+// plugin registered and ticking its timer. BACKLOG S43(ii). Without the pump an
+// embedded editor is a window that never paints, so a probe that stops at
+// set_parent would report success and show nothing.
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>   // XGetPixel, XDestroyImage
+#include <poll.h>
+#include <time.h>
+
+// --- the host services an X11 editor needs -------------------------------
+static int      g_fd = -1;          // fd the plugin asked us to poll
+static clap_id  g_timer_id = 0;
+static uint32_t g_timer_ms = 0;
+static int      g_has_timer = 0;
+static int      g_embed = 0;        // only offer these under --embed
+
+static bool host_fd_register(const clap_host_t *h, int fd, clap_posix_fd_flags_t f)
+{ (void)h; (void)f; g_fd = fd; printf("      host: registered fd %d\n", fd); return true; }
+static bool host_fd_modify(const clap_host_t *h, int fd, clap_posix_fd_flags_t f)
+{ (void)h; (void)fd; (void)f; return true; }
+static bool host_fd_unregister(const clap_host_t *h, int fd)
+{ (void)h; printf("      host: unregistered fd %d\n", fd); if (g_fd == fd) g_fd = -1; return true; }
+
+static const clap_host_posix_fd_support_t g_fd_ext = {
+	.register_fd = host_fd_register,
+	.modify_fd = host_fd_modify,
+	.unregister_fd = host_fd_unregister,
+};
+
+static bool host_timer_register(const clap_host_t *h, uint32_t ms, clap_id *id)
+{ (void)h; g_timer_ms = ms; *id = ++g_timer_id; g_has_timer = 1;
+  printf("      host: registered timer %u ms (id %u)\n", ms, *id); return true; }
+static bool host_timer_unregister(const clap_host_t *h, clap_id id)
+{ (void)h; printf("      host: unregistered timer id %u\n", id); g_has_timer = 0; return true; }
+
+static const clap_host_timer_support_t g_timer_ext = {
+	.register_timer = host_timer_register,
+	.unregister_timer = host_timer_unregister,
+};
+
 static const void *host_get_extension(const struct clap_host *h, const char *id)
 {
-	(void)h; (void)id;
-	// Deliberately nothing. A plugin that REQUIRES an extension to initialise
-	// should say so rather than be handed a stub that hides the requirement.
+	(void)h;
+	// Only under --embed. Without it this stays the minimal loader it was, so
+	// the earlier S37 measurements remain reproducible: a plugin that needs an
+	// extension should say so rather than be handed a stub that hides it.
+	if (g_embed && !strcmp(id, CLAP_EXT_POSIX_FD_SUPPORT)) return &g_fd_ext;
+	if (g_embed && !strcmp(id, CLAP_EXT_TIMER_SUPPORT))    return &g_timer_ext;
 	return NULL;
 }
 static void host_request_restart(const struct clap_host *h) { (void)h; }
@@ -95,11 +140,16 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	const char *path = argv[1];
-	int do_activate = 0, do_gui = 0, do_state = 0;
+	int do_activate = 0, do_gui = 0, do_state = 0, do_embed = 0;
+	double embed_secs = 3.0;
 	for (int i = 2; i < argc; ++i) {
 		if (!strcmp(argv[i], "--activate")) do_activate = 1;
 		else if (!strcmp(argv[i], "--gui")) do_gui = 1;
 		else if (!strcmp(argv[i], "--state")) do_state = 1;
+		else if (!strcmp(argv[i], "--embed")) {
+			do_gui = do_embed = g_embed = 1;
+			if (i + 1 < argc && argv[i+1][0] != '-') embed_secs = atof(argv[++i]);
+		}
 		else { fprintf(stderr, "unknown option %s\n", argv[i]); return 2; }
 	}
 
@@ -177,6 +227,8 @@ int main(int argc, char **argv)
 				else
 					printf("      get_preferred_api -> (declined)\n");
 
+				int destroyed = 0;
+				Window child = 0; unsigned cw = 0, ch = 0;
 				const char *api = CLAP_WINDOW_API_X11;
 				// create() is what constructs the controller, and the
 				// controller is what reads the bundle's Resources folder.
@@ -189,7 +241,135 @@ int main(int argc, char **argv)
 						printf("      gui created, size %ux%u\n", w, h);
 					else
 						printf("      gui created, size unavailable\n");
-					gui->destroy(p);
+
+					if (do_embed) {
+						Display *dpy = XOpenDisplay(NULL);
+						if (!dpy) { printf("      XOpenDisplay FAILED (is DISPLAY set?)\n"); rc = 1; }
+						else {
+							int scr = DefaultScreen(dpy);
+							if (!w) w = 1100; if (!h) h = 600;
+							Window parent = XCreateSimpleWindow(dpy, RootWindow(dpy, scr),
+							                                    0, 0, w, h, 0, 0, 0);
+							XMapWindow(dpy, parent); XSync(dpy, False);
+							printf("      host: parent Window 0x%lx (%ux%u)\n",
+							       (unsigned long)parent, w, h);
+
+							clap_window_t win = { .api = CLAP_WINDOW_API_X11 };
+							win.x11 = (uint64_t)parent;
+
+							if (!gui->set_parent(p, &win)) {
+								printf("      gui->set_parent FAILED\n"); rc = 1;
+							} else {
+								printf("      set_parent OK\n");
+								if (gui->show && !gui->show(p))
+									printf("      gui->show declined (not fatal)\n");
+								else
+									printf("      show OK\n");
+
+								// THE PUMP. This is the contract X11DrawingFrame is
+								// built around: it runs no loop, so if the host does
+								// not poll the fd and tick the timer, nothing paints.
+								const clap_plugin_posix_fd_support_t *pfd =
+									p->get_extension(p, CLAP_EXT_POSIX_FD_SUPPORT);
+								const clap_plugin_timer_support_t *ptm =
+									p->get_extension(p, CLAP_EXT_TIMER_SUPPORT);
+								printf("      plugin exts: posix_fd=%s timer=%s\n",
+								       pfd ? "yes" : "NO", ptm ? "yes" : "NO");
+
+								struct timespec t0, now;
+								clock_gettime(CLOCK_MONOTONIC, &t0);
+								long fd_events = 0, ticks = 0;
+								for (;;) {
+									clock_gettime(CLOCK_MONOTONIC, &now);
+									double el = (now.tv_sec - t0.tv_sec)
+									          + (now.tv_nsec - t0.tv_nsec) / 1e9;
+									if (el >= embed_secs) break;
+
+									struct pollfd pf = { .fd = g_fd, .events = POLLIN };
+									int n = (g_fd >= 0) ? poll(&pf, 1, 16) : (poll(NULL,0,16), 0);
+									if (n > 0 && pfd && pfd->on_fd) {
+										pfd->on_fd(p, g_fd, CLAP_POSIX_FD_READ); fd_events++;
+									}
+									if (g_has_timer && ptm && ptm->on_timer) {
+										ptm->on_timer(p, g_timer_id); ticks++;
+									}
+								}
+								printf("      pumped %.1fs: %ld fd events, %ld timer ticks\n",
+								       embed_secs, fd_events, ticks);
+
+								// STRUCTURE FIRST: did the plugin actually create and
+								// map a child of our window? That is what "embedded"
+								// means, and unlike pixels it is unambiguous on a
+								// headless server.
+								{
+									Window r = 0, par = 0, *kids = NULL; unsigned nk = 0;
+									child = 0;
+									if (XQueryTree(dpy, parent, &r, &par, &kids, &nk) && nk) {
+										printf("      parent has %u child window(s):\n", nk);
+										for (unsigned k = 0; k < nk; ++k) {
+											XWindowAttributes wa;
+											if (XGetWindowAttributes(dpy, kids[k], &wa))
+												printf("        0x%lx %dx%d at %d,%d map_state=%s\n",
+												       (unsigned long)kids[k], wa.width, wa.height,
+												       wa.x, wa.y,
+												       wa.map_state == IsViewable ? "IsViewable"
+												       : wa.map_state == IsUnmapped ? "IsUnmapped"
+												                                    : "IsUnviewable");
+											if (!child) { child = kids[k]; cw = wa.width; ch = wa.height; }
+										}
+									} else {
+										printf("      parent has NO child window -- not embedded\n");
+										rc = 1;
+									}
+									if (kids) XFree(kids);
+								}
+
+								// DID IT ACTUALLY PAINT? "set_parent returned true"
+								// is not the same claim. Read the pixels back and
+								// count distinct colours: an unpainted window is
+								// one flat colour, a drawn rack is not.
+								// Sample the PLUGIN's window, not ours -- XGetImage on a
+								// parent is not a reliable way to see a child's pixels.
+								Window target = child ? child : parent;
+								unsigned tw = child ? cw : w, th = child ? ch : h;
+								XImage *img = XGetImage(dpy, target, 0, 0, tw, th,
+								                        AllPlanes, ZPixmap);
+								if (!img) {
+									printf("      XGetImage FAILED -- cannot judge paint\n");
+								} else {
+									unsigned long seen[64]; int nseen = 0;
+									for (unsigned y = 0; y < th && nseen < 64; y += 7)
+										for (unsigned x = 0; x < tw && nseen < 64; x += 7) {
+											unsigned long px = XGetPixel(img, x, y);
+											int k = 0;
+											for (; k < nseen; ++k) if (seen[k] == px) break;
+											if (k == nseen) seen[nseen++] = px;
+										}
+									printf("      window 0x%lx content: %d distinct colours sampled%s\n",
+									       (unsigned long)target, nseen,
+									       nseen > 1 ? "  <-- IT PAINTED" : "  <-- flat");
+									for (int q = 0; q < nseen && q < 6; ++q)
+										printf("        colour[%d] = 0x%06lx\n", q, seen[q] & 0xffffffUL);
+									if (nseen <= 1) rc = 1;
+									XDestroyImage(img);
+								}
+							}
+						}
+						// ORDER MATTERS, and getting it wrong produced a BadWindow
+						// on X_DestroyWindow: closing our display frees the parent
+						// window, and the plugin then tries to destroy its child of
+						// a window that no longer exists. A real host tears the
+						// plugin GUI down first, so the probe must too.
+						gui->destroy(p);
+						destroyed = 1;
+						printf("      gui destroyed cleanly\n");
+						if (dpy) { XSync(dpy, False); XCloseDisplay(dpy); }
+					}
+
+					if (!destroyed) {
+						gui->destroy(p);
+						printf("      gui destroyed cleanly\n");
+					}
 				}
 			}
 		}
