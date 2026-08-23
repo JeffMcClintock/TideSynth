@@ -290,6 +290,9 @@ class Result:
     cli_commands: list = field(default_factory=list)
     module_sources: list = field(default_factory=list)
     foreign_module_sources: list = field(default_factory=list)
+    # The subset above that actually holds modules (A34). The wider list stays
+    # so a consumer that wants the raw probe list still has it.
+    populated_module_sources: list = field(default_factory=list)
     # The tolerances this case was actually judged against, and why they are
     # not the defaults. Recorded per case, not just globally, so a report can
     # never look stricter than the run that produced it.
@@ -390,6 +393,65 @@ def scan_sources(blob: str) -> list:
     return found
 
 
+# What the engine can actually load out of a scan folder. Measured against the
+# published engine package: its PlugIns folder is flat and holds 41 `.sem` (each
+# with a sibling `.xml` pin descriptor) and 16 `.gmpi`. A `.gmpi` may be a plain
+# file or a bundle DIRECTORY, so this matches on the suffix and not on the type.
+# The `.xml` files are descriptors, never loadable alone, so a folder holding
+# only those is empty for our purposes.
+MODULE_SUFFIXES = (".sem", ".gmpi")
+
+# A scan folder is somebody's plug-in directory, not a source tree, so this walk
+# is small in every real case. The cap is a backstop against a symlink into
+# something enormous -- BACKLOG A34 was found on a box whose scan folder contains
+# a `JucePlugIns` symlink pointing at a build tree.
+_SCAN_WALK_LIMIT = 20000
+
+
+def folder_has_modules(path: str) -> bool:
+    """Does this folder actually contain something the engine could load?
+
+    BACKLOG A34. The engine PROBES its XDG module folder whether or not that
+    folder exists, and reports the probe on stdout either way -- so treating
+    every reported folder as a finding made the warning below fire on every run
+    including CI, where it named `/home/runner/.local/share/SynthEdit/modules`
+    on a runner that has no such directory. A warning that cannot tell "a stray
+    module might have rendered this" from "a directory was looked at" weakens
+    every provenance claim in the report, and this project's own lesson is that
+    an always-on signal trains people to skim it.
+
+    Conservative by construction, because the cost of the two mistakes is not
+    symmetric: a missed warning means a measurement is quietly attributed to the
+    wrong module set, while a spurious one only costs a reader a moment. So this
+    searches RECURSIVELY and returns True on anything it cannot rule out --
+    including a folder it is not allowed to read.
+    """
+    try:
+        root = Path(path)
+        if not root.is_dir():
+            return False              # absent -- the pure-probe case
+    except OSError:
+        return True                   # cannot tell; say so loudly
+
+    seen = 0
+    try:
+        for entry in root.rglob("*"):
+            seen += 1
+            if seen > _SCAN_WALK_LIMIT:
+                return True           # too big to clear; do not claim it is empty
+            if entry.name.lower().endswith(MODULE_SUFFIXES):
+                return True
+    except OSError:
+        return True                   # unreadable partway through; same rule
+
+    return False
+
+
+def populated_foreign_sources(foreign: list) -> list:
+    """The subset of `foreign` that holds loadable modules -- the real finding."""
+    return [s for s in foreign if folder_has_modules(s)]
+
+
 def foreign_sources(sources: list, modules: Path) -> list:
     """Scanned folders that are not under --modules.
 
@@ -474,7 +536,9 @@ def run_case(cli: Path, modules: Path, case: Case, refs: Path,
         wav = Path(tmp) / f"{case.name}.wav"
         ok, reason, commands, scanned = render(cli, modules, case, wav)
         foreign = foreign_sources(scanned, modules)
+        populated = populated_foreign_sources(foreign)
         prov = dict(module_sources=scanned, foreign_module_sources=foreign,
+                    populated_module_sources=populated,
                     null_tolerance_dbfs=case.null_tolerance,
                     peak_diff_tolerance_dbfs=case.peak_tolerance,
                     tolerance_overridden=case.overridden,
@@ -659,6 +723,43 @@ def selftest() -> int:
         check("a missing engine does not block the record",
               _meta["engine"].startswith("unknown"), True)
 
+    # A34 -- the foreign-module warning must report a FINDING, not a probe.
+    # Engine-free on purpose: the bug was that a folder being LOOKED AT counted
+    # the same as a folder holding modules, and that distinction is pure
+    # filesystem logic. Both directions are covered, because a classifier that
+    # only ever says "no" would pass a one-sided test.
+    with tempfile.TemporaryDirectory() as _tmp:
+        _absent = Path(_tmp) / "never-created"
+        _empty = Path(_tmp) / "empty"
+        _empty.mkdir()
+        _descriptors = Path(_tmp) / "descriptors-only"
+        _descriptors.mkdir()
+        (_descriptors / "Controls.xml").write_text("<x/>")       # a pin descriptor
+        _sem = Path(_tmp) / "has-sem"
+        _sem.mkdir()
+        (_sem / "libArpeggiator.sem").write_bytes(b"")
+        _bundle = Path(_tmp) / "has-gmpi-dir"
+        (_bundle / "Synth.gmpi").mkdir(parents=True)             # .gmpi as a DIRECTORY
+        _nested = Path(_tmp) / "nested"
+        (_nested / "deep" / "down").mkdir(parents=True)
+        (_nested / "deep" / "down" / "Thing.gmpi").write_bytes(b"")
+
+        check("an absent scan folder is not a finding",
+              folder_has_modules(str(_absent)), False)
+        check("an empty scan folder is not a finding",
+              folder_has_modules(str(_empty)), False)
+        check("descriptors alone are not loadable modules",
+              folder_has_modules(str(_descriptors)), False)
+        check("a .sem makes it a finding",
+              folder_has_modules(str(_sem)), True)
+        check("a .gmpi DIRECTORY makes it a finding",
+              folder_has_modules(str(_bundle)), True)
+        check("a module nested below the folder is still a finding",
+              folder_has_modules(str(_nested)), True)
+        check("populated_foreign_sources keeps only the real findings",
+              populated_foreign_sources([str(_absent), str(_empty), str(_sem)]),
+              [str(_sem)])
+
     print(f"\nselftest: {'PASSED' if not failures else str(len(failures)) + ' FAILED'}")
     return 1 if failures else 0
 
@@ -744,6 +845,9 @@ def main(argv=None) -> int:
         # this run could have drawn modules from a folder you did not name.
         "module_sources": sorted({s for r in results for s in r.module_sources}),
         "foreign_module_sources": sorted({s for r in results for s in r.foreign_module_sources}),
+        # A34: the ones that hold modules. Empty here means every foreign entry
+        # above was a probe of a folder that does not exist or is empty.
+        "populated_module_sources": sorted({s for r in results for s in r.populated_module_sources}),
         "cases": [asdict(r) for r in results],
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -768,13 +872,19 @@ def main(argv=None) -> int:
             if r.tolerance_reason:
                 print(f"      reason: {r.tolerance_reason}")
 
-    foreign = sorted({s for r in results for s in r.foreign_module_sources})
-    if foreign:
-        print("\nwarning: engine scanned folders outside --modules; this run does")
-        print("         not prove the named module set is what rendered:")
-        for s in foreign:
+    # A34: warn about folders that HOLD modules, not folders that were merely
+    # looked at. The engine probes its XDG module folder unconditionally, so the
+    # old test fired on every run -- including CI, which is what proved the
+    # parenthetical it used to print ("never on a clean CI runner") false.
+    populated = sorted({s for r in results for s in r.populated_module_sources})
+    if populated:
+        print("\nwarning: engine scanned folders outside --modules that CONTAIN modules;")
+        print("         this run does not prove the named module set is what rendered:")
+        for s in populated:
             print(f"           {s}")
-        print("         (normal on a developer box, never on a clean CI runner)")
+        print("         Re-run with XDG_DATA_HOME pointed at an empty directory to")
+        print("         isolate, and compare the numbers -- if they match, this was")
+        print("         not a confound.")
 
     print(f"\n{len(passed)}/{len(results)} passed. Report: {args.out}")
     return 1 if failed else 0
