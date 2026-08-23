@@ -8,6 +8,119 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — linux — S43: the CLAP now refuses an API it just said it did not support
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+Fourth item this session, at Jeff's direction. Took **S43** from the `linux`
+NEXT cell — the row this box filed an hour earlier out of S37's first step —
+and shipped **option (i) only**.
+
+**Did:** `Processor_CLAP::guiCreate()` now returns false when
+`guiIsApiSupported()` says no, instead of building an editor anyway.
+
+### Why option (i) was eligible while option (ii) is not
+
+S43's option (ii) — link a Linux windowing backend — needs Jeff to choose X11 or
+Wayland, and until he does, no run may build against either answer. **Option (i)
+is identical under every answer to that question:** whether or not a backend is
+linked later, a function that answers "no api is supported" must not then report
+a 1100x600 editor. So it is takeable now and does not pre-empt the decision.
+
+### The change is five lines and the comment is longer than the code
+
+    if (!guiIsApiSupported(api, isFloating))
+        return false;
+
+The assumption it enforces was **already written at that exact spot**, in the
+function's own comment: *"we ignore the API and isFloating here, because we
+handled them above and assume our host follows the protocol that it only calls
+us with values which are supported."* Documented, and never enforced. On Linux
+the combination is live rather than theoretical, because `guiIsApiSupported()`
+has no X11 arm — it is commented out — so it answers false to **every** api.
+
+### A/B, by reverting the file rather than editing the fix out
+
+Same tree, same probe, three builds:
+
+| build | `is_api_supported` | `guiCreate` |
+|---|---|---|
+| **BEFORE** — plain `origin/main` wrappers | all four **false** | **true, 1100x600** |
+| **AFTER** — this fix | all four **false** | **false** |
+| **CONTROL** — this fix + x11 forced true | x11 **true** | **true, 1100x600** |
+
+**The control is the one that matters, and it is why this is a fix rather than a
+regression.** Without it, "create now fails" is indistinguishable from "I
+disabled the editor". Forcing `guiIsApiSupported` to answer true for X11 — with
+the new guard still in place — puts the 1100x600 editor straight back, so the
+guard passes through exactly when it should. That temporary line was marked
+`TIDEDIAG`, removed afterwards, and `grep TIDEDIAG` is clean in all seven trees.
+
+**A conformant host sees no change at all.** It asks first, gets the same answer
+it always got, and never reaches the guarded line. This only changes what a host
+that skips the query is told — and "no" is the honest answer, because `ldd` on
+the built `.clap` links no X11, xcb or Wayland library to attach anything to.
+
+### Blast radius, measured rather than asserted
+
+`Editor_CLAP.cpp` appears in exactly one build file — `wrapper/CLAP/CMakeLists.txt`
+lines 26-27 — and **`grep -rl Editor_CLAP` across `SE16` returns nothing**, so
+`SynthEditCL` does not compile it on any platform. The standing rule for the
+shared wrapper repos is *"rebuild SynthEditCL as well as TIDE"*; here that target
+is structurally untouched, and saying so with the grep is better than a
+forty-minute build that could only confirm it. **Every TIDE format target was
+rebuilt** and the whole tree is rc=0.
+
+**Cocoa and Win32 are unaffected by construction** — their arms in
+`guiIsApiSupported` are live, so the guard returns true on those platforms
+exactly as before. That is an argument, not a measurement; neither was built
+here.
+
+**Learned:**
+
+- **I hit the CRLF trap the journal documents, on the first try.** Editing
+  `Editor_CLAP.cpp` with plain Python text mode turned a 5-line change into
+  **897 insertions / 875 deletions**. `newline=''` on *both* the read and the
+  write gives the 25-line diff it should always have been. The lesson was
+  already in `docs/lessons.md` twice — *"never edit a CRLF file with Python text
+  mode"* — and reading it is evidently not the same as remembering it at the
+  keyboard. `git diff --stat` immediately after the edit is what caught it.
+- **A guard needs the passing case tested, not just the failing one.** The
+  interesting measurement here was not "create fails now" but "create still
+  succeeds when the answer is yes".
+- **An unenforced assumption written in a comment is a defect with
+  documentation.** This one named its own precondition and shipped without
+  checking it; the fix is to make the comment true rather than to rewrite it.
+
+**Not verified:**
+
+- **No real CLAP host, still.** `clap_probe` is mine. What the fix does in
+  Bitwig, Reaper or Ardour is unmeasured — though the change only makes the
+  plugin agree with an answer those hosts already query.
+- **macOS and Windows CLAPs** were not built. Their arms are live and the guard
+  is a pass-through for them, which is reasoning rather than measurement.
+- **Option (ii) is untouched and is still Jeff's call:** does the Linux CLAP
+  ship a GUI, and over X11 or Wayland? Until then the honest state is a CLAP that
+  loads, processes and says plainly that it has no editor.
+
+**Next:**
+
+1. **S43 is IN-REVIEW on option (i); the row stays open for (ii)**, which is a
+   decision before it is a change.
+2. **S37 remains unsizable until (ii) lands** — its collision needs an editor to
+   exist before there is anything to collide.
+
+**Machine left clean.** Two throwaway worktrees under the session scratchpad, one
+per repo. Jeff's `~/SE/GMPI_Wrappers` was never checked out onto my branch — the
+work is in a worktree — and all six repos are on their default branches and
+clean. Nothing installed; `~/.clap` untouched.
+
+**Branch/PR:** `tide/linux/S43-clap-gui-honesty` in **both** TideSynth and
+GMPI_Wrappers. The GMPI_Wrappers PR is the change; the TideSynth PR is backlog
+and journal. **Merging one without the other is harmless** — TIDE fetches
+`GMPI_Wrappers` at `origin/main`, so the behaviour lands when the wrappers PR
+does, and the TideSynth PR only records it.
+
 ## 2026-08-23 — linux — S37: the collision is unreachable, because the Linux CLAP has no GUI at all
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
