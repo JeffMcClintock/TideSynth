@@ -4,6 +4,7 @@
 #include "PngIo.h"
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,13 @@
 //
 // On failure the rendered image is written to `failureDir` (default: the
 // working directory) as <scene>-actual.png so the two can be compared by eye.
+//
+// THE REFERENCES ARE PER-PLATFORM AND THIS PROGRAM PICKS ITS OWN SET. Give it
+// the root `tests/references` and it descends into `macos` or `windows-linux`
+// (see kReferenceSet below); give it a set directly and it uses that. Selecting
+// here rather than in the caller is deliberate: CI, ctest and a developer at a
+// shell are three callers, and a platform matrix in one of them leaves the
+// other two comparing against the wrong pictures.
 
 namespace
 {
@@ -66,6 +74,39 @@ constexpr double kMaxChangedFraction = 0.008;
 // what catches a small but catastrophic change — a highlight that vanished, a
 // caustic that moved.
 constexpr int kMaxChannelDelta = 40;
+
+// WHICH REFERENCE SET THIS BUILD BELONGS TO. Two sets, not three, and that is a
+// measurement rather than a convenience: Windows and Linux renders of the same
+// commit differ from each other by 0.083% of pixels, worst delta 10 -- inside
+// the limits above with an order of magnitude to spare -- while both differ
+// from macOS by 35-67% of pixels at deltas of 46-142. macOS is the outlier, so
+// one set covers Windows and Linux and macOS gets its own.
+//
+// The macOS/other split, and not a compiler or ISA one, because that is where
+// the divergence was measured (S27, S44). If a fourth platform ever disagrees
+// with both sets, measure it before adding a third directory -- the cost of a
+// set is that every intended look change has to be re-approved by eye in it.
+#if defined(__APPLE__)
+constexpr const char* kReferenceSet = "macos";
+#else
+constexpr const char* kReferenceSet = "windows-linux";
+#endif
+
+// Descend into this platform's set if the caller handed us the root directory.
+//
+// The fallback is not a guess: pointing straight at `tests/references/macos`
+// from a Mac must keep working, because that is how an intended look change is
+// re-approved, and it is the path modules/common/README.md documents. So a
+// directory that does not CONTAIN our set is taken to BE a set.
+std::string resolveReferenceDir(const std::string& given)
+{
+	std::error_code ec;
+	const std::filesystem::path candidate = std::filesystem::path(given) / kReferenceSet;
+	if (std::filesystem::is_directory(candidate, ec))
+		return candidate.generic_string();
+
+	return given;
+}
 
 struct Comparison
 {
@@ -192,8 +233,14 @@ int main(int argc, char** argv)
 		return 2;
 	}
 
-	const std::string referenceDir = argv[1];
+	const std::string referenceDir = resolveReferenceDir(argv[1]);
 	const std::string failureDir = (argc > 2) ? argv[2] : ".";
+
+	// PRINT THE PATH THAT WAS RESOLVED, not the one that was asked for. A run
+	// comparing against the wrong platform's set is the failure this program is
+	// most likely to produce now, and it is invisible unless the resolved
+	// directory is on screen next to the results.
+	std::printf("references: %s\n", referenceDir.c_str());
 
 	int failures = 0;
 	int checks = 0;
