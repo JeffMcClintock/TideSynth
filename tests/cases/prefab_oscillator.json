@@ -10,8 +10,5 @@
   "source": "$osc:\"Audio Out\"",
   "duration": 2.0,
   "rate": 48000,
-
-  "null_tolerance_dbfs": -67.0,
-  "peak_diff_tolerance_dbfs": -62.0,
-  "tolerance_reason": "Free-running oscillator, same class of residual as osc_naive_sine and the same gates for the same reason: a cross-platform difference in the phase increment integrates into phase error, so the residual grows linearly with render time rather than staying inside a per-sample rounding budget (E1a, 2026-08-14). THESE NUMBERS ARE BOUND TO duration: 2.0 -- changing it invalidates them by 20*log10(new/old) dB. Level, waveform and tuning regressions still fail this case; localized damage below ~12 LSB does not, and voice_midi_note covers that at the default gates over the same oscillator."
+  "tolerance_reason": "Measured on Linux x86_64 (Ubuntu 24.04, glibc 2.39) against this case's reference, SynthEditCL V1.6.192, 2026-08-23 (E1c): null -131.1 dBFS, peakdiff -90.3 dBFS = 1 LSB. This case's own residual, measured against its own reference (provenance: seeded on Darwin), replacing gates that were inherited by analogy from E1a's measurement of a DIFFERENT module. The drift-class justification is not merely unmeasured here, it is refuted: E1c showed the core Oscillator at 5 V does not exhibit the phase drift the -67/-62 gates were sized for. Now at the defaults. POSITIVE CONTROL, run before the change: a 3-sample localized glitch injected into the real render is MISSED by the old gates up to 26 LSB (-62 dBFS peak is exactly 26 LSB at 16 bits) and CAUGHT by the defaults from 2 LSB, while the undamaged render still passes. That 26 LSB blind spot is what the old gates cost. NOT VERIFIED: the reverse direction -- a macOS render against a Linux-seeded reference. verify.yml is ubuntu-24.04 only, so nothing runs it on macOS today."
 }

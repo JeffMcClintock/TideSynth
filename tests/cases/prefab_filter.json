@@ -15,8 +15,5 @@
   "source": "$filt:Output",
   "duration": 2.0,
   "rate": 48000,
-
-  "null_tolerance_dbfs": -67.0,
-  "peak_diff_tolerance_dbfs": -62.0,
-  "tolerance_reason": "Free-running oscillator in the signal path, so this is prefab_oscillator's residual class and takes its gates verbatim: a cross-platform difference in the phase increment integrates into phase error, and the residual grows linearly with render time rather than staying inside a per-sample rounding budget (E1a, 2026-08-14). THESE NUMBERS ARE BOUND TO duration: 2.0 -- changing it invalidates them by 20*log10(new/old) dB, which is also why this case uses 2.0 rather than the 1.0 the cutoff sweep was measured at. Level, waveform, tuning and FILTER-RESPONSE regressions still fail this case; localized damage below ~12 LSB does not, and voice_midi_note covers that at the default gates."
+  "tolerance_reason": "Measured on Linux x86_64 (Ubuntu 24.04, glibc 2.39) against this case's reference, SynthEditCL V1.6.192, 2026-08-23 (E1c): null -121.4 dBFS, peakdiff -90.3 dBFS = 1 LSB. Same story and same positive control as prefab_oscillator (old gates blind to a localized glitch up to 26 LSB; defaults catch it from 2), and the same refuted justification -- the core Oscillator at 5 V is rounding class. Now at the defaults. ONE CAVEAT THIS CASE CARRIES AND prefab_oscillator DOES NOT: its reference provenance is recorded 'unknown', so the platform pair is not documented. It is INFERRED cross-platform rather than known: the three references known to be Linux-seeded all rendered bit-identical (-inf) in this same run, so a -121.4 dBFS residual means this reference was almost certainly seeded somewhere else. Strong evidence, not proof -- an older engine on Linux is not excluded, though V1.6.192 reproduced V1.6.186's Linux renders exactly. NOT VERIFIED: the reverse direction, as above."
 }

@@ -8,6 +8,189 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — linux — E1c: the deciding render lands at −140 dBFS, and neither the module nor the pitch is the variable on its own
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+Second item this session, at Jeff's direction after #332 merged. Took **E1c**
+from the `linux` NEXT cell, which this box had re-pointed there hours earlier.
+
+**Did:** ran the deciding render the row has been waiting two days for, then
+used it to retire the gates the row exists to complain about.
+
+### The answer, and it is the pre-committed branch
+
+`osc_naive_note64`, Linux x86_64 against the macOS-seeded reference:
+
+    null −140.1 dBFS    peakdiff −90.3 dBFS    peak −6.0 dBFS
+
+The case's own `tolerance_reason` pre-committed the reading before anyone could
+rationalise it: *"near −123 dBFS (rounding class, ~1 LSB) and the discriminator
+is the PITCH VALUE"*. **−140.1 is that branch with 17 dB to spare**, and
+−90.3 dBFS is exactly 1 LSB at 16 bits.
+
+### But the binary was too coarse, and the same run says why
+
+The row's two options were *the pitch value* or *the voice chain*. The full
+table, all measured in one run, supports neither cleanly:
+
+| case | oscillator | pitch | reference from | residual | class |
+|---|---|---|---:|---:|---|
+| `osc_naive_sine` | naive | 440.0 Hz, undriven | Linux | −73.5 (E1a) | **drift** |
+| `osc_naive_pitched` | naive | 440.0 Hz, 5 V | Linux | −73.5 (mac half) | **drift** |
+| **`osc_naive_note64`** | **naive** | **329.63 Hz, 4.583 V** | **macOS** | **−140.1** | **rounding** |
+| `voice_midi_note` | naive | 329.63 Hz, MIDI 64 | Linux | −123.1 (mac half) | rounding |
+| `prefab_oscillator` | **core** | 440.0 Hz, 5 V | macOS | **−131.1** | rounding |
+| `prefab_filter` | **core** | 440.0 Hz, 5 V | unknown | **−121.4** | rounding |
+
+**The naive oscillator at note 64 is clean, and the CORE oscillator at 440 Hz is
+also clean.** So the module alone is not the variable and the pitch value alone
+is not the variable. **It is the interaction: the naive oscillator at 440.0 Hz
+specifically.** Every case on the board is now explained, and the explanation is
+narrower than either option the row offered.
+
+I am not claiming a mechanism beyond that. Which of the two code paths computes
+its phase increment differently, and why 440.0 Hz in particular, is unmeasured.
+
+### Two controls, because the engine was not the one that seeded the references
+
+The published Linux package is **SynthEditCL V1.6.192**; every reference was
+seeded on **V1.6.186**. That is a second variable, and rendering across it
+without checking would have confounded the whole experiment.
+
+**The three Linux-seeded references all came back bit-identical — `null=−inf`.**
+`osc_naive_sine`, `osc_naive_pitched` and `voice_midi_note`, same platform,
+different engine build, zero residual. **So the version bump is not a variable**,
+and the macOS-seeded comparisons are single-variable after all.
+
+**And the pitch was verified rather than assumed**, as the mac half did when it
+seeded: zero-crossing count over the 2.0 s render gives **329.50 Hz** against
+note 64's 329.63 — 1318 crossings, where ±1 is ±0.25 Hz. **The same figure the
+macOS box measured.** `osc_naive_sine` gives 439.75 and `prefab_oscillator`
+440.00, so the 440 cases really are at 440.
+
+**The developer-box module-scan warning was eliminated rather than tolerated.**
+The harness warned it had scanned `~/.local/share/SynthEdit/modules` — Jeff's
+demo `.gmpi` files. Re-running under `XDG_DATA_HOME` pointed at an empty scratch
+directory moves the scan there and it holds **zero files**, so the render
+provably used only `--modules`. **Both runs are numerically identical**, so the
+stray folder was not a confound — demonstrated, not assumed. That is stronger
+than CI's own evidence, where the folder simply does not exist.
+
+### The gates: E1c's actual Accept, and how far it got
+
+The row's complaint is that `prefab_oscillator` and `prefab_filter` carry
+−67/−62 gates against residuals of −131.1 and −121.4 — *"~55 dB of margin for a
+real regression to hide in"*. Their justification was inherited by analogy from
+E1a's measurement of a **different** module. **That justification is now not
+merely unmeasured but refuted:** the core `Oscillator` at 5 V does not drift.
+
+All three rounding-class cases are moved to the project **defaults (−100/−86)**,
+with the measurement and the platform pair written into `tolerance_reason`.
+
+**THE POSITIVE CONTROL, which is what the Accept actually asks for, and it turns
+the "55 dB of margin" into a number.** A 3-sample localized glitch injected into
+the real Linux render, compared against the same reference through the harness's
+own `null_test`:
+
+| glitch | rms | peak | old −67/−62 | new −100/−86 |
+|---:|---:|---:|---|---|
+| none | −131.1 | −90.3 | PASS | **PASS** |
+| 2 LSB | −127.1 | −84.3 | **PASS** | FAIL |
+| 6 LSB | −119.5 | −74.7 | **PASS** | FAIL |
+| 12 LSB | −113.7 | −68.7 | **PASS** | FAIL |
+| 26 LSB | −107.0 | −62.0 | **PASS** | FAIL |
+| 40 LSB | −103.3 | −58.3 | FAIL | FAIL |
+
+**The old gates are blind to localized damage up to 26 LSB; the defaults catch it
+from 2 LSB; and the undamaged render still passes.** Identical for all three
+cases. 26 LSB is not a coincidence — `10^(−62/20) × 32768` is exactly 26, so the
+blind spot is the peak gate read back as amplitude.
+
+**My first attempt at this control was worthless and I nearly shipped it.** I
+detuned the pitch pin by 1e-4 V and got a resounding failure — −16.6 dBFS, all
+three cases. But the *old* gates catch that too, so it demonstrates nothing
+about tightening. A control has to separate the two gates, not merely fail.
+
+### What is NOT done, and it is not work this box can do
+
+E1c's Accept says gates justified *"across mac and Linux (**both directions**,
+since a reference seeded on one platform is the asymmetric case)"* and a positive
+control *"on both platforms"*. **I have one direction and one platform.** The
+reverse — a macOS render against a Linux-seeded reference — needs the mac box,
+and [verify.yml](.github/workflows/verify.yml) is `ubuntu-24.04` only, so nothing
+runs it there today. The row goes IN-REVIEW, not DONE.
+
+**Tightening cannot break CI in the meantime**, because only Linux runs the
+harness and Linux is what I measured. If a mac run is ever added and these fail,
+that is the missing measurement being made, not a regression.
+
+**`prefab_filter` carries a caveat `prefab_oscillator` does not.** Its reference
+provenance is `recorded: "unknown"` — nobody wrote down where it was seeded. I
+did not tighten it on faith: the three references known to be Linux-seeded all
+rendered `−inf` in this same run, so a −121.4 dBFS residual means this one was
+almost certainly seeded elsewhere. **That is strong evidence and not proof** — an
+older engine on Linux is not excluded, though V1.6.192 reproduced V1.6.186's
+Linux renders exactly. It is in the case file as an inference, labelled as one.
+
+**Learned:**
+
+- **A pre-committed binary outcome is worth the setup, and worth distrusting
+  when it lands.** The row pre-committed two readings; the measurement matched
+  one of them and the matching reading was still wrong, because `prefab_*` sit at
+  440 Hz and are rounding class. Pre-commitment stops you rationalising the
+  number — it does not stop the dichotomy being false.
+- **A regression control must separate the two gates, not merely fail.** A 1e-4 V
+  detune fails everything by 50 dB and proves nothing about a tightening. The
+  useful control is the one sized to land *between* old and new.
+- **Check the engine version against the reference's before believing a
+  cross-platform residual.** V1.6.192 against references seeded on V1.6.186 is a
+  second variable, and it cost one extra look to retire — three same-platform
+  references at `−inf`.
+- **A scan warning can be eliminated instead of noted.** Three runs of this
+  fleet have recorded "the engine scanned folders outside `--modules`" as a
+  caveat. `XDG_DATA_HOME` at an empty directory removes it, and the identical
+  numbers prove the caveat was harmless *here* rather than assuming it.
+- **A warning that fires on every run is not a caveat, it is noise — and the way
+  to find out is to check its own claim.** The harness annotates this one
+  *"never on a clean CI runner"*; the `verify` job on this very branch emits it,
+  naming `/home/runner/.local/share/SynthEdit/modules`. The engine probes the
+  XDG path whether or not it exists, so the warning reports the probe rather
+  than a finding. Filed as **A34**.
+- **`recorded: "unknown"` provenance can sometimes be settled by measurement.**
+  If same-platform renders come back bit-identical, a non-zero residual is itself
+  evidence about which platform seeded the reference.
+
+**Not verified:**
+
+- **The reverse direction and the macOS positive control** — the Accept's
+  remaining half, above.
+- **Which transcendental, and why 440.0 Hz.** Bounded now to the naive
+  oscillator at that pitch, which is much tighter than the row started with, but
+  nothing here opens the phase-increment computation.
+- **Windows.** Never rendered against any of these references.
+- **`prefab_envelope` and `prefab_midi`** still have `recorded: "unknown"`
+  provenance and render `−inf` here, so they are same-platform or trivially
+  stable and this run cannot tell which. Untouched.
+
+**Next:**
+
+1. **A macOS render of these three cases closes E1c.** It is one harness run with
+   the published mac engine package, and it is the whole remaining Accept.
+2. **`verify.yml` runs on Linux only**, so the gates I just tightened are checked
+   on exactly one platform. Extending that matrix is `.github/workflows/**` and
+   needs Jeff's credential — worth doing while the render-regression CI question
+   from #331 is open, since it is the same argument.
+
+**Machine left clean.** All work in a throwaway worktree under the session
+scratchpad; the engine package was downloaded there and is not installed. Jeff's
+`~/.local/share/SynthEdit/modules` was read but never written. All six repos were
+synced to their default branches at the start of this item at his request, were
+clean then, and are clean now.
+
+**Branch/PR:** `tide/linux/E1c-note64` — TideSynth, [#333](https://github.com/JeffMcClintock/TideSynth/pull/333); three test cases plus the
+journal and backlog. A34 filed. No product code change.
+
 ## 2026-08-23 — linux — the render references fail on Linux too, and the tolerance that merged four hours ago does not reach it
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
