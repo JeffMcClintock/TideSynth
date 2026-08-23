@@ -8,6 +8,64 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — S5: the folder-info null deref, measured then guarded (interactive)
+
+**Prompt:** sync all repos. next task
+
+S5 was filed against `SE16/SynthEdit2/Application.cpp:167`. That path is dead:
+the file moved repos, and neither `m_folder_settings` nor
+`refreshFolderLocations` appears anywhere in SE16 today. It lives in
+`SynthEditLib/EditorLib/Application.cpp` — EditorLib, which is GATED, and this
+session is interactive, which satisfies the gate. Anyone taking this row from
+its stated path would have concluded the bug was gone.
+
+I nearly did. Reading `getFolderInfo` it looks safe — it loops over
+`m_folder_settings`, and an empty vector just means zero iterations, then it
+creates an entry and returns `.back()`. I wrote that down as "no UB". It was
+wrong, and the reason is worth recording: the fall-through line is 300-odd
+characters long, my grep truncated at 124, and the two `m_folder_settings[0]`
+subscripts are in the tail. Printing the whole line is what found it.
+
+So the row is right. An unrecognised extension inherits entry 0, `"All Files"`,
+which exists only once `refreshFolderLocations()` has run — and
+`TideApp::InitInstance` replaces `CSynthEditAppBase::InitInstance` wholesale
+(S1a, the module-scan removal) and never calls it. In TIDE the vector is empty
+for the life of the app.
+
+Measured rather than argued. A harness linking the real `libEditorLib.a`,
+subclassing `ApplicationBase`, deliberately not calling
+`refreshFolderLocations()` — TIDE's exact state:
+
+| | result |
+|---|---|
+| before | `getFolderInfo(L"sem")` → SIGSEGV, exit 139 |
+| lldb | `EXC_BAD_ACCESS (code=1, address=0x0)` in `unique_ptr::operator->`, `this=0x0` |
+| after | valid `folder_info`, description `"sem Files"`, exit 0 |
+
+The second half matters as much: a populated entry 0 must still be inherited, or
+the guard would have quietly broken full SynthEdit. Same harness, entry 0 seeded
+— identical output before and after. `EditorLib` also builds clean against the
+patched tree, all four overrides confirmed by their `Using local ...` lines.
+
+**Not the fix:** calling `refreshFolderLocations()` from the `ApplicationBase`
+constructor. It looks like the deeper repair — populate the vector once and no
+caller can trip — but `getSettingString` is `virtual`, so a constructor call
+dispatches to the base and seeds the wrong folders. The guard is the one
+subscript in the repo; `.back()` on the next line is safe by construction.
+
+**Left open deliberately:** `refreshFolderLocations()` still never runs in TIDE.
+Its folders stay empty, so `ShortenFilename` returns absolute paths where it
+would otherwise return relative ones — documents are less portable. That is a
+behaviour question, not undefined behaviour, and it belongs to whoever decides
+what TIDE's folder defaults should be, so it is on the row rather than changed
+under cover of a crash fix.
+
+**Not verified:** Windows and Linux. The harness was built and run on macOS.
+
+Harness kept out of the repo on purpose — it needs three link stubs for UI
+dialogs EditorLib references, which is scaffolding, not a test the project
+should carry. SynthEditLib has no test target to put it in.
+
 ## 2026-08-24 — linux — the A4 auto-merge trap, hit a third time, and the branch DELETION is the new half
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
