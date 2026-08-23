@@ -466,3 +466,83 @@ jobs:
                 "Close this only after verifying the fix by building on that" \
                 "platform; otherwise leave it open and say what remains.")"
           fi
+
+      # ...and the other half, which is the one that was missing. BACKLOG S41.
+      #
+      # The step above files an issue keyed on branch+platform. Nothing closed
+      # it. A break that fixes itself therefore leaves a live STEP 1 item — and
+      # STEP 1 outranks every backlog row on every box — so a transient costs
+      # three machines a session each, long after the build is green again.
+      #
+      # MEASURED, on this repo's own issue history:
+      #
+      #   #310  filed 2026-08-22T08:04:14Z, macos, main
+      #         the run that filed it started 08:02:56Z and WAS the newest run
+      #         for main at that moment; main went green at 09:08:46Z, 64 min
+      #         later, with no fix in between (two sibling repos merged 26 s
+      #         apart, so CI fetched the consumer without the provider)
+      #   31 issues filed on 2026-08-20 alone, all linux, one per branch,
+      #         closed in a single manual sweep the next day
+      #   #306  still open, for a branch that no longer exists
+      #
+      # WHY THIS AND NOT S41's OPTION (a). That option was "re-check the
+      # branch's latest run before filing". It would have filed #310 anyway:
+      # the failing run was the latest run. There is no following run to
+      # consult at filing time, which is exactly what S41's own Accept asks
+      # about — "no issue ONCE THE FOLLOWING RUN IS GREEN". That is this step.
+      #
+      # WHAT THIS COSTS, stated rather than discovered later: the filing step
+      # de-duplicates on OPEN issues only, so a branch that flaps red/green/red
+      # now files a SECOND issue where it used to add a comment to the first.
+      # That is the right trade — each red is a real occurrence, and one issue
+      # per occurrence is cheaper than one issue that outlives its cause — but
+      # it is a change in behaviour for an intermittently failing branch.
+      #
+      # A green run is evidence about THIS commit, not proof the reported
+      # defect is gone: a race's normal outcome is success (see #314). So this
+      # closes with the evidence written into the comment, and closing is
+      # reversible by anyone who thinks it was wrong.
+      #
+      # Only issues this mechanism could have filed are touched: exact title
+      # match, the platform label, and a bot author. `is_bot` rather than a
+      # login string because the login `gh` renders for an app has changed
+      # form before; a hand-filed issue from a person or from tide-rack-bot is
+      # never auto-closed, which is what keeps #314's class safe.
+      - name: Close the platform issue on success
+        if: success() && matrix.platform != 'win' && github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+          PLATFORM: ${{ matrix.platform }}
+          PLATFORM_NAME: ${{ matrix.name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          TITLE="Build failure on ${PLATFORM_NAME} — ${BRANCH}"
+
+          EXISTING=$(gh issue list \
+            --state open \
+            --label "platform:${PLATFORM}" \
+            --limit 100 \
+            --json number,title,author \
+            | jq -r --arg t "$TITLE" \
+              '[.[] | select(.title == $t and .author.is_bot)] | .[0].number // empty')
+
+          if [ -z "$EXISTING" ]; then
+            echo "No open CI-filed issue for ${PLATFORM_NAME} + ${BRANCH} — nothing to close."
+            exit 0
+          fi
+
+          echo "::notice::${PLATFORM_NAME} is green on ${BRANCH} — closing #${EXISTING}."
+          gh issue comment "$EXISTING" --body "$(printf '%s\n' \
+            "Green on \`${PLATFORM_NAME}\` as of \`${GITHUB_SHA}\`, so closing this automatically (BACKLOG S41)." \
+            "" \
+            "Run: ${RUN_URL}" \
+            "" \
+            "**This is evidence about that commit, not proof the reported defect is gone.**" \
+            "A race's normal outcome is success, so if this issue described something" \
+            "intermittent, reopen it — a green run is exactly what the broken code" \
+            "produces most of the time.")"
+          gh issue close "$EXISTING" --reason completed
