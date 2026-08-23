@@ -8,6 +8,60 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — Merged the queue, then closed #291 on a green main (interactive)
+
+**Prompt:** resolve and merge PRs / then take next task
+
+Jeff directed merging, which overrides the standing "never merge your own PR".
+Four landed: SynthEditLib#37 (S5), TideSynth#349 (S44, the Windows box's),
+#350 (E18), and #353 (S5 record, which had already gone in).
+
+**Order mattered and was not obvious.** #350's CI was red on `render-linux` and
+`render-windows`, and the tempting read is "my PR broke CI". It did not:
+`build.yml` had failed on `main` for five consecutive runs, and #350 touches two
+docs and a script CI never runs. The fix for that red was sitting in #349 — the
+Windows box's reference-set split. Merging #349 first turned the render jobs
+green, and #350 then went in clean. Diagnosing before merging is what avoided
+merging a red PR and calling it pre-existing.
+
+**I shipped a broken commit and CI caught it.** Rebasing #350 the second time, I
+resolved the BACKLOG conflict with a script that finds the FIRST
+`<<<<<<<`/`=======`/`>>>>>>>` triple. There were TWO. `rebase --continue`
+committed the file with live conflict markers in it, and I force-pushed. CI's
+`lint` failed with `2 DUPLICATE ID(s): E9, E10`.
+
+Worse, my own local lint run had said rc=0 on that same file. The reason is
+worth keeping: I wrote
+
+    printf "  %-24s rc=%s\n" "$(echo $c|cut -d' ' -f1)" "$?"
+
+and `$?` there is the exit status of the `cut` in the command substitution, not
+of the linter. Every rc I printed in that loop was `cut`'s. Same shape as the
+earlier `git push | sed` bug — a status read through an intervening command.
+**Run linters on their own line, or capture the status before anything else
+runs.** After fixing that, the checks genuinely passed and so did CI.
+
+Then STEP 1: issue **#291** (Jeff's, `platform:linux`) asked for three things —
+decide the metric, re-bake references off the Mac, and actually run the test.
+S44 and the render job satisfy all three, so I closed it on measured evidence
+rather than on the fact that the PRs merged:
+
+| platform | worst scene | changed | worst Δ |
+|---|---|---|---|
+| linux | — | 0.000% | 2 |
+| windows | `shapes` | 0.083% | 10 |
+| macos | `knob` | 0.023% | 17 |
+
+Limits `0.800%` and `40`, 30 scene checks, run 32665903962. The issue's
+*"`shapes` has 1% of margin, borderline flaky"* was a cross-ISA artefact — with
+per-platform sets it is 0.083% against 0.800%. The tightest margin left is
+macOS `knob` worst-delta **17 against 40**, recorded because it is the honest
+counterpart to the comfortable changed-fraction numbers.
+
+`main` is green on all three render platforms for the first time.
+
+Rows flipped: S5, E18, S44 → DONE. Open PRs across all six repos: **zero**.
+
 ## 2026-08-24 — macos — E18: the probe stops excusing the case E10 fixed (interactive)
 
 **Prompt:** merged. sync. continue.
