@@ -8,6 +8,71 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)
+
+**Did:** S36 confirmed merged and flipped to DONE — [#339](https://github.com/JeffMcClintock/TideSynth/pull/339)
+landed while this session's sync ran. Then took **S34** off the `any` queue: two
+unguarded `plugs.back()` calls on `std::vector<UPlug*>`, GATED (`SynthEditLib`),
+takeable here because this is interactive with Jeff directing.
+
+### S34
+
+Both sites fault at exactly **-8** when `plugs` is empty — `data[-1]` on an
+8-byte pointer element, not a null-pointer read, so no null check catches it.
+Same class the fleet already fixed once at -16 for `ClassicControlGuiBase.cpp`'s
+16-byte `widgets` elements (**U2d**). The row named both sites, the exact
+mechanism, and a third sibling (`ug_oversampler.cpp:337`) that already guards
+the identical pattern — nothing here needed re-deriving, only applying.
+
+`ug_adder2.cpp:81` — first line of `NewConnection()`, TIDE's automatic input
+summing, reachable whenever a graph is built from a restored patch with an
+empty pin list, which is exactly what a missing bundle resource causes.
+`ug_feedback_delays.cpp:72` — `BypassFeedbackModule()`, identical shape.
+
+**Fix:** guard, one loud stderr line naming what will not work, return rather
+than crash — `ClassicControlGuiBase.cpp`'s own established pattern, and its
+comment states the rule this copies: *"a host where those don't fire must not
+bring the whole process down. Loud, not silent."*
+
+**Verified by building, per the row's own Accept** — `SynthEditCL` (this
+repo's Release config is a shared library, so TIDE building alone would not be
+evidence): a scratch Ninja tree, `SYNTHEDITLIB_FOLDER_OVERRIDE` on the fix
+branch, `262/262` targets, rc=0, zero errors. Both new stderr strings read back
+out of the built `SynthEditCL.exe` verbatim. Smoke-ran the exe: scans modules,
+exits cleanly on an unrecognised verb, no crash.
+
+**Not verified:** neither path was exercised at runtime with a genuinely empty
+`plugs` vector — the row itself frames this as latent UB surfaced by
+investigation (S23), not a currently-reproducing crash, so the fix is
+defensive against a reachable condition rather than a reproduction of a live
+symptom.
+
+### The stale-row catch
+
+The win NEXT cell (written by this box a session ago) still said *"S36 is
+IN-REVIEW, no PR link yet — check whether it has one and whether it merged
+before doing anything else with it."* It had, ten minutes before this run
+started. Confirmed via `gh pr view` before touching anything else — flipping a
+row on verified PR state, not on memory of having pushed it, per the standing
+lesson this backlog's own history keeps recording.
+
+**Learned:**
+
+- **A row that names its own precedent site is most of the fix.** S34 named
+  both defect locations, the exact fault address to expect, and a working
+  sibling to copy. The work was verifying and applying, not investigating.
+- **Check the cell's own "before doing anything else" instruction before doing
+  anything else.** It was there specifically so this wouldn't be skipped.
+
+**Next:** the `any` queue still carries several other GATED rows (S5, S3g,
+S22, S18) that want either Jeff or another interactive session; none was
+sized as tightly as S34 was.
+
+**Branch/PR:** `tide/win/S34-guard-record` — TideSynth, bookkeeping only.
+Product change is [SynthEditLib#34](https://github.com/JeffMcClintock/SynthEditLib/pull/34), not merged.
+
+---
+
 ## 2026-08-23 — linux — S43(ii): the Linux CLAP has an X11 editor. It embeds, the host drives it, and it paints nothing
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
@@ -157,6 +222,8 @@ the change; TideSynth carries the probe's `--embed` mode, the backlog and the
 journal. **Merging one without the other is harmless:** TIDE fetches
 `GMPI_Wrappers` at `origin/main`, so the editor lands with that PR and this one
 only records it and supplies the verifier.
+
+---
 
 ## 2026-08-23 — windows — S36: the Windows resources move beside the binary, and my first attempt at "beside" was wrong (interactive, Jeff directing)
 
