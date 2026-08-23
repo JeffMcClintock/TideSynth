@@ -8,6 +8,43 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — the render test finally runs somewhere (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Added a `render` job to `build.yml` running `tide_render_regression` on all
+three platforms. Nothing had ever run it: the test appeared in no workflow, and
+TIDE's root force-disables `TIDE_RENDER_PREVIEW`, so S27's cross-platform
+question was unanswerable except by a human building a second architecture by
+hand — which is exactly how its "1% of margin" warning finally surfaced, two
+sessions late.
+
+**Independent of `guard` and `build` on purpose.** `modules/common` is a
+dependency-free CMake project: it needs neither a root CMakeLists nor the SDK
+fetches, and it should keep reporting when those are broken.
+
+**`fail-fast: false`**, because with a divergence question the platforms that
+PASS are half the answer. On failure the `-actual` PNGs upload as an artifact —
+the log cannot tell "the maths moved by a bit" from "a light went out".
+
+**No `continue-on-error`.** B1 spent effort removing that from the matrix
+because it made the whole thing decorative; adding a new job with it would undo
+that on the same day.
+
+**I expect the first run to be informative rather than green, and that is the
+point.** The references are baked on macOS arm64. Whether Windows and Linux
+match has never been measured. A red Windows or Linux here is the measurement
+S27 has been waiting for, not a broken build — and the row already lists the
+three ways to resolve it.
+
+**Verified:** the exact step bodies were rehearsed locally — configure, build,
+`all 10 references match`, rc=0. The executable lookup drops the `-perm -u+x`
+test and matches `.exe` too, because on the Windows runner the executable bit is
+not meaningful and the binary is named differently. YAML parses.
+
+**Not verified: the job has never run on Windows or Linux.** That is what
+merging it is for.
+
 ## 2026-08-23 — macos — S27: the symptom is gone, the row's own prediction came true (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
