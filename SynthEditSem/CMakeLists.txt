@@ -530,69 +530,99 @@ set(_tide_xmls
   VaFilters/VaFilters.xml
 )
 
-# WINDOWS STAGES ONCE, NOT ONCE PER FORMAT TARGET -- issue #314.
+# FORMAT TARGETS THAT SHARE ONE DESTINATION STAGE ONCE, TOGETHER -- issue #314.
 #
-# On Windows every format target links into ONE directory, so the sibling
-# expression below resolves to the SAME destination for all of them, and the
-# per-target POST_BUILD copies then run concurrently under `--parallel` and
-# collide: `Error copying directory ... Release/../Resources/Prefabs: Permission
-# denied`, MSB3073. Measured on this box 2026-08-23 in a four-target repro of
-# this exact shape: 8 failures in 20 builds with the copies attached per target,
-# 0 in 30 with them behind one shared target. CI shows the same thing at a much
-# lower rate -- the same commit passed on re-run with nothing changed -- which is
-# why the fix cannot be validated by watching a build go green.
+# The destinations below are per-target only where the plug-in is a real bundle.
+# Where several format targets link into ONE directory, the expression resolves
+# to the SAME `Resources` for all of them, each runs the identical five
+# POST_BUILD copies into it, and under `--parallel` they collide.
 #
-# Every other platform gives each format target its own bundle directory, so
-# there is nothing shared to race over and they keep the per-target commands.
+# WHO SHARES, measured on both platforms rather than reasoned about:
 #
-# This does NOT move the destination. That the resources land one directory
-# ABOVE the binary, where a non-bundled Windows plug-in never looks, is a
-# separate defect -- BACKLOG S36 -- and dropping the `/..` would not have fixed
-# the race anyway: `Release\` is just as shared as `SynthEditSem\`.
-if(WIN32)
-  set(_tide_format_targets "")
+#   Windows  ALL FOUR -- TIDE_Rack, _VST3, _CLAP, _STANDALONE all link into
+#            `Release\`, so `$<TARGET_FILE_DIR>/../Resources` is one directory.
+#            8 failures in 20 parallel builds of a four-target repro of this
+#            shape, 0 in 30 behind one shared target; 5 in 25 on the real tree.
+#   Linux    GMPI and CLAP -- both link into `build/SynthEditSem/`, so
+#            `$<TARGET_FILE_DIR>/Resources` is one directory. VST3 does NOT
+#            share: it stages into its own `.vst3/Contents/Resources`.
+#            Caught in CI on 2026-08-23 with the two staging 0.07 ms apart:
+#            `Staging rack prefabs (TIDE_Rack_CLAP)` at 00:54:47.5299 and
+#            `(TIDE_Rack)` at .5300, then `Error copying directory ...
+#            build/SynthEditSem/Resources/Prefabs`.
+#   Apple    NOBODY -- TARGET_BUNDLE_CONTENT_DIR is per target on macOS and iOS.
+#
+# THE LINUX HALF IS A CORRECTION. The first version of this fix was Windows-only
+# and said in this comment that "every other platform gives each format target
+# its own bundle directory, so there is nothing shared to race over". That is
+# true of Apple and false of Linux, and it was falsified by CI four hours later
+# on a branch whose only change was a workflow comment. The rule is not "Windows
+# is special", it is "two targets, one directory".
+#
+# A green build is not evidence here: the same commit passed on re-run with
+# nothing changed, and the eleven Windows jobs before the reported failure were
+# all green. The race's normal outcome is success.
+if(APPLE)
+  # Includes iOS. Every format target owns its bundle, so nothing is shared.
+  set(_tide_shared_targets "")
+else()
+  set(_tide_shared_targets "")
   foreach(_fmt ${FORMATS_LIST})
     if(_fmt STREQUAL "GMPI")
       set(_tide_target ${PROJECT_NAME})
     else()
       set(_tide_target ${PROJECT_NAME}_${_fmt})
     endif()
-    if(TARGET ${_tide_target})
-      list(APPEND _tide_format_targets ${_tide_target})
+    if(NOT TARGET ${_tide_target})
+      continue()
     endif()
+    # On Linux the VST3 is assembled into a bundle of its own by
+    # gmpi_plugin.cmake, so it is the one format that does not share.
+    if(UNIX AND _fmt STREQUAL "VST3")
+      continue()
+    endif()
+    list(APPEND _tide_shared_targets ${_tide_target})
+  endforeach()
+endif()
+
+if(_tide_shared_targets)
+  # Any of them anchors the generator expression: sharing the output directory
+  # is precisely the property that put them in this list.
+  list(GET _tide_shared_targets 0 _tide_stage_anchor)
+  if(WIN32)
+    # Windows bundle layout: the binary sits in Contents/<arch>/, so Resources
+    # is its sibling. Unchanged by this fix -- that the resources land one
+    # directory ABOVE the binary, where a non-bundled Windows plug-in never
+    # looks, is a separate defect (BACKLOG S36).
+    set(_tide_shared_resources "$<TARGET_FILE_DIR:${_tide_stage_anchor}>/../Resources")
+  else()
+    set(_tide_shared_resources "$<TARGET_FILE_DIR:${_tide_stage_anchor}>/Resources")
+  endif()
+
+  set(_tide_stage_cmds "")
+  foreach(_tide_xml ${_tide_xmls})
+    get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
+    list(APPEND _tide_stage_cmds
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SYNTHEDITLIB_DIR}/modules/${_tide_xml}"
+        "${_tide_shared_resources}/${_tide_xml_leaf}")
   endforeach()
 
-  if(_tide_format_targets)
-    # Any of them anchors the generator expression: sharing the output directory
-    # is precisely the property that makes this block necessary.
-    list(GET _tide_format_targets 0 _tide_stage_anchor)
-    set(_tide_shared_resources "$<TARGET_FILE_DIR:${_tide_stage_anchor}>/../Resources")
-
-    set(_tide_stage_cmds "")
-    foreach(_tide_xml ${_tide_xmls})
-      get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
-      list(APPEND _tide_stage_cmds
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          "${SYNTHEDITLIB_DIR}/modules/${_tide_xml}"
-          "${_tide_shared_resources}/${_tide_xml_leaf}")
-    endforeach()
-
-    add_custom_target(${PROJECT_NAME}_stage_resources ALL
-      # Created explicitly because this target runs BEFORE any format target
-      # links, so the Release/ directory the path is spelled relative to may not
-      # exist yet on a clean tree.
-      COMMAND ${CMAKE_COMMAND} -E make_directory "${_tide_shared_resources}"
-      ${_tide_stage_cmds}
-      COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/../TideModules/prefabs"
-        "${_tide_shared_resources}/Prefabs"
-      COMMENT "Staging rack prefabs and pin XMLs (once, shared by every format target)"
-      VERBATIM
-    )
-    foreach(_tide_target ${_tide_format_targets})
-      add_dependencies(${_tide_target} ${PROJECT_NAME}_stage_resources)
-    endforeach()
-  endif()
+  add_custom_target(${PROJECT_NAME}_stage_resources ALL
+    # Created explicitly because this target runs BEFORE any format target
+    # links, so the directory the path is spelled relative to may not exist yet
+    # on a clean tree.
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_tide_shared_resources}"
+    ${_tide_stage_cmds}
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/../TideModules/prefabs"
+      "${_tide_shared_resources}/Prefabs"
+    COMMENT "Staging rack prefabs and pin XMLs (once, shared by every format target that needs them)"
+    VERBATIM
+  )
+  foreach(_tide_target ${_tide_shared_targets})
+    add_dependencies(${_tide_target} ${PROJECT_NAME}_stage_resources)
+  endforeach()
 endif()
 
 foreach(_fmt ${FORMATS_LIST})
@@ -645,18 +675,17 @@ foreach(_fmt ${FORMATS_LIST})
     if(_fmt STREQUAL "VST3")
       set(_tide_resources "${CMAKE_CURRENT_BINARY_DIR}/$<TARGET_FILE_BASE_NAME:${_tide_target}>.vst3/Contents/Resources")
     else()
-      set(_tide_resources "$<TARGET_FILE_DIR:${_tide_target}>/Resources")
+      # GMPI and CLAP both link into this one directory, so they are staged
+      # together by ${PROJECT_NAME}_stage_resources above -- issue #314. An
+      # empty destination here is what skips the per-target copies.
+      set(_tide_resources "")
     endif()
   else()
-    # Windows stages ONCE, in ${PROJECT_NAME}_stage_resources above -- issue
-    # #314. An empty destination here is what skips the per-target copies; it is
-    # not "no resources on Windows".
-    #
-    # The layout that target writes is the one this arm used to write, unchanged:
-    # the binary sits in Contents/<arch>/, so Resources is its sibling. Left
-    # exactly as it was on purpose -- S21 was found on Linux, and Windows is not
-    # verifiable from there, so it gets its own branch rather than a shared
-    # expression tuned for one of the two.
+    # All four Windows format targets stage together, in
+    # ${PROJECT_NAME}_stage_resources above -- issue #314. An empty destination
+    # here is what skips the per-target copies; it is not "no resources on
+    # Windows". The layout that target writes is the one this arm used to write,
+    # unchanged.
     set(_tide_resources "")
   endif()
 
