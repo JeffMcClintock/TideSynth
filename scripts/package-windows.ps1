@@ -32,17 +32,19 @@
                 x86_64-win\TIDE-Rack.vst3     <- the DLL the build produced
                 Resources\...                 <- the pin XMLs and Prefabs\
 
-    SEPARATELY, AND NOT FIXED HERE: the build tree's own copy of those resources
-    lands where nothing reads it. On Windows SynthEditSem/CMakeLists.txt stages
-    them to $<TARGET_FILE_DIR>/../Resources -- `build/SynthEditSem/Resources`,
-    one directory above the `Release\` folder holding the binary -- while a
-    non-bundled Windows plug-in resolves its resources to the folder the binary
-    is in. Measured on this box 2026-08-22: run the freshly built standalone and
-    it prints "no Prefabs folder in bundle resources"; copy that same Resources
-    folder's CONTENTS beside the binary and the identical build prints
-    "6 rack prefab(s) seeded from the bundle". Filed as its own BACKLOG row --
-    this script reads the staged folder from where CMake actually puts it, so
-    the shipped asset is correct either way.
+    BACKLOG S36, FIXED 2026-08-23: the build tree's own copy of those resources
+    used to land where nothing read it -- one directory above the `Release\`
+    folder holding the binary, while a non-bundled Windows plug-in resolves its
+    resources to the folder the binary is in (no `Resources` subfolder at all;
+    `BundleInfo::getResourceFolder()` returns the bare directory verbatim for a
+    non-bundle). So in the DEV TREE the four XMLs and `Prefabs\` now sit LOOSE
+    in `Release\`, beside the binaries -- there is no `Resources` folder to
+    speak of until packaging makes one. This script picks those specific,
+    known items out of `Release\` (the same list `SynthEditSem/CMakeLists.txt`
+    stages -- see `$ResourceXmls` below, which must move with `_tide_xmls`
+    there) rather than copying the whole directory, which also holds every
+    target's binaries, PDBs, `.lib`s and `.exp`s and would ship all of it into
+    the bundle's `Resources\` otherwise.
 
     SIGNING IS NOT DONE WITHOUT CREDENTIALS, and that is deliberate rather than
     unfinished, the same shape scripts/package-macos.sh uses. Azure Trusted
@@ -112,30 +114,33 @@ if (-not (Test-Path -LiteralPath $binSrc -PathType Leaf)) {
     throw "no $BUNDLE in $BuildDir\SynthEditSem\Release -- build the Release config first (cmake --build $BuildDir --config Release)"
 }
 
-# Where SynthEditSem stages the pin XMLs and Prefabs\ on Windows. Read from
-# CMake's actual destination rather than from where the runtime would look for
-# them; see the header.
+# Where SynthEditSem stages the pin XMLs and Prefabs\ on Windows: loose in the
+# Release\ folder, beside the binaries -- BACKLOG S36. This is written ONCE, by
+# the TIDE_Rack_stage_resources custom target, not by each format target's
+# POST_BUILD -- issue #314.
 #
-# On Windows this is written ONCE, by the TIDE_Rack_stage_resources custom
-# target, not by each format target's POST_BUILD -- issue #314. The destination
-# is unchanged, so nothing here had to move; the name is recorded because a
-# future edit to that target is an edit to this script's input.
-$resSrc = Join-Path $BuildDir 'SynthEditSem\Resources'
-if (-not (Test-Path -LiteralPath $resSrc -PathType Container)) {
-    throw @"
-no staged resources at $resSrc.
+# THIS LIST AND SynthEditSem/CMakeLists.txt's `_tide_xmls` MUST MOVE TOGETHER,
+# the same rule TideApp.cpp:496 states for its own read of the same set.
+# Picked out by name rather than copying Release\ wholesale, which also holds
+# every target's binaries, PDBs, .libs and .exps.
+$resSrc = Join-Path $BuildDir 'SynthEditSem\Release'
+$ResourceXmls = 'ControlsXp.xml', 'MidiPlayer2.xml', 'Converters.xml', 'VaFilters.xml'
 
-Refusing to package: without them TIDE ships with an empty rack module browser
-and classic controls that have no pins, and nothing in the plug-in fails loudly
-enough for a user to know why. That is BACKLOG S21's failure wearing a
-different platform. Build the TIDE_Rack_VST3 target (its POST_BUILD steps stage
-this folder) and try again.
+$missingXmls = $ResourceXmls | Where-Object { -not (Test-Path -LiteralPath (Join-Path $resSrc $_) -PathType Leaf) }
+if ($missingXmls) {
+    throw @"
+missing from $resSrc : $($missingXmls -join ', ')
+
+Refusing to package: without them TIDE ships with classic controls that have no
+pins, and nothing in the plug-in fails loudly enough for a user to know why.
+That is BACKLOG S21's failure wearing a different platform. Build the
+TIDE_Rack_VST3 target (its POST_BUILD steps stage these) and try again.
 "@
 }
 
 $prefabs = Join-Path $resSrc 'Prefabs'
 if (-not (Test-Path -LiteralPath $prefabs -PathType Container)) {
-    throw "staged resources at $resSrc have no Prefabs\ folder -- see above, the browser would be empty"
+    throw "no Prefabs\ folder at $resSrc -- see above, the browser would be empty"
 }
 $prefabCount = @(Get-ChildItem -LiteralPath $prefabs -Recurse -File |
                  Where-Object { $_.Extension -in '.synthedit', '.syntheditprefab' }).Count
@@ -145,7 +150,7 @@ Write-Host "    build      : $BuildDir"
 Write-Host "    plug-in    : $binSrc"
 Write-Host "    resources  : $resSrc  ($prefabCount prefab(s))"
 if ($prefabCount -eq 0) {
-    throw "the staged Prefabs\ folder holds no .synthedit files -- the browser would be empty"
+    throw "the Prefabs\ folder at $resSrc holds no .synthedit files -- the browser would be empty"
 }
 
 # --- stage the bundle ------------------------------------------------------
@@ -154,7 +159,16 @@ if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -F
 $contents = Join-Path $stage "$BUNDLE\Contents"
 New-Item -ItemType Directory -Force -Path (Join-Path $contents $ARCH_DIR) | Out-Null
 Copy-Item -LiteralPath $binSrc -Destination (Join-Path $contents "$ARCH_DIR\$BUNDLE") -Force
-Copy-Item -LiteralPath $resSrc -Destination (Join-Path $contents 'Resources') -Recurse -Force
+
+# Assemble Contents\Resources\ from the known items picked out of $resSrc
+# above, not by copying that directory whole -- see the header and the
+# $ResourceXmls comment for why.
+$resourcesOut = Join-Path $contents 'Resources'
+New-Item -ItemType Directory -Force -Path $resourcesOut | Out-Null
+foreach ($xml in $ResourceXmls) {
+    Copy-Item -LiteralPath (Join-Path $resSrc $xml) -Destination (Join-Path $resourcesOut $xml) -Force
+}
+Copy-Item -LiteralPath $prefabs -Destination (Join-Path $resourcesOut 'Prefabs') -Recurse -Force
 
 Write-Host "==> staged bundle"
 Write-Host "    $BUNDLE\Contents\$ARCH_DIR\$BUNDLE"
