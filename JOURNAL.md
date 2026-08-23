@@ -8,6 +8,130 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — windows — S41: nothing ever closed a platform issue, and the option the row favoured would not have helped (interactive, Jeff directing)
+
+**Did:** S41 — the CI mechanism that files a `platform:<p>` issue on a red build
+had no other half. Nothing closed one. A break that fixes itself therefore leaves
+a live STEP 1 item, and STEP 1 outranks every backlog row on every box.
+
+### The row named three options and (a) does not work
+
+S41 proposed *"(a) have the issue-filing step re-check the branch's latest run
+before filing, so a transient that has already gone green files nothing"*, and
+said (a) was the one that removes the cost for all three platforms. **It would
+have filed #310 anyway**, which is the issue the row was written about:
+
+```
+08:02:56Z   run 32561242609  main @38bc3068   FAILURE   <- the run that filed #310
+08:04:14Z   #310 filed                                     it WAS the newest run for main
+09:08:46Z   run 32564149915  main @9806401b   success   <- 64 minutes later
+```
+
+At filing time the failing run is the latest run, and the green one does not
+exist yet. There is nothing to re-check. **The row's own Accept describes the
+right thing and (a) was a wrong guess at how to get it** — *"no issue **once the
+following run is green**"* is a statement about a later run, so the step has to be
+on the later run.
+
+### Two more things the issue history says, which the row did not
+
+- **31 issues filed on 2026-08-20 alone**, all `linux`, all closed in a single
+  manual sweep the next day. The de-duplication key is branch+platform, so one
+  persistently broken dependency files a fresh issue for **every branch anyone
+  pushes**. The row frames the cost as "three boxes re-verify one break"; the
+  measured worst case is thirty-one issues in a day.
+- **#306 is still open, for a branch that no longer exists.** `git ls-remote`
+  returns nothing for `tide/mac/M2-ios-configure`. Nothing will ever close it,
+  because the only thing that could is a run on a branch that is gone.
+
+### What shipped
+
+One step, `Close the platform issue on success`, on the same matrix job, keyed on
+the same title the filing step builds. No new permission — the job already has
+`issues: write`.
+
+**Only issues this mechanism could have filed are touched:** exact title match,
+the platform label, and `author.is_bot`. Checked against real data rather than
+assumed —
+
+```
+#310  is_bot=true   app/github-actions     <- auto-filed, may be auto-closed
+#306  is_bot=true   app/github-actions     <- same
+#314  is_bot=false  tide-rack-bot          <- hand-filed by an agent, never touched
+```
+
+`is_bot` rather than a login string because `gh` has changed the form it renders
+for an app before, and because it is the property that actually matters.
+
+### Demonstrated on real runs, which is what the Accept asks for
+
+Throwaway branch `tide/_test/s41-close-verification`, a deliberate
+`message(FATAL_ERROR)` in the root `CMakeLists.txt`, pushed:
+
+```
+00:52:57Z  #322 filed  Build failure on linux — tide/_test/s41-close-verification
+00:53:20Z  #323 filed  Build failure on macos — tide/_test/s41-close-verification
+```
+
+Break reverted, pushed again:
+
+```
+00:55:07Z  #323 CLOSED  reason=COMPLETED   <- macos job, as it finished
+00:57:05Z  #322 CLOSED  reason=COMPLETED   <- linux job, ~2 min later
+```
+
+**Each platform closed its own issue, independently, while the run was still in
+progress** — windows was still building. That is the shape you want: no
+cross-platform coupling, and no waiting on the slowest job.
+
+The closing comment carries the evidence and the caveat:
+
+> Green on `linux` as of `fd4ccad6e…`, so closing this automatically (BACKLOG S41).
+> **This is evidence about that commit, not proof the reported defect is gone.**
+> A race's normal outcome is success, so if this issue described something
+> intermittent, reopen it.
+
+**Third control, unplanned and better than the two I designed:** the S41 work
+branch's own first run was green on macos with no matching issue, and the step
+logged *"No open CI-filed issue for macos + … — nothing to close"* rather than
+erroring. A step that only ever runs when there is something to close has never
+been tested for the case where there is not.
+
+### What this costs, stated rather than discovered later
+
+The filing step de-duplicates on **open** issues only. A branch that flaps
+red/green/red now files a **second** issue where it used to add a comment to the
+first. That is the right trade — each red is a real occurrence, and one issue per
+occurrence is cheaper than one issue that outlives its cause — but it is a
+behaviour change for an intermittently failing branch, and reopen-instead-of-file
+was considered and dropped: telling "auto-closed by CI" from "closed deliberately
+by a person" needs a marker label to exist, and fighting a human who closed an
+issue on purpose is worse than one extra issue.
+
+**Learned:**
+
+- **An option written into a row is a hypothesis, not a plan.** (a) had been sat
+  there unexamined since the row was filed; ten minutes of `gh api` on the run
+  timeline killed it. The row even contained the timestamps that kill it.
+- **Read the Accept clause as the specification and the options as guesses.**
+  S41's Accept — "no issue once the following run is green" — describes the
+  correct mechanism precisely, and none of its three options implement it.
+- **A mechanism with one half is worse than none, because it looks complete.**
+  Filing worked from the day it was fixed; nobody asked what closed them, and the
+  answer was a person, by hand, in a sweep, once.
+- **Test the boring branch.** The "nothing to close" path is the one that runs on
+  every green build forever, and it was the path I had not thought to exercise.
+
+**Not verified:** the deleted-branch case (#306's class) is untouched — no run
+will ever happen on a branch that is gone, so nothing closes those. That wants a
+sweep in `watchdog.yml` and is a different item; **filed as A33**. And windows
+never files or closes, by the same `matrix.platform != 'win'` condition the
+filing step already carried, which is unchanged.
+
+**Branch/PR:** `tide/win/S41-close-issue-on-green` — TideSynth.
+
+---
+
 ## 2026-08-23 — macos — the AUv3 editor draws (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
