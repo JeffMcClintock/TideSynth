@@ -47,6 +47,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Byte-identity to a source is worth asserting mechanically.
 - A branch can be stranded because of what it contains, not because someone forgot.
 
+**linux — STEP 1: #156 verified green on Linux, and the 44 failures reproduce on demand**
+
+- A "NOT VERIFIED on your platform" line in a DONE row is a work item, and nothing points at it.
+- The negative control was one environment variable and it is the whole entry.
+- `gtest_discover_tests` registers a `<target>_NOT_BUILT` placeholder
+- Three quoted pass counts for one suite — 63, 67, 73 — and all three are correct.
+- A scratch worktree is not just tidiness here, it is the test.
+
 **macos — E9: the AU absorbs a rate change, and the pitch is the proof**
 
 - A probe that prints the option it requested is not reporting a measurement.
@@ -75,11 +83,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Two real bugs fixed on the way to the wrong place are still two real bugs.
 - The third instance is the one to generalise from.
 - A blank window has two very different causes and they look identical from outside
-
-**windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)**
-
-- A row that names its own precedent site is most of the fix.
-- Check the cell's own "before doing anything else" instruction before doing anything else.
 
 ## 2026-08-18
 
@@ -1701,13 +1704,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Read the first error, not the loudest.
 - A checkout error that names `.gitmodules` means someone committed a directory.
 
-**linux — S43(ii): the Linux CLAP has an X11 editor. It embeds, the host drives it, and it paints nothing**
+**linux — A34: the scan warning now reports a finding instead of a probe, and S37's inference is corrected**
 
-- A macro that is never defined is worse than a `#if 0`, because it reads as live code.
-- Structure beats pixels on a headless server.
-- The teardown order bug was mine, in the probe.
-- Mixed line endings in one repo.
-- A CMake block inserted next to the right line can still land in the wrong `if()`.
+- A negative grep is only evidence if you know the symbol would be there.
+- "Compare the artifact against a sibling that works" beats any amount of reading.
+- A conservative classifier needs its false branch tested hardest.
+- Splitting "absent" from "empty" was worth the extra case
 
 **windows — S36: the Windows resources move beside the binary, and my first attempt at "beside" was wrong (interactive, Jeff directing)**
 
@@ -1715,9 +1717,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "Drop the `/..`" meant drop it entirely, not shorten it by one segment.
 - A destination change to a build-tree path can force a packaging-script change even when the shipped layout doesn't move.
 
-**linux — A34: the scan warning now reports a finding instead of a probe, and S37's inference is corrected**
+**windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)**
 
-- A negative grep is only evidence if you know the symbol would be there.
-- "Compare the artifact against a sibling that works" beats any amount of reading.
-- A conservative classifier needs its false branch tested hardest.
-- Splitting "absent" from "empty" was worth the extra case
+- A row that names its own precedent site is most of the fix.
+- Check the cell's own "before doing anything else" instruction before doing anything else.
+
+**linux — S43(ii): the Linux CLAP has an X11 editor. It embeds, the host drives it, and it paints nothing**
+
+- A macro that is never defined is worse than a `#if 0`, because it reads as live code.
+- Structure beats pixels on a headless server.
+- The teardown order bug was mine, in the probe.
+- Mixed line endings in one repo.
+- A CMake block inserted next to the right line can still land in the wrong `if()`.

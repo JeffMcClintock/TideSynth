@@ -189,6 +189,170 @@ branches at the start and were never touched.
 
 **Branch/PR:** `tide/win/S44-s27-reference-split` — [#349](https://github.com/JeffMcClintock/TideSynth/pull/349), TideSynth only.
 
+## 2026-08-24 — linux — STEP 1: #156 verified green on Linux, and the 44 failures reproduce on demand
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** took no backlog item. **STEP 1 outranked STEP 2** — there are three open
+`platform:linux` issues, and one of them was actionable. Verified
+[#156](https://github.com/JeffMcClintock/TideSynth/issues/156) on this platform
+and closed it. **Zero product code changed**; this repo gets the two row updates,
+a re-pointed NEXT cell and this entry.
+
+### Why #156 and not the other two
+
+STEP 1 says a platform issue outranks backlog work, so the first job was working
+out which of the three is mine. Written down because the next Linux run will meet
+the same three:
+
+| issue | author | verdict |
+|---|---|---|
+| [#291](https://github.com/JeffMcClintock/TideSynth/issues/291) render references re-baked on the wrong box | Jeff | **not mine** — the fix is [#349](https://github.com/JeffMcClintock/TideSynth/pull/349), open and green from the windows box. Taking it would be the duplicate-work collision STEP 2 exists to prevent. |
+| [#88](https://github.com/JeffMcClintock/TideSynth/issues/88) `SynthEditJuce` misses `Dialogs_editor2.cpp` | bot | **not takeable** — `SE16/SynthEditJuce/` is on neither STEP 5 list, so GATED by default. Not a build break either: the target is deprecated and reachable from no build on any box, so A17's exception does not stretch to it. |
+| [#156](https://github.com/JeffMcClintock/TideSynth/issues/156) ctest 44/67 on Linux from macOS-hardcoded paths | bot | **this one.** Its stated cause was fixed by **S16** + **S42**, and *both rows say in bold "NOT VERIFIED: Windows and Linux"*. The verification is the work. |
+
+STEP 1's bot-issue rule — *"re-verify the finding on your own platform before
+acting on it"* — is the whole item here rather than a preamble to it.
+
+### The measurement
+
+Fresh scratch worktree of `SE16` at `origin/master` **`63ce2bb8e`** (the merge of
+[SynthEdit#74](https://github.com/JeffMcClintock/SynthEdit/pull/74)), overrides
+pointed at scratch worktrees of `SynthEditLib` `fb55275`, `TideSynth` `1364801`,
+`gmpi_ui` `6aa8871`, `GMPI` `83b9de7`. Ninja, Release, GCC.
+
+**The checkout path is the point.** It is
+`.../scratchpad/wref/SE16` — not `~/SE/SE16`, not any developer's checkout, and
+not the path baked into the fixtures. S16's Accept is *"from a checkout at any
+path"*, and a build in the usual place cannot test that clause at all.
+
+Configure **rc=0**. `cmake --build --target dsp_tests` is **327/327, rc=0, 0
+errors** — and pulling in `SynthEditCL` and `cancellation` on its own is S16's
+`add_dependencies` working, which the row says was necessary but not sufficient.
+
+**Both defaults reached the binary, checked with `strings` rather than assumed:**
+
+```
+SE_BUILD_FOLDER_DEFAULT    -> .../scratchpad/build-se16
+SE_UNITTEST_FOLDER_DEFAULT -> .../scratchpad/wref/SE16/UnitTest
+/Users/jeffmcclintock       -> 0 occurrences
+```
+
+**ctest with `SE_BUILD_FOLDER` and `SE_CANCELLATION_FOLDER` deliberately unset:**
+
+```
+100% tests passed out of 73
+```
+
+**rc=0, stable across two consecutive runs.** Zero `not found` lines, zero
+`32512`, and **zero references to the dead `/Users/jeffmcclintock/` checkout** —
+against the 536 S42 measured mid-arc on macOS.
+
+### The negative control, which is what makes the green mean anything
+
+A suite that cannot fail reports 100% for the same reason a fixed one does. So,
+same binary, same run, one variable:
+
+| `SE_BUILD_FOLDER` | result |
+|---|---|
+| unset (the CMake default) | **73/73 pass, rc=0** |
+| `/Users/jeffmcclintock/SynthEdit/build/` | **44 failed of 73, rc=8** |
+
+**44 is the exact number in #156's title.** The issue's headline failure
+reproduces on demand and disappears on demand, and the variable is the one thing
+S16 changed.
+
+One difference from #156's era, recorded because the next person will grep for
+the old signature and not find it: the failure no longer surfaces as `system()`
+returning `32512`. S16 added an explicit existence check, so
+`Basics.Cancellation_Utility_Exists` and `TestUI.CancellationUtilExists` fail
+first and name the missing helper. Better diagnostic, different string.
+
+### The one red I had to chase, and it was not a defect
+
+The first ctest run was **63/64 with `ui_tests_NOT_BUILT` failing**, which looks
+exactly like a broken target. It is `gtest_discover_tests`' placeholder for
+`ui_tests` — a `gmpi_ui` target registered at configure time that I had never
+built, because I built `--target dsp_tests` and nothing else. Building `ui_tests`
+(7/7, rc=0) turned 64 tests into 74 and the suite green.
+
+Worth separating the two numbers, because they are both quoted in this project
+and they are not the same suite: **`dsp_tests` is 63 of 63 here, which is exactly
+the 63 the macOS run measured** — same size, both platforms, which is stronger
+agreement than a pass rate. The 73 is `dsp_tests` + `ui_tests`; one further test
+is `Disabled`. **#156's own "67" is a third number** from a differently-configured
+tree, so do not read a mismatch against it as a regression.
+
+`synth_ui_tests` was **not** generated: `GMPI_UI_TESTS_FOLDER` defaults to
+`C:/SE/gimpi_ui_tests`, and this box's clone is at `~/SE/gimpi_ui_tests`. Not
+part of this issue; noted so nobody reads its absence as breakage.
+
+### Both default branches build on Linux — no platform issue to file
+
+STEP 3 asks every run that builds anything to say whether its platform's default
+branch also builds, and this run built two trees, so both answers are first-hand
+rather than inherited from CI:
+
+| tree | result |
+|---|---|
+| `SE16` `origin/master` `63ce2bb8e` | `dsp_tests` chain **327/327** + `ui_tests` **7/7**, rc=0, 0 errors |
+| `TideSynth` `origin/main` `1364801` | **483/483, rc=0, 0 errors**, all four Linux artifacts |
+
+The TIDE artifacts, from an unmodified `main`: `TIDE-Rack` (standalone),
+`TIDE-Rack.clap`, `TIDE-Rack.gmpi`, and the `TIDE-Rack.vst3` bundle carrying
+`TIDE-Rack.so`. **So there is no `platform:linux` build break to file**, and the
+three open Linux issues are all about tests and packaging rather than compilation.
+
+**Verified:** configure rc=0; `dsp_tests` 327/327 rc=0; `ui_tests` 7/7 rc=0;
+ctest 73/73 rc=0 twice; `strings` control on the binary; the 44-failure negative
+control; TIDE's own default branch built (below).
+
+**Not verified:**
+
+- **Windows.** Both S16 and S42 still say "NOT VERIFIED" for it and this run does
+  not change that. The rows now say Linux is done and Windows is not.
+- **`synth_ui_tests`**, for the folder-default reason above.
+- **`SE16`'s full tree.** I built the `dsp_tests` and `ui_tests` chains, not all
+  of `SE16`, so this says nothing about `SynthEditWayland` or #88.
+
+**Learned:**
+
+- **A "NOT VERIFIED on your platform" line in a DONE row is a work item, and
+  nothing points at it.** S16 and S42 both carried one for a day. The thing that
+  surfaced it was not the backlog — it was an open `platform:{PLATFORM}` issue
+  describing the same defect, which STEP 1 forces every run to read first.
+- **The negative control was one environment variable and it is the whole
+  entry.** Everything else here is "the tests pass", which is what a suite with
+  its fixtures missing also reports once it stops being able to fail. Reproducing
+  #156's own 44 is what turns that into a measurement.
+- **`gtest_discover_tests` registers a `<target>_NOT_BUILT` placeholder**, so a
+  partial build produces a red test that names a target rather than a defect.
+  Building one target and running the whole suite will always look like this.
+- **Three quoted pass counts for one suite — 63, 67, 73 — and all three are
+  correct.** They differ by which targets the tree generated. Quote the target
+  with the number or the next run reads a configuration difference as a
+  regression.
+- **A scratch worktree is not just tidiness here, it is the test.** "From a
+  checkout at any path" is unfalsifiable from the developer's own checkout.
+
+**Next:**
+
+1. **Windows is the remaining half of S16/S42.** Same recipe, one command, and
+   the negative control transfers unchanged.
+2. **#88's `SynthEditJuce` half needs an owner who can say "by inspection"** —
+   it is one line, in a GATED path, in a target no box builds.
+3. **S23 remains this box's take-target** and needs no ruling; the linux NEXT
+   cell is re-pointed at it and says why S43(ii) and S37 are no longer options.
+
+**Machine left clean.** Five throwaway worktrees under the session scratchpad,
+one per repo, plus two scratch build trees. **Nothing was built in any of Jeff's
+checkouts** and `~/SE/build` was not touched. No compositor was started, nothing
+was installed, and no plug-in was copied anywhere. All six repos were clean and on
+their default branches at the start and are back on them at the end.
+
+**Branch/PR:** `tide/linux/issue-156` — TideSynth only: the S16 and S42 rows, the
+linux NEXT cell, and this entry. **No product code change in any repo.**
+
 ## 2026-08-24 — macos — S35: the scanner searches both plug-in domains now (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
@@ -838,71 +1002,6 @@ branches and clean. Nothing installed.
 [GMPI_Wrappers#16](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/16) now
 carries the controller fix as a second commit; this repo gets the probe's
 screenshot dump plus the row and this entry.
-
-## 2026-08-23 — windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)
-
-**Did:** S36 confirmed merged and flipped to DONE — [#339](https://github.com/JeffMcClintock/TideSynth/pull/339)
-landed while this session's sync ran. Then took **S34** off the `any` queue: two
-unguarded `plugs.back()` calls on `std::vector<UPlug*>`, GATED (`SynthEditLib`),
-takeable here because this is interactive with Jeff directing.
-
-### S34
-
-Both sites fault at exactly **-8** when `plugs` is empty — `data[-1]` on an
-8-byte pointer element, not a null-pointer read, so no null check catches it.
-Same class the fleet already fixed once at -16 for `ClassicControlGuiBase.cpp`'s
-16-byte `widgets` elements (**U2d**). The row named both sites, the exact
-mechanism, and a third sibling (`ug_oversampler.cpp:337`) that already guards
-the identical pattern — nothing here needed re-deriving, only applying.
-
-`ug_adder2.cpp:81` — first line of `NewConnection()`, TIDE's automatic input
-summing, reachable whenever a graph is built from a restored patch with an
-empty pin list, which is exactly what a missing bundle resource causes.
-`ug_feedback_delays.cpp:72` — `BypassFeedbackModule()`, identical shape.
-
-**Fix:** guard, one loud stderr line naming what will not work, return rather
-than crash — `ClassicControlGuiBase.cpp`'s own established pattern, and its
-comment states the rule this copies: *"a host where those don't fire must not
-bring the whole process down. Loud, not silent."*
-
-**Verified by building, per the row's own Accept** — `SynthEditCL` (this
-repo's Release config is a shared library, so TIDE building alone would not be
-evidence): a scratch Ninja tree, `SYNTHEDITLIB_FOLDER_OVERRIDE` on the fix
-branch, `262/262` targets, rc=0, zero errors. Both new stderr strings read back
-out of the built `SynthEditCL.exe` verbatim. Smoke-ran the exe: scans modules,
-exits cleanly on an unrecognised verb, no crash.
-
-**Not verified:** neither path was exercised at runtime with a genuinely empty
-`plugs` vector — the row itself frames this as latent UB surfaced by
-investigation (S23), not a currently-reproducing crash, so the fix is
-defensive against a reachable condition rather than a reproduction of a live
-symptom.
-
-### The stale-row catch
-
-The win NEXT cell (written by this box a session ago) still said *"S36 is
-IN-REVIEW, no PR link yet — check whether it has one and whether it merged
-before doing anything else with it."* It had, ten minutes before this run
-started. Confirmed via `gh pr view` before touching anything else — flipping a
-row on verified PR state, not on memory of having pushed it, per the standing
-lesson this backlog's own history keeps recording.
-
-**Learned:**
-
-- **A row that names its own precedent site is most of the fix.** S34 named
-  both defect locations, the exact fault address to expect, and a working
-  sibling to copy. The work was verifying and applying, not investigating.
-- **Check the cell's own "before doing anything else" instruction before doing
-  anything else.** It was there specifically so this wouldn't be skipped.
-
-**Next:** the `any` queue still carries several other GATED rows (S5, S3g,
-S22, S18) that want either Jeff or another interactive session; none was
-sized as tightly as S34 was.
-
-**Branch/PR:** `tide/win/S34-guard-record` — TideSynth, bookkeeping only.
-Product change is [SynthEditLib#34](https://github.com/JeffMcClintock/SynthEditLib/pull/34), not merged.
-
----
 
 
 ## Rotation — do this as part of STEP 4, every run
