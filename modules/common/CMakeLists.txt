@@ -114,6 +114,11 @@ if(TIDE_RENDER_PREVIEW)
     tide_render_strict_fp(tide_render_regression)
     set_target_properties(tide_render_regression PROPERTIES FOLDER "tests")
 
+    # The ROOT of the reference tree, deliberately -- the test descends into
+    # tests/references/macos or tests/references/windows-linux for itself. Doing
+    # the selection here would fix it for ctest and leave CI and a developer's
+    # own shell to repeat it, which is how the split first shipped with only the
+    # CI caller updated (S44).
     add_test(NAME render_regression
         COMMAND tide_render_regression
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/references"

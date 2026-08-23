@@ -544,6 +544,187 @@ registered against `tide/mac/S27-render-ci` — see S44.
 **Branch/PR:** `tide/mac/E9-au-rate-verify` — [#347](https://github.com/JeffMcClintock/TideSynth/pull/347). TideSynth: one new test probe, one
 flag on an existing script, the backlog and this entry. No product code change.
 
+## 2026-08-24 — windows — S44: the stranded reference split, landed and verified on the platform that could not check it
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude desktop **1.34493.1** (Claude Code 2.1.237) · as **tide-rack-bot** (both paths)
+
+**Did:** took **S44**. Both NEXT cells that could point here — `win` and `any` —
+named it as the single ungated row left on the board, filed by the mac box
+eighteen hours earlier while it cleaned up after E9. STEP 1 clear (no open
+`platform:win` issues), STEP 1.5 clear (no open PR from `tide/win/**`).
+
+### The row's premise, and the thing it could not know
+
+`origin/tide/mac/S27-render-ci` carries the per-platform reference split whose
+PR [#331](https://github.com/JeffMcClintock/TideSynth/pull/331) had already
+merged when the follow-ups were pushed onto it. Its own commit message ends:
+
+> Not verified: Windows and Linux have not yet run against `windows-linux/`.
+> That is the next CI run, and the 0.083% figure predicts both pass.
+
+**This is one of those two platforms.** The claim was measurable here and nobody
+had measured it, so that came before deciding what to do with the branch.
+
+### The measurement
+
+`tide_render_regression` built from `main` at `7b34d8155`, MSVC 14.51 x64,
+Release, in a scratch tree.
+
+| references | result |
+|---|---|
+| **`windows-linux/` from the stranded branch** | **10 of 10 match, rc=0** — three consecutive runs identical |
+| `main`'s current flat `tests/references/` (the macOS-arm64 bake from `246399a`) | **5 of 10 FAIL** |
+
+The failing five, against limits of 0.800% and delta 40:
+
+    knob      35.359%  worst delta 142 at (24,39)
+    materials 34.847%  worst delta  63 at (117,37)
+    shapes    67.014%  worst delta  46 at (126,40)
+    glass     54.562%  worst delta  53 at (38,27)
+    glow      61.528%  worst delta  62 at (82,12)
+
+All five `-fast` variants pass at 0.000% on both sets, which is the stranded
+commit's own claim that Fast is bit-identical everywhere.
+
+**The prediction is confirmed to the digit, not merely in direction.** The
+stranded commit measured Windows-vs-Linux as *"0.083% of pixels, worst delta 10
+— glass, glow, knob and materials are 0.000%, only `shapes` moves"*. This box,
+against images baked on an **ubuntu** runner, reads glass/glow/knob/materials at
+**0.000%** and `shapes` at **0.083%, worst delta 10**. Same scene, same figure,
+same delta. And the 35–67% macOS gap it quotes reproduces here as 34.8–67.0%.
+
+**So `main`'s render job is red on Windows today** — the Windows half of
+[#291](https://github.com/JeffMcClintock/TideSynth/issues/291), which was
+labelled `platform:linux` and is not only Linux's.
+
+### The defect the stranded commit had, which is why this is not a straight cherry-pick
+
+It put the platform choice in `build.yml`'s render matrix as a `refs:` column
+and updated **only that caller**. There are three:
+
+    .github/workflows/build.yml:611       "$exe" tests/references …
+    modules/common/CMakeLists.txt:119     add_test(… "${CMAKE_CURRENT_SOURCE_DIR}/tests/references" …)
+    modules/common/README.md:277          tide_render_preview --references modules/common/tests/references
+
+After the split `tests/references` holds no PNGs at all — only two
+subdirectories — so `ctest` would have gone red comparing against an empty
+directory, and a developer following the README would have re-baked into it.
+
+**Selection now lives in `tide_render_regression` itself.** Hand it the root and
+it descends into `macos` or `windows-linux` for the platform it was built for;
+hand it a set and it uses that, which is what keeps `--references .../macos`
+working for re-approving an intended look change. One change fixes all three
+callers, and **`.github/workflows/build.yml` needs no edit at all** — which is
+also what puts this inside what a scheduled run may push, since the bot token
+deliberately lacks `workflow` scope. **The stranded commit's shape was
+unlandable from a scheduled run on any box**, and that is not a small detail:
+it is why the branch sat.
+
+### Why not simply open a PR from the branch, which is what the row asks for first
+
+It does not merge. `origin/tide/mac/S27-render-ci` conflicts with `main` in
+three files — `.github/workflows/build.yml`, `BACKLOG.md`, and `JOURNAL.md`,
+which has rotated since. Resolving it means committing to `build.yml`, and no
+scheduled run on any box can push that. The PR would have been unmergeable by
+construction and unfixable by the fleet that opened it.
+
+So the substance lands instead, with the expensive part carried over verbatim:
+**all twenty PNGs are byte-identical to their sources**, hashed against
+`origin/main` (the ten `macos/`) and `origin/tide/mac/S27-render-ci` (the ten
+`windows-linux/`). Nothing was re-baked here. The `windows-linux` images came
+off a real ubuntu runner, and reconstructing them on this box would have
+silently replaced a Linux bake with a Windows one — the two agree to 0.083%,
+which is close enough that the substitution would not have shown up in any test
+and far enough that it would have been the wrong thing to ship.
+
+**The branch is deliberately left alone.** It is another session's, the standing
+rule is not to delete other sessions' branches, and its commits are pushed so no
+rewrite is permitted. It is superseded and wants a human to delete it.
+
+**Verified:**
+
+- 10/10 against `windows-linux/`, rc=0, three consecutive runs byte-identical.
+- The **exact absolute argument `add_test()` passes** resolves to `…/windows-linux` and passes 10/10.
+- The set named directly (what the README documents) — same.
+- **Negative control:** `tests/references/macos` named directly → **5 of 10 FAIL**. The resolver does not quietly fall through to the set that would pass, which is the failure a "look for the right directory" fallback most easily hides.
+- Twenty reference PNGs hashed against their two sources; all twenty identical.
+- Clean rebuild, no warnings.
+
+### CI closed all three of the gaps this entry was going to list as unverified, and the prediction held
+
+The PR's own run — [#349](https://github.com/JeffMcClintock/TideSynth/pull/349),
+all three render jobs **pass**, `main`'s `build.yml` line unchanged:
+
+| job | resolved set | result |
+|---|---|---|
+| **render-windows** | `tests/references/windows-linux` | 10/10 — `shapes` **0.083%, delta 10**, everything else 0.000% |
+| **render-linux** | `tests/references/windows-linux` | 10/10 — **0.000% on all ten**, worst delta 2 |
+| **render-macos** | `tests/references/macos` | 10/10 — `knob` 0.023% delta 17, everything else 0.000% |
+
+**Three things fall out of that table, and none of them were guaranteed.**
+
+**The Linux prediction was right for the stated reason.** I wrote before the run
+that Linux should read 0.000% rather than Windows' 0.083%, because the images
+came off an ubuntu runner and Linux is comparing against its own bake. It reads
+**0.000% on all ten**. The 0.083% is specifically the Windows-vs-Linux gap, not
+noise in the set.
+
+**Two different Windows machines agree exactly.** This box (MSVC 14.51, local)
+and `windows-latest` both read `shapes` at **0.083%, worst delta 10** and
+everything else at 0.000%. Same figure to three decimals on unrelated hardware,
+which is the reproducibility the whole image-test design claims and rarely gets
+to demonstrate across machines.
+
+**`macos` is picked and passes**, so the `#if defined(__APPLE__)` arm is measured
+rather than reasoned — and it is not a trivial pass: `knob` moves 0.023% at delta
+17 on `macos-latest` against references baked on a Mac, so that set has real
+runner-to-runner variation and still lands well inside the limits.
+
+**And the workflow was never touched.** Three platforms resolved three sets from
+one unchanged command line, which is the whole claim of putting the selection in
+the binary.
+
+**Not verified:**
+
+- **`ctest` end-to-end.** `modules/common` alone registers `add_test` without ever calling `enable_testing()` — that lives in `modules/CMakeLists.txt:58`, one level up — so `ctest` in a standalone `modules/common` build reports that no tests were found. Pre-existing, unrelated to this change, and not worth a row: the parent build is the one that runs it. I verified the argument instead of the harness.
+
+**Learned:**
+
+- **A "not verified" line in a commit message is an assignment, and the box it is addressed to may never read it.** This one named Windows and Linux explicitly, sat for a day, and was found only because a mac run tripped over the branch while tidying. The verification cost twenty minutes once someone looked.
+- **Count the callers before moving a path.** The split moved a directory and updated one of three consumers. Nothing catches that — `ctest` is not in the workflow that was edited, and the workflow is not in the build that runs `ctest`. Grepping the moved path across the tree is one command and it is the whole check.
+- **A resolver needs its wrong branch tested, not its right one.** "Root resolves to `windows-linux` and passes" is also what a resolver that ignores its argument entirely would print. Pointing it at `macos` and watching five scenes fail is what separates those.
+- **Byte-identity to a source is worth asserting mechanically.** Twenty images that "look right" and twenty images hashed against the two commits they came from are different claims, and only the second survives someone asking where a picture came from six weeks later.
+- **A branch can be stranded because of what it contains, not because someone forgot.** This one holds a `.github/workflows/**` edit, so no scheduled run could ever have rebased or merged it. Reading the credential's limits explains a stall that otherwise looks like carelessness.
+
+**STEP 4 bookkeeping, all on verified PR state rather than memory:**
+
+- **E9** IN-REVIEW → DONE ([#347](https://github.com/JeffMcClintock/TideSynth/pull/347) merged).
+- **A34** IN-REVIEW → DONE ([#338](https://github.com/JeffMcClintock/TideSynth/pull/338) merged).
+- **S41** IN-REVIEW → DONE ([#327](https://github.com/JeffMcClintock/TideSynth/pull/327) and [#315](https://github.com/JeffMcClintock/TideSynth/pull/315) merged).
+- **E10 was deliberately NOT flipped.** Its TideSynth PR [#346](https://github.com/JeffMcClintock/TideSynth/pull/346) merged but [SynthEditLib#35](https://github.com/JeffMcClintock/SynthEditLib/pull/35) is still open, and IN-REVIEW means *every* linked PR.
+- The `win` cell's own instruction — check S22's PR state — was followed: [#344](https://github.com/JeffMcClintock/TideSynth/pull/344) merged and the row already read DONE.
+
+**Next:**
+
+1. **[#291](https://github.com/JeffMcClintock/TideSynth/issues/291) closes when this merges** — its remedy is exactly this PR, and all three render jobs are green on the branch. The issue is `platform:linux`-labelled and was never only Linux's; Windows fails five of the same ten scenes. Commented there with the numbers rather than closing it, since it is Jeff's issue and the fix has not landed yet.
+2. **Any future intended look change now has to be re-approved in BOTH sets**, on a machine of each family, or the platform that was not re-baked goes red. The README says so; nothing enforces it, and that is the obvious next defect this arrangement can produce.
+3. **`origin/tide/mac/S27-render-ci` wants deleting by a human** once this merges, along with the mac-box worktree registered against it.
+4. **The `any` queue now has no ungated row at all.** Both cells say so; the next scheduled run on any box should expect to find nothing takeable and stop rather than invent work.
+
+**Machine left clean.** All work in a throwaway worktree and build tree under the
+session scratchpad; nothing was built in `C:\SE\TideSynth`. **Two pre-existing
+things on this box were left alone, both predating this run:** `C:\SE\TideSynth`
+has a modified `tools/tidepanel-screenshot.synthedit` — real content, not CRLF
+churn (`git diff --ignore-all-space` shows the `PanelLocationZoom` and
+`panelRect` values changing), so it is the developer's work in progress; and a
+registered worktree at `C:\SE\wt345` on `tide/linux/S37-clap-collision`, clean,
+whose PR [#345](https://github.com/JeffMcClintock/TideSynth/pull/345) has merged
+and whose branch is gone from origin. Neither is this run's. `SE16`,
+`SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were clean and on their default
+branches at the start and were never touched.
+
+**Branch/PR:** `tide/win/S44-s27-reference-split` — [#349](https://github.com/JeffMcClintock/TideSynth/pull/349), TideSynth only.
+
 ## 2026-08-23 — macos — E10: the host-crashing chunk is fixed (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
@@ -842,189 +1023,6 @@ platform's only own-boxed row and is GATED.
 
 **Branch/PR:** `tide/win/S22-record` — TideSynth, bookkeeping only. Product
 change is [SynthEdit#73](https://github.com/JeffMcClintock/SynthEdit/pull/73), not merged.
-
----
-
-## 2026-08-23 — linux — the CLAP editor PAINTS, and the cause was M4's defect on a third wrapper
-
-**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
-
-Follow-up to this morning's S43(ii) entry, which ended *"it embeds, the host
-drives it, and it paints nothing"*. Jeff: *"keep going. add temporary logging if
-it helps."* It helped, and the answer came in one run.
-
-**A separate entry rather than an edit to that one** — it merged as
-[#340](https://github.com/JeffMcClintock/TideSynth/pull/340) while I was working,
-and a log you edit is not a log.
-
-### The logging, and what it killed
-
-Three temporary probes in `gmpi_ui/backends/DrawingFrameX11.cpp`'s `present()`:
-entry state, every early-return, and — the one that mattered — the client's own
-output surface.
-
-**`present()` was doing everything right:**
-
-    present#1: display=.. window=.. client=.. dirtyAll=1 w=1100 h=600
-    present: calling client->render
-    present: BLIT 1100x600 at 0,0 via XShmPutImage
-
-**And the client was writing an entirely blank surface:**
-
-    client surface: 1100x600 stride=1104 nonzero-samples=0 first=0x00000000
-
-**So windowing was never the problem.** Not the linking, not the embedding, not
-the size, not the pump. And the two bugs I had already found and fixed on the way
-— `Editor_CLAP::width/height` stuck at their `{100}` defaults, and `arrange()`
-never called — were both real and neither was ever going to move this.
-
-### The cause: `wrapper/CLAP` never created the plug-in's Controller at all
-
-`PluginSubtype::Controller` appeared **nowhere** in the CLAP wrapper directory.
-AU3 gained exactly this in **M4**; VST3 has always had it.
-
-The chain is written out in `AU3_Wrapper.mm` by whoever fixed it there, and it is
-worth quoting because it predicts precisely what I measured: with no
-`initialize()` the plug-in controller never publishes its `seApp` pointer through
-parameter 0, so the editor's `notifyPin(0)` arrives with a **zero-byte payload
-instead of 8**, so the editor's guard on that size fails, so its whole GUI is
-never constructed.
-
-Created and initialised against the wrapper's controller holder, and **held** on
-`Processor_CLAP` rather than merely initialised — it publishes state through the
-holder and must outlive the editor that reads it, the same reason `AU3Core` holds
-its one.
-
-**Same probe, same display, after:**
-
-    client surface: 1100x600 nonzero-samples=41250 first=0x29102910
-    window 0x600002 content: 64 distinct colours sampled  <-- IT PAINTED
-
-The captured window shows the **module browser category tree** — All, Controls,
-Conversion, Diagnostic, Effects, Experimental, Filters, Flow Control,
-Input-Output, Logic, Math, MIDI, Modifiers, Old, Special, Sub-Controls, TiDE,
-Waveform — the module list beneath it, and the **rack rails with their mounting
-holes**. That is TIDE Rack's editor, in a CLAP host, on Linux.
-
-**Housekeeping.** All diagnostics were temporary: `grep TIDEDIAG` is clean in all
-six repos, and the `gmpi_ui` worktree they lived in is back to `origin/main` with
-an empty `git status` — nothing of that repo is in either PR. Whole TIDE tree
-**rc=0**, all four Linux artifacts.
-
-**Learned:**
-
-- **Instrument the LAST link first.** I spent the session on windowing — linking,
-  embedding, sizing, the event loop — and the answer was one line showing the
-  client's own surface was all zeroes. `nonzero-samples=0` on the first run would
-  have pointed at content immediately and skipped every windowing theory. The
-  chain here is long and I started at the end I had just built.
-- **Two real bugs fixed on the way to the wrong place are still two real bugs.**
-  The `{100}` size and the missing `arrange()` were genuine, and fixing something
-  true is not evidence you are on the path to the cause.
-- **The third instance is the one to generalise from.** AU3 (M4), now CLAP; VST3
-  was always correct. *"Does this wrapper create the plug-in's `<Controller/>`?"*
-  is one grep, and it is now the first question to ask of any wrapper whose
-  editor misbehaves.
-- **A blank window has two very different causes and they look identical from
-  outside** — nothing drew, or something drew nothing. Reading the client's
-  surface separates them in one measurement; everything upstream of it cannot.
-
-**Not verified:**
-
-- **`state->save` still returns 86 bytes**, and my earlier inference that this
-  meant "no document" was **wrong** — the editor plainly has content now. What 86
-  bytes actually represents is unmeasured, and I have removed the claim rather
-  than repair it.
-- **`guiShow`/`guiHide` are still unimplemented**, so `show()` returns false from
-  the clap-helpers base. The editor draws regardless, because
-  `X11DrawingFrame::open()` maps its own window — so this is a gap, not a
-  blocker, and a host that respects `show()` may still hide it.
-- **macOS and Windows were not built.** The controller creation is NOT inside a
-  platform guard — it runs on every platform — so those two are the ones to
-  check before this merges. On Linux it is measured; elsewhere it is reasoning.
-- **No real DAW.** Everything is our own probe on a headless Xwayland.
-
-**Next:**
-
-1. **S37 is live for the first time.** The editor draws, so it reads
-   `getBundleContentsFolder() / "Resources"` — the shared-folder collision that
-   row describes is finally observable and its options finally sizable.
-2. **Build the CLAP on macOS and Windows** before merging, since the controller
-   change is unguarded.
-3. **A real DAW on Linux** — Bitwig or Reaper — is the honest next test.
-
-**Machine left clean.** Three throwaway worktrees under the session scratchpad,
-one per repo; the `gmpi_ui` one is unmodified and exists only because the
-diagnostics lived there. Headless weston stopped. All six repos on their default
-branches and clean. Nothing installed.
-
-**Branch/PR:** `tide/linux/S43ii-clap-x11` in both repos —
-[GMPI_Wrappers#16](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/16) now
-carries the controller fix as a second commit; this repo gets the probe's
-screenshot dump plus the row and this entry.
-
-## 2026-08-23 — windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)
-
-**Did:** S36 confirmed merged and flipped to DONE — [#339](https://github.com/JeffMcClintock/TideSynth/pull/339)
-landed while this session's sync ran. Then took **S34** off the `any` queue: two
-unguarded `plugs.back()` calls on `std::vector<UPlug*>`, GATED (`SynthEditLib`),
-takeable here because this is interactive with Jeff directing.
-
-### S34
-
-Both sites fault at exactly **-8** when `plugs` is empty — `data[-1]` on an
-8-byte pointer element, not a null-pointer read, so no null check catches it.
-Same class the fleet already fixed once at -16 for `ClassicControlGuiBase.cpp`'s
-16-byte `widgets` elements (**U2d**). The row named both sites, the exact
-mechanism, and a third sibling (`ug_oversampler.cpp:337`) that already guards
-the identical pattern — nothing here needed re-deriving, only applying.
-
-`ug_adder2.cpp:81` — first line of `NewConnection()`, TIDE's automatic input
-summing, reachable whenever a graph is built from a restored patch with an
-empty pin list, which is exactly what a missing bundle resource causes.
-`ug_feedback_delays.cpp:72` — `BypassFeedbackModule()`, identical shape.
-
-**Fix:** guard, one loud stderr line naming what will not work, return rather
-than crash — `ClassicControlGuiBase.cpp`'s own established pattern, and its
-comment states the rule this copies: *"a host where those don't fire must not
-bring the whole process down. Loud, not silent."*
-
-**Verified by building, per the row's own Accept** — `SynthEditCL` (this
-repo's Release config is a shared library, so TIDE building alone would not be
-evidence): a scratch Ninja tree, `SYNTHEDITLIB_FOLDER_OVERRIDE` on the fix
-branch, `262/262` targets, rc=0, zero errors. Both new stderr strings read back
-out of the built `SynthEditCL.exe` verbatim. Smoke-ran the exe: scans modules,
-exits cleanly on an unrecognised verb, no crash.
-
-**Not verified:** neither path was exercised at runtime with a genuinely empty
-`plugs` vector — the row itself frames this as latent UB surfaced by
-investigation (S23), not a currently-reproducing crash, so the fix is
-defensive against a reachable condition rather than a reproduction of a live
-symptom.
-
-### The stale-row catch
-
-The win NEXT cell (written by this box a session ago) still said *"S36 is
-IN-REVIEW, no PR link yet — check whether it has one and whether it merged
-before doing anything else with it."* It had, ten minutes before this run
-started. Confirmed via `gh pr view` before touching anything else — flipping a
-row on verified PR state, not on memory of having pushed it, per the standing
-lesson this backlog's own history keeps recording.
-
-**Learned:**
-
-- **A row that names its own precedent site is most of the fix.** S34 named
-  both defect locations, the exact fault address to expect, and a working
-  sibling to copy. The work was verifying and applying, not investigating.
-- **Check the cell's own "before doing anything else" instruction before doing
-  anything else.** It was there specifically so this wouldn't be skipped.
-
-**Next:** the `any` queue still carries several other GATED rows (S5, S3g,
-S22, S18) that want either Jeff or another interactive session; none was
-sized as tightly as S34 was.
-
-**Branch/PR:** `tide/win/S34-guard-record` — TideSynth, bookkeeping only.
-Product change is [SynthEditLib#34](https://github.com/JeffMcClintock/SynthEditLib/pull/34), not merged.
 
 ---
 

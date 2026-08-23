@@ -271,11 +271,29 @@ decide which draw is which and the references stop being reproducible across
 toolchains. This is not hypothetical — it was written that way once, and the
 image test caught it the same minute.
 
+### Two reference sets, one per platform family
+
+`tests/references/` holds `macos/` and `windows-linux/`, and
+`tide_render_regression` picks its own — hand it the root and it descends into
+the set for the platform it was built for. Nothing calling it needs to know
+which; CI, `ctest` and a shell all pass the same path.
+
+Two sets and not three is a measurement, made in S27 and re-measured on Windows
+in S44: Windows and Linux renders of the same commit differ from each other by
+**0.083% of pixels, worst delta 10** — inside the limits with an order of
+magnitude to spare — while both differ from macOS by **35–67%** of pixels at
+deltas of 46–142. macOS is the outlier; Windows and Linux share a set.
+
 When a change to a look is **intended**:
 
 ```bash
-tide_render_preview --references modules/common/tests/references
+tide_render_preview --references modules/common/tests/references/macos
 ```
+
+The preview tool *writes* references, so unlike the test it takes the set
+explicitly — substitute `windows-linux` on Windows or Linux. **A look change has
+to be re-approved in both sets**, on a machine of each family, or the platform
+you did not re-bake goes red on the next CI run.
 
 Then *look at the new images* before committing them, and commit them alongside
 the change that caused them. An approved reference is only as good as the eye

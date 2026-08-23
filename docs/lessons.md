@@ -63,6 +63,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A fixture saved for one format can drive another without being re-authored
 - `pluginkit -a <appex>` registers an AUv3 straight out of a build tree
 
+**windows — S44: the stranded reference split, landed and verified on the platform that could not check it**
+
+- A "not verified" line in a commit message is an assignment, and the box it is addressed to may never read it.
+- Count the callers before moving a path.
+- A resolver needs its wrong branch tested, not its right one.
+- Byte-identity to a source is worth asserting mechanically.
+- A branch can be stranded because of what it contains, not because someone forgot.
+
 ## 2026-08-23
 
 **linux — S37 is real: another plugin's uninstall permanently breaks TIDE Rack**
@@ -75,18 +83,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - "Fixed in repo A, filed for repo B" can leave the bug in the repo that taught you about it.
 - A guard needs its positive control run, not just its passing case.
-
-**linux — the CLAP editor PAINTS, and the cause was M4's defect on a third wrapper**
-
-- Instrument the LAST link first.
-- Two real bugs fixed on the way to the wrong place are still two real bugs.
-- The third instance is the one to generalise from.
-- A blank window has two very different causes and they look identical from outside
-
-**windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)**
-
-- A row that names its own precedent site is most of the fix.
-- Check the cell's own "before doing anything else" instruction before doing anything else.
 
 ## 2026-08-18
 
@@ -1728,3 +1724,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The teardown order bug was mine, in the probe.
 - Mixed line endings in one repo.
 - A CMake block inserted next to the right line can still land in the wrong `if()`.
+
+**windows — S34: two guards in SynthEditLib, and a stale row flipped on the way in (interactive, Jeff directing)**
+
+- A row that names its own precedent site is most of the fix.
+- Check the cell's own "before doing anything else" instruction before doing anything else.
+
+**linux — the CLAP editor PAINTS, and the cause was M4's defect on a third wrapper**
+
+- Instrument the LAST link first.
+- Two real bugs fixed on the way to the wrong place are still two real bugs.
+- The third instance is the one to generalise from.
+- A blank window has two very different causes and they look identical from outside
