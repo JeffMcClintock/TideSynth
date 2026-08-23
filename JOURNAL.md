@@ -8,6 +8,59 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — the AUv3 view is asked to paint and paints nothing (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+M4 narrowed by one measurement, and a confound of mine found and removed on the
+way — by Jeff, not by me.
+
+**Instrumented the draw path** — `drawRect`, `invalidateRect`,
+`viewDidMoveToWindow`, view init — in `gmpi_ui/backends/DrawingFrameMac.mm`:
+
+| | standalone | AUv3 |
+|---|---|---|
+| view init | 1100x626 | 1100x600 |
+| in a window | yes | yes |
+| `drawRect` | 3 | **2** |
+| `invalidateRect` | 6 | **0** |
+
+**`drawRect` IS CALLED in the AUv3**, twice, with the full 1100x600 dirty rect,
+on a view that is genuinely in a window. AppKit asks the view to paint; it
+paints nothing. And **`invalidateRect` never fires at all** — nothing upstream
+ever asks for a repaint.
+
+**THE CONFOUND, AND IT WAS A REAL ONE.** Jeff: *"standalone loads the last
+document automatically. plugin should not."* So my comparison was a restored
+patch against an empty rack, and the entire 6-vs-0 asymmetry could have been
+nothing but content-vs-no-content. I had been treating the standalone as a
+clean control and it was not one.
+
+**Removed it by giving the standalone an isolated `HOME`**, so it had no last
+document to restore. It still shows the module browser and a **MIDI-CV module**,
+and still logs invalidateRect x6, drawRect x3. **So a default TIDE Rack is not
+blank**, and the AUv3 showing nothing is a real defect rather than an empty rack
+correctly drawn. The finding survives the control that could have killed it,
+which is the only reason it is worth anything.
+
+**Eliminated so far:** the view, its size (1100x600, measured), its window, the
+wiring (`createNativeView` valid, `initUi` returns, `subviews=1`), the timer
+(main thread, main run loop, fires), and now AppKit's willingness to draw.
+
+**Points at:** the editor CONTENT never initialising, or never signalling a
+change, inside the extension. Consistent with the earlier timer-client
+asymmetry — 3 timers in the standalone, 1 in the AUv3.
+
+**Unconfirmed and not investigated:** the standalone's File > Revert to Plugin
+Defaults appeared to change nothing on screen, and Jeff independently said he is
+unsure it works. Recorded, not chased.
+
+**Housekeeping:** the draw diagnostics lived on a throwaway `gmpi_ui` branch,
+now deleted; `grep TIDEDIAG` is clean. Dev build removed from `/Applications`.
+I also broke the backlog lint once here by EDITING M4's Item column in place
+after #319 merged, instead of prepending — `check-backlog-diff.py` caught it,
+which is exactly its job.
+
 ## 2026-08-23 — macos — TIDE in GarageBand: the editor is blank, and four suspects are dead (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
