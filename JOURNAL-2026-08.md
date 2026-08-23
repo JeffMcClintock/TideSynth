@@ -25748,3 +25748,48 @@ count as CI, from a checkout at any path"* — which S16 alone could not reach.
 root shapes, but only macOS was run.
 
 ---
+
+## 2026-08-23 — macos — E10: the host-crashing chunk is fixed (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Fixed in [SynthEditLib#35](https://github.com/JeffMcClintock/SynthEditLib/pull/35).
+**TIDE's probe crashes REAPER once on purpose every run. It now crashes it zero
+times** — six cases rc=0, no new crash reports written.
+
+**The row had already done the hard part** — it named `BuildDspGraph` returning
+void as the structural defect, listed the sites, and warned that moving one line
+would not do it. All true. It returns `bool` now, four derefs are guarded, and
+both `SynthRuntime` call sites honour the result.
+
+**The round trip is the part worth keeping.** My first version also did
+`generator.reset()` on failure. That MOVED the crash instead of removing it:
+modules register themselves with the master during the build, so destroying it
+left those registrations dangling and `SeAudioMaster::MidiIn` crashed on freed
+memory. The probe still said rc=-11 and I could easily have read that as "the
+fix does not work". What settled it was comparing the two crash reports:
+
+    before   QueryIntAttribute <- ug_container::BuildPatchManager
+             <- SeAudioMaster::BuildDspGraph <- SynthRuntime::prepareToPlay
+    after    SeAudioMaster::MidiIn
+
+Different stacks. The original site WAS closed; I had opened a new one. Dropping
+the reset — leaving the master constructed but unopened, which the "unprepared"
+path already handles — closed both.
+
+**A near miss earlier in the same item.** After the first build I checked for a
+marker string in the installed binary, found none, and nearly concluded my code
+had not been compiled. It had: the marker was inside `_RPT0`, which compiles out
+in Release. The build log naming `[local override]` and compiling
+`SynthRuntime.cpp` was the real evidence. Absence of a debug string proves
+nothing.
+
+**Verified:** all six probe cases rc=0, including the real REAPER chunk as a
+positive control; zero new crash reports across a full run. Jeff's installed
+VST3 was backed up before I replaced it with a test build and restored
+afterwards.
+
+**Not verified:** Windows and Linux — platform-neutral C++, macOS only.
+
+**Follow-up:** the probe now prints *"skeleton: NO LONGER CRASHES -- has E10
+landed?"*, which is its own request to be updated once this merges.
