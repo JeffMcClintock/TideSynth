@@ -165,13 +165,35 @@ clean `main` build rc=0 with all five macOS artifacts.
    the iOS app was installed but never launched and its Audio Unit never opened
    in an iOS host.
 
+### Found while cleaning up: two commits of S27 stranded with no PR
+
+Checking this box for leftover worktrees at the end turned up one belonging to
+another session, on `tide/mac/S27-render-ci` — and that branch is **two commits
+ahead of `origin/main` while its PR [#331](https://github.com/JeffMcClintock/TideSynth/pull/331)
+is MERGED.** The follow-ups landed on a branch whose PR had already closed: **the
+trap STEP 4 documents from #120/#121, hit again a week later.**
+
+**It is not tidy-up — it is the answer S27 was waiting for.** The stranded commit
+is *"two reference sets — macos and windows-linux — selected per platform"*: 24
+files, +207 lines, the reference PNGs split per platform. S27's own history frames
+the open question as *"per-platform references or pinning the math"* and measured
+that only **two** sets are needed, because Linux and Windows agree to three
+decimals. Someone built exactly that and nobody was ever asked to review it —
+and **S27 is marked DONE**, so nothing would have looked again.
+
+Filed as **S44**. Not fixed here: it is another session's branch, the standing
+rule is not to delete other sessions' branches, and STEP 4 forbids rewriting a
+pushed commit — so the only correct move is a PR someone chooses to open.
+
 **Machine left clean.** All work in a throwaway worktree under the session
 scratchpad; nothing was built in `~/Documents/GitHub/TideSynth`. The AUv3 was
 registered from the build tree with `pluginkit -a` and **deregistered with
 `pluginkit -r` afterwards**; nothing was copied to `/Applications` or
 `~/Applications` and no plug-in was installed into `~/Library/Audio/Plug-Ins`.
 All six repos were clean and on their default branches at the start and are back
-on them at the end.
+on them at the end. **One worktree on this box is NOT mine and was left alone:**
+another session's, under `/private/tmp/claude-501/…-GitHub/a3974193…/scratchpad/wref`,
+registered against `tide/mac/S27-render-ci` — see S44.
 
 **Branch/PR:** `tide/mac/E9-au-rate-verify` — [#347](https://github.com/JeffMcClintock/TideSynth/pull/347). TideSynth: one new test probe, one
 flag on an existing script, the backlog and this entry. No product code change.
