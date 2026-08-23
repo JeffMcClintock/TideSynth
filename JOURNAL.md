@@ -8,6 +8,51 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — the mac test suite is green: 63 of 63 (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+S42, the row I filed an hour ago while fixing S16. Fixed in
+[SynthEdit#74](https://github.com/JeffMcClintock/SynthEdit/pull/74).
+
+**The whole arc, one checkout, measured at each step:**
+
+| | as found | after S16 | after S42 |
+|---|---|---|---|
+| failed | 44 | 40 | **0** |
+| passed | 13 | 17 | **63** |
+| refs to the dead checkout | 0 | 536 | **0** |
+
+`63 tests from 16 suites, rc=0`, stable across two consecutive runs.
+
+**The middle column is the whole argument.** Dead-path references appear only
+AFTER S16, because until the harness stopped dying on a missing binary the tests
+never got far enough to load a fixture. One defect was hiding the other, and the
+count barely moved when the first was fixed — 44 to 40 — which is exactly the
+shape that tempts you to call a fix a failure.
+
+**Why not just rewrite the 46 files.** That re-bakes some other machine's path,
+and the format gives no relative affordance: the value is a plug VALUE, a string
+the patch concatenates, not a file reference the loader resolves. So `render2()`
+normalises at run time — any absolute path up to and including a `UnitTest`
+component becomes this checkout's folder. The copy goes NEXT TO the original
+rather than into a temp directory, so anything resolved relative to the
+project's own location still works, and it is deleted after the render. A
+fixture needing no rewrite returns early and is rendered untouched, so this
+costs nothing once the fixtures are clean.
+
+**Two mistakes on the way, both caught by the compiler rather than by me.** I
+inserted the helper inside another function's body ("function definition is not
+allowed here"), and I anchored the cleanup on `return system(command.c_str());`
+which appears three times in the file. Reverting and re-deriving the insertion
+points from the parsed file was faster than patching the patch.
+
+**This also completes S16's Accept** — *"dsp_tests on mac reports the same pass
+count as CI, from a checkout at any path"* — which S16 alone could not reach.
+
+**Not verified: Windows and Linux.** The regex accepts both separators and both
+root shapes, but only macOS was run.
+
 ## 2026-08-23 — linux — the CLAP editor PAINTS, and the cause was M4's defect on a third wrapper
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
