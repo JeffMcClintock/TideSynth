@@ -53,6 +53,88 @@ count as CI, from a checkout at any path"* — which S16 alone could not reach.
 **Not verified: Windows and Linux.** The regex accepts both separators and both
 root shapes, but only macOS was run.
 
+---
+
+## 2026-08-23 — windows — S22: the repo where the trap was found was the one that never got the fix (interactive, Jeff directing)
+
+**Did:** took **S22** — the GATED half of S17 — after confirming S34's two PRs
+merged and STEP 1 was clear (no open `platform:win` issues, no open PRs from
+this box).
+
+### The point of the row, which is easy to miss
+
+S17 fixed dependency provenance in TideSynth's root and **deliberately left
+SE16 alone**. But SE16 is where the defect was *originally observed*: its
+configure printed `Using local GMPI-UI folder` while the include path was
+really `.../SynthEdit/build/_deps/gmpi_ui-src`, at a **different commit**
+(`9094d79` fetched vs `83f3de2` local). The class layout being read was not the
+one being compiled, and that is what cost **E12** its time. So the repo that
+generated the lesson was the one still carrying the bug.
+
+### What shipped
+
+`tide_report_dependency` / `tide_check_not_shadowed` ported into
+`SE16/cmake/S17DependencyProvenance.cmake`, wired into every resolution block
+in SE16's root. **Every dependency now names its resolved path**, including two
+that previously announced nothing whatsoever: the VST3 SDK in CPM's `~/.cpm`
+cache, and `clap`/`clap_helpers`.
+
+**Duplicated rather than shared, and the reason is structural:** SE16 consumes
+TideSynth *via FetchContent*, and this module must load **before** the first
+dependency resolves — so it cannot include a file out of a dependency it has
+not resolved yet. There is no common ancestor directory on disk to share from.
+The module's header says to keep the two copies in step, since a fix to one is
+a fix to the other.
+
+### The control is the part worth keeping
+
+A check that never fires is indistinguishable from one that does not work, so
+this one was made to fire on demand:
+
+| condition | result |
+|---|---|
+| five overrides + fetched SDKs | configure **rc=0**, every dep reports |
+| planted `build/_deps/gmpi_ui-src` beside the override — **the exact E12 shape** | configure **FAILS rc=1**, naming both paths |
+| shadow removed | **rc=0**, silent, `gmpi_ui` reports the override |
+| `SynthEditCL` | **262/262, rc=0** |
+
+The positive control is a real reproduction of E12's setup, not an analogue —
+same dependency, same shadow path, same override.
+
+### Carried along, because the row asked for it
+
+`VST3_SDK_FOLDER_OVERRIDE` was **commented out** at SE16's line 15 while lines
+below both branch on it and assign `VST3_SDK` from it — settable only via `-D`,
+invisible to `cmake-gui`, and the only override in that list not declared. Now
+declared. **TideSynth's root has the identical gap**, recorded on the row
+rather than fixed from here, since this row's scope is SE16.
+
+**Not verified:** macOS and Linux configures were not run. The change is
+platform-neutral CMake with no generator- or OS-specific branches touched, but
+nobody ran them — so the `APPLE`-guarded `AudioUnit` report is unexercised,
+though it is the same one-line shape as the CLAP reports beside it that did.
+
+**Learned:**
+
+- **"Fixed in repo A, filed for repo B" can leave the bug in the repo that
+  taught you about it.** S17's own measurement came out of SE16; the fix went
+  to TideSynth because that was the row being worked, and SE16 kept the
+  defect for four days with a row open against it the whole time.
+- **A guard needs its positive control run, not just its passing case.** Both
+  configure rc=0 either way if the check is silently broken; only planting the
+  shadow distinguishes "correct" from "inert".
+
+**Next:** the `any` queue's remaining GATED candidates are **S3g** (needs a
+scope ruling, not code — the `SynthEditLib` ALLOWED/GATED contradiction lands
+on it) and **S18** (a licensing/vendoring question about Soundpipe first).
+Neither is takeable without Jeff answering something. **P3** is still this
+platform's only own-boxed row and is GATED.
+
+**Branch/PR:** `tide/win/S22-record` — TideSynth, bookkeeping only. Product
+change is [SynthEdit#73](https://github.com/JeffMcClintock/SynthEdit/pull/73), not merged.
+
+---
+
 ## 2026-08-23 — linux — the CLAP editor PAINTS, and the cause was M4's defect on a third wrapper
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
