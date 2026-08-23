@@ -190,15 +190,28 @@ new platform issue to file.
   Moving work out of `POST_BUILD` into a shared target is only correct if the
   dependency edges are there, and every measurement of the race passes whether
   they are or not.
+- **The platform that differs is not the platform with the bug.** Linux has a
+  bespoke arm in this block, with eleven lines of comment about why VST3 needs
+  its own destination. I read that, concluded Linux was handled, and never asked
+  what the `else()` beside it resolved to. The conspicuous branch drew the
+  attention; the unremarkable one shared a directory three ways.
+- **"Nothing shared to collide over" is a claim about a generator expression, and
+  one command settles it.** `$<TARGET_FILE_DIR>` is the same for every target
+  that links into the same directory, which is knowable from a build log I had
+  already read on Windows and had not thought to read on Linux.
 
-**Not verified:** CI itself — this is verified on this box against a local
-`main`, and by construction rather than by watching a run go green, which is the
-one thing #314 says proves nothing. The four sibling repos on this box are 2, 3,
-3 and 8 commits behind their `origin/main` and were **not** pulled (they are
-Jeff's checkouts, they were clean, and this change is TIDE-only CMake), so CI
-will build the same file against slightly newer siblings than I did. macOS and
-Linux were not built — the change is inside `if(WIN32)` and an `else()` arm those
-platforms never reach, but nobody ran them.
+**Not verified:** the four sibling repos on this box are 2, 3, 3 and 8 commits
+behind their `origin/main` and were **not** pulled (they are Jeff's checkouts,
+they were clean, and this change is TIDE-only CMake), so CI builds the same file
+against slightly newer siblings than I did. macOS was not built at all.
+
+**CORRECTED FOUR HOURS LATER, AND THE CORRECTION IS THE BEST PART OF THIS ENTRY
+— see the section below.** This paragraph originally ended *"macOS and Linux were
+not built — the change is inside `if(WIN32)` and an `else()` arm those platforms
+never reach, but nobody ran them."* The second half of that sentence is false, it
+was load-bearing, and CI falsified it before this entry ever merged. It is
+rewritten rather than annotated because it has not landed; what it said is quoted
+here so the mistake is still in the record.
 
 **Machine left clean.** All work in two throwaway worktrees, `C:/SE/wt314` and
 `C:/SE/wt314c`, removed afterwards; nothing was built in `C:/SE/TideSynth`, and
@@ -208,6 +221,51 @@ no plug-in was installed. `C:/SE/TideSynth` had one pre-existing dirty file,
 was left exactly as found. `SE16`, `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers` and
 `GMPI` were clean and on their default branches at the start, were not written
 to, and still are.
+
+### CORRECTION — the same race is on Linux, and "Windows only" was my invention
+
+**Four hours after the above, CI failed on a branch whose only change was a
+comment in `build.yml`:**
+
+```
+00:54:47.5299  Staging rack prefabs (TIDE_Rack_CLAP)
+00:54:47.5300  Staging rack prefabs (TIDE_Rack)
+00:54:47.5331  Error copying directory ... build/SynthEditSem/Resources/Prefabs
+gmake[2]: *** [SynthEditSem/CMakeFiles/TIDE_Rack_CLAP.dir/build.make:657] Error 1
+```
+
+**0.07 ms apart, on Linux.** The Linux arm gives the VST3 its own
+`.vst3/Contents/Resources` — which is what I looked at — but `GMPI`, `CLAP` and
+`STANDALONE` all link into `build/SynthEditSem/`, so
+`$<TARGET_FILE_DIR>/Resources` is one directory for the three of them. I read the
+branch that differed and generalised from it; the branch that did not differ is
+where the bug was.
+
+**So the rule is not "Windows is special". It is "two targets, one directory."**
+The block now builds the set of targets that share a destination and stages once
+for that set: four on Windows, three on Linux, none on Apple.
+
+**Verified on Linux, on this box, in WSL Ubuntu 24.04** — which also retires the
+"do not fix a platform you cannot compile on" objection for this item, because I
+can compile on it:
+
+| tree | prefabs in the copy | `--parallel 8` builds | failures |
+|---|---|---|---|
+| `main` (`d007f34ac`) | 6, as shipped | 20 | **1** |
+| + this fix | 6, as shipped | 40 | **0** |
+| `main`, window widened | 206 | 25 | **7** |
+| + this fix, same widening | 206 | 35 | **0** |
+
+**8 failures in 45 against 0 in 75.** `diff -r` is clean between control and fix
+for *both* Linux destinations — the shared one and the VST3 bundle — so the VST3
+arm really is untouched. Windows re-measured after the generalisation: build
+rc=0, all four artifacts, **0 failures in 30**.
+
+**What made this findable was not diligence.** It was that the failure landed on
+an unrelated branch of mine, in a job I only opened because the run was red. Had
+I not been looking, the first version of this fix would have merged with the
+Linux half of the bug intact and a comment in the file asserting it could not
+exist there.
 
 **Next:**
 
