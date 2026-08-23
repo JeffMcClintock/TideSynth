@@ -156,7 +156,7 @@ and whose branch is gone from origin. Neither is this run's. `SE16`,
 `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were clean and on their default
 branches at the start and were never touched.
 
-**Branch/PR:** `tide/win/S44-s27-reference-split` — TideSynth only.
+**Branch/PR:** `tide/win/S44-s27-reference-split` — [#349](https://github.com/JeffMcClintock/TideSynth/pull/349), TideSynth only.
 
 ## 2026-08-24 — macos — S35: the scanner searches both plug-in domains now (interactive)
 
