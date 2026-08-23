@@ -8,6 +8,156 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — windows — S44: the stranded reference split, landed and verified on the platform that could not check it
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude desktop **1.34493.1** (Claude Code 2.1.237) · as **tide-rack-bot** (both paths)
+
+**Did:** took **S44**. Both NEXT cells that could point here — `win` and `any` —
+named it as the single ungated row left on the board, filed by the mac box
+eighteen hours earlier while it cleaned up after E9. STEP 1 clear (no open
+`platform:win` issues), STEP 1.5 clear (no open PR from `tide/win/**`).
+
+### The row's premise, and the thing it could not know
+
+`origin/tide/mac/S27-render-ci` carries the per-platform reference split whose
+PR [#331](https://github.com/JeffMcClintock/TideSynth/pull/331) had already
+merged when the follow-ups were pushed onto it. Its own commit message ends:
+
+> Not verified: Windows and Linux have not yet run against `windows-linux/`.
+> That is the next CI run, and the 0.083% figure predicts both pass.
+
+**This is one of those two platforms.** The claim was measurable here and nobody
+had measured it, so that came before deciding what to do with the branch.
+
+### The measurement
+
+`tide_render_regression` built from `main` at `7b34d8155`, MSVC 14.51 x64,
+Release, in a scratch tree.
+
+| references | result |
+|---|---|
+| **`windows-linux/` from the stranded branch** | **10 of 10 match, rc=0** — three consecutive runs identical |
+| `main`'s current flat `tests/references/` (the macOS-arm64 bake from `246399a`) | **5 of 10 FAIL** |
+
+The failing five, against limits of 0.800% and delta 40:
+
+    knob      35.359%  worst delta 142 at (24,39)
+    materials 34.847%  worst delta  63 at (117,37)
+    shapes    67.014%  worst delta  46 at (126,40)
+    glass     54.562%  worst delta  53 at (38,27)
+    glow      61.528%  worst delta  62 at (82,12)
+
+All five `-fast` variants pass at 0.000% on both sets, which is the stranded
+commit's own claim that Fast is bit-identical everywhere.
+
+**The prediction is confirmed to the digit, not merely in direction.** The
+stranded commit measured Windows-vs-Linux as *"0.083% of pixels, worst delta 10
+— glass, glow, knob and materials are 0.000%, only `shapes` moves"*. This box,
+against images baked on an **ubuntu** runner, reads glass/glow/knob/materials at
+**0.000%** and `shapes` at **0.083%, worst delta 10**. Same scene, same figure,
+same delta. And the 35–67% macOS gap it quotes reproduces here as 34.8–67.0%.
+
+**So `main`'s render job is red on Windows today** — the Windows half of
+[#291](https://github.com/JeffMcClintock/TideSynth/issues/291), which was
+labelled `platform:linux` and is not only Linux's.
+
+### The defect the stranded commit had, which is why this is not a straight cherry-pick
+
+It put the platform choice in `build.yml`'s render matrix as a `refs:` column
+and updated **only that caller**. There are three:
+
+    .github/workflows/build.yml:611       "$exe" tests/references …
+    modules/common/CMakeLists.txt:119     add_test(… "${CMAKE_CURRENT_SOURCE_DIR}/tests/references" …)
+    modules/common/README.md:277          tide_render_preview --references modules/common/tests/references
+
+After the split `tests/references` holds no PNGs at all — only two
+subdirectories — so `ctest` would have gone red comparing against an empty
+directory, and a developer following the README would have re-baked into it.
+
+**Selection now lives in `tide_render_regression` itself.** Hand it the root and
+it descends into `macos` or `windows-linux` for the platform it was built for;
+hand it a set and it uses that, which is what keeps `--references .../macos`
+working for re-approving an intended look change. One change fixes all three
+callers, and **`.github/workflows/build.yml` needs no edit at all** — which is
+also what puts this inside what a scheduled run may push, since the bot token
+deliberately lacks `workflow` scope. **The stranded commit's shape was
+unlandable from a scheduled run on any box**, and that is not a small detail:
+it is why the branch sat.
+
+### Why not simply open a PR from the branch, which is what the row asks for first
+
+It does not merge. `origin/tide/mac/S27-render-ci` conflicts with `main` in
+three files — `.github/workflows/build.yml`, `BACKLOG.md`, and `JOURNAL.md`,
+which has rotated since. Resolving it means committing to `build.yml`, and no
+scheduled run on any box can push that. The PR would have been unmergeable by
+construction and unfixable by the fleet that opened it.
+
+So the substance lands instead, with the expensive part carried over verbatim:
+**all twenty PNGs are byte-identical to their sources**, hashed against
+`origin/main` (the ten `macos/`) and `origin/tide/mac/S27-render-ci` (the ten
+`windows-linux/`). Nothing was re-baked here. The `windows-linux` images came
+off a real ubuntu runner, and reconstructing them on this box would have
+silently replaced a Linux bake with a Windows one — the two agree to 0.083%,
+which is close enough that the substitution would not have shown up in any test
+and far enough that it would have been the wrong thing to ship.
+
+**The branch is deliberately left alone.** It is another session's, the standing
+rule is not to delete other sessions' branches, and its commits are pushed so no
+rewrite is permitted. It is superseded and wants a human to delete it.
+
+**Verified:**
+
+- 10/10 against `windows-linux/`, rc=0, three consecutive runs byte-identical.
+- The **exact absolute argument `add_test()` passes** resolves to `…/windows-linux` and passes 10/10.
+- The set named directly (what the README documents) — same.
+- **Negative control:** `tests/references/macos` named directly → **5 of 10 FAIL**. The resolver does not quietly fall through to the set that would pass, which is the failure a "look for the right directory" fallback most easily hides.
+- Twenty reference PNGs hashed against their two sources; all twenty identical.
+- Clean rebuild, no warnings.
+
+**Not verified:**
+
+- **Linux.** The other half of `windows-linux/` is still unmeasured on a Linux box. The images came from an ubuntu runner, so the expectation is 0.000% everywhere rather than 0.083% — Linux should agree with its own bake more closely than Windows does. **That is a prediction, and it is the Linux box's to check.**
+- **macOS.** The `macos/` set is unmoved bytes and the resolver picks it under `__APPLE__`, but no Mac ran this. That arm is reasoning here, not measurement.
+- **CI.** `main`'s workflow line is unchanged and needs to be, which is the point — but the render job has not run with the new binary. The first run on this PR is the test.
+- **`ctest` end-to-end.** `modules/common` alone registers `add_test` without ever calling `enable_testing()` — that lives in `modules/CMakeLists.txt:58`, one level up — so `ctest` in a standalone `modules/common` build reports that no tests were found. Pre-existing, unrelated to this change, and not worth a row: the parent build is the one that runs it. I verified the argument instead of the harness.
+
+**Learned:**
+
+- **A "not verified" line in a commit message is an assignment, and the box it is addressed to may never read it.** This one named Windows and Linux explicitly, sat for a day, and was found only because a mac run tripped over the branch while tidying. The verification cost twenty minutes once someone looked.
+- **Count the callers before moving a path.** The split moved a directory and updated one of three consumers. Nothing catches that — `ctest` is not in the workflow that was edited, and the workflow is not in the build that runs `ctest`. Grepping the moved path across the tree is one command and it is the whole check.
+- **A resolver needs its wrong branch tested, not its right one.** "Root resolves to `windows-linux` and passes" is also what a resolver that ignores its argument entirely would print. Pointing it at `macos` and watching five scenes fail is what separates those.
+- **Byte-identity to a source is worth asserting mechanically.** Twenty images that "look right" and twenty images hashed against the two commits they came from are different claims, and only the second survives someone asking where a picture came from six weeks later.
+- **A branch can be stranded because of what it contains, not because someone forgot.** This one holds a `.github/workflows/**` edit, so no scheduled run could ever have rebased or merged it. Reading the credential's limits explains a stall that otherwise looks like carelessness.
+
+**STEP 4 bookkeeping, all on verified PR state rather than memory:**
+
+- **E9** IN-REVIEW → DONE ([#347](https://github.com/JeffMcClintock/TideSynth/pull/347) merged).
+- **A34** IN-REVIEW → DONE ([#338](https://github.com/JeffMcClintock/TideSynth/pull/338) merged).
+- **S41** IN-REVIEW → DONE ([#327](https://github.com/JeffMcClintock/TideSynth/pull/327) and [#315](https://github.com/JeffMcClintock/TideSynth/pull/315) merged).
+- **E10 was deliberately NOT flipped.** Its TideSynth PR [#346](https://github.com/JeffMcClintock/TideSynth/pull/346) merged but [SynthEditLib#35](https://github.com/JeffMcClintock/SynthEditLib/pull/35) is still open, and IN-REVIEW means *every* linked PR.
+- The `win` cell's own instruction — check S22's PR state — was followed: [#344](https://github.com/JeffMcClintock/TideSynth/pull/344) merged and the row already read DONE.
+
+**Next:**
+
+1. **A Linux run of `windows-linux/`** finishes the set's verification. One build, one command, and the prediction is 0.000% across the board.
+2. **`main`'s render job goes green on Windows and Linux when this merges**, which is [#291](https://github.com/JeffMcClintock/TideSynth/issues/291)'s remedy. That issue is `platform:linux`-labelled and is not only Linux's.
+3. **`origin/tide/mac/S27-render-ci` wants deleting by a human** once this merges, along with the mac-box worktree registered against it.
+4. **The `any` queue now has no ungated row at all.** Both cells say so; the next scheduled run on any box should expect to find nothing takeable and stop rather than invent work.
+
+**Machine left clean.** All work in a throwaway worktree and build tree under the
+session scratchpad; nothing was built in `C:\SE\TideSynth`. **Two pre-existing
+things on this box were left alone, both predating this run:** `C:\SE\TideSynth`
+has a modified `tools/tidepanel-screenshot.synthedit` — real content, not CRLF
+churn (`git diff --ignore-all-space` shows the `PanelLocationZoom` and
+`panelRect` values changing), so it is the developer's work in progress; and a
+registered worktree at `C:\SE\wt345` on `tide/linux/S37-clap-collision`, clean,
+whose PR [#345](https://github.com/JeffMcClintock/TideSynth/pull/345) has merged
+and whose branch is gone from origin. Neither is this run's. `SE16`,
+`SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` were clean and on their default
+branches at the start and were never touched.
+
+**Branch/PR:** `tide/win/S44-s27-reference-split` — TideSynth only.
+
 ## 2026-08-24 — macos — E9: the AU absorbs a rate change, and the pitch is the proof
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
@@ -834,237 +984,6 @@ only records it and supplies the verifier.
 
 ---
 
-## 2026-08-23 — windows — S36: the Windows resources move beside the binary, and my first attempt at "beside" was wrong (interactive, Jeff directing)
-
-**Did:** took S36's option (a) off the `any` queue — its own row records that #314 retired
-the objection against it (dropping the race meant the destination could finally
-move without reintroducing the collision). Windows resources now land where the
-runtime actually looks, and packaging was updated to match.
-
-### The mechanism, read rather than assumed
-
-`BundleInfo::getResourceFolder()` for a non-bundle Windows plug-in
-(`pluginIsBundle == false`, which every unpackaged dev-tree binary is) returns
-`getImbeddedFileFolder()` verbatim — the binary's own directory, **no subfolder
-appended**. `getResource()` then does `getResourceFolder() + resourceId`, a
-plain concatenation, and `seedPrefabsFromBundle()` does `resourceFolder /
-"Prefabs"`. So the four pin XMLs and `Prefabs/` belong **loose in `Release\`**,
-mixed in with the binaries — not in a `Resources` subfolder at all, on this one
-platform.
-
-### My first attempt got that wrong, and testing the row's own Accept caught it
-
-Read "point the Windows arm at `$<TARGET_FILE_DIR>`, drop the `/..`" and
-implemented it as `$<TARGET_FILE_DIR>/Resources` — dropping the `/..` but
-keeping a `/Resources` suffix, by analogy with the bundle-platform arms right
-above it in the same file. Built, ran the row's own Accept command on the
-freshly built standalone, and it printed the exact same four `missing from
-bundle resources` lines and `no Prefabs folder` as before the fix — a clean
-compile and a clean build log said nothing about this being wrong. Only running
-the binary caught it. Reading `getImbeddedFileFolder()`'s actual return value —
-the bare directory, not a subfolder of it — is what gave the real answer:
-`$<TARGET_FILE_DIR>` alone, no suffix.
-
-### Packaging had to change with it, not just the CMake line
-
-`package-windows.ps1` previously copied the whole staged `Resources` directory
-into the bundle's `Contents\Resources\`. With the dev-tree destination now the
-bare `Release\` folder, doing the same thing would have copied every target's
-binaries, PDBs, `.lib`s and `.exp`s into the shipped bundle too. Rewrote it to
-pick the four known XMLs and `Prefabs\` out of `Release\` by name — the same
-list `SynthEditSem/CMakeLists.txt`'s `_tide_xmls` already enumerates, and the
-same "these two lists must move together" rule `TideApp.cpp:496` already states
-for its own read of the identical set.
-
-**The packaged bundle's own layout is unchanged** — still `Contents\x86_64-win\
-TIDE-Rack.vst3` + `Contents\Resources\{4 xmls, Prefabs\}`, which is what makes
-`pluginIsBundle` true for the installed copy and routes it through the
-bundle-aware code path this row never touches.
-
-### Verified
-
-Row's own Accept, on the freshly built standalone, nothing copied by hand:
-
-```
-TIDE: ControlsXp.xml enriched 2 of 18 described class(es)
-TIDE: MidiPlayer2.xml enriched 2 of 7 described class(es)
-TIDE: Converters.xml enriched 26 of 70 described class(es)
-TIDE: VaFilters.xml enriched 2 of 7 described class(es)
-TIDE: 6 rack prefab(s) seeded from the bundle
-```
-
-Zero `missing from bundle resources` or `no Prefabs folder` lines (`grep -c`
-against the run log: 0).
-
-**The #314 race fix, re-checked because I edited the same block:** 20 parallel
-relinks (`cmake --build --parallel`, deleting the binaries and the loose
-resources between each), **0 failures**.
-
-**Packaging, end to end:** `package-windows.ps1` against this build, unsigned
-(no Azure credentials on this box, same as every prior run) — assembled bundle
-contains exactly 10 files, the four XMLs and six `.synthedit` prefabs, nothing
-else. No binaries, PDBs, `.lib`s or `.exp`s leaked into `Resources\` — checked
-by listing the assembled tree, not assumed from the script logic.
-
-**Not verified:** the packaged bundle was not loaded in a real VST3 host this
-run — the bundle-aware code path and the shipped layout are unchanged by this
-fix (same files, same place), and R2's own prior verification already covers
-that path; re-proving it would be re-verifying something this row does not
-touch. macOS and Linux are untouched — the edited arm is `if(WIN32)` /
-`if(UNIX AND ...)`-gated and neither ran.
-
-**Learned:**
-
-- **A clean build and a clean log are not evidence the destination is right.**
-  My first attempt compiled, linked, and staged files into *a* folder without
-  any error — it was simply the wrong folder, and nothing short of running the
-  Accept command surfaced that.
-- **"Drop the `/..`" meant drop it entirely, not shorten it by one segment.**
-  The row's own wording was correct; I filled in the wrong generator expression
-  from pattern-matching the bundle arms beside it rather than reading what
-  `getImbeddedFileFolder()` actually returns.
-- **A destination change to a build-tree path can force a packaging-script
-  change even when the shipped layout doesn't move.** The dev-tree consumer and
-  the packaging consumer read the same CMake output through two different
-  assumptions (loose files vs. a clean `Resources` subtree), and moving the
-  first broke the second's "copy the whole folder" shortcut.
-
-**Next:** S36 is the last of the resource-staging defects this cluster of rows
-(#314, S21, S36) named; nothing else on the `any`/`win` queue currently touches
-this file. **P3** remains this platform's only own-boxed row and is GATED,
-needing Jeff.
-
-**Branch/PR:** `tide/win/S36-resource-destination` — TideSynth, [#339](https://github.com/JeffMcClintock/TideSynth/pull/339).
-
----
-
-## 2026-08-23 — linux — A34: the scan warning now reports a finding instead of a probe, and S37's inference is corrected
-
-**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
-
-Fifth item this session, at Jeff's direction. **A34** — the row this box filed
-an hour earlier while running E1c.
-
-**Did:** `tools/render_harness.py` warned about every folder the engine *looked
-at*. It now warns about folders that actually **contain** modules.
-
-### The change
-
-`folder_has_modules()` classifies a scanned folder, and the warning fires only
-on the populated subset. **Conservative by construction, because the two
-mistakes do not cost the same:** a missed warning silently attributes a
-measurement to the wrong module set; a spurious one costs a reader a moment. So
-it searches recursively, matches `.sem` and `.gmpi` on the suffix (a `.gmpi` may
-be a file *or* a bundle directory), and returns true on anything it cannot rule
-out — an unreadable folder, or one too large to walk inside a 20,000-entry cap.
-
-`.xml` does not count: the engine package pairs each `.sem` with an `.xml` pin
-descriptor, and a folder holding only descriptors can load nothing.
-
-**The report keeps both lists** — `foreign_module_sources` is still the raw
-probe list, and `populated_module_sources` is the new finding — so nothing that
-consumed the old field loses anything.
-
-### Demonstrated three ways, which is one more than the row asked for
-
-Same engine, same case, only `XDG_DATA_HOME` differing:
-
-| scan folder | probed | populated | warning |
-|---|---:|---:|---|
-| **absent** | 1 | 0 | **silent** |
-| **exists, empty** | 1 | 0 | **silent** |
-| **one `.gmpi` planted** | 1 | **1** | **fires, and names it** |
-
-The row's Accept asks for absent-or-empty silent and populated loud. Splitting
-absent from empty is the case that matters most, because **absent is what CI
-does** — `/home/runner/.local/share/SynthEdit/modules` on a runner that has no
-such directory is precisely the false alarm that made this row.
-
-Full suite unchanged at **8/8**, and silent under isolation.
-
-**Seven engine-free selftest cases** cover the classifier both directions —
-absent, empty, descriptors-only, `.sem`, `.gmpi`-as-directory, a module nested
-below the folder, and the filter itself. A one-sided test would pass on a
-classifier that only ever says "no".
-
-### CORRECTION, and it is the more important half of this entry
-
-**Jeff: *"CLAP does ship a GUI. I suspect DAWs support only X11."* He is right
-and my S37/S43 conclusion was wrong.**
-
-I wrote that the Linux CLAP *"has no GUI backend linked"* and therefore
-*"`is_api_supported` returning false is honest"*. The measurement was sound; the
-inference was not. **The honest reading is that the CLAP wrapper is unfinished
-on Linux.** Four artifacts, one build:
-
-| artifact | links libX11/xcb | links wayland |
-|---|---:|---:|
-| `TIDE-Rack` (standalone) | 0 | **1** |
-| `TIDE-Rack.so` (**VST3**) | **2** | **1** |
-| `TIDE-Rack.clap` | 0 | 0 |
-| `TIDE-Rack.gmpi` | 0 | 0 |
-
-**The VST3 links both; the CLAP links neither**, and the source lists say why
-outright: `wrapper/CLAP/CMakeLists.txt` has a `WIN32` block and an `APPLE` block
-and **no Linux arm at all**, while `wrapper/VST3/` ships
-`SEVSTGUIEditorLinux.{h,cpp}` (X11) *and* `SEVSTGUIEditorWayland.{h,cpp}`.
-
-**Jeff's X11 suspicion is backed by that wrapper's own design:** its CMake calls
-X11 *"the only Linux embedding"* before VST3 3.8.0 and makes Wayland
-conditional, falling back to *"X11 editor only"*.
-
-**And my instrument was wrong in a way worth recording.** I grepped `nm` for
-`DrawingFrameX11` and `DrawingFrameWayland` and got zero — but the VST3 uses its
-own `SEVSTGUIEditor*` classes, so that grep returns zero on the binary that
-**does** have an X11 editor. It was never a test of the thing I claimed.
-**`ldd` was the reliable indicator and I had it in front of me the whole time.**
-
-**Ruling, from Jeff, in session:** *"if CLAP wrapper lacks GUI support, we need
-to add it."* So S43's option (ii) is authorised and is no longer an open product
-question — it is the next job, with `SEVSTGUIEditorLinux` as the pattern.
-
-**Learned:**
-
-- **A negative grep is only evidence if you know the symbol would be there.**
-  Zero hits for `DrawingFrameX11` felt like proof and was not — the working
-  sibling scores zero on the same test. Confirm the instrument fires on a known
-  positive before quoting its silence.
-- **"Compare the artifact against a sibling that works" beats any amount of
-  reading.** One `ldd` table across four formats said in four lines what three
-  code-reading sessions had got backwards.
-- **A conservative classifier needs its false branch tested hardest.** The
-  interesting selftest cases here are the ones that must stay silent, because a
-  classifier that always warns is exactly the bug being fixed.
-- **Splitting "absent" from "empty" was worth the extra case**, because absent
-  is the case CI actually hits and the one the old wording denied could happen.
-
-**Not verified:**
-
-- **The CI half of A34's Accept** — *"the `verify` job green with no warning"* —
-  needs this merged and a run on `main`. It is silent locally under both the
-  absent and empty layouts, and CI's is the absent one, so it should hold;
-  should is not measured.
-- **Windows and macOS** never run this harness (`verify.yml` is `ubuntu-24.04`),
-  so the classifier's behaviour on their path conventions is untested.
-- **Nothing about S43 (ii) is started.** This entry only corrects the record and
-  records the ruling.
-
-**Next:**
-
-1. **S43 (ii) is now the job** — give the CLAP wrapper a Linux arm mirroring
-   `wrapper/VST3/SEVSTGUIEditorLinux`, restore the commented-out X11 arm in
-   `guiIsApiSupported`, and let `CLAP_WINDOW_API_X11` do what hosts use. Jeff has
-   ruled it in.
-2. **S37 is unblocked by the same ruling** — once the Linux CLAP has an editor,
-   the editor reads `getBundleContentsFolder() / "Resources"` and S37's collision
-   becomes real and sizable for the first time.
-
-**Machine left clean.** One throwaway worktree under the session scratchpad, with
-the engine package extracted inside it. All six repos synced to their default
-branches at Jeff's request and clean. Nothing installed.
-
-**Branch/PR:** `tide/linux/A34-scan-warning` — TideSynth, one tool plus backlog
-and journal. No product code change.
 
 ## Rotation — do this as part of STEP 4, every run
 

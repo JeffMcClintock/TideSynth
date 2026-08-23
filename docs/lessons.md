@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**windows — S44: the stranded reference split, landed and verified on the platform that could not check it**
+
+- A "not verified" line in a commit message is an assignment, and the box it is addressed to may never read it.
+- Count the callers before moving a path.
+- A resolver needs its wrong branch tested, not its right one.
+- Byte-identity to a source is worth asserting mechanically.
+- A branch can be stranded because of what it contains, not because someone forgot.
+
 **macos — E9: the AU absorbs a rate change, and the pitch is the proof**
 
 - A probe that prints the option it requested is not reporting a measurement.
@@ -80,19 +88,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The teardown order bug was mine, in the probe.
 - Mixed line endings in one repo.
 - A CMake block inserted next to the right line can still land in the wrong `if()`.
-
-**windows — S36: the Windows resources move beside the binary, and my first attempt at "beside" was wrong (interactive, Jeff directing)**
-
-- A clean build and a clean log are not evidence the destination is right.
-- "Drop the `/..`" meant drop it entirely, not shorten it by one segment.
-- A destination change to a build-tree path can force a packaging-script change even when the shipped layout doesn't move.
-
-**linux — A34: the scan warning now reports a finding instead of a probe, and S37's inference is corrected**
-
-- A negative grep is only evidence if you know the symbol would be there.
-- "Compare the artifact against a sibling that works" beats any amount of reading.
-- A conservative classifier needs its false branch tested hardest.
-- Splitting "absent" from "empty" was worth the extra case
 
 ## 2026-08-18
 
@@ -1713,3 +1708,16 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Three red signals on one platform in one hour is not evidence of one cause.
 - Read the first error, not the loudest.
 - A checkout error that names `.gitmodules` means someone committed a directory.
+
+**windows — S36: the Windows resources move beside the binary, and my first attempt at "beside" was wrong (interactive, Jeff directing)**
+
+- A clean build and a clean log are not evidence the destination is right.
+- "Drop the `/..`" meant drop it entirely, not shorten it by one segment.
+- A destination change to a build-tree path can force a packaging-script change even when the shipped layout doesn't move.
+
+**linux — A34: the scan warning now reports a finding instead of a probe, and S37's inference is corrected**
+
+- A negative grep is only evidence if you know the symbol would be there.
+- "Compare the artifact against a sibling that works" beats any amount of reading.
+- A conservative classifier needs its false branch tested hardest.
+- Splitting "absent" from "empty" was worth the extra case
