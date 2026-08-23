@@ -8,6 +8,47 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — S35: the scanner searches both plug-in domains now (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Fixed in [SynthEditLib#36](https://github.com/JeffMcClintock/SynthEditLib/pull/36),
+option (a) — the one the row calls the right fix.
+
+**Confirmed the mismatch on this box before touching anything:** `ModulePath` is
+`/Library/Audio/Plug-Ins/GMPI` with 7 modules; `~/Library/Audio/Plug-Ins/GMPI`
+has 9; none of the 9 were scanned.
+
+New `getUserPluginsFolder()` returns EMPTY on Windows and Linux — Windows has no
+per-user plug-ins location, and Linux already keeps everything under the
+per-user data dir, so a second scan would be the same folder. Empty means no
+second scan, so neither platform changes behaviour. The user path is DERIVED
+from `ModulePath` rather than hardcoded, so someone who has repointed it keeps
+one scan instead of silently gaining a folder.
+
+**The verification is where this got interesting.** The row's own evidence metric
+is "user-domain paths in `Plugin-Cache-16-override-*.xml`" — and after the fix it
+was still **zero**. It would have been easy to read that as the fix not working,
+and equally easy to ship it claiming success without looking.
+
+What it actually is: those caches store module metadata without absolute paths,
+and the modules were already known. Running `SynthEditCL -rescan` and reading the
+output settled it — the scanner now prints both scan lines, and of the nine
+user-domain modules **eight are duplicates of factory SEMs**, reported as
+*"Module FOUND TWICE!"*, which is correct behaviour. The ninth is
+**`TIDE-Rack.gmpi`**, not a duplicate, now visible where it was not.
+
+A locally built plug-in module is the entire case this row exists for, so that
+one file is the result — not the cache metric the row happened to reach for
+when it was filed.
+
+**Not verified:** Windows and Linux. Both take the empty-string path and get no
+second scan, but only macOS was run.
+
+**Note:** I ran `-rescan` against Jeff's real settings with a scratch build,
+which rewrites his module cache. Compared before and after: identical content,
+so nothing of his changed.
+
 ## 2026-08-24 — macos — E9: the AU absorbs a rate change, and the pitch is the proof
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
