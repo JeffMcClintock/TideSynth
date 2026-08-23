@@ -8,6 +8,95 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-23 — macos — the render CI job's first run answers S27 (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+The job I added an hour ago ran, and its first run settles a question two
+sessions had been circling.
+
+**macOS passes 10/10. Linux and Windows each fail the same five.** Pixels moved
+against the arm64-baked references, limit 0.800%:
+
+| scene | linux | windows |
+|---|---|---|
+| knob | 35.359% | 35.359% |
+| materials | 34.847% | 34.847% |
+| shapes | 67.028% | 67.014% |
+| glass | 54.562% | 54.562% |
+| glow | 61.528% | 61.528% |
+| all five (fast) | **0.000%** | **0.000%** |
+
+**Two facts decide the row.**
+
+**Linux and Windows agree with each other to three decimals.** Four scenes are
+identical; `shapes` differs by 0.014. Both differ from macOS by 35-67%. So
+**macOS is the outlier**, not "every platform differs" — which means two
+reference sets at most, not three. I had assumed three; the data says otherwise.
+
+**All five `(fast)` variants are bit-identical on all three platforms.** That is
+the row's surviving hypothesis confirmed from the other side: fast mode uses a
+fixed sub-pixel grid and one transcendental, the full path uses nineteen, and
+the divergence lives entirely in the transcendental-heavy path.
+
+**A tolerance cannot fix this.** Raising 0.004 -> 0.008 earlier today was right
+for cross-ISA noise at 0.444% and is irrelevant at 67%. Two of the row's three
+options survive — per-platform references, or pinning the math — and the numbers
+say per-platform needs only two sets.
+
+**The figures also identify where the ORIGINAL references came from.** They
+match this row's first measurement (34.262 / 34.528 / 66.410 / 54.674 / 61.312)
+almost exactly. So the references were baked on a Windows-or-Linux box, and the
+2026-08-22 re-bake moved them to macOS — flipping which platforms fail rather
+than fixing anything. Nobody could have known, because nothing ran the test
+anywhere.
+
+**The job is red on two of three, and that is what it was merged to find out.**
+I said in the PR to expect that. It is a measurement, not a breakage — but it
+does mean this cannot sit on `main` as a gating job until Jeff picks an option,
+and that is his call, not mine to pre-empt.
+
+**Not verified: which transcendental**, still. It is now bounded to the 19-call
+full path against the 1-call fast path, on macOS against a Windows/Linux
+consensus — a much smaller box than this morning.
+
+## 2026-08-23 — macos — the render test finally runs somewhere (interactive)
+
+**Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)
+
+Added a `render` job to `build.yml` running `tide_render_regression` on all
+three platforms. Nothing had ever run it: the test appeared in no workflow, and
+TIDE's root force-disables `TIDE_RENDER_PREVIEW`, so S27's cross-platform
+question was unanswerable except by a human building a second architecture by
+hand — which is exactly how its "1% of margin" warning finally surfaced, two
+sessions late.
+
+**Independent of `guard` and `build` on purpose.** `modules/common` is a
+dependency-free CMake project: it needs neither a root CMakeLists nor the SDK
+fetches, and it should keep reporting when those are broken.
+
+**`fail-fast: false`**, because with a divergence question the platforms that
+PASS are half the answer. On failure the `-actual` PNGs upload as an artifact —
+the log cannot tell "the maths moved by a bit" from "a light went out".
+
+**No `continue-on-error`.** B1 spent effort removing that from the matrix
+because it made the whole thing decorative; adding a new job with it would undo
+that on the same day.
+
+**I expect the first run to be informative rather than green, and that is the
+point.** The references are baked on macOS arm64. Whether Windows and Linux
+match has never been measured. A red Windows or Linux here is the measurement
+S27 has been waiting for, not a broken build — and the row already lists the
+three ways to resolve it.
+
+**Verified:** the exact step bodies were rehearsed locally — configure, build,
+`all 10 references match`, rc=0. The executable lookup drops the `-perm -u+x`
+test and matches `.exe` too, because on the Windows runner the executable bit is
+not meaningful and the binary is named differently. YAML parses.
+
+**Not verified: the job has never run on Windows or Linux.** That is what
+merging it is for.
+
 ## 2026-08-23 — macos — S27: the symptom is gone, the row's own prediction came true (interactive)
 
 **Prompt:** 5146a61 · claude-opus-5 · app unknown · as tide-rack-bot (both)

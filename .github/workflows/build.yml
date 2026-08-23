@@ -546,3 +546,76 @@ jobs:
             "intermittent, reopen it — a green run is exactly what the broken code" \
             "produces most of the time.")"
           gh issue close "$EXISTING" --reason completed
+
+  # ---------------------------------------------------------------------------
+  # The path tracer's image-regression test, on all three platforms.
+  #
+  # UNTIL NOW NOTHING RAN IT. `tide_render_regression` appeared in no workflow,
+  # and TideSynth's root force-disables TIDE_RENDER_PREVIEW (CMakeLists.txt),
+  # so no CI and no ordinary build has ever executed it. S27 spent two sessions
+  # on cross-platform render divergence that only a human building a second
+  # architecture by hand could see; this is what makes it visible.
+  #
+  # Independent of `guard` and `build` on purpose: modules/common is a
+  # dependency-free CMake project, so it needs neither a root CMakeLists nor the
+  # SDK fetches, and it should keep reporting when those are broken.
+  #
+  # fail-fast: false so one platform going red still lets the other two report --
+  # with a divergence question, the platforms that PASS are half the answer.
+  #
+  # EXPECT THE FIRST RUN TO BE INFORMATIVE RATHER THAN GREEN. The references are
+  # baked on macOS arm64. Whether Windows and Linux match them has never been
+  # measured, which is precisely why this job exists; a red Windows or Linux here
+  # is a MEASUREMENT, not a broken build, and the row it feeds (S27) already
+  # lists the three ways to resolve it.
+  render:
+    name: render-${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+          - name: macos
+            os: macos-latest
+          - name: linux
+            os: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure and build the path tracer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S modules/common -B build-render -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-render --config Release -j
+
+      - name: Image regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Multi-config generators (Windows) put the binary in a config
+          # subdirectory; single-config ones do not. Find it rather than guess.
+          # No -perm test: on the Windows runner the executable bit is not
+          # meaningful, and the binary is tide_render_regression.exe there.
+          exe=$(find build-render -type f \( -name 'tide_render_regression' -o -name 'tide_render_regression.exe' \) | head -1)
+          if [ -z "$exe" ]; then
+            echo "::error::tide_render_regression was not built"
+            exit 1
+          fi
+          echo "==> $exe"
+          mkdir -p "$GITHUB_WORKSPACE/render-failures"
+          cd modules/common
+          "$GITHUB_WORKSPACE/$exe" tests/references "$GITHUB_WORKSPACE/render-failures"
+
+      # The -actual images are the only way to tell "the maths moved by a bit"
+      # from "a light went out", and the log cannot show that.
+      - name: Upload the rendered images when they differ
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-actual-${{ matrix.name }}
+          path: render-failures/
+          if-no-files-found: ignore
