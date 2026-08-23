@@ -159,7 +159,7 @@ to, and still are.
    this branch is not evidence either way, for the reason the issue gives.
 3. **The win NEXT cell still points at P11**, untouched by this run.
 
-**Branch/PR:** `tide/win/issue-314` — TideSynth.
+**Branch/PR:** `tide/win/issue-314` — TideSynth, [#321](https://github.com/JeffMcClintock/TideSynth/pull/321).
 
 ---
 
