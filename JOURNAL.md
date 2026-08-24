@@ -143,6 +143,74 @@ copy and was restored by copying it back before relaunch.
 `static-host`, VCV_Fundamental_gmpi `static-library`) must merge before
 TIDE's option can build in fetch mode — TIDE fetches both at `origin/main`.
 Local-override builds work off the branches today.
+## 2026-08-25 — macos — The Release question, measured: auval passes a completely empty plugin
+
+**Prompt:** interactive
+
+**Did:** M5 left one thing reasoned rather than measured — whether a **Release**
+build of the AUv3 would crash (as Debug did) or degrade silently, since
+`-DNDEBUG` compiles both failing asserts out. Jeff: *"let's do it"*. Cold
+Release configure at the **pre-fix** commit, `-O3 -DNDEBUG` confirmed in the
+real compile flags, both fixes reverted surgically.
+
+**The answer is the worse one: it was a live shipping defect.**
+
+```
+auval -v aumu Drck Dsyh   ->  exit 0,  AU VALIDATION SUCCEEDED,  no crash
+```
+
+...while the extension reported, in its own words:
+
+```
+TIDE: ControlsXp.xml missing from bundle resources - those controls will have no pins
+TIDE: MidiPlayer2.xml missing from bundle resources - those controls will have no pins
+TIDE: Converters.xml missing from bundle resources - those controls will have no pins
+TIDE: VaFilters.xml missing from bundle resources - those controls will have no pins
+TIDE: no Prefabs folder in bundle resources - the rack module browser will be empty
+TIDE: MidiCv.synthedit did not insert a container - the rack will have no MIDI jacks
+```
+
+**The AUv3 has been loading, validating and running as an EMPTY RACK.** No
+pins, no browser contents, no MIDI jacks — and `auval` never said a word,
+because it validates the AU *interface* and never asks whether the plugin
+contains anything. **That reconciles M4's green of 2026-08-23: it was masking
+this, not contradicting it.**
+
+**How to read an appex's stderr, because the next run will need it.** It
+reaches neither the terminal nor the unified log (`log stream` carries os_log
+only, not stderr), and the extension is **sandboxed**, so `/tmp` is not `/tmp`.
+`freopen(getenv("HOME") + "/tide-au3-diag.log")` inside `InitInstance` lands in
+`~/Library/Containers/<ext-id>/Data/` and is readable from outside. Logic
+untouched; removed before the clean redeploy.
+
+**Bug 2's premise is now measured, not inferred:** the diagnostic prints
+`=== InitInstance ===` **twice per extension process**. That is the double-scan
+the `s_xmlMerged` guard exists to stop.
+
+**The full matrix, six runs:**
+
+| build | BundleInfo | guard | auval | what the plug-in actually contained |
+|---|---|---|---|---|
+| Debug | — | — | `FATAL 4099` | abort in `LoadPrefab` |
+| Debug | yes | — | `FATAL 4097` | abort in `RegisterParameters` |
+| Debug | yes | yes | SUCCEEDED | working |
+| Release | — | — | **SUCCEEDED** | **EMPTY — no pins, no prefabs, no MIDI jacks** |
+| Release | yes | — | SUCCEEDED | working |
+| Release | yes | yes | SUCCEEDED | working — 4 XMLs enriched, **9 prefabs**, root MIDI-CV |
+
+**So the two fixes are not equally load-bearing.** `BundleInfo` is the one that
+matters in Release. The `s_xmlMerged` guard is what stops the **Debug** abort;
+in Release the re-scan is harmless at runtime, so it is defensive rather than
+load-bearing. Worth knowing before anyone "simplifies" either one away.
+
+**The process finding is the bigger one, filed as M6:** `auval` passed an empty
+rack for days. It is not a sufficient shipping gate for TIDE, and TIDE already
+prints everything a real gate would need — it just prints it where nothing
+reads.
+
+**Verified after:** a clean `main` Release AUv3, no diagnostics, is installed at
+`~/Applications` and passes `auval`. **Not verified:** any real host — still
+`auval` only; AU2; iOS.
 
 ## 2026-08-25 — windows — every rack prefab is on the TiDE panel pattern, and a script now enforces it (interactive, Jeff directing)
 
