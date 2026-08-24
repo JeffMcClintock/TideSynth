@@ -27554,3 +27554,319 @@ All repos on their default branches.
 **Branch/PR:** `tide/win/P3-remove-mfc` — [SynthEditLib#44](https://github.com/JeffMcClintock/SynthEditLib/pull/44)
 is the change; this repo carries the row and this entry.
 
+## 2026-08-24 — macos — One RackModules folder, and the comment that sent Jeff's prefabs nowhere (interactive)
+
+**Prompt:** ok, simple misunderstanding. I was putting my prefabs in "Tidesynth/TideModules" yours was in "Tidesynth/TideModules/prefabs". / lets just keep them as .synthedit for now / rename mine with _jef appened for now / OK, we're not regenerating them any more, they need hand-tweaking of the layout. don't want that overwritten
+
+**It was not a misunderstanding on Jeff's side. The comment told him to do what
+he did.** `SynthEditSem/CMakeLists.txt` said *"copy_directory_if_different so
+adding a prefab to TideModules/ needs no CMake edit"* while the command beneath
+it copied `TideModules/prefabs`. So his `AR`, `Output` and `Sine` — committed in
+`f814c0b` — were never staged into the bundle, silently. Zero `.seprefab` and
+zero of his `.synthedit` files were in it.
+
+Now one flat folder, `RackModules/`, per Jeff's ruling: they are modules in the
+EURORACK sense, not the SynthEdit DLL sense, and they are all prefabs so no
+`prefabs/` subfolder earns its keep. Nine `.synthedit` files, verified in the
+built bundle, no strays.
+
+**Two collisions I stopped on rather than resolved.** Flattening put two
+different `Output.synthedit` in one folder (generated 12277b vs Jeff's 13542b),
+and all three of his existed as BOTH `.seprefab` and `.synthedit`. Either guess
+would have silently dropped one of his rack modules. Jeff's calls: keep
+`.synthedit`, and suffix his with `_jef` so both `Output`s survive for
+comparison. The substantive difference, for whoever compares them: the generated
+one uses `type="SE Patch Point in"`, his uses `type="TiDE Patch Point In"`.
+
+**The last instruction changed what `build-prefabs.py` IS.** *"we're not
+regenerating them any more, they need hand-tweaking of the layout. don't want
+that overwritten."* Its docstring still called those files "BUILD OUTPUT, not
+hand-written" — which is exactly the belief that would destroy a day of layout
+work. Layout is the half the script recomputes from its own tables, so it cannot
+preserve a tweak.
+
+So it is now unable to clobber, and that is tested three ways rather than
+asserted: `--outdir` has no default so a bare run fails in argparse; pointing it
+at `RackModules` exits with a refusal; a throwaway `--outdir` gets past the guard
+and on to its normal SynthEditCL check. The guard sits immediately after
+`parse_args()` — my first attempt put it lower, where the SynthEditCL check
+fired first and the guard never ran at all. It is kept, not deleted, because it
+still documents how the graphs were built, which is written down nowhere else.
+
+The `_jef` suffix has a useful side effect: the script writes six fixed
+filenames, none of them suffixed, so it structurally cannot touch Jeff's files
+even if the guard were removed.
+
+**Left alone deliberately:** `TideModules` in DONE backlog rows and in
+`docs/n1-tide-rack-rename.md`'s table. Those are records of what was true then,
+and the backlog's Item column is prepend-only.
+
+**Not verified:** Windows and Linux. `tests/s21_bundle_resources_probe.py` would
+have been the natural check and cannot run here — it looks for
+`Contents/x86_64-linux/TIDE-Rack.so`, so it is Linux-only by construction. The
+macOS check was a direct listing of the bundle's `Resources/Prefabs`.
+
+## 2026-08-24 — macos — The S7 skins ruling, and the gap Jeff closed (interactive)
+
+**Prompt:** oh, if it works with no skin at all, that good. / I've been running the rendered UI. No obvious issue yet.
+
+Follow-up to the three S7 PRs, all merged (SynthEditLib#48, SynthEdit#77, #375).
+`main` builds and links on macOS at 318/318 with all three in.
+
+**The gap I flagged was closed by Jeff, not by me.** I shipped S7 saying plainly
+that I had not looked at TIDE's rendered UI — I could establish that nothing is
+written to the user's home and that the code path is safe, but not that it still
+looks right. Jeff then ran the UI and reported "no obvious issue yet". Recording
+the division deliberately: naming the unverified part is what got it verified,
+and it would have been easy to let "the standalone launched clean" stand in for
+a look at the pixels.
+
+**Two rulings arrived after #48 merged, and they change how the empty folder
+reads.** *"TIDE does not support user-defined skins. The default Skin files
+should load from TIDE's own private resource folder only."* And: *"skins have
+much less relevance in tide, which has only one default skin. eventually it
+might ship with no skin files, just hardcoded defaults."*
+
+So TIDE's empty bundle skins folder is the intended destination, not a missing
+asset. I had been one step from treating it as a gap and proposing to vendor
+SE16's `default3` into TideSynth — 524K of assets duplicated across repos, for a
+product heading toward no skin files at all. The question was worth more than
+the work would have been. Recorded at the query itself in SynthEditLib#50, so
+the next reader is not tempted to "fix" the empty folder.
+
+**Mechanically it holds with zero files on disk**, which matters because #48
+changed TIDE from an empty folder that EXISTED to a path that does not:
+`ScanFiles()` uses the `error_code` overload of `directory_iterator`, which
+yields nothing for a missing path rather than throwing, and always pushes the
+`"global"` `SkinInfo` first, so `getSkin()` still returns a usable skin. I said
+earlier it would return null — it does not.
+
+**A near-miss on my own process.** I amended the merged S7 commit to add this
+comment and tried to force-push. `--force-with-lease` refused: #48 had merged
+while I was editing. Without the lease I would have rewritten a merged branch.
+The follow-ups are ordinary PRs off current main instead.
+
+**Not verified:** Windows and Linux.
+
+## 2026-08-24 — macos — S7: TIDE was resetting SynthEdit's skin version (interactive)
+
+**Prompt:** next
+
+Took S7 — TIDE writing outside its container on launch, verified at runtime by
+the linux box on 08-22. Fixed in SynthEditLib#48 + SynthEdit#77 + this pr, which
+must land together.
+
+**The defect is worse than the row records, and the difference is the machine.**
+Linux measured folder CREATION inside an `LD_PRELOAD` shim over `getpwuid`, in a
+home with no existing `.resource_version`. On a real machine that also runs
+SynthEdit, one TIDE launch rewrote `~/SynthEdit Projects/.resource_version` from
+SynthEdit's **192** to **0**. TIDE never defines `SE_APP_BUILD_NUMBER`, so
+`se_version.h`'s fallback of 0 wins, `versionChanged` is true against any real
+build, and the stamp is rewritten. SynthEdit then re-copies every skin on its
+next launch. Two apps, one version file.
+
+That only shows up on a machine with both installed — which is why the isolated
+measurement, correct as far as it went, missed it.
+
+**The row's own suggested shortcut does not work.** It offers "the TIDE-side
+part may be enough on its own": point SkinMgr at the bundle from TIDE. It
+cannot, because `SkinMgr`'s CONSTRUCTOR does the writing, on the first
+`Instance()` call — anything TIDE does afterwards is too late. So EditorLib had
+to change, which is the GATED part; interactive satisfies that.
+
+Fixed with a per-app `AppUsesUserSkinsFolder()`, third instance of the pattern
+after `GetLicenseState()` (C11) and `AppHasModuleEditorDialogs()` (S3g).
+
+**Measured both directions against Jeff's REAL home folder**, because the row
+warns `$HOME` does not protect it — `getUserDocumentFolder()` uses
+`getpwuid(getuid())->pw_dir` and ignores the environment. I snapshotted 335
+entries and backed up `.resource_version` first, ran the unfixed binary, saw
+`192 -> 0`, restored immediately, then ran the fixed one:
+
+| | `.resource_version` | folder |
+|---|---|---|
+| unfixed | 192 -> 0, rewritten | modified |
+| fixed | 192, untouched | diff of 0 lines |
+
+**A process note on myself.** Four times today a check passed because the thing
+under test never ran — most recently here, where I "launched" a standalone whose
+binary did not exist and read the resulting no-op as a clean pass. The tell was
+an `ls` guard whose output I did not look at. Every launch/build check in this
+entry now asserts the artifact exists first, and that is what caught it.
+
+**Not verified:** Windows, Linux, and TIDE's rendered UI. The standalone came up
+with no new error output versus the pre-fix run, and TIDE ships no
+`Resources/skins`, so its skin folder was empty before and is a different empty
+path now — but that is an argument, not a look at the pixels.
+
+## 2026-08-24 — macos — main did not compile, and a docs-only PR is what proved it (interactive)
+
+**Prompt:** merged. go!
+
+`main` stopped building on macOS and Linux. Fixed in
+[SynthEditLib#47](https://github.com/JeffMcClintock/SynthEditLib/pull/47).
+
+    CContainer.h:18:7: error: expected identifier
+    enum{ ID_EDIT_COPY = 0xe122, ID_EDIT_PASTE = 0xe125, ... }
+
+P3 (`a4d536a`) added `StandardCommandIds.h`, which `#define`s those four ids on
+every platform, and included it from `CContainer.cpp` BEFORE `CContainer.h`. The
+macros then expand inside `CContainer.h`'s enum of the same names. Windows never
+saw it: that enum is guarded `#ifndef _WIN32` because MFC supplies the ids there.
+**The platform that could not see the clash is the one that introduced it.**
+Same four values in both places, so the enum was redundant — replaced with the
+include.
+
+**How it was found is the part worth keeping.** The macOS job went red on
+TideSynth#368, a docs-only PR whose branch was provably `main` plus two markdown
+files. A code failure on a change containing no code is impossible, and that
+impossibility is what said "the fault is in main, not in your PR". Taking the
+red at face value would have meant debugging my own change for nothing and then
+merging onto a broken main anyway.
+
+Two gaps this exposes, both for Jeff rather than this box: #44 merged green while
+breaking every non-Windows consumer, and #368 merged onto a red main.
+
+**A33 now has a rate, not an anecdote.** Three issues in one day — #364, #372,
+#373 — each naming a branch that `git ls-remote` returns 0 refs for, so the
+mechanism that files them can never close them. #306 has been open since
+2026-08-22 for the same reason. All were handled by hand today. The row was
+filed as tidiness about a single stale issue; it is actually producing one open
+`platform:*` issue — STEP 1 work, outranking every backlog row — per merged
+branch that happened to be red. Deleting branches at merge, which is the right
+practice and what the S3g PRs did, makes it more frequent rather than less.
+`.github/workflows/**` is Jeff's path, so recording the evidence is all this box
+can do.
+
+Closed #372 on a macOS build of `main` at `1efd676`: TIDE links 318/318,
+dsp_tests / SynthEditCL / EditorScreenshot build, suite 62/2. Left #373 open with
+the diagnosis — the cause is platform-independent, but I have no Linux machine
+and the issue's own instruction is to close only after building on the platform.
+
+## 2026-08-24 — macos — Deleted the stranded S27 branch, after proving it held nothing (interactive)
+
+**Prompt:** stranded branch
+
+`origin/tide/mac/S27-render-ci` was the branch S44 was filed about. S44 recovered
+the WORK into main; the branch itself stayed behind, and CI kept building it —
+it was one of the two branches that failed to link after S3g landed, alongside
+the linux branch that produced #364.
+
+Deleting a branch is easy to get wrong, so I proved it superseded before
+touching it rather than reasoning from "S44 landed, so it must be covered":
+
+- of the 24 files its 3 commits touched, **20 are byte-identical to main**
+- **0 files exist only on the branch**
+- the 4 that differ do so because main is 36 commits ahead, not because the
+  branch has newer content
+- the only branch-unique content was **9 lines of `build.yml`** passing the
+  reference set as a CI matrix (`refs: macos` / `refs: windows-linux`)
+
+Those 9 lines are superseded by a better design, not merely duplicated: S44 made
+the test pick its own set at compile time (`kReferenceSet`), so the workflow does
+not need to pass one. The valuable part of them was the measured comment — why
+two sets and not three — and I checked that it survives in main in three places
+(`modules/common/README.md`, `RenderRegression.cpp`, `BACKLOG.md`) before
+deleting. Tip archived locally at `refs/archive/S27-render-ci` (`218ff24`).
+
+**The trap in one line, because it has now bitten twice:** #331 merged FROM this
+branch, and then two more commits were pushed onto it. A merged PR does not stop
+a branch accepting more work, and nothing then opens a PR for it. Deleting the
+branch at merge is what prevents the next one — the S3g PRs all used
+`--delete-branch`.
+
+No TideSynth branch is now missing the S3g definition, so the link failure class
+that produced #364 is closed on this repo.
+
+## 2026-08-24 — macos — S18: the public repo now says which sdk it wants (interactive)
+
+**Prompt:** sync repos. next task
+
+No open platform issues, so a backlog row. Took S18 — self-contained, and its
+Accept offers two options of which one avoids a licensing decision entirely.
+
+`modules/SoundPipe` is the only place in the public repo needing a third-party
+sdk that lives outside it. `external_sdk_folder` is set ONLY by SE16
+(`SynthEdit/CMakeLists.txt:288`), pointed at SE16's own `SDKs/`, and
+`SynthEditLib/modules` is added by SE16's root and never by SynthEditLib's own.
+
+**Reproduced the stranger's experience rather than describing it.** With the
+variable unset the configure dies with
+
+    Cannot find source file: /Soundpipe/modules/base.c
+    No SOURCES given to target: Soundpipe
+
+A path that exists nowhere, naming no sdk and offering no remedy. That is the
+actual defect — not that the dependency exists, but that hitting it teaches you
+nothing.
+
+A detour worth recording: my first attempt to reproduce passed `-Dexternal_sdk_folder=`
+on the command line and configured cleanly, which looked like the row was stale.
+It was not — line 288 is a plain `set()`, not `set(... CACHE ...)`, so it
+overwrites anything passed with `-D`. Had I stopped there I would have closed a
+live row as fixed. Emptying the `set()` in a throwaway worktree reproduced it
+immediately.
+
+Guarded and explained. Measured both directions, because the second is the
+regression check that matters:
+
+| `external_sdk_folder` | before | after |
+|---|---|---|
+| unset | configure fails | rc=0, prints which sdk and where to point it |
+| set by SE16 | `Soundpipe.sem` builds | builds, skip message absent |
+
+**Deliberately not done:** vendoring or fetching Soundpipe publicly, the other
+option S18 offers. Soundpipe is third-party, so that is a licensing question
+before it is a build question, and the row keeps that half.
+
+**Not verified:** Windows and Linux. The guard is an `EXISTS` test on a header
+path, so nothing platform-specific, but neither was built.
+
+## 2026-08-24 — macos — S35 re-landed, this time against a bar it can fail (interactive)
+
+**Prompt:** go
+
+The user-domain scan is back ([SynthEditLib#45](https://github.com/JeffMcClintock/SynthEditLib/pull/45)),
+after the two things that actually broke it were fixed: #40 stopped a `.gmpi`
+being read for any xml in its Resources, #41 stopped the factory modules
+installing copies of themselves into the user domain.
+
+**The part worth keeping is the third condition.** The revert recorded two
+requirements, and I had only satisfied one by fixing the crash. The other was
+*"it must not defeat `-factorysemsfolder`, which exists to make a test run
+deterministic."* Re-landing the scan unchanged would have left a test run
+picking up whatever the developer has installed — which is precisely how the
+original took `dsp_tests` from 2 failures to 43.
+
+So the scan is skipped when the sem folder was overridden. That flag was already
+there and already means this: `SemCacheName()` namespaces the module cache on it
+so a `-factorysemsfolder` sweep cannot clobber the installed app's cache
+(`ModuleFactory_Editor.cpp:188`). Same signal, same reason, no new concept.
+
+Four measurements, because any one alone would have been the original's mistake:
+
+| | result |
+|---|---|
+| `-factorysemsfolder` given | no user scan, 0 duplicates, exit 0 |
+| no override | user domain scanned, TIDE-Rack visible, exit 0 |
+| `dsp_tests` | 62 passed, 2 failed — the baseline |
+| duplicates, normal run | 2, both `SE SynthEdit` from the TIDE bundles |
+
+**A near-miss worth recording.** The first run of the acceptance test reported
+"user-domain scan lines: 0, FOUND TWICE: 0" and looked like a pass. It was
+vacuous — the build had failed and the binary did not exist, so grep found
+nothing in an empty log. Exit 127 was the only sign. The cause was unrelated (my
+SE16 worktree was pinned before SynthEdit#75, so `AppHasModuleEditorDialogs()`
+was undefined), but the shape is the same one that bit me on the
+`IS_OFFICIAL_MODULE` flags earlier today: **a check that counts absences passes
+when the thing under test never ran.** Assert the binary exists before believing
+a zero.
+
+**Deliberately not answered:** precedence when a user copy shadows a factory
+module. Pre-existing, applies to the system domain too, and post-#40 a duplicate
+is a warning rather than a crash. It deserves its own ruling, not a rider.
+
+**Not verified:** Windows and Linux. `getUserPluginsFolder()` returns empty on
+both so neither gains a scan, but neither was built.
+
+
