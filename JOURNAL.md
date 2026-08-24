@@ -8,6 +8,82 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — linux — SynthEditJuce ruled unmaintained, and #88 closes WONTFIX (interactive, Jeff directing)
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** recorded Jeff's ruling — *"document that SynthEditJUCE is not to be
+maintained. It's superseded by gmpi_ui based targets."* — and closed the last
+open `platform:linux` issue on the strength of it. Docs only, in two repos.
+
+### The wording that was already there, and why it was not enough
+
+The tree said *"deprecated and no longer built"* in the root `CMakeLists.txt` and
+in `WAYLAND.md`. Both true. But `SynthEditJuce/CMakeLists.txt` also said:
+
+> NOTE this target is deprecated and not reachable from the root CMakeLists;
+> **the entry keeps it honest if it is ever revived.**
+
+That is an invitation to maintain it, sitting in the exact file someone would
+open to do so. **"Deprecated" describes the build; "unmaintained" describes the
+obligation, and only the second one answers "should I fix this?"**
+
+So the ruling is written as an operational rule rather than a status: the sources
+stay for reference, are **not expected to compile or link**, nobody repairs them
+to match a refactor in shared code, and **build breaks are not filed against
+them**. A carve-out stage that moves a file out of `EditorLib` owes
+`SynthEditJuce` nothing.
+
+### This closes #88, and closing it is the point
+
+[#88](https://github.com/JeffMcClintock/TideSynth/issues/88) reported that **C12e**
+updated two of the four apps that must compile `Dialogs_editor2.cpp` and left
+this one out. Half was fixed on 2026-08-18 (`SynthEditWayland`, measured). The
+`SynthEditJuce` half then sat open for six days as a one-line change that was
+GATED, that no box could verify because nothing builds the target, and that
+**nobody should have made**. Under this ruling it is the expected state.
+
+**That is the shape worth noticing: an issue can stay open not because the work
+is hard but because nobody has said it should not be done.**
+
+### Recorded in four places, each with a different reader
+
+| where | who reads it |
+|---|---|
+| `SE16/CMakeLists.txt`, where the `add_subdirectory` used to be | someone wondering why the target is absent |
+| `SE16/SynthEditJuce/CMakeLists.txt` | someone editing that source list — **the person who would have "fixed" #88** |
+| `SE16/WAYLAND.md` | someone reading how the Linux editor came to be |
+| `docs/decisions.md` | a later run looking for the ruling rather than re-deriving it |
+
+**Verified:** SE16 root configure **rc=0** after the edits (docs-only, but the
+two edited files are CMake and a comment block can land inside the wrong
+`if()` — that lesson is already in this journal); `check-links` clean; all three
+SE16 files are LF and stayed LF, checked before editing rather than after.
+
+**Not verified:** nothing was built beyond configure, deliberately — no target,
+source list or flag changed.
+
+**Learned:**
+
+- **"Deprecated" and "unmaintained" answer different questions**, and a tree can
+  say the first clearly while leaving the second open. The first is about the
+  build; the second is about whether you owe it work.
+- **A comment that hedges toward revival will be read as a to-do.** *"Keeps it
+  honest if it is ever revived"* is why #88 looked actionable for six days.
+- **Some issues close by ruling, not by code**, and the cheapest fix for a row
+  that nobody may act on is a sentence from the person who can say so.
+- **Check line endings before editing, not after** — third CRLF-adjacent lesson
+  in this project, and this time it cost nothing because I looked first.
+
+**Machine left clean.** Two scratch worktrees plus four read-only dependency
+worktrees, all removed; nothing built into any of Jeff's trees; all six repos on
+their default branches and clean.
+
+**Branch/PR:** `tide/linux/juce-unmaintained` in both repos —
+[SynthEdit#76](https://github.com/JeffMcClintock/SynthEdit/pull/76) carries the
+three in-tree notes, TideSynth carries the decision entry and this journal entry.
+**Merging either alone is harmless**; neither changes any build.
+
 ## 2026-08-24 — linux — S45 closed on its own Accept, and a 50-minute window where `main` did not link (interactive, Jeff directing)
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)

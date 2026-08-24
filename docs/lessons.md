@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**linux — SynthEditJuce ruled unmaintained, and #88 closes WONTFIX (interactive, Jeff directing)**
+
+- "Deprecated" and "unmaintained" answer different questions
+- A comment that hedges toward revival will be read as a to-do.
+- Some issues close by ruling, not by code
+- Check line endings before editing, not after
+
 **linux — S45 closed on its own Accept, and a 50-minute window where `main` did not link (interactive, Jeff directing)**
 
 - "The branch fixes it" and "the product is fixed" are different claims
