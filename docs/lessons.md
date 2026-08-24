@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**linux — S46: the technology is recorded now, not sniffed off a filename (interactive, Jeff directing)**
+
+- When two guards both need the same missing input, the second one is not a fallback.
+- "Which platform" was the wrong axis, and the row's title encoded it.
+- Ask where the data can arrive from before choosing where to fix.
+- A comment admitting "dodgy" is a filed bug nobody filed.
+- The CRLF trap caught me again
+
 **linux — S45: the captions were UTF-32 in a UTF-8 string, and S23 closed (interactive, Jeff directing)**
 
 - A probe on one branch of a multi-branch decision can report a clean bill of health for a failure happening in a sibling branch.

@@ -8,6 +8,138 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — linux — S46: the technology is recorded now, not sniffed off a filename (interactive, Jeff directing)
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** fixed **S46**, the row the mac box filed after correctly rejecting my
+S45 attempt. Product change is
+[SynthEditLib#42](https://github.com/JeffMcClintock/SynthEditLib/pull/42).
+
+**Jeff named the mechanism before it was measured:** *"we differentiate the
+meaning of 'string' datatype, on SDK it's wstring, on gmpi it's plain string. I
+think we do this from the file extension, which might not be available when
+module is statically linked?"* Right on both halves.
+
+### What the code says about itself
+
+```cpp
+// dodgy, only works when plugin binary file available. OK, since we only need
+// this when scanning binary for XML (to determine native string type)
+const bool isGMPI = GetExtension(Filename()) == L"gmpi" ...;
+```
+
+That is `Module_Info3::ModuleTechnology()`. But **a statically-registered module
+never reaches that override**: it is a `Module_Info3_internal`, which does not
+override `ModuleTechnology()` at all, so it inherited
+
+```cpp
+int Module_Info3_base::ModuleTechnology() { return MT_SDK3; }   // unconditional
+```
+
+So it did not fall back to a filename test that fails — it never had one.
+`"string"` → `DT_TEXT` → wide → S45's three-NULs-per-character captions.
+
+**Confirmed on this box:** TIDE opens **zero** `.gmpi` files and touches **no**
+`PlugIns` folder. Everything is statically registered, per constraint 7.
+
+### The correction that matters more than the fix
+
+**S46's title says "typed differently on linux and macOS". It is not a platform
+difference — it is statically-linked vs file-scanned.** macOS looked right
+because that box has a scannable `Controls.gmpi` on disk for the extension test
+to find. The **shipped** product compiles its modules in, so this should
+reproduce everywhere, macOS included. The mac measurement was of a dev box, not
+of a shipping build.
+
+Two related facts, so nobody repeats the search:
+
+- **This box's `Plugin-Cache-16*.xml` records `SE Label` as `string_utf8` — the
+  same as macOS.** The row nominated dumping that cache as the first
+  measurement; it does not differ, and TIDE never reads it anyway.
+- **`LabelGui` needed no change.** Its `Pin<std::string>` was always correct,
+  exactly as the row said. My [#39](https://github.com/JeffMcClintock/SynthEditLib/pull/39)
+  fixed the symptom at the module and would have mirrored the corruption onto
+  macOS; closing it was right.
+
+### The fix, and the part Jeff's second point shaped
+
+`Module_Info3_internal` **records** the technology; `ModuleTechnology()` reports
+the record. `gmpi::RegisterPlugin` and `gmpi::RegisterPluginWithXml` stamp
+`MT_GMPI` — GMPI's `Register<>::withId` **and** `::withXml` both route through
+those two, so static registration is covered either way — and every other path
+keeps the historical `MT_SDK3` default.
+
+**The stamp is on the OBJECT rather than in any parse path**, and that is
+entirely because of Jeff's follow-up: *"there is an alternative registration path
+when the XML is read from the module bundle resources folder... uncommon with
+.GMPI modules, but the possibility needs to be taken into account."* XML can
+arrive long after registration — TideApp's own enrichment loop does exactly this
+with `ControlsXp.xml` and friends — and that scan asks `ModuleTechnology()`. A
+fix that decided the answer while parsing the *registration* XML would have been
+correct for `withXml` and wrong for `withId`-plus-resources. Stamped before every
+`ScanXml` instead.
+
+`setModuleTechnology` is **highest-wins** so registration *order* cannot matter
+for a module registering halves through different SDKs. No such module exists
+today — I checked rather than assumed — but a nondeterministic answer is the one
+outcome this field must never produce.
+
+Also unified the odd site out: `Module_Info3_base.cpp` had **three** places doing
+the same `DT_TEXT` dance under the same comment, and one sniffed the extension
+inline instead of asking `ModuleTechnology()`.
+
+### Verified — A/B with only `SynthEditLib` differing
+
+| | result |
+|---|---|
+| `origin/main` | captions are `.notdef` boxes |
+| this branch | **MIDI-CV / PITCH / GATE / VEL / TRIG** in real glyphs |
+| module browser, same two runs | **byte-identical**, diff bbox `None` |
+| resources-XML enrichment | identical counts — SDK3 modules correctly KEEP wide `"string"` |
+| `SynthEditCL` | **312/312 rc=0**, runs, exits cleanly on a bad verb, no segfault |
+
+The byte-identical browser is the control that matters: it says the change
+touched the captions and nothing else in the frame.
+
+**Not verified:**
+
+- **Windows and macOS were not built.** Platform-neutral C++, no OS branches
+  touched, but neither was compiled — and per the correction above, **macOS is
+  the interesting one**, because it should now be reproducible there too.
+- **No real DAW** — TIDE standalone under headless weston.
+- **A mixed-SDK module** does not exist to test highest-wins against; that rule
+  is reasoning plus a comment, not a measurement.
+
+**Learned:**
+
+- **When two guards both need the same missing input, the second one is not a
+  fallback.** The extension sniff and the base default look like belt and
+  braces; both are defeated by "there is no file", and the base's answer was not
+  even a guess, it was a constant.
+- **"Which platform" was the wrong axis, and the row's title encoded it.** The
+  real axis was static-vs-scanned, and a dev box with a stray `.gmpi` on disk is
+  exactly the thing that makes a shipping-build bug look platform-specific.
+- **Ask where the data can arrive from before choosing where to fix.** Jeff's
+  resources-folder point moved the fix from a parse path onto the object; the
+  parse-path version would have passed every test I had and still been wrong for
+  `withId` modules enriched later.
+- **A comment admitting "dodgy" is a filed bug nobody filed.** It named its own
+  precondition and the precondition is false for every statically-linked module.
+- **The CRLF trap caught me again**, third time in this project's history: a
+  Python rewrite of four CRLF files produced a 2,700-line phantom diff. `newline=''`
+  on both read and write; check `git diff --stat` before believing an edit.
+
+**Machine left clean.** Weston stopped, standalone stopped, scratch `HOME`s
+throughout. **`SynthEditCL`'s rescan was pointed at a scratch `XDG_DATA_HOME`** —
+Jeff's real `Plugin-Cache-16.xml` is still dated Aug 19, checked after. All six
+repos on their default branches and clean.
+
+**Branch/PR:** `tide/linux/S46-record-technology` in both repos — TideSynth
+carries the row, two screenshots and this entry; **merging it alone changes no
+behaviour**. The product change is
+[SynthEditLib#42](https://github.com/JeffMcClintock/SynthEditLib/pull/42).
+
 ## 2026-08-24 — macos — Bookkeeping after the datatype work: S35 re-opened, S45 blocked (interactive)
 
 **Prompt:** sync repos. where are we at?
