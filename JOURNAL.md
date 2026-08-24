@@ -8,6 +8,106 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — windows — V4: the three candidate markers, measured — one of them selects nothing (interactive, Jeff directing)
+
+**Did:** synced all 23 repos, then took **V4**. STEP 1 clear (no open
+`platform:win` issues), STEP 1.5 clear. **There are no `platform: win` rows left
+at all** — P3 was the last one and it is DONE, so this box's queue is now the
+`any` queue, the same place the mac box reached two days ago.
+
+### What the row asked for, and why it could not just be built
+
+V4 wants the rack view's module browser to offer only rack-relevant modules. It
+names the discriminator as an open question and says it *"should be ruled rather
+than invented"*, offering (a) prefab-vs-module, (b) the existing `category=`
+attribute, (c) a new explicit marker.
+
+That is a correct instruction and it is also the whole cost of the row — the
+plumbing is one filter. So the useful work was not to pick one, but to **measure
+what each would actually select**, and escalate with numbers instead of opinion.
+
+### The measurement
+
+| option | selects **today** | mechanism |
+|---|---:|---|
+| **(a) prefab-vs-module** | **9 of 9** | already exists — `ExportModules(list, includePrefabs)` + the `*P=` unique-id prefix |
+| **(b) `category=`** | **0 of 9** | cannot see prefabs at all |
+| **(c) new marker** | 0 until authored | new field, new plumbing |
+
+**(b) fails structurally, not by degree, and this is the finding.** A regular
+module's group comes from its XML: `mm.group = GetGroupName(u)`, reading the
+`category=` attribute — **273 modules across 32 distinct categories**. **A prefab
+has no module XML.** Its group is derived from its *file path*
+(`ModuleFactory_Editor.cpp:2387-2395`), and **#377 flattened `RackModules/`**, so
+the nine rack prefabs carry no group at all.
+
+And the rack's entire content today **is** those nine prefabs. So the option that
+reads categories selects none of the things the rack is made of.
+
+There is also **no rack- or TiDE-named category anywhere in the tree** — checked
+across both repos' module XML — so (b) is not merely empty by accident, it has
+nothing to read even in principle until someone adds the field.
+
+### The recommendation is a fourth option, and only because the row's own objection is right
+
+V4 says (a) is *"nearly right but excludes any future non-prefab rack module"*.
+True. But the answer to that is not to adopt an option that is empty today — it
+is to write the predicate as a **union**: *is it a prefab from the rack folder,
+**or** is it marked rack-relevant?* The second half selects nothing until
+something claims it, costs one clause, and removes the migration later.
+
+Filed as **(d)** in the `PROPOSED:` entry, with (a) and (b) left on the table
+because the ruling is Jeff's, not mine.
+
+**The plumbing may proceed under any option and is stated as such in the entry:**
+`ModuleBrowser.cpp:56` and `:99` hard-code `includePrefabs = true`, and
+`TideApp.cpp:147` already computes `isRackLevel` for exactly this
+rack-vs-structure distinction. Getting that value down to the browser is the same
+work whichever predicate wins.
+
+**Verified:** the counts are greps over the tree, re-runnable — `273` and `32`
+from `category="…"` across `SynthEditLib/modules/*/*.xml`, `9` from
+`RackModules/*.synthedit`, and the `*P=`/path-derived group claims read out of
+`ModuleFactory_Editor.cpp` and `SynthEditAppBase.cpp:1334` rather than inferred.
+
+**Not verified:** nothing was built or run this item — it is a measurement and an
+escalation, and no code changed. The claim that the plumbing is option-independent
+is read from the two call sites, not demonstrated by building it.
+
+**Learned:**
+
+- **"Ruled rather than invented" does not mean "stop" — it means measure, then
+  escalate with numbers.** Two greps turned a three-way design argument into one
+  option that works, one that is empty, and one that is future work. The ruling
+  is still Jeff's, but it is now a much shorter question.
+- **An option can fail because the data it reads does not exist for the thing
+  being selected.** (b) sounded like the tidy answer — reuse the field the
+  browser already reads — and prefabs simply have no XML for it to read. Worth
+  checking that a proposed discriminator can *see* its subjects before comparing
+  it on elegance.
+- **A flattening commit changed what a proposed option would select.** #377
+  removed the `RackModules/` subfolder, which is where a prefab's group comes
+  from, so the path-derived answer went to empty as a side effect of an unrelated
+  tidy-up. Options that read incidental structure are fragile in ways the row
+  cannot anticipate.
+
+**Next:**
+
+1. **Jeff rules (a), (b), (c) or (d)** by merging or editing the `PROPOSED:`
+   entry. The default in effect meanwhile is today's behaviour — the rack offers
+   everything, which is noisy rather than broken.
+2. **The plumbing is takeable now** by anyone, under any outcome.
+3. **This box has no `platform: win` rows left.** The `any` queue is what it has,
+   and most of what is on it needs a ruling or a workflow-scoped token.
+
+**Machine left clean.** One throwaway worktree under the session scratchpad, no
+build trees, nothing installed. All 23 repos on their default branches; the four
+dormant product repos with large uncommitted trees (`SE15` 407 files, `SSG` 194,
+`Waves` 102, `Optimus_1_5` 47) were fetched and left untouched, as were the two
+active repos' own working changes.
+
+**Branch/PR:** `tide/win/V4-rack-filter-ruling` — TideSynth only, no code change.
+
 ## 2026-08-24 — macos — Close-out sweep: two real misses found (interactive)
 
 **Prompt:** great. did we miss anything?

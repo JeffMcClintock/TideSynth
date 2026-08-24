@@ -39,6 +39,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**windows — V4: the three candidate markers, measured — one of them selects nothing (interactive, Jeff directing)**
+
+- "Ruled rather than invented" does not mean "stop" — it means measure, then escalate with numbers.
+- An option can fail because the data it reads does not exist for the thing being selected.
+- A flattening commit changed what a proposed option would select.
+
 **windows — P3: the MFC requirement is gone, and a no-MFC toolchain is the proof (interactive, Jeff directing)**
 
 - A row's own guess can be right and still worth measuring, because the SIZE is the actionable part.
