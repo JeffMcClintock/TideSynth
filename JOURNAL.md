@@ -8,6 +8,50 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — main did not compile, and a docs-only PR is what proved it (interactive)
+
+**Prompt:** merged. go!
+
+`main` stopped building on macOS and Linux. Fixed in
+[SynthEditLib#47](https://github.com/JeffMcClintock/SynthEditLib/pull/47).
+
+    CContainer.h:18:7: error: expected identifier
+    enum{ ID_EDIT_COPY = 0xe122, ID_EDIT_PASTE = 0xe125, ... }
+
+P3 (`a4d536a`) added `StandardCommandIds.h`, which `#define`s those four ids on
+every platform, and included it from `CContainer.cpp` BEFORE `CContainer.h`. The
+macros then expand inside `CContainer.h`'s enum of the same names. Windows never
+saw it: that enum is guarded `#ifndef _WIN32` because MFC supplies the ids there.
+**The platform that could not see the clash is the one that introduced it.**
+Same four values in both places, so the enum was redundant — replaced with the
+include.
+
+**How it was found is the part worth keeping.** The macOS job went red on
+TideSynth#368, a docs-only PR whose branch was provably `main` plus two markdown
+files. A code failure on a change containing no code is impossible, and that
+impossibility is what said "the fault is in main, not in your PR". Taking the
+red at face value would have meant debugging my own change for nothing and then
+merging onto a broken main anyway.
+
+Two gaps this exposes, both for Jeff rather than this box: #44 merged green while
+breaking every non-Windows consumer, and #368 merged onto a red main.
+
+**A33 now has a rate, not an anecdote.** Three issues in one day — #364, #372,
+#373 — each naming a branch that `git ls-remote` returns 0 refs for, so the
+mechanism that files them can never close them. #306 has been open since
+2026-08-22 for the same reason. All were handled by hand today. The row was
+filed as tidiness about a single stale issue; it is actually producing one open
+`platform:*` issue — STEP 1 work, outranking every backlog row — per merged
+branch that happened to be red. Deleting branches at merge, which is the right
+practice and what the S3g PRs did, makes it more frequent rather than less.
+`.github/workflows/**` is Jeff's path, so recording the evidence is all this box
+can do.
+
+Closed #372 on a macOS build of `main` at `1efd676`: TIDE links 318/318,
+dsp_tests / SynthEditCL / EditorScreenshot build, suite 62/2. Left #373 open with
+the diagnosis — the cause is platform-independent, but I have no Linux machine
+and the issue's own instruction is to close only after building on the platform.
+
 ## 2026-08-24 — macos — Deleted the stranded S27 branch, after proving it held nothing (interactive)
 
 **Prompt:** stranded branch
