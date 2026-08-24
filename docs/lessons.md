@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **321 KB** across **248** entries, so copying them
+Learned sections are **323 KB** across **249** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **89 KB / 988 lessons — 3.6x smaller**, and represents
+A8. This is **90 KB / 994 lessons — 3.6x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,15 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-25
+
+**windows — `main` is red on all three platforms from ONE unpushed half, and the fix is uncommitted in Jeff's tree**
+
+- A red build across all three platforms is evidence of ONE cause, not three, and the shared cause is nearly always a sibling repo.
+- "The other half was never committed" and "the other half merged 26 seconds late" look identical from CI and need opposite responses
+- You cannot `/I`-shadow a quoted include.
+- A missing `override` fails loudly; a missing `virtual` fails silently.
+- The Windows box has no automatic STEP 1 feed.
+- A run that starts minutes after an interactive commit should expect to be looking at half a change, not at a defect.
 
 **macos — The queue is blocked, so the run proved the platform instead; B1 closed on a green matrix**
 
