@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**linux — S45: the captions were UTF-32 in a UTF-8 string, and S23 closed (interactive, Jeff directing)**
+
+- A probe on one branch of a multi-branch decision can report a clean bill of health for a failure happening in a sibling branch.
+- Log the actual string, early.
+- `backtrace()` + `addr2line -f -C` turns "who called this" into one build.
+- "Seen on platform X" and "X-only" are different claims
+- Eliminations are worth their cost when they shrink the search space enough to instrument.
+
 **linux — S25's Accept passes; the tofu that survives is a different bug (interactive, Jeff directing)**
 
 - Run a row's Accept before building toward its diagnosis.

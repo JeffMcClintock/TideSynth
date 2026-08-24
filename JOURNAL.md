@@ -8,6 +8,137 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — linux — S45: the captions were UTF-32 in a UTF-8 string, and S23 closed (interactive, Jeff directing)
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** diagnosed and fixed **S45** — the rack-caption tofu split out of S25
+this morning. Product change is
+[SynthEditLib#39](https://github.com/JeffMcClintock/SynthEditLib/pull/39).
+Also closed **S23** at Jeff's instruction (*"close S23"*).
+
+**It was never a font problem.** It is a datatype mismatch, and the fix is two
+pin declarations.
+
+### The chain, from a backtrace rather than from reading
+
+Four eliminations were already on the row and all of them held — which is what
+made the remaining space small enough to instrument:
+
+```
+MfcDocPresenter::RefreshView   MfcDocPresenter.cpp:483
+ViewBase::Refresh              ViewBase.cpp:2103
+ViewBase::ConnectModules       ViewBase.cpp:679     <- setting GUI pin defaults
+PluginEditorBase::setPin       GmpiPluginEditor.h:106
+Pin<std::string>::setFromHost  GmpiPluginEditor.h:49
+LabelGui                       LabelGui.cpp:136
+```
+
+`LabelGui` declares `<Pin name="Text" datatype="string"/>`. `conversion.cpp:996`
+maps **`"string"` → `DT_TEXT`**, and `RawConversions.cpp:238` encodes `DT_TEXT`
+as **raw `wchar_t` bytes**:
+
+```cpp
+result.resize( sizeof(wchar_t) * s.size() );
+memcpy( &result[0], s.data(), result.size() );
+```
+
+The C++ pin was `Pin<std::string>`, and `valueFromData<std::string>` is a
+**verbatim byte copy**. So `"MIDI-CV"` arrived as `'M',0,0,0,'I',0,0,0,…` and
+every NUL drew `.notdef`.
+
+### The measurement that made it undeniable
+
+Logging the shaped codepoints inside the text engine:
+
+| caption | codepoints | real chars | NULs |
+|---|---:|---:|---:|
+| `MIDI-CV` | 28 | 7 | 21 |
+| `PITCH` | 20 | 5 | 15 |
+| `GATE` | 16 | 4 | 12 |
+| `TRIG` | 16 | 4 | 12 |
+| `VEL` | 12 | 3 | 9 |
+
+**Exactly three NULs after every character** — the signature of a 4-byte
+`wchar_t` string read as bytes.
+
+### Why the notdef probe said zero while boxes were on screen
+
+My first probe logged only the `else if (fallbackFor)` branch, which fires when
+the primary face does not cover a codepoint *and* a fallback is available. Here
+`fallbackFor` was null, so control took the final `else` and the primary drew
+`.notdef` silently. **A probe on one branch of a four-branch decision reported
+"no misses" while the screen was full of them** — and I nearly read that as
+evidence the text engine was innocent, when it only meant my instrument was in
+the wrong arm.
+
+### The fix, and the decision I deliberately did not take
+
+Declare the pins `Pin<std::wstring>` — matching what the host actually sends,
+since `valueFromData<std::wstring>` already divides by `sizeof(wchar_t)` — and
+convert to UTF-8 once, at the three points that hand text to the drawing API.
+
+**The wire format is unchanged on purpose.** `datatype="string_utf8"` exists in
+the same table and would also work, and is arguably tidier. It also changes the
+datatype of a pin existing patches may connect to, and this codebase
+auto-inserts converters on mixed-datatype connections — v0.1's own findings
+record a silent-drop bug of exactly that shape. That is Jeff's call, stated on
+the PR rather than made by me.
+
+**Scope checked, not assumed:** `LabelGui` is the **only** `graphicsApi="GmpiUi"`
+module in the tree and holds the only two pins with this mismatch.
+
+### This is probably not Linux-only
+
+`wchar_t` is 4 bytes on Linux and macOS, 2 on Windows — so Windows gets **one**
+NUL per character from the same code path, not none. Nobody has looked. The mac
+S25 measurement rendered an *Oscillator* prefab correctly, and that prefab has no
+Label, so it never exercised this path. **Do not read "seen on linux" as
+"Linux-only".**
+
+**Verified:** captions render **MIDI-CV / PITCH / GATE / VEL / TRIG** in real
+glyphs; module browser unchanged in the same window; zero plug-in diagnostics;
+build 312/312 rc=0 with the temporary text-engine probes reverted first
+(`grep -c TIDEDIAG` = 0 in `gmpi_ui`).
+
+**Not verified:**
+
+- **`SynthEditCL` was not built.** The change is confined to one module's pin
+  declarations and its three uses, and it compiles as part of TIDE, but the
+  commercial consumer was not built here.
+- **Windows and macOS** were not built.
+- **Whether any shipped patch connects a `DT_TEXT` source to a Label's Text
+  pin** — the reason the wire format was left alone, and unmeasured.
+
+**Learned:**
+
+- **A probe on one branch of a multi-branch decision can report a clean bill of
+  health for a failure happening in a sibling branch.** Zero notdefs with boxes
+  on screen was the single most misleading measurement of the session, and it
+  was my instrument, not the system.
+- **Log the actual string, early.** Two builds were spent on font resolution;
+  one `fprintf` of the shaped codepoints answered it outright, and the hex made
+  the diagnosis unmistakable.
+- **`backtrace()` + `addr2line -f -C` turns "who called this" into one build.**
+  RelWithDebInfo carries enough symbols; the raw `+0x…` offsets resolve fine.
+- **"Seen on platform X" and "X-only" are different claims**, and a `sizeof`
+  difference is exactly the kind of thing that makes the second one false while
+  looking true.
+- **Eliminations are worth their cost when they shrink the search space enough
+  to instrument.** Four negatives from the morning meant the afternoon had one
+  place left to look.
+
+**Machine left clean.** All temporary diagnostics reverted before the
+verification build — `grep -c TIDEDIAG` is 0 across `gmpi_ui`, and that worktree
+is back to `origin/main`. Headless weston stopped, standalone stopped, scratch
+`HOME`s only; **Jeff's `~/.config/TIDE Rack` was not written to** (timestamps
+still 2026-08-20). All six repos on their default branches and clean.
+
+**Branch/PR:** `tide/linux/S45-caption-tofu` — TideSynth, the row plus this entry
+and one screenshot. Product change is
+[SynthEditLib#39](https://github.com/JeffMcClintock/SynthEditLib/pull/39);
+**merging TideSynth's side alone changes no behaviour**, it only records.
+
 ## 2026-08-24 — linux — S25's Accept passes; the tofu that survives is a different bug (interactive, Jeff directing)
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
