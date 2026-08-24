@@ -100,8 +100,18 @@ them is part of upgrading each one.
 | `Sine_jef` | 1x `SE Label` |
 | the other five | none yet |
 
-## If you move something
+## The duplication is deliberate — do not "fix" it yet
 
-Move both. The `Layout` entry and the module's `panelRect` are the same point
-expressed twice, and nothing checks that they agree — the panel cannot see the
-modules above it, and the modules cannot see the panel below.
+The `Layout` entry and the module's `panelRect` are the same point written twice,
+and nothing checks that they agree: the panel cannot see the modules above it,
+and the modules cannot see the panel below.
+
+**That is accepted, on purpose.** Jeff's ruling, 2026-08-24: *"one day we will
+make it more sophisticated (automatic tracking) but for now the double-up is
+acceptable in the interest of getting this shipped."*
+
+So automatic tracking — the panel deriving its jack and knob positions from the
+modules layered over it, or the reverse — is the eventual intent, not a gap
+somebody should close on the way past. Until it exists, the rule is simply:
+
+**move one, move both.**
