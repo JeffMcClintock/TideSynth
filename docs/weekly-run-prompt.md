@@ -689,7 +689,7 @@ What you may edit outside this repo:
   ALLOWED — TIDE's own files. These belong to TIDE, not to SynthEdit, and
   ordinary backlog work is expected to change them:
     - SE16/SynthEditSem/      the plugin shell and TideApp
-    - SE16/TideModules/       demo patches and prefabs
+    - SE16/RackModules/       demo patches and prefabs
     - SE16/SE_IOS_APP/TIDE/   the iOS TIDE folder
     - the gmpi_ui repo        rendering/windowing backend
     - the GMPI_Wrappers repo  the VST3/AU/CLAP plugin wrappers

@@ -8,6 +8,58 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — One RackModules folder, and the comment that sent Jeff's prefabs nowhere (interactive)
+
+**Prompt:** ok, simple misunderstanding. I was putting my prefabs in "Tidesynth/TideModules" yours was in "Tidesynth/TideModules/prefabs". / lets just keep them as .synthedit for now / rename mine with _jef appened for now / OK, we're not regenerating them any more, they need hand-tweaking of the layout. don't want that overwritten
+
+**It was not a misunderstanding on Jeff's side. The comment told him to do what
+he did.** `SynthEditSem/CMakeLists.txt` said *"copy_directory_if_different so
+adding a prefab to TideModules/ needs no CMake edit"* while the command beneath
+it copied `TideModules/prefabs`. So his `AR`, `Output` and `Sine` — committed in
+`f814c0b` — were never staged into the bundle, silently. Zero `.seprefab` and
+zero of his `.synthedit` files were in it.
+
+Now one flat folder, `RackModules/`, per Jeff's ruling: they are modules in the
+EURORACK sense, not the SynthEdit DLL sense, and they are all prefabs so no
+`prefabs/` subfolder earns its keep. Nine `.synthedit` files, verified in the
+built bundle, no strays.
+
+**Two collisions I stopped on rather than resolved.** Flattening put two
+different `Output.synthedit` in one folder (generated 12277b vs Jeff's 13542b),
+and all three of his existed as BOTH `.seprefab` and `.synthedit`. Either guess
+would have silently dropped one of his rack modules. Jeff's calls: keep
+`.synthedit`, and suffix his with `_jef` so both `Output`s survive for
+comparison. The substantive difference, for whoever compares them: the generated
+one uses `type="SE Patch Point in"`, his uses `type="TiDE Patch Point In"`.
+
+**The last instruction changed what `build-prefabs.py` IS.** *"we're not
+regenerating them any more, they need hand-tweaking of the layout. don't want
+that overwritten."* Its docstring still called those files "BUILD OUTPUT, not
+hand-written" — which is exactly the belief that would destroy a day of layout
+work. Layout is the half the script recomputes from its own tables, so it cannot
+preserve a tweak.
+
+So it is now unable to clobber, and that is tested three ways rather than
+asserted: `--outdir` has no default so a bare run fails in argparse; pointing it
+at `RackModules` exits with a refusal; a throwaway `--outdir` gets past the guard
+and on to its normal SynthEditCL check. The guard sits immediately after
+`parse_args()` — my first attempt put it lower, where the SynthEditCL check
+fired first and the guard never ran at all. It is kept, not deleted, because it
+still documents how the graphs were built, which is written down nowhere else.
+
+The `_jef` suffix has a useful side effect: the script writes six fixed
+filenames, none of them suffixed, so it structurally cannot touch Jeff's files
+even if the guard were removed.
+
+**Left alone deliberately:** `TideModules` in DONE backlog rows and in
+`docs/n1-tide-rack-rename.md`'s table. Those are records of what was true then,
+and the backlog's Item column is prepend-only.
+
+**Not verified:** Windows and Linux. `tests/s21_bundle_resources_probe.py` would
+have been the natural check and cannot run here — it looks for
+`Contents/x86_64-linux/TIDE-Rack.so`, so it is Linux-only by construction. The
+macOS check was a direct listing of the bundle's `Resources/Prefabs`.
+
 ## 2026-08-24 — macos — The S7 skins ruling, and the gap Jeff closed (interactive)
 
 **Prompt:** oh, if it works with no skin at all, that good. / I've been running the rendered UI. No obvious issue yet.

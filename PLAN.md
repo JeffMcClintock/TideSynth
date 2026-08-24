@@ -250,7 +250,7 @@ TIDE is not starting from zero. A working prototype exists:
 | Editor core | `SE16/EditorLib/CMakeLists.txt` | ~120 files pulled from `SE16/SynthEdit2/`. **Private repo.** |
 | Shared core | `C:\SE\SynthEditLib` | Already a public repo — but see licensing gap. |
 | iOS app shell | `SE16/SE_IOS_APP/TIDE/` | Existing iOS/AUv3 target with a TIDE folder. |
-| Demo patches | `SE16/TideModules/` | `TIDE.se1`, plus AR/Output/Sine prefabs. |
+| Demo patches | `SE16/RackModules/` | `TIDE.se1`, plus AR/Output/Sine prefabs. |
 
 The prototype links `SynthEditLib` (public) **and** `EditorLib` (private). That
 split is the central problem the carve-out solves.

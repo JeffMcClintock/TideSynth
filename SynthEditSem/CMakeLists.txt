@@ -631,7 +631,7 @@ if(_tide_shared_targets)
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_tide_shared_resources}"
     ${_tide_stage_cmds}
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/../TideModules/prefabs"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
       "${_tide_shared_resources}/Prefabs"
     COMMENT "Staging rack prefabs and pin XMLs (once, shared by every format target that needs them)"
     VERBATIM
@@ -716,12 +716,17 @@ foreach(_fmt ${FORMATS_LIST})
       )
     endforeach()
 
-    # E2a — the rack prefabs. copy_directory_if_different so adding a prefab to
-    # TideModules/ needs no CMake edit; TideApp::seedPrefabsFromBundle enumerates
-    # whatever lands here.
+    # E2a — the rack prefabs. copy_directory_if_different so adding a rack module
+    # to RackModules/ needs no CMake edit; TideApp::seedPrefabsFromBundle
+    # enumerates whatever lands here.
+    #
+    # This comment used to say TideModules/ while the command copied
+    # TideModules/prefabs -- so a rack module dropped where the comment said went
+    # nowhere, silently. Jeff hit exactly that with AR/Output/Sine. One flat
+    # folder now, and the comment and the path agree.
     add_custom_command(TARGET ${_tide_target} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/../TideModules/prefabs"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
         "${_tide_resources}/Prefabs"
       COMMENT "Staging rack prefabs (${_tide_target})"
       VERBATIM
@@ -761,10 +766,10 @@ foreach(_fmt ${FORMATS_LIST})
     add_custom_command(TARGET ${_tide_target} POST_BUILD
       ${_tide_install_cmds}
       # copy_directory_if_different COPIES but never PRUNES, so a prefab deleted
-      # from TideModules/prefabs lingers in the installed bundle and keeps
+      # from RackModules lingers in the installed bundle and keeps
       # showing up in the browser. Bit V3 with its two throwaway probes.
       COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/../TideModules/prefabs"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
         "${_tide_installed}/Prefabs"
       COMMENT "Staging bundle data into the installed ${_tide_target}"
       VERBATIM

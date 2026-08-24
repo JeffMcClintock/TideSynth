@@ -601,7 +601,7 @@ std::string TideApp::getVendor4charCode()
 
 namespace
 {
-	// The bundle sub-folder CMake stages TideModules/*.synthedit into. Capital
+	// The bundle sub-folder CMake stages RackModules/*.synthedit into. Capital
 	// P to match SynthEditCL's staging target, which the comment there flags as
 	// matching the code's expectation only by accident on case-insensitive
 	// filesystems -- so spell it the same way rather than relying on that.
