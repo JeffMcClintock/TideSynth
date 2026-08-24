@@ -1247,9 +1247,11 @@ public:
 			// V4 — "at the rack" means the rack PANEL is on screen, not merely
 			// that currentContainer is the top-level one. "Goto Structure..." on
 			// the master leaves the container unchanged, so the container test
-			// alone greyed this in the rack's structure view -- and with
-			// "Goto Parent" greyed there too (the master has no parent) that was
-			// a dead end with no way back to the rack short of restarting.
+			// alone greyed this in the rack's structure view, where it is exactly
+			// the item you want. Not a trap: "Panel Edit..." a few lines below is
+			// POPUP_MENU_CONTROLS -> OpenView(this, CF_PANEL_VIEW) and does get you
+			// back. But that name reads as an editor rather than as navigation, so
+			// the discoverable item should not be the greyed one.
 			const bool atRack = (!rack || (rack == currentContainer && currentViewFlag == CF_PANEL_VIEW));
 			menu.addItem("Goto Rack", 0,
 				[this, rack](int32_t) { if (rack) requestNavigate(rack); },

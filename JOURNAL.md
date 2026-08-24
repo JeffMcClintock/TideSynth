@@ -33,13 +33,28 @@ early-returned on the unchanged value, and the filter never lifted. The
 predicate had to be `view_flag == CF_PANEL_VIEW`. `view_flag` was already
 computed on the line above and already carried the answer.
 
-**Bug 2 — the same error, already shipped, one screen away.** Once in the
-structure view there was **no way back to the rack**: "Goto Rack" was greyed
-because U3 tests `rack == currentContainer`, true in the master's structure
-view, and "Goto Parent" greys there too (the master has no parent). A dead
-end short of restarting the app. `onViewOpened` was **already being handed
-the resolved `view_flag` and discarding it** (`int /*flag*/`); keeping it in
-`currentViewFlag` fixes the greying with no new plumbing.
+**Bug 2 — the same error, already shipped, one screen away.** "Goto Rack" is
+greyed in the master's structure view, because U3 tests
+`rack == currentContainer` — true there, since "Goto Structure..." does not
+change the container. `onViewOpened` was **already being handed the resolved
+`view_flag` and discarding it** (`int /*flag*/`); keeping it in
+`currentViewFlag` greys the item only when the panel is actually on screen.
+
+**I FIRST WROTE THIS UP AS A DEAD END WITH NO WAY BACK TO THE RACK. THAT WAS
+WRONG, AND JEFF CAUGHT IT: *"Goto Panel gets back to the rack"*.** The item is
+called **"Panel Edit..."** in the menu, it sits four lines below "Goto Rack",
+and it is the exact counterpart of "Goto Structure...":
+`POPUP_MENU_CONTROLS -> Document()->OpenView(this, CF_PANEL_VIEW)`
+(`CContainer.cpp:1677`). **I had it on screen in my own screenshot and reasoned
+past it instead of clicking it.** Measured since: "Panel Edit..." returns to
+the rack, rails and all, with the browser back to 9.
+
+**So Bug 2 is a much smaller thing than I claimed:** a greyed item that should
+not be greyed, next to a working affordance that is simply named badly for this
+purpose. Worth fixing — "Goto Rack" is the discoverable name and "Panel Edit..."
+reads like an editor, not like navigation — but it is discoverability, **not a
+trapped user**. Bug 1 is unaffected: the structure view really did keep the
+rack's 9-entry list, whichever door you used to get there.
 
 **Measured, on the stripped build, both directions:**
 
@@ -59,6 +74,16 @@ the fix for Bug 1 sent me through the same door in the other direction.
 and both are wrong only in the running app. The V4 row's honest *"NOT
 verified"* is what made this worth doing — it named the gap precisely enough
 to aim at.
+
+**Second lesson, the expensive one: I asserted a dead end I never tested.** I
+drove the UI to find Bug 1, then wrote up Bug 2 from *reading the enable
+condition* — and shipped "no way back short of restarting" into a PR body, this
+journal and the V4 row. One click on an item already in my screenshot would
+have refuted it. **The rule I broke is the one at the top of the board:
+MEASURE BEFORE YOU ASSERT.** It applies hardest right after a real measurement
+succeeds, when the next claim feels like it came from the same evidence and did
+not. A greyed menu item proves an item is greyed; it proves nothing about
+whether another item does the job.
 
 **Not verified:** behaviour with a module actually categorised `Rack` (none
 exists yet — the category half is still exercised only by the temporary
