@@ -8,6 +8,47 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — R7: half was already done, and the other half is deferred (interactive)
+
+**Prompt:** lets do the ones that need admin interactivly / we're already sucessfully codesigning with azure, why do anything / lets say "forget it till it breaks", for now.
+
+Jeff opened admin-requiring rows to interactive sessions, so I took R7. Two
+findings, and the second is a correction to my own approach.
+
+**Part (1) was already done.** The row describes an ungated exposure — a workflow
+edit on any `tide/**` agent branch executing with read access to all 8
+credentials. Measured on the live repo, it cannot happen: a `release` environment
+exists with Jeff as a REQUIRED REVIEWER, all 8 credentials are in it, repo-level
+secret count is **0**, `release.yml` declares `environment: release`, and
+`build.yml` / `auto-merge.yml` touch only `GITHUB_TOKEN`. The row was stale and I
+would not have known without checking the API rather than reading the row.
+
+**On part (2) I was working the row instead of the situation.** I had researched
+the OIDC migration, confirmed the action supports it, found the missing
+`azure-subscription-id`, drafted the Apple API-key swap, and written Jeff a list
+of portal steps — before asking whether any of it was worth doing. His reply:
+*"we're already successfully codesigning with azure, why do anything"*. Correct.
+With (1) in place the remaining benefit is an expiry that has not arrived and a
+credential that is already gated behind his approval, against the cost of
+changing a working release path that CANNOT BE TESTED without cutting a real tag.
+
+Ruled: *"forget it till it breaks, for now."* Marked WONTFIX rather than left
+TODO, so it stops being re-picked off the queue.
+
+**The research is on the row rather than thrown away**, because the next person
+to want this should not re-derive it: the action does support OIDC and
+`azure-client-secret` is optional, but OIDC also wants `azure-subscription-id`
+(configured nowhere), the job needs `id-token: write` (it has only
+`contents: read`), and the Apple half is `notarytool --key/--key-id/--issuer`
+behind a new App Store Connect key.
+
+**The one cheap thing that would pre-empt the trigger:** both secrets were
+created 2026-08-09, and an Entra client secret's expiry is visible only in the
+portal. A 30-second look there is worth more than the migration.
+
+**Not verified:** nothing was changed, so there is nothing to verify. The
+measurements are live API reads, re-runnable.
+
 ## 2026-08-24 — macos — V5: VCV's numbers, and the rack canvas cut from 7968 to 1008 (interactive)
 
 **Prompt:** then take the next task
