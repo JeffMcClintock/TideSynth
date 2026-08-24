@@ -348,6 +348,11 @@ class SynthEditGui final : public PluginEditor, public Notifiable, public gmpi::
 	// frontends still use it.
 	CContainer* currentContainer{};
 
+	// V4 — and WHICH VIEW of it. "Goto Structure..." on the master keeps
+	// currentContainer == the rack, so container identity alone cannot say
+	// whether the rack panel or its structure is on screen.
+	int currentViewFlag{};
+
 	// D6 — the about pane. Its text affordance used to sit at the right end of
 	// the crumb strip and was "the only way in"; with the strip gone it opens
 	// from the context menu instead. The pane itself is unchanged: not a dialog,
@@ -711,9 +716,10 @@ public:
 				// U3 — remember where we are so the context menu can offer
 				// "Goto Parent" / "Goto Rack". This is all that survives of the
 				// breadcrumb bar's bookkeeping.
-				seApp->onViewOpened = [this](CContainer* c, int /*flag*/)
+				seApp->onViewOpened = [this](CContainer* c, int flag)
 				{
 					currentContainer = c;
+					currentViewFlag = flag;
 				};
 
 				view.attach(seApp->OpenView(hostUnknown.get()));
@@ -1238,7 +1244,15 @@ public:
 			// item it sits beside. Greying also keeps it visible when
 			// currentContainer is somehow null, which makes that failure
 			// diagnosable instead of silent.
-			const bool atRack = (!rack || rack == currentContainer);
+			// V4 — "at the rack" means the rack PANEL is on screen, not merely
+			// that currentContainer is the top-level one. "Goto Structure..." on
+			// the master leaves the container unchanged, so the container test
+			// alone greyed this in the rack's structure view, where it is exactly
+			// the item you want. Not a trap: "Panel Edit..." a few lines below is
+			// POPUP_MENU_CONTROLS -> OpenView(this, CF_PANEL_VIEW) and does get you
+			// back. But that name reads as an editor rather than as navigation, so
+			// the discoverable item should not be the greyed one.
+			const bool atRack = (!rack || (rack == currentContainer && currentViewFlag == CF_PANEL_VIEW));
 			menu.addItem("Goto Rack", 0,
 				[this, rack](int32_t) { if (rack) requestNavigate(rack); },
 				atRack ? int32_t(gmpi::api::PopupMenuFlags::Grayed) : 0);

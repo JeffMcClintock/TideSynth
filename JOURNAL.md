@@ -8,6 +8,116 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — macos — V4 verified by driving the UI, which found two bugs a build could not
+
+**Prompt:** interactive
+
+**Did:** Finished V4 by **testing it in the running app with computer
+control**, which is the only way the untested half could be reached. The row
+said *"NOT verified: the browser's rendered list, and the `Everything`
+branch"*. Both are now verified, and **both were broken.**
+
+**Bug 1 — the `Everything` branch never fired.** In the rack the browser
+correctly showed **9 of 174** entries. Drilling in with "Goto Structure..."
+opened the structure view but **left the browser filtered to the same nine**.
+Temporary `fprintf` tracing showed why:
+
+```
+TEMP-DIAG V4 OpenViewForContainer isRackLevel=1     <-- on the DRILL-IN
+```
+
+`isRackLevel` is `targetContainer == MasterContainer`, and **"Goto
+Structure..." on the master shows the RACK'S OWN structure** — same
+container, different view. So `isRackLevel` stayed true, `setBrowserScope()`
+early-returned on the unchanged value, and the filter never lifted. The
+predicate had to be `view_flag == CF_PANEL_VIEW`. `view_flag` was already
+computed on the line above and already carried the answer.
+
+**Bug 2 — the same error, already shipped, one screen away.** "Goto Rack" is
+greyed in the master's structure view, because U3 tests
+`rack == currentContainer` — true there, since "Goto Structure..." does not
+change the container. `onViewOpened` was **already being handed the resolved
+`view_flag` and discarding it** (`int /*flag*/`); keeping it in
+`currentViewFlag` greys the item only when the panel is actually on screen.
+
+**I FIRST WROTE THIS UP AS A DEAD END WITH NO WAY BACK TO THE RACK. THAT WAS
+WRONG, AND JEFF CAUGHT IT: *"Goto Panel gets back to the rack"*.** The item is
+called **"Panel Edit..."** in the menu, it sits four lines below "Goto Rack",
+and it is the exact counterpart of "Goto Structure...":
+`POPUP_MENU_CONTROLS -> Document()->OpenView(this, CF_PANEL_VIEW)`
+(`CContainer.cpp:1677`). **I had it on screen in my own screenshot and reasoned
+past it instead of clicking it.** Measured since: "Panel Edit..." returns to
+the rack, rails and all, with the browser back to 9.
+
+**So Bug 2 is a much smaller thing than I claimed:** a greyed item that should
+not be greyed, next to a working affordance that is simply named badly for this
+purpose. Worth fixing — "Goto Rack" is the discoverable name and "Panel Edit..."
+reads like an editor, not like navigation — but it is discoverability, **not a
+trapped user**. Bug 1 is unaffected: the structure view really did keep the
+rack's 9-entry list, whichever door you used to get there.
+
+**Measured, on the stripped build, both directions:**
+
+| step | browser |
+|---|---|
+| rack view | 9 entries, one "Prefabs" group |
+| after "Goto Structure..." | **20 categories**, `Controls`…`Waveform`, incl. `TiDE` |
+| after "Goto Rack" | **back to 9** |
+
+The return trip matters on its own: it proves the scope **restores** rather
+than latching.
+
+**Lesson — the class, not the line.** Both bugs are *container identity used
+where view identity is meant*. Bug 2 predates V4 and was found only because
+the fix for Bug 1 sent me through the same door in the other direction.
+**A green build cannot see either one**; both compile, both are type-correct,
+and both are wrong only in the running app. The V4 row's honest *"NOT
+verified"* is what made this worth doing — it named the gap precisely enough
+to aim at.
+
+**Second lesson, the expensive one: I asserted a dead end I never tested.** I
+drove the UI to find Bug 1, then wrote up Bug 2 from *reading the enable
+condition* — and shipped "no way back short of restarting" into a PR body, this
+journal and the V4 row. One click on an item already in my screenshot would
+have refuted it. **The rule I broke is the one at the top of the board:
+MEASURE BEFORE YOU ASSERT.** It applies hardest right after a real measurement
+succeeds, when the next claim feels like it came from the same evidence and did
+not. A greyed menu item proves an item is greyed; it proves nothing about
+whether another item does the job.
+
+**Filed V7 — the menus need better names, and this run is the bug report.**
+Jeff, after the correction: *"these menu need better names"*. Measured in
+`MfcDocPresenter.cpp`: **five names for three actions**, and which one you get
+depends on where you right-click.
+
+| action | background menu | on a container | TIDE adds |
+|---|---|---|---|
+| -> panel view | `Panel Edit...` (:1359) | `Pa&nel Edit...` (:1245) | `Goto Rack` |
+| -> structure view | `Goto Structure...` (:1226) | `&Structure...` (:1246) | — |
+| -> parent | `Goto Parent...` (:1361) | `Goto Parent Container` (:1333) | — |
+
+Both halves of each pair call the same command. **`Panel Edit...` is the outlier
+that does not say "goto" at all** — which is precisely why I missed it and
+invented a dead end. Proposed: `Goto Panel` / `Goto Structure` / `Goto Parent` /
+`Goto Rack`. **Not done, by Jeff's ruling:** the names live in EditorLib, shared
+with SynthEdit proper, so a rename changes SE16's menus for every existing user,
+and TIDE has no hook to override them. That is a SynthEdit product decision, not
+a TIDE cleanup. Jeff also ruled the `currentViewFlag` ungreying **stays** in
+#391 — belt-and-braces once the rename lands, an improvement on its own until then.
+
+Also noted in V7: `Pa&nel Edit...`, `&Structure...` and `D&ebug` still carry MFC
+accelerator ampersands, and **P3 removed MFC**. Grepping `se_sdk3_hosting/` found
+nothing that strips `&` from menu text, so they most likely render literally.
+**Not visually confirmed** — reaching them needs a right-click on a container in
+the structure view and the modules were off-canvas. The row says to confirm before
+fixing, which is the same discipline this entry is otherwise about.
+
+**Not verified:** behaviour with a module actually categorised `Rack` (none
+exists yet — the category half is still exercised only by the temporary
+recategorisation recorded in the row), and any view other than the master's.
+The diagnostic `fprintf`s were removed before committing; the round trip
+above was re-run on the clean build.
+
 ## 2026-08-25 — macos — The queue is blocked, so the run proved the platform instead; B1 closed on a green matrix
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
