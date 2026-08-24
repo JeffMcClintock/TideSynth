@@ -43,6 +43,11 @@ public:
 	ModuleDragAndDropManager* getModuleDragAndDropManager() override { return &moduleDragAndDrop; }
 	std::string               getVendor4charCode()              override;
 
+	// BACKLOG U1c — TIDE *is* the rack, so InitInstance/importChunkXml pin
+	// Document()->rackMode true and the panel's "Rack Mode" toggle has nothing
+	// to offer but a way to turn the product off. Hide it.
+	bool                      rackModeIsFixed()                 override { return true; }
+
 	// BACKLOG E2a — a prefab drop arrives as "*P=<relative path>" and
 	// CContainer::LoadPrefab resolves it through this. The inherited
 	// implementation answers with the user's "SynthEdit Projects/Prefabs"
