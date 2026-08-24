@@ -131,9 +131,25 @@ void TideApp::OpenView(CContainer* p_object, int view_flag)
 		onOpenContainerView(p_object, view_flag);
 }
 
+// BACKLOG V5. The rack canvas, and it is square.
+//
+// Was 7968, which is 20.75 rows tall and 525 HP wide -- about 11x taller and
+// 7.7x wider than VCV Rack shows by default, which is why it looked big.
+//
+// A TIDE DIP is very nearly a VCV pixel, so the two are directly comparable:
+// E5 ruled row 384 and standard width 48, and Eurorack's 3U = 128.5 mm with
+// 1 HP = 5.08 mm puts TIDE at 15.2 DIP per HP against VCV's RACK_GRID_WIDTH of
+// 15, and 384 per row against RACK_GRID_HEIGHT 380 -- a ratio of 1.011.
+// VCV's default window is 1024x720 (settings.cpp), i.e. 68.3 HP by 1.89 rows.
+//
+// 1008 is the nearest value to that 1024 which keeps the grid divisibility the
+// old comment recorded (60-DIP grid plus two 24-DIP borders, so N = 60k + 48):
+// 66.4 HP wide by 2.62 rows, which brackets VCV rather than dwarfing it.
+// 1248 would be the alternative if the target were a physical 84 HP case.
+static constexpr int kRackViewDips = 1008; // 60*16 + 48
+
 SE2::TopView* TideApp::OpenViewForContainer(gmpi::api::IUnknown* host, CContainer* container, int requested_view_flag)
 {
-	static const int viewDimensions = 7968; // DIPs (divisible by grids 60x60 + 2 24 pixel borders)
 
 	// BACKLOG U1b (second half) — constraint 1's two depths, routed per
 	// container. The MASTER container is the rack: panel view, the product's
@@ -149,7 +165,7 @@ SE2::TopView* TideApp::OpenViewForContainer(gmpi::api::IUnknown* host, CContaine
 		? requested_view_flag
 		: (isRackLevel ? CF_PANEL_VIEW : CF_STRUCTURE_VIEW);
 
-	const gmpi::drawing::Size viewSize{ static_cast<float>(viewDimensions), static_cast<float>(viewDimensions) };
+	const gmpi::drawing::Size viewSize{ static_cast<float>(kRackViewDips), static_cast<float>(kRackViewDips) };
 	SE2::TopView* viewOb{};
 	if (view_flag == CF_PANEL_VIEW)
 		viewOb = new SE2::ContainerViewPanel(viewSize);
@@ -194,7 +210,7 @@ SE2::TopView* TideApp::OpenViewForContainer(gmpi::api::IUnknown* host, CContaine
 	// "every module lands on the same point". Centre on the canvas midpoint
 	// until U1c defines what "home" means for a rack. After setDocument so
 	// the first arrange has run and calcViewTransform sees real bounds.
-	viewOb->setCenter({ viewDimensions / 2.0f, viewDimensions / 2.0f });
+	viewOb->setCenter({ kRackViewDips / 2.0f, kRackViewDips / 2.0f });
 
 	// U1b — keep the breadcrumb trail current for every open, including
 	// navigation re-opens.
@@ -722,19 +738,24 @@ void TideApp::seedRootMidiCv()
 	// combined plug list interleaves its GUI and Audio pins, so the <Audio>
 	// block's declaration order is not the pin index. Checked by making
 	// SynthEditCL resolve the name and print the index.
-	// COORDINATES ARE DOCUMENT-SPACE, AND THE CANVAS IS CENTRED NEAR 4000 —
-	// a user-dropped prefab lands around X 4024-4288, Y 3944-4008. Passing small
-	// numbers like {40,40} "works" and puts everything in the far top-left, off
-	// the visible rack, which looks exactly like the insert having failed. It did
-	// not; it was scrolled out of view. Measured, not guessed.
+	// COORDINATES ARE DOCUMENT-SPACE AND RELATIVE TO THE CANVAS CENTRE. Passing
+	// small absolute numbers like {40,40} "works" and puts everything in the far
+	// top-left, off the visible rack, which looks exactly like the insert having
+	// failed. It did not; it was scrolled out of view. Measured, not guessed.
+	//
+	// V5: these were absolute (3600-3960), chosen against the old 7968 canvas
+	// whose centre was 3984. Derived from the centre now, so resizing the canvas
+	// cannot strand them off-rack -- which is exactly what shrinking it to 1008
+	// would have done.
+	const float cx = kRackViewDips / 2.0f;
 	//
 	// The two plumbing modules sit up and left of the rack row on purpose. `MIDI
 	// In` carries a GUI (its Activity indicator), so it DOES draw; left to itself
 	// it defaults to the canvas centre, i.e. the middle of the rack. Hiding it
 	// properly is rack styling — BACKLOG E5 — so for now it is merely out of the
 	// way, and deliberately so rather than by accident.
-	const int midiIn = presenter.AddModule(L"MIDI In", { 3600.0f, 3620.0f });
-	const int midiCv = presenter.AddModule(L"SE MIDI to CV 2", { 3760.0f, 3620.0f });
+	const int midiIn = presenter.AddModule(L"MIDI In", { cx -384.0f, cx -364.0f });
+	const int midiCv = presenter.AddModule(L"SE MIDI to CV 2", { cx -224.0f, cx -364.0f });
 	if (midiIn < 0 || midiCv < 0)
 	{
 		fprintf(stderr, "TIDE: could not create the root MIDI-CV (MIDI In=%d, MIDI-CV 2=%d)"
@@ -753,7 +774,7 @@ void TideApp::seedRootMidiCv()
 	//
 	// An empty return is the error signal, and it covers the case that actually
 	// happens: the prefab file missing from the bundle.
-	const auto created = presenter.AddPrefab(L"*P=MidiCv.synthedit", { 3960.0f, 3944.0f });
+	const auto created = presenter.AddPrefab(L"*P=MidiCv.synthedit", { cx -24.0f, cx -40.0f });
 
 	// Still a search rather than created.front(): the facade is the CONTAINER,
 	// and this asks for that specifically rather than trusting the prefab to

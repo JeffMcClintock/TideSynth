@@ -107,6 +107,89 @@ dormant product repos with large uncommitted trees (`SE15` 407 files, `SSG` 194,
 active repos' own working changes.
 
 **Branch/PR:** `tide/win/V4-rack-filter-ruling` — TideSynth only, no code change.
+## 2026-08-24 — macos — R7: half was already done, and the other half is deferred (interactive)
+
+**Prompt:** lets do the ones that need admin interactivly / we're already sucessfully codesigning with azure, why do anything / lets say "forget it till it breaks", for now.
+
+Jeff opened admin-requiring rows to interactive sessions, so I took R7. Two
+findings, and the second is a correction to my own approach.
+
+**Part (1) was already done.** The row describes an ungated exposure — a workflow
+edit on any `tide/**` agent branch executing with read access to all 8
+credentials. Measured on the live repo, it cannot happen: a `release` environment
+exists with Jeff as a REQUIRED REVIEWER, all 8 credentials are in it, repo-level
+secret count is **0**, `release.yml` declares `environment: release`, and
+`build.yml` / `auto-merge.yml` touch only `GITHUB_TOKEN`. The row was stale and I
+would not have known without checking the API rather than reading the row.
+
+**On part (2) I was working the row instead of the situation.** I had researched
+the OIDC migration, confirmed the action supports it, found the missing
+`azure-subscription-id`, drafted the Apple API-key swap, and written Jeff a list
+of portal steps — before asking whether any of it was worth doing. His reply:
+*"we're already successfully codesigning with azure, why do anything"*. Correct.
+With (1) in place the remaining benefit is an expiry that has not arrived and a
+credential that is already gated behind his approval, against the cost of
+changing a working release path that CANNOT BE TESTED without cutting a real tag.
+
+Ruled: *"forget it till it breaks, for now."* Marked WONTFIX rather than left
+TODO, so it stops being re-picked off the queue.
+
+**The research is on the row rather than thrown away**, because the next person
+to want this should not re-derive it: the action does support OIDC and
+`azure-client-secret` is optional, but OIDC also wants `azure-subscription-id`
+(configured nowhere), the job needs `id-token: write` (it has only
+`contents: read`), and the Apple half is `notarytool --key/--key-id/--issuer`
+behind a new App Store Connect key.
+
+**The one cheap thing that would pre-empt the trigger:** both secrets were
+created 2026-08-09, and an Entra client secret's expiry is visible only in the
+portal. A 30-second look there is worth more than the migration.
+
+**Not verified:** nothing was changed, so there is nothing to verify. The
+measurements are live API reads, re-runnable.
+
+## 2026-08-24 — macos — V5: VCV's numbers, and the rack canvas cut from 7968 to 1008 (interactive)
+
+**Prompt:** then take the next task
+
+The one thing I had documented instead of delivering. Jeff asked me to research
+VCV's rack size and resize TIDE to match; I filed the row with TIDE's own numbers
+and said the VCV figures were unconfirmed. They are confirmed now, from source.
+
+**VCV:** `RACK_GRID_WIDTH` 15, `RACK_GRID_HEIGHT` 380, default window 1024x720,
+and `RACK_OFFSET` = grid x (2000,100). That last one matters — VCV's canvas is
+effectively unbounded, so "how big is VCV's rack" is really "how much does the
+window show": **68.3 HP by 1.89 rows**.
+
+**The finding that made this well-defined: a TIDE DIP is very nearly a VCV
+pixel.** E5 ruled row 384 against VCV's 380, and Eurorack's 3U = 128.5 mm with
+1 HP = 5.08 mm puts TIDE at 15.2 DIP per HP against VCV's 15 — ratio 1.011. So
+the two scales are the same and the comparison is arithmetic, not judgement.
+TIDE's old 7968 canvas was **20.75 rows by 524.9 HP**: about 11x taller and 7.7x
+wider than VCV shows.
+
+Now 1008 = 60*16 + 48, which keeps the grid divisibility the old comment
+recorded, and gives 66.4 HP by 2.62 rows.
+
+**Both couplings the row flagged were real.** `setCenter` follows the constant on
+its own. `seedRootMidiCv()`'s placements did not: 3600-3960 absolute, chosen
+against the old centre of 3984, and on a 1008 canvas they would have been three
+times outside it — the exact failure the code's own comment warns about ("passing
+small numbers puts everything off the visible rack, which looks exactly like the
+insert having failed"). They are derived from `cx = kRackViewDips / 2` now, so
+the next resize cannot strand them.
+
+Checked they land on-rack before trusting it: MIDI In (120,140), MIDI-CV
+(280,140), prefab (480,464), with row 1 spanning y 252..636. Standalone launches,
+root MIDI-CV seeds, prefabs seed, no error output, and S7 still holds — home
+folder diff of 0 lines.
+
+**Not verified: the rendered result.** The arithmetic is right and it runs, but
+whether 2.62 rows LOOKS right is Jeff's call and a build cannot prove it. If it
+wants a physical case instead of VCV's window, 1248 gives 82.2 HP by 3.25 rows,
+which is about an 84 HP 3-row case.
+
+**Not verified:** Windows and Linux.
 
 ## 2026-08-24 — macos — Close-out sweep: two real misses found (interactive)
 
