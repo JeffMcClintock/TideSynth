@@ -532,45 +532,59 @@ bool TideApp::InitInstance()
 	// Adding it in only one place fails silently in whichever direction you
 	// missed -- staged but never read, or read but never staged (the second says
 	// so on stderr, the first says nothing at all).
-	for (const auto* resourceName : { "ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilters.xml" })
+	// ONCE PER PROCESS, not once per instance. This merge writes into the
+	// PROCESS-GLOBAL module database (Module_Info), and a standalone app made
+	// that distinction invisible: InitInstance ran exactly once, so nothing here
+	// needed a guard. A plug-in host creates SEVERAL instances in ONE process --
+	// an AUv3 extension process is shared across instantiations -- so the second
+	// instance re-scanned every module and tripped RegisterParameters's
+	// assert("Already scanned parameters"), aborting the extension process.
+	// auval could not open the AU at all; it can now.
+	static bool s_xmlMerged = false;
+	if (!s_xmlMerged)
 	{
-		const auto xml = BundleInfo::instance()->getResource(resourceName);
-		if (xml.empty())
-		{
-			fprintf(stderr, "TIDE: %s missing from bundle resources - those controls will have no pins\n", resourceName);
-			continue;
-		}
+		s_xmlMerged = true;
 
-		tinyxml2::XMLDocument doc;
-		doc.Parse(xml.c_str());
-		if (doc.Error())
-			continue;
-
-		tinyxml2::XMLNode* root = doc.FirstChildElement("PluginList");
-		if (!root)
-			root = &doc;
-		// The count is REPORTED, not merely computed, and that is the point.
-		// "Enriched" means the class was registered AND its pins arrived; the
-		// difference between the two numbers is the file's entries TIDE does not
-		// link, which is expected and harmless. What is NOT harmless is a zero:
-		// it means every class this file describes is missing from the source
-		// list, i.e. the .cpp half was forgotten -- the exact half of the
-		// both-halves rule above that nothing else here can see. That failure
-		// used to be completely silent and cost a debugging cycle on V3.
-		int enriched = 0, described = 0;
-		for (auto e = root->FirstChildElement("Plugin"); e; e = e->NextSiblingElement("Plugin"))
+		for (const auto* resourceName : { "ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilters.xml" })
 		{
-			++described;
-			const auto id = JmUnicodeConversions::Utf8ToWstring(e->Attribute("id"));
-			if (auto* mi3 = dynamic_cast<Module_Info3_internal*>(CModuleFactory::Instance()->GetById(id)); mi3)
+			const auto xml = BundleInfo::instance()->getResource(resourceName);
+			if (xml.empty())
 			{
-				mi3->ScanXml(e);
-				++enriched;
+				fprintf(stderr, "TIDE: %s missing from bundle resources - those controls will have no pins\n", resourceName);
+				continue;
 			}
+
+			tinyxml2::XMLDocument doc;
+			doc.Parse(xml.c_str());
+			if (doc.Error())
+				continue;
+
+			tinyxml2::XMLNode* root = doc.FirstChildElement("PluginList");
+			if (!root)
+				root = &doc;
+			// The count is REPORTED, not merely computed, and that is the point.
+			// "Enriched" means the class was registered AND its pins arrived; the
+			// difference between the two numbers is the file's entries TIDE does not
+			// link, which is expected and harmless. What is NOT harmless is a zero:
+			// it means every class this file describes is missing from the source
+			// list, i.e. the .cpp half was forgotten -- the exact half of the
+			// both-halves rule above that nothing else here can see. That failure
+			// used to be completely silent and cost a debugging cycle on V3.
+			int enriched = 0, described = 0;
+			for (auto e = root->FirstChildElement("Plugin"); e; e = e->NextSiblingElement("Plugin"))
+			{
+				++described;
+				const auto id = JmUnicodeConversions::Utf8ToWstring(e->Attribute("id"));
+				if (auto* mi3 = dynamic_cast<Module_Info3_internal*>(CModuleFactory::Instance()->GetById(id)); mi3)
+				{
+					mi3->ScanXml(e);
+					++enriched;
+				}
+			}
+			fprintf(stderr, "TIDE: %s enriched %d of %d described class(es)%s\n",
+				resourceName, enriched, described,
+				enriched == 0 ? " -- ZERO: is the .cpp in CMakeLists' source list?" : "");
 		}
-		fprintf(stderr, "TIDE: %s enriched %d of %d described class(es)%s\n",
-			resourceName, enriched, described,
-			enriched == 0 ? " -- ZERO: is the .cpp in CMakeLists' source list?" : "");
 	}
 
 	// BACKLOG E2a — the rack prefabs (oscillator, envelope, output). Stage 4 of
