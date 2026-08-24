@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**linux — V6's risk discharged: a root paste does carry connections, and the row's fork is now live (interactive, Jeff directing)**
+
+- "Verify X before deleting Y" earns its place when X has never happened.
+- Put the control in the same artifact as the subject.
+- A minimal repro is worth more than a faithful one here.
+- A CI issue can name a head that no longer exists.
+- Check what a folder scan actually enumerates before shipping a file into it.
+
 **windows — V4: the three candidate markers, measured — one of them selects nothing (interactive, Jeff directing)**
 
 - "Ruled rather than invented" does not mean "stop" — it means measure, then escalate with numbers.
