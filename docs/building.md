@@ -322,30 +322,47 @@ from the module database"* that blames the user's installation; the fix is
 building both targets (P11 tracks making this self-consistent or at least
 honestly diagnosed).
 
-### macOS: the build installed to a folder the scanner never read — FIXED 2026-08-23 (S35)
+### macOS: the build installs to a folder the scanner does not read (S35, still open)
 
-**This section described a live defect until 2026-08-23. It is fixed, and the
-description is kept because the mechanism explains any stale build you still
-have lying around.** `SynthEditLib` now scans the user domain as well:
-`getUserPluginsFolder()` (`modules/se_sdk3_hosting/BundleInfo.cpp:170`) is the
-user-domain twin of `getPlatformPluginsFolder()`, and
-`EditorLib/Application.cpp:567-581` scans it after the system one. Landed as
-[SynthEditLib#36](https://github.com/JeffMcClintock/SynthEditLib/pull/36).
+**This section said "FIXED 2026-08-23 (S35)" for about fifteen hours and it was
+wrong. Corrected 2026-08-24.** The fix landed as
+[SynthEditLib#36](https://github.com/JeffMcClintock/SynthEditLib/pull/36) at
+19:57 on 08-23, this section was written at 21:19 describing it as done, and the
+scan was **withdrawn** in
+[SynthEditLib#38](https://github.com/JeffMcClintock/SynthEditLib/pull/38) at
+00:32 on 08-24 — three hours later. Nothing here was untrue when written; it went
+stale overnight and nobody re-read it.
 
-**It changes nothing on Windows or Linux, by design** — `getUserPluginsFolder()`
-returns empty on both. Windows has no per-user plug-ins convention, and Linux
-already keeps everything under the per-user data dir, so a second scan would be
-the same folder. Empty means no second scan.
+**That is worth naming rather than quietly editing, because it is the third time
+this one file has carried a present-tense claim about something that was not in
+the product** — the C7 opening, the `FORMATS_LIST` line, and now this. A fix
+being merged in a *sibling* repo is not the same as it being in `main`, and this
+file has no way to notice when one is reverted.
 
-**The user path is derived from `ModulePath`, not hardcoded**, so if you have
-repointed `ModulePath` you keep one scan rather than silently gaining a folder.
+**The state today: the user domain is NOT scanned.**
+`SynthEditLib/EditorLib/Application.cpp:558-567` is a comment where the scan
+used to be. `getUserPluginsFolder()` still exists
+(`modules/se_sdk3_hosting/BundleInfo.cpp:170`) and is unused.
 
-**What it looked like before, and why a stale install can still bite you.**
+**Why it was withdrawn — the feature is still wanted, the landing was not
+safe.** The scan made `SynthEditCL` **segfault**: the developer's own
+`~/Library/Audio/Plug-Ins/GMPI` held stale duplicates of factory modules, giving
+43 `Module FOUND TWICE!` collisions and a SIGSEGV that took `dsp_tests` from 2
+failures to 43. Two root causes have since been fixed
+([SynthEditLib#40](https://github.com/JeffMcClintock/SynthEditLib/pull/40),
+[#41](https://github.com/JeffMcClintock/SynthEditLib/pull/41)), so a re-land is
+expected — with a green `dsp_tests` and a clean `SynthEditCL -rescan` as the
+acceptance test this time, rather than "the modules are found".
+
+**So on macOS, keep doing the copy below.** Windows and Linux were never
+affected either way: `getUserPluginsFolder()` returns empty on both.
+
+**The mechanism, which is what makes the copy necessary.**
 
 | | path | who writes it |
 |---|---|---|
 | `SE_LOCAL_BUILD` installs to | `~/Library/Audio/Plug-Ins/GMPI` | `copy_plugin()`, `GMPI/gmpi_plugin.cmake:1225` |
-| the module scanner used to read, only | `/Library/Audio/Plug-Ins/GMPI` | hard-coded |
+| the module scanner reads, only | `/Library/Audio/Plug-Ins/GMPI` | hard-coded |
 
 The scan root was a string literal, not a domain lookup:
 `getPlatformPluginsFolder()` returns `"/Library/Audio/Plug-Ins/"`
@@ -362,17 +379,15 @@ consulted. Measured on one mac before the fix: **7 modules in the system domain,
 under `/Library/Audio/Plug-Ins/GMPI`. **Zero** user-domain paths had ever been
 recorded, in any cache file, at any date — so it was not a stale-cache artifact.
 
-**Do not use that cache count to check the fix — it stays zero either way.** The
-caches store module metadata without absolute paths, so a user-domain module
-that is now being scanned adds no user-domain path to them. Verify with
-`SynthEditCL -rescan` and read its output instead: it prints a second
-`Scanning for 3rd-party SEMs in (user domain): …` line, and duplicates of
-factory SEMs are correctly reported as `Module FOUND TWICE!`. Whoever fixed this
-nearly read the unchanged zero as the fix not working.
+**When the scan is re-landed, do not use that cache count to check it — it stays
+zero either way.** The caches store module metadata without absolute paths, so a
+user-domain module that is being scanned adds no user-domain path to them.
+Verify with `SynthEditCL -rescan` and read its output: it prints a second
+`Scanning for 3rd-party SEMs in (user domain): …` line. Whoever landed S35 the
+first time nearly read the unchanged zero as the fix not working.
 
-**With the fix, a locally built module is simply found where it was installed.**
-The copy below is no longer needed on an up-to-date `SynthEditLib`, and is kept
-for anyone building against an older one:
+So on macOS a locally built module is installed, and invisible. Copy it across
+to make a build visible to SynthEdit:
 
     cp -R build/SynthEditSem/Release/TIDE-Rack.gmpi "/Library/Audio/Plug-Ins/GMPI/TIDE-Rack.gmpi"
 
