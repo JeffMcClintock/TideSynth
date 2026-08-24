@@ -11,14 +11,18 @@ This regenerates the digest from both files, so it cannot drift from them:
     python3 scripts/extract-lessons.py --check        # CI: is it up to date?
     python3 scripts/extract-lessons.py --measure      # the size argument
 
-WHY A HEADLINE INDEX AND NOT THE BULLETS THEMSELVES. Measured 2026-08-20 over
-167 entries: the Learned sections total **223 KB**, 24% of the whole corpus.
-Copying them verbatim into a file every run reads would be **worse than the
-192 KB that triggered A8 in the first place** -- the same mistake A24 measured
-and rejected for a 7-day journal floor. The journal's own convention saves this:
-each bullet is written as a bold claim followed by its working, so the bold
-lead-in alone is a real lesson, not a title. Keeping only those gives **56 KB /
-599 lessons across 152 entries -- 4.1x smaller**, with every entry represented.
+WHY A HEADLINE INDEX AND NOT THE BULLETS THEMSELVES. The Learned sections are
+several times the size of this digest, and copying them verbatim into a file
+every run reads would be **worse than the 192 KB that triggered A8 in the first
+place** -- the same mistake A24 measured and rejected for a 7-day journal floor.
+The journal's own convention saves this: each bullet is written as a bold claim
+followed by its working, so the bold lead-in alone is a real lesson, not a title.
+Keeping only those is several times smaller, with every entry represented.
+
+NO FIGURES ARE QUOTED HERE ON PURPOSE (S47). This docstring once carried its own
+copy of them and went 96 entries stale, in the file every run is told to read.
+Run `--measure` for the current numbers; the digest's own preamble computes them
+each time it is written, so it cannot drift from the corpus it describes.
 
 TWO COSTS, both stated rather than hidden:
 
@@ -182,10 +186,11 @@ files, so it cannot drift from them, and adding a lesson means writing a
 
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
-the claim and drops the argument. Measured 2026-08-20: the Learned sections are
-**223 KB** across 167 entries, so copying them whole into a file every run reads
-would be worse than the 192 KB that triggered A8. This is **4.1x smaller** and
-still represents **every** entry that has a lesson — 152 of them, none dropped.
+the claim and drops the argument. Measured when this file was last written: the
+Learned sections are **{raw_kb} KB** across **{entries}** entries, so copying them
+whole into a file every run reads would be worse than the 192 KB that triggered
+A8. This is **{body_kb} KB / {lessons} lessons — {ratio}x smaller**, and represents
+**every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
 [JOURNAL.md](../JOURNAL.md) if recent, else
@@ -206,8 +211,25 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 """
 
 
+def learned_bytes():
+    """Total size of the Learned sections this digest is extracted FROM.
+
+    Factored out of --measure so the preamble can state the same number the
+    tool reports, rather than a figure typed in once and left to rot (S47).
+    """
+    raw = 0
+    for name in SOURCES:
+        path = REPO / name
+        if not path.exists():
+            continue
+        for chunk in ENTRY.split(path.read_text(encoding="utf-8")):
+            if chunk.startswith("## 2026-"):
+                raw += sum(len(b) for b in BLOCK.findall(chunk))
+    return raw
+
+
 def render(data):
-    body = [PREAMBLE]
+    body = []
     n = 0
     current = None
     for date, machine, topic, lines in data:
@@ -220,7 +242,24 @@ def render(data):
             body.append(f"- {text}")
             n += 1
         body.append("")
-    return "\n".join(body).rstrip() + "\n", n
+    text = "\n".join(body).rstrip() + "\n"
+
+    # S47: the preamble's figures are COMPUTED, never typed. They were once
+    # hardcoded and went 96 entries stale -- and the sentence they sit in is a
+    # reassurance about completeness ("none dropped"), which is the one claim a
+    # reader of a generated index most needs to be able to trust.
+    #
+    # The ratio is body-vs-source, NOT digest-vs-source: quoting the finished
+    # file's own size inside that file cannot have a fixed point, and
+    # `--write` twice has to be a no-op diff.
+    raw = learned_bytes()
+    return PREAMBLE.format(
+        entries=len(data),
+        lessons=n,
+        raw_kb=round(raw / 1024),
+        body_kb=round(len(text) / 1024),
+        ratio=f"{raw / max(len(text), 1):.1f}",
+    ) + text, n
 
 
 def main():
@@ -234,14 +273,7 @@ def main():
     text, n = render(data)
 
     if args.measure:
-        raw = 0
-        for name in SOURCES:
-            path = REPO / name
-            if not path.exists():
-                continue
-            for chunk in ENTRY.split(path.read_text(encoding="utf-8")):
-                if chunk.startswith("## 2026-"):
-                    raw += sum(len(b) for b in BLOCK.findall(chunk))
+        raw = learned_bytes()
         print(f"entries with lessons : {len(data)}")
         print(f"lesson headlines     : {n}")
         print(f"Learned sections     : {raw:,} bytes")

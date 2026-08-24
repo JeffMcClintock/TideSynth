@@ -15,10 +15,11 @@ files, so it cannot drift from them, and adding a lesson means writing a
 
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
-the claim and drops the argument. Measured 2026-08-20: the Learned sections are
-**223 KB** across 167 entries, so copying them whole into a file every run reads
-would be worse than the 192 KB that triggered A8. This is **4.1x smaller** and
-still represents **every** entry that has a lesson — 152 of them, none dropped.
+the claim and drops the argument. Measured when this file was last written: the
+Learned sections are **321 KB** across **248** entries, so copying them
+whole into a file every run reads would be worse than the 192 KB that triggered
+A8. This is **89 KB / 988 lessons — 3.6x smaller**, and represents
+**every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
 [JOURNAL.md](../JOURNAL.md) if recent, else
@@ -35,7 +36,6 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
-
 
 ## 2026-08-25
 
