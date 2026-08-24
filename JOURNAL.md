@@ -8,6 +8,106 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — windows — the unpushed half was pushed, and `main` is green on all three platforms (interactive, Jeff directing)
+
+**Prompt:** push to main branches
+
+**Did:** The entry below this one is the scheduled run that found `main` red on
+all three platforms, measured the cause, and **deliberately did not fix it**
+because the fix was Jeff's uncommitted working-tree change and STEP 5 forbids a
+run from committing that. Jeff read the report and answered *"push to main
+branches"*, which is the authorisation the scheduled run did not have. So the
+two files went in as
+[SynthEditLib `af42bd6`](https://github.com/JeffMcClintock/SynthEditLib/commit/af42bd6),
+authored as Jeff — it is his change — with the pairing to TideSynth
+`c0c79818c` spelled out in the commit message, because a commit that only makes
+sense next to a commit in another repo should say so.
+
+**Result — green, verified two ways rather than declared.**
+
+1. **CI on the real runners.** Re-ran the failed build
+   ([32776912943](https://github.com/JeffMcClintock/TideSynth/actions/runs/32776912943))
+   against the **same TideSynth tree**, changing nothing but what
+   `GIT_TAG origin/main` resolves to in SynthEditLib:
+   `macos=success`, `linux=success`, `windows=success`. All three legs that
+   failed. Re-running rather than pushing a new commit is what makes this an
+   isolation of the one variable instead of a fresh unrelated build.
+2. **Locally, the same A/B that diagnosed it.** `cl /Zs` on `TideApp.cpp`
+   against a fresh `git archive origin/main` of SynthEditLib: **`C3668` before
+   the push, 0 errors after**, same command, same flags.
+
+**[#392](https://github.com/JeffMcClintock/TideSynth/issues/392) and
+[#393](https://github.com/JeffMcClintock/TideSynth/issues/393) CLOSED
+THEMSELVES on that green run.** That is `build.yml`'s close-on-success step
+firing in place, which is worth recording as evidence in its own right — S41's
+row and A33's both turn on whether these mechanisms actually run, and most of
+the prior cases were closed by hand and so proved nothing.
+[#394](https://github.com/JeffMcClintock/TideSynth/issues/394) had to be closed
+by hand, because the windows leg is excluded from that automation by the same
+`matrix.platform != 'win'` condition that stopped it filing the issue in the
+first place — **the exclusion cuts both ways, and this is the second half of it
+showing up within one session.**
+
+**WHAT DID NOT CHANGE, AND SHOULD NOT BE READ AS SOFTENED.** A human being
+present is exactly what made this legitimate, and the scheduled run was right to
+stop. The rule it obeyed — *never commit the developer's work in progress* —
+did not bend; it was **discharged by the developer authorising the push**. A
+future run that finds an uncommitted fix in a dirty tree still may not commit
+it, and the fact that this one turned out to be wanted is not evidence the rule
+is too strict. The strongest argument for that is what the run bought by
+stopping: it handed Jeff a two-line answer with an A/B behind it instead of a
+merge conflict with a change he was holding.
+
+**The amplification was real and is the argument for fixing this class fast.**
+While `main` was red, every branch cut from it inherited the error and filed up
+to two more CI issues of its own — #396/#397, #398/#399 and #402 in about forty
+minutes, so **six of nine open issues on the repo were one missing push**. That
+is also why the scheduled run stopped at two PRs: each push it made created two
+more issues. A red default branch is not a static cost.
+
+**Left open on purpose, and this is unchanged by the fix:**
+[#398](https://github.com/JeffMcClintock/TideSynth/issues/398),
+[#399](https://github.com/JeffMcClintock/TideSynth/issues/399) and
+[#402](https://github.com/JeffMcClintock/TideSynth/issues/402) sit on branches
+that have merged and been deleted, which is exactly the shape A33's watchdog
+sweep targets. A33's row asks a run to find out whether that sweep actually
+fires, and records that every previous case was hand-closed and so is not
+evidence. Closing them now would destroy the test a second time for the sake of
+tidying three issues. **The 2026-08-25 06:00 UTC firing is the check.**
+
+**Learned:**
+
+1. **A rule that stops a run short is not thereby a rule that cost the fleet
+   anything.** Stopping produced a measured diagnosis and a two-line fix ready
+   for a human; committing would have produced a conflict with a change the
+   developer was holding. Judge the rule by what the run handed over, not by
+   whether the work was ultimately wanted.
+2. **Re-run the failed run rather than pushing a new commit when the variable
+   you changed lives in another repo.** `GIT_TAG origin/main` re-resolves on a
+   re-run, so the same tree builds against the new sibling and the result
+   isolates one variable. A fresh commit would have proved "some newer state
+   builds", which is a much weaker claim.
+3. **`build.yml`'s close-on-success step works, observed in place** — #392 and
+   #393 closed themselves on the green re-run. That is real evidence for the
+   family of questions S41 and A33 keep raising about whether the automation
+   fires; most prior cases were hand-closed and could not answer it.
+4. **The `matrix.platform != 'win'` exclusion cuts both ways.** It stops the
+   windows leg filing a platform issue *and* stops it closing one. Both halves
+   showed up in a single session. Any future look at that condition should
+   weigh the close side, not just the file side.
+5. **A commit whose meaning depends on a commit in another repo has to say so
+   in its message.** `af42bd6` names TideSynth `c0c79818c`, the compiler errors
+   both spellings, and the issues — otherwise the next person to read it sees
+   six lines adding a virtual nobody calls in this repo.
+
+**Next:** nothing outstanding on this break. The `win`, `mac` and `any` NEXT
+cells are prefixed with the resolution so no run re-opens it. The scheduled
+lane's real state is unchanged and is what the entry below describes: **nothing
+takeable, blocked on Jeff.** Check the A33 sweep after 06:00 UTC.
+
+**Branch/PR:** none — pushed straight to `main` in both repos at Jeff's
+direction, per his interactive convention.
+
 ## 2026-08-25 — macos — "launch the au3": it aborted on every instantiation, two bugs deep
 
 **Prompt:** interactive
@@ -825,195 +925,6 @@ portal. A 30-second look there is worth more than the migration.
 
 **Not verified:** nothing was changed, so there is nothing to verify. The
 measurements are live API reads, re-runnable.
-
-## 2026-08-24 — macos — A33: CI-filed issues on deleted branches now close themselves (interactive)
-
-**Prompt:** we can do workflow modifications interactivly now
-
-That ruling is what unblocked this. A33 has been TODO purely because
-`.github/workflows/**` was Jeff's path; the work itself is small.
-
-The defect, restated: a CI-filed platform issue names the branch that failed, and
-the only thing that closes it is a GREEN RUN OF THAT BRANCH. Delete the branch at
-merge — correct practice, and what every S3g pr did — and no run can ever happen
-on it. The issue is then unclosable by the mechanism that filed it, and an open
-`platform:*` issue is STEP 1 work outranking every backlog row.
-
-A sweep now runs in `watchdog.yml`'s existing daily job. Three guards, all copied
-from `build.yml`'s close-on-success step rather than invented: exact title shape,
-`author.is_bot`, and the branch genuinely being absent.
-
-**The dry run is what makes this entry worth reading.** I extracted the step's
-bash out of the YAML with a real parser and ran it locally, with `gh issue close`
-and `gh issue comment` stubbed and the live issue list. The first version failed
-immediately: my YAML line-continuations had put literal backslashes INSIDE the
-`jq` program. YAML parsed fine — three steps, valid document — because YAML does
-not check the shell inside a block scalar. It would have shipped green and failed
-on the next scheduled run, in a job nobody watches.
-
-Four cases exercised, three of them controls:
-
-| case | result |
-|---|---|
-| bot-filed, branch deleted | closes — #373, the one actually stuck |
-| **hand-filed (`is_bot=false`), branch deleted** | **left alone** |
-| bot-filed, branch alive (`main`) | left open, says a run can still close it |
-| bot-filed, title has no ` — branch` | skipped, says so |
-
-The second is the control this row explicitly asked for, and it is the one that
-matters: the guard against auto-closing somebody's real report.
-
-Parsing the branch off the title is safe for a reason worth writing down: a git
-ref cannot contain a space, so `" — "` can never appear inside a branch name.
-
-**#306, the example this row was filed about, is already closed by hand.** #373
-is the live one, and the sweep takes it on the next daily run.
-
-**Not verified:** the step running on GitHub's own infra. The logic is proven
-locally against the real API, but its first scheduled run will be its first run
-in place.
-
-## 2026-08-24 — macos — V5: VCV's numbers, and the rack canvas cut from 7968 to 1008 (interactive)
-
-**Prompt:** then take the next task
-
-The one thing I had documented instead of delivering. Jeff asked me to research
-VCV's rack size and resize TIDE to match; I filed the row with TIDE's own numbers
-and said the VCV figures were unconfirmed. They are confirmed now, from source.
-
-**VCV:** `RACK_GRID_WIDTH` 15, `RACK_GRID_HEIGHT` 380, default window 1024x720,
-and `RACK_OFFSET` = grid x (2000,100). That last one matters — VCV's canvas is
-effectively unbounded, so "how big is VCV's rack" is really "how much does the
-window show": **68.3 HP by 1.89 rows**.
-
-**The finding that made this well-defined: a TIDE DIP is very nearly a VCV
-pixel.** E5 ruled row 384 against VCV's 380, and Eurorack's 3U = 128.5 mm with
-1 HP = 5.08 mm puts TIDE at 15.2 DIP per HP against VCV's 15 — ratio 1.011. So
-the two scales are the same and the comparison is arithmetic, not judgement.
-TIDE's old 7968 canvas was **20.75 rows by 524.9 HP**: about 11x taller and 7.7x
-wider than VCV shows.
-
-Now 1008 = 60*16 + 48, which keeps the grid divisibility the old comment
-recorded, and gives 66.4 HP by 2.62 rows.
-
-**Both couplings the row flagged were real.** `setCenter` follows the constant on
-its own. `seedRootMidiCv()`'s placements did not: 3600-3960 absolute, chosen
-against the old centre of 3984, and on a 1008 canvas they would have been three
-times outside it — the exact failure the code's own comment warns about ("passing
-small numbers puts everything off the visible rack, which looks exactly like the
-insert having failed"). They are derived from `cx = kRackViewDips / 2` now, so
-the next resize cannot strand them.
-
-Checked they land on-rack before trusting it: MIDI In (120,140), MIDI-CV
-(280,140), prefab (480,464), with row 1 spanning y 252..636. Standalone launches,
-root MIDI-CV seeds, prefabs seed, no error output, and S7 still holds — home
-folder diff of 0 lines.
-
-**Not verified: the rendered result.** The arithmetic is right and it runs, but
-whether 2.62 rows LOOKS right is Jeff's call and a build cannot prove it. If it
-wants a physical case instead of VCV's window, 1248 gives 82.2 HP by 3.25 rows,
-which is about an 84 HP 3-row case.
-
-**Not verified:** Windows and Linux.
-## 2026-08-24 — macos — Close-out sweep: two real misses found (interactive)
-
-**Prompt:** great. did we miss anything?
-
-Checked rather than answered from memory, and there were two.
-
-**Five rows were IN-REVIEW with every PR merged.** S7, S3g, P3, S18 and S35 —
-thirteen PRs across three repos, all merged, none of the rows flipped. This is
-the fourth time today this drift has needed fixing, and the pattern is always
-the same: the PR merges, the row stays IN-REVIEW, and the next run cannot tell
-finished work from work in flight.
-
-**S8's row still named the wrong cause.** SynthEditLib#49 merged with the real
-finding — the list is not "in a source list belonging to a separate target", it
-sits inside `IF(SE2JUCE)` at `CMakeLists.txt:582` and is never evaluated, and 79
-`.cpp` files are in there, not one module — but I never wrote it back to the row.
-The evidence lived only in a merged PR body, which is exactly the place the next
-run does not look. Prepended now, with the `ar -t` control.
-
-**Two dirty worktrees, both safe, both checked before discarding.** `sl35` held
-the `TEMP-DIAG` fprintf pair from the datatype hunt — throwaway instrumentation
-that was never meant to land. `wt7` held earlier drafts of the S7 row and
-journal, superseded by #376; I confirmed main carries both the row text and the
-journal entry (line 63) before throwing them away rather than assuming the merge
-had covered it.
-
-**Still open and NOT missed, just not mine to close:**
-[#373](https://github.com/JeffMcClintock/TideSynth/issues/373) needs a Linux
-build — the cause is fixed in SynthEditLib#47 and verified on macOS, but that
-issue's own rule is to close only after building on the platform, and this box
-cannot. #378 (V4/V5/V6) is awaiting review.
-
-**One thing genuinely unfinished and worth naming:** V5 asks for the rack view to
-be resized to match VCV, and I never researched VCV's actual default window or
-row count. The row records TIDE's own numbers — 7968 DIPs, 20.75 rows by 166
-units against E5's ruled 384/48 — and says the VCV figures are unconfirmed
-rather than guessing them. The resize cannot be done until someone gets them.
-
-## 2026-08-24 — macos — Three rack-view rows filed, and a claim I had to withdraw (interactive)
-
-**Prompt:** In the main 'rack' view, only 'rack modules' are relevant... / also document that the current rack view seems a bit large... / then tell me where the "MIDI CV" default rack modules comes from
-
-Filed **V4** (filter the module browser by view), **V5** (the rack view is too
-big), **V6** (`seedRootMidiCv()` does in code what one prefab could do — low
-priority, since the prefab it inserts is real and works).
-
-**V6 is the one that matters, because I got it wrong and Jeff had to say so
-several times.** Asked where the default MIDI-CV comes from, I answered that the
-visible rack module is a facade prefab and the real `SE MIDI to CV 2` is seeded
-in C++ "because it can't be a prefab" — polyphony cannot escape a container
-(E7), so it must sit at the root. Jeff's reply: *"You say 'it can't be a prefab'
-then you tell me you build a container with a bunch of stuff in it... and insert
-it. That's the same as a prefab isn't it."*
-
-He is right, and reading the code instead of its comments shows why.
-`seedRootMidiCv()` adds two modules, one connector, **inserts a prefab**, and
-adds four more connectors. And `MfcDocPresenter::AddPrefab` returns
-`std::vector<int32_t>`, derived from "a before/after diff of the container's
-TOP-LEVEL modules", built on paste — and paste carries `CLine2` connections, as
-the code's own filter proves. So a prefab paste splices multiple top-level
-modules AND their connections into the target container.
-
-Which means the polyphony rule constrains WHERE the paste happens, not whether
-data can express it. Paste at the root, and the root-level modules land at the
-root. My argument was about module placement and I used it to answer a question
-about data-versus-code — two different things.
-
-**The concrete reason to fix it, rather than just concede the point:**
-`TideApp.cpp:693-697` hard-codes `facadePin = 7 + jack index` as an explicit
-contract with `build-prefabs.py`, and states that if the jack list changes this
-must change with it. A stored prefab has no such coupling, because the
-connections are data rather than pin arithmetic.
-
-**The lesson I keep relearning today:** I paraphrased the comments above
-`seedRootMidiCv()` rather than reading its body. The comments are excellent and
-they explain the polyphony constraint at length — which is exactly why
-paraphrasing them produced a confident wrong answer. The body is 25 lines and
-settles it.
-
-**V5 has real numbers rather than "seems large", and I had to correct them
-once.** `viewDimensions = 7968` DIPs square. My first pass divided by
-`rowHeight 380`, taken from a comment at `TideApp.cpp:793` — but commit
-`58a246b` ("E5: the rack grid ruled") sets row **384** and standard width **48**,
-so the comment was stale and the row now uses the ruled figures: **20.75 rows
-tall and 166 units wide**. A Eurorack case is typically 84 HP and three rows,
-which is the whole of why it looks big.
-
-I have NOT confirmed VCV's own default window and row count. The row says so
-rather than banking a figure from memory, and flags two couplings —
-`setCenter` at `:197`, and `seedRootMidiCv()`'s absolute 3600-3960 placements —
-that would put the seeded MIDI-CV off-rack if the view shrinks without them
-moving.
-
-**V4 needs a ruling, not code:** the discriminator exists (`isRackLevel`,
-`TideApp.cpp:147`) and there is exactly one filter point
-(`ExportModules`, called from `ModuleBrowser.cpp:57` and `:100`). What does not
-exist is any marker for "rack-relevant", so the row lists candidates —
-prefab-vs-module, the existing `category=` attribute the browser already reads
-at `:758`, or a new flag — and leaves the choice to Jeff.
 
 ## Rotation — do this as part of STEP 4, every run
 

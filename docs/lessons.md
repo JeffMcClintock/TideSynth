@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **323 KB** across **249** entries, so copying them
+Learned sections are **325 KB** across **250** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **90 KB / 994 lessons — 3.6x smaller**, and represents
+A8. This is **91 KB / 999 lessons — 3.6x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,14 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-25
+
+**windows — the unpushed half was pushed, and `main` is green on all three platforms (interactive, Jeff directing)**
+
+- A rule that stops a run short is not thereby a rule that cost the fleet anything.
+- Re-run the failed run rather than pushing a new commit when the variable you changed lives in another repo.
+- `build.yml`'s close-on-success step works, observed in place
+- The `matrix.platform != 'win'` exclusion cuts both ways.
+- A commit whose meaning depends on a commit in another repo has to say so in its message.
 
 **windows — `main` is red on all three platforms from ONE unpushed half, and the fix is uncommitted in Jeff's tree**
 
