@@ -37,6 +37,16 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 
+## 2026-08-25
+
+**macos — The queue is blocked, so the run proved the platform instead; B1 closed on a green matrix**
+
+- A suspicious performance number deserves its mundane explanation checked first.
+- "Persistent workspace" and "incremental build" are different claims.
+- A process gap with zero live instances is a lesson, not a row.
+- When the queue is blocked, building your own platform's default branch is the one thing left that is not busywork
+- Two independent routes to the same fact is worth noticing.
+
 ## 2026-08-24
 
 **linux — V6's risk discharged: a root paste does carry connections, and the row's fork is now live (interactive, Jeff directing)**
@@ -52,92 +62,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "Ruled rather than invented" does not mean "stop" — it means measure, then escalate with numbers.
 - An option can fail because the data it reads does not exist for the thing being selected.
 - A flattening commit changed what a proposed option would select.
-
-**windows — P3: the MFC requirement is gone, and a no-MFC toolchain is the proof (interactive, Jeff directing)**
-
-- A row's own guess can be right and still worth measuring, because the SIZE is the actionable part.
-- A value that must match an external header is not a code change, it is a data change, and it fails silently.
-- Guard macros need the both-headers case actually compiled.
-- A build "hanging" for ten minutes was `| grep … | head -5`.
-- Check the row's file paths before believing its plan.
-
-**linux — SynthEditJuce ruled unmaintained, and #88 closes WONTFIX (interactive, Jeff directing)**
-
-- "Deprecated" and "unmaintained" answer different questions
-- A comment that hedges toward revival will be read as a to-do.
-- Some issues close by ruling, not by code
-- Check line endings before editing, not after
-
-**linux — S45 closed on its own Accept, and a 50-minute window where `main` did not link (interactive, Jeff directing)**
-
-- "The branch fixes it" and "the product is fixed" are different claims
-- Pick a metric the bug makes big.
-- A cross-repo "must land together" is a real hazard even when everyone does it right.
-- A link error naming a symbol you have never heard of is usually someone else's half-landed change
-
-**linux — S46: the technology is recorded now, not sniffed off a filename (interactive, Jeff directing)**
-
-- When two guards both need the same missing input, the second one is not a fallback.
-- "Which platform" was the wrong axis, and the row's title encoded it.
-- Ask where the data can arrive from before choosing where to fix.
-- A comment admitting "dodgy" is a filed bug nobody filed.
-- The CRLF trap caught me again
-
-**linux — S45: the captions were UTF-32 in a UTF-8 string, and S23 closed (interactive, Jeff directing)**
-
-- A probe on one branch of a multi-branch decision can report a clean bill of health for a failure happening in a sibling branch.
-- Log the actual string, early.
-- `backtrace()` + `addr2line -f -C` turns "who called this" into one build.
-- "Seen on platform X" and "X-only" are different claims
-- Eliminations are worth their cost when they shrink the search space enough to instrument.
-
-**linux — S25's Accept passes; the tofu that survives is a different bug (interactive, Jeff directing)**
-
-- Run a row's Accept before building toward its diagnosis.
-- A symptom that appears in BOTH arms of a comparison cannot be evidence about the comparison.
-- The same window rendering some text correctly is the cheapest possible elimination
-- `__has_include` guards deserve a check, not a conclusion.
-- `pgrep -f <pattern>` self-kill bit me twice in one session
-
-**linux — S37: CLAP has no bundle on Linux, so TIDE ships a semi-bundle instead (interactive, Jeff directing)**
-
-- "Can we use a bundle?" and "can we get a private directory?" are different questions, and only the second one mattered.
-- A negative control that leaves the hazard in place beats one that removes it.
-- The expensive option was expensive because of who else it touched, not because of its size.
-- A row's own wording can smuggle in a false premise that survives three runs.
-- `weston --backend=headless --xwayland` plus an isolated `HOME` makes a real commercial DAW a scriptable instrument on this box.
-
-**linux — the A4 auto-merge trap, hit a third time, and the branch DELETION is the new half**
-
-- A `gh pr view` state check is worth nothing in the same unconditional command block as the push it is meant to gate.
-- A follow-up push that reports `[new branch]` has re-created a deleted branch, not updated one.
-- The A22 follow-up is optional by design, so "drop it" is cheap.
-- A merge that happens between writing an entry and pushing it makes that entry wrong about its own ending.
-
-**linux — STEP 1: #156 verified green on Linux, and the 44 failures reproduce on demand**
-
-- A "NOT VERIFIED on your platform" line in a DONE row is a work item, and nothing points at it.
-- The negative control was one environment variable and it is the whole entry.
-- `gtest_discover_tests` registers a `<target>_NOT_BUILT` placeholder
-- Three quoted pass counts for one suite — 63, 67, 73 — and all three are correct.
-- A scratch worktree is not just tidiness here, it is the test.
-
-**macos — E9: the AU absorbs a rate change, and the pitch is the proof**
-
-- A probe that prints the option it requested is not reporting a measurement.
-- When every failure mode collapses onto the same wrong number, the right number is strong evidence.
-- A backgrounded build you think you killed is still building.
-- Check whether a row's blocker is still real before believing the row is closed.
-- A fixture saved for one format can drive another without being re-authored
-- `pluginkit -a <appex>` registers an AUv3 straight out of a build tree
-
-**windows — S44: the stranded reference split, landed and verified on the platform that could not check it**
-
-- A "not verified" line in a commit message is an assignment, and the box it is addressed to may never read it.
-- Count the callers before moving a path.
-- A resolver needs its wrong branch tested, not its right one.
-- Byte-identity to a source is worth asserting mechanically.
-- A branch can be stranded because of what it contains, not because someone forgot.
 
 ## 2026-08-18
 
@@ -1802,3 +1726,91 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A premise that fails measurement can be waiting on a different bug.
 - The uninstall case is the one that makes a shared-folder bug undeniable.
 - The plugin's own diagnostics were the instrument.
+
+## 2026-08-24
+
+**windows — S44: the stranded reference split, landed and verified on the platform that could not check it**
+
+- A "not verified" line in a commit message is an assignment, and the box it is addressed to may never read it.
+- Count the callers before moving a path.
+- A resolver needs its wrong branch tested, not its right one.
+- Byte-identity to a source is worth asserting mechanically.
+- A branch can be stranded because of what it contains, not because someone forgot.
+
+**macos — E9: the AU absorbs a rate change, and the pitch is the proof**
+
+- A probe that prints the option it requested is not reporting a measurement.
+- When every failure mode collapses onto the same wrong number, the right number is strong evidence.
+- A backgrounded build you think you killed is still building.
+- Check whether a row's blocker is still real before believing the row is closed.
+- A fixture saved for one format can drive another without being re-authored
+- `pluginkit -a <appex>` registers an AUv3 straight out of a build tree
+
+**linux — STEP 1: #156 verified green on Linux, and the 44 failures reproduce on demand**
+
+- A "NOT VERIFIED on your platform" line in a DONE row is a work item, and nothing points at it.
+- The negative control was one environment variable and it is the whole entry.
+- `gtest_discover_tests` registers a `<target>_NOT_BUILT` placeholder
+- Three quoted pass counts for one suite — 63, 67, 73 — and all three are correct.
+- A scratch worktree is not just tidiness here, it is the test.
+
+**linux — the A4 auto-merge trap, hit a third time, and the branch DELETION is the new half**
+
+- A `gh pr view` state check is worth nothing in the same unconditional command block as the push it is meant to gate.
+- A follow-up push that reports `[new branch]` has re-created a deleted branch, not updated one.
+- The A22 follow-up is optional by design, so "drop it" is cheap.
+- A merge that happens between writing an entry and pushing it makes that entry wrong about its own ending.
+
+**linux — S37: CLAP has no bundle on Linux, so TIDE ships a semi-bundle instead (interactive, Jeff directing)**
+
+- "Can we use a bundle?" and "can we get a private directory?" are different questions, and only the second one mattered.
+- A negative control that leaves the hazard in place beats one that removes it.
+- The expensive option was expensive because of who else it touched, not because of its size.
+- A row's own wording can smuggle in a false premise that survives three runs.
+- `weston --backend=headless --xwayland` plus an isolated `HOME` makes a real commercial DAW a scriptable instrument on this box.
+
+**linux — S25's Accept passes; the tofu that survives is a different bug (interactive, Jeff directing)**
+
+- Run a row's Accept before building toward its diagnosis.
+- A symptom that appears in BOTH arms of a comparison cannot be evidence about the comparison.
+- The same window rendering some text correctly is the cheapest possible elimination
+- `__has_include` guards deserve a check, not a conclusion.
+- `pgrep -f <pattern>` self-kill bit me twice in one session
+
+**linux — S45: the captions were UTF-32 in a UTF-8 string, and S23 closed (interactive, Jeff directing)**
+
+- A probe on one branch of a multi-branch decision can report a clean bill of health for a failure happening in a sibling branch.
+- Log the actual string, early.
+- `backtrace()` + `addr2line -f -C` turns "who called this" into one build.
+- "Seen on platform X" and "X-only" are different claims
+- Eliminations are worth their cost when they shrink the search space enough to instrument.
+
+**linux — S46: the technology is recorded now, not sniffed off a filename (interactive, Jeff directing)**
+
+- When two guards both need the same missing input, the second one is not a fallback.
+- "Which platform" was the wrong axis, and the row's title encoded it.
+- Ask where the data can arrive from before choosing where to fix.
+- A comment admitting "dodgy" is a filed bug nobody filed.
+- The CRLF trap caught me again
+
+**linux — S45 closed on its own Accept, and a 50-minute window where `main` did not link (interactive, Jeff directing)**
+
+- "The branch fixes it" and "the product is fixed" are different claims
+- Pick a metric the bug makes big.
+- A cross-repo "must land together" is a real hazard even when everyone does it right.
+- A link error naming a symbol you have never heard of is usually someone else's half-landed change
+
+**linux — SynthEditJuce ruled unmaintained, and #88 closes WONTFIX (interactive, Jeff directing)**
+
+- "Deprecated" and "unmaintained" answer different questions
+- A comment that hedges toward revival will be read as a to-do.
+- Some issues close by ruling, not by code
+- Check line endings before editing, not after
+
+**windows — P3: the MFC requirement is gone, and a no-MFC toolchain is the proof (interactive, Jeff directing)**
+
+- A row's own guess can be right and still worth measuring, because the SIZE is the actionable part.
+- A value that must match an external header is not a code change, it is a data change, and it fails silently.
+- Guard macros need the both-headers case actually compiled.
+- A build "hanging" for ten minutes was `| grep … | head -5`.
+- Check the row's file paths before believing its plan.
