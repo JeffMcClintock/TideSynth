@@ -83,6 +83,15 @@ void doDialogPatchManager(CUG_with_patches* ug)
 	tideRemovedDialog("Patch Manager");
 }
 
+// BACKLOG S3g. TIDE has none of the module-editor dialogs, so EditorLib must
+// not offer the menu entries that reach them. The stubs above stay as the
+// backstop for any path that still gets there: "Copy Patch" may become
+// useful in TIDE later, and "Connect..." is a SynthEdit-only future.
+bool AppHasModuleEditorDialogs()
+{
+	return false;
+}
+
 // doDialogBuildCodeSkeleton is deliberately NOT defined here any more. It was
 // declared by no header and called by nothing -- in this repo, in SynthEditLib,
 // or anywhere else -- so the stub was dead weight rather than a guard. The live

@@ -8,6 +8,53 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — S3g: two of the row's three clauses were wrong about the code (interactive)
+
+**Prompt:** linux agent is working on S46. take the next task
+
+S3g wanted three menu entries gone from TIDE's module context menu. Reading the
+code before writing any changed two of them, and Jeff ruled on each.
+
+**(a) "Connect..." is dead in every app, not just TIDE.** The row framed it as a
+capability difference — the desktop app has the dialog, TIDE doesn't. It has
+not: `dlg_connect_ug` exists nowhere in any repo, and every `doDialogConnectUg`,
+the WinUI3 one included, is an empty stub with its body commented out under an
+"all obsolete?" header. Gating it behind a capability query would have dressed
+dead code up as a feature. Jeff: a low-priority SynthEdit 1.5 feature that may
+eventually be implemented in SynthEdit, not TIDE — so the chain is KEPT and only
+the menu entry is commented out. Not gated, because gating implies some app has
+it.
+
+**(b) "Build Code Skeleton..." is the one real capability.**
+`OM_SHOW_CODE_SKELETON_DIALOG` has exactly one handler, the WinUI3 app's
+`MainWindow.xaml.cpp`. That one gets `AppHasModuleEditorDialogs()` — a runtime
+query, not an `#ifdef`, because EditorLib compiles once for every app. Same
+shape and same reason as `GetLicenseState()` (C11), and defined once per app so
+a new app gets a link error rather than silently inheriting a default.
+
+**(c) The patch manager has no module-context-menu entry at all.** The row cites
+`CUG_with_patches.cpp:33` and `:142`, but those are command HANDLERS.
+`ID_PATCH_MGR` is a Windows menu resource and `HC_CopyPatch` arrives from a
+module's own GUI, so nothing in that menu reaches it. The row was mistaken about
+where it lives. Untouched, and its loud stub stays — Jeff expects "copy patch"
+may become useful in TIDE later.
+
+**Verified:** TIDE VST3 builds and links against current main;
+`dsp_tests` / `SynthEditCL` / `EditorScreenshot` all build and the suite is
+unchanged at its 62/2 baseline. The negative control is the one that matters:
+deleting TIDE's definition produces
+`Undefined symbols: AppHasModuleEditorDialogs()`, so the "a new app gets a link
+error" claim is tested rather than asserted.
+
+**Not verified, and worth being blunt about: I never opened the context menu and
+looked.** The guard is a runtime branch; I checked the mechanism, not the
+pixels. And the WinUI3 desktop app — the only place the query returns true — is
+unbuildable on this Mac, so that branch is unexercised. Windows and Linux
+untested.
+
+This work was built earlier in the session and sat in worktrees while the
+datatype investigation ran. Landing it now rather than leaving it stranded,
+which is the end state S44 was filed about.
 ## 2026-08-24 — linux — S46: the technology is recorded now, not sniffed off a filename (interactive, Jeff directing)
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
