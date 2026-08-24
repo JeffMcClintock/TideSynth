@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
-"""Regenerate TIDE's rack prefabs (BACKLOG E2a).
+"""HISTORICAL. Built TIDE's rack prefabs once (BACKLOG E2a); DO NOT RUN IT AT THEM NOW.
 
-The three .synthedit files in prefabs/ are BUILD OUTPUT, not hand-written
-XML -- run this to reproduce them. Authoring them by hand was rejected: the
-graph half (handles, <lines>, the IO Mods --containerise synthesises) is exactly
-the part a human gets wrong silently, and SynthEditCL already builds it
-correctly. What the CLI cannot do is place things on a panel, so this script
-does the graph with the CLI and the LAYOUT itself, in that order.
+The files in RackModules/ are HAND-MAINTAINED. They started as this script's
+output, but Jeff's ruling 2026-08-24 ends that: "we're not regenerating them
+any more, they need hand-tweaking of the layout. don't want that overwritten."
+Layout is precisely what this script cannot preserve -- it computes placement
+from its own tables -- so a re-run would silently discard every tweak.
+
+It is kept because it still documents HOW the graphs were built, which is not
+written down anywhere else: SynthEditCL builds the graph (handles, <lines>, the
+IO Mods --containerise synthesises) because that is the half a human gets wrong
+silently, and this script does the panel layout because the CLI cannot place
+things on a panel.
 
 Why each prefab is a Container with 'Visible' on: that is what makes it render
 as a panel in the parent view -- the rack (PLAN constraint 1, and the Visible
 pin is the container's GetPlug(2), asserted by name at CContainer.cpp:3301).
 
-Usage:  python3 build-prefabs.py [--secl <path to SynthEditCL binary>]
+It now REFUSES to write into RackModules/ and has no default output folder, so
+a bare `python3 build-prefabs.py` cannot overwrite anything. To study its
+output, give it a throwaway --outdir and diff against the real files.
 """
 import argparse
 import json
@@ -749,13 +756,24 @@ def build(secl, prefab, outdir):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--secl", default=str(DEFAULT_SECL))
-    ap.add_argument("--outdir", default=str(HERE / "prefabs"))
+    ap.add_argument("--outdir", required=True,
+                    help="where to write. MUST NOT be RackModules/ -- those files are\n"
+                         "hand-maintained now and this script cannot preserve layout.")
     ap.add_argument("--diagnostics", action="store_true",
                     help="also build the V3 MIDI probes (see DIAGNOSTIC_PREFABS). "
                          "They are NOT product -- delete them from outdir before "
                          "a shipping build, or they get staged into the bundle.")
     args = ap.parse_args()
 
+
+    # Jeff, 2026-08-24: "we're not regenerating them any more, they need
+    # hand-tweaking of the layout. don't want that overwritten." Layout is what
+    # this script recomputes from its own tables, so writing here destroys it.
+    rackModules = (HERE.parent / "RackModules").resolve()
+    if pathlib.Path(args.outdir).resolve() == rackModules:
+        sys.exit("refusing to write into RackModules/ -- those files are "
+                 "hand-maintained and this script cannot preserve their layout. "
+                 "Use a throwaway --outdir and diff.")
     secl = pathlib.Path(args.secl)
     if not secl.exists():
         raise SystemExit(f"SynthEditCL not found at {secl}\n"

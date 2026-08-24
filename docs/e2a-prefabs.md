@@ -52,7 +52,7 @@ Not a decision to make — the code has made it:
   `#ifdef _WIN32`. A sandboxed plugin cannot launch an external editor, and
   two platforms never could. Dead end.
 
-Consequence: the three prototype files in `SE16/TideModules/`
+Consequence: the three prototype files in `SE16/RackModules/`
 (`AR/Output/Sine.seprefab`, Oct 2024) are **references, not inputs**. They get
 replaced by newly authored `.synthedit` files, not upgraded in place.
 
@@ -79,11 +79,11 @@ the Windows box) and save in the modern format. Keep the faceplate idiom from
 
 ## 4. Where the sources live
 
-`SE16/TideModules/` — already the demo-patch home, already ALLOWED for agent
+`SE16/RackModules/` — already the demo-patch home, already ALLOWED for agent
 work under STEP 5. New files land beside the old ones; the `.seprefab` files
 stay (journal entries reference them) with this doc marking them superseded.
 
-One forward-looking note, not today's problem: `TideModules` is in the
+One forward-looking note, not today's problem: `RackModules` is in the
 **private** repo. C7's clean-clone test is about code and will pass without
 prefabs, but the day TIDE builds outside SE16 entirely, the prefab sources
 must move somewhere public with it.
@@ -98,7 +98,7 @@ empty and the browser's Prefabs group (`:2101`–`:2134`) is silent.
 
 Three pieces, each with a working precedent:
 
-1. **Stage into the bundle.** POST_BUILD copy of `TideModules/*.synthedit`
+1. **Stage into the bundle.** POST_BUILD copy of `RackModules/*.synthedit`
    into `Contents/Resources/Prefabs/`. Precedent: `ControlsXp.xml`
    (`SynthEditSem/CMakeLists.txt:134`, P6-approved home). That block is
    `if(APPLE)` — **the Windows staging equivalent is outstanding, same gap

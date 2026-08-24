@@ -25,7 +25,7 @@ being discussed as one. Three of them are not about `SynthEditLib` at all.
 | # | The dependency | Size | Stage |
 |---|---|---|---|
 | 1 | TIDE's CMake listed four private include paths | **4 of the 5 were dead** | **C7a — done** |
-| 2 | TIDE's own source lives in the private repo (`SE16/SynthEditSem/`, `SE16/TideModules/`) | 16 + 10 files, **3 referring sites** | C7b |
+| 2 | TIDE's own source lives in the private repo (`SE16/SynthEditSem/`, `SE16/RackModules/`) | 16 + 10 files, **3 referring sites** | C7b |
 | 3 | TIDE links `EditorScreenshot`, which is `SE16/EditorScreenshot/` | 13 files, needs a ruling | C7c |
 | 4 | `SynthEditLib` cannot configure standalone — no root superproject exists | new file in this repo | C7d |
 
@@ -97,7 +97,7 @@ Worth stating, because each of these was a plausible fear:
   `gh repo view --json isPrivate`: `SynthEditLib`, `TideSynth`, `gmpi_ui`,
   `GMPI_Wrappers` and `GMPI` are all public. Only `SynthEdit` (`SE16`) is not.
 - **Moving TIDE's source out of `SE16` has a blast radius of three files.**
-  `grep -rl 'SynthEditSem\|TideModules'` over `SE16`'s build files returns
+  `grep -rl 'SynthEditSem\|RackModules'` over `SE16`'s build files returns
   `CMakeLists.txt` (one `add_subdirectory` at `:409`),
   `SynthEditSem/CMakeLists.txt` itself, and `se_gmpi/vst3/CMakeLists.txt` — where
   both hits are *comments*. No `.vcxproj`, no `.pbxproj`, no `.sln`.
@@ -139,7 +139,7 @@ Sequential. Each must leave SynthEdit, SynthEditCL and TIDE building.
 | ID | Plat | Scope | Accept | Size |
 |---|---|---|---|---|
 | **C7a** | any | Delete TIDE's four dead private include paths; document the one real one in place. `SE16/SynthEditSem/CMakeLists.txt` | fresh-tree build RC=0 with an unchanged object count, ctest green, `TIDE.gmpi` + `TIDE_VST3.vst3` produced | **done 2026-08-19 (linux)** |
-| **C7b** | any | Move `SE16/SynthEditSem/` and `SE16/TideModules/` into this repo. `SE16` consumes them through a `TIDESYNTH_FOLDER_OVERRIDE` + `FetchContent` pair, mirroring `SYNTHEDITLIB_FOLDER_OVERRIDE` exactly. Fix the three `../` paths in `SynthEditSem/CMakeLists.txt` that stop resolving after the move (`../SynthEdit2`, and `../TideModules/prefabs` twice) | `git ls-files` in `SE16` shows **zero** `SynthEditSem/` or `TideModules/` entries; `SE16`'s own build still produces `TIDE.gmpi` and `TIDE_VST3.vst3` at the same object count, ctest green | one session — the move is mechanical and the blast radius is 3 files |
+| **C7b** | any | Move `SE16/SynthEditSem/` and `SE16/RackModules/` into this repo. `SE16` consumes them through a `TIDESYNTH_FOLDER_OVERRIDE` + `FetchContent` pair, mirroring `SYNTHEDITLIB_FOLDER_OVERRIDE` exactly. Fix the three `../` paths in `SynthEditSem/CMakeLists.txt` that stop resolving after the move (`../SynthEdit2`, and `../RackModules` twice) | `git ls-files` in `SE16` shows **zero** `SynthEditSem/` or `RackModules/` entries; `SE16`'s own build still produces `TIDE.gmpi` and `TIDE_VST3.vst3` at the same object count, ctest green | one session — the move is mechanical and the blast radius is 3 files |
 | **C7c** | any | `EditorScreenshot`. TIDE links the target and `SynthEditGui.cpp` includes `ContainerThumbnail.h`. Either it becomes public or TIDE gets a thumbnail-free path | TIDE builds with no `EditorScreenshot` reference, **or** `EditorScreenshot` lives in a public repo and TIDE links it from there | **needs a ruling first** — `SE16/EditorScreenshot/` is on neither the ALLOWED nor the GATED list, so it is GATED by default. Do not start it on a guess |
 | **C7d** | any | Root `CMakeLists.txt` in this repo: the override-or-fetch block for `GMPI`, `gmpi_ui`, `GMPI_Wrappers`, the VST3 SDK and `SynthEditLib`, then `add_subdirectory` for `SynthEditLib`, `EditorLib` and TIDE. Model it on `SE16/CMakeLists.txt:1-230` and take only TIDE's subset | `cmake` + `ninja` in a **fresh clone of this repo alone**, with `SE16` absent from the disk, produces `TIDE.gmpi` | one session, after C7b |
 | **C7e** | any | The proof. CI green on the public matrix from a checkout with no access to `SynthEdit` | `build.yml`'s three platforms run (not skip) and pass on a PR | needs C7b, C7c, C7d, **C13** and **C14** |

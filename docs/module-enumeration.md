@@ -154,7 +154,7 @@ resources registered at static-init the same way module XML is, or enumerate
 `<bundle>/Contents/Resources/Prefabs/` read-only and load by path from there.
 
 - **For:** discharges constraint 3 completely; keeps the demo patches
-  (`SE16/TideModules/{AR,Output,Sine}.seprefab`) working, which Option A alone
+  (`SE16/RackModules/{AR,Output,Sine}.seprefab`) working, which Option A alone
   does not; prefabs stay editable as files during development.
 - **Against:** needs a small amount of new code on the prefab path
   (`CContainer::LoadPrefab`, `CContainer.cpp:2981`, currently does
