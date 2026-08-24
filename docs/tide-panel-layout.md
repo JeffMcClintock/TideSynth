@@ -39,10 +39,18 @@ every kind without exception.
 centre of the functional module layered over it.** `grill` and `slots` have no
 module — they are decoration only.
 
-## Verified, 2026-08-24
+## Verified, 2026-08-24 — and now checked by script
 
-Panel `panelRect` minus module `panelRect`, centre to centre, across the
-hand-tweaked prefabs in `RackModules/`. Every entry lines up exactly:
+`scripts/check-prefab-layout.py` measures this contract for every file in
+`RackModules/`: jack/knob Layout entries must match the TiDE patch point / knob
+module centres exactly (both directions), the panel must be RackUnits x 48 by
+384, stock `SE Patch Point` modules must not share a document with a TiDE
+panel, and every visible child must sit on the plate. Run it after moving
+anything; it is the automated form of "move one, move both".
+
+The original hand measurement, 2026-08-24 — panel `panelRect` minus module
+`panelRect`, centre to centre, across the hand-tweaked prefabs in
+`RackModules/`. Every entry lines up exactly:
 
 | prefab | panel | `Layout` entry | module centre |
 |---|---|---|---|
@@ -56,49 +64,52 @@ A patch point is 20x20 DIPs, so its `panelRect` top-left is its centre minus 10.
 The panels are 48 DIPs wide and 384 tall — one rack unit, matching E5's ruling
 (*"snap 3, row 384, standard width 48"*).
 
-## Upgrade status — most prefabs are not on this pattern yet
+## Upgrade status — all nine are on this pattern
 
-The pairing above is the target, not the current state. Surveyed 2026-08-24:
+Upgraded 2026-08-25 (windows, interactive, Jeff directing). Every prefab in
+`RackModules/` now carries a TiDE panel with an explicit `Layout`, TiDE patch
+points, and labels; `scripts/check-prefab-layout.py` passes on all nine, and
+each upgraded file was loaded in the editor and its finalised `panelRect`s
+dumped to confirm the view measures exactly what was authored.
 
-| prefab | TiDE Panel | patch points | knobs | state |
+| prefab | TiDE Panel | patch points | knobs | jacks on panel |
 |---|---|---|---|---|
-| `AR_jef` | yes | 4 TiDE | 2 | **upgraded** |
-| `Output_jef` | yes | 2 TiDE | - | **upgraded** |
-| `Sine_jef` | yes | 2 TiDE | - | **upgraded** |
-| `MidiCv` | yes | 4 SE | - | panel, stock patch points |
-| `Envelope` | - | 3 SE | - | not started |
-| `Filter` | - | 3 SE | - | not started |
-| `Midi` | - | 2 SE | - | not started |
-| `Oscillator` | - | 2 SE | - | not started |
-| `Output` | - | 2 SE | - | not started |
+| `AR_jef` | yes | 4 TiDE | 2 | ins 80/120/160, out 337 |
+| `Output_jef` | yes | 2 TiDE | - | 297, 337 |
+| `Sine_jef` | yes | 2 TiDE | - | in 80, out 337 |
+| `Envelope` | yes | 3 TiDE | - | ins 80/120, out 337 |
+| `Filter` | yes | 3 TiDE | - | ins 80/120, out 337 |
+| `Midi` | yes | 2 TiDE | - | outs 80/120 (no ins; MidiCv's precedent) |
+| `Oscillator` | yes | 2 TiDE | - | in 80, out 337 |
+| `Output` | yes | 2 TiDE | - | 297, 337 (matches `Output_jef`) |
+| `MidiCv` | yes | 4 TiDE | - | outs at (80, 54/124/194/264), 2 units wide |
 
-The five with no panel are consistent as they stand: stock `SE Patch Point`
-modules draw their own jacks, which is correct when there is no TiDE panel
-underneath to draw them instead.
-
-`MidiCv` is the one part-way case, and it is worth knowing what to expect from
-it while it waits its turn. It has a panel, 96 DIPs wide (two units), still
-carrying the pin's untouched default `Layout` — which assumes one 48-wide unit
-and puts jacks at `24 297` and `24 337`. Its four real patch points are the SE
-kind, at x=80. So the panel paints two jack rings with nothing connectable under
-them, and the stock patch points paint their own jacks elsewhere. Nothing is
-broken; it is simply mid-upgrade.
+The single-unit upgrades follow the hand-tweaked reference geometry exactly:
+`grill 24 20`, title label centred at (24, 50), input jacks from y=80 at a
+40-DIP pitch with their label 20 below each centre, output jacks at 337 (and
+297 for a stereo pair), `slots 24 371`. `MidiCv` kept its own 96-wide layout —
+jacks at x=80 with labels to the left — and its `Layout` pin now paints jack
+rings under those real positions instead of the pin's one-unit demo default; it
+skips the grill because its title label occupies that band.
 
 ## Labels: use the label module, not text-entry
 
 `SE Label` is the convenient way to put text on a panel — a text-entry module is
-the wrong tool for a caption. This is already the practice everywhere labels
-exist: **13 `SE Label` instances across the nine prefabs, and zero text-entry
-modules**. The five not-started prefabs simply have no labels yet, so adding
-them is part of upgrading each one.
+the wrong tool for a caption. This is the practice everywhere labels exist:
+**25 `SE Label` instances across the nine prefabs, and zero text-entry
+modules**. Convention from the references: a short title label near y=50, a
+label 20 DIPs under each *input* jack's centre, and no label on an output jack
+whose bottom-of-panel position already says what it is (`AR_jef` and
+`Output_jef` both leave theirs bare — `Midi`'s two outputs are labelled because
+Gate and Trig are otherwise indistinguishable).
 
 | prefab | labels |
 |---|---|
 | `AR_jef` | 6x `SE Label` |
 | `MidiCv` | 5x `SE Label` |
-| `Output_jef` | 1x `SE Label` |
-| `Sine_jef` | 1x `SE Label` |
-| the other five | none yet |
+| `Envelope`, `Filter`, `Midi` | 3x each |
+| `Oscillator` | 2x |
+| `Output`, `Output_jef`, `Sine_jef` | 1x each |
 
 ## The duplication is deliberate — do not "fix" it yet
 

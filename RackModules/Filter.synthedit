@@ -16,30 +16,58 @@
             </Parameters>
         </PatchManager>
         <modules>
-            <module type="Container" handle="1081491801" PanelLocationZoom="1" StructLocationZoom="1" skin="default3" name="TIDE Filter">
+            <module type="Container" handle="1081491801" PanelLocationZoom="1" StructLocationZoom="1" rack_module="true" skin="default3" name="TIDE Filter">
                 <plugs>
                     <plug default="1" idx="2" />
                     <plug idx="7" />
                 </plugs>
                 <structRect l="3834" r="3834" t="3834" b="3834" />
                 <modules>
-                    <module type="SE Patch Point in" handle="1345400853">
+                    <module type="TiDE Patch Point In" handle="1345400853">
                         <structRect l="3726" r="3774" t="3876" b="3912" />
-                        <panelRect l="40" r="60" t="40" b="60" />
+                        <panelRect l="14" r="34" t="70" b="90" />
                     </module>
-                    <module type="SE Patch Point in" handle="1791606236">
+                    <module type="TiDE Patch Point In" handle="1791606236">
                         <plugs>
                             <plug default="10" />
                         </plugs>
                         <structRect l="3726" r="3774" t="4032" b="4068" />
-                        <panelRect l="40" r="60" t="86" b="106" />
+                        <panelRect l="14" r="34" t="110" b="130" />
                     </module>
                     <module type="1 Pole LP" handle="1310669619">
                         <structRect l="3930" r="3978" t="3876" b="3912" />
                     </module>
-                    <module type="SE Patch Point out" handle="317454482">
+                    <module type="TiDE Patch Point Out" handle="317454482">
                         <structRect l="4182" r="4218" t="3876" b="3912" />
-                        <panelRect l="40" r="60" t="132" b="152" />
+                        <panelRect l="14" r="34" t="327" b="347" />
+                    </module>
+                    <module type="SE Label" handle="91000002">
+                        <plugs>
+                            <plug default="Filter" />
+                        </plugs>
+                        <structRect l="3600" r="3708" t="3684" b="3756" />
+                        <panelRect l="2" r="46" t="46" b="54" />
+                    </module>
+                    <module type="SE Label" handle="91000003">
+                        <plugs>
+                            <plug default="In" />
+                        </plugs>
+                        <structRect l="3720" r="3828" t="3684" b="3756" />
+                        <panelRect l="6" r="42" t="96" b="104" />
+                    </module>
+                    <module type="SE Label" handle="91000004">
+                        <plugs>
+                            <plug default="Freq" />
+                        </plugs>
+                        <structRect l="3840" r="3948" t="3684" b="3756" />
+                        <panelRect l="6" r="42" t="136" b="144" />
+                    </module>
+                    <module type="SE TiDE:Panel" handle="91000001">
+                        <plugs>
+                            <plug default="grill 24 20; jack 24 80; jack 24 120; jack 24 337; slots 24 371" idx="3" />
+                        </plugs>
+                        <structRect l="4560" r="4632" t="3876" b="4336" />
+                        <panelRect l="0" r="48" t="0" b="384" />
                     </module>
                     <module type="IO Mod" handle="1218980282">
                         <plugs>
@@ -61,13 +89,13 @@
                 </lines>
                 <PanelLocationCenter x="3984" y="3984" />
                 <StructLocationCenter x="3984" y="3984" />
-                <PanelWndPosition l="0" r="100" t="0" b="160" />
+                <PanelWndPosition l="0" r="48" t="0" b="384" />
                 <PanelLocation l="0" r="500" t="0" b="500" />
                 <StructLocation l="0" r="500" t="0" b="500" />
                 <PanelScroll x="3734" y="3734" />
                 <StructScroll x="3734" y="3734" />
                 <PanelWndOffset cx="-99999" cy="-99999" />
-                <panel_rect l="0" r="100" t="0" b="160" />
+                <panel_rect l="0" r="48" t="0" b="384" />
             </module>
         </modules>
         <lines />
@@ -109,17 +137,36 @@
                 <Pin name="Spare" datatype="float" rate="audio" autoRename="true" autoDuplicate="true" isContainerIoPlug="true" />
             </Audio>
         </Plugin>
-        <Plugin id="SE Patch Point in" class="2" name="Patch Point&lt;-" flags="384" category="Flow Control" simdOverwritesBufferEnd="true">
+        <Plugin id="SE Label" name="Label" flags="384" category="Sub-Controls">
+            <GUI graphicsApi="GmpiGui">
+                <Pin name="Text" datatype="string_utf8" default="Label" />
+                <Pin name="Style" datatype="string_utf8" default="control_label" />
+                <Pin name="Multiline" datatype="bool" />
+                <Pin name="Alignment" datatype="enum" default="1" metadata="Left,Center,Right" />
+            </GUI>
+        </Plugin>
+        <Plugin id="SE TiDE:Panel" name="Panel" flags="384" category="TiDE">
+            <GUI graphicsApi="GmpiGui">
+                <Pin name="Text" datatype="string_utf8" />
+                <Pin name="Text Color" datatype="string_utf8" default="FF101010" />
+                <Pin name="Rack Units" datatype="int" default="1" />
+                <Pin name="Layout" datatype="string_utf8" default="grill 24 20; knob big 24 163; knob small 24 216; switch 24 247; led 14 272; led 34 272; jack 24 297; jack 24 337; slots 24 371" />
+                <Pin name="Material" datatype="enum" metadata="Brushed Aluminium, Flat Aluminium, Powder-coated Steel" />
+                <Pin name="Panel Color" datatype="string_utf8" default="FF2E3238" />
+            </GUI>
+        </Plugin>
+        <Plugin id="TiDE Patch Point In" name="Patch Point&lt;-" flags="384" category="TiDE">
             <Audio>
                 <Pin name="Input" datatype="float" rate="audio" linearInput="true" isMinimised="true" />
                 <Pin name="Output" datatype="float" rate="audio" direction="out" />
+                <Pin name="Connected" datatype="bool" direction="out" />
             </Audio>
             <GUI graphicsApi="GmpiGui" />
             <PatchPoints>
                 <PatchPoint pinId="0" center="10,10" radius="5" />
             </PatchPoints>
         </Plugin>
-        <Plugin id="SE Patch Point out" class="2" name="Patch Point-&gt;" flags="384" category="Flow Control" simdOverwritesBufferEnd="true">
+        <Plugin id="TiDE Patch Point Out" name="Patch Point-&gt;" flags="384" category="TiDE">
             <Audio>
                 <Pin name="Input" datatype="float" rate="audio" linearInput="true" />
                 <Pin name="Output" datatype="float" rate="audio" direction="out" isMinimised="true" />

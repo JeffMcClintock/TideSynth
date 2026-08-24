@@ -8,6 +8,69 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — windows — every rack prefab is on the TiDE panel pattern, and a script now enforces it (interactive, Jeff directing)
+
+**Prompt:** we need to clean up the TIDE prefabs, look at the new style
+(favoring modules from the "TiDE" category). Understand how the Panel module
+works to draw backgrounds behind patch-points and knobs. then upgrade the
+stragglers.
+
+**Did:** Upgraded the six stragglers docs/tide-panel-layout.md surveyed on
+2026-08-24 — `Envelope`, `Filter`, `Midi`, `Oscillator`, `Output` (no panel,
+stock patch points) and `MidiCv` (panel, but stock patch points and the pin's
+untouched demo `Layout`) — to the pattern the hand-tweaked references
+(`AR_jef`, `Output_jef`, `Sine_jef`) establish: an inert `SE TiDE:Panel`
+painting the faceplate, `TiDE Patch Point In/Out` layered over its painted
+jacks (they draw nothing — the stock `SE Patch Point` modules paint their own
+jack ON TOP of the panel's, which is why they had to go), `SE Label` for text,
+`rack_module="true"` on the container, and the container resized from the old
+generator's 100x160 slot to E5's ruled 48x384. Hand-edited the XML rather than
+regenerating: `build-prefabs.py` is HISTORICAL by Jeff's 2026-08-24 ruling and
+recomputes placement from its own tables, which would discard the reference
+files' hand-tweaked layouts.
+
+**Geometry, taken from the references rather than invented:** `grill 24 20`;
+title label centred (24,50); input jacks from y=80 at 40-DIP pitch, each label
+20 below its jack centre; output jacks at 337 (plus 297 for Output's stereo
+pair, matching `Output_jef` exactly); `slots 24 371`. Outputs stay unlabelled
+(position says what they are — `AR_jef`/`Output_jef` precedent) except
+`Midi`'s Gate/Trig pair, which are indistinguishable without text. `MidiCv`
+kept its 96-wide two-column arrangement; its `Layout` now paints rings under
+the four real jack centres (80, 54/124/194/264) instead of the demo default's
+two phantoms at 24,297/337. Pin defaults the E1 cases lock (`Envelope` gate
+10, `Oscillator` pitch 5) carried over — the TiDE patch points share the stock
+ones' pin order, so the `<lines>` and defaults port unchanged.
+
+**Verified by measurement, not eyeball.** New `scripts/check-prefab-layout.py`
+parses every prefab and asserts the tide-panel-layout contract: Layout
+jack/knob entries == functional module centres (both directions, relative to
+the panel's top-left), panel == RackUnits x 48 by 384, no stock patch points
+beside a TiDE panel, PluginList complete, half-DIP grid, nothing overhanging
+the plate. All nine pass. Negative controls: the pre-upgrade `Envelope` fails
+old-style, pre-upgrade `MidiCv` fails on stock jacks + unset Layout, and a
+sabotaged copy with one jack moved 1 DIP is caught as a mismatch. Then each
+file was loaded in SynthEditCL via the MCP: `se_dump` (panelRectsFinalized)
+reports every container measuring exactly 48x384 (96 for MidiCv) and every
+jack/label at its authored rect — the SubView-measure union trap
+(e2a-prefabs §9.1/build-prefabs.py) did not fire — and settle-checked panel
+screenshots (two consecutive byte-identical shots, per the render-verification
+lesson) show plate, grill, pocketed jacks, labels and slots where authored.
+
+**One check deliberately looser than first written:** the checker originally
+required the container's `PanelWndPosition`/`panel_rect` to equal the panel
+size and flagged all three hand-authored references, which carry stale editor
+values and demonstrably work — the view rewrites the rect to the union of
+visible children on the first panel pass. The real §9.1 trap is a ZERO-size
+`PanelWndPosition`, so that is what it checks now.
+
+**Not done, on purpose:** `lint.yml` is untouched — its own header says
+workflow edits are deliberate; adding a one-line step running
+`check-prefab-layout.py` is a cheap follow-up if Jeff wants it enforced.
+`Midi`'s `MIDI In` keeps its odd far-canvas panelRect (normalised 8x14 →
+0-size; the editor still measures and parks it at the canvas centre, off the
+48-wide window, exactly as before the edit — harmless and unchanged in
+behaviour). The `_jef` files are untouched per the hand-maintained ruling.
+
 ## 2026-08-25 — windows — the unpushed half was pushed, and `main` is green on all three platforms (interactive, Jeff directing)
 
 **Prompt:** push to main branches
