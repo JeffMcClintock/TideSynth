@@ -8,6 +8,57 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — S7: TIDE was resetting SynthEdit's skin version (interactive)
+
+**Prompt:** next
+
+Took S7 — TIDE writing outside its container on launch, verified at runtime by
+the linux box on 08-22. Fixed in SynthEditLib#48 + SynthEdit#77 + this pr, which
+must land together.
+
+**The defect is worse than the row records, and the difference is the machine.**
+Linux measured folder CREATION inside an `LD_PRELOAD` shim over `getpwuid`, in a
+home with no existing `.resource_version`. On a real machine that also runs
+SynthEdit, one TIDE launch rewrote `~/SynthEdit Projects/.resource_version` from
+SynthEdit's **192** to **0**. TIDE never defines `SE_APP_BUILD_NUMBER`, so
+`se_version.h`'s fallback of 0 wins, `versionChanged` is true against any real
+build, and the stamp is rewritten. SynthEdit then re-copies every skin on its
+next launch. Two apps, one version file.
+
+That only shows up on a machine with both installed — which is why the isolated
+measurement, correct as far as it went, missed it.
+
+**The row's own suggested shortcut does not work.** It offers "the TIDE-side
+part may be enough on its own": point SkinMgr at the bundle from TIDE. It
+cannot, because `SkinMgr`'s CONSTRUCTOR does the writing, on the first
+`Instance()` call — anything TIDE does afterwards is too late. So EditorLib had
+to change, which is the GATED part; interactive satisfies that.
+
+Fixed with a per-app `AppUsesUserSkinsFolder()`, third instance of the pattern
+after `GetLicenseState()` (C11) and `AppHasModuleEditorDialogs()` (S3g).
+
+**Measured both directions against Jeff's REAL home folder**, because the row
+warns `$HOME` does not protect it — `getUserDocumentFolder()` uses
+`getpwuid(getuid())->pw_dir` and ignores the environment. I snapshotted 335
+entries and backed up `.resource_version` first, ran the unfixed binary, saw
+`192 -> 0`, restored immediately, then ran the fixed one:
+
+| | `.resource_version` | folder |
+|---|---|---|
+| unfixed | 192 -> 0, rewritten | modified |
+| fixed | 192, untouched | diff of 0 lines |
+
+**A process note on myself.** Four times today a check passed because the thing
+under test never ran — most recently here, where I "launched" a standalone whose
+binary did not exist and read the resulting no-op as a clean pass. The tell was
+an `ls` guard whose output I did not look at. Every launch/build check in this
+entry now asserts the artifact exists first, and that is what caught it.
+
+**Not verified:** Windows, Linux, and TIDE's rendered UI. The standalone came up
+with no new error output versus the pre-fix run, and TIDE ships no
+`Resources/skins`, so its skin folder was empty before and is a different empty
+path now — but that is an argument, not a look at the pixels.
+
 ## 2026-08-24 — macos — main did not compile, and a docs-only PR is what proved it (interactive)
 
 **Prompt:** merged. go!

@@ -803,3 +803,11 @@ void TideApp::seedRootMidiCv()
 	        midiIn, midiCv, facade->Handle());
 }
 
+// BACKLOG S7. TIDE ships its own look and must write NOTHING outside its own
+// container (PLAN constraints 4 and 8). Answering false keeps SkinMgr out of
+// <home>/SynthEdit Projects/ entirely -- no folder, no skins copy, and no
+// .resource_version stamp to fight SynthEdit over.
+bool AppUsesUserSkinsFolder()
+{
+	return false;
+}
