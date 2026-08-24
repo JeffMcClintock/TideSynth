@@ -8,6 +8,40 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — Deleted the stranded S27 branch, after proving it held nothing (interactive)
+
+**Prompt:** stranded branch
+
+`origin/tide/mac/S27-render-ci` was the branch S44 was filed about. S44 recovered
+the WORK into main; the branch itself stayed behind, and CI kept building it —
+it was one of the two branches that failed to link after S3g landed, alongside
+the linux branch that produced #364.
+
+Deleting a branch is easy to get wrong, so I proved it superseded before
+touching it rather than reasoning from "S44 landed, so it must be covered":
+
+- of the 24 files its 3 commits touched, **20 are byte-identical to main**
+- **0 files exist only on the branch**
+- the 4 that differ do so because main is 36 commits ahead, not because the
+  branch has newer content
+- the only branch-unique content was **9 lines of `build.yml`** passing the
+  reference set as a CI matrix (`refs: macos` / `refs: windows-linux`)
+
+Those 9 lines are superseded by a better design, not merely duplicated: S44 made
+the test pick its own set at compile time (`kReferenceSet`), so the workflow does
+not need to pass one. The valuable part of them was the measured comment — why
+two sets and not three — and I checked that it survives in main in three places
+(`modules/common/README.md`, `RenderRegression.cpp`, `BACKLOG.md`) before
+deleting. Tip archived locally at `refs/archive/S27-render-ci` (`218ff24`).
+
+**The trap in one line, because it has now bitten twice:** #331 merged FROM this
+branch, and then two more commits were pushed onto it. A merged PR does not stop
+a branch accepting more work, and nothing then opens a PR for it. Deleting the
+branch at merge is what prevents the next one — the S3g PRs all used
+`--delete-branch`.
+
+No TideSynth branch is now missing the S3g definition, so the link failure class
+that produced #364 is closed on this repo.
 ## 2026-08-24 — macos — S18: the public repo now says which sdk it wants (interactive)
 
 **Prompt:** sync repos. next task
