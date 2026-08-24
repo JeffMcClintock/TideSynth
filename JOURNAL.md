@@ -8,6 +8,49 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — V5: VCV's numbers, and the rack canvas cut from 7968 to 1008 (interactive)
+
+**Prompt:** then take the next task
+
+The one thing I had documented instead of delivering. Jeff asked me to research
+VCV's rack size and resize TIDE to match; I filed the row with TIDE's own numbers
+and said the VCV figures were unconfirmed. They are confirmed now, from source.
+
+**VCV:** `RACK_GRID_WIDTH` 15, `RACK_GRID_HEIGHT` 380, default window 1024x720,
+and `RACK_OFFSET` = grid x (2000,100). That last one matters — VCV's canvas is
+effectively unbounded, so "how big is VCV's rack" is really "how much does the
+window show": **68.3 HP by 1.89 rows**.
+
+**The finding that made this well-defined: a TIDE DIP is very nearly a VCV
+pixel.** E5 ruled row 384 against VCV's 380, and Eurorack's 3U = 128.5 mm with
+1 HP = 5.08 mm puts TIDE at 15.2 DIP per HP against VCV's 15 — ratio 1.011. So
+the two scales are the same and the comparison is arithmetic, not judgement.
+TIDE's old 7968 canvas was **20.75 rows by 524.9 HP**: about 11x taller and 7.7x
+wider than VCV shows.
+
+Now 1008 = 60*16 + 48, which keeps the grid divisibility the old comment
+recorded, and gives 66.4 HP by 2.62 rows.
+
+**Both couplings the row flagged were real.** `setCenter` follows the constant on
+its own. `seedRootMidiCv()`'s placements did not: 3600-3960 absolute, chosen
+against the old centre of 3984, and on a 1008 canvas they would have been three
+times outside it — the exact failure the code's own comment warns about ("passing
+small numbers puts everything off the visible rack, which looks exactly like the
+insert having failed"). They are derived from `cx = kRackViewDips / 2` now, so
+the next resize cannot strand them.
+
+Checked they land on-rack before trusting it: MIDI In (120,140), MIDI-CV
+(280,140), prefab (480,464), with row 1 spanning y 252..636. Standalone launches,
+root MIDI-CV seeds, prefabs seed, no error output, and S7 still holds — home
+folder diff of 0 lines.
+
+**Not verified: the rendered result.** The arithmetic is right and it runs, but
+whether 2.62 rows LOOKS right is Jeff's call and a build cannot prove it. If it
+wants a physical case instead of VCV's window, 1248 gives 82.2 HP by 3.25 rows,
+which is about an 84 HP 3-row case.
+
+**Not verified:** Windows and Linux.
+
 ## 2026-08-24 — macos — Close-out sweep: two real misses found (interactive)
 
 **Prompt:** great. did we miss anything?
