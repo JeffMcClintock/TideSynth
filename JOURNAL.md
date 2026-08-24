@@ -8,6 +8,44 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — Close-out sweep: two real misses found (interactive)
+
+**Prompt:** great. did we miss anything?
+
+Checked rather than answered from memory, and there were two.
+
+**Five rows were IN-REVIEW with every PR merged.** S7, S3g, P3, S18 and S35 —
+thirteen PRs across three repos, all merged, none of the rows flipped. This is
+the fourth time today this drift has needed fixing, and the pattern is always
+the same: the PR merges, the row stays IN-REVIEW, and the next run cannot tell
+finished work from work in flight.
+
+**S8's row still named the wrong cause.** SynthEditLib#49 merged with the real
+finding — the list is not "in a source list belonging to a separate target", it
+sits inside `IF(SE2JUCE)` at `CMakeLists.txt:582` and is never evaluated, and 79
+`.cpp` files are in there, not one module — but I never wrote it back to the row.
+The evidence lived only in a merged PR body, which is exactly the place the next
+run does not look. Prepended now, with the `ar -t` control.
+
+**Two dirty worktrees, both safe, both checked before discarding.** `sl35` held
+the `TEMP-DIAG` fprintf pair from the datatype hunt — throwaway instrumentation
+that was never meant to land. `wt7` held earlier drafts of the S7 row and
+journal, superseded by #376; I confirmed main carries both the row text and the
+journal entry (line 63) before throwing them away rather than assuming the merge
+had covered it.
+
+**Still open and NOT missed, just not mine to close:**
+[#373](https://github.com/JeffMcClintock/TideSynth/issues/373) needs a Linux
+build — the cause is fixed in SynthEditLib#47 and verified on macOS, but that
+issue's own rule is to close only after building on the platform, and this box
+cannot. #378 (V4/V5/V6) is awaiting review.
+
+**One thing genuinely unfinished and worth naming:** V5 asks for the rack view to
+be resized to match VCV, and I never researched VCV's actual default window or
+row count. The row records TIDE's own numbers — 7968 DIPs, 20.75 rows by 166
+units against E5's ruled 384/48 — and says the VCV figures are unconfirmed
+rather than guessing them. The resize cannot be done until someone gets them.
+
 ## 2026-08-24 — macos — One RackModules folder, and the comment that sent Jeff's prefabs nowhere (interactive)
 
 **Prompt:** ok, simple misunderstanding. I was putting my prefabs in "Tidesynth/TideModules" yours was in "Tidesynth/TideModules/prefabs". / lets just keep them as .synthedit for now / rename mine with _jef appened for now / OK, we're not regenerating them any more, they need hand-tweaking of the layout. don't want that overwritten
