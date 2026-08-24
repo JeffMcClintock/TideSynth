@@ -8,6 +8,50 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — S18: the public repo now says which sdk it wants (interactive)
+
+**Prompt:** sync repos. next task
+
+No open platform issues, so a backlog row. Took S18 — self-contained, and its
+Accept offers two options of which one avoids a licensing decision entirely.
+
+`modules/SoundPipe` is the only place in the public repo needing a third-party
+sdk that lives outside it. `external_sdk_folder` is set ONLY by SE16
+(`SynthEdit/CMakeLists.txt:288`), pointed at SE16's own `SDKs/`, and
+`SynthEditLib/modules` is added by SE16's root and never by SynthEditLib's own.
+
+**Reproduced the stranger's experience rather than describing it.** With the
+variable unset the configure dies with
+
+    Cannot find source file: /Soundpipe/modules/base.c
+    No SOURCES given to target: Soundpipe
+
+A path that exists nowhere, naming no sdk and offering no remedy. That is the
+actual defect — not that the dependency exists, but that hitting it teaches you
+nothing.
+
+A detour worth recording: my first attempt to reproduce passed `-Dexternal_sdk_folder=`
+on the command line and configured cleanly, which looked like the row was stale.
+It was not — line 288 is a plain `set()`, not `set(... CACHE ...)`, so it
+overwrites anything passed with `-D`. Had I stopped there I would have closed a
+live row as fixed. Emptying the `set()` in a throwaway worktree reproduced it
+immediately.
+
+Guarded and explained. Measured both directions, because the second is the
+regression check that matters:
+
+| `external_sdk_folder` | before | after |
+|---|---|---|
+| unset | configure fails | rc=0, prints which sdk and where to point it |
+| set by SE16 | `Soundpipe.sem` builds | builds, skip message absent |
+
+**Deliberately not done:** vendoring or fetching Soundpipe publicly, the other
+option S18 offers. Soundpipe is third-party, so that is a licensing question
+before it is a build question, and the row keeps that half.
+
+**Not verified:** Windows and Linux. The guard is an `EXISTS` test on a header
+path, so nothing platform-specific, but neither was built.
+
 ## 2026-08-24 — macos — S35 re-landed, this time against a bar it can fail (interactive)
 
 **Prompt:** go
