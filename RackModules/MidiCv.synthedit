@@ -16,7 +16,7 @@
             </Parameters>
         </PatchManager>
         <modules>
-            <module type="Container" handle="1709088982" PanelLocationZoom="1" StructLocationZoom="1" skin="default3" name="TIDE MIDI-CV">
+            <module type="Container" handle="1709088982" PanelLocationZoom="1" StructLocationZoom="1" rack_module="true" skin="default3" name="TIDE MIDI-CV">
                 <plugs>
                     <plug default="1" idx="2" />
                     <plug name="Input" idx="7" />
@@ -27,19 +27,19 @@
                 </plugs>
                 <structRect l="3834" r="3834" t="3834" b="3834" />
                 <modules>
-                    <module type="SE Patch Point out" handle="544098519">
+                    <module type="TiDE Patch Point Out" handle="544098519">
                         <structRect l="3804" r="3840" t="3804" b="3840" />
                         <panelRect l="70" r="90" t="44" b="64" />
                     </module>
-                    <module type="SE Patch Point out" handle="454607839">
+                    <module type="TiDE Patch Point Out" handle="454607839">
                         <structRect l="3804" r="3840" t="3864" b="3900" />
                         <panelRect l="70" r="90" t="114" b="134" />
                     </module>
-                    <module type="SE Patch Point out" handle="1387091323">
+                    <module type="TiDE Patch Point Out" handle="1387091323">
                         <structRect l="3804" r="3840" t="3924" b="3960" />
                         <panelRect l="70" r="90" t="184" b="204" />
                     </module>
-                    <module type="SE Patch Point out" handle="2040106367">
+                    <module type="TiDE Patch Point Out" handle="2040106367">
                         <structRect l="3804" r="3840" t="3984" b="4020" />
                         <panelRect l="70" r="90" t="254" b="274" />
                     </module>
@@ -94,14 +94,15 @@
                         </plugs>
                         <structRect l="3484" r="3532" t="3984" b="4044" />
                     </module>
-                <module type="SE TiDE:Panel" handle="1206928317">
+                    <module type="SE TiDE:Panel" handle="1206928317">
                         <plugs>
                             <plug default="2" idx="2" />
+                            <plug default="jack 80 54; jack 80 124; jack 80 194; jack 80 264; slots 48 371" idx="3" />
                         </plugs>
                         <structRect l="4104" r="4224" t="3804" b="4264" />
                         <panelRect l="0" r="96" t="0" b="384" />
                     </module>
-                    </modules>
+                </modules>
                 <lines>
                     <line type="Line" handle="229704230" lineType="1" fMod="1702466970" tMod="544098519" />
                     <line type="Line" handle="594816869" lineType="1" fMod="1702466970" tMod="454607839" fPlg="1" />
@@ -158,16 +159,6 @@
                 <Pin name="Alignment" datatype="enum" default="1" metadata="Left,Center,Right" />
             </GUI>
         </Plugin>
-        <Plugin id="SE Patch Point out" class="2" name="Patch Point-&gt;" flags="384" category="Flow Control" simdOverwritesBufferEnd="true">
-            <Audio>
-                <Pin name="Input" datatype="float" rate="audio" linearInput="true" />
-                <Pin name="Output" datatype="float" rate="audio" direction="out" isMinimised="true" />
-            </Audio>
-            <GUI graphicsApi="GmpiGui" />
-            <PatchPoints>
-                <PatchPoint pinId="1" center="10,10" radius="5" />
-            </PatchPoints>
-        </Plugin>
         <Plugin id="SE TiDE:Panel" name="Panel" flags="384" category="TiDE">
             <GUI graphicsApi="GmpiGui">
                 <Pin name="Text" datatype="string_utf8" />
@@ -177,6 +168,16 @@
                 <Pin name="Material" datatype="enum" metadata="Brushed Aluminium, Flat Aluminium, Powder-coated Steel" />
                 <Pin name="Panel Color" datatype="string_utf8" default="FF2E3238" />
             </GUI>
+        </Plugin>
+        <Plugin id="TiDE Patch Point Out" name="Patch Point-&gt;" flags="384" category="TiDE">
+            <Audio>
+                <Pin name="Input" datatype="float" rate="audio" linearInput="true" />
+                <Pin name="Output" datatype="float" rate="audio" direction="out" isMinimised="true" />
+            </Audio>
+            <GUI graphicsApi="GmpiGui" />
+            <PatchPoints>
+                <PatchPoint pinId="1" center="10,10" radius="5" />
+            </PatchPoints>
         </Plugin>
     </PluginList>
     <PrefabList>
