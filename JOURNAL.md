@@ -8,6 +8,135 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — windows — P3: the MFC requirement is gone, and a no-MFC toolchain is the proof (interactive, Jeff directing)
+
+**Did:** took **P3** — this platform's only own-boxed row, GATED because both its
+files are in `SynthEditLib`, and takeable because this is interactive with Jeff
+directing. STEP 1 clear (no open `platform:win` issues), STEP 1.5 clear.
+
+### The row's paths were stale for the third time, and this time in the useful direction
+
+P3 said `MfcDocPresenter.cpp:4` was *"still `SE16/SynthEdit2/`"* and that the
+second half was *"best done before or with C4"*. **C4 has happened.** Both files
+are now `SynthEditLib/EditorLib/`, so there is no private-repo half and the row
+is a single change in one public repo.
+
+### What was actually needed, measured rather than guessed
+
+The row said the include was *"likely only `ID_*`/`IDR_*` resource constants"*.
+That was right, and the set is smaller than it sounds. Of the **twelve** `ID*`
+symbols the two files reference, `afxres.h` supplies exactly **four**:
+
+| symbol | comes from |
+|---|---|
+| `ID_EDIT_COPY`, `ID_EDIT_CUT`, `ID_EDIT_PASTE`, `ID_EDIT_SELECT_ALL` | **`afxres.h`** — the whole dependency |
+| `IDOK`, `IDYES` | `<winuser.h>` |
+| `ID_EDIT_CONTAIN`, `ID_EDIT_UNCONTAIN`, `ID_EDIT_MOVEBACK`, `ID_EDIT_MOVEFRONT`, `ID_EDIT_DELETE`, `ID_INS_PREFAB` | the application's own, already in `resource.h` |
+
+Established by grepping the two files for `ID*` and testing each name against
+`atlmfc/include/afxres.h` — four hits, eight misses — rather than by reading
+the include and assuming.
+
+New `EditorLib/StandardCommandIds.h` carries the four at MFC's exact values,
+`#ifndef`-guarded so a TU that also sees `afxres.h` keeps MFC's definitions.
+
+**Not `resource.h`, deliberately.** That header has two copies policed by
+`check-resource-h-drift.py`, one of them in the private repo, and it is
+Visual-Studio-managed — hand-written content there is what the resource editor
+clobbers.
+
+### The values are the whole risk, so they are asserted
+
+`.rc` files elsewhere in the tree compile **with** `afxres.h`. A value that
+disagreed with MFC's **would not fail to build** — it would silently wire a menu
+item to nothing.
+
+A translation unit including both headers compiles clean at `/W4` with four
+`static_assert`s. **Negative-controlled**, because an assertion nobody has seen
+fail is indistinguishable from one that cannot:
+
+    correct                       CL_EXIT=0
+    0xE122 changed to 0xE121      error C2338: static assertion failed:
+                                  'ID_EDIT_COPY diverged from MFC'    CL_EXIT=2
+
+Zero `C4005` at `/W4` with both headers in scope is the other half — that is
+what shows the guards work rather than merely look right.
+
+### Verified, single-variable
+
+Same TIDE source at `origin/main`, same toolchain, only `SynthEditLib` differing:
+
+| SynthEditLib | toolchain | result |
+|---|---|---|
+| **unmodified** | Build Tools (**no MFC**) | **rc=1** — 2 errors, both `afxres.h`, nothing else |
+| **P3 branch** | Build Tools (**no MFC**) | **rc=0** — 0 errors, 0 warnings |
+| **P3 branch** | Community (MFC present) | **rc=0** — 0 errors, 0 warnings, **0 `C4005`** |
+| **P3 branch** | `SynthEditCL`, Community | **rc=0**, exe produced |
+
+All four TIDE formats — `.gmpi`, `.vst3`, `.clap`, standalone — built in each
+passing case. **The control carries the argument.** Without it, "it builds" is
+compatible with the toolchain having had MFC all along.
+
+**Not verified:**
+
+- **`SynthEdit2`**, the MFC app. Its `.vcxproj` links out of the developer's
+  Visual Studio tree, which must not be built into — the standing limit recorded
+  for every SE16 verification on this box. It is the one consumer that still
+  includes `afxres.h` itself, which is exactly the case the guards and the
+  `static_assert` exercise, but nobody compiled it.
+- **macOS and Linux** compile neither file's Windows branch, so neither is
+  affected and neither was run.
+
+**Learned:**
+
+- **A row's own guess can be right and still worth measuring, because the SIZE
+  is the actionable part.** "Likely only resource constants" was correct, but
+  four-of-twelve is what made this an afternoon instead of a refactor. Testing
+  each symbol against `afxres.h` is one loop.
+- **A value that must match an external header is not a code change, it is a
+  data change, and it fails silently.** Nothing would have broken at build time
+  if `ID_EDIT_PASTE` were off by one — a menu item would just stop working. The
+  `static_assert` plus its negative control is the cheapest thing that turns
+  that into a compile error.
+- **Guard macros need the both-headers case actually compiled.** `#ifndef` looks
+  obviously correct and is exactly the kind of thing that is subtly wrong; `/W4`
+  with `afxres.h` and this header in one TU, reading `C4005` count, is the test.
+- **A build "hanging" for ten minutes was `| grep … | head -5`.** `head` closes
+  the pipe, the writer blocks, and the task looks stuck while nothing is wrong.
+  Redirect to a log and read the log; do not pipe a long build through `head`.
+- **Check the row's file paths before believing its plan.** P3's staging advice
+  ("before or with C4") was built on a path that had already moved. Three
+  documents this week have named a pre-carve-out path.
+
+### Found on the way: the two local checkouts are skewed, and it looks like a code bug
+
+Mid-verification the link failed with:
+
+    EditorLib.lib(MfcDocPresenter.obj) : error LNK2019: unresolved external symbol
+      "bool __cdecl AppHasModuleEditorDialogs(void)"
+
+**Nothing to do with P3.** `C:\SE\TideSynth` was **3 commits behind**
+`origin/main` and did not define that symbol, while `SynthEditLib` at
+`origin/main` calls it — it arrived with **S3g** ([#363](https://github.com/JeffMcClintock/TideSynth/pull/363)
++ [SynthEditLib#43](https://github.com/JeffMcClintock/SynthEditLib/pull/43))
+under an hour earlier.
+
+**This is S41's shape with local clones instead of CI runners**, and it is worth
+recording because the failure mode is inverted: the developer's build had been
+*succeeding* only because both checkouts were old **together** — `SynthEditLib` 6
+behind, `TideSynth` 3 behind. Pulling one without the other is what breaks it.
+Re-ran every measurement above against `origin/main` worktrees of both repos, so
+none of the results carry the skew.
+
+**Machine left clean.** All work in throwaway worktrees and build trees under
+`C:\SE\_scratch`; nothing built into `C:\SE\SE16\build` or any repo working
+tree. `C:\SE\TideSynth` still carries the developer's own uncommitted
+`modules/PatchPoint/` and `tools/tidepanel-screenshot.synthedit`, untouched.
+All repos on their default branches.
+
+**Branch/PR:** `tide/win/P3-remove-mfc` — [SynthEditLib#44](https://github.com/JeffMcClintock/SynthEditLib/pull/44)
+is the change; this repo carries the row and this entry.
+
 ## 2026-08-24 — linux — SynthEditJuce ruled unmaintained, and #88 closes WONTFIX (interactive, Jeff directing)
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)

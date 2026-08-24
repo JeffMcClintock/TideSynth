@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**windows — P3: the MFC requirement is gone, and a no-MFC toolchain is the proof (interactive, Jeff directing)**
+
+- A row's own guess can be right and still worth measuring, because the SIZE is the actionable part.
+- A value that must match an external header is not a code change, it is a data change, and it fails silently.
+- Guard macros need the both-headers case actually compiled.
+- A build "hanging" for ten minutes was `| grep … | head -5`.
+- Check the row's file paths before believing its plan.
+
 **linux — SynthEditJuce ruled unmaintained, and #88 closes WONTFIX (interactive, Jeff directing)**
 
 - "Deprecated" and "unmaintained" answer different questions
