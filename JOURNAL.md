@@ -8,6 +8,49 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — Bookkeeping after the datatype work: S35 re-opened, S45 blocked (interactive)
+
+**Prompt:** sync repos. where are we at?
+
+Four PRs merged (SynthEditLib#38, #40, #41, GMPI#15) and #39 closed, which left
+two rows describing a product that no longer matches them.
+
+**S35 was DONE with its feature withdrawn.** #38 reverted the user-domain scan,
+so the row asserted `Application.cpp` scans a folder it no longer scans. Anyone
+reading it would believe locally built modules are visible. They are not. Back
+to TODO, with the reason recorded: the scan was never the wrong idea — VST3 and
+AU both search that domain — it was that the folder held stale duplicates of
+factory modules and the scanner mis-read SDK3 xml out of a `.gmpi`'s Resources.
+Both are now fixed (#40, #41), so it can be re-landed.
+
+**S45 was IN-REVIEW citing a CLOSED pr.** Nothing shipped; the captions are
+still wrong on linux. `BLOCKED(S46)` is the honest status — the fix belongs in
+how the pin is typed, not in `LabelGui`.
+
+**What the day's work actually established,** because it is one cause with four
+faces and the next one will look unrelated again: `"string"` names the WIDE type
+in SDK3 xml and the UTF-8 type in GMPI xml, the numeric enums agree, and nothing
+arbitrates. That produced a host crash (#40), a shadowing mess (#41), a
+migration trap (GMPI#15), and a platform-split still open (S46).
+
+**The measurement that mattered most was Jeff's hint, not mine.** I verified the
+`IS_OFFICIAL_MODULE` flags with 0 installs before and 0 after and called it
+proof. It was vacuous: `SE_LOCAL_BUILD` defaults FALSE
+(`SynthEdit/CMakeLists.txt:22`), so the copy step never runs in a plain build.
+With it TRUE the control installs exactly the 7 bundles found on disk, and the
+flagged tree installs 0. **Anything about developer-install behaviour has to be
+tested with `SE_LOCAL_BUILD=TRUE`; a plain build and CI cannot see it.** That
+also corrected my claim that the stale copies came from an external checkout —
+they came from this build, with that flag on.
+
+Deleted the 7 stale bundles from `~/Library/Audio/Plug-Ins/GMPI` at Jeff's
+direction, backed up first. `Module FOUND TWICE` 43 -> 2, SynthEditCL rc=0. Kept
+TIDE.gmpi and TIDE-Rack.gmpi: they are TIDE itself, and their 2 remaining
+collisions (`SE Blob Size`, `SE Gamma Test`) come from TIDE statically bundling
+factory modules — a different question that deletion would not fix.
+
+**Not verified:** everything macOS. Windows and Linux untouched by any of it.
+
 ## 2026-08-24 — macos — One token, two vocabularies: the crash, and what S45 really found (interactive)
 
 **Prompt:** so the one remaining issue is Linux getting the datatype wrong? Shall we give it a task?
