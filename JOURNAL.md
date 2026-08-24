@@ -85,6 +85,33 @@ succeeds, when the next claim feels like it came from the same evidence and did
 not. A greyed menu item proves an item is greyed; it proves nothing about
 whether another item does the job.
 
+**Filed V7 — the menus need better names, and this run is the bug report.**
+Jeff, after the correction: *"these menu need better names"*. Measured in
+`MfcDocPresenter.cpp`: **five names for three actions**, and which one you get
+depends on where you right-click.
+
+| action | background menu | on a container | TIDE adds |
+|---|---|---|---|
+| -> panel view | `Panel Edit...` (:1359) | `Pa&nel Edit...` (:1245) | `Goto Rack` |
+| -> structure view | `Goto Structure...` (:1226) | `&Structure...` (:1246) | — |
+| -> parent | `Goto Parent...` (:1361) | `Goto Parent Container` (:1333) | — |
+
+Both halves of each pair call the same command. **`Panel Edit...` is the outlier
+that does not say "goto" at all** — which is precisely why I missed it and
+invented a dead end. Proposed: `Goto Panel` / `Goto Structure` / `Goto Parent` /
+`Goto Rack`. **Not done, by Jeff's ruling:** the names live in EditorLib, shared
+with SynthEdit proper, so a rename changes SE16's menus for every existing user,
+and TIDE has no hook to override them. That is a SynthEdit product decision, not
+a TIDE cleanup. Jeff also ruled the `currentViewFlag` ungreying **stays** in
+#391 — belt-and-braces once the rename lands, an improvement on its own until then.
+
+Also noted in V7: `Pa&nel Edit...`, `&Structure...` and `D&ebug` still carry MFC
+accelerator ampersands, and **P3 removed MFC**. Grepping `se_sdk3_hosting/` found
+nothing that strips `&` from menu text, so they most likely render literally.
+**Not visually confirmed** — reaching them needs a right-click on a container in
+the structure view and the modules were off-canvas. The row says to confirm before
+fixing, which is the same discipline this entry is otherwise about.
+
 **Not verified:** behaviour with a module actually categorised `Rack` (none
 exists yet — the category half is still exercised only by the temporary
 recategorisation recorded in the row), and any view other than the master's.
