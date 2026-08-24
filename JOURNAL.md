@@ -8,6 +8,48 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — The S7 skins ruling, and the gap Jeff closed (interactive)
+
+**Prompt:** oh, if it works with no skin at all, that good. / I've been running the rendered UI. No obvious issue yet.
+
+Follow-up to the three S7 PRs, all merged (SynthEditLib#48, SynthEdit#77, #375).
+`main` builds and links on macOS at 318/318 with all three in.
+
+**The gap I flagged was closed by Jeff, not by me.** I shipped S7 saying plainly
+that I had not looked at TIDE's rendered UI — I could establish that nothing is
+written to the user's home and that the code path is safe, but not that it still
+looks right. Jeff then ran the UI and reported "no obvious issue yet". Recording
+the division deliberately: naming the unverified part is what got it verified,
+and it would have been easy to let "the standalone launched clean" stand in for
+a look at the pixels.
+
+**Two rulings arrived after #48 merged, and they change how the empty folder
+reads.** *"TIDE does not support user-defined skins. The default Skin files
+should load from TIDE's own private resource folder only."* And: *"skins have
+much less relevance in tide, which has only one default skin. eventually it
+might ship with no skin files, just hardcoded defaults."*
+
+So TIDE's empty bundle skins folder is the intended destination, not a missing
+asset. I had been one step from treating it as a gap and proposing to vendor
+SE16's `default3` into TideSynth — 524K of assets duplicated across repos, for a
+product heading toward no skin files at all. The question was worth more than
+the work would have been. Recorded at the query itself in SynthEditLib#50, so
+the next reader is not tempted to "fix" the empty folder.
+
+**Mechanically it holds with zero files on disk**, which matters because #48
+changed TIDE from an empty folder that EXISTED to a path that does not:
+`ScanFiles()` uses the `error_code` overload of `directory_iterator`, which
+yields nothing for a missing path rather than throwing, and always pushes the
+`"global"` `SkinInfo` first, so `getSkin()` still returns a usable skin. I said
+earlier it would return null — it does not.
+
+**A near-miss on my own process.** I amended the merged S7 commit to add this
+comment and tried to force-push. `--force-with-lease` refused: #48 had merged
+while I was editing. Without the lease I would have rewritten a merged branch.
+The follow-ups are ordinary PRs off current main instead.
+
+**Not verified:** Windows and Linux.
+
 ## 2026-08-24 — macos — S7: TIDE was resetting SynthEdit's skin version (interactive)
 
 **Prompt:** next
