@@ -165,6 +165,13 @@ SE2::TopView* TideApp::OpenViewForContainer(gmpi::api::IUnknown* host, CContaine
 		? requested_view_flag
 		: (isRackLevel ? CF_PANEL_VIEW : CF_STRUCTURE_VIEW);
 
+	// BACKLOG V4. The module browser is app-level and cannot see which view is
+	// active, so tell it. In the rack it offers rack modules only -- the prefabs
+	// plus anything categorised "Rack..."; drilling into the structure view
+	// offers everything, which is where the TiDE parts (Panel, knob, patch
+	// points) belong, since those build a rack module rather than being one.
+	setBrowserScope(isRackLevel ? ModuleScope::RackOnly : ModuleScope::Everything);
+
 	const gmpi::drawing::Size viewSize{ static_cast<float>(kRackViewDips), static_cast<float>(kRackViewDips) };
 	SE2::TopView* viewOb{};
 	if (view_flag == CF_PANEL_VIEW)
