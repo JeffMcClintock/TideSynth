@@ -184,6 +184,19 @@ gmpi_plugin(
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDEknob.cpp
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDEknobGui.cpp
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEPanel/TiDEPanelGui.cpp
+	  # TiDE Patch Point In/Out -- the functional jacks every upgraded rack
+	  # prefab layers over the panel's painted rings (docs/tide-panel-layout.md).
+	  # MISSED when the prefabs moved onto them: the pair existed only as the
+	  # modules/ tree's loadable .gmpi, which the EDITOR scans and TIDE cannot
+	  # (constraint 7, no scan) -- so TIDE loaded the upgraded prefabs and the
+	  # seeded root MIDI-CV with phantom patch points and raised "don't have
+	  # some required SEM Modules: TiDE Patch Point Out" on session restore.
+	  # The editor-side checks all passed, which is the documented trap: the
+	  # authoritative check is placing the prefab in TIDE and looking.
+	  # Same one-line case as SE Label: both register withXml/withId inline,
+	  # so no _tide_xmls entry.
+	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/PatchPoint/PatchPoint.cpp
+	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/PatchPoint/PatchPointGui.cpp
 
 	  SynthEdit.cpp
 	  SynthEditGui.cpp
