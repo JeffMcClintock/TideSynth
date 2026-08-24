@@ -8,6 +8,64 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — macos — V4 verified by driving the UI, which found two bugs a build could not
+
+**Prompt:** interactive
+
+**Did:** Finished V4 by **testing it in the running app with computer
+control**, which is the only way the untested half could be reached. The row
+said *"NOT verified: the browser's rendered list, and the `Everything`
+branch"*. Both are now verified, and **both were broken.**
+
+**Bug 1 — the `Everything` branch never fired.** In the rack the browser
+correctly showed **9 of 174** entries. Drilling in with "Goto Structure..."
+opened the structure view but **left the browser filtered to the same nine**.
+Temporary `fprintf` tracing showed why:
+
+```
+TEMP-DIAG V4 OpenViewForContainer isRackLevel=1     <-- on the DRILL-IN
+```
+
+`isRackLevel` is `targetContainer == MasterContainer`, and **"Goto
+Structure..." on the master shows the RACK'S OWN structure** — same
+container, different view. So `isRackLevel` stayed true, `setBrowserScope()`
+early-returned on the unchanged value, and the filter never lifted. The
+predicate had to be `view_flag == CF_PANEL_VIEW`. `view_flag` was already
+computed on the line above and already carried the answer.
+
+**Bug 2 — the same error, already shipped, one screen away.** Once in the
+structure view there was **no way back to the rack**: "Goto Rack" was greyed
+because U3 tests `rack == currentContainer`, true in the master's structure
+view, and "Goto Parent" greys there too (the master has no parent). A dead
+end short of restarting the app. `onViewOpened` was **already being handed
+the resolved `view_flag` and discarding it** (`int /*flag*/`); keeping it in
+`currentViewFlag` fixes the greying with no new plumbing.
+
+**Measured, on the stripped build, both directions:**
+
+| step | browser |
+|---|---|
+| rack view | 9 entries, one "Prefabs" group |
+| after "Goto Structure..." | **20 categories**, `Controls`…`Waveform`, incl. `TiDE` |
+| after "Goto Rack" | **back to 9** |
+
+The return trip matters on its own: it proves the scope **restores** rather
+than latching.
+
+**Lesson — the class, not the line.** Both bugs are *container identity used
+where view identity is meant*. Bug 2 predates V4 and was found only because
+the fix for Bug 1 sent me through the same door in the other direction.
+**A green build cannot see either one**; both compile, both are type-correct,
+and both are wrong only in the running app. The V4 row's honest *"NOT
+verified"* is what made this worth doing — it named the gap precisely enough
+to aim at.
+
+**Not verified:** behaviour with a module actually categorised `Rack` (none
+exists yet — the category half is still exercised only by the temporary
+recategorisation recorded in the row), and any view other than the master's.
+The diagnostic `fprintf`s were removed before committing; the round trip
+above was re-run on the clean build.
+
 ## 2026-08-25 — macos — The queue is blocked, so the run proved the platform instead; B1 closed on a green matrix
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
