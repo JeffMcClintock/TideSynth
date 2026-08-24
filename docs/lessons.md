@@ -47,6 +47,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A CI issue can name a head that no longer exists.
 - Check what a folder scan actually enumerates before shipping a file into it.
 
+**windows — V4: the three candidate markers, measured — one of them selects nothing (interactive, Jeff directing)**
+
+- "Ruled rather than invented" does not mean "stop" — it means measure, then escalate with numbers.
+- An option can fail because the data it reads does not exist for the thing being selected.
+- A flattening commit changed what a proposed option would select.
+
 **windows — P3: the MFC requirement is gone, and a no-MFC toolchain is the proof (interactive, Jeff directing)**
 
 - A row's own guess can be right and still worth measuring, because the SIZE is the actionable part.

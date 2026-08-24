@@ -33,7 +33,58 @@ defaults are not.
 
 ## Open — PROPOSED, awaiting a merge to become decisions
 
-*(none open)*
+```
+PROPOSED: What marks a module "rack-relevant", so the rack view's module browser
+          offers only those? (BACKLOG V4)
+
+  Options: (a) prefab-vs-module  /  (b) the existing category= attribute  /
+           (c) a new explicit marker  /  (d) (a) now, widened by (c) later
+
+  Recommended default: (d) -- because (a) alone is already correct for
+    everything that exists, and (b) alone selects NOTHING that exists.
+
+  Default in effect meanwhile: the rack view keeps offering every module,
+    as it does today. Nothing breaks; it is merely noisy.
+
+  May proceed meanwhile: the plumbing, which is identical under every option --
+    ModuleBrowser.cpp:56 and :99 hard-code `includePrefabs = true`, and
+    TideApp.cpp:147 already computes `isRackLevel`. Getting that value down to
+    the browser is the same work whichever predicate wins; only the predicate
+    differs.
+
+  Decide-by: before any non-prefab module is authored as rack content, since
+    that is the first moment (a) and (d) diverge.
+```
+
+**The measurement that makes this a short question (2026-08-24, windows).** V4
+offers three candidates and says the answer *"should be ruled rather than
+invented"*. Measuring what each would actually select removes most of the
+choice:
+
+| option | what it selects **today** | mechanism |
+|---|---|---|
+| **(a) prefab-vs-module** | **9 of 9** — the whole rack content | **already exists**: `ExportModules(list, includePrefabs)` and the `*P=` unique-id prefix |
+| **(b) `category=`** | **0 of 9** | cannot see prefabs at all — see below |
+| **(c) new marker** | 0 until authored | new field, new plumbing |
+
+**(b) cannot work for the rack, and the reason is structural rather than a
+matter of degree.** A regular module's group comes from its XML —
+`mm.group = GetGroupName(u)` (`ModuleFactory_Editor.cpp`, the `category=`
+attribute, **273 modules across 32 categories**). **A prefab has no module XML.**
+Its group is derived from its *file path*
+(`ModuleFactory_Editor.cpp:2387-2395`), and `#377` flattened `RackModules/`, so
+the nine rack prefabs carry no group at all. There is also **no rack- or
+TiDE-named category anywhere in the tree today**, so (b) would first require
+adding one to files that do not have the field.
+
+**Which is why (d) rather than (a).** (a) is right for every rack module that
+exists and wrong for the future one the row correctly worries about; the fix is
+not to choose the other option now, but to write the predicate as a union —
+*is it a prefab from the rack folder, **or** is it marked rack-relevant?* — and
+leave the second half selecting nothing until something claims it. That costs
+one clause today and removes the migration later. **It is (d) and not (a)
+because the row's objection to (a) is right; it is (d) and not (b) because (b)
+is empty.**
 
 ---
 
