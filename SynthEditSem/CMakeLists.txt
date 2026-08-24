@@ -901,10 +901,25 @@ foreach(kind IN LISTS FORMATS_LIST)
 		 PRIVATE EditorLib
 	)
 	target_compile_definitions(
-		${SUB_PROJECT_NAME} PRIVATE 
+		${SUB_PROJECT_NAME} PRIVATE
 		IS_SYNTHEDIT_SEM=1
 		GMPI_DISABLE_FACTORY=1
 	)
+
+	# TIDE_VCV_FUNDAMENTAL (root CMakeLists) -- the GPL VCV Fundamental ports,
+	# statically. The aggregate is OBJECT libraries end to end, so every
+	# module's static-init registration survives the link (the dead-stripping
+	# rule the source list above documents). The define is what compiles
+	# TideApp.cpp's registerDeferredModules() call in; with the option OFF
+	# neither it nor any of these targets exists anywhere in the build.
+	if(TIDE_VCV_FUNDAMENTAL)
+		target_link_libraries(${SUB_PROJECT_NAME}
+			PRIVATE VCV_Fundamental_static
+		)
+		target_compile_definitions(${SUB_PROJECT_NAME} PRIVATE
+			TIDE_VCV_FUNDAMENTAL=1
+		)
+	endif()
 
 	if(WIN32)
 	target_link_libraries(${SUB_PROJECT_NAME}

@@ -8,6 +8,89 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — windows — the VCV Fundamental ports run inside TIDE, behind an option that is OFF by default (interactive, Jeff directing)
+
+**Prompt:** enhance TIDE Rack so it can include the Cardinal fundamental
+modules ("C:\SE\VCV_Fundamental_gmpi"). cmake will need to fetch them plus the
+GMPI Rack Adaptor ("C:\SE\SynthEdit_Rack_Adaptor"). But this all needs to be
+enabled or disabled in the cmake (disabled by default) and to completely omit
+this stuff when disabled (for licensing reasons). The rack adaptor may need
+updating in order to put the Cardinal modules in the correct synthedit
+category (to show up as rack-compatible).
+
+**Did — three repos, one option.** `TIDE_VCV_FUNDAMENTAL` (root CMakeLists,
+OFF) fetches SynthEdit_Rack_Adaptor and VCV_Fundamental_gmpi (with
+`*_FOLDER_OVERRIDE` escape hatches matching the standing four) and statically
+links all 38 ported modules into every TIDE format target. OFF means ABSENT:
+nothing fetched, compiled or linked, the TideApp call site compiles out, and
+`grep -i vcv` on a default configure prints nothing — measured, both before
+and after the feature build. ON means GPL-3.0-or-later binaries, which is the
+whole reason for the default. docs/vcv-fundamental.md is the write-up.
+
+**The mechanism, because none of the .gmpi machinery could be reused.** TIDE
+has no scan (S1a) and no factory of its own — SynthEditLib defines
+`gmpi::RegisterPlugin/RegisterPluginWithXml` straight into `ModuleFactory()`
+(UgDatabase.cpp:198), and TIDE compiles with GMPI_DISABLE_FACTORY already. So
+the adaptor's RackFactory.cpp (which supplies those very symbols plus
+MP_GetFactory for a .gmpi) can never link into TIDE. New in the adaptor:
+`RackFactoryStatic.cpp` behind `RACK_ADAPTOR_STATIC_HOST=ON` — QUEUES each
+module's deferred-XML registration at static init, and
+`rack_adaptor::registerDeferredModules()` (called from TideApp::InitInstance,
+once per process) generates the XML and registers it, landing both halves at
+once. The XML cannot be generated at static-init time because a module's
+`RACK_DISPLAY_STATE` is declared after upstream's .cpp registers — the same
+reason the .gmpi factory serves XML lazily. New in VCV_Fundamental_gmpi:
+`static_library/` builds every module as an OBJECT library (registration is a
+static initializer; archive members dead-strip, objects cannot), delivered to
+each plugin target as `$<TARGET_OBJECTS>` INTERFACE sources — an OBJECT
+library's objects do NOT travel through an INTERFACE `target_link_libraries`
+link; the first build measured exactly that by dropping all 39 registrations.
+
+**The category ruling asked for:** the rack browser scope
+(`ModuleScope::RackOnly`, EditorLib/SynthEditAppBase.cpp, V4) lists prefabs
+plus modules whose category STARTS "Rack", case-insensitive, nothing else. The
+adaptor default is now "Rack/VCV" and the Fundamental repo registers
+"Rack/VCV Fundamental" (one shared cmake/RackModuleMetadata.cmake so the two
+entry points cannot drift). Verified in the running standalone: the browser
+shows Rack → VCV Fundamental with all modules listed.
+
+**Two bugs found by running it, both with Jeff driving the rack live:**
+
+1. **Every VCV module dropped as an artless 100x100 square.** The generated
+   panel registrations were `inline const bool panel0` — the SAME symbol in
+   every module TU. One binary per module hid it; 38 TUs in one binary
+   COLLAPSED to a single copy at link, so one panel registered and 37 modules
+   fell back to panelMetrics' 100x100 default. Fix in
+   cmake/RackPanelResources.cmake: `static` (internal linkage) + per-target
+   names. The adaptor also gained a rack-size floor (a 3U panel is never
+   shorter than RACK_GRID_HEIGHT — Jeff's ruling "always at least one rack
+   height"), stderr warnings on the previously-Release-silent failure paths,
+   and a RACK_ADAPTOR_TRACE per-editor line (slug/model/art/size) — which is
+   what verified the fix: `'LFO' … size=135x380`, `'SHASR' … 105x380`,
+   `'Pulses' … 120x380`, art=yes on all three, restored from Jeff's own
+   session.
+
+2. **#404 left TIDE's own patch points phantom — [#406](https://github.com/JeffMcClintock/TideSynth/pull/406), split out as its own PR.**
+   Session restore blocked on "don't have some required SEM Modules: TiDE
+   Patch Point Out" (read by window-text enumeration, since the dialog is
+   modal and the app hangs under it). The pair existed only as the modules/
+   tree's loadable .gmpi — the editor scans it, TIDE cannot — so every
+   upgraded prefab's jacks were phantoms in TIDE while all of #404's
+   editor-side verification passed. e2a-prefabs §9.2 names this exact trap;
+   its "authoritative check is placing the prefab in TIDE and looking" is the
+   step #404 skipped. Fix: PatchPoint.cpp/PatchPointGui.cpp join the source
+   list (the SE Label one-line case).
+
+**Session-restore side effect worth knowing:** the startup watchdog treats a
+dialog-blocked run as "did not finish starting" and quarantines session.xml
+to session.previous.xml. Jeff's three-module rack survived as the quarantine
+copy and was restored by copying it back before relaunch.
+
+**Merge order:** the two side-repo branches (SynthEdit_Rack_Adaptor
+`static-host`, VCV_Fundamental_gmpi `static-library`) must merge before
+TIDE's option can build in fetch mode — TIDE fetches both at `origin/main`.
+Local-override builds work off the branches today.
+
 ## 2026-08-25 — windows — every rack prefab is on the TiDE panel pattern, and a script now enforces it (interactive, Jeff directing)
 
 **Prompt:** we need to clean up the TIDE prefabs, look at the new style
