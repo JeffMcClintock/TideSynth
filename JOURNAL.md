@@ -8,6 +8,68 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — One token, two vocabularies: the crash, and what S45 really found (interactive)
+
+**Prompt:** so the one remaining issue is Linux getting the datatype wrong? Shall we give it a task?
+
+Chasing why S35 segfaulted SynthEditCL ended in a root cause that explains three
+separate symptoms across two machines. Writing it down properly because the next
+instance will look like a fourth unrelated bug.
+
+**`"string"` means opposite things in the two SDKs.** SDK3 xml (`conversion.cpp`)
+maps `"string"` to `DT_TEXT` — the WIDE type — and `"string_utf8"` to
+`DT_STRING_UTF8`. GMPI xml (`GMPI/Hosting/xml_spec_reader.cpp`) maps `"string"`
+to `PinDatatype::String`, which is utf-8, and has no entry for `"string_utf8"`
+at all. The numeric enums agree (1 and 12 in both); only the words disagree.
+Nothing arbitrates, so whichever table happens to read a file decides.
+
+**Symptom 1 — the crash.** `moduleXmlIn()` returned whichever `.xml` the
+directory iterator yielded first from a bundle's Resources. TIDE keeps its
+child modules' xml there (`Converters.xml`, `VaFilters.xml`, ...), which are
+SDK3 files sitting inside a `.gmpi`, so they were read with the GMPI table and
+every `std::wstring` pin was recorded as utf-8. `SE TextToText8` arrived as
+Text8->Text8, converted nothing, and `ug_base::connect` inserted converter after
+converter until the stack died. Fixed in SynthEditLib#40: a `.gmpi` descriptor
+must be `plugin.gmpi.xml` or `<bundle-name>.xml`; `.sem` untouched. Of the 64
+bundles installed here, 62 already obey that and the only 2 that don't are the
+two at fault.
+
+**Symptom 2 — silent misses.** An unrecognised datatype token doesn't error:
+`lookup()` returns an optional and the guarded assignment is skipped, leaving
+`pinInfo::datatype` — which has no default initialiser — indeterminate. GMPI#15
+accepts `"string_utf8"` as a synonym at Jeff's direction, which covers the
+common port; the silent-miss path itself is still there.
+
+**Symptom 3 — S45's captions, and where that fix pointed.** The linux box traced
+tofu captions to raw `wchar_t` on the wire and fixed it by moving `LabelGui` to
+`Pin<std::wstring>`. The investigation was genuinely good — it measured the
+codepoints (28 for 7 characters, 3 NULs each) and eliminated fonts with a
+control. But `SE Label` is a GMPI module (`graphicsApi="GmpiUi"`, GMPI
+`Register<>::withXml`), so its `datatype="string"` means utf-8 and
+`Pin<std::string>` was already right. Jeff checked the module independently and
+agrees it is self-consistent. On macOS the cache records that pin as
+`string_utf8` and captions render fine, so the change would have corrupted macOS
+the mirror way. SynthEditLib#39 is closed; `main` still has `Pin<std::string>`.
+
+**What that leaves is the real defect, now S46:** the same GMPI module is
+registered as DT_STRING_UTF8 on macOS and DT_TEXT on linux. Both platforms take
+the same path — `ViewBase.cpp:792` uses `pinInfo.GetDatatype()`, the registered
+type, not a re-parse — so the divergence is in registration, not in reading a
+default. I checked that specifically rather than assume it, because S45's stack
+made a re-parse look plausible.
+
+The first measurement is one line: linux's cache record for `id="SE Label"`, its
+`datatype` and the `file=` it came from. If it says `string` where macOS says
+`string_utf8`, that is the bug located.
+
+**A correction I had to make mid-investigation.** I claimed the duplicates were
+irrelevant after an isolated-`HOME` run still failed. That control was worthless:
+a fake `HOME` independently breaks SynthEditCL (exit 134 on pre-S35 too). The
+comparison that held up was real-`HOME`, where pre-S35 exits 0 and S35 segfaults.
+
+**Not verified:** everything here is macOS. The linux half is S45's measurement,
+which I have not reproduced, and Windows is untouched by either.
+
 ## 2026-08-24 — linux — S45: the captions were UTF-32 in a UTF-8 string, and S23 closed (interactive, Jeff directing)
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
