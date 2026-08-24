@@ -283,12 +283,40 @@ jobs:
       - name: Notarize and staple (macOS)
         if: matrix.name == 'macos'
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: |
           set -euo pipefail
           PKG="$GITHUB_WORKSPACE/dist/TIDE-Rack-macOS.pkg"
+
+          # AN APP STORE CONNECT API KEY, not an Apple ID plus app-specific
+          # password. The password was a long-lived credential tied to a person;
+          # the key is scoped, revocable on its own, and is what notarytool
+          # actually prefers. BACKLOG R7(2), Apple half.
+          #
+          # Decoded to a private temp file because notarytool takes a PATH, not
+          # the key material. umask first so the file is never briefly readable,
+          # and a trap so it does not outlive the step even if notarisation dies.
+          KEYDIR="$(mktemp -d)"
+          trap 'rm -rf "$KEYDIR"' EXIT
+          umask 077
+          KEY="$KEYDIR/AuthKey_${APPLE_API_KEY_ID}.p8"
+
+          # Whitespace stripped before decoding: the web UI can carry a trailing
+          # newline the CLI never would, and base64 is unforgiving about it --
+          # the same trap R5 hit on APPLE_CERT_PASSWORD.
+          printf '%s' "$APPLE_API_KEY_P8_BASE64" | tr -d '[:space:]' | openssl base64 -d -A > "$KEY"
+
+          # Check the secret BEFORE spending an hour proving it wrong. A .p8 is a
+          # PEM private key; if it did not decode to one, say so now.
+          if ! grep -q "BEGIN PRIVATE KEY" "$KEY"; then
+            echo "::error::APPLE_API_KEY_P8_BASE64 did not decode to a PEM private key" \
+                 "($(wc -c < "$KEY" | tr -d ' ') bytes). Re-set it with:" \
+                 "gh secret set APPLE_API_KEY_P8_BASE64 --env release < <(base64 -i AuthKey_XXX.p8)"
+            exit 1
+          fi
+          echo "==> App Store Connect key ${APPLE_API_KEY_ID} decoded ($(wc -c < "$KEY" | tr -d ' ') bytes)"
 
           # RETRY APPLE'S SERVER, NEVER APPLE'S VERDICT. v0.1.0 died here on
           # "HTTP status code: 500. Internal Server Error / Please try again at
@@ -307,9 +335,9 @@ jobs:
             echo "==> notarytool submit (attempt $n of $attempts; waits for Apple's verdict)"
             set +e
             out=$(xcrun notarytool submit "$PKG" \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_ID_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" \
+              --key "$KEY" \
+              --key-id "$APPLE_API_KEY_ID" \
+              --issuer "$APPLE_API_ISSUER_ID" \
               --wait 2>&1)
             rc=$?
             set -e
@@ -327,9 +355,9 @@ jobs:
               if [ -n "$id" ]; then
                 echo "==> reasons (notarytool log $id):"
                 xcrun notarytool log "$id" \
-                  --apple-id "$APPLE_ID" \
-                  --password "$APPLE_ID_PASSWORD" \
-                  --team-id "$APPLE_TEAM_ID" || true
+                  --key "$KEY" \
+                  --key-id "$APPLE_API_KEY_ID" \
+                  --issuer "$APPLE_API_ISSUER_ID" || true
               fi
               exit 1
             fi
