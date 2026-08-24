@@ -143,6 +143,61 @@ copy and was restored by copying it back before relaunch.
 `static-host`, VCV_Fundamental_gmpi `static-library`) must merge before
 TIDE's option can build in fetch mode — TIDE fetches both at `origin/main`.
 Local-override builds work off the branches today.
+## 2026-08-25 — macos — Patch cables were dead because the module was never compiled in; verified fixed in AU3
+
+**Prompt:** interactive
+
+**Did:** Chased why patch cables would not pull in the AUv3, was wrong three
+times, and the windows box found it: **`TiDE Patch Point In/Out` was not
+compiled into the binary at all.** #404 switched every rack prefab to the TiDE
+patch points, but `modules/PatchPoint/PatchPoint.cpp` and `PatchPointGui.cpp`
+were never in `SynthEditSem/CMakeLists.txt`'s source list — **E2a's both-halves
+rule**, XML present and `.cpp` absent, an insertable phantom. Fixed on `main` by
+`479faff2`. **Jeff verified by hand: *"manual test passed. Patch cables working
+in AU3"*.**
+
+**Measured at the binary, before and after.** The appex installed in
+`~/Applications` carried **0** `PatchPointGui` symbols; after the fix, **13** —
+with all four static initialisers present (`PatchPoint.cpp`, `PatchPointGui.cpp`
+and the older plural `PatchPoints*` pair) and **identical counts in the
+standalone and the appex**, so nothing was dead-stripped and the fix reached
+every format.
+
+**One missing module, three symptoms that looked unrelated:**
+
+| observation | cause |
+|---|---|
+| module faces drew bare, no jacks | no `PatchPointGui::render` |
+| drag moved the module instead of pulling a cable | no `PatchPointGui::hitTest` — click fell through to the container |
+| knobs still worked | different module, linked fine |
+
+Jeff's *"turning the knobs works in AU3"* is what separated "input is broken"
+from "one module is missing", and it was the turning point.
+
+**THE MISTAKE WORTH KEEPING: a false negative sent this run down an
+hour-long wrong path.** The standalone appeared to cable fine, so the bug was
+written up as **AU3-specific**. It was not. The standalone had **restored a
+saved session**, so the modules being cabled were old `SE Patch Point` instances
+persisted in the document — not the new TiDE ones at all. **A UI test that
+reuses restored state is not a negative control.** Insert fresh, or start a new
+document, before concluding any format difference.
+
+**Three further theories, all eliminated by measurement, recorded so nobody
+re-runs them:** #404's prefab **data** (the coordinates line up exactly —
+`jack 24 80`/`24 337` match the patch-point `panelRect` centres, and #404
+touched no C++); **`SE TiDE:Panel` z-order** (the Panel is listed last in all
+three prefabs, but that is not the cause); and **this box's own `s_xmlMerged`
+guard** from M5 — the hit-test probe printed `patchPoints=PRESENT count=0` on
+the container in the **working** case, so that list was never the mechanism.
+
+**The probe that finally aimed things correctly was Jeff's suggestion** — "add a
+bright orange circle to the patch-point render method to see if it even
+exists". Instrumenting the hit-test rather than the renderer gave the number
+that killed my last theory.
+
+**Not verified:** VST3/CLAP/AU2, and whether a cabled rack actually **sounds** —
+audio has still never been measured through the AUv3.
+
 ## 2026-08-25 — macos — The Release question, measured: auval passes a completely empty plugin
 
 **Prompt:** interactive
