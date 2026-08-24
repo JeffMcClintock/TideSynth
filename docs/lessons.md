@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-24
 
+**linux — S45 closed on its own Accept, and a 50-minute window where `main` did not link (interactive, Jeff directing)**
+
+- "The branch fixes it" and "the product is fixed" are different claims
+- Pick a metric the bug makes big.
+- A cross-repo "must land together" is a real hazard even when everyone does it right.
+- A link error naming a symbol you have never heard of is usually someone else's half-landed change
+
 **linux — S46: the technology is recorded now, not sniffed off a filename (interactive, Jeff directing)**
 
 - When two guards both need the same missing input, the second one is not a fallback.
