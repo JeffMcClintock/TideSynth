@@ -8,6 +8,126 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — linux — V6's risk discharged: a root paste does carry connections, and the row's fork is now live (interactive, Jeff directing)
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** STEP 1 first — closed [#373](https://github.com/JeffMcClintock/TideSynth/issues/373),
+a CI-filed linux build failure, by building `main`. Then took **V6** and did the
+one thing its row asks for before anything else: **verified the root-level paste.
+Nothing has been deleted.**
+
+### #373, closed on a build
+
+CI filed it against `tide/mac/S44-delete-stranded-branch`, which had since merged
+and been auto-deleted — so the head it named no longer existed. The break was
+never branch-specific:
+
+```
+StandardCommandIds.h:54:41: error: expected identifier before numeric constant
+CContainer.h:19:1:          error: expected declaration before '}' token
+```
+
+`CContainer.h` declared its own enum for four command ids under `#ifndef _WIN32`;
+**P3** added `StandardCommandIds.h`, which `#define`s the same four on *every*
+platform, and the macros then expanded inside the enum. **Windows never saw it
+because the enum was compiled out there** — the platform that would have caught
+it is the one the guard excluded. Fixed by `c0bc053` before I got there; verified
+by building the full tree from current `main`: **483/483, rc=0, all four Linux
+artifacts, zero occurrences of the error.**
+
+### V6: why the risk was real, not ceremonial
+
+The row says *"the risk is the root-level paste, which should be verified before
+the C++ is deleted"*. It is easy to read that as diligence. It was not:
+
+**All nine shipped prefabs in `RackModules/` have exactly one top-level module
+and zero top-level lines.** The case V6 depends on — several top-level modules
+plus connections *between* them, pasted at the root — has never been exercised
+anywhere in this product.
+
+### The experiment, and the control that makes it a measurement
+
+A deliberately minimal prefab: two top-level modules (`MIDI In`,
+`SE MIDI to CV 2`) and one top-level line between them. Nothing else, so a
+failure would have exactly one possible cause. Armed from the browser and
+click-placed at the root (arm-then-click, per the 2026-08-20 finding).
+
+**The control is that `seedRootMidiCv()`'s own pair is in the same saved
+document.** So the pasted result is compared against the C++'s output, in the
+same run, rather than against my judgement:
+
+| | editor half | DSP half |
+|---|---|---|
+| **seeded (C++)** | `fMod="1521837852" tMod="1620974935" fPlg="1"` | `<Line From="1521837852" To="1620974935"/>` |
+| **pasted (prefab)** | `fMod="811000001" tMod="811000002" fPlg="1"` | `<Line From="811000001" To="811000002"/>` |
+
+Byte-equivalent. **`fPlg="1"` surviving is the load-bearing detail** — pin 1 is
+`MIDI Data`, pin 0 is the GUI `Activity` input, so a paste that dropped the pin
+index would have wired the wrong plug **and still looked structurally correct**.
+
+Fixture and recipe committed at `tests/fixtures/v6-multi-module-paste.synthedit`,
+so this is re-runnable rather than a claim.
+
+### Why I stopped there rather than finishing V6
+
+The row offers *"one prefab or default document"*, and those are not the same
+build. `seedPrefabsFromBundle()` scans `Resources/Prefabs` **recursively** and
+puts everything it finds in the module browser — so shipping the root assembly as
+a prefab there makes it **user-insertable**, which reopens precisely the question
+this row records as closed: *"there is exactly one, TIDE owns it, and 'what if the
+user adds a second' stops being a question."*
+
+Three shapes, none dominant:
+
+- **(a) prefab in `Prefabs/`** — simplest; browsable and duplicable.
+- **(b) prefab outside `Prefabs/`** — not browsable, but `ResolveFilename` only
+  searches `kPrefabFolder`, so it needs a resolve path or an absolute one.
+- **(c) default document** — closest to the row's intent, largest change.
+
+STEP 2 says a run may only do work that is identical under every open answer. The
+verification is; the implementation is not. **Row set to NEEDS-JEFF with the fork
+and its cost written down**, rather than picking and calling it a decision.
+
+**Verified:** `main` full tree 483/483 rc=0; the paste experiment with its
+in-document positive control; nine-prefab survey by XML parse, not by eye.
+
+**Not verified:**
+
+- **The full five-connection assembly** — only the two-module, one-line case was
+  built. The facade wiring (`fPlg 4/3/5/2 → tPlg 7/8/9/10`) is extracted and on
+  the row, but not exercised.
+- **That a pasted `SE MIDI to CV 2` at root still clones per voice** — E7's
+  polyphony requirement is the reason the module must be at root at all, and a
+  paste is a different code path from `AddModule`. **This is the thing I would
+  test first** if the ruling is (a) or (b).
+- **Any audio.** Structure only.
+
+**Learned:**
+
+- **"Verify X before deleting Y" earns its place when X has never happened.** The
+  nine-prefab survey took one script and turned a procedural-sounding instruction
+  into a real precondition.
+- **Put the control in the same artifact as the subject.** The seeded pair and the
+  pasted pair are in one saved document, so "did it wire correctly" became a diff
+  rather than an interpretation.
+- **A minimal repro is worth more than a faithful one here.** Two modules and one
+  line means a failure has one cause; building the whole five-connection assembly
+  first would have conflated the paste with the pin arithmetic.
+- **A CI issue can name a head that no longer exists.** #373 pointed at a merged,
+  auto-deleted branch; the break was on `main` all along, and building `main` is
+  what settled it.
+- **Check what a folder scan actually enumerates before shipping a file into it.**
+  `seedPrefabsFromBundle` recursing is the whole reason (a) is not free.
+
+**Machine left clean.** Headless weston stopped, standalone stopped, scratch
+`HOME`s throughout; the test prefab was copied into a scratch build tree, never
+into Jeff's. All six repos on their default branches and clean.
+
+**Branch/PR:** `tide/linux/V6-root-midicv-prefab` — TideSynth only: the fixture,
+its README, the V6 row and this entry. **No product code change** — deliberately,
+since V6's implementation is what the ruling decides.
+
 ## 2026-08-24 — macos — Close-out sweep: two real misses found (interactive)
 
 **Prompt:** great. did we miss anything?
@@ -107,6 +227,7 @@ moving.
 exist is any marker for "rack-relevant", so the row lists candidates —
 prefab-vs-module, the existing `category=` attribute the browser already reads
 at `:758`, or a new flag — and leaves the choice to Jeff.
+
 ## 2026-08-24 — macos — One RackModules folder, and the comment that sent Jeff's prefabs nowhere (interactive)
 
 **Prompt:** ok, simple misunderstanding. I was putting my prefabs in "Tidesynth/TideModules" yours was in "Tidesynth/TideModules/prefabs". / lets just keep them as .synthedit for now / rename mine with _jef appened for now / OK, we're not regenerating them any more, they need hand-tweaking of the layout. don't want that overwritten
@@ -330,6 +451,7 @@ branch at merge is what prevents the next one — the S3g PRs all used
 
 No TideSynth branch is now missing the S3g definition, so the link failure class
 that produced #364 is closed on this repo.
+
 ## 2026-08-24 — macos — S18: the public repo now says which sdk it wants (interactive)
 
 **Prompt:** sync repos. next task

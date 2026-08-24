@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="1709088982" SelectedViewType="128" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0">
+    <master_container type="Container" handle="1996595734" name="Main" PanelLocationZoom="1" StructLocationZoom="1" ViewOpenFlags="256" skin="default3">
+        <structRect l="0" r="0" t="0" b="0" />
+        <PatchManager>
+            <ProgramNames />
+            <Parameters>
+                <param type="10" handle="1100194740" private="true" hostControl="49">
+                    <patch-list>
+                        <s repeat="128" />
+                    </patch-list>
+                </param>
+            </Parameters>
+        </PatchManager>
+        <modules>
+            <module type="MIDI In" handle="811000001">
+                <structRect l="3600" t="3620" r="3700" b="3680" />
+                <panelRect l="0" t="0" r="0" b="0" />
+            </module>
+            <module type="SE MIDI to CV 2" handle="811000002">
+                <structRect l="3760" t="3620" r="3900" b="3760" />
+                <panelRect l="0" t="0" r="0" b="0" />
+            </module>
+        </modules>
+        <lines>
+            <line type="Line" handle="811000101" lineType="1" fMod="811000001" tMod="811000002" fPlg="1" />
+        </lines>
+    </master_container>
+</Document>
