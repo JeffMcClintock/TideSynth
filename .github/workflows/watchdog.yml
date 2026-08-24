@@ -37,3 +37,58 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/watchdog-digest.py --repo-root .
+
+      # BACKLOG A33. A CI-filed platform issue names the branch that failed, and
+      # the mechanism that closes it only fires on a GREEN RUN OF THAT BRANCH. So
+      # once the branch is merged and deleted -- which is correct practice, and
+      # what every S3g pr did -- no run can ever happen on it and the issue can
+      # never close itself. Measured 2026-08-24: three such issues in one day
+      # (#364, #372, #373), all closed by hand, plus #306 stuck since 08-22.
+      # An open `platform:*` issue is STEP 1 work that outranks every backlog
+      # row, so each one is a standing tax on the box that owns it.
+      #
+      # Only issues this mechanism could have filed are touched, the same three
+      # guards the close-on-success step in build.yml uses: the exact title shape,
+      # a bot author (`is_bot`, not a login string -- the login gh renders for an
+      # app has changed form before), and the branch actually being gone. A
+      # hand-filed issue is never closed, even on a deleted branch.
+      #
+      # Splitting the title on " — " is safe: a git ref cannot contain a space,
+      # so the separator can never appear inside the branch name.
+      - name: Close CI-filed issues whose branch no longer exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh issue list --state open --limit 100 --json number,title,author \
+            | jq -r '.[] | select(.title | startswith("Build failure on ")) | select(.author.is_bot) | "\(.number)\t\(.title)"' \
+            | while IFS=$'\t' read -r NUM TITLE; do
+                BRANCH="${TITLE#*— }"
+
+                # A title we cannot parse is a title we do not act on.
+                if [ -z "$BRANCH" ] || [ "$BRANCH" = "$TITLE" ]; then
+                  echo "#${NUM}: cannot read a branch out of \"${TITLE}\" -- leaving it."
+                  continue
+                fi
+
+                if [ -n "$(git ls-remote --heads origin "refs/heads/${BRANCH}")" ]; then
+                  echo "#${NUM}: ${BRANCH} still exists -- a run on it can still close this."
+                  continue
+                fi
+
+                echo "::notice::#${NUM} names ${BRANCH}, which no longer exists -- closing."
+                gh issue comment "$NUM" --body "$(printf '%s\n' \
+                  "Closing automatically: the branch this issue names, \`${BRANCH}\`, no longer exists." \
+                  "" \
+                  "It was filed against a build failure on that branch, and the mechanism that closes it" \
+                  "needs a green run OF that branch. Once the branch is merged and deleted, no run can" \
+                  "ever happen on it, so nothing could close this issue -- it would stay open forever as" \
+                  "STEP 1 work outranking every backlog row. BACKLOG A33." \
+                  "" \
+                  "**This says nothing about whether the underlying failure was fixed.** It says the" \
+                  "branch is gone. If the fault could still be live on \`main\`, re-file against \`main\`" \
+                  "rather than reopening this.")"
+                gh issue close "$NUM" --reason "not planned"
+              done

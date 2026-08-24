@@ -49,6 +49,53 @@ portal. A 30-second look there is worth more than the migration.
 **Not verified:** nothing was changed, so there is nothing to verify. The
 measurements are live API reads, re-runnable.
 
+## 2026-08-24 — macos — A33: CI-filed issues on deleted branches now close themselves (interactive)
+
+**Prompt:** we can do workflow modifications interactivly now
+
+That ruling is what unblocked this. A33 has been TODO purely because
+`.github/workflows/**` was Jeff's path; the work itself is small.
+
+The defect, restated: a CI-filed platform issue names the branch that failed, and
+the only thing that closes it is a GREEN RUN OF THAT BRANCH. Delete the branch at
+merge — correct practice, and what every S3g pr did — and no run can ever happen
+on it. The issue is then unclosable by the mechanism that filed it, and an open
+`platform:*` issue is STEP 1 work outranking every backlog row.
+
+A sweep now runs in `watchdog.yml`'s existing daily job. Three guards, all copied
+from `build.yml`'s close-on-success step rather than invented: exact title shape,
+`author.is_bot`, and the branch genuinely being absent.
+
+**The dry run is what makes this entry worth reading.** I extracted the step's
+bash out of the YAML with a real parser and ran it locally, with `gh issue close`
+and `gh issue comment` stubbed and the live issue list. The first version failed
+immediately: my YAML line-continuations had put literal backslashes INSIDE the
+`jq` program. YAML parsed fine — three steps, valid document — because YAML does
+not check the shell inside a block scalar. It would have shipped green and failed
+on the next scheduled run, in a job nobody watches.
+
+Four cases exercised, three of them controls:
+
+| case | result |
+|---|---|
+| bot-filed, branch deleted | closes — #373, the one actually stuck |
+| **hand-filed (`is_bot=false`), branch deleted** | **left alone** |
+| bot-filed, branch alive (`main`) | left open, says a run can still close it |
+| bot-filed, title has no ` — branch` | skipped, says so |
+
+The second is the control this row explicitly asked for, and it is the one that
+matters: the guard against auto-closing somebody's real report.
+
+Parsing the branch off the title is safe for a reason worth writing down: a git
+ref cannot contain a space, so `" — "` can never appear inside a branch name.
+
+**#306, the example this row was filed about, is already closed by hand.** #373
+is the live one, and the sweep takes it on the next daily run.
+
+**Not verified:** the step running on GitHub's own infra. The logic is proven
+locally against the real API, but its first scheduled run will be its first run
+in place.
+
 ## 2026-08-24 — macos — V5: VCV's numbers, and the rack canvas cut from 7968 to 1008 (interactive)
 
 **Prompt:** then take the next task
@@ -91,7 +138,6 @@ wants a physical case instead of VCV's window, 1248 gives 82.2 HP by 3.25 rows,
 which is about an 84 HP 3-row case.
 
 **Not verified:** Windows and Linux.
-
 ## 2026-08-24 — macos — Close-out sweep: two real misses found (interactive)
 
 **Prompt:** great. did we miss anything?
