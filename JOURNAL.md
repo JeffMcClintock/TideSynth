@@ -46,6 +46,67 @@ row count. The row records TIDE's own numbers — 7968 DIPs, 20.75 rows by 166
 units against E5's ruled 384/48 — and says the VCV figures are unconfirmed
 rather than guessing them. The resize cannot be done until someone gets them.
 
+## 2026-08-24 — macos — Three rack-view rows filed, and a claim I had to withdraw (interactive)
+
+**Prompt:** In the main 'rack' view, only 'rack modules' are relevant... / also document that the current rack view seems a bit large... / then tell me where the "MIDI CV" default rack modules comes from
+
+Filed **V4** (filter the module browser by view), **V5** (the rack view is too
+big), **V6** (`seedRootMidiCv()` does in code what one prefab could do — low
+priority, since the prefab it inserts is real and works).
+
+**V6 is the one that matters, because I got it wrong and Jeff had to say so
+several times.** Asked where the default MIDI-CV comes from, I answered that the
+visible rack module is a facade prefab and the real `SE MIDI to CV 2` is seeded
+in C++ "because it can't be a prefab" — polyphony cannot escape a container
+(E7), so it must sit at the root. Jeff's reply: *"You say 'it can't be a prefab'
+then you tell me you build a container with a bunch of stuff in it... and insert
+it. That's the same as a prefab isn't it."*
+
+He is right, and reading the code instead of its comments shows why.
+`seedRootMidiCv()` adds two modules, one connector, **inserts a prefab**, and
+adds four more connectors. And `MfcDocPresenter::AddPrefab` returns
+`std::vector<int32_t>`, derived from "a before/after diff of the container's
+TOP-LEVEL modules", built on paste — and paste carries `CLine2` connections, as
+the code's own filter proves. So a prefab paste splices multiple top-level
+modules AND their connections into the target container.
+
+Which means the polyphony rule constrains WHERE the paste happens, not whether
+data can express it. Paste at the root, and the root-level modules land at the
+root. My argument was about module placement and I used it to answer a question
+about data-versus-code — two different things.
+
+**The concrete reason to fix it, rather than just concede the point:**
+`TideApp.cpp:693-697` hard-codes `facadePin = 7 + jack index` as an explicit
+contract with `build-prefabs.py`, and states that if the jack list changes this
+must change with it. A stored prefab has no such coupling, because the
+connections are data rather than pin arithmetic.
+
+**The lesson I keep relearning today:** I paraphrased the comments above
+`seedRootMidiCv()` rather than reading its body. The comments are excellent and
+they explain the polyphony constraint at length — which is exactly why
+paraphrasing them produced a confident wrong answer. The body is 25 lines and
+settles it.
+
+**V5 has real numbers rather than "seems large", and I had to correct them
+once.** `viewDimensions = 7968` DIPs square. My first pass divided by
+`rowHeight 380`, taken from a comment at `TideApp.cpp:793` — but commit
+`58a246b` ("E5: the rack grid ruled") sets row **384** and standard width **48**,
+so the comment was stale and the row now uses the ruled figures: **20.75 rows
+tall and 166 units wide**. A Eurorack case is typically 84 HP and three rows,
+which is the whole of why it looks big.
+
+I have NOT confirmed VCV's own default window and row count. The row says so
+rather than banking a figure from memory, and flags two couplings —
+`setCenter` at `:197`, and `seedRootMidiCv()`'s absolute 3600-3960 placements —
+that would put the seeded MIDI-CV off-rack if the view shrinks without them
+moving.
+
+**V4 needs a ruling, not code:** the discriminator exists (`isRackLevel`,
+`TideApp.cpp:147`) and there is exactly one filter point
+(`ExportModules`, called from `ModuleBrowser.cpp:57` and `:100`). What does not
+exist is any marker for "rack-relevant", so the row lists candidates —
+prefab-vs-module, the existing `category=` attribute the browser already reads
+at `:758`, or a new flag — and leaves the choice to Jeff.
 ## 2026-08-24 — macos — One RackModules folder, and the comment that sent Jeff's prefabs nowhere (interactive)
 
 **Prompt:** ok, simple misunderstanding. I was putting my prefabs in "Tidesynth/TideModules" yours was in "Tidesynth/TideModules/prefabs". / lets just keep them as .synthedit for now / rename mine with _jef appened for now / OK, we're not regenerating them any more, they need hand-tweaking of the layout. don't want that overwritten
