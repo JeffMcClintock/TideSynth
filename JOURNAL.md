@@ -208,6 +208,22 @@ rack for days. It is not a sufficient shipping gate for TIDE, and TIDE already
 prints everything a real gate would need — it just prints it where nothing
 reads.
 
+**AND IT WORKS IN GARAGEBAND.** Jeff: *"try it in garageband"*. The clean
+`main` Release AUv3 loads in GarageBand and the editor draws **populated**: the
+browser shows the Prefabs group with **exactly 9 entries**, and the rack holds
+the **root MIDI-CV with PITCH / GATE / VEL / TRIG**. That is the precise inverse
+of the pre-fix measurement above — and it is also **V4's rack filter running in
+a real host** rather than only the standalone.
+
+Closing the plug-in window and reopening redraws correctly, the extension
+process stays alive, and the crash-report count is **unchanged at 10** across
+the session — so M4's teardown fix still holds.
+
+**Audio was NOT tested.** The seeded rack contains only the root MIDI-CV;
+scrolling shows bare rails either side, so there is no oscillator or output and
+no sound path. Testing that means building and cabling a patch inside Jeff's own
+GarageBand project, which this run did not do.
+
 **Verified after:** a clean `main` Release AUv3, no diagnostics, is installed at
 `~/Applications` and passes `auval`. **Not verified:** any real host — still
 `auval` only; AU2; iOS.
