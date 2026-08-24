@@ -8,6 +8,53 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — macos — S35 re-landed, this time against a bar it can fail (interactive)
+
+**Prompt:** go
+
+The user-domain scan is back ([SynthEditLib#45](https://github.com/JeffMcClintock/SynthEditLib/pull/45)),
+after the two things that actually broke it were fixed: #40 stopped a `.gmpi`
+being read for any xml in its Resources, #41 stopped the factory modules
+installing copies of themselves into the user domain.
+
+**The part worth keeping is the third condition.** The revert recorded two
+requirements, and I had only satisfied one by fixing the crash. The other was
+*"it must not defeat `-factorysemsfolder`, which exists to make a test run
+deterministic."* Re-landing the scan unchanged would have left a test run
+picking up whatever the developer has installed — which is precisely how the
+original took `dsp_tests` from 2 failures to 43.
+
+So the scan is skipped when the sem folder was overridden. That flag was already
+there and already means this: `SemCacheName()` namespaces the module cache on it
+so a `-factorysemsfolder` sweep cannot clobber the installed app's cache
+(`ModuleFactory_Editor.cpp:188`). Same signal, same reason, no new concept.
+
+Four measurements, because any one alone would have been the original's mistake:
+
+| | result |
+|---|---|
+| `-factorysemsfolder` given | no user scan, 0 duplicates, exit 0 |
+| no override | user domain scanned, TIDE-Rack visible, exit 0 |
+| `dsp_tests` | 62 passed, 2 failed — the baseline |
+| duplicates, normal run | 2, both `SE SynthEdit` from the TIDE bundles |
+
+**A near-miss worth recording.** The first run of the acceptance test reported
+"user-domain scan lines: 0, FOUND TWICE: 0" and looked like a pass. It was
+vacuous — the build had failed and the binary did not exist, so grep found
+nothing in an empty log. Exit 127 was the only sign. The cause was unrelated (my
+SE16 worktree was pinned before SynthEdit#75, so `AppHasModuleEditorDialogs()`
+was undefined), but the shape is the same one that bit me on the
+`IS_OFFICIAL_MODULE` flags earlier today: **a check that counts absences passes
+when the thing under test never ran.** Assert the binary exists before believing
+a zero.
+
+**Deliberately not answered:** precedence when a user copy shadows a factory
+module. Pre-existing, applies to the system domain too, and post-#40 a duplicate
+is a warning rather than a crash. It deserves its own ruling, not a rider.
+
+**Not verified:** Windows and Linux. `getUserPluginsFolder()` returns empty on
+both so neither gains a scan, but neither was built.
+
 ## 2026-08-24 — windows — P3: the MFC requirement is gone, and a no-MFC toolchain is the proof (interactive, Jeff directing)
 
 **Did:** took **P3** — this platform's only own-boxed row, GATED because both its
