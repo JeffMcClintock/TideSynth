@@ -8,6 +8,104 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-24 — linux — S45 closed on its own Accept, and a 50-minute window where `main` did not link (interactive, Jeff directing)
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** flipped **S46** DONE on merged PRs, then closed **S45** by running its
+own Accept against a clean `main` build. No product code changed.
+
+### Why re-measure when S46 already showed the captions rendering
+
+Because that measurement was taken on the fix **branch**, and "the branch fixes
+it" is a different claim from "the product is fixed". Every dependency here is at
+`origin/main` with no override pointing at a branch: TideSynth `9bb11d9`,
+SynthEditLib `c6fc321`, gmpi_ui `463b044`, GMPI `d94c972`.
+
+**Accept met:** captions read **MIDI-CV / PITCH / GATE / VEL / TRIG**, and the
+run emits zero `missing from bundle resources` / `no Prefabs` lines.
+
+### An objective metric instead of an eyeball
+
+"The glyphs look right" is exactly the kind of claim this project keeps having to
+retract, so the closure does not rest on it. Tofu strings are **~4x wider** than
+their text — three NUL codepoints per character — and spill far past the
+faceplate. So the band to the *right* of the panel is a tofu detector. Counting
+pixels differing from the flat background there, same crop, same 3x zoom:
+
+| build | pixels differing from background |
+|---|---:|
+| clean `main` | **0** |
+| the verified fix branch | **0** |
+| known-broken build | **6,399** |
+
+The broken leg is the positive control. Without it, "0" is just an empty region.
+
+### The 50-minute window where `main` genuinely did not link
+
+The first build of this item **failed**:
+
+```
+EditorLib/libEditorLib.a(MfcDocPresenter.cpp.o):
+  undefined reference to `AppHasModuleEditorDialogs()'
+```
+
+**S3g is a three-repo change whose own PR body says the parts "MUST LAND
+TOGETHER"** — SynthEditLib declares and calls the symbol, TideSynth and SynthEdit
+each define it, and any one alone is an undefined symbol *by design*, so a new
+app gets a link error rather than a silent default. That is a good design.
+
+What happened is the landing order: **SynthEditLib#43 merged at 02:25**, and
+**TideSynth#363 merged ~50 minutes later**. I branched from `main` inside that
+window, so `main` + `main` did not link. By the time I diagnosed it, #363 had
+merged and a rebuild was clean — 0 errors, 0 undefined references.
+
+**No platform issue filed, deliberately: there is nothing open to fix.** But it
+is worth writing down, because:
+
+- **CI could not have caught it.** TideSynth's last `main` run was `9bb11d9` at
+  02:37, and CI only runs on a push to *this* repo — a merge in `SynthEditLib`
+  changes what TideSynth's `main` builds against without producing any TideSynth
+  event at all. **A cross-repo break is invisible to a per-repo CI by
+  construction.**
+- **The mitigation is landing order**, not more testing: merge the *definition*
+  side before the *caller* side, and the window is zero-width instead of
+  50 minutes.
+
+**Verified:** clean `main` build 0 errors, 0 undefined references; Accept run as
+written; the three-way pixel metric above with its positive control; zero
+plug-in diagnostics.
+
+**Not verified:**
+
+- **Windows and macOS.** Per S46 these should ALSO have been affected — the axis
+  is statically-linked vs file-scanned, not platform — and nobody has looked at
+  either since the fix landed. **That is the open question this chain leaves.**
+- **No real DAW.** TIDE standalone under headless weston, as ever on this box.
+
+**Learned:**
+
+- **"The branch fixes it" and "the product is fixed" are different claims**, and
+  the second one costs one more build. Closing a row on the first is how a fix
+  that never actually merged gets recorded as done.
+- **Pick a metric the bug makes big.** The tofu's own signature — 4x width — is
+  far easier to measure than glyph shapes, and it turns a judgement into a
+  count with a positive control.
+- **A cross-repo "must land together" is a real hazard even when everyone does it
+  right.** Both PRs were correct, both were reviewed, both merged; the only
+  defect was 50 minutes of ordering, and no CI in this fleet can see it.
+- **A link error naming a symbol you have never heard of is usually someone
+  else's half-landed change** — check the other repos' recent merges before
+  assuming your own tree.
+
+**Machine left clean.** Weston stopped, standalone stopped, scratch `HOME`s
+throughout; nothing installed and Jeff's config untouched. All six repos on their
+default branches and clean.
+
+**Branch/PR:** `tide/linux/S45-close-on-accept` — TideSynth only: the S45 and S46
+rows, the linux NEXT cell, one screenshot and this entry. **No product code
+change in any repo.**
+
 ## 2026-08-24 — macos — S3g: two of the row's three clauses were wrong about the code (interactive)
 
 **Prompt:** linux agent is working on S46. take the next task
@@ -55,6 +153,7 @@ untested.
 This work was built earlier in the session and sat in worktrees while the
 datatype investigation ran. Landing it now rather than leaving it stranded,
 which is the end state S44 was filed about.
+
 ## 2026-08-24 — linux — S46: the technology is recorded now, not sniffed off a filename (interactive, Jeff directing)
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
