@@ -8,6 +8,79 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — macos — "launch the au3": it aborted on every instantiation, two bugs deep
+
+**Prompt:** interactive
+
+**Did:** Jeff: *"let's launch the au3"*. It builds, assembles, ad-hoc signs,
+registers with `pluginkit` and its host app runs and shows its "registered with
+macOS" window. **It cannot be instantiated by any host.** `auval -v aumu Drck
+Dsyh` → `FATAL ERROR: OpenAComponent: result: 4099`. One crash report per run:
+**SIGABRT in the extension process**, every time.
+
+**Bug 1 — a nested bundle could not find itself.** `CreatePluginBundleRef()`
+(`BundleInfo.cpp:66`) `dladdr`s its own binary and walks up to the **first**
+`Contents` component. An AUv3 is a bundle INSIDE a bundle:
+
+```
+<host>.app/Contents/PlugIns/<plugin>.appex/Contents/MacOS/<exe>
+            ^^^^^^^^ first -- the HOST APP
+```
+
+Two `Contents`; it took the first, so `getResourceFolder()` returned the host
+app — **whose `Contents/Resources` does not exist at all**. Every
+`getResource()` missed. TIDE's four module XMLs never merged (no pins for those
+controls) and no prefab resolved, so `seedRootMidiCv()` → `AddPrefab` →
+`CContainer::LoadPrefab` hit its `assert(false)` on `doc.Error()` and aborted.
+**Fix: take the LAST `Contents`.** A `.vst3`/`.component`/`.app` has exactly
+one, so last == first and it is a no-op for every non-nested bundle.
+
+**Bug 2, which Bug 1 had been HIDING.** With resources resolving, the crash
+**moved** — to `Module_Info::RegisterParameters` via `Module_Info3_base::ScanXml`.
+`TideApp::InitInstance()` merges those XMLs into `Module_Info`, which is
+**process-global**, and had no guard because **a standalone made the distinction
+invisible: `InitInstance` runs exactly once**. A plug-in host creates several
+instances in ONE process, and an AUv3 extension process is shared across
+instantiations — so instance two re-scanned every module and tripped
+`assert("Already scanned parameters")`. Fix: merge once per process.
+
+**Measured, each step separately:**
+
+| state | auval |
+|---|---|
+| as found | `FATAL OpenAComponent 4099` — abort in `LoadPrefab` |
+| + BundleInfo fix | `FATAL OpenAComponent 4097` — abort **moved** to `RegisterParameters` |
+| + both | **AU VALIDATION SUCCEEDED**, 10 passes, **0** `retrievedValue` warnings |
+
+**Negative control:** reverting only the BundleInfo half puts it back to `FATAL
+4097`. **Both are required.** Standalone re-checked after the shared change:
+runs, all four XMLs enrich, nine prefabs seed.
+
+**M4 SAYS auval SUCCEEDED ON 2026-08-23 AND THIS DOES NOT CONTRADICT IT —
+but the reconciliation is REASONED, NOT MEASURED, and should be checked.**
+`seedRootMidiCv` (2026-08-20) and the XML loop (2026-08-21) both predate that,
+so it is not a code regression. The likely answer is **build type**: this box
+built **Debug**, and `CMAKE_CXX_FLAGS_RELEASE` is `-O3 -DNDEBUG`, so in Release
+both asserts compile out. The same two bugs would then not crash — they would
+**degrade silently**: no pins for the four XMLs' controls, no root MIDI-CV, and
+`auval` does not check that a rack has its modules. **That makes these fixes
+matter in Release too, just not as a crash.** I did not build Release to
+confirm it.
+
+**Lesson.** Bug 1 was not new — it was *harmless* until something needed a
+bundle resource during init in an appex, and then it presented as a crash three
+call levels away in unrelated code. And **fixing it did not make the AU work; it
+made the NEXT bug visible.** A crash that moves is the signal that the first fix
+landed — worth more than a pass/fail.
+
+**Not verified:** any real host (GarageBand, Logic, Live) — `auval` only; the
+AU2 wrapper, which shares `BundleInfo` and is predicted to benefit but was not
+tested; iOS; and Release, as above. **One unexplained observation, recorded
+rather than explained away:** a single standalone launch asserted
+`(mi), ImportChildren, CContainer.cpp:1078` and died; two immediate re-runs were
+clean and both my changes are provable no-ops there (one `Contents`;
+`InitInstance` runs once, which its own "enriched" output confirms). I could not
+reproduce it and cannot attribute it.
 ## 2026-08-25 — windows — `main` is red on all three platforms from ONE unpushed half, and the fix is uncommitted in Jeff's tree
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude desktop **1.34493.1** · as **tide-rack-bot** (both paths)
