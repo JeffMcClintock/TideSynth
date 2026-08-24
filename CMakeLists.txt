@@ -382,6 +382,86 @@ add_subdirectory(modules/common TideRender)
 
 add_subdirectory(${syntheditlib_folder} SynthEditLib)
 add_subdirectory(${syntheditlib_folder}/EditorLib EditorLib)
+
+# ---------------------------------------------------------------------------
+# OPTIONAL, OFF BY DEFAULT, AND THE DEFAULT IS A LICENSING STATEMENT.
+#
+# TIDE_VCV_FUNDAMENTAL bundles the VCV/Cardinal Fundamental module ports
+# (VCV_Fundamental_gmpi) into TIDE's fixed module set, statically, via the
+# SynthEdit Rack Adaptor. Both repos are GPL-3.0-or-later - the module
+# sources are VCV's, byte-for-byte - so a binary built with this ON is
+# GPL-3.0-or-later and may not be distributed under TIDE's ordinary terms.
+#
+# OFF must mean COMPLETELY ABSENT, not merely disabled: nothing is fetched,
+# nothing is compiled, nothing is linked, and TideApp.cpp's registration call
+# site compiles out (the TIDE_VCV_FUNDAMENTAL define below is set only here).
+# That is why every line of this lives inside the if() rather than being a
+# fetched-but-unlinked dependency.
+#
+# Mechanism, for whoever debugs it later: the modules become OBJECT libraries
+# (static_library/ in VCV_Fundamental_gmpi); each module's createModel() line
+# registers at static init through the adaptor's RackFactoryStatic.cpp, which
+# QUEUES the registration because the XML generator cannot run during static
+# init (RACK_DISPLAY_STATE is declared after upstream's .cpp registers);
+# TideApp::InitInstance flushes the queue with registerDeferredModules(),
+# which lands in ModuleFactory() via SynthEditLib's gmpi::RegisterPluginWithXml.
+# Their category is "Rack/VCV Fundamental", which is what the rack browser
+# scope (ModuleScope::RackOnly) requires a module to start with to be listed.
+option(TIDE_VCV_FUNDAMENTAL "Bundle the GPL VCV/Cardinal Fundamental module ports (makes the binaries GPL-3.0-or-later)" OFF)
+
+if(TIDE_VCV_FUNDAMENTAL)
+  message(STATUS "TIDE_VCV_FUNDAMENTAL is ON: the resulting binaries are GPL-3.0-or-later")
+
+  set(RACK_ADAPTOR_FOLDER_OVERRIDE "" CACHE PATH "path of a local SynthEdit_Rack_Adaptor repo, or blank to fetch it automatically.")
+  set(VCV_FUNDAMENTAL_FOLDER_OVERRIDE "" CACHE PATH "path of a local VCV_Fundamental_gmpi repo, or blank to fetch it automatically.")
+
+  # The adaptor's ordinary target serves .gmpi builds; this option makes it
+  # ALSO define the static-host pair (SynthEditRackAdaptorStatic +
+  # RackAdaptorStaticRegistration) that the module object libraries and the
+  # aggregate below expect. CMP0077: a normal variable overrides the option.
+  set(RACK_ADAPTOR_STATIC_HOST ON)
+
+  if("${RACK_ADAPTOR_FOLDER_OVERRIDE}" STREQUAL "")
+    message(STATUS "Fetching SynthEdit_Rack_Adaptor from github")
+    FetchContent_Declare(
+      rack_adaptor
+      GIT_REPOSITORY https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor
+      GIT_TAG origin/main
+    )
+    FetchContent_MakeAvailable(rack_adaptor)
+    tide_report_dependency(SynthEdit_Rack_Adaptor "${rack_adaptor_SOURCE_DIR}" "fetched")
+  else()
+    message(STATUS "Using local SynthEdit_Rack_Adaptor folder")
+    add_subdirectory(${RACK_ADAPTOR_FOLDER_OVERRIDE} SynthEdit_Rack_Adaptor)
+    tide_check_not_shadowed(rack_adaptor "${RACK_ADAPTOR_FOLDER_OVERRIDE}")
+    tide_report_dependency(SynthEdit_Rack_Adaptor "${RACK_ADAPTOR_FOLDER_OVERRIDE}" "local override")
+  endif()
+
+  # Where "tinyXml2/tinyxml2.h" resolves for the adaptor's SVG parsing. The
+  # SYMBOLS come from SynthEditLib's vendored copy at link time; compiling a
+  # second tinyxml2 here would be a version-skew ODR hazard for nothing.
+  set(RACK_STATIC_TINYXML2_INCLUDE ${syntheditlib_folder}/modules)
+
+  # SOURCE_SUBDIR static_library: the repo root is the .gmpi superproject
+  # (own CPM bootstrap, own SDK fetches, wrappers) and must not run here.
+  if("${VCV_FUNDAMENTAL_FOLDER_OVERRIDE}" STREQUAL "")
+    message(STATUS "Fetching VCV_Fundamental_gmpi from github")
+    FetchContent_Declare(
+      vcv_fundamental
+      GIT_REPOSITORY https://github.com/JeffMcClintock/VCV_Fundamental_gmpi
+      GIT_TAG origin/main
+      SOURCE_SUBDIR static_library
+    )
+    FetchContent_MakeAvailable(vcv_fundamental)
+    tide_report_dependency(VCV_Fundamental "${vcv_fundamental_SOURCE_DIR}" "fetched")
+  else()
+    message(STATUS "Using local VCV_Fundamental_gmpi folder")
+    add_subdirectory(${VCV_FUNDAMENTAL_FOLDER_OVERRIDE}/static_library VCV_Fundamental)
+    tide_check_not_shadowed(vcv_fundamental "${VCV_FUNDAMENTAL_FOLDER_OVERRIDE}")
+    tide_report_dependency(VCV_Fundamental "${VCV_FUNDAMENTAL_FOLDER_OVERRIDE}" "local override")
+  endif()
+endif()
+
 add_subdirectory(SynthEditSem)
 
 # S17 -- one block, after every resolution, so the provenance survives a long

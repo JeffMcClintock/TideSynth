@@ -27,6 +27,10 @@
 #include "ModuleBrowser.h"
 #include "PropertiesBrowser.h"
 
+#if TIDE_VCV_FUNDAMENTAL
+#include "RackFactory.h" // rack_adaptor::registerDeferredModules — the GPL VCV ports
+#endif
+
 // TIDE ships none of SynthEdit's editor dialogs (PLAN constraint 5), and two of
 // the three below have live filesystem writes behind them, which constraint 3
 // forbids outright. These definitions have to exist regardless, because
@@ -540,6 +544,24 @@ bool TideApp::InitInstance()
 	// instance re-scanned every module and tripped RegisterParameters's
 	// assert("Already scanned parameters"), aborting the extension process.
 	// auval could not open the AU at all; it can now.
+#if TIDE_VCV_FUNDAMENTAL
+	// The VCV Fundamental ports (TIDE_VCV_FUNDAMENTAL, root CMakeLists — GPL,
+	// OFF by default). Their createModel() lines QUEUED registrations during
+	// static init; the XML generator cannot run there, because a module's
+	// RACK_DISPLAY_STATE is declared after upstream's .cpp registers. By now
+	// static init is long over, so flushing builds every module's XML and
+	// registers it through SynthEditLib's gmpi::RegisterPluginWithXml — the
+	// same ModuleFactory() path as every statically-registered module above.
+	// Both halves arrive together (the XML carries the pins), so nothing
+	// below in the enrichment loop needs to know these exist. Idempotent
+	// inside the adaptor, for the same several-instances-one-process reason
+	// as s_xmlMerged.
+	{
+		const int registered = rack_adaptor::registerDeferredModules();
+		fprintf(stderr, "TIDE: VCV Fundamental — %d module(s) registered\n", registered);
+	}
+#endif
+
 	static bool s_xmlMerged = false;
 	if (!s_xmlMerged)
 	{
