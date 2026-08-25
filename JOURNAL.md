@@ -8,6 +8,125 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — macos — E20: 66 of HetrickCV's 79 files compile, and the CC0 pack has an MIT dependency (interactive, Jeff directing)
+
+**Prompt:** great. do E20
+
+**Did:** took **E20**. The adaptor-side work is done and landed as
+[SynthEdit_Rack_Adaptor#3](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/3);
+the row is not finished, and the reason is a repo that does not exist rather
+than anything technical.
+
+### What E20 actually needed, which the row understated
+
+The row said *"the option is a copy of a working one"*. True, and beside the
+point: **`VCV_Fundamental_gmpi` is a PORT, not upstream.** Each module there is
+a directory with a two-line wrapper (`#include "RackModule.h"` + the upstream
+`.cpp` byte-for-byte), its `res/`, and a `CMakeLists.txt`; `static_library/`
+aggregates them as OBJECT libraries. HetrickCV upstream has none of that. So
+E20 is a port repo plus an option, and the option is the small half.
+
+### The measurement: 1 → 66 of 79
+
+Compiling every HetrickCV source against the adaptor, syntax-only, C++23:
+
+| | compiling |
+|---|---|
+| before | **1 / 79** — the first died on the first missing SDK include path |
+| after #3 | **66 / 79** |
+
+What it took: an `Engine` with a **global sample rate the adaptor keeps in step
+with `ProcessArgs`** — HetrickCV's `HCVTiming` reads
+`APP->engine->getSampleTime()` from DSP helpers with no args in scope, and a
+hardcoded 44100 there mistunes quietly rather than failing; six SDK path shims;
+`Rogan` (three-layer knob, `bg`/`fg` reached directly by `HCVThemedRogan`);
+`settings::preferDarkPanels`; `SvgPanel::fb`; a `setPanel(shared_ptr<Svg>)`
+overload and `getPanel()`; `TL1105`/`CKD6`; and the `app::` widgets re-exported
+into `rack::`.
+
+**The 13 failures are named, not structural.** Two are not modules at all
+(`HetrickCV.cpp` is the plugin entry, `HetrickUtilities.cpp` a shared impl
+unit); the rest want `dsp::approxExp2_taylor5` (3), `LEDBezel` (2), simd
+`int32_4` and an `abs` overload (3), and three singletons.
+
+**The regression control is what makes it landable:** TIDE with
+`TIDE_VCV_FUNDAMENTAL=ON` against the modified adaptor still reports
+**39 module(s) registered**, rc=0, clean runtime including the feedback line.
+
+### The licensing correction, and it matters
+
+E20 was filed as *"CC0 ... no attribution obligation, no share-alike, and no
+artwork question at all"*. **HetrickCV carries Gamma as a git submodule**
+(`github.com/mhetrick/Gammin`) — **MIT, © Lance Putnam 2006**. Permissive and
+GPL-free, so the pack is still bundleable, **but MIT requires notice retention**,
+and `HetrickUtilities.hpp` includes Gamma, so effectively every module depends
+on it.
+
+**So E20 needs E22's attribution mechanism, which was filed as a follow-on and
+is actually a prerequisite.** Both rows now say so. A CC0 headline does not
+survive a submodule, and nothing in the licence table I built from Cardinal
+would have shown this — it lists repos, not their dependencies.
+
+Also recorded, and NOT a problem: `HCVThemedRogan` names VCV's own
+`res/ComponentLibrary/Rogan1P*.svg`. Nothing ships — `asset::system` and
+`Svg::load` are mock stubs and `RackEditor` draws its own knobs — but the
+reference is in the source and should not be mistaken for a licence breach by
+the next reader.
+
+### A break that was not a break
+
+Mid-regression the build failed with `no member named 'receiveDspMessages' in
+'SynthRuntime_editor'` — TideSynth `main` calling a SynthEditLib symbol that
+SynthEditLib `main` did not have. That looks exactly like a broken default
+branch worth a `platform:mac` issue. **It was my worktrees:** cut at
+SynthEditLib `af42bd6`, while the other half of #410 landed in `3dca4d3`
+minutes later. Re-fetched, rebuilt, rc=0. **No issue filed** — this is S45's
+lesson arriving on schedule: *a link error naming a symbol you have never heard
+of is usually someone else's half-landed change.*
+
+**Verified:** 66/79 compile, each module its own TU; the 39-module Fundamental
+regression control built and RUN against the modified adaptor; Gamma's licence
+read from its own `LICENSE` rather than a summary; the submodule confirmed from
+`.gitmodules`.
+
+**Not verified:**
+
+- **No HetrickCV module has been RUN.** Compilation only. Whether they register,
+  draw and sound right is unmeasured, and is what E24 exists for.
+- **The 66 are syntax-only** — not linked, so undefined symbols would still be
+  ahead.
+- **Windows and Linux.** macOS only.
+
+**Learned:**
+
+- **A CC0 headline does not survive a submodule.** HetrickCV is genuinely CC0
+  and genuinely depends on MIT code; the licence table I built lists repos, not
+  their dependency graphs, and would never have shown it. Check `.gitmodules`
+  before quoting a pack's licence.
+- **"Copy the working option" hid the actual work.** The option is small; the
+  port repo it points at is the item. The row said medium and meant it about the
+  wrong half.
+- **Compile-everything is a cheap sizing instrument.** 79 TUs, one loop, and it
+  turned "unknown per-module porting cost" into a list of eight named symbols.
+- **The regression control is the thing that makes mock edits safe.** Adding
+  declarations to a header shared with a working 39-module set is exactly where
+  a silent break would hide.
+
+**Next:**
+
+1. **Jeff creates `HetrickCV_gmpi`** (or rules that the port lives elsewhere).
+   Everything else here is mechanical and proven.
+2. **[SynthEdit_Rack_Adaptor#3](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/3)**
+   wants review — it is the whole adaptor half of E20.
+3. **E22 before or with E20**, now that MIT attribution is a prerequisite rather
+   than a follow-on.
+
+**Machine left clean.** All work in scratch worktrees and build trees; nothing
+built in any of Jeff's checkouts, nothing installed. The `SynthEdit_Rack_Adaptor`
+clone is on its branch pending review.
+
+**Branch/PR:** `tide/mac/E20-hetrickcv-port` — TideSynth: the E20 and E22 rows
+and this entry. The product change is the adaptor PR.
 ## 2026-08-25 — macos — A stale comment inverted a recommendation, twice; the adaptor already draws the components (interactive, Jeff directing)
 
 **Prompt:** explain E23 / yes
