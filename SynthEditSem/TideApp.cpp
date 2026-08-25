@@ -417,9 +417,40 @@ bool TideApp::importChunkXml(std::string_view xml)
 	// processor builds this same document on its own and a GUI push here was
 	// a guaranteed duplicate rebuild. If the round-trip ever produces a
 	// different document, the next 500ms tick pushes the difference anyway.
-	lastPushedDspXml = exportChunkXml();
+	lastPushedShape = documentShape(exportChunkXml());
 
 	return true;
+}
+
+// The document reduced to its SHAPE: modules and wiring, with every
+// <patch-list> removed. That is where parameter VALUES live -- knobs,
+// buttons, and the patch-cable list host control alike -- and none of them
+// may cost the processor a restart. See serviceDocumentSync.
+std::string TideApp::documentShape(const std::string& doc)
+{
+	std::string out;
+	out.reserve(doc.size());
+
+	size_t at = 0;
+	for (;;)
+	{
+		const auto open = doc.find("<patch-list>", at);
+		if (open == std::string::npos)
+		{
+			out.append(doc, at, std::string::npos);
+			break;
+		}
+
+		out.append(doc, at, open - at);
+
+		const auto close = doc.find("</patch-list>", open);
+		if (close == std::string::npos)
+			break; // malformed; the prefix is enough to compare on
+
+		at = close + 13; // strlen("</patch-list>")
+	}
+
+	return out;
 }
 
 void TideApp::serviceDocumentSync()
@@ -428,18 +459,44 @@ void TideApp::serviceDocumentSync()
 		return;
 
 	auto xml = exportChunkXml();
-	if (xml == lastPushedDspXml)
+
+	// THE DOCUMENT GOES TO THE PROCESSOR ONLY WHEN ITS SHAPE CHANGES.
+	//
+	// Jeff's ruling, 2026-08-25, and the three cases it separates:
+	//
+	//   a module or prefab is added or deleted  the graph is genuinely
+	//                                           different: send the document,
+	//                                           the processor restarts, and
+	//                                           that cost is unavoidable.
+	//   a patch cable is moved                  send NOTHING here. The cable
+	//                                           list is the HC_PATCH_CABLES
+	//                                           host control, its value rides
+	//                                           the message queue like any
+	//                                           other parameter, and the DSP
+	//                                           side turns it into a graph
+	//                                           rebuild from the document it
+	//                                           ALREADY HAS (requiresAsyncRestart
+	//                                           -> DoAsyncRestart). Shipping a
+	//                                           second copy of the document to
+	//                                           say "a wire moved" is waste.
+	//   a knob or button moves                  send NOTHING here either; the
+	//                                           value is a message.
+	//
+	// So the comparison ignores every <patch-list>: that is where parameter
+	// VALUES live, the cable list included. What remains is modules and their
+	// wiring - the shape.
+	//
+	// This decision belongs HERE, on the GUI thread at 500ms, and emphatically
+	// not in the processor. It was briefly done there and that was a mistake:
+	// onSetPins runs on the AUDIO THREAD, where building and comparing a 12KB
+	// string per arriving chunk is exactly the sort of work that has no
+	// business next to a real-time deadline.
+
+	auto shape = documentShape(xml);
+	if (shape == lastPushedShape)
 		return;
 
-	// A push is a parameter store plus, AT MOST, a rack rebuild - and the
-	// PROCESSOR decides which, by comparing the arriving document's DSP
-	// structure against what it already built (SynthEdit.cpp, onSetPins).
-	// So pushing on any change is cheap and keeps the chunk parameter - which
-	// is also the SAVED STATE the host and the session file read - current,
-	// values included. Volatile output values are blanked in the export
-	// (PatchParameter.cpp), so an idle rack with animating lights produces no
-	// pushes at all.
-	lastPushedDspXml = xml;
+	lastPushedShape = std::move(shape);
 	onPushChunk(xml.data(), xml.size());
 }
 

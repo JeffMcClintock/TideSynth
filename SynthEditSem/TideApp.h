@@ -11,7 +11,12 @@
 class TideApp : public CSynthEditAppBase, public ISeApp
 {
 	SE2::TopView* view{};
-	std::string lastPushedDspXml; // S12 — dedupe for serviceDocumentSync
+	// The same document with every <patch-list> stripped: modules and wiring,
+	// no values. What serviceDocumentSync actually compares, so only a change
+	// of SHAPE costs the processor a restart.
+	std::string lastPushedShape;
+
+	static std::string documentShape(const std::string& doc); // see the .cpp
 
 public:
 	// `moduleDragAndDrop` mirrors SynthEditApp's setup so that ModuleBrowser
