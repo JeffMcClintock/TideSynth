@@ -8,6 +8,59 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — windows — "should that VCV LFO LED be blinking?" — yes, and the answer is TIDE's thin-slice gap, measured hop by hop (interactive, Jeff directing)
+
+**Prompt:** hey, should that VCV LFO LED be blinking? (and, mid-turn:
+remember to add logging/instrumentation if needed)
+
+**The answer:** it should (VCV's LFO phase light), it does not, and the
+module is innocent. Six settle-spaced screenshots diffed to ZERO changed
+pixels across the whole rack — nothing animates. Instrumenting BOTH ends of
+the light pipeline (adaptor branch `light-liveness`, gated
+RACK_ADAPTOR_TRACE) and then walking SynthEditLib hop by hop with throwaway
+fprintfs (all reverted) pinned the break precisely:
+
+1. The LFO's processor RUNS — the culling hypothesis (no Output module in
+   the rack, SE builds pull-from-sink) was REFUTED by trace: nine voice
+   clones all construct and process.
+2. It computes light brightness 0.975 and `sendLights` queues an update
+   every block. The generated XML is correct (direction="out" pins,
+   private non-persistent parameters).
+3. SynthEditLib forwards every one: `ug_gmpi::setPin` → param watcher →
+   `UpdateOutputParameter` → `UpdateUI` — 1054 queued in 12 s...
+4. ...into the processor's `queDspToUi`, **whose reader does not exist**.
+   SynthEditSem/SynthEdit.cpp:84 says so in its own words: *"Nothing drains
+   the GUI-bound queue yet (parameters don't flow in the thin slice)"*.
+   Editor-side `ppc` arrivals: ZERO. The editor's light pins got exactly
+   the initial 0.000 each and never another value.
+
+So DSP→GUI parameter feedback has NEVER flowed in TIDE — for any module.
+Lights, meters, and Scope's display-state are all behind this one gap; the
+VCV ports are merely the first thing on the rack that visibly animates from
+the DSP. Closing it is design work: the `ppc` stream has to cross the
+processor/controller split in a way that survives AUv3's process boundary
+(the chunk parameter's route), then land in the editor's patch manager.
+Filed in docs/vcv-fundamental.md as a known limitation with the measured
+chain.
+
+**A dead end walked so nobody re-walks it:** TIDE also never creates the
+base InitInstance's LAST line — `timerhelper = new AppTimerHelper(this)` —
+the wholesale-override loss class U2e documents, third instance. Restoring
+it makes `CSynthEditAppBase::OnTimer` tick (measured 0 → ~40/s) and
+`serviceQueues()` run… and changes nothing here, because that circuit
+drains the EDITOR-runtime queue pair, which TIDE's processor/controller
+split never uses. Reverted rather than shipped as a dead 24 ms timer;
+whoever closes the real gap should decide whether the app timer comes back
+as part of the actual delivery path.
+
+**Traps for the next instrumented session, both self-inflicted today:**
+`': error'` does NOT match MSBuild's `': fatal error LNK1104'` (locked exe
+while the app runs), so three "successful" rebuilds shipped a stale binary
+and one measurement (OnTimer=0 "after" the fix) was measuring the
+instrumentation's ABSENCE — always verify the exe mtime changed. And this
+harness's bash transport eats one backslash level: `\n` inside a heredoc'd
+C string arrives as a real newline; build the escape as `chr(92)+'n'`.
+
 ## 2026-08-25 — windows — the VCV Fundamental ports run inside TIDE, behind an option that is OFF by default (interactive, Jeff directing)
 
 **Prompt:** enhance TIDE Rack so it can include the Cardinal fundamental
