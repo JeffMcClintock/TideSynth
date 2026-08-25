@@ -68,6 +68,34 @@ every other module TIDE ships — compiled into the binary:
    (cmake/RackModuleMetadata.cmake in their repo), so they appear in the rack
    browser under Rack → VCV Fundamental.
 
+## Known limitation in TIDE: lights and displays hold still
+
+The ports' LEDs, VU-style lights and DSP-fed displays (Scope's trace)
+do not animate in TIDE, and the modules are not at fault — measured
+2026-08-25 with the adaptor's `RACK_ADAPTOR_TRACE` (windows, interactive):
+the LFO's processor runs, computes light brightness 0.975 and queues an
+update every block; SynthEditLib's patch-parameter machinery forwards every
+one (`UpdateOutputParameter` → `UpdateUI`, 1054 in 12 s) — into the
+processor's GUI-bound queue, **which TIDE deliberately does not drain**:
+`SynthEditSem/SynthEdit.cpp`'s own comment says *"Nothing drains the
+GUI-bound queue yet (parameters don't flow in the thin slice)"*. The editor's
+light pins receive exactly one initial 0.000 and nothing ever after.
+
+So this is TIDE's standing DSP→GUI parameter-feedback gap made visible for
+the first time, not a regression and not the adaptor's plumbing — that was
+verified end to end. Closing it means carrying the processor's `ppc`
+messages to the controller side in a way that survives the process split
+(AUv3), then routing them into the editor's patch manager. Until then,
+knobs, jacks, cables and audio all work; nothing that the DSP animates does.
+
+Dead end, so nobody re-walks it: restoring the app timer the wholesale
+InitInstance override dropped (`timerhelper`, base
+CSynthEditAppBase::InitInstance's last line — the same U2e class of loss)
+makes `CSynthEditAppBase::OnTimer` tick and `serviceQueues()` run, and
+changes nothing here: that circuit drains the EDITOR-runtime's queue pair,
+which TIDE's processor/controller split never uses. Both measured, both
+reverted.
+
 ## Traps
 
 - **The two module lists must move together.** `modules/CMakeLists.txt` (the
