@@ -166,6 +166,17 @@ set(FORMATS_LIST GMPI VST3 CLAP AU3 STANDALONE)
 gmpi_plugin(
     PROJECT_NAME ${PROJECT_NAME}
     HAS_DSP HAS_GUI
+    # BACKLOG S36 follow-up. gmpi_plugin()'s own SE_LOCAL_BUILD step would drop
+    # a LOOSE FILE at "Common Files\VST3\TIDE-Rack.vst3" -- fine for a plugin
+    # that is only a binary, wrong for TIDE, which also needs Prefabs/ and the
+    # merged pin XMLs beside it (S36: a non-bundled Windows plugin's resource
+    # folder IS the DLL's own directory, no subfolder). The per-format loop
+    # below assembles the real Contents\x86_64-win\... bundle folder in that
+    # same install location instead, mirroring package-windows.ps1's shape and
+    # the Apple "_tide_installed" block right below it -- so this flag turns
+    # off the generic copy this file's caller cannot merge with a folder of
+    # the same name.
+    NO_LOCAL_VST3_COPY
 	FORMATS_LIST ${FORMATS_LIST}
     SOURCE_FILES
 	  # BACKLOG E14 -- TIDE's OWN two modules, and the only ones in this list that
@@ -785,6 +796,62 @@ foreach(_fmt ${FORMATS_LIST})
         "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
         "${_tide_installed}/Prefabs"
       COMMENT "Staging bundle data into the installed ${_tide_target}"
+      VERBATIM
+    )
+  endif()
+
+  # WIN32's own version of the block above -- SE_LOCAL_BUILD only, VST3 only.
+  #
+  # gmpi_plugin() built this target with NO_LOCAL_VST3_COPY (see the call
+  # above), so nothing has installed anything yet; this step owns the whole
+  # job. A Windows VST3 is a bare DLL suffixed ".vst3" (gmpi_plugin.cmake's
+  # `else()` arm -- no Contents/ folder at link time), so it is built HERE,
+  # POST_BUILD, into the shape BundleInfo::getResourceFolder() and
+  # scripts/package-windows.ps1 both already expect:
+  #
+  #     TIDE-Rack.vst3\
+  #         Contents\
+  #             x86_64-win\TIDE-Rack.vst3   <- the built DLL, renamed in place
+  #             Resources\...                <- pin XMLs and Prefabs\
+  #
+  # Confirmed live 2026-08-25: a loose TIDE-Rack.vst3 dropped straight into
+  # Common Files\VST3 (what copy_plugin() did before NO_LOCAL_VST3_COPY) has
+  # no "Contents" in its own path, so BundleInfo::pluginIsBundle reads false,
+  # getResourceFolder() falls back to the DLL's OWN bare directory, TideApp's
+  # candidate (.../Prefabs/<name>) is absent there, and ResolveFilename falls
+  # through to the base resolver's GetHomeDir() -- same bare directory again.
+  # Ableton reported exactly that: "Can't open file C:\Program Files\Common
+  # Files\VST3\MidiCv.synthedit". A bundle folder at the same path is not
+  # merely tidier; it is the one shape this whole resolution chain finds.
+  #
+  # rm -rf FIRST, unconditionally: a prior loose-file install (this row's own
+  # bug) or a stale bundle from a previous build must not collide with -- or
+  # hide inside -- the folder this step is about to create at the same path.
+  if(WIN32 AND SE_LOCAL_BUILD AND _fmt STREQUAL "VST3")
+    set(_tide_win_vst3_dest "C:\\Program Files\\Common Files\\VST3\\$<TARGET_FILE_NAME:${_tide_target}>")
+    set(_tide_win_vst3_resources "${_tide_win_vst3_dest}\\Contents\\Resources")
+
+    set(_tide_win_install_cmds "")
+    foreach(_tide_xml ${_tide_xmls})
+      get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
+      list(APPEND _tide_win_install_cmds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${SYNTHEDITLIB_DIR}/modules/${_tide_xml}"
+          "${_tide_win_vst3_resources}/${_tide_xml_leaf}")
+    endforeach()
+
+    add_custom_command(TARGET ${_tide_target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E rm -rf "${_tide_win_vst3_dest}"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${_tide_win_vst3_dest}\\Contents\\x86_64-win"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:${_tide_target}>"
+        "${_tide_win_vst3_dest}\\Contents\\x86_64-win\\$<TARGET_FILE_NAME:${_tide_target}>"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${_tide_win_vst3_resources}"
+      ${_tide_win_install_cmds}
+      COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
+        "${_tide_win_vst3_resources}/Prefabs"
+      COMMENT "Assembling the installed Windows VST3 as a real bundle folder (${_tide_target})"
       VERBATIM
     )
   endif()
