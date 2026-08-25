@@ -361,6 +361,37 @@ earlier VCV build tree was left in the scratchpad for iteration.
 **Branch/PR:** `tide/mac/E19-permissive-rack-packs` — TideSynth only: E19-E22,
 the decision entry, the research doc and this entry. The adaptor's own change is
 `relicense-dual-isc-gpl` in that repo, unpushed, awaiting Jeff.
+## 2026-08-25 — windows — the sluggish GUI was a rebuild storm: live values in the document diff (interactive, Jeff directing)
+
+**Prompt:** getting very sluggish GUI. Are we using the "waiters' queue, a
+mechanism to thin out heavy spamming of the queue?
+
+**The queue was innocent; the document sync was rebuilding the rack twice a
+second.** The waiters' queue (`QueuedUsers`, GMPI message_queues) does run on
+the DSP side — it budgets servicing to ~60 Hz worth of sampleframes and
+coalesces each parameter to its latest value — so feedback spam was already
+thinned. The sluggishness was an interaction between two individually sound
+features: S12's `serviceDocumentSync` diffs the whole exported document every
+500 ms and pushes it to the processor when it differs, and the return path
+(#410) made parameter VALUES animate. `PatchParameter_base::ExportXml`
+serialised the live value of every non-polyphonic parameter under
+`SAT_SYNTHEDIT_DSP`, **non-stateful ones included** — so one blinking light
+(or Scope's 65 KB display-state, base64'd into the XML every tick) made every
+diff differ, and every diff pushed a FULL rack rebuild. Measured: ~120 rack
+builds/minute; the fix took it to 2 (startup only), display frames still
+~30 Hz, verified in a 60 s run.
+
+**Fix (SynthEditLib#53, EditorLib/PatchParameter.cpp):** non-stateful
+parameters WITHOUT a host-control id contribute no patch-list to the export.
+The host-control carve-out is load-bearing: the patch-cable list
+(HC_PATCH_CABLES) is exactly a non-stateful-looking value the DSP build
+cannot live without — verified cables survive (Scope input nonzero after a
+rebuild).
+
+**Rule for the next run:** anything that makes exported-document bytes change
+without a user edit will turn S12's diff-push into a rebuild storm. The
+export is the sync signal; keep volatile state out of it.
+
 ## 2026-08-25 — windows — the return-path review: a GMPI parameter is last-writer-wins, and only whole messages survive it (interactive, Jeff directing)
 
 **Prompt:** great, review this code. Ensure it transfers data from Processor
