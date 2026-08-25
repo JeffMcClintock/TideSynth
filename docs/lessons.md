@@ -83,31 +83,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A file being big is not evidence about what is in it.
 - Check push access before designing the delivery.
 
-**windows — the unpushed half was pushed, and `main` is green on all three platforms (interactive, Jeff directing)**
-
-- A rule that stops a run short is not thereby a rule that cost the fleet anything.
-- Re-run the failed run rather than pushing a new commit when the variable you changed lives in another repo.
-- `build.yml`'s close-on-success step works, observed in place
-- The `matrix.platform != 'win'` exclusion cuts both ways.
-- A commit whose meaning depends on a commit in another repo has to say so in its message.
-
-**windows — `main` is red on all three platforms from ONE unpushed half, and the fix is uncommitted in Jeff's tree**
-
-- A red build across all three platforms is evidence of ONE cause, not three, and the shared cause is nearly always a sibling repo.
-- "The other half was never committed" and "the other half merged 26 seconds late" look identical from CI and need opposite responses
-- You cannot `/I`-shadow a quoted include.
-- A missing `override` fails loudly; a missing `virtual` fails silently.
-- The Windows box has no automatic STEP 1 feed.
-- A run that starts minutes after an interactive commit should expect to be looking at half a change, not at a defect.
-
-**macos — The queue is blocked, so the run proved the platform instead; B1 closed on a green matrix**
-
-- A suspicious performance number deserves its mundane explanation checked first.
-- "Persistent workspace" and "incremental build" are different claims.
-- A process gap with zero live instances is a lesson, not a row.
-- When the queue is blocked, building your own platform's default branch is the one thing left that is not busywork
-- Two independent routes to the same fact is worth noticing.
-
 ## 2026-08-18
 
 **windows — the Marathon design language, researched from source and revised live by Jeff (interactive session, Jeff directing)**
@@ -1873,3 +1848,30 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A minimal repro is worth more than a faithful one here.
 - A CI issue can name a head that no longer exists.
 - Check what a folder scan actually enumerates before shipping a file into it.
+
+## 2026-08-25
+
+**macos — The queue is blocked, so the run proved the platform instead; B1 closed on a green matrix**
+
+- A suspicious performance number deserves its mundane explanation checked first.
+- "Persistent workspace" and "incremental build" are different claims.
+- A process gap with zero live instances is a lesson, not a row.
+- When the queue is blocked, building your own platform's default branch is the one thing left that is not busywork
+- Two independent routes to the same fact is worth noticing.
+
+**windows — `main` is red on all three platforms from ONE unpushed half, and the fix is uncommitted in Jeff's tree**
+
+- A red build across all three platforms is evidence of ONE cause, not three, and the shared cause is nearly always a sibling repo.
+- "The other half was never committed" and "the other half merged 26 seconds late" look identical from CI and need opposite responses
+- You cannot `/I`-shadow a quoted include.
+- A missing `override` fails loudly; a missing `virtual` fails silently.
+- The Windows box has no automatic STEP 1 feed.
+- A run that starts minutes after an interactive commit should expect to be looking at half a change, not at a defect.
+
+**windows — the unpushed half was pushed, and `main` is green on all three platforms (interactive, Jeff directing)**
+
+- A rule that stops a run short is not thereby a rule that cost the fleet anything.
+- Re-run the failed run rather than pushing a new commit when the variable you changed lives in another repo.
+- `build.yml`'s close-on-success step works, observed in place
+- The `matrix.platform != 'win'` exclusion cuts both ways.
+- A commit whose meaning depends on a commit in another repo has to say so in its message.
