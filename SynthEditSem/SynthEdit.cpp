@@ -35,6 +35,12 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	// forwarded verbatim to the editor. See drainRackFeedback().
 	BlobOutPin pinFeedback;
 
+	// parameterId 3: the OUTBOUND path -- the editor's parameter edits, as
+	// whole `ppc` messages, fed straight into the queue the rack already
+	// polls (SynthRuntime::ServiceDspRingBuffers). This is what makes turning
+	// a knob cost a message instead of a full graph rebuild.
+	BlobInPin pinDspMessages;
+
 	// TideSynth S12: the rack's actual sound engine. The same class the
 	// SynthEdit VST3 target uses; the document arrives through setDocumentXml
 	// instead of from an exporter-baked bundle resource. All of this lives in
@@ -103,6 +109,12 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	// question "is the return path alive?" had no answer for the whole thin
 	// slice, and a silent success is as hard to read as a silent failure.
 	bool loggedFeedback = false;
+	bool loggedDspMessageOverflow = false;
+
+	// The <DSP> structure of the last chunk actually BUILT - the rebuild gate
+	// in onSetPins. Values and editor view-state are excluded, so their
+	// changes cost a parameter store and nothing else.
+	std::string builtDspShape;
 
 	// drainRackFeedback's whole-message reassembly. Holds at most a partial
 	// message tail between blocks; see the function for why partial bytes
@@ -205,6 +217,32 @@ public:
 
 	void onSetPins() override
 	{
+		// Parameter edits from the editor: hand the bytes to the rack's own
+		// ui->dsp queue and let SynthRuntime::ServiceDspRingBuffers poll them
+		// out, exactly as it does when the editor and DSP share a process.
+		// The framing is untouched, so the reader on the far side is the one
+		// SynthEdit already uses.
+		if (pinDspMessages.isUpdated())
+		{
+			const auto& blob = pinDspMessages.getValue();
+			if (!blob.empty())
+			{
+				if (blob.size() <= (size_t)queUiToDsp.freeSpace())
+				{
+					queUiToDsp.pushString(static_cast<int>(blob.size()), blob.data());
+					queUiToDsp.Send();
+				}
+				else if (!loggedDspMessageOverflow)
+				{
+					// Audio thread: one line per instance, never per block.
+					loggedDspMessageOverflow = true;
+					fprintf(stderr,
+						"TIDE: dropped a %zu-byte parameter update - the rack's ui->dsp queue was full.\n",
+						blob.size());
+				}
+			}
+		}
+
 		if (pinChunk.isUpdated())
 		{
 			const auto& blob = pinChunk.getValue();
@@ -227,6 +265,117 @@ public:
 							blob.size(), whyNot);
 					}
 					return;
+				}
+
+				// REBUILD ONLY WHEN THE DSP STRUCTURE CHANGED.
+				//
+				// The chunk arrives for two very different reasons. A module
+				// was added or a cable moved: the graph is stale, rebuild.
+				// Or only values / editor view-state moved: the graph is
+				// fine, and rebuilding it for that is not merely wasteful --
+				// a rebuilt engine deliberately KEEPS its live parameter
+				// values (add a module, tweak it, add another: the tweak
+				// must survive), so a value-motivated rebuild cannot even
+				// deliver the value. Values travel as messages instead
+				// (parameter 3, above).
+				//
+				// The structure is the <DSP> section with <patch-list>
+				// content ignored. Editor-side view state (<Editor>) never
+				// rebuilds anything; it rides along for the host to save.
+				{
+					const auto dspShape = [](const std::string& doc)
+					{
+						std::string out;
+						const auto d0 = doc.find("<DSP>");
+						const auto d1 = doc.find("</DSP>");
+						if (d0 == std::string::npos || d1 == std::string::npos || d1 < d0)
+							return doc; // unexpected shape: compare whole, fail safe
+
+						// Two kinds of volatility are invisible to structure:
+						//
+						//  - <patch-list> CONTENT: parameter values. The engine
+						//    keeps its live values across a rebuild by design,
+						//    so a value can never be a reason to rebuild.
+						//  - whole <Parameter persistant="0"> ELEMENTS: the
+						//    editor creates and orphan-collects these with GUI
+						//    lifecycle (a touch/grab host control appears when
+						//    a view binds it and vanishes when the collector
+						//    runs - measured 2026-08-25, HostControl 54
+						//    flapping cost a rebuild per flap). Their ppc
+						//    messages route by handle and unknown handles are
+						//    skipped, so the DSP needs no rebuild to ignore
+						//    one that appeared after it was built.
+						size_t at = d0;
+						while (at < d1)
+						{
+							const auto openList  = doc.find("<patch-list>", at);
+							const auto openParam = doc.find("<Parameter ", at);
+
+							// Which comes first (within <DSP>)?
+							size_t open = std::string::npos;
+							bool isParam = false;
+							if (openList < d1 || openParam < d1)
+							{
+								if (openParam < openList)
+								{
+									// Only skip the element if it is VOLATILE.
+									const auto tagEnd = doc.find('>', openParam);
+									const auto tag = doc.substr(openParam, tagEnd - openParam);
+									if (tag.find("persistant=\"0\"") != std::string::npos)
+									{
+										open = openParam;
+										isParam = true;
+									}
+									else
+									{
+										// Keep this element's tag; continue the
+										// scan after it so an inner patch-list
+										// is still stripped.
+										out.append(doc, at, tagEnd + 1 - at);
+										at = tagEnd + 1;
+										continue;
+									}
+								}
+								else
+									open = openList;
+							}
+
+							if (open == std::string::npos || open >= d1)
+							{
+								out.append(doc, at, d1 - at);
+								break;
+							}
+
+							out.append(doc, at, open - at);
+
+							// Self-closing volatile element (a polyphonic one
+							// has no patch-list child): it ends at its own
+							// tag, and hunting a </Parameter> would swallow a
+							// stateful sibling's - hiding REAL structure.
+							if (isParam)
+							{
+								const auto tagEnd = doc.find('>', open);
+								if (tagEnd != std::string::npos && tagEnd > open && doc[tagEnd - 1] == '/')
+								{
+									at = tagEnd + 1;
+									continue;
+								}
+							}
+
+							const char* closeTag = isParam ? "</Parameter>" : "</patch-list>";
+							const auto close = doc.find(closeTag, open);
+							if (close == std::string::npos || close >= d1)
+								break;
+							at = close + strlen(closeTag);
+						}
+						return out;
+					};
+
+					auto shape = dspShape(xml);
+					if (shape == builtDspShape)
+						return; // stored above by the wrapper; nothing to rebuild
+
+					builtDspShape = std::move(shape);
 				}
 
 				rack.setDocumentXml(xml);
@@ -544,6 +693,7 @@ public:
 			<Parameter id="0" name="controllerPtr" ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 			<Parameter id="1" name="chunk"         ignorePatchChange="true" datatype="blob"/>
 			<Parameter id="2" name="feedback"      ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
+			<Parameter id="3" name="dspMessages"   ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 		</Parameters>
         <Audio>
             <Pin name="MIDI" datatype="midi"/>
@@ -551,6 +701,7 @@ public:
             <Pin name="Right" datatype="float" rate="audio" direction="out"/>
             <Pin name="chunk" datatype="blob" parameterId="1"/>
             <Pin name="feedback" datatype="blob" direction="out" parameterId="2"/>
+            <Pin name="dspMessages" datatype="blob" parameterId="3"/>
         </Audio>
         <GUI graphicsApi="GmpiGui">
 			<Pin name="controllerPtr" datatype="blob" parameterId="0" private="true" />

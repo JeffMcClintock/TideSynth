@@ -13,6 +13,10 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
+#include <cstring>
+#include <string>
+#include <cstdio>
+#include <vector>
 #include "helpers/GmpiPluginEditor.h"
 #include "TideAppWrapper.h"
 #include "ContainerViewStruct.h"
@@ -326,6 +330,11 @@ class SynthEditGui final : public PluginEditor, public Notifiable, public gmpi::
 	// because GMPI numbers GUI pins by construction order and the XML lists
 	// them in this order -- controllerPtr is pin 0, this is pin 1.
 	Pin<Blob> rackFeedback;
+
+	// Reused buffer for the outbound parameter messages drained each tick, so
+	// the heartbeat allocates nothing in steady state.
+	std::vector<unsigned char> dspMessageScratch;
+
 	gmpi::shared_ptr<gmpi::api::IUnknown> hostUnknown;
 	gmpi::shared_ptr<SE2::TopView> view;
 #if defined(__linux__)
@@ -568,7 +577,15 @@ class SynthEditGui final : public PluginEditor, public Notifiable, public gmpi::
 		// (Edits can only happen while an editor is open, so a timer that
 		// lives and dies with the GUI covers every mutation.)
 		if (seApp)
+		{
+			// Parameter edits first, and on EVERY tick: they are small, cheap
+			// and the whole point is that they reach the DSP without waiting
+			// for -- or causing -- a document rebuild.
+			if (seApp->onPushDspMessages && seApp->takeDspMessages(dspMessageScratch) && !dspMessageScratch.empty())
+				seApp->onPushDspMessages(dspMessageScratch.data(), dspMessageScratch.size());
+
 			seApp->serviceDocumentSync();
+		}
 
 		if (!navPending)
 			return true; // keep ticking for sync; stop only if we never started the periodic timer

@@ -33,6 +33,22 @@ public:
 	bool setQuiet(bool) override; // U1b follow-up — quiet the module factory during thumbnail renders
 	void serviceDocumentSync() override; // S12 — push the document's chunk to the processor
 	void receiveRackFeedback(const unsigned char* data, int size) override; // the return half
+	bool takeDspMessages(std::vector<unsigned char>& out) override;         // the outbound half
+
+	// WHY THIS EXISTS, and why a button press did nothing without it.
+	//
+	// PatchParameter_base::UpdateDspValue asks the application for the queue a
+	// parameter edit should be posted to, and the base class answers null
+	// unless the EDITOR'S OWN runtime is running a processor. TIDE's never is:
+	// its processor is a separate object, and under AUv3 a separate process.
+	// So every knob turn and every button click was quietly dropped at that
+	// null check -- "processor not running" -- and the only thing that ever
+	// reached the DSP was a whole-document rebuild, which (rightly) refuses to
+	// clobber the live values it already has.
+	//
+	// The queue is perfectly real; it just has a different drainer. Answer
+	// with it, and takeDspMessages ships what lands there.
+	gmpi::hosting::QueuedUsers* PendingDspClients() override;
 	std::string exportChunkXml();        // S12/S11 — the saved chunk: <DSP> + <Editor>
 	bool importChunkXml(std::string_view xml); // S11 — rebuild the document from a saved chunk
 	void OnCloseView(SE2::TopView*) override;

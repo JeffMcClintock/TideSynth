@@ -14,6 +14,7 @@ class Notifiable;
 namespace gmpi { namespace api { struct IUnknown; } }
 
 #include <functional>
+#include <vector>
 
 // firewall off SE SDK3 from GMPI SDK
 struct ISeApp
@@ -69,6 +70,19 @@ struct ISeApp
 	// header exists to hold is between GMPI and SE SDK3, and bytes cross it
 	// without either side learning the other's types.
 	virtual void receiveRackFeedback(const unsigned char* data, int size) = 0;
+
+	// The OUTBOUND half of the same idea, and the reason a button press no
+	// longer rebuilds the rack. A parameter edit is already serialised into
+	// the editor runtime's ui->dsp queue; this hands those bytes over so the
+	// GUI can ship them to the processor, which feeds them straight into the
+	// queue its rack already polls. Values travel as VALUES.
+	//
+	// Before this existed the only route to the DSP was the S12 document push,
+	// which rebuilt every module in the rack for one changed float - and did
+	// not even apply the new value, because a rebuilt engine keeps the
+	// parameter values it already had (measured 2026-08-25).
+	virtual bool takeDspMessages(std::vector<unsigned char>& out) = 0;
+	std::function<void(const void* data, size_t size)> onPushDspMessages;
 
 	virtual void OnCloseView(SE2::TopView*) = 0;
 	virtual void CloseAllViews() = 0;

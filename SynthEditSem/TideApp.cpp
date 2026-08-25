@@ -411,9 +411,13 @@ bool TideApp::importChunkXml(std::string_view xml)
 	// InitInstance sets it on a blank one.
 	Document()->rackMode = true;
 
-	// Make the next serviceDocumentSync push this document to the processor
-	// rather than dedupe it away against whatever the blank one exported.
-	lastPushedDspXml.clear();
+	// Baseline the sync against what was JUST IMPORTED rather than forcing a
+	// push: the wrapper re-seeds the chunk parameter into the processor when
+	// it starts (SynthEdit.cpp:70's comment walks the mechanism), so the
+	// processor builds this same document on its own and a GUI push here was
+	// a guaranteed duplicate rebuild. If the round-trip ever produces a
+	// different document, the next 500ms tick pushes the difference anyway.
+	lastPushedDspXml = exportChunkXml();
 
 	return true;
 }
@@ -427,6 +431,14 @@ void TideApp::serviceDocumentSync()
 	if (xml == lastPushedDspXml)
 		return;
 
+	// A push is a parameter store plus, AT MOST, a rack rebuild - and the
+	// PROCESSOR decides which, by comparing the arriving document's DSP
+	// structure against what it already built (SynthEdit.cpp, onSetPins).
+	// So pushing on any change is cheap and keeps the chunk parameter - which
+	// is also the SAVED STATE the host and the session file read - current,
+	// values included. Volatile output values are blanked in the export
+	// (PatchParameter.cpp), so an idle rack with animating lights produces no
+	// pushes at all.
 	lastPushedDspXml = xml;
 	onPushChunk(xml.data(), xml.size());
 }
@@ -445,6 +457,19 @@ void TideApp::serviceDocumentSync()
 void TideApp::receiveRackFeedback(const unsigned char* data, int size)
 {
 	synthRuntime.receiveDspMessages(data, size);
+}
+
+bool TideApp::takeDspMessages(std::vector<unsigned char>& out)
+{
+	return synthRuntime.takeUiToDspMessages(out);
+}
+
+// See the header. Unconditional, unlike the base: "is the editor's own
+// processor running" is the wrong question in TIDE, where the answer is always
+// no and the processor is elsewhere.
+gmpi::hosting::QueuedUsers* TideApp::PendingDspClients()
+{
+	return &synthRuntime.pendingProcessorQueueClients;
 }
 
 bool TideApp::setQuiet(bool newValue)
