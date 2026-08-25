@@ -8,6 +8,107 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — macos — A stale comment inverted a recommendation, twice; the adaptor already draws the components (interactive, Jeff directing)
+
+**Prompt:** explain E23 / yes
+
+**A correction to the two entries below**, prepended rather than edited — both
+are pushed and [#413](https://github.com/JeffMcClintock/TideSynth/pull/413) is
+open.
+
+**Did:** Jeff asked me to explain **E23**. Reading the code to explain it
+accurately is what showed the row is wrong. **E23's premise is false and the
+work it proposes is already done.** E19, E20, E21 and the research doc all
+inherited the error and are corrected; the comment that caused it is fixed in
+[SynthEdit_Rack_Adaptor#2](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/2).
+
+### The error
+
+`RackEditor.h:25-29` says the editor draws **no** knob caps, jacks or screws —
+only *"an indicator line per knob"* — and that panels omitting component art
+*"will look bare"*. Twelve lines below, the render path is:
+
+```
+panel art -> drawModuleWidgets(-1) -> drawJacks() -> drawKnobs() -> drawLights()
+```
+
+`drawJacks()` draws a five-ring VCV-style jack sized from the module's widget.
+`drawKnobs()` draws rim, body **and** pointer. Both read
+`layout.inputs`/`outputs`/`params`, which come from the module's `ModuleWidget`
+and **have nothing to do with the panel SVG**.
+
+Provenance: accurate at `d4de897` (initial commit), superseded by `623f1f7`
+*"Draw the jacks, VCV-style, sized from the module's own widget"* **the same
+day**. Never updated.
+
+### What it cost, and it is worth being exact
+
+I quoted that comment as authoritative **twice, in consecutive turns, while
+reading the file it is wrong about.** It produced:
+
+- a filed row (E23) proposing to build something that exists;
+- a **wrong inversion of the recommendation** — HetrickCV, the best-licensed
+  pack on the board (CC0 code *and* art, ~70 modules), was demoted to
+  `BLOCKED(E23)` on the grounds that its labels-only panels would render bare.
+  They will not.
+- an escalation to Jeff that the permissive packs were unusable without new work.
+
+**The rendering session that produced the inversion was itself good work.** Its
+measurements are sound and it caught two broken SVG-geometry screens with a
+positive control. The failure was one layer up: I validated the *instrument* and
+never validated the *premise* the instrument was serving.
+
+### What survives, and it is not nothing
+
+The renders surfaced a real difference nobody had noticed: **authoring units.**
+HetrickCV panels are 380-unit (Rack pixels); **CVfunk and DHE are viewBox height
+128.5 — millimetres.** `RackEditor` carries an explicit 75-vs-96-dpi correction
+(`panelMetrics`) whose own comment warns a mm panel *"draws 96/75 = 28% too
+large for the coordinates its own module places controls at"*. The mechanism
+exists and **nobody has verified it lands correctly**. That is now E23's real
+content, and it belongs to E22's packs rather than E20's.
+
+### Rows after the correction
+
+- **E20 → TODO**, restored as the first attempt. Both prerequisites are met:
+  the adaptor is dual-licensed on `main` and the bot has write access.
+- **E23** rewritten down to screws plus the mm-panel check, and **it blocks
+  nothing**.
+- **E19** keeps its renders, loses its conclusion. Still worth a session: nothing
+  here has been observed in a running TIDE.
+- **E21**'s re-scope withdrawn — NLC's advantage was an artefact of the same error.
+
+**Verified:** the render path and both draw functions read from `main`, not from
+memory; `623f1f7` confirmed an ancestor of `origin/main`; the comment fix is
+comment-only, checked by diffing for non-comment lines.
+
+**Not verified:** still no module ported. Every claim across E19-E23 comes from
+source and rendered SVGs, not a running rack — which is exactly what E19 exists
+to fix and why it stays open.
+
+**Learned:**
+
+- **A comment twelve lines above the code it contradicts will be believed.** I
+  read `drawKnobs` and `drawJacks` in the same file, in the same session, and
+  still quoted the header.
+- **Validating the instrument is not validating the premise.** The previous
+  entry is a careful account of catching two broken screens with a control — and
+  the whole exercise was answering a question that did not need asking.
+- **"Explain X" is a real check on X.** Nothing else in three turns forced a read
+  of the render path; being asked to explain the row is what broke it.
+- **Correct the source, not just the conclusion.** The row, the doc and the
+  journal were all downstream of one comment; fixing only the row would have left
+  the trap armed for the next reader.
+
+**Next:**
+
+1. **E20 is the take-target** — `TIDE_HETRICKCV`, both prerequisites met.
+2. **E19 alongside it**: port one and look, which is still the only thing that
+   would make any of this an observation rather than a reading.
+3. **[SynthEdit_Rack_Adaptor#2](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/2)**
+   wants a merge; it is comment-only.
+
+**Branch/PR:** `tide/mac/E19-permissive-rack-packs` — [#413](https://github.com/JeffMcClintock/TideSynth/pull/413), same branch.
 ## 2026-08-25 — macos — Rendered the candidate panels: the permissive packs don't draw their controls, and that inverts the pick (interactive, Jeff directing)
 
 **Prompt:** for the first attempts lets avoid modules unless we can use the artwork too / ps: help me grant access for tide-rack-bot

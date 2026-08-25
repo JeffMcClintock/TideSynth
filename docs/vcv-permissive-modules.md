@@ -175,6 +175,44 @@ art *less* load-bearing across every pack at once.
 
 ---
 
+## 4b. CORRECTION, same day: §4a's conclusion is withdrawn
+
+**§4 and §4a are both built on a comment that says the opposite of the code, and
+the conclusion they reach is wrong.** Recorded here rather than deleted, because
+the measurements in §4a are sound and only the inference from them is not.
+
+`RackEditor`'s render path is:
+
+```
+panel art -> drawModuleWidgets(-1) -> drawJacks() -> drawKnobs() -> drawLights()
+```
+
+**`drawJacks()` draws a five-ring VCV-style jack sized from the module's own
+widget. `drawKnobs()` draws rim, body and pointer.** Both read
+`layout.inputs` / `layout.outputs` / `layout.params`, which come from the
+module's `ModuleWidget` and have **nothing to do with the panel SVG**.
+
+So a labels-only panel is a normal working VCV panel. **HetrickCV, DHE and
+CVfunk are not disadvantaged**, and "the only pack whose panels carry their
+control art is the GPL one" is true and irrelevant.
+
+The source of the error: `RackEditor.h:25-29` claims the editor draws no knob
+caps, jacks or screws. That was accurate at the adaptor's initial commit
+(`d4de897`) and superseded by `623f1f7` — *"Draw the jacks, VCV-style, sized
+from the module's own widget"* — **the same day**. It was quoted as
+authoritative here while the file it describes was open. Fixed in
+[SynthEdit_Rack_Adaptor#2](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/2).
+
+**What the rendering DID surface, and it survives:** the packs differ in
+authoring units. HetrickCV panels are 380-unit (Rack pixels); **CVfunk and DHE
+are viewBox height 128.5 — millimetres.** `RackEditor` carries an explicit
+75-vs-96-dpi correction for exactly that case, warning a mm panel "draws 28% too
+large for the coordinates its own module places controls at". The mechanism
+exists; nobody has verified it lands correctly. That is the real open risk for
+those two packs, and it is now on **E23**.
+
+**§5's order stands as originally written: HetrickCV first.**
+
 ## 4a. MEASURED 2026-08-25: rendered, and it inverts §5's order
 
 §4 left the component-art question open and said one ported module would settle
