@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **327 KB** across **253** entries, so copying them
+Learned sections are **328 KB** across **254** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **92 KB / 1012 lessons — 3.6x smaller**, and represents
+A8. This is **92 KB / 1016 lessons — 3.6x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-25
+
+**macos — E20: 66 of HetrickCV's 79 files compile, and the CC0 pack has an MIT dependency (interactive, Jeff directing)**
+
+- A CC0 headline does not survive a submodule.
+- "Copy the working option" hid the actual work.
+- Compile-everything is a cheap sizing instrument.
+- The regression control is the thing that makes mock edits safe.
 
 **macos — A stale comment inverted a recommendation, twice; the adaptor already draws the components (interactive, Jeff directing)**
 
