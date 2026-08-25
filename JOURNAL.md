@@ -68,13 +68,28 @@ large for the coordinates its own module places controls at"*. The mechanism
 exists and **nobody has verified it lands correctly**. That is now E23's real
 content, and it belongs to E22's packs rather than E20's.
 
+### An id collision landed mid-correction
+
+`check-id-refs.py` failed the merge: **two E19 rows, `BACKLOG.md:130` and
+`:178`, same id, different items.** The windows box allocated **E19** for *"Test
+the DSP→GUI feedback path on EVERY format target"* from the same `main` this
+session's pilot row was cut from, and theirs landed first
+([#416](https://github.com/JeffMcClintock/TideSynth/pull/416)). This is A23's
+race exactly, and the lint is the only thing that sees it — git merged both rows
+cleanly because they sit at different points in the file.
+
+**Renumbered mine to E24**, per the check's own advice that the newer row moves:
+theirs is on `main`, mine is unlanded and referenced only from this branch. 11
+references updated. **Entries already pushed still say "E19" meaning the pilot** —
+they are the record and are not edited; from 2026-08-25 read them as E24.
+
 ### Rows after the correction
 
 - **E20 → TODO**, restored as the first attempt. Both prerequisites are met:
   the adaptor is dual-licensed on `main` and the bot has write access.
 - **E23** rewritten down to screws plus the mm-panel check, and **it blocks
   nothing**.
-- **E19** keeps its renders, loses its conclusion. Still worth a session: nothing
+- **E24** (was E19) keeps its renders, loses its conclusion. Still worth a session: nothing
   here has been observed in a running TIDE.
 - **E21**'s re-scope withdrawn — NLC's advantage was an artefact of the same error.
 
@@ -82,7 +97,7 @@ content, and it belongs to E22's packs rather than E20's.
 memory; `623f1f7` confirmed an ancestor of `origin/main`; the comment fix is
 comment-only, checked by diffing for non-comment lines.
 
-**Not verified:** still no module ported. Every claim across E19-E23 comes from
+**Not verified:** still no module ported. Every claim across E20-E24 comes from
 source and rendered SVGs, not a running rack — which is exactly what E19 exists
 to fix and why it stays open.
 
@@ -103,7 +118,7 @@ to fix and why it stays open.
 **Next:**
 
 1. **E20 is the take-target** — `TIDE_HETRICKCV`, both prerequisites met.
-2. **E19 alongside it**: port one and look, which is still the only thing that
+2. **E24 alongside it**: port one and look, which is still the only thing that
    would make any of this an observation rather than a reading.
 3. **[SynthEdit_Rack_Adaptor#2](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/2)**
    wants a merge; it is comment-only.
