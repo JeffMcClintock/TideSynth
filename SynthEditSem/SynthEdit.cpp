@@ -30,6 +30,10 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	AudioOutPin pinRight;
 	BlobInPin pinChunk; // parameterId 1: the document's DSP XML, pushed by the editor
 
+	// parameterId 2: the RETURN path -- the inner rack's DSP->GUI messages,
+	// forwarded verbatim to the editor. See drainRackFeedback().
+	BlobOutPin pinFeedback;
+
 	// TideSynth S12: the rack's actual sound engine. The same class the
 	// SynthEdit VST3 target uses; the document arrives through setDocumentXml
 	// instead of from an exporter-baked bundle resource. All of this lives in
@@ -81,12 +85,23 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	// afterwards. Working: TideSynth docs/e9-sample-rate.md, row E9.
 	int preparedSampleRate = 0;
 
-	// IProcessorMessageQues - the queue pair SynthRuntime services. Nothing
-	// drains the GUI-bound queue yet (parameters don't flow in the thin
-	// slice), but SeAudioMaster's servicing path dereferences the peer, so
-	// the queues must exist.
-	gmpi::hosting::interThreadQue queDspToUi{ SeAudioMaster::AUDIO_MESSAGE_QUE_SIZE };
+	// IProcessorMessageQues - the queue pair SynthRuntime services.
+	//
+	// queDspToUi IS NOW DRAINED (drainRackFeedback), and it is a
+	// lock_free_fifo rather than an interThreadQue for one reason: siphon2()
+	// hands out a pointer to the queued bytes so they can be forwarded
+	// WITHOUT re-framing them. That is exactly what the VST3 wrapper does
+	// with its own DSP->controller queue (Processor_VST3::CommunicationProc),
+	// and forwarding the framing intact is what lets the editor side reuse
+	// the identical reader. Both types satisfy MessageQueToGui()'s
+	// IWriteableQue return, so SynthRuntime is unaffected by the swap.
+	gmpi::hosting::lock_free_fifo queDspToUi{ SeAudioMaster::AUDIO_MESSAGE_QUE_SIZE };
 	gmpi::hosting::interThreadQue queUiToDsp{ SeAudioMaster::AUDIO_MESSAGE_QUE_SIZE };
+
+	// One line the first time rack feedback actually reaches the editor -- the
+	// question "is the return path alive?" had no answer for the whole thin
+	// slice, and a silent success is as hard to read as a silent failure.
+	bool loggedFeedback = false;
 
 public:
 	SynthEdit()
@@ -304,6 +319,62 @@ public:
 
 		int64_t silenceFlagsOut{};
 		rack.process(sampleFrames, nullptr, outputs, 0, 2, 0, silenceFlagsOut);
+
+		drainRackFeedback();
+	}
+
+	// THE DSP -> GUI RETURN PATH, and until this existed nothing in TIDE had
+	// one -- for any module, not just the VCV ports whose dead LEDs exposed it.
+	//
+	// rack.process() above ends in SeAudioMaster::PostProcess ->
+	// ServiceDspWaiters2, which serialises every pending parameter update
+	// (output parameters, meters, Scope captures -- SynthEditLib's "ppc"
+	// messages) into MessageQueToGui(), i.e. queDspToUi. Nothing read it, so
+	// every one of those sat there forever: measured 2026-08-25, the VCV LFO's
+	// light queued 1054 updates in 12 s and the editor received none.
+	//
+	// WHY A BLOB PARAMETER rather than reaching for the editor directly: the
+	// processor and the editor are separate objects, and under AUv3 separate
+	// PROCESSES, so nothing may be handed across as a pointer. A blob output
+	// parameter is GMPI's own supported channel for exactly this and every
+	// wrapper already implements it -- gmpi_processor::setPin queues the
+	// parameter, the wrapper ships it to the controller, and
+	// gmpi_controller_holder delivers it to each editor's matching GUI pin as
+	// a "ppc3" message. It is the chunk parameter's route, in reverse.
+	//
+	// THE BYTES ARE FORWARDED VERBATIM, framing included. siphon2() hands out
+	// a pointer to the contiguous run at the read position without decoding
+	// it, so this is a copy rather than a translation, and the editor side
+	// pushes it into a queue of the same type and lets the SAME reader parse
+	// it. Anything else would mean re-implementing the framing twice and
+	// keeping the two in step.
+	//
+	// The fifo can WRAP, so one call may see two contiguous runs. Each is
+	// forwarded as its own pin update: the receiving queue reassembles across
+	// calls, so a message split across the wrap arrives intact.
+	void drainRackFeedback()
+	{
+		int readyBytes = queDspToUi.readyBytes();
+
+		while (readyBytes > 0)
+		{
+			void* data{};
+			const auto contiguous = queDspToUi.siphon2(&data);
+			if (contiguous <= 0)
+				break;
+
+			pinFeedback.setRaw({ static_cast<const uint8_t*>(data), static_cast<size_t>(contiguous) });
+			pinFeedback.sendPinUpdate(getBlockPosition());
+
+			queDspToUi.siphon2_advance(contiguous);
+			readyBytes -= contiguous;
+
+			if (!loggedFeedback)
+			{
+				loggedFeedback = true;
+				fprintf(stderr, "TIDE: rack feedback reaching the editor - first %d byte(s)\n", contiguous);
+			}
+		}
 	}
 
 	// IShellServices. Empty bodies are honest: no controller-side reader
@@ -417,15 +488,18 @@ public:
 		<Parameters>
 			<Parameter id="0" name="controllerPtr" ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 			<Parameter id="1" name="chunk"         ignorePatchChange="true" datatype="blob"/>
+			<Parameter id="2" name="feedback"      ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 		</Parameters>
         <Audio>
             <Pin name="MIDI" datatype="midi"/>
             <Pin name="Left"  datatype="float" rate="audio" direction="out"/>
             <Pin name="Right" datatype="float" rate="audio" direction="out"/>
             <Pin name="chunk" datatype="blob" parameterId="1"/>
+            <Pin name="feedback" datatype="blob" direction="out" parameterId="2"/>
         </Audio>
         <GUI graphicsApi="GmpiGui">
 			<Pin name="controllerPtr" datatype="blob" parameterId="0" private="true" />
+			<Pin name="feedback" datatype="blob" parameterId="2" private="true" />
 		</GUI>
         <Controller/>
     </Plugin>

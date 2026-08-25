@@ -431,6 +431,22 @@ void TideApp::serviceDocumentSync()
 	onPushChunk(xml.data(), xml.size());
 }
 
+// The chunk's return half. Bytes in, nothing decoded here: synthRuntime owns
+// the queue and hands each framed message to CSynthEditAppBase::
+// onQueMessageReady, which routes it by handle to the PatchParameter that
+// sent it -- the same path an in-editor processor would have taken. That is
+// the whole point of forwarding the framing intact rather than translating it.
+//
+// What this makes work, and did not work at all before: every DSP->GUI
+// parameter update in TIDE. Output parameters, meters, Scope captures, and a
+// module's lights (the VCV Fundamental ports' LEDs are what exposed it -- the
+// processor queued 1054 light updates in 12 s and the editor received none,
+// measured 2026-08-25).
+void TideApp::receiveRackFeedback(const unsigned char* data, int size)
+{
+	synthRuntime.receiveDspMessages(data, size);
+}
+
 bool TideApp::setQuiet(bool newValue)
 {
 	const bool previous = quiet;

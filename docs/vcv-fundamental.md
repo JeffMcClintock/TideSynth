@@ -68,7 +68,21 @@ every other module TIDE ships — compiled into the binary:
    (cmake/RackModuleMetadata.cmake in their repo), so they appear in the rack
    browser under Rack → VCV Fundamental.
 
-## Known limitation in TIDE: lights and displays hold still
+## Lights and displays — FIXED 2026-08-25
+
+The section below described a real gap and is kept for its measurements; the
+gap is now closed. The processor drains its rack's feedback queue and
+forwards the bytes to the editor as a blob parameter (parameter 2,
+`SynthEdit::drainRackFeedback` → `TideApp::receiveRackFeedback` →
+`SynthRuntime_editor::receiveDspMessages`), so DSP→GUI parameter updates
+reach the GUI for every module, not just these ports. Verified on a running
+rack: the VCV LFO's light receives changing values (`0.750`, against a frozen
+`0.000` before) and visibly blinks.
+
+Scope-style multi-part captures ride the same channel but have not been
+measured yet.
+
+## The original finding (2026-08-25, before the fix)
 
 The ports' LEDs, VU-style lights and DSP-fed displays (Scope's trace)
 do not animate in TIDE, and the modules are not at fault — measured
