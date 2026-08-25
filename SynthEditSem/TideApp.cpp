@@ -360,6 +360,7 @@ std::string TideApp::exportChunkXml()
 	TiXmlPrinter printer;
 	printer.SetIndent("  ");
 	doc2.Accept(&printer);
+
 	return printer.CStr();
 }
 
@@ -411,11 +412,46 @@ bool TideApp::importChunkXml(std::string_view xml)
 	// InitInstance sets it on a blank one.
 	Document()->rackMode = true;
 
-	// Make the next serviceDocumentSync push this document to the processor
-	// rather than dedupe it away against whatever the blank one exported.
-	lastPushedDspXml.clear();
+	// Baseline the sync against what was JUST IMPORTED rather than forcing a
+	// push: the wrapper re-seeds the chunk parameter into the processor when
+	// it starts (SynthEdit.cpp:70's comment walks the mechanism), so the
+	// processor builds this same document on its own and a GUI push here was
+	// a guaranteed duplicate rebuild. If the round-trip ever produces a
+	// different document, the next 500ms tick pushes the difference anyway.
+	lastPushedShape = documentShape(exportChunkXml());
 
 	return true;
+}
+
+// The document reduced to its SHAPE: modules and wiring, with every
+// <patch-list> removed. That is where parameter VALUES live -- knobs,
+// buttons, and the patch-cable list host control alike -- and none of them
+// may cost the processor a restart. See serviceDocumentSync.
+std::string TideApp::documentShape(const std::string& doc)
+{
+	std::string out;
+	out.reserve(doc.size());
+
+	size_t at = 0;
+	for (;;)
+	{
+		const auto open = doc.find("<patch-list>", at);
+		if (open == std::string::npos)
+		{
+			out.append(doc, at, std::string::npos);
+			break;
+		}
+
+		out.append(doc, at, open - at);
+
+		const auto close = doc.find("</patch-list>", open);
+		if (close == std::string::npos)
+			break; // malformed; the prefix is enough to compare on
+
+		at = close + 13; // strlen("</patch-list>")
+	}
+
+	return out;
 }
 
 void TideApp::serviceDocumentSync()
@@ -423,11 +459,76 @@ void TideApp::serviceDocumentSync()
 	if (!onPushChunk || !Document() || !Document()->MasterContainer)
 		return;
 
-	auto xml = exportChunkXml();
-	if (xml == lastPushedDspXml)
+	// DEBOUNCE, exactly as the SynthEdit app does it (Jeff's steer).
+	//
+	// Editing sets a flag; the timer serialises once. Delete twenty modules
+	// and invalidateDsp() fires twenty times, costing twenty bools, and this
+	// tick builds ONE document. CSynthEditAppBase::OnTimer does the same with
+	// the same flag (SynthEditAppBase.cpp:891) before its own soft restart --
+	// TIDE differs only in where the document goes afterwards, because its
+	// processor is a separate object rather than an in-process engine.
+	//
+	// dspDirty is the RIGHT signal and it is already maintained for us: an
+	// RAII SuspendDSP guard sets it at 23 sites - adding and deleting modules,
+	// re-cabling, container surgery - and TideApp inherits both the flag and
+	// invalidateDsp() from CSynthEditAppBase. Nothing about a knob turn
+	// touches it, which is the whole point: values are messages now.
+	//
+	// WHY NOT just export and compare, which is what this used to do: it
+	// serialised the WHOLE document twice a second forever to ask whether
+	// anything had changed, and the answer was almost always no. Measured
+	// 2026-08-25 on a three-module rack: 32.5KB and 1.87ms per export, 40
+	// exports in 20 idle seconds, 39 of them discarded. One more module took
+	// it to 38.2KB and 2.4ms, so it grows with the rack and is paid forever.
+	// Jeff, on the numbers, on a rack he rightly called tiny: 'holy fuck that
+	// was expensive.'
+	if (!dspDirty)
 		return;
 
-	lastPushedDspXml = xml;
+	dspDirty = false;
+
+	auto xml = exportChunkXml();
+
+	// THE DOCUMENT GOES TO THE PROCESSOR ONLY WHEN ITS SHAPE CHANGES.
+	//
+	// Jeff's ruling, 2026-08-25, and the three cases it separates:
+	//
+	//   a module or prefab is added or deleted  the graph is genuinely
+	//                                           different: send the document,
+	//                                           the processor restarts, and
+	//                                           that cost is unavoidable.
+	//   a patch cable is moved                  send NOTHING here. The cable
+	//                                           list is the HC_PATCH_CABLES
+	//                                           host control, its value rides
+	//                                           the message queue like any
+	//                                           other parameter, and the DSP
+	//                                           side turns it into a graph
+	//                                           rebuild from the document it
+	//                                           ALREADY HAS (requiresAsyncRestart
+	//                                           -> DoAsyncRestart). Shipping a
+	//                                           second copy of the document to
+	//                                           say "a wire moved" is waste.
+	//   a knob or button moves                  send NOTHING here either; the
+	//                                           value is a message.
+	//
+	// So the comparison ignores every <patch-list>: that is where parameter
+	// VALUES live, the cable list included. What remains is modules and their
+	// wiring - the shape.
+	//
+	// This decision belongs HERE, on the GUI thread at 500ms, and emphatically
+	// not in the processor. It was briefly done there and that was a mistake:
+	// onSetPins runs on the AUDIO THREAD, where building and comparing a 12KB
+	// string per arriving chunk is exactly the sort of work that has no
+	// business next to a real-time deadline.
+
+	auto shape = documentShape(xml);
+	if (shape == lastPushedShape)
+		return;
+
+	lastPushedShape = std::move(shape);
+	// Rare by construction now - only a structural edit gets here - and worth
+	// saying out loud, because it is the expensive one.
+	std::fprintf(stderr, "TIDE: DSP structure changed, pushing %zu byte document\n", xml.size());
 	onPushChunk(xml.data(), xml.size());
 }
 
@@ -445,6 +546,19 @@ void TideApp::serviceDocumentSync()
 void TideApp::receiveRackFeedback(const unsigned char* data, int size)
 {
 	synthRuntime.receiveDspMessages(data, size);
+}
+
+bool TideApp::takeDspMessages(std::vector<unsigned char>& out)
+{
+	return synthRuntime.takeUiToDspMessages(out);
+}
+
+// See the header. Unconditional, unlike the base: "is the editor's own
+// processor running" is the wrong question in TIDE, where the answer is always
+// no and the processor is elsewhere.
+gmpi::hosting::QueuedUsers* TideApp::PendingDspClients()
+{
+	return &synthRuntime.pendingProcessorQueueClients;
 }
 
 bool TideApp::setQuiet(bool newValue)

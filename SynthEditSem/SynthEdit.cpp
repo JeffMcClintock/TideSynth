@@ -35,6 +35,12 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	// forwarded verbatim to the editor. See drainRackFeedback().
 	BlobOutPin pinFeedback;
 
+	// parameterId 3: the OUTBOUND path -- the editor's parameter edits, as
+	// whole `ppc` messages, fed straight into the queue the rack already
+	// polls (SynthRuntime::ServiceDspRingBuffers). This is what makes turning
+	// a knob cost a message instead of a full graph rebuild.
+	BlobInPin pinDspMessages;
+
 	// TideSynth S12: the rack's actual sound engine. The same class the
 	// SynthEdit VST3 target uses; the document arrives through setDocumentXml
 	// instead of from an exporter-baked bundle resource. All of this lives in
@@ -103,6 +109,8 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	// question "is the return path alive?" had no answer for the whole thin
 	// slice, and a silent success is as hard to read as a silent failure.
 	bool loggedFeedback = false;
+	bool loggedDspMessageOverflow = false;
+
 
 	// drainRackFeedback's whole-message reassembly. Holds at most a partial
 	// message tail between blocks; see the function for why partial bytes
@@ -205,6 +213,32 @@ public:
 
 	void onSetPins() override
 	{
+		// Parameter edits from the editor: hand the bytes to the rack's own
+		// ui->dsp queue and let SynthRuntime::ServiceDspRingBuffers poll them
+		// out, exactly as it does when the editor and DSP share a process.
+		// The framing is untouched, so the reader on the far side is the one
+		// SynthEdit already uses.
+		if (pinDspMessages.isUpdated())
+		{
+			const auto& blob = pinDspMessages.getValue();
+			if (!blob.empty())
+			{
+				if (blob.size() <= (size_t)queUiToDsp.freeSpace())
+				{
+					queUiToDsp.pushString(static_cast<int>(blob.size()), blob.data());
+					queUiToDsp.Send();
+				}
+				else if (!loggedDspMessageOverflow)
+				{
+					// Audio thread: one line per instance, never per block.
+					loggedDspMessageOverflow = true;
+					fprintf(stderr,
+						"TIDE: dropped a %zu-byte parameter update - the rack's ui->dsp queue was full.\n",
+						blob.size());
+				}
+			}
+		}
+
 		if (pinChunk.isUpdated())
 		{
 			const auto& blob = pinChunk.getValue();
@@ -544,6 +578,7 @@ public:
 			<Parameter id="0" name="controllerPtr" ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 			<Parameter id="1" name="chunk"         ignorePatchChange="true" datatype="blob"/>
 			<Parameter id="2" name="feedback"      ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
+			<Parameter id="3" name="dspMessages"   ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 		</Parameters>
         <Audio>
             <Pin name="MIDI" datatype="midi"/>
@@ -551,6 +586,7 @@ public:
             <Pin name="Right" datatype="float" rate="audio" direction="out"/>
             <Pin name="chunk" datatype="blob" parameterId="1"/>
             <Pin name="feedback" datatype="blob" direction="out" parameterId="2"/>
+            <Pin name="dspMessages" datatype="blob" parameterId="3"/>
         </Audio>
         <GUI graphicsApi="GmpiGui">
 			<Pin name="controllerPtr" datatype="blob" parameterId="0" private="true" />

@@ -85,6 +85,17 @@ public:
 				host->setParameter(chunkParamId, Field::Value, 0, static_cast<int32_t>(size), (const uint8_t*)data);
 		};
 
+		// Parameter EDITS take this route instead of the chunk: whole `ppc`
+		// messages on parameter 3, which the processor pushes into the queue
+		// its rack already polls. Same carriage as the chunk, wildly cheaper
+		// consequence - a value arrives as a value, and nothing is rebuilt.
+		app->onPushDspMessages = [this](const void* data, size_t size)
+		{
+			constexpr int32_t dspMessagesParamId = 3;
+			if (host)
+				host->setParameter(dspMessagesParamId, Field::Value, 0, static_cast<int32_t>(size), (const uint8_t*)data);
+		};
+
 		return ReturnCode::Ok;
 	}
 	
