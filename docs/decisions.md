@@ -34,6 +34,42 @@ defaults are not.
 ## Open — PROPOSED, awaiting a merge to become decisions
 
 ```
+PROPOSED: What should TIDE call the four view-navigation context-menu items,
+          given they keep their SynthEdit names there? (BACKLOG V7)
+
+  Ruled 2026-08-26: SynthEdit keeps its names, TIDE overrides them. Only the
+    replacement strings are open.
+
+  The four actions, and what they mean IN TIDE:
+    go to panel view   -- at the master this IS the rack; nested it is the
+                          module's own front panel
+    go to structure    -- the wiring inside this module
+    go to parent       -- up one container
+    jump to top        -- back to the rack (TIDE-only, already "Goto Rack")
+
+  Options: (a) V7's scheme verbatim -- Goto Panel / Goto Structure /
+               Goto Parent / Goto Rack
+           (b) rack-vocabulary -- Front Panel / Inside Module... /
+               Up One Level / Back to Rack
+           (c) Jeff supplies the four strings
+
+  Recommended default: (c), and it is not a dodge -- the ruling was made on
+    the grounds that the existing names "don't entirely convey the meaning",
+    which is a judgement about what a TIDE user expects to read. (b) is
+    offered as a starting point, not a recommendation.
+
+  Default in effect meanwhile: TIDE shows SynthEdit's names, as it does today.
+
+  May proceed meanwhile: the override mechanism itself, which is identical
+    under every option -- the items come straight from EditorLib's
+    populateContextMenu and TIDE has no hook, so a hook has to exist before
+    any string can differ. Same shape as V4's plumbing.
+
+  Decide-by: before the override lands, since it is the commit that would
+    otherwise carry placeholder strings into the product.
+```
+
+```
 PROPOSED: What marks a module "rack-relevant", so the rack view's module browser
           offers only those? (BACKLOG V4)
 
@@ -92,6 +128,7 @@ is empty.**
 
 | Date | Decision | Notes |
 |---|---|---|
+| 2026-08-26 | **The view-navigation context-menu items keep their names in SynthEdit and are RENAMED IN TIDE, so TIDE needs an override mechanism.** Ruled in session: *"The context menu names make sense in synthedit, but need revising in TIDE where they don't entirly convey the meaning so well."* This is the second of the two dispositions BACKLOG **V7** offered, and it settles the part that was blocking: **`SynthEditLib/EditorLib/**` is not touched**, so the GATE V7 carried falls away and the commercial product is unaffected. | **What this does NOT settle: the TIDE names themselves.** V7's proposed scheme (`Goto Panel` / `Goto Structure` / `Goto Parent` / `Goto Rack`) was written to serve BOTH products and reads as SynthEdit vocabulary; in TIDE a "panel" is the rack and a "structure" is the inside of a module, which is the mismatch the ruling names. Filed as a `PROPOSED:` question above, with the override mechanism free to proceed meanwhile because **it is identical under every naming** — the V4 precedent. |
 | 2026-08-25 | **`SynthEdit_Rack_Adaptor` is DUAL-LICENSED: `ISC OR GPL-3.0-or-later`.** Ruled in session: *"lets change the adaptor to dual license"*. The adaptor was GPL-only on the reasoning that Rack modules are typically GPL so the combination would be GPL anyway — true of most of the library, but it conflated the licence of the ADAPTOR with the licence of the COMBINED WORK. **The module was always the source of the obligation.** GPL-only also foreclosed the permissive case, which is real: HetrickCV (~70 modules) and Nonlinear Circuits (18) are CC0-1.0 for code AND panel artwork. **Nothing was inherited, so it was always Jeff's to relicence** — `rack/rack.hpp` is a from-scratch mock of Rack's `plugin.hpp`, the three `compat/` headers are stubs or reimplementations, all 19 tracked files are `Copyright 2007-2026 Jeff McClintock`, and the repo's README states it carries no VCV Rack code and no VCV artwork. Verified by reading the fetched tree, not assumed. | Executed as a patch, NOT pushed: `tide-rack-bot` has `push=false` on that repo. Sequencing per the 2026-08-09 read-back rule (the MIT/ISC flip-flop) — **Jeff confirms the ISC half before it lands**. ISC chosen to match TideSynth, SynthEditLib, GMPI and gmpi_ui. **Note ISC alone would have sufficed** (ISC is GPL-compatible, so GPL modules still force GPL on the combined work); the dual offer was asked for and is harmless, giving GPL users an unambiguous grant. Unblocks BACKLOG **E20**-**E22**; research in [vcv-permissive-modules.md](vcv-permissive-modules.md). |
 | 2026-08-24 | **`SE16/SynthEditJuce/` is UNMAINTAINED — superseded by the gmpi_ui-based targets, and not to be maintained.** Ruled in session: *"document that SynthEditJUCE is not to be maintained. It's superseded by gmpi_ui based targets."* | **This is stronger than the "deprecated and no longer built" the tree already said in two places, and the gap between the two is what this entry closes.** `SynthEditJuce/CMakeLists.txt` also said *"the entry keeps it honest if it is ever revived"* — an open invitation to the maintenance now declined. **What "unmaintained" means operationally:** the sources stay in the tree for REFERENCE; they are not expected to compile, link, or track refactors made elsewhere; nobody repairs them to match a change in shared code; and **build breaks are not filed against them**. A carve-out stage that moves a file out of `EditorLib` owes `SynthEditJuce` nothing. **The worked example, and the reason this needed saying:** [#88](https://github.com/JeffMcClintock/TideSynth/issues/88) reported that C12e updated two of the four apps that must compile `Dialogs_editor2.cpp` and left this one out. It sat open for a week as a one-line fix someone was supposed to make; under this ruling that is the **expected state**, so it closes WONTFIX. **What replaced it:** `SynthEditWayland` — gmpi_ui's own CPU backend, fp16 rather than JUCE's 8 bits per channel, and no X11 dependency. Dropping the JUCE app removed JUCE as a dependency of the whole project outright, since it was the only target that linked it. Recorded in three places, each read by a different person: the root `CMakeLists.txt` note where the `add_subdirectory` used to be, the target's own source list, and `WAYLAND.md`. [SynthEdit#76](https://github.com/JeffMcClintock/SynthEdit/pull/76) |
 | 2026-08-22 | **The name is spelled `TiDE`, with a lower-case `i` — deliberately quirky.** Ruled in session: *"lets note that we spell TIDE 'TiDE' (lower-case 'i') make it a bit quirky on purpose."* | **This is orthography, not a rename, and it does not reopen N1.** The names decided 2026-08-08 stand exactly as they were: the product is TiDE Rack, the organisation is TiDE Synth, the domain is still `tidesynth.com`. Only how the four letters are set has changed. **It binds prose and not identifiers.** Anywhere the name is *written* — page copy, headings, docs, commit subjects — it is `TiDE`. Anywhere it is a *token something matches on* it is untouched: the CMake targets and shipped artifacts (`TIDE_Rack.vst3`, `TIDE_Rack.pdb`), the `TideSynth` repo, the `TideRack` Ko-fi handle, and the `TIDE_` prefixes in the build files. Converting those is **N1a**-shaped work, would change artifact and PDB names, and is explicitly *not* what this ruling asks for. **Rolled out to the visible copy only, the same day** — `website/index.html`'s title, meta description, `h1`, body and footer, deployed in the same session ([tidesynth.com](https://tidesynth.com/)). **Not swept:** the ~443 all-caps occurrences in `PLAN.md` and `BACKLOG.md` and the ~578 in `docs/`, which convert as those lines are edited for other reasons; and the ~1,067 in `JOURNAL*` and `BACKLOG-DONE.md`, which are the record and are never swept, per **N1b**. **So expect both spellings in the tree indefinitely** — that is the intended end state, not a half-finished migration, and a grep for either will keep hitting both. **Verbatim quotations keep their original spelling**, including R1(a)'s footer wording and Ko-fi's own page title; the three in `website/index.html` are each annotated in place. **The artwork had it first**: the hero image shipped the same day sets the wordmark as `TiDE`, so this makes the page's text agree with its own picture instead of contradicting it |
