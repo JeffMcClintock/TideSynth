@@ -8,6 +8,98 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — windows — a button press sends a VALUE: the missing half of S12, and the document export that cost 2ms twice a second (interactive, Jeff directing)
+
+**Prompt:** i'm interested if the data transfer from the scope to it's gui is
+optimal... but is the wrapper itself efficient? (then, on the buttons: "are we
+clear that pushing a button should not rebuild the DSP (an expensive
+operation) merely send the value?", "we have teh queue mechanism for sending
+values", "9 rebuilds!!!!! try for one", and on the export cost: "holy fuck
+that was expensive... this is a *tiny* rack")
+
+**THE HEADLINE: nothing the editor did to a parameter ever reached the DSP.**
+`PatchParameter_base::UpdateDspValue` asks the application for the queue to
+post an edit to, and `CSynthEditAppBase::PendingDspClients()` answers null
+unless the EDITOR'S OWN runtime is running a processor. TIDE's never is - its
+processor is a separate object, and under AUv3 a separate process - so every
+knob turn and every button click was discarded at that null check as
+"processor not running". One null, and it is why the VCV buttons appeared
+dead all day. `TideApp::PendingDspClients()` now answers with its real queue.
+
+**The missing half of S12.** The bytes then need CARRYING, which nothing did.
+The editor was already serialising edits into `m_message_que_ui_to_dsp` - in
+SynthEdit proper the DSP shares the process and polls it directly. Now
+`SynthRuntime_editor::takeUiToDspMessages` hands whole framed messages to the
+GUI heartbeat, the controller ships them on blob parameter 3, and the
+processor pushes them into the rack's own ui->dsp queue, which
+`SynthRuntime::ServiceDspRingBuffers` already polls. Verified on the wire:
+handle 994049736, id `ppc`, payload `00 00 80 3f` = 1.0, then `00 00 00 00`.
+
+**A REBUILT ENGINE KEEPS ITS LIVE PARAMETER VALUES, AND THAT IS A FEATURE.**
+Recorded because I called it a bug and Jeff corrected me: "You add a module
+(resets processor), you tweak its settings, you add a second module (resets
+processor). There is no way this should wipe the first module's settings."
+The DSP owns live state; the document is a snapshot that may be stale. Which
+is exactly why a value could never arrive by document push - the rebuild
+rightly refuses to clobber - and why the value path had to exist.
+
+**So the document goes to the processor only when its SHAPE changes.** A
+module added or deleted: send it, the rack restarts, unavoidable. A patch
+cable moved: send NOTHING - the cable list is the HC_PATCH_CABLES host
+control, its value rides the same message queue, and the DSP turns it into a
+graph rebuild from the document it already has (`requiresAsyncRestart` ->
+`DoAsyncRestart`, with `persistAcrossResets` keeping the list). A knob or
+button: nothing either. Startup went from 18 rack builds to 1.
+
+**THE DECISION BELONGS TO THE EDITOR, NOT THE PROCESSOR.** It was briefly the
+processor's - comparing the arriving chunk's structure in `onSetPins` - and
+that is a mistake worth remembering: `onSetPins` runs on the AUDIO THREAD.
+Jeff: "the Processor has important real-time stuff to do, not comparing huge
+strings."
+
+**The export was costing 2ms twice a second, forever.** `serviceDocumentSync`
+serialised the whole document on every tick to ask whether anything had
+changed. Measured on a three-module rack: 32.5KB, 1.87ms, 40 exports in 20
+idle seconds, 39 discarded; one more module took it to 38.2KB and 2.4ms, so
+it grows with the rack. Fixed by debouncing on `dspDirty` - the flag an RAII
+`SuspendDSP` guard already sets at 23 sites, which `CSynthEditAppBase::OnTimer`
+already consumes before its own soft restart. Jeff's steer was to look at what
+the app already does, and it was right there. Idle exports: 60 per 30s -> 2,
+both at startup, steady state zero. The LFO's LED visibly doubled its frame
+rate.
+
+**Two transport defects fixed on the way, both of which killed DSP->GUI
+feedback outright:**
+
+- **I broke it myself** and it is the sharpest lesson here. Keeping churning
+  values out of the exported document by DROPPING the `<patch-list>` element
+  silently killed feedback for every volatile parameter - the DSP builds its
+  patch memory from those entries, and a parameter without one never
+  transmits to the GUI at all. A/B: element absent, the editor got 26 light
+  updates then nothing ever again; element present, 123 and counting. The
+  element must stay; only its TEXT is blanked.
+- **The controller's blob arm deduped a STREAM.** `setParameterBlob` skipped
+  notifying editors when bytes matched the previous message - right for a
+  value, wrong for TIDE's feedback channel. The rack settled into a repeating
+  12-byte watchdog, every batch compared equal, every batch was dropped, and
+  the editor received nothing at all. Same rule the processor side learned
+  first: a blob parameter is a stream, not a value.
+
+**A latched light is sent once and then never again**, so if the editor is not
+listening at that instant it is wrong forever - OFFSET's lamp was lit or dark
+purely on startup timing. The adaptor now re-asserts every light once a
+second, which makes the channel self-healing instead of exactly-once.
+
+**Dead end, so nobody repeats it:** injected mouse input (SetCursorPos +
+mouse_event, and PostMessage WM_LBUTTONDOWN) never reaches TIDE's window, even
+with the foreground check passing and WindowFromPoint naming the right child.
+Every click measurement here came from Jeff clicking. Budget for that.
+
+**Still open:** parameter 1 is the persistent chunk, and now that neither
+value edits nor cable moves push it, it refreshes only on a structural change
+- so a knob tweak before a save can be lost. `syncState()` is declared on
+`IEditor` but no wrapper calls it. See BACKLOG E21.
+
 ## 2026-08-25 — macos — E20: 66 of HetrickCV's 79 files compile, and the CC0 pack has an MIT dependency (interactive, Jeff directing)
 
 **Prompt:** great. do E20
