@@ -60,6 +60,55 @@ and one measurement (OnTimer=0 "after" the fix) was measuring the
 instrumentation's ABSENCE — always verify the exe mtime changed. And this
 harness's bash transport eats one backslash level: `\n` inside a heredoc'd
 C string arrives as a real newline; build the escape as `chr(92)+'n'`.
+## 2026-08-25 - macos - It makes noise: audio measured through BOTH the VST3 and the AUv3
+
+**Prompt:** interactive
+
+**Did:** Closed the oldest open item of the day - *"make noise"* - for both
+formats, with numbers rather than listening.
+
+**VST3, via E2a's REAPER harness, on current `main`:**
+
+| fixture | cables | result |
+|---|---|---|
+| `v1-rack.rpp` | 2 | **-6.3 / -17.0 dBFS** - audio present |
+| `v1-rack-uncabled.rpp` | 0 | **-inf** - silence (negative control) |
+| `v1-rack-midi.rpp` | 4 | -6.3 / -17.0 |
+| `v3-midi-pitch.rpp` | 4 | -6.2 / -21.1 |
+| `v3-midi-gate.rpp` | 3 | -6.3 / -21.2 |
+
+`-6.3 / -17.0` **matches E2a's August figures exactly**, so nothing regressed
+through the day's five merges. No GUI driving needed - `REAPER -renderproject`
+renders headlessly and exits, as the harness's own docstring says.
+
+**AUv3, in GarageBand - the one that had never been done.** Jeff: *"why not AU3
+in Garageband"*, which was the right call; my instinct to build a sixth REAPER
+fixture was over-engineering when the host was already open. Built the patch by
+hand in a **fresh project** - deliberately not a restored session, the trap that
+produced this run's earlier false negative - then exported and measured:
+
+```
+2ch  16-bit  44100 Hz  124.8 s
+peak=  -0.1 dBFS   rms=  -5.2 dBFS  -> AUDIO PRESENT
+approx fundamental (zero-crossing): 440.0 Hz
+```
+
+**440.0 Hz is the same pitch E2a measured through the VST3** - 5 V at 1 V/oct is
+middle A - so the oscillator free-runs at its default and the AUv3 carries it to
+the host output. Human confirms: *"yep. human hears it"*.
+
+**Patch cabling in AU3 is now confirmed twice**: by Jeff manually, and by this
+run pulling both cables itself - **Osc out -> Output in** (red, audio) and
+**MIDI-CV PITCH -> Osc Pitch** (orange, CV). The two colours are the signal
+types, a useful tell that the connection took.
+
+**Why this matters beyond "it works": it is the M6 gap closed by CONTENT.**
+`auval` passed a completely empty plugin for days (M5) because it validates the
+interface and never asks whether the rack contains anything. A rendered file
+with a measurable fundamental cannot be fooled that way. Export artifact left at
+`~/Desktop/tide-au3-test.wav`.
+
+**Not verified:** AU2, CLAP, iOS.
 
 ## 2026-08-25 — windows — the VCV Fundamental ports run inside TIDE, behind an option that is OFF by default (interactive, Jeff directing)
 
