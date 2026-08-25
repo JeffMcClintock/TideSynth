@@ -8,6 +8,130 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — macos — The port is pushed and fetches; panels were 100 wide; and a new crash signature (interactive, Jeff directing)
+
+**Prompt:** merge PRs / then lets run the standalone with the new modules / oh. and do the two packs get their own category? / generally good. PhasorToLFO looks too narrow? / did that / (was a crash recently)
+
+**Did:** finished E20 end to end — the port is on GitHub, the fetch path works,
+and the modules render correctly after a real bug was found by **looking at
+them**. Also diagnosed a crash Jeff mentioned in passing, filed as **E25**.
+
+### The port is live and the fetch path is proven
+
+`HetrickCV_gmpi` exists, is public, and holds the two commits. Getting there
+took three attempts and the failures are worth recording: `gh repo create
+--source --push` reported *"Unable to add remote 'origin'"* because the clone I
+built already had one, so the repo was created **empty** and stayed that way;
+the bot then could not push because **public is not writable**; a collaborator
+invite fixed it.
+
+**The `FetchContent` path had never run** — everything until now used
+`HETRICKCV_FOLDER_OVERRIDE`. It works: `Fetching HetrickCV_gmpi from github`,
+`HetrickCV_static: ... 66 module object libraries`, `[fetched]`.
+
+### Two packs, two categories — confirmed by looking
+
+Jeff asked whether each pack gets its own category. **Yes**, and the browser
+shows it: HetrickCV's modules, then a `Rack-VCV Fundamental` group header, then
+Fundamental's. `Rack/HetrickCV` and `Rack/VCV Fundamental`, both starting
+`Rack` as `ModuleScope::RackOnly` requires.
+
+### "PhasorToLFO looks too narrow?" — it was, and so was every other one
+
+**Every HetrickCV panel was rendering 100 DIP wide regardless of its real
+width.** An SVG may declare `width`/`height` as PERCENTAGES and carry its real
+size only in `viewBox`; every HetrickCV panel is authored
+`width="100%" height="100%" viewBox="0 0 180 380"`. `panelMetrics` read only
+the attributes, and **`"100%"` parses as `100`**.
+
+**Why it presented as a width bug rather than a parse bug**, which is the part
+worth keeping: the caller floors a sub-rack-size panel to rack height, so the
+bogus `100` HEIGHT was silently corrected to 380 and only the width survived to
+be seen. The `panel measured 100x100 - flooring to rack size` line was firing
+**once per module** and reading as routine.
+
+| | before | after |
+|---|---|---|
+| `PhasorToLFO` (12 HP) | `100x100` -> `100x384` | **`180x380` -> `180x384`** |
+| `ASR` (6 HP) | `100x100` -> `100x384` | **`90x380` -> `90x384`** |
+| flooring warnings | 1 per module | **0** |
+
+Fixed in [Adaptor#5](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/5).
+**The control matters because this is shared code:** Fundamental authors real
+numbers, so its panels take the unchanged path — exercised across both panel
+styles plus both degenerate cases (no attributes; relative with NO viewBox,
+which must NOT fall through to 0x0). Fundamental still registers 39, zero
+flooring warnings.
+
+**This is the bug that only looking finds.** Three entries ago I rendered panel
+SVGs and reasoned about them at length; none of that could have shown it,
+because the SVG is correct and the READER was wrong.
+
+### The crash: diagnosed, not reproduced
+
+`TIDE-Rack-2026-08-25-162615.ips`, `EXC_BAD_ACCESS`/`SIGSEGV`:
+
+```
+CContainer::getIgnoreProgramChange()   <- faults
+PatchParameter_base::ExportXml
+CPatchManager::ExportXml
+CContainer::ExportXml
+TideApp::exportChunkXml
+TideApp::serviceDocumentSync
+SynthEditGui::onTimer
+```
+
+**It is a new signature, measured against the other ten reports on this box
+today:** every one of those is `EXC_CRASH` in `LoadPrefab`,
+`RegisterParameters` or `ImportChildren` — different exception class, different
+site. This is the only `EXC_BAD_ACCESS` and the only `getIgnoreProgramChange`.
+
+**It did NOT reproduce**: relaunching the same build and letting the sync timer
+tick for 100 s was clean. `exportChunkXml` runs on every tick, so the trigger is
+document state or interaction, not elapsed time. Filed as **E25** with the lead:
+the properties pane was showing `Ignore Program Change` for a ported module's
+parameters when it happened, and that is the accessor that faults.
+
+**Verified:** the fetch path from a clean build dir; the before/after panel
+metrics via `RACK_ADAPTOR_TRACE`; the parser control across four panel shapes;
+39 Fundamental modules still registering; the crash-signature comparison across
+all 11 reports.
+
+**Not verified:**
+
+- **Still no audio.** Registration, rendering and layout are all proven now;
+  nothing has been heard.
+- **The crash is not reproducible on demand**, so nothing is fixed.
+- **The 13 excluded modules**, Windows and Linux.
+
+**Learned:**
+
+- **`"100%"` parses as `100`**, and a percentage in an SVG's width is a real
+  authoring convention, not a malformed file.
+- **A floor on one axis hides a parse failure on both.** The height was wrong
+  too and got silently corrected, which is exactly why this looked like a width
+  problem for as long as nobody read the trace.
+- **Rendering an asset and reading it are different tests.** I rendered these
+  panels three entries ago and learned nothing about this, because the asset was
+  never the problem.
+- **`gh repo create --source` will not add a remote that already exists**, and
+  it reports that as a warning while still creating an empty repo.
+- **Public does not mean writable.** Two different access failures in one
+  session with the same 403 shape.
+
+**Next:**
+
+1. **[Adaptor#5](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/5)**
+   wants merging — without it every ported pack with percentage-sized panels
+   renders wrong.
+2. **E25** needs a reproduction before anything else.
+3. **Make one make a sound.** It is the only thing in E20-E25 still untouched.
+
+**Machine left clean.** Scratch build trees and worktrees; no TIDE process left
+running (checked); nothing installed. `HetrickCV_gmpi` and the adaptor clone are
+deliberate additions.
+
+**Branch/PR:** `tide/mac/E25-sync-export-crash` — the E25 row and this entry.
 ## 2026-08-25 — macos — HetrickCV runs in TIDE: 66 modules registered, 104 with Fundamental alongside (interactive, Jeff directing)
 
 **Prompt:** merge PRs / then lets run the standalone with the new modules
