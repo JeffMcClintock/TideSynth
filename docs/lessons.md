@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **329 KB** across **256** entries, so copying them
+Learned sections are **330 KB** across **257** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **93 KB / 1025 lessons — 3.5x smaller**, and represents
+A8. This is **93 KB / 1030 lessons — 3.5x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,16 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-08-26
+
+**macos — M6: auval passes an empty rack and this does not; the appex finally has a voice (scheduled run)**
+
+- `auval` passing is compatible with the plugin containing nothing
+- An absent line is a failure mode a grep cannot see.
+- The AU3 appex is assembled by its own always-run target
+- `pluginkit -a` registers the extension; a GUI launch is not required.
+- The appex is reused across instantiations
 
 ## 2026-08-25
 

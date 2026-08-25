@@ -1,0 +1,6 @@
+TIDE: ControlsXp.xml missing from bundle resources - those controls will have no pins
+TIDE: MidiPlayer2.xml missing from bundle resources - those controls will have no pins
+TIDE: Converters.xml missing from bundle resources - those controls will have no pins
+TIDE: VaFilters.xml missing from bundle resources - those controls will have no pins
+TIDE: no Prefabs folder in bundle resources - the rack module browser will be empty
+TIDE: MidiCv.synthedit did not insert a container - the rack will have no MIDI jacks

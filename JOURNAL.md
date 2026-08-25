@@ -226,6 +226,121 @@ STEP 5's third kind of dirt.
 **Branch/PR:** `tide/win/E19-feedback-format-matrix` — this entry, E19's status,
 and rows E27/E28/E29.
 
+## 2026-08-26 — macos — M6: auval passes an empty rack and this does not; the appex finally has a voice (scheduled run)
+
+**Prompt:** b97bc00 · claude-opus-5[1m] · app 1.34493.1 · as tide-rack-bot (both)
+
+**Did:** took **M6**, the only eligible ungated TODO. Built the content gate,
+and discharged its Accept **on the real artifact rather than a fixture**.
+
+### The headline, measured twice on this box today
+
+| subject | `auval` | `check-rack-populated.py` |
+|---|---|---|
+| healthy AUv3 (my build) | exit 0, SUCCEEDED | **exit 0**, six assertions ok |
+| AUv3 with `Prefabs/` + `ControlsXp.xml` removed | **exit 0, `AU VALIDATION SUCCEEDED`** | **exit 1, 8 failures named** |
+
+The second row IS M6. A rack with no prefabs, no MIDI jacks and a missing pin
+XML validates clean. I removed the two resources from the installed appex,
+re-signed ad-hoc, re-registered with `pluginkit -a`, and `auval` never blinked.
+
+### The work was the CAPTURE, not the assertions
+
+M6's row said "a gate can be as small as: fail if any negative line appears".
+The assertions are indeed small. **They were also unreachable**: an appex's
+stderr goes nowhere an outside process can read, which is why M5 resorted to
+`freopen`-ing it into the sandbox container and deleted the hack before
+redeploying. A gate cannot be a hack you remove.
+
+M5's own note contains the answer without drawing the conclusion — *"`log
+stream` shows os_log only"*. **os_log is the channel that crosses the
+boundary.** `TideApp.cpp` now mirrors its ten startup diagnostics through a
+`tideDiag()` shim. Chosen over the log file deliberately: TideApp.cpp's
+existing comment block rules a log file out as *"a write outside the plugin
+bundle (constraints 3 and 4)"*, and os_log is the platform's own facility
+rather than a file the plugin creates — nothing on the user's disk, no sandbox
+exception. stderr stays primary, so the standalone and CI logs are unchanged.
+
+**The A/B that proves the mirror is load-bearing**, same command both times:
+
+- against the build already registered on this box (`main`, no mirror):
+  **captured nothing**, 6 assertions failed.
+- against the os_log build: `2/18, 2/7, 26/70, 2/7`, **9 prefabs**, root
+  MIDI-CV — identical to the standalone.
+
+That first result is worth reading carefully: the gate reported failure on a
+plugin that is probably *fine*. **That is correct behaviour, not a false
+positive** — an unobservable plugin must not be called healthy — but it means
+this gate only means something on a build carrying the mirror.
+
+### The design decision I would defend hardest
+
+**Assert the POSITIVE lines, do not grep for the bad ones.**
+`seedPrefabsFromBundle()` opens with `if (resourceFolder.empty()) return;` —
+**no message at all.** So an unresolved resource folder gives an empty module
+browser in total silence, and the cheap grep-for-bad-lines gate passes it. That
+is the same shape as M5's `BundleInfo` defect. Requiring
+`N rack prefab(s) seeded` fails it, because the line is simply absent.
+`tests/rack-content/silent-empty-rack.log` is the standing control for exactly
+this, and the silent `return` itself is filed as **M8**.
+
+### What I did NOT do
+
+- **No CI wiring.** `.github/workflows/**` is what the bot token deliberately
+  cannot push. The script runs by hand today; the job is one step and is
+  Jeff's. **So M6 is not fully closed by this PR** and the row says so.
+- **No audio.** Same standing gap as every entry this week — the gate proves
+  the rack is POPULATED, not that it sounds.
+- **Windows and Linux.** The `--standalone` arm is portable and unexercised
+  there; the `--au3` arm is macOS-only by definition.
+- **`tideRemovedDialog` is not mirrored.** Equally invisible under AUv3 and
+  arguably deserves the same treatment — left alone as out of scope.
+
+**Verified:** cold configure + Release build rc=0, **0 error lines**, all
+siblings `[fetched]` from their own `main` (not the local overrides — see the
+dirt note below); the four-way A/B above; both fixture negative controls; the
+live emptied-AUv3 negative control; the standalone arm re-run after an include
+move.
+
+**Learned:**
+
+- **`auval` passing is compatible with the plugin containing nothing**, and now
+  there is a command that says so out loud rather than a paragraph in a row.
+- **An absent line is a failure mode a grep cannot see.** The cheap version of
+  this gate would have shipped and felt like coverage.
+- **The AU3 appex is assembled by its own always-run target**, `TIDE_Rack_AU3_assemble`,
+  not by building `TIDE_Rack_AU3` and `TIDE_Rack_AU3App`. I built both of those
+  and got an app with an empty `Contents/PlugIns` — which installs fine and
+  provides nothing, the exact failure `package-macos.sh` has a guard for.
+- **`pluginkit -a` registers the extension; a GUI launch is not required.**
+  building.md says registration needs an `open`. It does not — and `open` from a
+  `/tmp` path does not register at all, which cost me a cycle.
+- **The appex is reused across instantiations**: two `9 rack prefab(s) seeded`
+  lines per `auval` run, one XML merge. `s_xmlMerged` working, visible for free.
+
+**Machine left exactly as found, and checked rather than assumed.** Testing the
+AU3 meant displacing the registered build in `~/Applications`. Jeff's original
+was `ditto`'d aside first and restored after: **same path, 19/19 files,
+`sha256 14f7a89f…` identical to the backup**, re-registered, `auval` SUCCEEDED
+on it. The `pluginkit` UUID and timestamp differ because re-registering mints a
+fresh record — that is registration identity, not content. No TIDE process left
+running. All build output in scratch; nothing installed from my build.
+
+**Jeff's working tree was dirty when I arrived and I did not touch it** (STEP
+5's third kind). `TideSynth`: `SynthEditSem/TideApp.cpp` and
+`SynthEditController.cpp`, both carrying `// TEMP-DIAG ... Revert before
+landing` scaffolding from 2026-08-25 17:47. `SynthEditLib`: parked on branch
+`fix-patchmanager-dangling-properties-observer` with `EditorLib/PatchManager.cpp`
+modified. **This is why I worked in a scratch worktree and built with fetched
+siblings rather than the local overrides** — his in-progress SynthEditLib is not
+in my build, and my TideApp.cpp change is not in his tree.
+
+**Also:** flipped **M5** IN-REVIEW → DONE ([#405](https://github.com/JeffMcClintock/TideSynth/pull/405)
+merged, state queried not remembered). `main` is green on all three platforms;
+zero open `platform:*` issues; no open PRs before mine.
+
+**Branch/PR:** `tide/mac/M6-rack-content-gate`.
+
 ## 2026-08-25 — windows — a button press sends a VALUE: the missing half of S12, and the document export that cost 2ms twice a second (interactive, Jeff directing)
 
 **Prompt:** i'm interested if the data transfer from the scope to it's gui is

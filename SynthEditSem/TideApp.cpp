@@ -26,6 +26,10 @@
 #include "notify.h" // Notifiable / Notifier — required transitively by ModuleBrowser.h
 #include "ModuleBrowser.h"
 #include "PropertiesBrowser.h"
+#include <cstdarg>                   // tideDiag's varargs -- BACKLOG M6
+#if defined(__APPLE__)
+#include <os/log.h>                  // the one diagnostic channel an appex can reach -- BACKLOG M6
+#endif
 
 #if TIDE_VCV_FUNDAMENTAL || TIDE_VCV_HETRICKCV
 #include "RackFactory.h" // rack_adaptor::registerDeferredModules — the ported Rack modules
@@ -75,6 +79,69 @@ static void tideRemovedDialog(const char* what)
 		what);
 	std::fflush(stderr);
 	assert(false);
+}
+
+// BACKLOG M6 -- the same breadcrumbs, mirrored somewhere a SANDBOXED host can
+// actually read them.
+//
+// Every diagnostic below goes to stderr, which is the right answer for the
+// standalone and worth nothing for an AUv3: an app extension's stderr reaches
+// neither the terminal nor the unified log, and its /tmp is not /tmp (both
+// measured in M5). So the plugin could report "no Prefabs folder in bundle
+// resources - the rack module browser will be empty" on every single
+// instantiation and nothing outside the process would ever see it. That is
+// precisely how an EMPTY rack -- no control pins, no prefabs, no MIDI jacks --
+// shipped from 2026-08-23 to 2026-08-25 while `auval` returned exit 0 and
+// AU VALIDATION SUCCEEDED on it. `auval` validates the AU *interface* and
+// never asks whether the plugin contains anything.
+//
+// os_log is the one channel that crosses that boundary, and it is a better
+// answer than the log file the block above rules out, for the same reasons:
+// it is the platform's own facility rather than a file the plugin creates, so
+// it writes nothing to the user's disk and needs no sandbox exception.
+// Constraints 3 and 4 are untouched. It also costs nothing when nobody is
+// subscribed, which is every ordinary run.
+//
+// MIRRORED, NOT REPLACED. stderr stays the primary channel, so the standalone,
+// the CI logs and every existing habit are unchanged; this only adds a second
+// copy on Apple platforms. scripts/check-rack-populated.py subscribes to the
+// subsystem below and asserts the rack came up populated.
+namespace
+{
+	// Keep in step with scripts/check-rack-populated.py, which greps the
+	// unified log for exactly this string.
+	constexpr const char* kTideDiagSubsystem = "com.tidesynth.tiderack";
+}
+
+static void tideDiag(const char* format, ...)
+{
+	char buffer[1024];
+
+	va_list args;
+	va_start(args, format);
+	const int written = std::vsnprintf(buffer, sizeof(buffer), format, args);
+	va_end(args);
+
+	if (written < 0)
+		return;
+
+	std::fputs(buffer, stderr);
+	std::fflush(stderr);
+
+#if defined(__APPLE__)
+	static os_log_t tideLog = os_log_create(kTideDiagSubsystem, "startup");
+
+	// Trim the trailing newline: stderr wants it, the unified log adds its own
+	// record boundary and would otherwise show a blank line per entry.
+	const size_t length = (written < (int)sizeof(buffer)) ? (size_t)written : sizeof(buffer) - 1;
+	if (length > 0 && buffer[length - 1] == '\n')
+		buffer[length - 1] = '\0';
+
+	// %{public}s because os_log REDACTS dynamic strings by default -- a
+	// diagnostic that logs as "<private>" is not a diagnostic. Nothing here is
+	// user data: these are resource names, counts and pin indices.
+	os_log(tideLog, "%{public}s", buffer);
+#endif
 }
 
 void doDialogConnectUg(class CUG* cug)
@@ -700,7 +767,7 @@ bool TideApp::InitInstance()
 #else
 		const char* which = "HetrickCV";
 #endif
-		fprintf(stderr, "TIDE: %s — %d module(s) registered\n", which, registered);
+		tideDiag("TIDE: %s — %d module(s) registered\n", which, registered);
 	}
 #endif
 
@@ -714,7 +781,7 @@ bool TideApp::InitInstance()
 			const auto xml = BundleInfo::instance()->getResource(resourceName);
 			if (xml.empty())
 			{
-				fprintf(stderr, "TIDE: %s missing from bundle resources - those controls will have no pins\n", resourceName);
+				tideDiag("TIDE: %s missing from bundle resources - those controls will have no pins\n", resourceName);
 				continue;
 			}
 
@@ -745,7 +812,7 @@ bool TideApp::InitInstance()
 					++enriched;
 				}
 			}
-			fprintf(stderr, "TIDE: %s enriched %d of %d described class(es)%s\n",
+			tideDiag("TIDE: %s enriched %d of %d described class(es)%s\n",
 				resourceName, enriched, described,
 				enriched == 0 ? " -- ZERO: is the .cpp in CMakeLists' source list?" : "");
 		}
@@ -825,7 +892,7 @@ void TideApp::seedPrefabsFromBundle()
 		// Not fatal: a build with no prefabs staged is a working plugin with an
 		// empty Prefabs group, and saying so beats an assert in a DAW. S13's
 		// ruling -- an absent data file is not an assert -- applies here too.
-		fprintf(stderr, "TIDE: no Prefabs folder in bundle resources - the rack module browser will be empty\n");
+		tideDiag("TIDE: no Prefabs folder in bundle resources - the rack module browser will be empty\n");
 		return;
 	}
 
@@ -856,9 +923,9 @@ void TideApp::seedPrefabsFromBundle()
 	}
 
 	if (found == 0)
-		fprintf(stderr, "TIDE: Prefabs folder present but empty - check the POST_BUILD staging step\n");
+		tideDiag("TIDE: Prefabs folder present but empty - check the POST_BUILD staging step\n");
 	else
-		fprintf(stderr, "TIDE: %zu rack prefab(s) seeded from the bundle\n", found);
+		tideDiag("TIDE: %zu rack prefab(s) seeded from the bundle\n", found);
 }
 
 std::wstring TideApp::ResolveFilename(const std::wstring& name, const std::wstring& extension)
@@ -945,7 +1012,7 @@ void TideApp::seedRootMidiCv()
 	const int midiCv = presenter.AddModule(L"SE MIDI to CV 2", { cx -224.0f, cx -364.0f });
 	if (midiIn < 0 || midiCv < 0)
 	{
-		fprintf(stderr, "TIDE: could not create the root MIDI-CV (MIDI In=%d, MIDI-CV 2=%d)"
+		tideDiag("TIDE: could not create the root MIDI-CV (MIDI In=%d, MIDI-CV 2=%d)"
 		                " - the rack will have no MIDI jacks\n", midiIn, midiCv);
 		return;
 	}
@@ -982,7 +1049,7 @@ void TideApp::seedRootMidiCv()
 	{
 		// Not an assert. A missing or malformed prefab is a data problem and S13's
 		// ruling is that those get a message, not an abort in someone's DAW.
-		fprintf(stderr, "TIDE: MidiCv.synthedit did not insert a container"
+		tideDiag("TIDE: MidiCv.synthedit did not insert a container"
 		                " - the rack will have no MIDI jacks\n");
 		return;
 	}
@@ -990,7 +1057,7 @@ void TideApp::seedRootMidiCv()
 	for (const auto& w : wiring)
 	{
 		if (!presenter.AddConnector(midiCv, w.mcvPin, facade->Handle(), w.facadePin, false))
-			fprintf(stderr, "TIDE: root MIDI-CV pin %d -> facade pin %d refused\n",
+			tideDiag("TIDE: root MIDI-CV pin %d -> facade pin %d refused\n",
 			        w.mcvPin, w.facadePin);
 	}
 
@@ -1007,7 +1074,7 @@ void TideApp::seedRootMidiCv()
 	// achieve; rack styling is BACKLOG E5 and the visual language is Jeff's.
 	master->setAllSelected(false);
 
-	fprintf(stderr, "TIDE: root MIDI-CV seeded (MIDI In %d -> MIDI-CV 2 %d -> facade %d)\n",
+	tideDiag("TIDE: root MIDI-CV seeded (MIDI In %d -> MIDI-CV 2 %d -> facade %d)\n",
 	        midiIn, midiCv, facade->Handle());
 }
 
