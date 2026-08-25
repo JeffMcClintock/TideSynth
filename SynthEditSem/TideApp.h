@@ -16,6 +16,7 @@ class TideApp : public CSynthEditAppBase, public ISeApp
 	// of SHAPE costs the processor a restart.
 	std::string lastPushedShape;
 
+
 	static std::string documentShape(const std::string& doc); // see the .cpp
 
 public:

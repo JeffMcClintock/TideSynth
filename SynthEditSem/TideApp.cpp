@@ -360,6 +360,7 @@ std::string TideApp::exportChunkXml()
 	TiXmlPrinter printer;
 	printer.SetIndent("  ");
 	doc2.Accept(&printer);
+
 	return printer.CStr();
 }
 
@@ -458,6 +459,34 @@ void TideApp::serviceDocumentSync()
 	if (!onPushChunk || !Document() || !Document()->MasterContainer)
 		return;
 
+	// DEBOUNCE, exactly as the SynthEdit app does it (Jeff's steer).
+	//
+	// Editing sets a flag; the timer serialises once. Delete twenty modules
+	// and invalidateDsp() fires twenty times, costing twenty bools, and this
+	// tick builds ONE document. CSynthEditAppBase::OnTimer does the same with
+	// the same flag (SynthEditAppBase.cpp:891) before its own soft restart --
+	// TIDE differs only in where the document goes afterwards, because its
+	// processor is a separate object rather than an in-process engine.
+	//
+	// dspDirty is the RIGHT signal and it is already maintained for us: an
+	// RAII SuspendDSP guard sets it at 23 sites - adding and deleting modules,
+	// re-cabling, container surgery - and TideApp inherits both the flag and
+	// invalidateDsp() from CSynthEditAppBase. Nothing about a knob turn
+	// touches it, which is the whole point: values are messages now.
+	//
+	// WHY NOT just export and compare, which is what this used to do: it
+	// serialised the WHOLE document twice a second forever to ask whether
+	// anything had changed, and the answer was almost always no. Measured
+	// 2026-08-25 on a three-module rack: 32.5KB and 1.87ms per export, 40
+	// exports in 20 idle seconds, 39 of them discarded. One more module took
+	// it to 38.2KB and 2.4ms, so it grows with the rack and is paid forever.
+	// Jeff, on the numbers, on a rack he rightly called tiny: 'holy fuck that
+	// was expensive.'
+	if (!dspDirty)
+		return;
+
+	dspDirty = false;
+
 	auto xml = exportChunkXml();
 
 	// THE DOCUMENT GOES TO THE PROCESSOR ONLY WHEN ITS SHAPE CHANGES.
@@ -497,6 +526,9 @@ void TideApp::serviceDocumentSync()
 		return;
 
 	lastPushedShape = std::move(shape);
+	// Rare by construction now - only a structural edit gets here - and worth
+	// saying out loud, because it is the expensive one.
+	std::fprintf(stderr, "TIDE: DSP structure changed, pushing %zu byte document\n", xml.size());
 	onPushChunk(xml.data(), xml.size());
 }
 
