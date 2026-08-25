@@ -98,9 +98,15 @@ middle A - so the oscillator free-runs at its default and the AUv3 carries it to
 the host output. Human confirms: *"yep. human hears it"*.
 
 **Patch cabling in AU3 is now confirmed twice**: by Jeff manually, and by this
-run pulling both cables itself - **Osc out -> Output in** (red, audio) and
-**MIDI-CV PITCH -> Osc Pitch** (orange, CV). The two colours are the signal
-types, a useful tell that the connection took.
+run pulling both cables itself - **Osc out -> Output in** and
+**MIDI-CV PITCH -> Osc Pitch**.
+
+**Correction: I wrote that the two cable colours encode signal type - red for
+audio, orange for CV. That is WRONG.** Jeff: *"the colors differ randomly
+btw"*. The colours are arbitrary per cable and mean nothing. I saw two cables,
+two colours, and two signal types and invented a rule from a coincidence -
+the same reach-past-the-evidence habit that cost this run an hour earlier.
+**Do not read a connection's type off its colour.**
 
 **Why this matters beyond "it works": it is the M6 gap closed by CONTENT.**
 `auval` passed a completely empty plugin for days (M5) because it validates the
