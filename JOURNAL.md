@@ -98,8 +98,234 @@ Every click measurement here came from Jeff clicking. Budget for that.
 **Still open:** parameter 1 is the persistent chunk, and now that neither
 value edits nor cable moves push it, it refreshes only on a structural change
 - so a knob tweak before a save can be lost. `syncState()` is declared on
-`IEditor` but no wrapper calls it. See BACKLOG E21.
+`IEditor` but no wrapper calls it. See BACKLOG E26.
 
+## 2026-08-25 — macos — The port is pushed and fetches; panels were 100 wide; and a new crash signature (interactive, Jeff directing)
+
+**Prompt:** merge PRs / then lets run the standalone with the new modules / oh. and do the two packs get their own category? / generally good. PhasorToLFO looks too narrow? / did that / (was a crash recently)
+
+**Did:** finished E20 end to end — the port is on GitHub, the fetch path works,
+and the modules render correctly after a real bug was found by **looking at
+them**. Also diagnosed a crash Jeff mentioned in passing, filed as **E25**.
+
+### The port is live and the fetch path is proven
+
+`HetrickCV_gmpi` exists, is public, and holds the two commits. Getting there
+took three attempts and the failures are worth recording: `gh repo create
+--source --push` reported *"Unable to add remote 'origin'"* because the clone I
+built already had one, so the repo was created **empty** and stayed that way;
+the bot then could not push because **public is not writable**; a collaborator
+invite fixed it.
+
+**The `FetchContent` path had never run** — everything until now used
+`HETRICKCV_FOLDER_OVERRIDE`. It works: `Fetching HetrickCV_gmpi from github`,
+`HetrickCV_static: ... 66 module object libraries`, `[fetched]`.
+
+### Two packs, two categories — confirmed by looking
+
+Jeff asked whether each pack gets its own category. **Yes**, and the browser
+shows it: HetrickCV's modules, then a `Rack-VCV Fundamental` group header, then
+Fundamental's. `Rack/HetrickCV` and `Rack/VCV Fundamental`, both starting
+`Rack` as `ModuleScope::RackOnly` requires.
+
+### "PhasorToLFO looks too narrow?" — it was, and so was every other one
+
+**Every HetrickCV panel was rendering 100 DIP wide regardless of its real
+width.** An SVG may declare `width`/`height` as PERCENTAGES and carry its real
+size only in `viewBox`; every HetrickCV panel is authored
+`width="100%" height="100%" viewBox="0 0 180 380"`. `panelMetrics` read only
+the attributes, and **`"100%"` parses as `100`**.
+
+**Why it presented as a width bug rather than a parse bug**, which is the part
+worth keeping: the caller floors a sub-rack-size panel to rack height, so the
+bogus `100` HEIGHT was silently corrected to 380 and only the width survived to
+be seen. The `panel measured 100x100 - flooring to rack size` line was firing
+**once per module** and reading as routine.
+
+| | before | after |
+|---|---|---|
+| `PhasorToLFO` (12 HP) | `100x100` -> `100x384` | **`180x380` -> `180x384`** |
+| `ASR` (6 HP) | `100x100` -> `100x384` | **`90x380` -> `90x384`** |
+| flooring warnings | 1 per module | **0** |
+
+Fixed in [Adaptor#5](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/5).
+**The control matters because this is shared code:** Fundamental authors real
+numbers, so its panels take the unchanged path — exercised across both panel
+styles plus both degenerate cases (no attributes; relative with NO viewBox,
+which must NOT fall through to 0x0). Fundamental still registers 39, zero
+flooring warnings.
+
+**This is the bug that only looking finds.** Three entries ago I rendered panel
+SVGs and reasoned about them at length; none of that could have shown it,
+because the SVG is correct and the READER was wrong.
+
+### The crash: diagnosed, not reproduced
+
+`TIDE-Rack-2026-08-25-162615.ips`, `EXC_BAD_ACCESS`/`SIGSEGV`:
+
+```
+CContainer::getIgnoreProgramChange()   <- faults
+PatchParameter_base::ExportXml
+CPatchManager::ExportXml
+CContainer::ExportXml
+TideApp::exportChunkXml
+TideApp::serviceDocumentSync
+SynthEditGui::onTimer
+```
+
+**It is a new signature, measured against the other ten reports on this box
+today:** every one of those is `EXC_CRASH` in `LoadPrefab`,
+`RegisterParameters` or `ImportChildren` — different exception class, different
+site. This is the only `EXC_BAD_ACCESS` and the only `getIgnoreProgramChange`.
+
+**It did NOT reproduce**: relaunching the same build and letting the sync timer
+tick for 100 s was clean. `exportChunkXml` runs on every tick, so the trigger is
+document state or interaction, not elapsed time. Filed as **E25** with the lead:
+the properties pane was showing `Ignore Program Change` for a ported module's
+parameters when it happened, and that is the accessor that faults.
+
+**Verified:** the fetch path from a clean build dir; the before/after panel
+metrics via `RACK_ADAPTOR_TRACE`; the parser control across four panel shapes;
+39 Fundamental modules still registering; the crash-signature comparison across
+all 11 reports.
+
+**Not verified:**
+
+- **Still no audio.** Registration, rendering and layout are all proven now;
+  nothing has been heard.
+- **The crash is not reproducible on demand**, so nothing is fixed.
+- **The 13 excluded modules**, Windows and Linux.
+
+**Learned:**
+
+- **`"100%"` parses as `100`**, and a percentage in an SVG's width is a real
+  authoring convention, not a malformed file.
+- **A floor on one axis hides a parse failure on both.** The height was wrong
+  too and got silently corrected, which is exactly why this looked like a width
+  problem for as long as nobody read the trace.
+- **Rendering an asset and reading it are different tests.** I rendered these
+  panels three entries ago and learned nothing about this, because the asset was
+  never the problem.
+- **`gh repo create --source` will not add a remote that already exists**, and
+  it reports that as a warning while still creating an empty repo.
+- **Public does not mean writable.** Two different access failures in one
+  session with the same 403 shape.
+
+**Next:**
+
+1. **[Adaptor#5](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/5)**
+   wants merging — without it every ported pack with percentage-sized panels
+   renders wrong.
+2. **E25** needs a reproduction before anything else.
+3. **Make one make a sound.** It is the only thing in E20-E25 still untouched.
+
+**Machine left clean.** Scratch build trees and worktrees; no TIDE process left
+running (checked); nothing installed. `HetrickCV_gmpi` and the adaptor clone are
+deliberate additions.
+
+**Branch/PR:** `tide/mac/E25-sync-export-crash` — the E25 row and this entry.
+## 2026-08-25 — macos — HetrickCV runs in TIDE: 66 modules registered, 104 with Fundamental alongside (interactive, Jeff directing)
+
+**Prompt:** merge PRs / then lets run the standalone with the new modules
+
+**Did:** merged [SynthEdit_Rack_Adaptor#3](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/3),
+built the HetrickCV port, added `TIDE_VCV_HETRICKCV`, and **ran it**. This is
+the entry where E20 stops being a reading and becomes an observation:
+
+```
+TIDE: HetrickCV — 66 module(s) registered
+```
+
+The port repo does not exist on GitHub yet — everything here was built against
+the local tree through `HETRICKCV_FOLDER_OVERRIDE`, which is exactly what the
+override mechanism is for.
+
+### Linking found four things a syntax check could not
+
+The previous entry said 66 TUs compiled and warned they were **not linked**.
+That caveat paid, in order:
+
+1. **`plugin.hpp`** — `rack_module_resources()` generates
+   `RackPanelResources.h` with `#include "plugin.hpp"`, Rack's convention.
+   HetrickCV's equivalent is `HetrickCV.hpp`. Fixed with a one-line forwarder in
+   the port, not by teaching the generator a second filename — every ported pack
+   would inherit that.
+2. **Shared implementation units.** HetrickCV keeps class bodies in their own
+   `.cpp`; `HCVCuspMap::generate()` surfaced it. Compiling only the module
+   wrappers left four units out.
+3. **Gamma sources** — only its headers were vendored. Upstream's Makefile
+   compiles `arr`, `Domain`, `scl`; Gamma's own CMakeLists names four more the
+   plugin build does not use.
+4. **`vtable for InverterWidget`**, which was really a missing NanoVG blend
+   enum: that TU failed to compile, and the *link* reported the vtable.
+   [Adaptor#4](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/4).
+
+**A guard I wrote wrong, and it is the instructive one.** The single-copy check
+for `RackAdaptorStaticRegistration` was a `CACHE INTERNAL` variable. A cache
+entry **survives between configures**, so the first configure added the object
+and the *second* skipped it — every `autoRegisterModel()` came out undefined,
+on a tree that had built minutes earlier. It is a `GLOBAL PROPERTY` now, which
+is the per-configure scope the guard actually wanted.
+
+### Both packs together: one real collision
+
+I wrote "both packs can be ON together" into a CMake comment and then tested
+it. **It was false.** A Rack `Model` is a **global symbol**, so a module name in
+two packs collides at link with a duplicate-symbol error naming neither pack.
+
+**The overlap is exactly one name — `MidSide` — out of 66 and 38.** The port
+takes `HETRICKCV_EXCLUDE_MODULES` and TIDE sets it to `MidSide` when both
+options are on; Fundamental's copy wins because its set is smaller and more
+curated, and the line says how to invert that.
+
+| build | registered |
+|---|---|
+| HetrickCV alone | **66** |
+| both packs | **104** |
+
+104 rather than 103 because **Fundamental registers 39 from 38 object
+libraries** — one TU registers two models. 39 + 65 = 104, so the totals are
+consistent rather than one of them being wrong.
+
+**Verified:** configure rc=0 and build rc=0 in both configurations; the
+standalone launched and stayed up in both; the S17 shadowing guard correctly
+refused a tree that had both a fetched and an overridden adaptor, which is what
+sent me to a clean build dir.
+
+**Not verified, and it is the same gap one step further on:**
+
+- **No module has been PLAYED.** Registration and a clean launch are not audio.
+- **No panel has been LOOKED at.** After all the rendering work two entries ago,
+  I still have not seen a HetrickCV module drawn in TIDE.
+- **The 13 excluded modules** are still excluded.
+- **Windows and Linux.** macOS only.
+
+**Learned:**
+
+- **A cache variable is the wrong tool for a once-per-configure guard**, and it
+  fails on the *second* run, which is the one you do not re-test.
+- **Syntax-only tells you nothing about shared implementation units.** Four of
+  them, invisible until the link, in a pack whose modules all compiled.
+- **A comment asserting a capability is a claim; test it.** "Both packs can be
+  ON together" was written by me, believed by me, and wrong — one link away.
+- **A missing enum can surface as a missing vtable**, because the TU that fails
+  to compile is also the one defining the class.
+
+**Next:**
+
+1. **Create `HetrickCV_gmpi`** and push — the tree is committed and ready at
+   `~/Documents/GitHub/HetrickCV_gmpi`, remote preset. Until it exists the
+   option only works via the folder override.
+2. **Play one.** Registration is proven; audio and panels are not.
+3. **[Adaptor#4](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/4)**
+   is a prerequisite for the build in this entry.
+
+**Machine left clean.** Scratch worktrees and build trees only; nothing built in
+Jeff's checkouts, nothing installed. `HetrickCV_gmpi` and the adaptor clone are
+deliberate additions, both committed.
+
+**Branch/PR:** `tide/mac/E20-hetrickcv-option` — the option, the link, the
+flush, and this entry.
 ## 2026-08-25 — macos — E20: 66 of HetrickCV's 79 files compile, and the CC0 pack has an MIT dependency (interactive, Jeff directing)
 
 **Prompt:** great. do E20

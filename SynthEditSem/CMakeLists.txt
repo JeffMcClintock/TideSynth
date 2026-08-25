@@ -988,6 +988,19 @@ foreach(kind IN LISTS FORMATS_LIST)
 		)
 	endif()
 
+	# TIDE_VCV_HETRICKCV -- the CC0 HetrickCV ports, same mechanism. Both packs
+	# can be ON together: their aggregates share one adaptor and cooperate over
+	# which contributes RackAdaptorStaticRegistration, and the single
+	# registerDeferredModules() flush in TideApp drains whatever queued.
+	if(TIDE_VCV_HETRICKCV)
+		target_link_libraries(${SUB_PROJECT_NAME}
+			PRIVATE HetrickCV_static
+		)
+		target_compile_definitions(${SUB_PROJECT_NAME} PRIVATE
+			TIDE_VCV_HETRICKCV=1
+		)
+	endif()
+
 	if(WIN32)
 	target_link_libraries(${SUB_PROJECT_NAME}
 			 PRIVATE Version.lib

@@ -27,8 +27,8 @@
 #include "ModuleBrowser.h"
 #include "PropertiesBrowser.h"
 
-#if TIDE_VCV_FUNDAMENTAL
-#include "RackFactory.h" // rack_adaptor::registerDeferredModules — the GPL VCV ports
+#if TIDE_VCV_FUNDAMENTAL || TIDE_VCV_HETRICKCV
+#include "RackFactory.h" // rack_adaptor::registerDeferredModules — the ported Rack modules
 #endif
 
 // TIDE ships none of SynthEdit's editor dialogs (PLAN constraint 5), and two of
@@ -674,9 +674,9 @@ bool TideApp::InitInstance()
 	// instance re-scanned every module and tripped RegisterParameters's
 	// assert("Already scanned parameters"), aborting the extension process.
 	// auval could not open the AU at all; it can now.
-#if TIDE_VCV_FUNDAMENTAL
-	// The VCV Fundamental ports (TIDE_VCV_FUNDAMENTAL, root CMakeLists — GPL,
-	// OFF by default). Their createModel() lines QUEUED registrations during
+#if TIDE_VCV_FUNDAMENTAL || TIDE_VCV_HETRICKCV
+	// The ported Rack modules — VCV Fundamental (GPL) and/or HetrickCV (CC0),
+	// each behind its own root-CMakeLists option, both OFF by default. Their createModel() lines QUEUED registrations during
 	// static init; the XML generator cannot run there, because a module's
 	// RACK_DISPLAY_STATE is declared after upstream's .cpp registers. By now
 	// static init is long over, so flushing builds every module's XML and
@@ -686,9 +686,21 @@ bool TideApp::InitInstance()
 	// below in the enrichment loop needs to know these exist. Idempotent
 	// inside the adaptor, for the same several-instances-one-process reason
 	// as s_xmlMerged.
+	//
+	// ONE flush drains the whole queue, whichever packs are linked, so the
+	// count is reported against the set that is actually in this binary
+	// rather than per pack -- the adaptor's queue does not record which repo
+	// a registration came from, and inventing a split here would be a guess.
 	{
 		const int registered = rack_adaptor::registerDeferredModules();
-		fprintf(stderr, "TIDE: VCV Fundamental — %d module(s) registered\n", registered);
+#if TIDE_VCV_FUNDAMENTAL && TIDE_VCV_HETRICKCV
+		const char* which = "VCV Fundamental + HetrickCV";
+#elif TIDE_VCV_FUNDAMENTAL
+		const char* which = "VCV Fundamental";
+#else
+		const char* which = "HetrickCV";
+#endif
+		fprintf(stderr, "TIDE: %s — %d module(s) registered\n", which, registered);
 	}
 #endif
 
