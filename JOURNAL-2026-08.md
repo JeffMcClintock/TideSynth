@@ -28059,3 +28059,261 @@ exist is any marker for "rack-relevant", so the row lists candidates —
 prefab-vs-module, the existing `category=` attribute the browser already reads
 at `:758`, or a new flag — and leaves the choice to Jeff.
 
+## 2026-08-24 — macos — R7: half was already done, and the other half is deferred (interactive)
+
+**Prompt:** lets do the ones that need admin interactivly / we're already sucessfully codesigning with azure, why do anything / lets say "forget it till it breaks", for now.
+
+Jeff opened admin-requiring rows to interactive sessions, so I took R7. Two
+findings, and the second is a correction to my own approach.
+
+**Part (1) was already done.** The row describes an ungated exposure — a workflow
+edit on any `tide/**` agent branch executing with read access to all 8
+credentials. Measured on the live repo, it cannot happen: a `release` environment
+exists with Jeff as a REQUIRED REVIEWER, all 8 credentials are in it, repo-level
+secret count is **0**, `release.yml` declares `environment: release`, and
+`build.yml` / `auto-merge.yml` touch only `GITHUB_TOKEN`. The row was stale and I
+would not have known without checking the API rather than reading the row.
+
+**On part (2) I was working the row instead of the situation.** I had researched
+the OIDC migration, confirmed the action supports it, found the missing
+`azure-subscription-id`, drafted the Apple API-key swap, and written Jeff a list
+of portal steps — before asking whether any of it was worth doing. His reply:
+*"we're already successfully codesigning with azure, why do anything"*. Correct.
+With (1) in place the remaining benefit is an expiry that has not arrived and a
+credential that is already gated behind his approval, against the cost of
+changing a working release path that CANNOT BE TESTED without cutting a real tag.
+
+Ruled: *"forget it till it breaks, for now."* Marked WONTFIX rather than left
+TODO, so it stops being re-picked off the queue.
+
+**The research is on the row rather than thrown away**, because the next person
+to want this should not re-derive it: the action does support OIDC and
+`azure-client-secret` is optional, but OIDC also wants `azure-subscription-id`
+(configured nowhere), the job needs `id-token: write` (it has only
+`contents: read`), and the Apple half is `notarytool --key/--key-id/--issuer`
+behind a new App Store Connect key.
+
+**The one cheap thing that would pre-empt the trigger:** both secrets were
+created 2026-08-09, and an Entra client secret's expiry is visible only in the
+portal. A 30-second look there is worth more than the migration.
+
+**Not verified:** nothing was changed, so there is nothing to verify. The
+measurements are live API reads, re-runnable.
+## 2026-08-24 — windows — V4: the three candidate markers, measured — one of them selects nothing (interactive, Jeff directing)
+
+**Did:** synced all 23 repos, then took **V4**. STEP 1 clear (no open
+`platform:win` issues), STEP 1.5 clear. **There are no `platform: win` rows left
+at all** — P3 was the last one and it is DONE, so this box's queue is now the
+`any` queue, the same place the mac box reached two days ago.
+
+### What the row asked for, and why it could not just be built
+
+V4 wants the rack view's module browser to offer only rack-relevant modules. It
+names the discriminator as an open question and says it *"should be ruled rather
+than invented"*, offering (a) prefab-vs-module, (b) the existing `category=`
+attribute, (c) a new explicit marker.
+
+That is a correct instruction and it is also the whole cost of the row — the
+plumbing is one filter. So the useful work was not to pick one, but to **measure
+what each would actually select**, and escalate with numbers instead of opinion.
+
+### The measurement
+
+| option | selects **today** | mechanism |
+|---|---:|---|
+| **(a) prefab-vs-module** | **9 of 9** | already exists — `ExportModules(list, includePrefabs)` + the `*P=` unique-id prefix |
+| **(b) `category=`** | **0 of 9** | cannot see prefabs at all |
+| **(c) new marker** | 0 until authored | new field, new plumbing |
+
+**(b) fails structurally, not by degree, and this is the finding.** A regular
+module's group comes from its XML: `mm.group = GetGroupName(u)`, reading the
+`category=` attribute — **273 modules across 32 distinct categories**. **A prefab
+has no module XML.** Its group is derived from its *file path*
+(`ModuleFactory_Editor.cpp:2387-2395`), and **#377 flattened `RackModules/`**, so
+the nine rack prefabs carry no group at all.
+
+And the rack's entire content today **is** those nine prefabs. So the option that
+reads categories selects none of the things the rack is made of.
+
+There is also **no rack- or TiDE-named category anywhere in the tree** — checked
+across both repos' module XML — so (b) is not merely empty by accident, it has
+nothing to read even in principle until someone adds the field.
+
+### The recommendation is a fourth option, and only because the row's own objection is right
+
+V4 says (a) is *"nearly right but excludes any future non-prefab rack module"*.
+True. But the answer to that is not to adopt an option that is empty today — it
+is to write the predicate as a **union**: *is it a prefab from the rack folder,
+**or** is it marked rack-relevant?* The second half selects nothing until
+something claims it, costs one clause, and removes the migration later.
+
+Filed as **(d)** in the `PROPOSED:` entry, with (a) and (b) left on the table
+because the ruling is Jeff's, not mine.
+
+**The plumbing may proceed under any option and is stated as such in the entry:**
+`ModuleBrowser.cpp:56` and `:99` hard-code `includePrefabs = true`, and
+`TideApp.cpp:147` already computes `isRackLevel` for exactly this
+rack-vs-structure distinction. Getting that value down to the browser is the same
+work whichever predicate wins.
+
+**Verified:** the counts are greps over the tree, re-runnable — `273` and `32`
+from `category="…"` across `SynthEditLib/modules/*/*.xml`, `9` from
+`RackModules/*.synthedit`, and the `*P=`/path-derived group claims read out of
+`ModuleFactory_Editor.cpp` and `SynthEditAppBase.cpp:1334` rather than inferred.
+
+**Not verified:** nothing was built or run this item — it is a measurement and an
+escalation, and no code changed. The claim that the plumbing is option-independent
+is read from the two call sites, not demonstrated by building it.
+
+**Learned:**
+
+- **"Ruled rather than invented" does not mean "stop" — it means measure, then
+  escalate with numbers.** Two greps turned a three-way design argument into one
+  option that works, one that is empty, and one that is future work. The ruling
+  is still Jeff's, but it is now a much shorter question.
+- **An option can fail because the data it reads does not exist for the thing
+  being selected.** (b) sounded like the tidy answer — reuse the field the
+  browser already reads — and prefabs simply have no XML for it to read. Worth
+  checking that a proposed discriminator can *see* its subjects before comparing
+  it on elegance.
+- **A flattening commit changed what a proposed option would select.** #377
+  removed the `RackModules/` subfolder, which is where a prefab's group comes
+  from, so the path-derived answer went to empty as a side effect of an unrelated
+  tidy-up. Options that read incidental structure are fragile in ways the row
+  cannot anticipate.
+
+**Next:**
+
+1. **Jeff rules (a), (b), (c) or (d)** by merging or editing the `PROPOSED:`
+   entry. The default in effect meanwhile is today's behaviour — the rack offers
+   everything, which is noisy rather than broken.
+2. **The plumbing is takeable now** by anyone, under any outcome.
+3. **This box has no `platform: win` rows left.** The `any` queue is what it has,
+   and most of what is on it needs a ruling or a workflow-scoped token.
+
+**Machine left clean.** One throwaway worktree under the session scratchpad, no
+build trees, nothing installed. All 23 repos on their default branches; the four
+dormant product repos with large uncommitted trees (`SE15` 407 files, `SSG` 194,
+`Waves` 102, `Optimus_1_5` 47) were fetched and left untouched, as were the two
+active repos' own working changes.
+
+**Branch/PR:** `tide/win/V4-rack-filter-ruling` — TideSynth only, no code change.
+## 2026-08-24 — linux — V6's risk discharged: a root paste does carry connections, and the row's fork is now live (interactive, Jeff directing)
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** STEP 1 first — closed [#373](https://github.com/JeffMcClintock/TideSynth/issues/373),
+a CI-filed linux build failure, by building `main`. Then took **V6** and did the
+one thing its row asks for before anything else: **verified the root-level paste.
+Nothing has been deleted.**
+
+### #373, closed on a build
+
+CI filed it against `tide/mac/S44-delete-stranded-branch`, which had since merged
+and been auto-deleted — so the head it named no longer existed. The break was
+never branch-specific:
+
+```
+StandardCommandIds.h:54:41: error: expected identifier before numeric constant
+CContainer.h:19:1:          error: expected declaration before '}' token
+```
+
+`CContainer.h` declared its own enum for four command ids under `#ifndef _WIN32`;
+**P3** added `StandardCommandIds.h`, which `#define`s the same four on *every*
+platform, and the macros then expanded inside the enum. **Windows never saw it
+because the enum was compiled out there** — the platform that would have caught
+it is the one the guard excluded. Fixed by `c0bc053` before I got there; verified
+by building the full tree from current `main`: **483/483, rc=0, all four Linux
+artifacts, zero occurrences of the error.**
+
+### V6: why the risk was real, not ceremonial
+
+The row says *"the risk is the root-level paste, which should be verified before
+the C++ is deleted"*. It is easy to read that as diligence. It was not:
+
+**All nine shipped prefabs in `RackModules/` have exactly one top-level module
+and zero top-level lines.** The case V6 depends on — several top-level modules
+plus connections *between* them, pasted at the root — has never been exercised
+anywhere in this product.
+
+### The experiment, and the control that makes it a measurement
+
+A deliberately minimal prefab: two top-level modules (`MIDI In`,
+`SE MIDI to CV 2`) and one top-level line between them. Nothing else, so a
+failure would have exactly one possible cause. Armed from the browser and
+click-placed at the root (arm-then-click, per the 2026-08-20 finding).
+
+**The control is that `seedRootMidiCv()`'s own pair is in the same saved
+document.** So the pasted result is compared against the C++'s output, in the
+same run, rather than against my judgement:
+
+| | editor half | DSP half |
+|---|---|---|
+| **seeded (C++)** | `fMod="1521837852" tMod="1620974935" fPlg="1"` | `<Line From="1521837852" To="1620974935"/>` |
+| **pasted (prefab)** | `fMod="811000001" tMod="811000002" fPlg="1"` | `<Line From="811000001" To="811000002"/>` |
+
+Byte-equivalent. **`fPlg="1"` surviving is the load-bearing detail** — pin 1 is
+`MIDI Data`, pin 0 is the GUI `Activity` input, so a paste that dropped the pin
+index would have wired the wrong plug **and still looked structurally correct**.
+
+Fixture and recipe committed at `tests/fixtures/v6-multi-module-paste.synthedit`,
+so this is re-runnable rather than a claim.
+
+### Why I stopped there rather than finishing V6
+
+The row offers *"one prefab or default document"*, and those are not the same
+build. `seedPrefabsFromBundle()` scans `Resources/Prefabs` **recursively** and
+puts everything it finds in the module browser — so shipping the root assembly as
+a prefab there makes it **user-insertable**, which reopens precisely the question
+this row records as closed: *"there is exactly one, TIDE owns it, and 'what if the
+user adds a second' stops being a question."*
+
+Three shapes, none dominant:
+
+- **(a) prefab in `Prefabs/`** — simplest; browsable and duplicable.
+- **(b) prefab outside `Prefabs/`** — not browsable, but `ResolveFilename` only
+  searches `kPrefabFolder`, so it needs a resolve path or an absolute one.
+- **(c) default document** — closest to the row's intent, largest change.
+
+STEP 2 says a run may only do work that is identical under every open answer. The
+verification is; the implementation is not. **Row set to NEEDS-JEFF with the fork
+and its cost written down**, rather than picking and calling it a decision.
+
+**Verified:** `main` full tree 483/483 rc=0; the paste experiment with its
+in-document positive control; nine-prefab survey by XML parse, not by eye.
+
+**Not verified:**
+
+- **The full five-connection assembly** — only the two-module, one-line case was
+  built. The facade wiring (`fPlg 4/3/5/2 → tPlg 7/8/9/10`) is extracted and on
+  the row, but not exercised.
+- **That a pasted `SE MIDI to CV 2` at root still clones per voice** — E7's
+  polyphony requirement is the reason the module must be at root at all, and a
+  paste is a different code path from `AddModule`. **This is the thing I would
+  test first** if the ruling is (a) or (b).
+- **Any audio.** Structure only.
+
+**Learned:**
+
+- **"Verify X before deleting Y" earns its place when X has never happened.** The
+  nine-prefab survey took one script and turned a procedural-sounding instruction
+  into a real precondition.
+- **Put the control in the same artifact as the subject.** The seeded pair and the
+  pasted pair are in one saved document, so "did it wire correctly" became a diff
+  rather than an interpretation.
+- **A minimal repro is worth more than a faithful one here.** Two modules and one
+  line means a failure has one cause; building the whole five-connection assembly
+  first would have conflated the paste with the pin arithmetic.
+- **A CI issue can name a head that no longer exists.** #373 pointed at a merged,
+  auto-deleted branch; the break was on `main` all along, and building `main` is
+  what settled it.
+- **Check what a folder scan actually enumerates before shipping a file into it.**
+  `seedPrefabsFromBundle` recursing is the whole reason (a) is not free.
+
+**Machine left clean.** Headless weston stopped, standalone stopped, scratch
+`HOME`s throughout; the test prefab was copied into a scratch build tree, never
+into Jeff's. All six repos on their default branches and clean.
+
+**Branch/PR:** `tide/linux/V6-root-midicv-prefab` — TideSynth only: the fixture,
+its README, the V6 row and this entry. **No product code change** — deliberately,
+since V6's implementation is what the ruling decides.
