@@ -8,6 +8,56 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 - macos - iOS runs, the bundle rule was wrong in three places, and M9 filed
+
+**Prompt:** interactive
+
+**Did:** Jeff: *"IOS is still wanted"*. Took the iOS AUv3 from never-launched to
+installed, launched and registered - and found the fix I shipped this morning
+was only a third of the problem.
+
+**THREE functions located the bundle by walking for a `Contents` component**, not
+one. [SynthEditLib#52](https://github.com/JeffMcClintock/SynthEditLib/pull/52)
+fixed `CreatePluginBundleRef`; `getPluginPath` and `getBundleContentsFolder`
+still had the original first-`Contents` bug.
+
+**`Contents` cannot work for two independent reasons.** Nested bundles have TWO
+(so the first is the host app - the M5/M7 empty-plugin bug), and **iOS has NONE**
+- the layout is flat, `<host>.app/PlugIns/<plugin>.appex/<exe>`, payload in the
+bundle root. So iOS resource lookup has NEVER worked; #52 merely changed it from
+"wrong bundle" to "no bundle".
+
+`bundleRootOf()` takes the deepest ancestor with a bundle suffix. Checked against
+all seven artifacts TIDE builds - **old rule wrong on 3 of 7, new rule correct on
+7 of 7**. Standalone, `.vst3` and `.gmpi` have exactly one `Contents`, so they
+were never affected either way.
+[SynthEditLib#55](https://github.com/JeffMcClintock/SynthEditLib/pull/55), merged.
+
+**Verified:** macOS standalone still enriches 4 XMLs, seeds 9 prefabs and the
+root MIDI-CV; macOS AUv3 still passes `auval` with 0 `retrievedValue` warnings;
+iOS installs, launches, extension registers. **NOT verified:** that the iOS
+extension then loads its resources - that needs the AU instantiated, and **the
+simulator has no AUv3 host and no `auval`**.
+
+**A FALSE NEGATIVE, AGAIN, AND THE SAME SHAPE AS THIS MORNING.** Asked whether
+the code was still relevant, I grepped the scratchpad worktrees - which had been
+REAPED - got nothing back, and briefly read that as "the function is gone". An
+empty result from a missing input is not evidence. Caught only because the other
+half of the same command also failed. **Check the input exists before believing
+an empty result.**
+
+**Filed M9: the iOS container app should host its own AUv3.** (M8 was taken by a scheduled run the same day - the grep-before-filing rule caught it.) An iOS AUv3 cannot
+ship as a bare `.appex`, so the app exists regardless; making it host the
+extension gives iOS a standalone AND the AU host we otherwise have no way to get.
+
+**Jeff asked whether doing the same on macOS would mean less code overall.
+Measured: no, and the intuition inverts.** `wrapper/Standalone` is 17,311 lines,
+but 1209 is WASAPI, 990 PipeWire, ~2500 the MCP/IPC headless test surface - none
+replaced by AU hosting. Only CoreAudio's 1046 could go. You would end up with two
+standalone implementations instead of one. The real upside is coverage: an
+AU-hosted standalone would have caught the M5 empty-AU bug immediately - at the
+cost of the standalone-vs-AU divergence used as a diagnostic twice today.
+
 ## 2026-08-26 — windows — E19: the standalone leg passes, and a controlled A/B says the VST3 silently drops any rack over ~14 KB
 
 **Prompt:** b97bc00a5 · claude-opus-5[1m] · app version not readable on this box (no `claude` on PATH, no version file under `%LOCALAPPDATA%`) · as `tide-rack-bot` (both)
