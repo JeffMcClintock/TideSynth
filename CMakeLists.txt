@@ -409,11 +409,29 @@ add_subdirectory(${syntheditlib_folder}/EditorLib EditorLib)
 # scope (ModuleScope::RackOnly) requires a module to start with to be listed.
 option(TIDE_VCV_FUNDAMENTAL "Bundle the GPL VCV/Cardinal Fundamental module ports (makes the binaries GPL-3.0-or-later)" OFF)
 
-if(TIDE_VCV_FUNDAMENTAL)
-  message(STATUS "TIDE_VCV_FUNDAMENTAL is ON: the resulting binaries are GPL-3.0-or-later")
+# HetrickCV — the PERMISSIVE pack, and the licensing difference is the point.
+# HetrickCV's own sources and panel art are CC0-1.0, and the adaptor is now
+# dual-licensed (ISC OR GPL-3.0-or-later), so this one does NOT make the
+# binaries GPL. It is still OFF by default because a fixed module set is a
+# product decision, not a build convenience.
+#
+# IT IS NOT ATTRIBUTION-FREE, though its headline licence looks it: the port
+# vendors Gamma (MIT, (c) 2006 Lance Putnam) and HetrickUtilities.hpp includes
+# it, so every module depends on MIT code whose notice must be retained. A
+# build that ships this owes that notice -- see BACKLOG E22.
+option(TIDE_VCV_HETRICKCV "Bundle the CC0 HetrickCV module ports (permissive; keeps the binaries non-GPL)" OFF)
+
+if(TIDE_VCV_FUNDAMENTAL OR TIDE_VCV_HETRICKCV)
+  if(TIDE_VCV_FUNDAMENTAL)
+    message(STATUS "TIDE_VCV_FUNDAMENTAL is ON: the resulting binaries are GPL-3.0-or-later")
+  endif()
+  if(TIDE_VCV_HETRICKCV)
+    message(STATUS "TIDE_VCV_HETRICKCV is ON: HetrickCV is CC0, and it carries Gamma (MIT) -- ship the notice")
+  endif()
 
   set(RACK_ADAPTOR_FOLDER_OVERRIDE "" CACHE PATH "path of a local SynthEdit_Rack_Adaptor repo, or blank to fetch it automatically.")
   set(VCV_FUNDAMENTAL_FOLDER_OVERRIDE "" CACHE PATH "path of a local VCV_Fundamental_gmpi repo, or blank to fetch it automatically.")
+  set(HETRICKCV_FOLDER_OVERRIDE "" CACHE PATH "path of a local HetrickCV_gmpi repo, or blank to fetch it automatically.")
 
   # The adaptor's ordinary target serves .gmpi builds; this option makes it
   # ALSO define the static-host pair (SynthEditRackAdaptorStatic +
@@ -444,6 +462,7 @@ if(TIDE_VCV_FUNDAMENTAL)
 
   # SOURCE_SUBDIR static_library: the repo root is the .gmpi superproject
   # (own CPM bootstrap, own SDK fetches, wrappers) and must not run here.
+  if(TIDE_VCV_FUNDAMENTAL)
   if("${VCV_FUNDAMENTAL_FOLDER_OVERRIDE}" STREQUAL "")
     message(STATUS "Fetching VCV_Fundamental_gmpi from github")
     FetchContent_Declare(
@@ -459,6 +478,39 @@ if(TIDE_VCV_FUNDAMENTAL)
     add_subdirectory(${VCV_FUNDAMENTAL_FOLDER_OVERRIDE}/static_library VCV_Fundamental)
     tide_check_not_shadowed(vcv_fundamental "${VCV_FUNDAMENTAL_FOLDER_OVERRIDE}")
     tide_report_dependency(VCV_Fundamental "${VCV_FUNDAMENTAL_FOLDER_OVERRIDE}" "local override")
+  endif()
+  endif()
+
+  # HetrickCV, same shape. Both packs share the adaptor resolved above, and the
+  # static_library/ aggregates cooperate over which one contributes the single
+  # RackAdaptorStaticRegistration object -- linking two copies of the deferred
+  # queue would register everything twice.
+  if(TIDE_VCV_HETRICKCV)
+  # Both packs at once: a Rack Model is a GLOBAL symbol, so a module name in
+  # both collides at link with a duplicate-symbol error naming neither pack.
+  # Measured 2026-08-25: the overlap is exactly ONE name, MidSide, out of 66
+  # and 38. Fundamental's copy wins because its set is the smaller and more
+  # curated one; invert this line to keep HetrickCV's instead.
+  if(TIDE_VCV_FUNDAMENTAL)
+    set(HETRICKCV_EXCLUDE_MODULES "MidSide" CACHE STRING "" FORCE)
+    message(STATUS "Both module packs are ON: excluding HetrickCV's MidSide, which collides with Fundamental's")
+  endif()
+  if("${HETRICKCV_FOLDER_OVERRIDE}" STREQUAL "")
+    message(STATUS "Fetching HetrickCV_gmpi from github")
+    FetchContent_Declare(
+      hetrickcv
+      GIT_REPOSITORY https://github.com/JeffMcClintock/HetrickCV_gmpi
+      GIT_TAG origin/main
+      SOURCE_SUBDIR static_library
+    )
+    FetchContent_MakeAvailable(hetrickcv)
+    tide_report_dependency(HetrickCV "${hetrickcv_SOURCE_DIR}" "fetched")
+  else()
+    message(STATUS "Using local HetrickCV_gmpi folder")
+    add_subdirectory(${HETRICKCV_FOLDER_OVERRIDE}/static_library HetrickCV)
+    tide_check_not_shadowed(hetrickcv "${HETRICKCV_FOLDER_OVERRIDE}")
+    tide_report_dependency(HetrickCV "${HETRICKCV_FOLDER_OVERRIDE}" "local override")
+  endif()
   endif()
 endif()
 
