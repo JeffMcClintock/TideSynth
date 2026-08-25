@@ -6,7 +6,7 @@ using namespace gmpi;
 using namespace gmpi::editor;
 using namespace gmpi::drawing;
 
-class PatchPointGui final : public PluginEditor
+class PatchPointGui final : public PluginEditor, public gmpi::api::IDrawingLayer
 {
 	// Radius of the clickable disc, and of the debug outline.
 	static constexpr float radius = 9.0f;
@@ -15,14 +15,27 @@ class PatchPointGui final : public PluginEditor
 public:
 	PatchPointGui() = default;
 
-	ReturnCode render(gmpi::drawing::api::IDeviceContext *drawingContext) override
+	// Layer 4 = editor guide (see IDrawingLayer in NativeUi.h): a design-time-only
+	// overlay pass, so the debug outline still needs its own _DEBUG guard to stay
+	// out of Release-configuration modules loaded into the same editor. Once a
+	// plugin implements IDrawingLayer, render() is never called for layer 0 either
+	// -- so all drawing, not just this guide, lives here now.
+	ReturnCode renderLayer(gmpi::drawing::api::IDeviceContext* drawingContext, int32_t layer) override
 	{
-#ifdef _DEBUG
-		Graphics g(drawingContext);
+		if (layer == 4)
+		{
+			Graphics g(drawingContext);
 
-		g.drawCircle(center, radius + 0.5f, g.createSolidColorBrush(Colors::Gray));
-#endif
-		return ReturnCode::Ok;
+			StrokeStyleProperties strokeStyleProperties{};
+			strokeStyleProperties.lineCap = CapStyle::Round; // Flat caps don't draw dots on Windows.
+			strokeStyleProperties.dashStyle = DashStyle::Dot;
+			auto dottedStroke = g.getFactory().createStrokeStyle(strokeStyleProperties);
+
+			g.drawEllipse({ center, radius + 0.5f, radius + 0.5f }, g.createSolidColorBrush(Colors::Orange), 1.0f, dottedStroke);
+
+			return ReturnCode::Ok;
+		}
+		return ReturnCode::NoSupport;
 	}
 
 	// Fixed size: return the same constant regardless of availableSize. That is how
@@ -43,6 +56,30 @@ public:
 		const float dy = point.y - center.y;
 
 		return dx * dx + dy * dy <= radius * radius ? ReturnCode::Ok : ReturnCode::Fail;
+	}
+
+	int32_t addRef() override
+	{
+		return PluginEditor::addRef();
+	}
+
+	int32_t release() override
+	{
+		return PluginEditor::release();
+	}
+
+	ReturnCode queryInterface(const gmpi::api::Guid* iid, void** returnInterface) override
+	{
+		*returnInterface = {};
+
+		if ((*iid) == gmpi::api::IDrawingLayer::guid)
+		{
+			*returnInterface = static_cast<gmpi::api::IDrawingLayer*>(this);
+			PluginEditor::addRef();
+			return ReturnCode::Ok;
+		}
+
+		return PluginEditor::queryInterface(iid, returnInterface);
 	}
 };
 
