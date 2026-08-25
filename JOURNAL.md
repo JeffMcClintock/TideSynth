@@ -8,6 +8,80 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — windows — the installed VST3 had no resources: local dev builds now assemble a real bundle folder in Common Files\VST3 (interactive, Jeff directing)
+
+**Prompt:** a screenshot of Ableton Live showing "Can't open file
+C:\Program Files\Common Files\VST3\MidiCv.synthedit, error =
+XML_ERROR_FILE_NOT_FOUND", captioned "TIDE VST3 in Ableton Live". Then,
+mid-diagnosis, when offered a one-off fix vs a systemic one: "Developer local
+builds need to produce a working plugin."
+
+**Root cause, traced through the actual resolution code, not guessed.** The
+file sitting at `Common Files\VST3\TIDE-Rack.vst3` was a LOOSE FILE
+(16,381,440 bytes — byte-identical to that morning's
+`build\SynthEditSem\Debug\TIDE-Rack.vst3`), dropped there automatically by
+`gmpi_plugin.cmake`'s `copy_plugin()` under `SE_LOCAL_BUILD=ON` (confirmed
+`ON` in Jeff's actual build-tree cache). A loose file's own path has no
+`Contents` component, so `BundleInfo::pluginIsBundle` reads false,
+`getResourceFolder()` falls back to `getImbeddedFileFolder()` — the DLL's
+bare containing directory, no subfolder — and `TideApp::ResolveFilename`'s
+candidate (`resourceFolder/Prefabs/MidiCv.synthedit`) is absent there, so it
+falls through to the base resolver's `GetHomeDir()`, which computes the same
+bare directory again. Final path: `C:\Program Files\Common
+Files\VST3\MidiCv.synthedit` — the exact string in the dialog.
+
+This was never a one-off mistake. `SE_LOCAL_BUILD`'s Windows VST3 copy has
+always been binary-only (`copy_plugin()`'s WIN32 arm is one `copy /Y` of the
+`.vst3`), so it has been dropping a resource-less loose file into the SHARED
+`Common Files\VST3\` folder on every local build since prefabs existed —
+BACKLOG S36 (`SynthEditSem/CMakeLists.txt:617`) already documents that a
+non-bundled Windows VST3's resource folder IS its own bare directory, but
+nobody had connected that to the SE_LOCAL_BUILD auto-install path landing
+the binary somewhere with no resources beside it at all.
+`scripts/package-windows.ps1` already solves this correctly for the SHIPPED
+installer — it assembles a real `Contents\x86_64-win\...` bundle folder and
+its own comments warn *"Copy the FOLDER, not just the file inside it"* — but
+that script is a manual, occasional step, not part of the everyday
+build-and-run loop.
+
+**The fix, in two repos.**
+
+- **GMPI** (`gmpi_plugin.cmake`, branch `tide/win/no-local-vst3-copy-flag`):
+  a new `NO_LOCAL_VST3_COPY` option on `gmpi_plugin()`. Unset by default —
+  every other Windows VST3 plugin using this shared macro is untouched.
+  A plugin that needs more beside its binary than a flat copy can opt out
+  and own its whole local-install step instead of fighting a collision
+  between a loose file and a same-named folder.
+- **TideSynth** (`SynthEditSem/CMakeLists.txt`): passes the new flag, and
+  the per-format POST_BUILD loop grows a `WIN32 AND SE_LOCAL_BUILD AND
+  _fmt STREQUAL "VST3"` branch — the exact Windows sibling of the
+  `_tide_installed` block already there for macOS (added for the same
+  POST_BUILD-ordering reason: `copy_plugin()`/this step both run as
+  POST_BUILD, in call order). It `rm -rf`s whatever is at the destination
+  first (a stale loose file or a stale folder from a prior build must not
+  collide with or hide inside the new one), then assembles
+  `TIDE-Rack.vst3\Contents\x86_64-win\TIDE-Rack.vst3` +
+  `Contents\Resources\{Prefabs,*.xml}` — the identical shape
+  `package-windows.ps1` produces for release, now automatic on every local
+  build.
+
+**Verified by tracing the resolution chain against the real output, not by
+assuming the shape is right.** Built `TIDE_Rack_VST3` with
+`SE_LOCAL_BUILD=ON`: the POST_BUILD step ran clean, and
+`Common Files\VST3\TIDE-Rack.vst3\Contents\Resources\Prefabs\MidiCv.synthedit`
+now exists, byte-identical to `RackModules\MidiCv.synthedit` (`diff -q`).
+Walked `BundleInfo::pluginIsBundle`'s component scan by hand against the new
+nested path (`...\TIDE-Rack.vst3\Contents\x86_64-win\TIDE-Rack.vst3`): the
+`Contents` component now follows a component with `.vst3`'s extension, so
+`pluginIsBundle` reads true and `getResourceFolder()` computes exactly
+`...\TIDE-Rack.vst3\Contents\Resources\` — the folder that now holds the
+file. The stale pre-rename `TIDE_VST3.vst3` loose file is still sitting in
+`Common Files\VST3\` too, untouched by this fix; flagged for Jeff rather
+than deleted from a shared system folder unasked.
+
+**Not yet confirmed:** Jeff reopening Ableton Live and reloading TIDE — the
+only check this session could not run itself.
+
 ## 2026-08-25 — windows — "should that VCV LFO LED be blinking?" — yes, and the answer is TIDE's thin-slice gap, measured hop by hop (interactive, Jeff directing)
 
 **Prompt:** hey, should that VCV LFO LED be blinking? (and, mid-turn:
