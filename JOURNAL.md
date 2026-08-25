@@ -8,6 +8,101 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — macos — Rendered the candidate panels: the permissive packs don't draw their controls, and that inverts the pick (interactive, Jeff directing)
+
+**Prompt:** for the first attempts lets avoid modules unless we can use the artwork too / ps: help me grant access for tide-rack-bot
+
+**A correction to the entry below**, prepended rather than edited — that entry is
+pushed and [#413](https://github.com/JeffMcClintock/TideSynth/pull/413) is open,
+and a log you edit is not a log (#121). Rows updated on the same branch, per
+STEP 1.5.
+
+**Did:** Jeff's constraint — *"for the first attempts lets avoid modules unless
+we can use the artwork too"* — reads two ways, and they lead to different work.
+**Licensing:** all four packs already pass; that was the selection criterion, so
+under that reading the instruction is a no-op. **As-rendered:** does the panel
+actually carry its knobs and jacks, or does it come out bare? That one was open,
+so I settled it instead of asking.
+
+### Two geometry screens, both wrong, and the reason is the same
+
+**Screen 1** counted `<circle>` by radius against a jack-sized bucket. The
+**control** — Fundamental, which `RackEditor.h` states *does* carry component art
+— scored **zero jacks**. Its jack holes are `r=5.0` inside a 380-px viewBox,
+below my threshold.
+
+**Screen 2**, recalibrated on that, then reported **HetrickCV: 0 circles across
+12 panels**. That looked like a devastating result and it was an artefact:
+HetrickCV converts every shape to `<path>` (39-129 paths per panel). **The circle
+count was measuring AUTHORING STYLE, not content.** I nearly wrote "HetrickCV
+panels have no component art" off a number that could not have detected it.
+
+The control is what caught both. A screen that reports the known-good case as
+failing is broken, and that is cheaper to notice than to reason about.
+
+### Rendering answered it in one command
+
+`rsvg-convert -h 420 -b white`, two panels per pack, Fundamental as control:
+
+| pack | draws its own knobs/jacks? |
+|---|---|
+| **Fundamental** (control, GPL) | **yes** — knob circles with indicator lines |
+| **HetrickCV** | **no**, both samples — labels and dashed leaders on a blank faceplate |
+| **Nonlinear Circuits** | **mixed, per-module** — `1050 Mixer Sequencer` is the best panel measured, `8BitCipher` draws none |
+| **DHE-Modules** | no — labels and rules |
+| **CVfunk** | not evident — stylised dark panel |
+
+**The uncomfortable conclusion: the only pack that demonstrably carries its
+control art is Fundamental — the GPL one we are trying to avoid.** Licensing and
+drawability point at different packs, and no permissive pack is clean on both.
+**So the honest answer to Jeff's constraint is that E20 as filed does not satisfy
+it**, and saying so is worth more than shipping the pick I had already argued for.
+
+### What changed on the branch
+
+- **E23 filed** and it is now the highest-leverage row: teach `RackEditor` to
+  draw TIDE's own `TiDEknob` / `TiDE Patch Point In/Out` at the positions the
+  module already reports. The adaptor **has** the coordinates — it is placing an
+  indicator line per knob already. This converts four packs at once and touches
+  no licence.
+- **E20 demoted to `BLOCKED(E23)`.** Not withdrawn: CC0 code-and-art plus ~70
+  modules is still the best licensing on the board.
+- **E21 re-scoped** — NLC is mixed per-module, which means it holds genuine
+  first-attempt candidates. Its status stays `BLOCKED(E20)` because the row is
+  the pack-wide option; **the per-module path is E19's, which is TODO.** I first
+  wrote takeable-sounding prose onto that blocked row and had to fix it —
+  eligibility lives in the status column alone.
+- **E19** carries the measurement and the three renders, committed under
+  `docs/images/`.
+
+**Verified:** the renders themselves, with a positive control; two panels per
+pack rather than one, after `Crackle.svg` alone proved unrepresentative.
+
+**Not verified:** **no module has been ported.** This is a prediction from panel
+art plus `RackEditor.h`'s own statement, not an observed TIDE render — E19 still
+owns that. Only 2 of 31-86 panels were looked at per pack, so "mixed" for NLC is
+a floor, not a census.
+
+**Learned:**
+
+- **A screen that fails its positive control is broken, not informative** — and I
+  built two before rendering anything. The control cost nothing and caught both.
+- **Counting SVG primitives measures the authoring tool.** `<circle>` vs
+  `<path>` is Inkscape's "object to path", not a fact about the artwork.
+- **"Can we use the artwork" has a legal reading and a practical one**, and the
+  packs that pass each are different sets. Worth separating explicitly.
+- **`rsvg-convert` + looking is cheaper than any amount of parsing**, and it was
+  available the whole time.
+
+**Next:**
+
+1. **E23 first**, then E20/E21/E22 become straightforward.
+2. **`tide-rack-bot` still has `push=false`** on `SynthEdit_Rack_Adaptor`, where
+   E23's work lives, and **404s on `VCV_Fundamental_gmpi`**. No invitations are
+   pending — Jeff has the two `gh api` commands; I can accept from the bot side.
+3. The adaptor relicence branch is still unpushed, awaiting Jeff's read-back.
+
+**Branch/PR:** `tide/mac/E19-permissive-rack-packs` — [#413](https://github.com/JeffMcClintock/TideSynth/pull/413), same branch, no second PR.
 ## 2026-08-25 — macos — The adaptor is dual-licensed, and the permissive packs are picked and filed (interactive, Jeff directing)
 
 **Prompt:** research any VCV or Cardinal module that we could use that are permissively licensed including artwork / so lets change the adaptor to dual license. Then add to the backlog to add support for your pick of the best and most compatible collections. same as VCV fundamental pack, switchable at the cmake level. / make it a pr i can push myself

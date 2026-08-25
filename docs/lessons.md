@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **325 KB** across **251** entries, so copying them
+Learned sections are **326 KB** across **252** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **91 KB / 1004 lessons — 3.6x smaller**, and represents
+A8. This is **91 KB / 1008 lessons — 3.6x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-25
+
+**macos — Rendered the candidate panels: the permissive packs don't draw their controls, and that inverts the pick (interactive, Jeff directing)**
+
+- A screen that fails its positive control is broken, not informative
+- Counting SVG primitives measures the authoring tool.
+- "Can we use the artwork" has a legal reading and a practical one
+- `rsvg-convert` + looking is cheaper than any amount of parsing
 
 **macos — The adaptor is dual-licensed, and the permissive packs are picked and filed (interactive, Jeff directing)**
 

@@ -175,6 +175,43 @@ art *less* load-bearing across every pack at once.
 
 ---
 
+## 4a. MEASURED 2026-08-25: rendered, and it inverts §5's order
+
+§4 left the component-art question open and said one ported module would settle
+it. **Rendering the panels settles most of it for a fraction of the cost**, and
+the answer disqualifies the pack §5 recommends first.
+
+**Two SVG-geometry screens were tried before this and BOTH were wrong.** Counting
+circles by radius reported that Fundamental — the pack `RackEditor.h` says *does*
+carry component art — had **zero** jacks; its jack holes are `r=5.0` in a 380-px
+viewBox, under the threshold. Recalibrated, HetrickCV then scored **0 circles
+across 12 panels** — because it converts every shape to `<path>`. **The circle
+count was measuring authoring style, not content.** Only rendering answered it.
+
+Method: `rsvg-convert -h 420 -b white`, two panels per pack, Fundamental as the
+positive control.
+
+| pack | draws its own knobs/jacks? | evidence |
+|---|---|---|
+| **Fundamental** *(control, GPL)* | **yes** — knob circles with indicator lines | ![control](images/e19-panel-control-fundamental-lfo.png) |
+| **HetrickCV** | **no**, both samples — labels and leader lines on a blank faceplate | ![hetrickcv](images/e19-panel-hetrickcv-analogtodigital.png) |
+| **Nonlinear Circuits** | **mixed, per-module** — `1050` is the best panel measured, `8BitCipher` draws none | ![nlc](images/e19-panel-nlc-1050-mixerseq.png) |
+| **DHE-Modules** | no (`blossom`) — labels and rules | — |
+| **CVfunk** | not evident (`Alloy`) — stylised dark panel | — |
+
+**The uncomfortable conclusion: the only pack whose panels demonstrably carry
+their control art is Fundamental, the GPL one.** Licensing and drawability point
+at different packs, and no permissive pack is clean on both.
+
+That makes **E23** — teaching `RackEditor` to draw TIDE's own `TiDEknob` and
+`TiDE Patch Point In/Out` at the positions the module already reports — the
+highest-leverage row of the set. It converts four packs from "looks broken" to
+"usable" without touching a licence, and the adaptor already has the
+coordinates.
+
+**Still not verified:** no module has been ported. This is a prediction from the
+panel art plus `RackEditor.h`'s own statement, not an observed TIDE render.
+
 ## 5. Recommendation
 
 1. **HetrickCV first**, and treat it as the pilot. CC0 for both code and
