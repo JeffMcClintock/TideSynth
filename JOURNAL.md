@@ -8,6 +8,70 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — windows — the DSP→GUI return path exists now: the VCV LFO's LED blinks, and so can every meter, scope and light TIDE ever ships (interactive, Jeff directing)
+
+**Prompt:** back to LFOs. Get it working for VST3, "C:\SE\SE16\se_vst3" might
+provide inspiration.
+
+**Did:** Built the return path this morning's entry proved was missing. TIDE's
+inner rack was queueing parameter feedback into `queDspToUi` and nothing read
+it — for ANY module, not just the VCV ports. It flows now, end to end, in the
+VST3 (and every other format, for free — the mechanism is wrapper-agnostic).
+
+**The design, and why it is this shape rather than a direct call.** The
+processor and the editor are separate objects, and under AUv3 separate
+PROCESSES, so nothing crosses as a pointer. The one channel that already
+works between them is a GMPI **blob parameter** — which is exactly what the
+chunk (parameter 1) uses to carry the document DOWN. So the return path is
+the same route in reverse, on a new **parameter 2**:
+
+1. `SynthEdit::drainRackFeedback()` (SynthEditSem/SynthEdit.cpp), called at
+   the end of `subProcess` — `rack.process()` ends in
+   `SeAudioMaster::PostProcess → ServiceDspWaiters2`, which serialises every
+   pending update into `MessageQueToGui()` = `queDspToUi`. Drain it and send
+   the bytes out `pinFeedback`.
+2. `gmpi_processor::setPin` sees an output blob pin with a parameterId,
+   queues it; the wrapper ships it to the controller;
+   `gmpi_controller_holder` delivers it to each editor's matching GUI pin as
+   a `"ppc3"` message. **All of this already existed** — nothing in GMPI or
+   the wrappers was touched.
+3. `SynthEditGui::notifyPin` (pin 1) hands the bytes to `ISeApp`.
+4. `TideApp::receiveRackFeedback` → `SynthRuntime_editor::receiveDspMessages`
+   (new, SynthEditLib branch `tide/win/dsp-to-gui-feedback`) → the SAME queue
+   and reader `serviceQueues()` uses → `onQueMessageReady` → routes by handle
+   to the PatchParameter → `UpdateGui` → the editor's light pins.
+
+**THE BYTES ARE FORWARDED VERBATIM, framing included** — that is the load-bearing
+decision. `queDspToUi` changed from `interThreadQue` to `lock_free_fifo` for
+one reason: `siphon2()` hands out a pointer to the queued bytes without
+decoding them, so this is a copy rather than a translation and the editor
+side reuses the identical reader. Re-framing would mean implementing the
+protocol twice and keeping the two in step forever. This is precisely what
+`Processor_VST3::CommunicationProc` does with its own DSP→controller queue —
+the "inspiration" prompt pointed at `SE16/se_vst3`, and the pattern worth
+copying turned out to be in its GMPI successor.
+
+**Verified on the running rack, three ways.** Trace: `light 0 update #100
+value 0.750` — live CHANGING values arriving, against the frozen `#0 value
+0.000` this morning. Pixels: six settle-spaced screenshots diffed, ~1000
+changed pixels per frame, all in one tile at the LFO's light — against
+**zero** across the whole rack before. Eye: the FREQ LED lit amber, OFST lit,
+and S&H's IN indicator live. Then the VST3 target itself built and installed
+(as a real bundle folder, per the fix earlier today) with the same code.
+
+**A trap that cost two wrong measurements, and it is the same one as this
+morning:** `cmake --build` returns **exit 0 having linked nothing** when the
+running app holds the .exe — the failure is `LNK1104`, which `grep ': error'`
+does not match. Both times, the "after" reading was really the "before"
+binary. **Check the exe's mtime changed; do not trust the exit code alone.**
+Kill the app before every rebuild.
+
+**Scope, honestly:** this makes the CHANNEL work and the lights prove it.
+Whether every kind of feedback (Scope's 64KB captures, which are multi-part
+messages) survives the trip is not yet measured — the machinery handles
+oversize sends and the framing is preserved, so it should, but "should" is
+not "did".
+
 ## 2026-08-25 — windows — the installed VST3 had no resources: local dev builds now assemble a real bundle folder in Common Files\VST3 (interactive, Jeff directing)
 
 **Prompt:** a screenshot of Ableton Live showing "Can't open file
