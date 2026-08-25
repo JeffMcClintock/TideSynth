@@ -32,6 +32,7 @@ public:
 	void OpenView(CContainer* p_object, int view_flag) override; // CSynthEditAppBase — double-click enter (U1b)
 	bool setQuiet(bool) override; // U1b follow-up — quiet the module factory during thumbnail renders
 	void serviceDocumentSync() override; // S12 — push the document's chunk to the processor
+	void receiveRackFeedback(const unsigned char* data, int size) override; // the return half
 	std::string exportChunkXml();        // S12/S11 — the saved chunk: <DSP> + <Editor>
 	bool importChunkXml(std::string_view xml); // S11 — rebuild the document from a saved chunk
 	void OnCloseView(SE2::TopView*) override;

@@ -58,6 +58,18 @@ struct ISeApp
 	virtual void serviceDocumentSync() = 0;
 	std::function<void(const void* data, size_t size)> onPushChunk;
 
+	// The RETURN half of that chunk: the inner rack's DSP->GUI messages,
+	// arriving from the processor as a blob parameter (SynthEdit.cpp
+	// drainRackFeedback) and handed straight to the editor-side runtime, which
+	// decodes them with the same reader the processor's framing came from.
+	// This is what makes an output parameter -- a meter, a Scope capture, a
+	// module's LED -- actually reach the GUI.
+	//
+	// Raw bytes rather than a decoded type, deliberately: the firewall this
+	// header exists to hold is between GMPI and SE SDK3, and bytes cross it
+	// without either side learning the other's types.
+	virtual void receiveRackFeedback(const unsigned char* data, int size) = 0;
+
 	virtual void OnCloseView(SE2::TopView*) = 0;
 	virtual void CloseAllViews() = 0;
 

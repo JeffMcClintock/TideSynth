@@ -320,6 +320,12 @@ class SynthEditGui final : public PluginEditor, public Notifiable, public gmpi::
 {
 	ISeApp* seApp{};
 	Pin<Blob> controllerPtr;
+
+	// The inner rack's DSP->GUI messages, forwarded by the processor as a blob
+	// parameter (SynthEdit.cpp drainRackFeedback). Declared AFTER controllerPtr
+	// because GMPI numbers GUI pins by construction order and the XML lists
+	// them in this order -- controllerPtr is pin 0, this is pin 1.
+	Pin<Blob> rackFeedback;
 	gmpi::shared_ptr<gmpi::api::IUnknown> hostUnknown;
 	gmpi::shared_ptr<SE2::TopView> view;
 #if defined(__linux__)
@@ -696,6 +702,22 @@ public:
 
 	ReturnCode notifyPin(int32_t pinId, int32_t voice) override
 	{
+		// Pin 1: rack feedback. Hand the bytes straight to the app, which owns
+		// the queue that decodes them. Nothing is interpreted here -- the
+		// framing is the processor's and the reader is SynthEditLib's.
+		//
+		// Guarded on seApp because pin order is not arrival order: the host may
+		// deliver a feedback blob before the controllerPtr blob that sets
+		// seApp. Dropping those few is correct -- they are one frame of light
+		// values, and the next one is 16 ms away.
+		if (pinId == 1)
+		{
+			if (seApp && !rackFeedback.value.empty())
+				seApp->receiveRackFeedback(rackFeedback.value.data(), static_cast<int>(rackFeedback.value.size()));
+
+			return ReturnCode::Ok;
+		}
+
 		if (pinId == 0 && controllerPtr.value.size() == sizeof(seApp))
 		{
 			seApp = *reinterpret_cast<ISeApp**>(controllerPtr.value.data());
