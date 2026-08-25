@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **325 KB** across **250** entries, so copying them
+Learned sections are **327 KB** across **253** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **91 KB / 999 lessons — 3.6x smaller**, and represents
+A8. This is **92 KB / 1012 lessons — 3.6x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,28 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-25
+
+**macos — A stale comment inverted a recommendation, twice; the adaptor already draws the components (interactive, Jeff directing)**
+
+- A comment twelve lines above the code it contradicts will be believed.
+- Validating the instrument is not validating the premise.
+- "Explain X" is a real check on X.
+- Correct the source, not just the conclusion.
+
+**macos — Rendered the candidate panels: the permissive packs don't draw their controls, and that inverts the pick (interactive, Jeff directing)**
+
+- A screen that fails its positive control is broken, not informative
+- Counting SVG primitives measures the authoring tool.
+- "Can we use the artwork" has a legal reading and a practical one
+- `rsvg-convert` + looking is cheaper than any amount of parsing
+
+**macos — The adaptor is dual-licensed, and the permissive packs are picked and filed (interactive, Jeff directing)**
+
+- "Why is this GPL?" is worth asking of your own code.
+- A permissive code licence is not permission to ship the panels
+- A licence is the one thing to prepare rather than land.
+- A file being big is not evidence about what is in it.
+- Check push access before designing the delivery.
 
 **windows — the unpushed half was pushed, and `main` is green on all three platforms (interactive, Jeff directing)**
 
@@ -63,22 +85,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A process gap with zero live instances is a lesson, not a row.
 - When the queue is blocked, building your own platform's default branch is the one thing left that is not busywork
 - Two independent routes to the same fact is worth noticing.
-
-## 2026-08-24
-
-**linux — V6's risk discharged: a root paste does carry connections, and the row's fork is now live (interactive, Jeff directing)**
-
-- "Verify X before deleting Y" earns its place when X has never happened.
-- Put the control in the same artifact as the subject.
-- A minimal repro is worth more than a faithful one here.
-- A CI issue can name a head that no longer exists.
-- Check what a folder scan actually enumerates before shipping a file into it.
-
-**windows — V4: the three candidate markers, measured — one of them selects nothing (interactive, Jeff directing)**
-
-- "Ruled rather than invented" does not mean "stop" — it means measure, then escalate with numbers.
-- An option can fail because the data it reads does not exist for the thing being selected.
-- A flattening commit changed what a proposed option would select.
 
 ## 2026-08-18
 
@@ -1831,3 +1837,17 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Guard macros need the both-headers case actually compiled.
 - A build "hanging" for ten minutes was `| grep … | head -5`.
 - Check the row's file paths before believing its plan.
+
+**windows — V4: the three candidate markers, measured — one of them selects nothing (interactive, Jeff directing)**
+
+- "Ruled rather than invented" does not mean "stop" — it means measure, then escalate with numbers.
+- An option can fail because the data it reads does not exist for the thing being selected.
+- A flattening commit changed what a proposed option would select.
+
+**linux — V6's risk discharged: a root paste does carry connections, and the row's fork is now live (interactive, Jeff directing)**
+
+- "Verify X before deleting Y" earns its place when X has never happened.
+- Put the control in the same artifact as the subject.
+- A minimal repro is worth more than a faithful one here.
+- A CI issue can name a head that no longer exists.
+- Check what a folder scan actually enumerates before shipping a file into it.

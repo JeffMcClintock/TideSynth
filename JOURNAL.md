@@ -8,6 +8,359 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — macos — A stale comment inverted a recommendation, twice; the adaptor already draws the components (interactive, Jeff directing)
+
+**Prompt:** explain E23 / yes
+
+**A correction to the two entries below**, prepended rather than edited — both
+are pushed and [#413](https://github.com/JeffMcClintock/TideSynth/pull/413) is
+open.
+
+**Did:** Jeff asked me to explain **E23**. Reading the code to explain it
+accurately is what showed the row is wrong. **E23's premise is false and the
+work it proposes is already done.** E19, E20, E21 and the research doc all
+inherited the error and are corrected; the comment that caused it is fixed in
+[SynthEdit_Rack_Adaptor#2](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/2).
+
+### The error
+
+`RackEditor.h:25-29` says the editor draws **no** knob caps, jacks or screws —
+only *"an indicator line per knob"* — and that panels omitting component art
+*"will look bare"*. Twelve lines below, the render path is:
+
+```
+panel art -> drawModuleWidgets(-1) -> drawJacks() -> drawKnobs() -> drawLights()
+```
+
+`drawJacks()` draws a five-ring VCV-style jack sized from the module's widget.
+`drawKnobs()` draws rim, body **and** pointer. Both read
+`layout.inputs`/`outputs`/`params`, which come from the module's `ModuleWidget`
+and **have nothing to do with the panel SVG**.
+
+Provenance: accurate at `d4de897` (initial commit), superseded by `623f1f7`
+*"Draw the jacks, VCV-style, sized from the module's own widget"* **the same
+day**. Never updated.
+
+### What it cost, and it is worth being exact
+
+I quoted that comment as authoritative **twice, in consecutive turns, while
+reading the file it is wrong about.** It produced:
+
+- a filed row (E23) proposing to build something that exists;
+- a **wrong inversion of the recommendation** — HetrickCV, the best-licensed
+  pack on the board (CC0 code *and* art, ~70 modules), was demoted to
+  `BLOCKED(E23)` on the grounds that its labels-only panels would render bare.
+  They will not.
+- an escalation to Jeff that the permissive packs were unusable without new work.
+
+**The rendering session that produced the inversion was itself good work.** Its
+measurements are sound and it caught two broken SVG-geometry screens with a
+positive control. The failure was one layer up: I validated the *instrument* and
+never validated the *premise* the instrument was serving.
+
+### What survives, and it is not nothing
+
+The renders surfaced a real difference nobody had noticed: **authoring units.**
+HetrickCV panels are 380-unit (Rack pixels); **CVfunk and DHE are viewBox height
+128.5 — millimetres.** `RackEditor` carries an explicit 75-vs-96-dpi correction
+(`panelMetrics`) whose own comment warns a mm panel *"draws 96/75 = 28% too
+large for the coordinates its own module places controls at"*. The mechanism
+exists and **nobody has verified it lands correctly**. That is now E23's real
+content, and it belongs to E22's packs rather than E20's.
+
+### An id collision landed mid-correction
+
+`check-id-refs.py` failed the merge: **two E19 rows, `BACKLOG.md:130` and
+`:178`, same id, different items.** The windows box allocated **E19** for *"Test
+the DSP→GUI feedback path on EVERY format target"* from the same `main` this
+session's pilot row was cut from, and theirs landed first
+([#416](https://github.com/JeffMcClintock/TideSynth/pull/416)). This is A23's
+race exactly, and the lint is the only thing that sees it — git merged both rows
+cleanly because they sit at different points in the file.
+
+**Renumbered mine to E24**, per the check's own advice that the newer row moves:
+theirs is on `main`, mine is unlanded and referenced only from this branch. 11
+references updated. **Entries already pushed still say "E19" meaning the pilot** —
+they are the record and are not edited; from 2026-08-25 read them as E24.
+
+### Rows after the correction
+
+- **E20 → TODO**, restored as the first attempt. Both prerequisites are met:
+  the adaptor is dual-licensed on `main` and the bot has write access.
+- **E23** rewritten down to screws plus the mm-panel check, and **it blocks
+  nothing**.
+- **E24** (was E19) keeps its renders, loses its conclusion. Still worth a session: nothing
+  here has been observed in a running TIDE.
+- **E21**'s re-scope withdrawn — NLC's advantage was an artefact of the same error.
+
+**Verified:** the render path and both draw functions read from `main`, not from
+memory; `623f1f7` confirmed an ancestor of `origin/main`; the comment fix is
+comment-only, checked by diffing for non-comment lines.
+
+**Not verified:** still no module ported. Every claim across E20-E24 comes from
+source and rendered SVGs, not a running rack — which is exactly what E19 exists
+to fix and why it stays open.
+
+**Learned:**
+
+- **A comment twelve lines above the code it contradicts will be believed.** I
+  read `drawKnobs` and `drawJacks` in the same file, in the same session, and
+  still quoted the header.
+- **Validating the instrument is not validating the premise.** The previous
+  entry is a careful account of catching two broken screens with a control — and
+  the whole exercise was answering a question that did not need asking.
+- **"Explain X" is a real check on X.** Nothing else in three turns forced a read
+  of the render path; being asked to explain the row is what broke it.
+- **Correct the source, not just the conclusion.** The row, the doc and the
+  journal were all downstream of one comment; fixing only the row would have left
+  the trap armed for the next reader.
+
+**Next:**
+
+1. **E20 is the take-target** — `TIDE_HETRICKCV`, both prerequisites met.
+2. **E24 alongside it**: port one and look, which is still the only thing that
+   would make any of this an observation rather than a reading.
+3. **[SynthEdit_Rack_Adaptor#2](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/2)**
+   wants a merge; it is comment-only.
+
+**Branch/PR:** `tide/mac/E19-permissive-rack-packs` — [#413](https://github.com/JeffMcClintock/TideSynth/pull/413), same branch.
+## 2026-08-25 — macos — Rendered the candidate panels: the permissive packs don't draw their controls, and that inverts the pick (interactive, Jeff directing)
+
+**Prompt:** for the first attempts lets avoid modules unless we can use the artwork too / ps: help me grant access for tide-rack-bot
+
+**A correction to the entry below**, prepended rather than edited — that entry is
+pushed and [#413](https://github.com/JeffMcClintock/TideSynth/pull/413) is open,
+and a log you edit is not a log (#121). Rows updated on the same branch, per
+STEP 1.5.
+
+**Did:** Jeff's constraint — *"for the first attempts lets avoid modules unless
+we can use the artwork too"* — reads two ways, and they lead to different work.
+**Licensing:** all four packs already pass; that was the selection criterion, so
+under that reading the instruction is a no-op. **As-rendered:** does the panel
+actually carry its knobs and jacks, or does it come out bare? That one was open,
+so I settled it instead of asking.
+
+### Two geometry screens, both wrong, and the reason is the same
+
+**Screen 1** counted `<circle>` by radius against a jack-sized bucket. The
+**control** — Fundamental, which `RackEditor.h` states *does* carry component art
+— scored **zero jacks**. Its jack holes are `r=5.0` inside a 380-px viewBox,
+below my threshold.
+
+**Screen 2**, recalibrated on that, then reported **HetrickCV: 0 circles across
+12 panels**. That looked like a devastating result and it was an artefact:
+HetrickCV converts every shape to `<path>` (39-129 paths per panel). **The circle
+count was measuring AUTHORING STYLE, not content.** I nearly wrote "HetrickCV
+panels have no component art" off a number that could not have detected it.
+
+The control is what caught both. A screen that reports the known-good case as
+failing is broken, and that is cheaper to notice than to reason about.
+
+### Rendering answered it in one command
+
+`rsvg-convert -h 420 -b white`, two panels per pack, Fundamental as control:
+
+| pack | draws its own knobs/jacks? |
+|---|---|
+| **Fundamental** (control, GPL) | **yes** — knob circles with indicator lines |
+| **HetrickCV** | **no**, both samples — labels and dashed leaders on a blank faceplate |
+| **Nonlinear Circuits** | **mixed, per-module** — `1050 Mixer Sequencer` is the best panel measured, `8BitCipher` draws none |
+| **DHE-Modules** | no — labels and rules |
+| **CVfunk** | not evident — stylised dark panel |
+
+**The uncomfortable conclusion: the only pack that demonstrably carries its
+control art is Fundamental — the GPL one we are trying to avoid.** Licensing and
+drawability point at different packs, and no permissive pack is clean on both.
+**So the honest answer to Jeff's constraint is that E20 as filed does not satisfy
+it**, and saying so is worth more than shipping the pick I had already argued for.
+
+### What changed on the branch
+
+- **E23 filed** and it is now the highest-leverage row: teach `RackEditor` to
+  draw TIDE's own `TiDEknob` / `TiDE Patch Point In/Out` at the positions the
+  module already reports. The adaptor **has** the coordinates — it is placing an
+  indicator line per knob already. This converts four packs at once and touches
+  no licence.
+- **E20 demoted to `BLOCKED(E23)`.** Not withdrawn: CC0 code-and-art plus ~70
+  modules is still the best licensing on the board.
+- **E21 re-scoped** — NLC is mixed per-module, which means it holds genuine
+  first-attempt candidates. Its status stays `BLOCKED(E20)` because the row is
+  the pack-wide option; **the per-module path is E19's, which is TODO.** I first
+  wrote takeable-sounding prose onto that blocked row and had to fix it —
+  eligibility lives in the status column alone.
+- **E19** carries the measurement and the three renders, committed under
+  `docs/images/`.
+
+**Verified:** the renders themselves, with a positive control; two panels per
+pack rather than one, after `Crackle.svg` alone proved unrepresentative.
+
+**Not verified:** **no module has been ported.** This is a prediction from panel
+art plus `RackEditor.h`'s own statement, not an observed TIDE render — E19 still
+owns that. Only 2 of 31-86 panels were looked at per pack, so "mixed" for NLC is
+a floor, not a census.
+
+**Learned:**
+
+- **A screen that fails its positive control is broken, not informative** — and I
+  built two before rendering anything. The control cost nothing and caught both.
+- **Counting SVG primitives measures the authoring tool.** `<circle>` vs
+  `<path>` is Inkscape's "object to path", not a fact about the artwork.
+- **"Can we use the artwork" has a legal reading and a practical one**, and the
+  packs that pass each are different sets. Worth separating explicitly.
+- **`rsvg-convert` + looking is cheaper than any amount of parsing**, and it was
+  available the whole time.
+
+**Next:**
+
+1. **E23 first**, then E20/E21/E22 become straightforward.
+2. **`tide-rack-bot` still has `push=false`** on `SynthEdit_Rack_Adaptor`, where
+   E23's work lives, and **404s on `VCV_Fundamental_gmpi`**. No invitations are
+   pending — Jeff has the two `gh api` commands; I can accept from the bot side.
+3. The adaptor relicence branch is still unpushed, awaiting Jeff's read-back.
+
+**Branch/PR:** `tide/mac/E19-permissive-rack-packs` — [#413](https://github.com/JeffMcClintock/TideSynth/pull/413), same branch, no second PR.
+## 2026-08-25 — macos — The adaptor is dual-licensed, and the permissive packs are picked and filed (interactive, Jeff directing)
+
+**Prompt:** research any VCV or Cardinal module that we could use that are permissively licensed including artwork / so lets change the adaptor to dual license. Then add to the backlog to add support for your pick of the best and most compatible collections. same as VCV fundamental pack, switchable at the cmake level. / make it a pr i can push myself
+
+**Did:** researched the permissive end of the VCV/Cardinal ecosystem, found the
+finding that reframes it, executed Jeff's dual-licence ruling as a pushable
+branch, and filed **E19-E22**. Research is
+[docs/vcv-permissive-modules.md](docs/vcv-permissive-modules.md); the ruling is
+in [docs/decisions.md](docs/decisions.md). No product code changed.
+
+### The finding: the adaptor's GPL was a CHOICE, not an inheritance
+
+Everything else follows from this, and it was one grep away.
+`SynthEdit_Rack_Adaptor/rack/rack.hpp` is **99 KB of Jeff's own code**, headed
+*"A MOCK of VCV Rack's plugin.hpp"*, `Copyright 2007-2026 Jeff McClintock`. The
+three `compat/` headers are stubs or reimplementations that say so in their own
+comments (`dr_wav` "STUBBED", `osdialog` "STUBBED", `samplerate` "implemented
+rather than mocked", linear instead of sinc). **All 19 tracked files carry one
+copyright holder and no other**, and the README states outright: *"This
+repository contains no VCV Rack code and no VCV artwork."*
+
+`grep -rniE "copyright.*(vcv|andrew belt)"` across the repo returns **nothing**.
+The only VCV artefact anywhere is the constant `23.7f` — the pixel size of
+Rack's `PJ301M.svg` — which is a measurement, not artwork.
+
+So it was always Jeff's to relicence, and the GPL was chosen (the README says
+*"That is deliberate"*) to match the modules it was written for. **The module was
+always the source of the obligation; the adaptor merely looked like it.**
+
+### The trap the question was really about
+
+Code licence and artwork licence are separate, and the art is usually stricter.
+Two rows from Cardinal's own table make it concrete:
+
+| pack | code | artwork |
+|---|---|---|
+| **AS** | MIT | **CC-BY-NC-ND-4.0** |
+| **Mog** | CC0-1.0 | `Mog/*` CC0 — but **`components/*` CC-BY-NC-4.0** |
+
+Also worth carrying: *"used and distributed with permission"* (AudibleInstruments,
+Befaco, E-Series) means permission granted to **Cardinal**, not to us. And **NC is
+disqualifying even though TIDE is free** — NC cannot be sublicensed under ISC,
+which grants recipients commercial use.
+
+### The pick, verified at source rather than taken from a summary
+
+Cardinal's `LICENSES.md` is the curated bulk survey; I used it to find
+candidates and then checked the top ones against their own repos:
+
+| pack | code | artwork | modules | how verified |
+|---|---|---|---|---|
+| **HetrickCV** | CC0-1.0 | CC0-1.0 | ~70 | its own `LICENSE.txt` |
+| **Nonlinear Circuits** | CC0-1.0 | CC0-1.0 | 18 | its own `LICENSE.txt` |
+| **CVfunk** | MIT | same as code | 43 | its own `plugin.json` |
+| **DHE-Modules** | MIT | same as code | 28 | its own `plugin.json` |
+
+HetrickCV leads because CC0 removes every licensing question at once, ~70
+modules is a real catalogue, the same author's Nonlinear Circuits follows for
+free, and the content is **complementary rather than duplicative** — phasors,
+boolean logic, chaos, Rungler, Waveshaper — not a second VCO/VCF/ADSR.
+
+### The risk is not licensing, and E19 exists to settle it
+
+`RackEditor.h:25-29` says it plainly: it does **not** draw knob caps, jacks or
+screws, because *"Fundamental's panel SVGs already carry that artwork"*, and
+*"modules whose panels do NOT include the component art will look bare."*
+Whether a pack bakes its components in is a **per-pack property** and nobody has
+checked one outside Fundamental.
+
+**I tried to settle it for HetrickCV and could not, so the row says so.**
+`Crackle.svg` is 37 KB, 38 `<path>`, 9 `<circle>`, 0 `<text>` on a 90x380 panel
+— substantial art, not a bare rectangle — but the nine circles are a nested
+decorative motif (each at `cx = -r`, all tangent to x=0), **not** jack art. That
+is suggestive of nothing. One ported module answers it; that is E19, and E20-E22
+are blocked on it.
+
+### What landed where, and the one thing that did not
+
+**The adaptor change is a branch Jeff pushes himself, and that is not a
+preference — `tide-rack-bot` has `push=false` on that repo** (and cannot even
+see `VCV_Fundamental_gmpi`, which 404s). Cloned to
+`~/Documents/GitHub/SynthEdit_Rack_Adaptor`, branch `relicense-dual-isc-gpl`,
+one commit, clean tree, ready to push.
+
+Sequencing was deliberate: decisions.md's 2026-08-09 rule says **verbally-relayed
+decisions get a read-back confirmation before execution**, because the MIT/ISC
+flip-flop was a real public push of the wrong licence. So this is prepared and
+NOT landed, with the read-back stated: **ISC OR GPL-3.0-or-later**, ISC chosen
+to match TideSynth, SynthEditLib, GMPI and gmpi_ui.
+
+**Verified:** all 19 files' copyright swept for a second holder — there is none;
+the patch `git apply --check`s clean against a pristine clone of `main`; **zero
+non-SPDX lines changed in any source file** (checked by diffing with `LICENSE*`
+excluded, after a first check was polluted by the GPL text matching `*.txt`);
+E19-E22 duplicate-id checked against every file on freshly-fetched `origin/main`;
+grep-before-filing found no existing row naming any of these packs or the adaptor.
+
+**Not verified:**
+
+- **Nothing was rebuilt.** The adaptor change is comment lines and licence files
+  only, but no build was run against it.
+- **The MIT tier's artwork** is Cardinal's claim plus each `plugin.json`; I did
+  not read CVfunk's or DHE's panel files.
+- **Tier B's long tail** — 21kHz, Biset, mscHack and the rest — is Cardinal's
+  table alone, unverified at source. E22 covers only the two I checked.
+- **Whether any candidate panel draws its own components.** That is E19.
+
+**Learned:**
+
+- **"Why is this GPL?" is worth asking of your own code.** The adaptor looked
+  like the source of the obligation for as long as nobody read its headers; one
+  grep for a foreign copyright holder settled it and unlocked the whole line of
+  work.
+- **A permissive code licence is not permission to ship the panels**, and the
+  two diverge often enough that AS and Mog are both in the same short table.
+- **A licence is the one thing to prepare rather than land.** The read-back rule
+  exists because this project already pushed a wrong licence publicly once.
+- **A file being big is not evidence about what is in it.** 37 KB of panel SVG
+  felt like an answer and was not; the nine circles were decoration.
+- **Check push access before designing the delivery.** `push=false` changed the
+  shape of this task from "open a PR" to "hand over a branch", and it is one API
+  call to find out.
+
+**Next:**
+
+1. **Jeff confirms the ISC half and pushes `relicense-dual-isc-gpl`.** E20-E22
+   are worth nothing until the adaptor is dual-licensed.
+2. **E19 is takeable now** and needs neither the relicence nor a ruling — it is
+   one module, one build, one look.
+3. **Consider granting `tide-rack-bot` write on `SynthEdit_Rack_Adaptor`** if the
+   fleet is to work on it, and access to `VCV_Fundamental_gmpi`, which the bot
+   cannot see at all.
+
+**Machine left clean.** Work in throwaway worktrees plus two scratch clones of
+the adaptor; nothing built in any of Jeff's checkouts. **One intentional
+addition to his tree: `~/Documents/GitHub/SynthEdit_Rack_Adaptor`, a fresh clone
+parked on the relicence branch — that is the deliverable, not litter.** The
+earlier VCV build tree was left in the scratchpad for iteration.
+
+**Branch/PR:** `tide/mac/E19-permissive-rack-packs` — TideSynth only: E19-E22,
+the decision entry, the research doc and this entry. The adaptor's own change is
+`relicense-dual-isc-gpl` in that repo, unpushed, awaiting Jeff.
 ## 2026-08-25 — windows — the sluggish GUI was a rebuild storm: live values in the document diff (interactive, Jeff directing)
 
 **Prompt:** getting very sluggish GUI. Are we using the "waiters' queue, a
@@ -1287,264 +1640,6 @@ directory was read only. All repos on their default branches.
 and V5 rows, all four NEXT cells, and this entry. **No product code change in any
 repo.**
 
-## 2026-08-24 — linux — V6's risk discharged: a root paste does carry connections, and the row's fork is now live (interactive, Jeff directing)
-
-**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
-
-**Did:** STEP 1 first — closed [#373](https://github.com/JeffMcClintock/TideSynth/issues/373),
-a CI-filed linux build failure, by building `main`. Then took **V6** and did the
-one thing its row asks for before anything else: **verified the root-level paste.
-Nothing has been deleted.**
-
-### #373, closed on a build
-
-CI filed it against `tide/mac/S44-delete-stranded-branch`, which had since merged
-and been auto-deleted — so the head it named no longer existed. The break was
-never branch-specific:
-
-```
-StandardCommandIds.h:54:41: error: expected identifier before numeric constant
-CContainer.h:19:1:          error: expected declaration before '}' token
-```
-
-`CContainer.h` declared its own enum for four command ids under `#ifndef _WIN32`;
-**P3** added `StandardCommandIds.h`, which `#define`s the same four on *every*
-platform, and the macros then expanded inside the enum. **Windows never saw it
-because the enum was compiled out there** — the platform that would have caught
-it is the one the guard excluded. Fixed by `c0bc053` before I got there; verified
-by building the full tree from current `main`: **483/483, rc=0, all four Linux
-artifacts, zero occurrences of the error.**
-
-### V6: why the risk was real, not ceremonial
-
-The row says *"the risk is the root-level paste, which should be verified before
-the C++ is deleted"*. It is easy to read that as diligence. It was not:
-
-**All nine shipped prefabs in `RackModules/` have exactly one top-level module
-and zero top-level lines.** The case V6 depends on — several top-level modules
-plus connections *between* them, pasted at the root — has never been exercised
-anywhere in this product.
-
-### The experiment, and the control that makes it a measurement
-
-A deliberately minimal prefab: two top-level modules (`MIDI In`,
-`SE MIDI to CV 2`) and one top-level line between them. Nothing else, so a
-failure would have exactly one possible cause. Armed from the browser and
-click-placed at the root (arm-then-click, per the 2026-08-20 finding).
-
-**The control is that `seedRootMidiCv()`'s own pair is in the same saved
-document.** So the pasted result is compared against the C++'s output, in the
-same run, rather than against my judgement:
-
-| | editor half | DSP half |
-|---|---|---|
-| **seeded (C++)** | `fMod="1521837852" tMod="1620974935" fPlg="1"` | `<Line From="1521837852" To="1620974935"/>` |
-| **pasted (prefab)** | `fMod="811000001" tMod="811000002" fPlg="1"` | `<Line From="811000001" To="811000002"/>` |
-
-Byte-equivalent. **`fPlg="1"` surviving is the load-bearing detail** — pin 1 is
-`MIDI Data`, pin 0 is the GUI `Activity` input, so a paste that dropped the pin
-index would have wired the wrong plug **and still looked structurally correct**.
-
-Fixture and recipe committed at `tests/fixtures/v6-multi-module-paste.synthedit`,
-so this is re-runnable rather than a claim.
-
-### Why I stopped there rather than finishing V6
-
-The row offers *"one prefab or default document"*, and those are not the same
-build. `seedPrefabsFromBundle()` scans `Resources/Prefabs` **recursively** and
-puts everything it finds in the module browser — so shipping the root assembly as
-a prefab there makes it **user-insertable**, which reopens precisely the question
-this row records as closed: *"there is exactly one, TIDE owns it, and 'what if the
-user adds a second' stops being a question."*
-
-Three shapes, none dominant:
-
-- **(a) prefab in `Prefabs/`** — simplest; browsable and duplicable.
-- **(b) prefab outside `Prefabs/`** — not browsable, but `ResolveFilename` only
-  searches `kPrefabFolder`, so it needs a resolve path or an absolute one.
-- **(c) default document** — closest to the row's intent, largest change.
-
-STEP 2 says a run may only do work that is identical under every open answer. The
-verification is; the implementation is not. **Row set to NEEDS-JEFF with the fork
-and its cost written down**, rather than picking and calling it a decision.
-
-**Verified:** `main` full tree 483/483 rc=0; the paste experiment with its
-in-document positive control; nine-prefab survey by XML parse, not by eye.
-
-**Not verified:**
-
-- **The full five-connection assembly** — only the two-module, one-line case was
-  built. The facade wiring (`fPlg 4/3/5/2 → tPlg 7/8/9/10`) is extracted and on
-  the row, but not exercised.
-- **That a pasted `SE MIDI to CV 2` at root still clones per voice** — E7's
-  polyphony requirement is the reason the module must be at root at all, and a
-  paste is a different code path from `AddModule`. **This is the thing I would
-  test first** if the ruling is (a) or (b).
-- **Any audio.** Structure only.
-
-**Learned:**
-
-- **"Verify X before deleting Y" earns its place when X has never happened.** The
-  nine-prefab survey took one script and turned a procedural-sounding instruction
-  into a real precondition.
-- **Put the control in the same artifact as the subject.** The seeded pair and the
-  pasted pair are in one saved document, so "did it wire correctly" became a diff
-  rather than an interpretation.
-- **A minimal repro is worth more than a faithful one here.** Two modules and one
-  line means a failure has one cause; building the whole five-connection assembly
-  first would have conflated the paste with the pin arithmetic.
-- **A CI issue can name a head that no longer exists.** #373 pointed at a merged,
-  auto-deleted branch; the break was on `main` all along, and building `main` is
-  what settled it.
-- **Check what a folder scan actually enumerates before shipping a file into it.**
-  `seedPrefabsFromBundle` recursing is the whole reason (a) is not free.
-
-**Machine left clean.** Headless weston stopped, standalone stopped, scratch
-`HOME`s throughout; the test prefab was copied into a scratch build tree, never
-into Jeff's. All six repos on their default branches and clean.
-
-**Branch/PR:** `tide/linux/V6-root-midicv-prefab` — TideSynth only: the fixture,
-its README, the V6 row and this entry. **No product code change** — deliberately,
-since V6's implementation is what the ruling decides.
-## 2026-08-24 — windows — V4: the three candidate markers, measured — one of them selects nothing (interactive, Jeff directing)
-
-**Did:** synced all 23 repos, then took **V4**. STEP 1 clear (no open
-`platform:win` issues), STEP 1.5 clear. **There are no `platform: win` rows left
-at all** — P3 was the last one and it is DONE, so this box's queue is now the
-`any` queue, the same place the mac box reached two days ago.
-
-### What the row asked for, and why it could not just be built
-
-V4 wants the rack view's module browser to offer only rack-relevant modules. It
-names the discriminator as an open question and says it *"should be ruled rather
-than invented"*, offering (a) prefab-vs-module, (b) the existing `category=`
-attribute, (c) a new explicit marker.
-
-That is a correct instruction and it is also the whole cost of the row — the
-plumbing is one filter. So the useful work was not to pick one, but to **measure
-what each would actually select**, and escalate with numbers instead of opinion.
-
-### The measurement
-
-| option | selects **today** | mechanism |
-|---|---:|---|
-| **(a) prefab-vs-module** | **9 of 9** | already exists — `ExportModules(list, includePrefabs)` + the `*P=` unique-id prefix |
-| **(b) `category=`** | **0 of 9** | cannot see prefabs at all |
-| **(c) new marker** | 0 until authored | new field, new plumbing |
-
-**(b) fails structurally, not by degree, and this is the finding.** A regular
-module's group comes from its XML: `mm.group = GetGroupName(u)`, reading the
-`category=` attribute — **273 modules across 32 distinct categories**. **A prefab
-has no module XML.** Its group is derived from its *file path*
-(`ModuleFactory_Editor.cpp:2387-2395`), and **#377 flattened `RackModules/`**, so
-the nine rack prefabs carry no group at all.
-
-And the rack's entire content today **is** those nine prefabs. So the option that
-reads categories selects none of the things the rack is made of.
-
-There is also **no rack- or TiDE-named category anywhere in the tree** — checked
-across both repos' module XML — so (b) is not merely empty by accident, it has
-nothing to read even in principle until someone adds the field.
-
-### The recommendation is a fourth option, and only because the row's own objection is right
-
-V4 says (a) is *"nearly right but excludes any future non-prefab rack module"*.
-True. But the answer to that is not to adopt an option that is empty today — it
-is to write the predicate as a **union**: *is it a prefab from the rack folder,
-**or** is it marked rack-relevant?* The second half selects nothing until
-something claims it, costs one clause, and removes the migration later.
-
-Filed as **(d)** in the `PROPOSED:` entry, with (a) and (b) left on the table
-because the ruling is Jeff's, not mine.
-
-**The plumbing may proceed under any option and is stated as such in the entry:**
-`ModuleBrowser.cpp:56` and `:99` hard-code `includePrefabs = true`, and
-`TideApp.cpp:147` already computes `isRackLevel` for exactly this
-rack-vs-structure distinction. Getting that value down to the browser is the same
-work whichever predicate wins.
-
-**Verified:** the counts are greps over the tree, re-runnable — `273` and `32`
-from `category="…"` across `SynthEditLib/modules/*/*.xml`, `9` from
-`RackModules/*.synthedit`, and the `*P=`/path-derived group claims read out of
-`ModuleFactory_Editor.cpp` and `SynthEditAppBase.cpp:1334` rather than inferred.
-
-**Not verified:** nothing was built or run this item — it is a measurement and an
-escalation, and no code changed. The claim that the plumbing is option-independent
-is read from the two call sites, not demonstrated by building it.
-
-**Learned:**
-
-- **"Ruled rather than invented" does not mean "stop" — it means measure, then
-  escalate with numbers.** Two greps turned a three-way design argument into one
-  option that works, one that is empty, and one that is future work. The ruling
-  is still Jeff's, but it is now a much shorter question.
-- **An option can fail because the data it reads does not exist for the thing
-  being selected.** (b) sounded like the tidy answer — reuse the field the
-  browser already reads — and prefabs simply have no XML for it to read. Worth
-  checking that a proposed discriminator can *see* its subjects before comparing
-  it on elegance.
-- **A flattening commit changed what a proposed option would select.** #377
-  removed the `RackModules/` subfolder, which is where a prefab's group comes
-  from, so the path-derived answer went to empty as a side effect of an unrelated
-  tidy-up. Options that read incidental structure are fragile in ways the row
-  cannot anticipate.
-
-**Next:**
-
-1. **Jeff rules (a), (b), (c) or (d)** by merging or editing the `PROPOSED:`
-   entry. The default in effect meanwhile is today's behaviour — the rack offers
-   everything, which is noisy rather than broken.
-2. **The plumbing is takeable now** by anyone, under any outcome.
-3. **This box has no `platform: win` rows left.** The `any` queue is what it has,
-   and most of what is on it needs a ruling or a workflow-scoped token.
-
-**Machine left clean.** One throwaway worktree under the session scratchpad, no
-build trees, nothing installed. All 23 repos on their default branches; the four
-dormant product repos with large uncommitted trees (`SE15` 407 files, `SSG` 194,
-`Waves` 102, `Optimus_1_5` 47) were fetched and left untouched, as were the two
-active repos' own working changes.
-
-**Branch/PR:** `tide/win/V4-rack-filter-ruling` — TideSynth only, no code change.
-## 2026-08-24 — macos — R7: half was already done, and the other half is deferred (interactive)
-
-**Prompt:** lets do the ones that need admin interactivly / we're already sucessfully codesigning with azure, why do anything / lets say "forget it till it breaks", for now.
-
-Jeff opened admin-requiring rows to interactive sessions, so I took R7. Two
-findings, and the second is a correction to my own approach.
-
-**Part (1) was already done.** The row describes an ungated exposure — a workflow
-edit on any `tide/**` agent branch executing with read access to all 8
-credentials. Measured on the live repo, it cannot happen: a `release` environment
-exists with Jeff as a REQUIRED REVIEWER, all 8 credentials are in it, repo-level
-secret count is **0**, `release.yml` declares `environment: release`, and
-`build.yml` / `auto-merge.yml` touch only `GITHUB_TOKEN`. The row was stale and I
-would not have known without checking the API rather than reading the row.
-
-**On part (2) I was working the row instead of the situation.** I had researched
-the OIDC migration, confirmed the action supports it, found the missing
-`azure-subscription-id`, drafted the Apple API-key swap, and written Jeff a list
-of portal steps — before asking whether any of it was worth doing. His reply:
-*"we're already successfully codesigning with azure, why do anything"*. Correct.
-With (1) in place the remaining benefit is an expiry that has not arrived and a
-credential that is already gated behind his approval, against the cost of
-changing a working release path that CANNOT BE TESTED without cutting a real tag.
-
-Ruled: *"forget it till it breaks, for now."* Marked WONTFIX rather than left
-TODO, so it stops being re-picked off the queue.
-
-**The research is on the row rather than thrown away**, because the next person
-to want this should not re-derive it: the action does support OIDC and
-`azure-client-secret` is optional, but OIDC also wants `azure-subscription-id`
-(configured nowhere), the job needs `id-token: write` (it has only
-`contents: read`), and the Apple half is `notarytool --key/--key-id/--issuer`
-behind a new App Store Connect key.
-
-**The one cheap thing that would pre-empt the trigger:** both secrets were
-created 2026-08-09, and an Entra client secret's expiry is visible only in the
-portal. A 30-second look there is worth more than the migration.
-
-**Not verified:** nothing was changed, so there is nothing to verify. The
-measurements are live API reads, re-runnable.
 
 ## Rotation — do this as part of STEP 4, every run
 
