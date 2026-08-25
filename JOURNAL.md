@@ -8,6 +8,108 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — macos — HetrickCV runs in TIDE: 66 modules registered, 104 with Fundamental alongside (interactive, Jeff directing)
+
+**Prompt:** merge PRs / then lets run the standalone with the new modules
+
+**Did:** merged [SynthEdit_Rack_Adaptor#3](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/3),
+built the HetrickCV port, added `TIDE_VCV_HETRICKCV`, and **ran it**. This is
+the entry where E20 stops being a reading and becomes an observation:
+
+```
+TIDE: HetrickCV — 66 module(s) registered
+```
+
+The port repo does not exist on GitHub yet — everything here was built against
+the local tree through `HETRICKCV_FOLDER_OVERRIDE`, which is exactly what the
+override mechanism is for.
+
+### Linking found four things a syntax check could not
+
+The previous entry said 66 TUs compiled and warned they were **not linked**.
+That caveat paid, in order:
+
+1. **`plugin.hpp`** — `rack_module_resources()` generates
+   `RackPanelResources.h` with `#include "plugin.hpp"`, Rack's convention.
+   HetrickCV's equivalent is `HetrickCV.hpp`. Fixed with a one-line forwarder in
+   the port, not by teaching the generator a second filename — every ported pack
+   would inherit that.
+2. **Shared implementation units.** HetrickCV keeps class bodies in their own
+   `.cpp`; `HCVCuspMap::generate()` surfaced it. Compiling only the module
+   wrappers left four units out.
+3. **Gamma sources** — only its headers were vendored. Upstream's Makefile
+   compiles `arr`, `Domain`, `scl`; Gamma's own CMakeLists names four more the
+   plugin build does not use.
+4. **`vtable for InverterWidget`**, which was really a missing NanoVG blend
+   enum: that TU failed to compile, and the *link* reported the vtable.
+   [Adaptor#4](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/4).
+
+**A guard I wrote wrong, and it is the instructive one.** The single-copy check
+for `RackAdaptorStaticRegistration` was a `CACHE INTERNAL` variable. A cache
+entry **survives between configures**, so the first configure added the object
+and the *second* skipped it — every `autoRegisterModel()` came out undefined,
+on a tree that had built minutes earlier. It is a `GLOBAL PROPERTY` now, which
+is the per-configure scope the guard actually wanted.
+
+### Both packs together: one real collision
+
+I wrote "both packs can be ON together" into a CMake comment and then tested
+it. **It was false.** A Rack `Model` is a **global symbol**, so a module name in
+two packs collides at link with a duplicate-symbol error naming neither pack.
+
+**The overlap is exactly one name — `MidSide` — out of 66 and 38.** The port
+takes `HETRICKCV_EXCLUDE_MODULES` and TIDE sets it to `MidSide` when both
+options are on; Fundamental's copy wins because its set is smaller and more
+curated, and the line says how to invert that.
+
+| build | registered |
+|---|---|
+| HetrickCV alone | **66** |
+| both packs | **104** |
+
+104 rather than 103 because **Fundamental registers 39 from 38 object
+libraries** — one TU registers two models. 39 + 65 = 104, so the totals are
+consistent rather than one of them being wrong.
+
+**Verified:** configure rc=0 and build rc=0 in both configurations; the
+standalone launched and stayed up in both; the S17 shadowing guard correctly
+refused a tree that had both a fetched and an overridden adaptor, which is what
+sent me to a clean build dir.
+
+**Not verified, and it is the same gap one step further on:**
+
+- **No module has been PLAYED.** Registration and a clean launch are not audio.
+- **No panel has been LOOKED at.** After all the rendering work two entries ago,
+  I still have not seen a HetrickCV module drawn in TIDE.
+- **The 13 excluded modules** are still excluded.
+- **Windows and Linux.** macOS only.
+
+**Learned:**
+
+- **A cache variable is the wrong tool for a once-per-configure guard**, and it
+  fails on the *second* run, which is the one you do not re-test.
+- **Syntax-only tells you nothing about shared implementation units.** Four of
+  them, invisible until the link, in a pack whose modules all compiled.
+- **A comment asserting a capability is a claim; test it.** "Both packs can be
+  ON together" was written by me, believed by me, and wrong — one link away.
+- **A missing enum can surface as a missing vtable**, because the TU that fails
+  to compile is also the one defining the class.
+
+**Next:**
+
+1. **Create `HetrickCV_gmpi`** and push — the tree is committed and ready at
+   `~/Documents/GitHub/HetrickCV_gmpi`, remote preset. Until it exists the
+   option only works via the folder override.
+2. **Play one.** Registration is proven; audio and panels are not.
+3. **[Adaptor#4](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/4)**
+   is a prerequisite for the build in this entry.
+
+**Machine left clean.** Scratch worktrees and build trees only; nothing built in
+Jeff's checkouts, nothing installed. `HetrickCV_gmpi` and the adaptor clone are
+deliberate additions, both committed.
+
+**Branch/PR:** `tide/mac/E20-hetrickcv-option` — the option, the link, the
+flush, and this entry.
 ## 2026-08-25 — macos — E20: 66 of HetrickCV's 79 files compile, and the CC0 pack has an MIT dependency (interactive, Jeff directing)
 
 **Prompt:** great. do E20

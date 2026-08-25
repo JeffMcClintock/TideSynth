@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **328 KB** across **254** entries, so copying them
+Learned sections are **328 KB** across **255** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **92 KB / 1016 lessons — 3.6x smaller**, and represents
+A8. This is **92 KB / 1020 lessons — 3.6x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-25
+
+**macos — HetrickCV runs in TIDE: 66 modules registered, 104 with Fundamental alongside (interactive, Jeff directing)**
+
+- A cache variable is the wrong tool for a once-per-configure guard
+- Syntax-only tells you nothing about shared implementation units.
+- A comment asserting a capability is a claim; test it.
+- A missing enum can surface as a missing vtable
 
 **macos — E20: 66 of HetrickCV's 79 files compile, and the CC0 pack has an MIT dependency (interactive, Jeff directing)**
 
