@@ -60,6 +60,61 @@ and one measurement (OnTimer=0 "after" the fix) was measuring the
 instrumentation's ABSENCE — always verify the exe mtime changed. And this
 harness's bash transport eats one backslash level: `\n` inside a heredoc'd
 C string arrives as a real newline; build the escape as `chr(92)+'n'`.
+## 2026-08-25 - macos - It makes noise: audio measured through BOTH the VST3 and the AUv3
+
+**Prompt:** interactive
+
+**Did:** Closed the oldest open item of the day - *"make noise"* - for both
+formats, with numbers rather than listening.
+
+**VST3, via E2a's REAPER harness, on current `main`:**
+
+| fixture | cables | result |
+|---|---|---|
+| `v1-rack.rpp` | 2 | **-6.3 / -17.0 dBFS** - audio present |
+| `v1-rack-uncabled.rpp` | 0 | **-inf** - silence (negative control) |
+| `v1-rack-midi.rpp` | 4 | -6.3 / -17.0 |
+| `v3-midi-pitch.rpp` | 4 | -6.2 / -21.1 |
+| `v3-midi-gate.rpp` | 3 | -6.3 / -21.2 |
+
+`-6.3 / -17.0` **matches E2a's August figures exactly**, so nothing regressed
+through the day's five merges. No GUI driving needed - `REAPER -renderproject`
+renders headlessly and exits, as the harness's own docstring says.
+
+**AUv3, in GarageBand - the one that had never been done.** Jeff: *"why not AU3
+in Garageband"*, which was the right call; my instinct to build a sixth REAPER
+fixture was over-engineering when the host was already open. Built the patch by
+hand in a **fresh project** - deliberately not a restored session, the trap that
+produced this run's earlier false negative - then exported and measured:
+
+```
+2ch  16-bit  44100 Hz  124.8 s
+peak=  -0.1 dBFS   rms=  -5.2 dBFS  -> AUDIO PRESENT
+approx fundamental (zero-crossing): 440.0 Hz
+```
+
+**440.0 Hz is the same pitch E2a measured through the VST3** - 5 V at 1 V/oct is
+middle A - so the oscillator free-runs at its default and the AUv3 carries it to
+the host output. Human confirms: *"yep. human hears it"*.
+
+**Patch cabling in AU3 is now confirmed twice**: by Jeff manually, and by this
+run pulling both cables itself - **Osc out -> Output in** and
+**MIDI-CV PITCH -> Osc Pitch**.
+
+**Correction: I wrote that the two cable colours encode signal type - red for
+audio, orange for CV. That is WRONG.** Jeff: *"the colors differ randomly
+btw"*. The colours are arbitrary per cable and mean nothing. I saw two cables,
+two colours, and two signal types and invented a rule from a coincidence -
+the same reach-past-the-evidence habit that cost this run an hour earlier.
+**Do not read a connection's type off its colour.**
+
+**Why this matters beyond "it works": it is the M6 gap closed by CONTENT.**
+`auval` passed a completely empty plugin for days (M5) because it validates the
+interface and never asks whether the rack contains anything. A rendered file
+with a measurable fundamental cannot be fooled that way. Export artifact left at
+`~/Desktop/tide-au3-test.wav`.
+
+**Not verified:** AU2, CLAP, iOS.
 
 ## 2026-08-25 — windows — the VCV Fundamental ports run inside TIDE, behind an option that is OFF by default (interactive, Jeff directing)
 
@@ -143,6 +198,145 @@ copy and was restored by copying it back before relaunch.
 `static-host`, VCV_Fundamental_gmpi `static-library`) must merge before
 TIDE's option can build in fetch mode — TIDE fetches both at `origin/main`.
 Local-override builds work off the branches today.
+## 2026-08-25 — macos — Patch cables were dead because the module was never compiled in; verified fixed in AU3
+
+**Prompt:** interactive
+
+**Did:** Chased why patch cables would not pull in the AUv3, was wrong three
+times, and the windows box found it: **`TiDE Patch Point In/Out` was not
+compiled into the binary at all.** #404 switched every rack prefab to the TiDE
+patch points, but `modules/PatchPoint/PatchPoint.cpp` and `PatchPointGui.cpp`
+were never in `SynthEditSem/CMakeLists.txt`'s source list — **E2a's both-halves
+rule**, XML present and `.cpp` absent, an insertable phantom. Fixed on `main` by
+`479faff2`. **Jeff verified by hand: *"manual test passed. Patch cables working
+in AU3"*.**
+
+**Measured at the binary, before and after.** The appex installed in
+`~/Applications` carried **0** `PatchPointGui` symbols; after the fix, **13** —
+with all four static initialisers present (`PatchPoint.cpp`, `PatchPointGui.cpp`
+and the older plural `PatchPoints*` pair) and **identical counts in the
+standalone and the appex**, so nothing was dead-stripped and the fix reached
+every format.
+
+**One missing module, three symptoms that looked unrelated:**
+
+| observation | cause |
+|---|---|
+| module faces drew bare, no jacks | no `PatchPointGui::render` |
+| drag moved the module instead of pulling a cable | no `PatchPointGui::hitTest` — click fell through to the container |
+| knobs still worked | different module, linked fine |
+
+Jeff's *"turning the knobs works in AU3"* is what separated "input is broken"
+from "one module is missing", and it was the turning point.
+
+**THE MISTAKE WORTH KEEPING: a false negative sent this run down an
+hour-long wrong path.** The standalone appeared to cable fine, so the bug was
+written up as **AU3-specific**. It was not. The standalone had **restored a
+saved session**, so the modules being cabled were old `SE Patch Point` instances
+persisted in the document — not the new TiDE ones at all. **A UI test that
+reuses restored state is not a negative control.** Insert fresh, or start a new
+document, before concluding any format difference.
+
+**Three further theories, all eliminated by measurement, recorded so nobody
+re-runs them:** #404's prefab **data** (the coordinates line up exactly —
+`jack 24 80`/`24 337` match the patch-point `panelRect` centres, and #404
+touched no C++); **`SE TiDE:Panel` z-order** (the Panel is listed last in all
+three prefabs, but that is not the cause); and **this box's own `s_xmlMerged`
+guard** from M5 — the hit-test probe printed `patchPoints=PRESENT count=0` on
+the container in the **working** case, so that list was never the mechanism.
+
+**The probe that finally aimed things correctly was Jeff's suggestion** — "add a
+bright orange circle to the patch-point render method to see if it even
+exists". Instrumenting the hit-test rather than the renderer gave the number
+that killed my last theory.
+
+**Not verified:** VST3/CLAP/AU2, and whether a cabled rack actually **sounds** —
+audio has still never been measured through the AUv3.
+
+## 2026-08-25 — macos — The Release question, measured: auval passes a completely empty plugin
+
+**Prompt:** interactive
+
+**Did:** M5 left one thing reasoned rather than measured — whether a **Release**
+build of the AUv3 would crash (as Debug did) or degrade silently, since
+`-DNDEBUG` compiles both failing asserts out. Jeff: *"let's do it"*. Cold
+Release configure at the **pre-fix** commit, `-O3 -DNDEBUG` confirmed in the
+real compile flags, both fixes reverted surgically.
+
+**The answer is the worse one: it was a live shipping defect.**
+
+```
+auval -v aumu Drck Dsyh   ->  exit 0,  AU VALIDATION SUCCEEDED,  no crash
+```
+
+...while the extension reported, in its own words:
+
+```
+TIDE: ControlsXp.xml missing from bundle resources - those controls will have no pins
+TIDE: MidiPlayer2.xml missing from bundle resources - those controls will have no pins
+TIDE: Converters.xml missing from bundle resources - those controls will have no pins
+TIDE: VaFilters.xml missing from bundle resources - those controls will have no pins
+TIDE: no Prefabs folder in bundle resources - the rack module browser will be empty
+TIDE: MidiCv.synthedit did not insert a container - the rack will have no MIDI jacks
+```
+
+**The AUv3 has been loading, validating and running as an EMPTY RACK.** No
+pins, no browser contents, no MIDI jacks — and `auval` never said a word,
+because it validates the AU *interface* and never asks whether the plugin
+contains anything. **That reconciles M4's green of 2026-08-23: it was masking
+this, not contradicting it.**
+
+**How to read an appex's stderr, because the next run will need it.** It
+reaches neither the terminal nor the unified log (`log stream` carries os_log
+only, not stderr), and the extension is **sandboxed**, so `/tmp` is not `/tmp`.
+`freopen(getenv("HOME") + "/tide-au3-diag.log")` inside `InitInstance` lands in
+`~/Library/Containers/<ext-id>/Data/` and is readable from outside. Logic
+untouched; removed before the clean redeploy.
+
+**Bug 2's premise is now measured, not inferred:** the diagnostic prints
+`=== InitInstance ===` **twice per extension process**. That is the double-scan
+the `s_xmlMerged` guard exists to stop.
+
+**The full matrix, six runs:**
+
+| build | BundleInfo | guard | auval | what the plug-in actually contained |
+|---|---|---|---|---|
+| Debug | — | — | `FATAL 4099` | abort in `LoadPrefab` |
+| Debug | yes | — | `FATAL 4097` | abort in `RegisterParameters` |
+| Debug | yes | yes | SUCCEEDED | working |
+| Release | — | — | **SUCCEEDED** | **EMPTY — no pins, no prefabs, no MIDI jacks** |
+| Release | yes | — | SUCCEEDED | working |
+| Release | yes | yes | SUCCEEDED | working — 4 XMLs enriched, **9 prefabs**, root MIDI-CV |
+
+**So the two fixes are not equally load-bearing.** `BundleInfo` is the one that
+matters in Release. The `s_xmlMerged` guard is what stops the **Debug** abort;
+in Release the re-scan is harmless at runtime, so it is defensive rather than
+load-bearing. Worth knowing before anyone "simplifies" either one away.
+
+**The process finding is the bigger one, filed as M6:** `auval` passed an empty
+rack for days. It is not a sufficient shipping gate for TIDE, and TIDE already
+prints everything a real gate would need — it just prints it where nothing
+reads.
+
+**AND IT WORKS IN GARAGEBAND.** Jeff: *"try it in garageband"*. The clean
+`main` Release AUv3 loads in GarageBand and the editor draws **populated**: the
+browser shows the Prefabs group with **exactly 9 entries**, and the rack holds
+the **root MIDI-CV with PITCH / GATE / VEL / TRIG**. That is the precise inverse
+of the pre-fix measurement above — and it is also **V4's rack filter running in
+a real host** rather than only the standalone.
+
+Closing the plug-in window and reopening redraws correctly, the extension
+process stays alive, and the crash-report count is **unchanged at 10** across
+the session — so M4's teardown fix still holds.
+
+**Audio was NOT tested.** The seeded rack contains only the root MIDI-CV;
+scrolling shows bare rails either side, so there is no oscillator or output and
+no sound path. Testing that means building and cabling a patch inside Jeff's own
+GarageBand project, which this run did not do.
+
+**Verified after:** a clean `main` Release AUv3, no diagnostics, is installed at
+`~/Applications` and passes `auval`. **Not verified:** any real host — still
+`auval` only; AU2; iOS.
 
 ## 2026-08-25 — windows — every rack prefab is on the TiDE panel pattern, and a script now enforces it (interactive, Jeff directing)
 
