@@ -79,8 +79,25 @@ reach the GUI for every module, not just these ports. Verified on a running
 rack: the VCV LFO's light receives changing values (`0.750`, against a frozen
 `0.000` before) and visibly blinks.
 
-Scope-style multi-part captures ride the same channel but have not been
-measured yet.
+Scope's 64 KB display-state frames are now measured too: sustained ~30 Hz for
+60 s on the Windows standalone, trace visibly sweeping (reviewed 2026-08-25,
+same session, after Jeff caught it freezing). The review found and fixed two
+transport defects, one of which is a RULE for anyone touching
+`drainRackFeedback`:
+
+- **A GMPI parameter is last-writer-wins, so every pin update must carry
+  WHOLE `ppc` messages.** The first cut forwarded arbitrary contiguous fifo
+  runs; under display-state load an update was overwritten unsent, the torn
+  message desynchronised the editor-side reader (it waits forever on a
+  length field read from mid-payload), and the display froze permanently
+  after a handful of updates. Whole-message forwarding makes a lost update
+  lose only those messages — the stream can never garble.
+- **Blob output parameters must not dedup** (`gmpi_processor::setPin` used
+  to skip `AddWaiter` when the bytes matched the previous frame — a blob
+  here is a stream, not a value; GMPI branch `tide/win/blob-params-are-streams`).
+
+Per-target coverage (VST3/AU3/CLAP/GMPI on all three platforms, plus the
+int/bool/enum datatypes via context-menu options) is BACKLOG **E19**.
 
 ## The original finding (2026-08-25, before the fix)
 
