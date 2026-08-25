@@ -14,6 +14,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 #include <cstdio>
 #include <cstring>
+#include <vector>
 #include "Processor.h"
 #include "SynthRuntime.h"          // TideSynth S12 - the rack's sound engine
 #include "IProcessorMessageQues.h"
@@ -102,6 +103,11 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	// question "is the return path alive?" had no answer for the whole thin
 	// slice, and a silent success is as hard to read as a silent failure.
 	bool loggedFeedback = false;
+
+	// drainRackFeedback's whole-message reassembly. Holds at most a partial
+	// message tail between blocks; see the function for why partial bytes
+	// must never ride a pin update.
+	std::vector<uint8_t> feedbackScratch;
 
 public:
 	SynthEdit()
@@ -342,20 +348,38 @@ public:
 	// gmpi_controller_holder delivers it to each editor's matching GUI pin as
 	// a "ppc3" message. It is the chunk parameter's route, in reverse.
 	//
-	// THE BYTES ARE FORWARDED VERBATIM, framing included. siphon2() hands out
-	// a pointer to the contiguous run at the read position without decoding
-	// it, so this is a copy rather than a translation, and the editor side
-	// pushes it into a queue of the same type and lets the SAME reader parse
-	// it. Anything else would mean re-implementing the framing twice and
-	// keeping the two in step.
+	// THE BYTES ARE FORWARDED VERBATIM, framing included, but ONLY IN WHOLE
+	// MESSAGES -- and the second half is what the first version of this
+	// function got wrong, in a way that WEDGED the editor after a handful of
+	// updates.
 	//
-	// The fifo can WRAP, so one call may see two contiguous runs. Each is
-	// forwarded as its own pin update: the receiving queue reassembles across
-	// calls, so a message split across the wrap arrives intact.
+	// A GMPI parameter is a VALUE, not a queue: gmpi_processor::setPin stores
+	// the blob and the wrapper ships whatever is CURRENT when it services the
+	// parameter -- last writer wins. Under light traffic every update ships
+	// and the distinction is invisible, which is exactly why the lights
+	// worked and the first Scope frames worked. Under 64KB-per-frame display
+	// state, updates outrun the servicing, an intermediate blob is
+	// overwritten unsent -- and if blobs carry ARBITRARY BYTE RUNS of the
+	// stream (the old code forwarded each contiguous fifo run as its own
+	// update), losing one tears a message in half. The editor-side queue then
+	// reads a length field from the middle of someone else's payload and
+	// waits forever for a message that size: every later byte feeds the
+	// phantom, nothing ever parses again, the display freezes for good.
+	// Measured 2026-08-25: apply-checksums streaming on a fresh instance,
+	// frozen minutes later with arrivals still counting -- Jeff's "handful of
+	// updates, then frozen".
+	//
+	// So each pin update is SELF-CONTAINED: whole messages only, split found
+	// by walking the (handle, id, length) headers the queue writes. A dropped
+	// update then loses those messages and nothing else -- for feedback
+	// values the next update supersedes them anyway -- and the receiver can
+	// never desynchronise. The scratch buffer holds at most one partial
+	// message tail between blocks (a message split across the fifo's wrap or
+	// a half-serialised multipart); it is not a second queue.
 	void drainRackFeedback()
 	{
+		// Everything out of the fifo (two contiguous runs when it wraps).
 		int readyBytes = queDspToUi.readyBytes();
-
 		while (readyBytes > 0)
 		{
 			void* data{};
@@ -363,17 +387,48 @@ public:
 			if (contiguous <= 0)
 				break;
 
-			pinFeedback.setRaw({ static_cast<const uint8_t*>(data), static_cast<size_t>(contiguous) });
-			pinFeedback.sendPinUpdate(getBlockPosition());
-
+			const auto* p = static_cast<const uint8_t*>(data);
+			feedbackScratch.insert(feedbackScratch.end(), p, p + contiguous);
 			queDspToUi.siphon2_advance(contiguous);
 			readyBytes -= contiguous;
+		}
 
-			if (!loggedFeedback)
+		// How many WHOLE messages sit at the front of the scratch?
+		constexpr size_t headerSize = 3 * sizeof(int32_t); // handle, id, length
+		size_t whole = 0;
+		while (feedbackScratch.size() - whole >= headerSize)
+		{
+			int32_t messageLength{};
+			memcpy(&messageLength, feedbackScratch.data() + whole + 2 * sizeof(int32_t), sizeof(messageLength));
+
+			// A corrupt length would re-create the exact wedge this function
+			// exists to prevent; the queue is 5MB, so nothing legitimate is
+			// bigger. Drop the lot and resynchronise on fresh messages.
+			if (messageLength < 0 || messageLength > SeAudioMaster::AUDIO_MESSAGE_QUE_SIZE)
 			{
-				loggedFeedback = true;
-				fprintf(stderr, "TIDE: rack feedback reaching the editor - first %d byte(s)\n", contiguous);
+				fprintf(stderr, "TIDE: rack feedback stream corrupt (length %d) - resetting\n", messageLength);
+				feedbackScratch.clear();
+				return;
 			}
+
+			const size_t total = headerSize + static_cast<size_t>(messageLength);
+			if (feedbackScratch.size() - whole < total)
+				break; // partial tail: keep for next block
+
+			whole += total;
+		}
+
+		if (whole == 0)
+			return;
+
+		pinFeedback.setRaw({ feedbackScratch.data(), whole });
+		pinFeedback.sendPinUpdate(getBlockPosition());
+		feedbackScratch.erase(feedbackScratch.begin(), feedbackScratch.begin() + whole);
+
+		if (!loggedFeedback)
+		{
+			loggedFeedback = true;
+			fprintf(stderr, "TIDE: rack feedback reaching the editor - first %zu byte(s)\n", whole);
 		}
 	}
 

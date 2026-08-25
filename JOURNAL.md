@@ -8,6 +8,64 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-25 — windows — the return-path review: a GMPI parameter is last-writer-wins, and only whole messages survive it (interactive, Jeff directing)
+
+**Prompt:** great, review this code. Ensure it transfers data from Processor
+to Editor for all the main datatypes. (mid-turn: ensure the backlog specifies
+test for this for all targets; later, watching a frozen Scope: "a handful of
+updates, then frozen. Is your queue working, or blocking?")
+
+**The review found two real transport defects, and Jeff's question named the
+second one before the probes did.**
+
+**Defect 1 — blob output parameters dedup'd (GMPI,
+`tide/win/blob-params-are-streams`).** `gmpi_processor::setPin`'s blob arm
+only queued the parameter for shipping when the bytes CHANGED. A blob output
+parameter is a stream, not a value — Scope captures and the feedback channel
+send each update explicitly — and the compare was also a full-blob memcmp per
+block for nothing. Now ships unconditionally; scalar params keep their dedup.
+
+**Defect 2 — the freeze, and it is a design rule, not a patch.** Jeff cabled
+LFO→Scope and watched the trace capture a real sine, update a handful of
+times, then freeze forever — while the traces showed arrivals STILL COUNTING
+(apply #9420, checksums changing) on a fresh instance. The mechanism: a GMPI
+parameter is LAST-WRITER-WINS. `drainRackFeedback` forwarded each contiguous
+fifo run as its own pin update; under 64 KB × 30 Hz of display state the
+updates outran the wrapper's servicing, an intermediate blob was overwritten
+unsent — and because updates carried arbitrary byte runs, the loss tore a
+`ppc` message mid-frame. The editor-side queue then read a length field out
+of someone's payload and waited forever for a message that size. Every later
+byte fed the phantom. Frozen for good, exactly "a handful of updates, then
+frozen". **Fix: each pin update carries WHOLE messages only** — walk the
+(handle, id, length) headers, send complete messages, keep the partial tail
+in a scratch buffer. A dropped update now loses only superseded frames; the
+framing can never desynchronise. A corrupt length (> the 5 MB queue size)
+resets the scratch and logs, rather than re-creating the wedge.
+
+**Measured past the freeze horizon, not at it:** 60 s sustained, VCV Scope
+display-state arriving at the full ~30 Hz (≈1,700 arrivals), apply checksums
+still changing at t=60 s, and ~20k sampled pixels differing between
+screenshots taken seconds apart — the trace visibly sweeping. The first cut
+froze within seconds under the same load.
+
+**Datatype coverage, honestly stated:** float and blob (both the fixed-size
+scalar shape and the size-prefixed variable shape, at 64 KB) are proven live
+end to end. int/bool/enum/string ride the identical generic byte pipe with
+per-datatype decode in long-standing SE code on both ends — audited, not yet
+runtime-proven; they and the per-format matrix are BACKLOG **E19** (per
+Jeff's instruction that the backlog specify tests for all targets), with the
+adaptor's RACK_ADAPTOR_TRACE named as the instrument and the freeze signature
+documented so a regression is recognisable. Also audited en route:
+`ControlPin::setRaw` copies before the fifo advances and `sendPinUpdate` is
+unconditional; MPAR multipart reassembly exists in the receiving queue;
+queues are 5 MB so 64 KB frames never fragment.
+
+**Kept, deliberately:** the adaptor's new gated traces (connection flags,
+first-nonzero signal, param values, display-state captures/arrivals/applies
+with checksums, render counts — branch `display-state-trace`). They found
+defect 2 in five rebuild cycles and they are E19's acceptance instrument.
+All compiled out unless RACK_ADAPTOR_TRACE=1.
+
 ## 2026-08-25 — windows — the DSP→GUI return path exists now: the VCV LFO's LED blinks, and so can every meter, scope and light TIDE ever ships (interactive, Jeff directing)
 
 **Prompt:** back to LFOs. Get it working for VST3, "C:\SE\SE16\se_vst3" might
