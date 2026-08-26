@@ -25,19 +25,27 @@ TiDE already emits everything needed to catch that; nothing read it. This does.
 
 WHY THIS ASSERTS POSITIVES RATHER THAN GREPPING FOR THE NEGATIVE LINES.
 The tempting cheap version is "fail if any of those three messages appears".
-That version is blind to the failure it most needs to catch. `seedPrefabsFromBundle`
-opens with:
+That version is blind to the failure it most needs to catch. When this script
+was written, `seedPrefabsFromBundle` opened with:
 
     const auto resourceFolder = BundleInfo::instance()->getResourceFolder();
     if (resourceFolder.empty())
         return;                       // <-- no message of any kind
 
 An empty resource folder -- which is one plausible shape of exactly the M5
-BundleInfo defect -- produces a rack with no prefabs and SAYS NOTHING. A
+BundleInfo defect -- produced a rack with no prefabs and SAID NOTHING. A
 negative-line scan passes it. Requiring the positive line ("N rack prefab(s)
 seeded from the bundle") fails it, because the line is simply absent. The rule
 is: a silent plugin is a failing plugin. We check for both, but the positive
 assertions are the load-bearing half.
+
+BACKLOG M8 has since given that branch a voice -- "bundle resource folder did
+not resolve" is now in FATAL_LINES below, so the case names itself instead of
+being inferred from an absence. THAT DOES NOT DEMOTE THE POSITIVE ASSERTIONS,
+and reading it that way would undo the whole argument above. A message can only
+catch the silence someone already thought of; the positive line catches the
+next one too. The two fixtures in tests/rack-content/ keep both halves honest:
+`silent-empty-rack.log` is still a pure absence and must still fail.
 
 THE CAPTURE PROBLEM, AND WHY THE AU3 ARM NEEDS os_log.
 An app extension's stderr reaches neither the terminal nor the unified log, and
@@ -99,10 +107,24 @@ DEFAULT_RACK = re.compile(r"TIDE: default rack loaded, (\d+) byte document")
 FATAL_LINES = (
     ("missing from bundle resources", "a module-description XML did not resolve"),
     ("-- ZERO: is the .cpp in CMakeLists' source list?", "an XML enriched zero classes"),
+    ("bundle resource folder did not resolve", "BundleInfo found no Resources folder "
+     "-- this is the M5 defect's own shape, and until M8 it was completely silent"),
     ("no Prefabs folder in bundle resources", "the rack module browser will be empty"),
     ("Prefabs folder present but empty", "the POST_BUILD staging step did not run"),
     ("starting with an empty rack", "the default document is missing, unreadable or did not import"),
     ("refused", "a root MIDI-CV connection was refused"),
+)
+
+# The subset of FATAL_LINES that are the KNOWN reasons the "N rack prefab(s)
+# seeded" line can be absent -- i.e. every early return in
+# seedPrefabsFromBundle(), plus the found==0 path. When one of these has already
+# fired, the absence below is explained and says so; when none has, the absence
+# is unexplained, which is the M5 shape and is worth flagging as such. Both are
+# still failures. Keep in step with the tideDiag calls in that function.
+PREFAB_ABSENCE_CAUSES = (
+    "bundle resource folder did not resolve",
+    "no Prefabs folder in bundle resources",
+    "Prefabs folder present but empty",
 )
 
 
@@ -116,10 +138,12 @@ def check(text, expect_prefabs=EXPECTED_PREFABS):
                  "failures, and an empty capture must never read as a pass."],
                 notes)
 
+    fired = set()
     for needle, why in FATAL_LINES:
         for line in text.splitlines():
             if needle in line and "TIDE:" in line:
                 failures.append("%s -- %s\n      %s" % (needle, why, line.strip()))
+                fired.add(needle)
 
     # --- positive assertion 1: every module-description XML enriched something
     seen = {}
@@ -142,10 +166,19 @@ def check(text, expect_prefabs=EXPECTED_PREFABS):
     # --- positive assertion 2: the prefabs seeded, and the count is right
     found = PREFABS.findall(text)
     if not found:
-        failures.append("no 'rack prefab(s) seeded' line at all. This is the "
-                        "silent case: seedPrefabsFromBundle() returns without a "
-                        "message when the resource folder is empty, so the "
-                        "browser is empty and nothing complained.")
+        cause = [n for n in PREFAB_ABSENCE_CAUSES if n in fired]
+        if cause:
+            failures.append("no 'rack prefab(s) seeded' line -- the rack module "
+                            "browser is EMPTY. Cause already named above: %s."
+                            % "; ".join(cause))
+        else:
+            failures.append("no 'rack prefab(s) seeded' line at all, AND NOTHING "
+                            "SAID WHY. seedPrefabsFromBundle() left by a path "
+                            "that reports nothing, so the browser is empty and "
+                            "the only evidence is this absence -- the M5 shape. "
+                            "Since M8 every known way out of that function "
+                            "prints a line, so this means either a new one, or "
+                            "diagnostics that never reached this channel.")
     else:
         count = int(found[-1])
         if count != expect_prefabs:

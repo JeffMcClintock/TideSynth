@@ -913,7 +913,19 @@ void TideApp::seedPrefabsFromBundle()
 {
 	const auto resourceFolder = BundleInfo::instance()->getResourceFolder();
 	if (resourceFolder.empty())
+	{
+		// BACKLOG M8 -- this used to be a bare `return;`, and it was the ONLY
+		// path out of this function that said nothing. Every other outcome
+		// below reports itself, so an unresolvable resource folder was the one
+		// way to get an empty rack module browser in total silence -- which is
+		// precisely the shape M5 took two days to notice. It is not a
+		// hypothetical shape either: getResource() reaches the embedded Win32
+		// resources first on Windows and returns {} unconditionally under
+		// GMPI_IS_PLATFORM_JUCE, so the module-description XMLs can merge
+		// perfectly while this lookup comes back empty.
+		tideDiag("TIDE: bundle resource folder did not resolve - the rack module browser will be empty\n");
 		return;
+	}
 
 	const se_fs::path prefabs = se_fs::path(resourceFolder) / kPrefabFolder;
 
