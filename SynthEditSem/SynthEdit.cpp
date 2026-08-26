@@ -282,6 +282,13 @@ public:
 					return;
 				}
 
+				// One line per build, size included. E27 was a chunk silently
+				// truncated by the host, and NOTHING said what arrived - a
+				// blank restore printed the same nothing as a good one. The
+				// size is the discriminator a log reader needs: a real rack is
+				// tens of KB, the seeded blank is ~13KB.
+				fprintf(stderr, "TIDE: building rack from %zu byte document\n", xml.size());
+
 				rack.setDocumentXml(xml);
 
 				if (host)
