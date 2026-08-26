@@ -8,6 +8,60 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — E34 was allocated twice on the same day; `main` was red on `check-id-refs` (scheduled run)
+
+**Prompt:** "Work continuously through the TideSynth backlog... Before filing,
+re-fetch and scan BOTH BACKLOG.md and BACKLOG-DONE.md for the highest id in
+that series; take max+1. Then run scripts/check-id-refs.py and READ ITS WHOLE
+OUTPUT."
+
+Reading its whole output is what found this. Not a filing of mine — a
+collision already sitting on `main`:
+
+```
+1 DUPLICATE ID(s) -- one ID, more than one row:
+  E34
+      BACKLOG.md:129
+      BACKLOG.md:192
+```
+
+**How it got there, because the mechanism matters more than the fix.** Two
+boxes allocated **E34** on 2026-08-26 from branches cut off the same `main`.
+#442 (macos) filed it for insert-stacking while verifying E31; #443 (windows)
+filed it for the cable-drag gesture. The rows landed at DIFFERENT points in the
+file, so git merged both cleanly with no conflict. **Each PR's lint job was
+green on its own** — verified, both `lint` runs say `success`. The duplicate
+existed only in the merge of the two, which no PR-scoped check looks at. So
+`main` went red at the moment the second one merged, and every PR opened after
+that inherits the red.
+
+**Renumbered the insert-stacking row to E36, and it is the OLDER of the two —
+deliberately against the lint's own advice.** `check-id-refs` says "renumber
+the newer row", and its stated reason is to break the fewest references. Here
+that reason points the other way:
+
+- E34-as-cable (newer, #443) is cited from `JOURNAL.md`, which is append-only.
+  A landed entry cannot be corrected without failing `check-journal-prepend`,
+  so a renumber there would leave a permanently wrong pointer.
+- E34-as-insert-stacking (older, #442) is cited only from E31's BACKLOG row,
+  which can carry an appended pointer — and now does.
+
+Follow the heuristic's REASON, not the heuristic. E34 keeps meaning the cable
+gesture everywhere it is already written down; the row that moved is the one
+whose only reference was correctable.
+
+**A side-effect worth knowing** if anyone repeats this: `check-backlog-diff`
+parses rows into a dict keyed by ID, so with a duplicate in the base the LAST
+row in the file wins. Renumbering the newer row would have looked like a
+REWRITE of E34 (base's cable text absent from head's insert text) and failed
+that lint too. Renumbering the older one is invisible to it. That is a second,
+independent reason the choice above is the only one that lands.
+
+**Not fixed here:** the gap that allowed it. A PR-scoped lint cannot see a
+collision that only exists post-merge; catching this class wants the check to
+run on `main` after every merge, or on the merge result. `.github/workflows/**`
+is Jeff's — the bot token has no `workflow` scope — so it is flagged, not done.
+
 ## 2026-08-26 — windows — the standalone can be driven from a test run, and driving it found a cable-gesture bug (interactive, Jeff directing)
 
 **Prompt:** hey, could you have driven tide via MCP to do that testing? / yes,
