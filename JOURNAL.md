@@ -8,6 +8,103 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — linux — E32's size half: the standalone reopens where it was, and the save had to move before closeWindow() (interactive, Jeff directing)
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** took **E32** scoped to the **size** half. Product change is
+[GMPI_Wrappers#20](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/20) —
+one file, +92 lines. **Position is not done**, deliberately, and the row is
+IN-REVIEW rather than closed because of it.
+
+### Why size here and position elsewhere
+
+Size is portable, so it belongs in `StandaloneApp.cpp` where all three shells
+get it at once. Position is not: **xdg-shell has no set-position**, so a Wayland
+client can never place its own window. That is a property of the protocol rather
+than a gap to close later, which is why the Linux half of this row was always
+going to be smaller than the other two — and why doing the shared half from this
+box is the useful contribution rather than a partial one.
+
+`SessionState.h` already had the rule this follows: *"Window size and position
+are the shell's business, not the plugin's, and are not kept here."* So the keys
+go in `standalone.conf`, beside the device selection, and the patch stays clean.
+
+### The trap the row did not name
+
+The row lists three. A fourth turned up by running it: **the save has to happen
+before `closeWindow()`.**
+
+Afterwards the Wayland shell reports **0x0** — the frame is gone. Writing that
+would persist a size the next launch rejects, so it would silently fall back to
+the default **and look exactly like the feature had never worked**. The failure
+is invisible in the code and obvious the moment you read the file.
+
+### One bound, both directions
+
+The sanity check is shared by the read and the write, so a size this build
+refuses to restore is also one it refuses to save — the file cannot accumulate
+values that are silently ignored forever. It only rejects nonsense; clamping to
+the real minimum stays `setMinimumClientSize`'s job, which runs on **every**
+path including the ones that never read a file. Duplicating that clamp here
+would have been a second place to get it wrong.
+
+### Verified — eight cases, headless weston
+
+| case | result |
+|---|---|
+| first run, no config | **1100x626** (editor default) — unchanged |
+| quit | conf gets `window.width=1100`, `height=626` |
+| conf hand-set 900x500 | reopens **900x500** |
+| conf zeros | 1100x626 |
+| conf **width only** | 1100x626 — both or neither |
+| conf `99999 / -7` | 1100x626 |
+| unknown key alongside | **preserved** across the save |
+| reopen 960x540, then quit | conf gets **960x540**, not the default |
+
+**The last row is the one that matters.** Every other restore case proves the
+read; only that one proves the *write* follows the live window rather than
+re-writing the editor default — which is the failure mode that would have
+shipped silently.
+
+**Not verified:**
+
+- **An interactive resize.** A real xdg-shell resize is a compositor gesture
+  this harness cannot send, so the live-size path is demonstrated by restoring a
+  non-default size and reading it back at quit. That is a proxy and I am calling
+  it one.
+- **Windows and macOS were not built**, and **both still need their position
+  half.** The row is not complete and is marked IN-REVIEW, not DONE.
+
+**Learned:**
+
+- **"Save on shutdown" has an ordering, and the wrong one fails silently.**
+  Reading the window after `closeWindow()` gives 0x0, which the next launch
+  rejects — so the bug presents as "the feature does nothing" rather than as an
+  error. Save before you tear down, and check the file rather than the code.
+- **Share the validity bound between read and write, not the clamp.** One
+  predicate means the file can never hold a value this build ignores; copying
+  `setMinimumClientSize`'s job in would have been a second place to drift.
+- **A protocol limit is a scope decision, not a TODO.** Wayland cannot position
+  a window, so the linux slice of this row is *complete at size* — worth saying
+  plainly so nobody files a follow-up to "finish" it here.
+- **`git merge` into a worktree, then editing before resolving, corrupts the
+  edit.** I ran a scripted row update while `BACKLOG.md` still had conflict
+  markers. `git reset --hard origin/main` and redoing it took a minute; noticing
+  took longer than it should have because the lint I ran first was on the *other*
+  file.
+- **Backticks in a `--body` argument are shell-interpreted.** Three lines of my
+  first PR body ran as commands. `--body-file`, or `gh api -X PATCH` with JSON.
+
+**Machine left clean.** Headless weston stopped, standalone stopped, scratch
+`HOME`s throughout; nothing written to Jeff's config. All six repos on their
+default branches and clean.
+
+**Branch/PR:** `tide/linux/E32-window-size` in both repos —
+[GMPI_Wrappers#20](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/20) is
+the change; TideSynth carries the row and this entry. **Merging TideSynth's side
+alone changes no behaviour.**
+
 ## 2026-08-26 — macos — E24: a HetrickCV module on TIDE's rack, looked at for the first time (scheduled run)
 
 **Prompt:** "i merged stuff, sync repos, continue."
@@ -1249,556 +1346,6 @@ replaced by AU hosting. Only CoreAudio's 1046 could go. You would end up with tw
 standalone implementations instead of one. The real upside is coverage: an
 AU-hosted standalone would have caught the M5 empty-AU bug immediately - at the
 cost of the standalone-vs-AU divergence used as a diagnostic twice today.
-
-## 2026-08-26 — windows — E19: the standalone leg passes, and a controlled A/B says the VST3 silently drops any rack over ~14 KB
-
-**Prompt:** b97bc00a5 · claude-opus-5[1m] · app version not readable on this box (no `claude` on PATH, no version file under `%LOCALAPPDATA%`) · as `tide-rack-bot` (both)
-
-**Took E19** — nothing else was eligible. The NEXT block's three cells all still
-say "nothing takeable", but they predate the E19–E26 rows that 2026-08-25's
-interactive sessions filed, and **E19 is the topmost TODO that is `any`,
-unblocked, and states its Accept as a command.** M6 was skipped: open PR
-[#424](https://github.com/JeffMcClintock/TideSynth/pull/424) is `tide/mac/**`,
-so that item is the mac box's.
-
-**Result in one line: the WINDOWS STANDALONE leg PASSES; the VST3 and GMPI legs
-do not, and the reason the VST3 one does not is worth more than the leg was.**
-
-### The instrument this row did not know it had
-
-E19 names `RACK_ADAPTOR_TRACE` as its instrument. The thing that actually made
-the run possible is **the standalone's command channel** — a named pipe
-`\\.\pipe\gmpi-standalone.<pid>`, printed at startup as `command channel: ...`,
-compiled in by default (`GMPI_Wrappers/wrapper/Standalone/mcp/`). It takes
-`--screenshot`, `--pointer-down/-up/-move`, `--drag`, `--hover`, `--set-param`,
-`--list-params`, `--note-on`, `--render-audio`, one command per line, JSON back.
-
-**This overturns the 2026-08-25 dead end.** That entry recorded that injected
-mouse input (`SetCursorPos` + `mouse_event`, `PostMessage WM_LBUTTONDOWN`) never
-reaches TIDE's window and concluded "every click measurement here came from Jeff
-clicking. Budget for that." **It does not have to be.** The channel does not
-inject OS input at all — it calls `onPointerDown/Move/Up` on the editor's own
-input client, so it lands where OS injection could not. **I built the entire
-LFO→Scope rack this row asks for, by script, unattended.** Coordinates are
-logical DIPs from the window's top-left; a screenshot is the same space scaled
-by `scale` (1.5 here), so pixel/1.5 = DIP, and `--info` reports the geometry.
-
-Minimal client, since there is no CLI for it (PowerShell, because a named pipe
-wants .NET):
-
-```powershell
-$c = New-Object System.IO.Pipes.NamedPipeClientStream(".", "gmpi-standalone.<pid>", "InOut")
-$c.Connect(5000); $w = New-Object System.IO.StreamWriter($c); $w.AutoFlush = $true
-$r = New-Object System.IO.StreamReader($c)
-$w.WriteLine("--screenshot C:/tmp/shot.png"); $r.ReadLine()
-```
-
-**It is standalone-only**, and that is exactly why the other two legs failed —
-see below.
-
-### STANDALONE — PASS
-
-Build: `cmake -B C:/SE/_scratch/e19 -DTIDE_VCV_FUNDAMENTAL=ON -DCMAKE_CXX_FLAGS=-DRACK_ADAPTOR_TRACE=1`
-plus the four `*_FOLDER_OVERRIDE`s and `CMAKE_GENERATOR_INSTANCE`;
-`TIDE_Rack TIDE_Rack_VST3 TIDE_Rack_STANDALONE` all built, 0 errors. (`-D` not
-`/D` in `CMAKE_CXX_FLAGS` — MSYS mangles a leading slash into
-`C:/Program Files/Git/D...` and the configure dies in a try-compile.)
-
-Rack: VCV LFO with its FREQ light, VCV Scope cabled LFO **SIN → IN 1**, verified
-at the pins rather than by eye — `RackProcessor: 'LFO' connections ins=00000
-outs=1000` and `'Scope' connections ins=100 outs=00`, i.e. output 0 and input 0,
-which is what SIN and X are given the adaptor's inputs-then-outputs pin order.
-
-Measured over **63 s** (08:57:27 → 08:58:30), past the documented freeze horizon:
-
-| | at T0 | at T+63 s |
-|---|---|---|
-| display-state applies (`codec=yes`) | #22,100 | #38,160 |
-| light updates | #20,300 | #27,800 |
-| display-state frame size | 65,548 B | 65,548 B |
-
-Still advancing at the end of the window, 52 distinct checksums across the last
-200 applies, and **5,157 pixels differ** between screenshots 63 s apart — the
-busiest 100×100 tile is at (2100,1000), which is the Scope's display. The
-freeze-after-a-handful signature did not appear. **float and blob both live.**
-
-### VST3 — the plugin runs, and then silently loses your rack
-
-The plugin loads in REAPER 7.78, its editor draws inside the FX window, the
-adaptor traces reach a shell-redirected stderr, and `TIDE: rack feedback
-reaching the editor - first 37 byte(s)` fires. Then the saved rack does not come
-back — `root MIDI-CV seeded` and a ~13.3 KB blank document.
-
-**The A/B that pins it, and it is a clean one.** Take `tests/hosts/v1-rack.rpp`'s
-own preset — REAPER's bytes, not mine — and change **nothing but the size** by
-splicing an ignorable XML comment into `<Document>`:
-
-| document | base64 `val` | restores? | pushed to DSP |
-|---|---|---|---|
-| 14,136 B (unpadded) | 18,848 | **yes** | shape 4,787 B |
-| 14,647 B (+500) | 19,532 | **no** | 13,371 B = blank |
-| 16,147 B (+2,000) | 21,532 | **no** | 13,340 B = blank |
-| 24,147 B (+10,000) | 32,196 | **no** | 13,363 B = blank |
-| 40,147 B (+26,000) | 53,532 | **no** | 13,338 B = blank |
-
-Same rack, same modules, same everything. **The threshold is between 14,136 and
-14,647 document bytes**, and above it the patch is dropped **silently** — no
-error, no log line, just a blank rack and a freshly seeded MIDI-CV.
-
-**What this costs in practice:** Jeff's own five-module VCV rack is a 31,648-byte
-document and the one I built is 38,658 — both far over. **Both restore correctly
-in the standalone from the identical `<Preset>` bytes.** So this is a per-format
-defect, which is precisely what E19 exists to find, and it puts PLAN's v0.1
-clause *"patch survives save-and-reload of the host project"* in doubt: that
-clause was measured on a 14 KB document, which is under the line.
-
-**Ruled out, each by its own control** — do not re-derive these:
-
-- **Not my chunk framing.** I reconstructed REAPER's VST3 chunk wrapper
-  (`<u32 len+4><u32 1><u32 len>` + preset + 8 zero bytes, base64 in 128-char
-  lines). Re-encoding v1's *own* preset with my encoder restores fine (shape
-  4,787 vs the original's 4,820).
-- **Not preset size.** v1's preset padded to 51,910 B **outside** the `val`
-  attribute restores. Only growth of the base64 blob itself breaks it.
-- **Not the preset's shape.** The standalone's `session.xml` carries an XML
-  prolog and `standalonePlugin=` / `standalonePluginVersion=` attributes that
-  REAPER's does not; stripping both changes nothing.
-- **Not module registration or ordering.** `TIDE: VCV Fundamental — 39 module(s)
-  registered` is line 1 of the VST3 log, before any restore, exactly as in the
-  standalone.
-- **Not content.** The failing and passing documents differ by an XML comment.
-
-**Prime suspect, named but NOT instrumented, so treat it as a lead:**
-`Controller_VST3::setComponentState` (`GMPI_Wrappers/wrapper/VST3/Controller_VST3.cpp:456`)
-and `Processor_VST3::setState` (`Processor_VST3.cpp:1045`) both do
-`state->read(chunk.data(), chunkSize, &bytesRead)` and **never look at
-`bytesRead`**. A short read on a larger chunk would leave the tail unwritten, the
-XML unparseable, and the failure exactly this silent. It fits the size behaviour,
-and it fits the standalone working, since the standalone never goes through an
-`IBStream`. Filed as **E27**; reading `bytesRead` in a loop is a small,
-well-scoped change and this run deliberately did not make it (STEP 3: one item).
-
-### The other VST3 finding: the committed host fixtures no longer load at all
-
-Every `tests/hosts/*.rpp` in the repo names the plugin as
-`1386065673{506C7567696E474D50492050A2A07287}`. REAPER 7.78 on this box writes
-and expects `1558955188{67756C506E694D4750492050A2A07287}`. **Same UID, opposite
-byte order** — the TUID is literally `"PluginGMPI     "` with byte 11 = `'P'` and
-a 4-byte id hash (`GMPI_Wrappers/wrapper/VST3/MyVstPluginFactory.cpp:200`), so
-the fixtures hold the raw TUID and REAPER now writes the COM little-endian
-rendering of it. The plugin's identity has **not** changed.
-
-The symptom is *"Project Load Warning — the following effects were in the project
-file and are not available"* and a track with no plugin. It reproduces with the
-untouched `v1-rack.rpp` against Jeff's own installed build, so it is nothing to
-do with anything I built. Substituting the token makes every fixture load. Filed
-as **E29**. This does not touch the mac box's `render-and-measure.py` results,
-because that script hardcodes `/Applications/REAPER.app/...` and has never run on
-Windows — but the fixtures are shared, so **the mac box should check whether its
-REAPER agrees with the committed token.**
-
-### A patch cable does not rebuild the DSP graph
-
-Found on the way, reproduced on two independent racks. Draw a cable in the
-editor: it renders, it persists, it is written into `HC_PATCH_CABLES` — and **no
-rebuild happens.** No `RackProcessor: ... constructed`, no new `connections`
-line, the Scope's input stays `ins=000`, its display-state checksum stays frozen
-at one value.
-
-Add any unrelated module and the rebuild that follows picks the cable up
-correctly — `LFO ... outs=1000`, `Scope ... ins=100`. So the cable is recorded
-and the *trigger* is missing, which is the useful half of the diagnosis.
-
-**E9 already said this by inspection and this is its first measurement:**
-*"`DoAsyncRestart` is reached from `dsp_patch_parameter.cpp:773` for any host
-control with `requiresAsyncRestart()`, a set that includes `HC_PATCH_CABLES` —
-nothing in TIDE calls it yet."* Filed as **E28**.
-
-### GMPI — not attempted, and why
-
-Hosting `TIDE-Rack.gmpi` needs SynthEdit, and the rack this row wants would have
-to be built inside that host. **There is no way to do that unattended**: the
-command channel is standalone-only and OS-level input injection does not reach
-TIDE's window. The same wall stopped the VST3 leg from being measured with a
-*real* rack. Stated plainly so the next run does not spend a session finding it:
-**E19's Accept is only automatable in the standalone today**, and the cheapest
-way to change that is either a command channel in the plugin editor or one
-human-built fixture per format, saved once and committed.
-
-### Three times I believed an empty picture, and was wrong twice
-
-Worth more than the findings, because it cost most of the session:
-
-- **The rack view scrolls, and an empty-looking rack is usually a scrolled one.**
-  The standalone opened on a region with nothing in it while four modules sat at
-  `panelRect` x 597–1113. I concluded "the session did not restore" and started
-  hand-authoring a replacement.
-- **I read a session file at the wrong moment and concluded nothing persisted.**
-  It was a stale read; state persists fine. I nearly wrote that up as a defect.
-- **The third time it was real** — but only because a trace, not a picture, said
-  so.
-
-The rule this yields: **on this UI, a claim of absence needs a trace or a
-document dump, never a screenshot.** Every finding above rests on one.
-
-### Verification artifacts
-
-`RackProcessor: connections ins=/outs=` bitmaps for pin-level cable proof;
-`display-state update #N` / `apply #N ... sum=` counters and `light N update #M
-value V` across a 63 s window; a 5,157-pixel screenshot diff with the busiest
-tile on the Scope; the five-row padding table above, each row a separate REAPER
-launch reading `TIDE: DSP structure changed, pushing N byte document`; a
-`LoadLibraryW` + `GetProcAddress` check proving the VST3 exports
-`GetPluginFactory` (it was never a broken binary).
-
-### Machine left clean
-
-Everything I touched is back: the installed `Common Files\VST3\TIDE-Rack.vst3`
-binary (I swapped my trace build in and put Jeff's 16,401,408-byte original
-back), `reaper-vstplugins64.ini` (restored from backup after a forced rescan),
-and `%APPDATA%\TIDE Rack\session.xml` + `session.previous.xml` (restored
-byte-for-byte from copies taken before the first launch). No TIDE or REAPER
-process left running. Build tree is `C:\SE\_scratch\e19`, outside every repo. All
-seven working copies are on their default branches and clean.
-
-**Note for whoever wonders:** `C:\SE\VCV_Fundamental_gmpi` carries one unpushed
-commit of Jeff's, `93a27f9`, docs only (`DEVNOTES.md`, `README.md`). Left alone —
-STEP 5's third kind of dirt.
-
-**Branch/PR:** `tide/win/E19-feedback-format-matrix` — this entry, E19's status,
-and rows E27/E28/E29.
-
-## 2026-08-26 — macos — M6: auval passes an empty rack and this does not; the appex finally has a voice (scheduled run)
-
-**Prompt:** b97bc00 · claude-opus-5[1m] · app 1.34493.1 · as tide-rack-bot (both)
-
-**Did:** took **M6**, the only eligible ungated TODO. Built the content gate,
-and discharged its Accept **on the real artifact rather than a fixture**.
-
-### The headline, measured twice on this box today
-
-| subject | `auval` | `check-rack-populated.py` |
-|---|---|---|
-| healthy AUv3 (my build) | exit 0, SUCCEEDED | **exit 0**, six assertions ok |
-| AUv3 with `Prefabs/` + `ControlsXp.xml` removed | **exit 0, `AU VALIDATION SUCCEEDED`** | **exit 1, 8 failures named** |
-
-The second row IS M6. A rack with no prefabs, no MIDI jacks and a missing pin
-XML validates clean. I removed the two resources from the installed appex,
-re-signed ad-hoc, re-registered with `pluginkit -a`, and `auval` never blinked.
-
-### The work was the CAPTURE, not the assertions
-
-M6's row said "a gate can be as small as: fail if any negative line appears".
-The assertions are indeed small. **They were also unreachable**: an appex's
-stderr goes nowhere an outside process can read, which is why M5 resorted to
-`freopen`-ing it into the sandbox container and deleted the hack before
-redeploying. A gate cannot be a hack you remove.
-
-M5's own note contains the answer without drawing the conclusion — *"`log
-stream` shows os_log only"*. **os_log is the channel that crosses the
-boundary.** `TideApp.cpp` now mirrors its ten startup diagnostics through a
-`tideDiag()` shim. Chosen over the log file deliberately: TideApp.cpp's
-existing comment block rules a log file out as *"a write outside the plugin
-bundle (constraints 3 and 4)"*, and os_log is the platform's own facility
-rather than a file the plugin creates — nothing on the user's disk, no sandbox
-exception. stderr stays primary, so the standalone and CI logs are unchanged.
-
-**The A/B that proves the mirror is load-bearing**, same command both times:
-
-- against the build already registered on this box (`main`, no mirror):
-  **captured nothing**, 6 assertions failed.
-- against the os_log build: `2/18, 2/7, 26/70, 2/7`, **9 prefabs**, root
-  MIDI-CV — identical to the standalone.
-
-That first result is worth reading carefully: the gate reported failure on a
-plugin that is probably *fine*. **That is correct behaviour, not a false
-positive** — an unobservable plugin must not be called healthy — but it means
-this gate only means something on a build carrying the mirror.
-
-### The design decision I would defend hardest
-
-**Assert the POSITIVE lines, do not grep for the bad ones.**
-`seedPrefabsFromBundle()` opens with `if (resourceFolder.empty()) return;` —
-**no message at all.** So an unresolved resource folder gives an empty module
-browser in total silence, and the cheap grep-for-bad-lines gate passes it. That
-is the same shape as M5's `BundleInfo` defect. Requiring
-`N rack prefab(s) seeded` fails it, because the line is simply absent.
-`tests/rack-content/silent-empty-rack.log` is the standing control for exactly
-this, and the silent `return` itself is filed as **M8**.
-
-### What I did NOT do
-
-- **No CI wiring.** `.github/workflows/**` is what the bot token deliberately
-  cannot push. The script runs by hand today; the job is one step and is
-  Jeff's. **So M6 is not fully closed by this PR** and the row says so.
-- **No audio.** Same standing gap as every entry this week — the gate proves
-  the rack is POPULATED, not that it sounds.
-- **Windows and Linux.** The `--standalone` arm is portable and unexercised
-  there; the `--au3` arm is macOS-only by definition.
-- **`tideRemovedDialog` is not mirrored.** Equally invisible under AUv3 and
-  arguably deserves the same treatment — left alone as out of scope.
-
-**Verified:** cold configure + Release build rc=0, **0 error lines**, all
-siblings `[fetched]` from their own `main` (not the local overrides — see the
-dirt note below); the four-way A/B above; both fixture negative controls; the
-live emptied-AUv3 negative control; the standalone arm re-run after an include
-move.
-
-**Learned:**
-
-- **`auval` passing is compatible with the plugin containing nothing**, and now
-  there is a command that says so out loud rather than a paragraph in a row.
-- **An absent line is a failure mode a grep cannot see.** The cheap version of
-  this gate would have shipped and felt like coverage.
-- **The AU3 appex is assembled by its own always-run target**, `TIDE_Rack_AU3_assemble`,
-  not by building `TIDE_Rack_AU3` and `TIDE_Rack_AU3App`. I built both of those
-  and got an app with an empty `Contents/PlugIns` — which installs fine and
-  provides nothing, the exact failure `package-macos.sh` has a guard for.
-- **`pluginkit -a` registers the extension; a GUI launch is not required.**
-  building.md says registration needs an `open`. It does not — and `open` from a
-  `/tmp` path does not register at all, which cost me a cycle.
-- **The appex is reused across instantiations**: two `9 rack prefab(s) seeded`
-  lines per `auval` run, one XML merge. `s_xmlMerged` working, visible for free.
-
-**Machine left exactly as found, and checked rather than assumed.** Testing the
-AU3 meant displacing the registered build in `~/Applications`. Jeff's original
-was `ditto`'d aside first and restored after: **same path, 19/19 files,
-`sha256 14f7a89f…` identical to the backup**, re-registered, `auval` SUCCEEDED
-on it. The `pluginkit` UUID and timestamp differ because re-registering mints a
-fresh record — that is registration identity, not content. No TIDE process left
-running. All build output in scratch; nothing installed from my build.
-
-**Jeff's working tree was dirty when I arrived and I did not touch it** (STEP
-5's third kind). `TideSynth`: `SynthEditSem/TideApp.cpp` and
-`SynthEditController.cpp`, both carrying `// TEMP-DIAG ... Revert before
-landing` scaffolding from 2026-08-25 17:47. `SynthEditLib`: parked on branch
-`fix-patchmanager-dangling-properties-observer` with `EditorLib/PatchManager.cpp`
-modified. **This is why I worked in a scratch worktree and built with fetched
-siblings rather than the local overrides** — his in-progress SynthEditLib is not
-in my build, and my TideApp.cpp change is not in his tree.
-
-**Also:** flipped **M5** IN-REVIEW → DONE ([#405](https://github.com/JeffMcClintock/TideSynth/pull/405)
-merged, state queried not remembered). `main` is green on all three platforms;
-zero open `platform:*` issues; no open PRs before mine.
-
-**Branch/PR:** `tide/mac/M6-rack-content-gate`.
-
-## 2026-08-25 — windows — a button press sends a VALUE: the missing half of S12, and the document export that cost 2ms twice a second (interactive, Jeff directing)
-
-**Prompt:** i'm interested if the data transfer from the scope to it's gui is
-optimal... but is the wrapper itself efficient? (then, on the buttons: "are we
-clear that pushing a button should not rebuild the DSP (an expensive
-operation) merely send the value?", "we have teh queue mechanism for sending
-values", "9 rebuilds!!!!! try for one", and on the export cost: "holy fuck
-that was expensive... this is a *tiny* rack")
-
-**THE HEADLINE: nothing the editor did to a parameter ever reached the DSP.**
-`PatchParameter_base::UpdateDspValue` asks the application for the queue to
-post an edit to, and `CSynthEditAppBase::PendingDspClients()` answers null
-unless the EDITOR'S OWN runtime is running a processor. TIDE's never is - its
-processor is a separate object, and under AUv3 a separate process - so every
-knob turn and every button click was discarded at that null check as
-"processor not running". One null, and it is why the VCV buttons appeared
-dead all day. `TideApp::PendingDspClients()` now answers with its real queue.
-
-**The missing half of S12.** The bytes then need CARRYING, which nothing did.
-The editor was already serialising edits into `m_message_que_ui_to_dsp` - in
-SynthEdit proper the DSP shares the process and polls it directly. Now
-`SynthRuntime_editor::takeUiToDspMessages` hands whole framed messages to the
-GUI heartbeat, the controller ships them on blob parameter 3, and the
-processor pushes them into the rack's own ui->dsp queue, which
-`SynthRuntime::ServiceDspRingBuffers` already polls. Verified on the wire:
-handle 994049736, id `ppc`, payload `00 00 80 3f` = 1.0, then `00 00 00 00`.
-
-**A REBUILT ENGINE KEEPS ITS LIVE PARAMETER VALUES, AND THAT IS A FEATURE.**
-Recorded because I called it a bug and Jeff corrected me: "You add a module
-(resets processor), you tweak its settings, you add a second module (resets
-processor). There is no way this should wipe the first module's settings."
-The DSP owns live state; the document is a snapshot that may be stale. Which
-is exactly why a value could never arrive by document push - the rebuild
-rightly refuses to clobber - and why the value path had to exist.
-
-**So the document goes to the processor only when its SHAPE changes.** A
-module added or deleted: send it, the rack restarts, unavoidable. A patch
-cable moved: send NOTHING - the cable list is the HC_PATCH_CABLES host
-control, its value rides the same message queue, and the DSP turns it into a
-graph rebuild from the document it already has (`requiresAsyncRestart` ->
-`DoAsyncRestart`, with `persistAcrossResets` keeping the list). A knob or
-button: nothing either. Startup went from 18 rack builds to 1.
-
-**THE DECISION BELONGS TO THE EDITOR, NOT THE PROCESSOR.** It was briefly the
-processor's - comparing the arriving chunk's structure in `onSetPins` - and
-that is a mistake worth remembering: `onSetPins` runs on the AUDIO THREAD.
-Jeff: "the Processor has important real-time stuff to do, not comparing huge
-strings."
-
-**The export was costing 2ms twice a second, forever.** `serviceDocumentSync`
-serialised the whole document on every tick to ask whether anything had
-changed. Measured on a three-module rack: 32.5KB, 1.87ms, 40 exports in 20
-idle seconds, 39 discarded; one more module took it to 38.2KB and 2.4ms, so
-it grows with the rack. Fixed by debouncing on `dspDirty` - the flag an RAII
-`SuspendDSP` guard already sets at 23 sites, which `CSynthEditAppBase::OnTimer`
-already consumes before its own soft restart. Jeff's steer was to look at what
-the app already does, and it was right there. Idle exports: 60 per 30s -> 2,
-both at startup, steady state zero. The LFO's LED visibly doubled its frame
-rate.
-
-**Two transport defects fixed on the way, both of which killed DSP->GUI
-feedback outright:**
-
-- **I broke it myself** and it is the sharpest lesson here. Keeping churning
-  values out of the exported document by DROPPING the `<patch-list>` element
-  silently killed feedback for every volatile parameter - the DSP builds its
-  patch memory from those entries, and a parameter without one never
-  transmits to the GUI at all. A/B: element absent, the editor got 26 light
-  updates then nothing ever again; element present, 123 and counting. The
-  element must stay; only its TEXT is blanked.
-- **The controller's blob arm deduped a STREAM.** `setParameterBlob` skipped
-  notifying editors when bytes matched the previous message - right for a
-  value, wrong for TIDE's feedback channel. The rack settled into a repeating
-  12-byte watchdog, every batch compared equal, every batch was dropped, and
-  the editor received nothing at all. Same rule the processor side learned
-  first: a blob parameter is a stream, not a value.
-
-**A latched light is sent once and then never again**, so if the editor is not
-listening at that instant it is wrong forever - OFFSET's lamp was lit or dark
-purely on startup timing. The adaptor now re-asserts every light once a
-second, which makes the channel self-healing instead of exactly-once.
-
-**Dead end, so nobody repeats it:** injected mouse input (SetCursorPos +
-mouse_event, and PostMessage WM_LBUTTONDOWN) never reaches TIDE's window, even
-with the foreground check passing and WindowFromPoint naming the right child.
-Every click measurement here came from Jeff clicking. Budget for that.
-
-**Still open:** parameter 1 is the persistent chunk, and now that neither
-value edits nor cable moves push it, it refreshes only on a structural change
-- so a knob tweak before a save can be lost. `syncState()` is declared on
-`IEditor` but no wrapper calls it. See BACKLOG E26.
-
-## 2026-08-25 — macos — The port is pushed and fetches; panels were 100 wide; and a new crash signature (interactive, Jeff directing)
-
-**Prompt:** merge PRs / then lets run the standalone with the new modules / oh. and do the two packs get their own category? / generally good. PhasorToLFO looks too narrow? / did that / (was a crash recently)
-
-**Did:** finished E20 end to end — the port is on GitHub, the fetch path works,
-and the modules render correctly after a real bug was found by **looking at
-them**. Also diagnosed a crash Jeff mentioned in passing, filed as **E25**.
-
-### The port is live and the fetch path is proven
-
-`HetrickCV_gmpi` exists, is public, and holds the two commits. Getting there
-took three attempts and the failures are worth recording: `gh repo create
---source --push` reported *"Unable to add remote 'origin'"* because the clone I
-built already had one, so the repo was created **empty** and stayed that way;
-the bot then could not push because **public is not writable**; a collaborator
-invite fixed it.
-
-**The `FetchContent` path had never run** — everything until now used
-`HETRICKCV_FOLDER_OVERRIDE`. It works: `Fetching HetrickCV_gmpi from github`,
-`HetrickCV_static: ... 66 module object libraries`, `[fetched]`.
-
-### Two packs, two categories — confirmed by looking
-
-Jeff asked whether each pack gets its own category. **Yes**, and the browser
-shows it: HetrickCV's modules, then a `Rack-VCV Fundamental` group header, then
-Fundamental's. `Rack/HetrickCV` and `Rack/VCV Fundamental`, both starting
-`Rack` as `ModuleScope::RackOnly` requires.
-
-### "PhasorToLFO looks too narrow?" — it was, and so was every other one
-
-**Every HetrickCV panel was rendering 100 DIP wide regardless of its real
-width.** An SVG may declare `width`/`height` as PERCENTAGES and carry its real
-size only in `viewBox`; every HetrickCV panel is authored
-`width="100%" height="100%" viewBox="0 0 180 380"`. `panelMetrics` read only
-the attributes, and **`"100%"` parses as `100`**.
-
-**Why it presented as a width bug rather than a parse bug**, which is the part
-worth keeping: the caller floors a sub-rack-size panel to rack height, so the
-bogus `100` HEIGHT was silently corrected to 380 and only the width survived to
-be seen. The `panel measured 100x100 - flooring to rack size` line was firing
-**once per module** and reading as routine.
-
-| | before | after |
-|---|---|---|
-| `PhasorToLFO` (12 HP) | `100x100` -> `100x384` | **`180x380` -> `180x384`** |
-| `ASR` (6 HP) | `100x100` -> `100x384` | **`90x380` -> `90x384`** |
-| flooring warnings | 1 per module | **0** |
-
-Fixed in [Adaptor#5](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/5).
-**The control matters because this is shared code:** Fundamental authors real
-numbers, so its panels take the unchanged path — exercised across both panel
-styles plus both degenerate cases (no attributes; relative with NO viewBox,
-which must NOT fall through to 0x0). Fundamental still registers 39, zero
-flooring warnings.
-
-**This is the bug that only looking finds.** Three entries ago I rendered panel
-SVGs and reasoned about them at length; none of that could have shown it,
-because the SVG is correct and the READER was wrong.
-
-### The crash: diagnosed, not reproduced
-
-`TIDE-Rack-2026-08-25-162615.ips`, `EXC_BAD_ACCESS`/`SIGSEGV`:
-
-```
-CContainer::getIgnoreProgramChange()   <- faults
-PatchParameter_base::ExportXml
-CPatchManager::ExportXml
-CContainer::ExportXml
-TideApp::exportChunkXml
-TideApp::serviceDocumentSync
-SynthEditGui::onTimer
-```
-
-**It is a new signature, measured against the other ten reports on this box
-today:** every one of those is `EXC_CRASH` in `LoadPrefab`,
-`RegisterParameters` or `ImportChildren` — different exception class, different
-site. This is the only `EXC_BAD_ACCESS` and the only `getIgnoreProgramChange`.
-
-**It did NOT reproduce**: relaunching the same build and letting the sync timer
-tick for 100 s was clean. `exportChunkXml` runs on every tick, so the trigger is
-document state or interaction, not elapsed time. Filed as **E25** with the lead:
-the properties pane was showing `Ignore Program Change` for a ported module's
-parameters when it happened, and that is the accessor that faults.
-
-**Verified:** the fetch path from a clean build dir; the before/after panel
-metrics via `RACK_ADAPTOR_TRACE`; the parser control across four panel shapes;
-39 Fundamental modules still registering; the crash-signature comparison across
-all 11 reports.
-
-**Not verified:**
-
-- **Still no audio.** Registration, rendering and layout are all proven now;
-  nothing has been heard.
-- **The crash is not reproducible on demand**, so nothing is fixed.
-- **The 13 excluded modules**, Windows and Linux.
-
-**Learned:**
-
-- **`"100%"` parses as `100`**, and a percentage in an SVG's width is a real
-  authoring convention, not a malformed file.
-- **A floor on one axis hides a parse failure on both.** The height was wrong
-  too and got silently corrected, which is exactly why this looked like a width
-  problem for as long as nobody read the trace.
-- **Rendering an asset and reading it are different tests.** I rendered these
-  panels three entries ago and learned nothing about this, because the asset was
-  never the problem.
-- **`gh repo create --source` will not add a remote that already exists**, and
-  it reports that as a warning while still creating an empty repo.
-- **Public does not mean writable.** Two different access failures in one
-  session with the same 403 shape.
-
-**Next:**
-
-1. **[Adaptor#5](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/5)**
-   wants merging — without it every ported pack with percentage-sized panels
-   renders wrong.
-2. **E25** needs a reproduction before anything else.
-3. **Make one make a sound.** It is the only thing in E20-E25 still untouched.
-
-**Machine left clean.** Scratch build trees and worktrees; no TIDE process left
-running (checked); nothing installed. `HetrickCV_gmpi` and the adaptor clone are
-deliberate additions.
-
-**Branch/PR:** `tide/mac/E25-sync-export-crash` — the E25 row and this entry.
 
 ## Rotation — do this as part of STEP 4, every run
 

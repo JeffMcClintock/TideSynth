@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **331 KB** across **258** entries, so copying them
+Learned sections are **332 KB** across **259** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **94 KB / 1035 lessons — 3.5x smaller**, and represents
+A8. This is **94 KB / 1040 lessons — 3.5x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-26
 
+**linux — E32's size half: the standalone reopens where it was, and the save had to move before closeWindow() (interactive, Jeff directing)**
+
+- "Save on shutdown" has an ordering, and the wrong one fails silently.
+- Share the validity bound between read and write, not the clamp.
+- A protocol limit is a scope decision, not a TODO.
+- `git merge` into a worktree, then editing before resolving, corrupts the edit.
+- Backticks in a `--body` argument are shell-interpreted.
+
 **linux — three boxes fixed one duplicate ID in two minutes, and a duplicate breaks two checks not one (interactive, Jeff directing)**
 
 - A duplicate ID is not one broken check.
@@ -46,24 +54,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `cmd | tail -n; echo $?` cannot report the command's status
 - STEP 2's collision check does not cover opportunistic fixes.
 - Losing a race is cheap if you rebase to the delta.
-
-**macos — M6: auval passes an empty rack and this does not; the appex finally has a voice (scheduled run)**
-
-- `auval` passing is compatible with the plugin containing nothing
-- An absent line is a failure mode a grep cannot see.
-- The AU3 appex is assembled by its own always-run target
-- `pluginkit -a` registers the extension; a GUI launch is not required.
-- The appex is reused across instantiations
-
-## 2026-08-25
-
-**macos — The port is pushed and fetches; panels were 100 wide; and a new crash signature (interactive, Jeff directing)**
-
-- `"100%"` parses as `100`
-- A floor on one axis hides a parse failure on both.
-- Rendering an asset and reading it are different tests.
-- `gh repo create --source` will not add a remote that already exists
-- Public does not mean writable.
 
 ## 2026-08-18
 
@@ -1893,3 +1883,21 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Syntax-only tells you nothing about shared implementation units.
 - A comment asserting a capability is a claim; test it.
 - A missing enum can surface as a missing vtable
+
+**macos — The port is pushed and fetches; panels were 100 wide; and a new crash signature (interactive, Jeff directing)**
+
+- `"100%"` parses as `100`
+- A floor on one axis hides a parse failure on both.
+- Rendering an asset and reading it are different tests.
+- `gh repo create --source` will not add a remote that already exists
+- Public does not mean writable.
+
+## 2026-08-26
+
+**macos — M6: auval passes an empty rack and this does not; the appex finally has a voice (scheduled run)**
+
+- `auval` passing is compatible with the plugin containing nothing
+- An absent line is a failure mode a grep cannot see.
+- The AU3 appex is assembled by its own always-run target
+- `pluginkit -a` registers the extension; a GUI launch is not required.
+- The appex is reused across instantiations
