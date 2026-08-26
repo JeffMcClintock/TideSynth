@@ -8,6 +8,50 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — third-party modules are parked; the cluster goes with them (interactive, Jeff ruling)
+
+**Prompt:** *"E24: 3rd-party module compatibility is not important at this
+stage. We ship with only our own modules."*
+
+Recorded in [docs/decisions.md](docs/decisions.md) and applied to every row it
+reaches, so nothing is left looking takeable that is not.
+
+**`BLOCKED`, not `WONTFIX`, and the distinction is the whole of the
+bookkeeping.** *"At this stage"* is a sequencing call, not a rejection. WONTFIX
+carries "do not re-file this", which would be wrong and would throw away real
+work: E20's portability measurement, E22's licensing research, E23's render-path
+correction and E24's screenshot all keep their value if this is revisited.
+
+Parked: **E20, E21, E22, E23, E41**. Closed: **E24** — its PR merged and the
+ruling makes its question moot as well as answered.
+
+**THE PILOT PAID FOR ITSELF ON THE DAY IT LANDED, which is the pleasing part.**
+E24 existed to stop E20-E22 proceeding on a guess about whether ported modules
+render. It returned a number — **two of Crackle's four controls invisible**,
+the knob and the switch drawing nothing — hours before the call was made. That
+turned "should we ship third-party packs?" from a taste question into one with a
+price attached. Whether or not it changed the answer, it made the answer cheap.
+
+**A contradiction I made sure to leave behind rather than tidy away.** E23
+states, from reading the code, that *"`drawKnobs()` draws rim, body AND
+pointer"* and that *"a panel that is labels-only still gets grabbable
+controls"*. E24 measured the opposite on a running rack. One of them is wrong.
+Parking the rows would have buried that, so E23's row now carries the
+contradiction explicitly and says whoever revives it starts by reconciling the
+two, not by trusting either. A code reading and a screenshot disagreeing is
+exactly the thing a future reader deserves to be warned about — and it is the
+same failure mode E23 itself was filed to correct, in the other direction.
+
+**What the ruling deliberately does NOT touch,** written down so a later run
+does not over-apply it: the `TIDE_VCV_FUNDAMENTAL` / `TIDE_VCV_HETRICKCV` CMake
+options stay (both default OFF, both harmless — deleting build capability is
+more than the ruling asks); the adaptor repos are untouched; and **E2/E16's
+curated set is unaffected**, because that is TIDE's own modules and is precisely
+what the ruling says to concentrate on.
+
+`docs/vcv-permissive-modules.md` gained a banner, because a research document
+that reads as a plan is how a parked decision quietly restarts.
+
 ## 2026-08-26 — linux — E32's size half: the standalone reopens where it was, and the save had to move before closeWindow() (interactive, Jeff directing)
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
