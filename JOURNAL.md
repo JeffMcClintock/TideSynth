@@ -8,6 +8,72 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — V7: the override hook, and the gate that turned out not to be one (scheduled run)
+
+**Prompt:** "Work continuously through the TideSynth backlog... GATED =
+SynthEditLib, SE16/EditorLib, SE16/SynthEdit2. Don't edit; file the gated half."
+
+**THE ROW SAID THIS NEEDED A GATED FILE. IT DOES NOT, AND THAT IS THE WHOLE
+FINDING.** V7 reasons that the context-menu items "come straight from
+EditorLib's `populateContextMenu` and TIDE has no hook, so the hook must exist
+before any string can differ" — which reads as: the hook goes where the items
+are made, in `SynthEditLib/EditorLib`, which is GATED.
+
+It does not have to. `SynthEditGui.cpp` already receives the host's sink and
+hands it **straight through** to `view->populateContextMenu`. Put a TIDE-owned
+`IContextItemSink` in that gap and every item EditorLib adds passes through
+TIDE on its way to the menu. `IContextItemSink` is one method —
+`addItem(text, id, flags, callback)` — so the wrapper is about thirty lines,
+and **`SynthEditLib` is not touched at all**.
+
+Worth generalising: "the string is made in a gated file" does not imply "the
+change is in a gated file". Ask where the string is *delivered*.
+
+**THE TABLE SHIPS EMPTY, AND THAT IS THE POINT.** V7 says in as many words:
+*"Do not land the override carrying placeholder strings."* The four names turn
+on what a TIDE user expects to read, which is a product decision still open as
+a `PROPOSED:` question. The row's own suggested scheme (`Goto Panel` /
+`Goto Structure`) is SynthEdit vocabulary — in TIDE a "panel" is the rack and a
+"structure" is the inside of a module, which is the exact mismatch the ruling
+names. Guessing would be worse than waiting.
+
+**WHICH LEAVES A HOOK WHOSE ONLY OBSERVABLE BEHAVIOUR IS "CHANGES NOTHING".** A
+hook nobody has watched work is not a hook — the same argument
+`tests/rack-content/` makes for its negative controls. So
+`tests/v7_menu_override_probe.cpp` drives the sink directly with a table of its
+own: **16 checks, 0 failures.** A table entry renames; a near miss does NOT
+(`Pa&nel Edit...` is a *different* EditorLib item from `Panel Edit...`, and a
+substring rule would silently catch both while hiding that there are two); an
+unlisted item passes through; `id`, `flags` and the callback pointer are
+forwarded untouched; `queryInterface` returns the wrapper for
+`IContextItemSink` and **delegates everything else**, which is what keeps a
+host that also implements `IPopupMenu` working. And one check that stops the
+probe becoming a rubber stamp: that the SHIPPED table is still empty, so this
+passing can never mean TIDE has quietly started renaming things.
+
+**A LATENT BUG FIXED ON THE WAY.** `sinkRef` was block-scoped, so the reference
+`queryInterface` returns was released before the new wrapper could forward to
+it. It survives today only because the hosts implementing this are
+`GMPI_REFCOUNT_NO_DELETE` and `release()` is a no-op — a coincidence, not a
+guarantee, and this file already carries a comment about the last time that
+distinction mattered. Function-scoped now.
+
+**NOT VERIFIED, and stated rather than implied: the menu was never re-checked
+ON SCREEN.** The command channel has no right-click — `cmdPointer`'s only
+option is `--double` — so a context menu cannot be raised headlessly. The
+change is a pass-through with an empty table and the standalone builds and
+runs, but that is an argument, not a measurement, and the difference is the
+whole reason this journal exists.
+
+Filed as **E38**, and it is the same shape as the gap `--double` closed: E31
+recorded *"the command channel cannot drive an insert gesture"* and handed a
+verification to a human; E35 added one flag and E36 was measurable end to end
+in a script the next day. A `--right` modifier buys the same thing.
+`CommandDispatcher.cpp` is **PR-GATED**, so E38 says propose, do not merge —
+and says to check first whether `gmpi::api::PointerFlags` can even express a
+secondary button, because if it cannot this is a GMPI change and a bigger row
+than it looks.
+
 ## 2026-08-26 — linux — three boxes fixed one duplicate ID in two minutes, and a duplicate breaks two checks not one (interactive, Jeff directing)
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)

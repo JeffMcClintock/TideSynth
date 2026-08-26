@@ -30,6 +30,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
                        // transitively via BreadcrumbBar.h, now gone
 #include "AboutPane.h" // D6 — the about pane, now opened from the context menu
 #include "helpers/ContextMenuHelper.h" // U3 — Goto Parent / Goto Rack / About
+#include "MenuNameOverride.h" // V7 — rename EditorLib's items without editing EditorLib
 #include "helpers/Timer.h" // gmpi::TimerClient — deferred navigation (U1b)
 #if defined(__linux__)
 #include "modules/se_sdk3/TimerManager.h" // S26 — the se_sdk timer pump below
@@ -1484,11 +1485,21 @@ public:
 		bool addedOurs = false;
 
 		gmpi::api::IContextItemSink* sinkRaw{};
+
+		// V7 — sinkRef is FUNCTION-scoped, and it did not used to be. The
+		// renaming wrapper at the bottom of this function forwards to sinkRaw,
+		// so the reference queryInterface handed us has to outlive the block
+		// that adds TIDE's own items. It happens to survive today because the
+		// hosts implementing this are GMPI_REFCOUNT_NO_DELETE and release() is
+		// a no-op -- which is not a guarantee, it is a coincidence, and this
+		// file already carries one comment (the PaneHostWrapper note above)
+		// about the last time that distinction mattered.
+		gmpi::shared_ptr<gmpi::api::IContextItemSink> sinkRef;
+
 		if (contextMenuItemsSink && contextMenuItemsSink->queryInterface(
 				&gmpi::api::IContextItemSink::guid, reinterpret_cast<void**>(&sinkRaw)) == ReturnCode::Ok && sinkRaw)
 		{
 			// queryInterface returns a reference; attach so it is released.
-			gmpi::shared_ptr<gmpi::api::IContextItemSink> sinkRef;
 			sinkRef.attach(sinkRaw);
 
 			ContextMenuHelper menu(sinkRaw);
@@ -1530,7 +1541,30 @@ public:
 			menu.addSeparator();
 		}
 
-		const auto viewResult = view ? view->populateContextMenu(point, contextMenuItemsSink) : ReturnCode::Unhandled;
+		// BACKLOG V7 — the view's items go through TIDE's renaming sink.
+		//
+		// Everything below "Goto Rack" and "About TIDE..." comes from
+		// EditorLib's populateContextMenu, which is SHARED WITH SYNTHEDIT
+		// PROPER: renaming there changes the menu for every existing SynthEdit
+		// user, and Jeff ruled on 2026-08-26 that it must not. So the strings
+		// are intercepted on the way out instead, and EditorLib is untouched.
+		//
+		// The override table is EMPTY today, deliberately -- the four
+		// replacement strings are a product decision still open as a
+		// `PROPOSED:` question, and V7 says in as many words not to land
+		// placeholders. So this changes no menu text yet; it is the hook that
+		// has to exist before any string can differ, and filling the table is
+		// then a one-line change per name.
+		//
+		// The wrapper is stack-scoped and only lives for this one menu; it
+		// delegates every interface but IContextItemSink to the object the host
+		// gave us, so nothing that asks for something else is affected.
+		tide::RenamingContextItemSink renaming(sinkRaw, contextMenuItemsSink);
+		gmpi::api::IUnknown* viewSink = sinkRaw
+			? static_cast<gmpi::api::IUnknown*>(&renaming)
+			: contextMenuItemsSink;
+
+		const auto viewResult = view ? view->populateContextMenu(point, viewSink) : ReturnCode::Unhandled;
 
 		// If the view had nothing to offer, the menu is still ours to show.
 		return (viewResult == ReturnCode::Ok || addedOurs) ? ReturnCode::Ok : ReturnCode::Unhandled;
