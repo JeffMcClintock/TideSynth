@@ -8,6 +8,63 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — E38: the flag was the easy part, and it was not the problem (scheduled run)
+
+**Prompt:** "i merged stuff, sync repos, continue."
+
+**E38 stays TODO. The flag is written and proposed; its Accept is not met, and
+the remaining work is a different shape than the row assumed.**
+
+E38 reasoned by analogy: `--double` was one flag, it made an entire row (E36)
+measurable in a script the next day, and a right-click looked "the same size".
+It is not, and the analogy is exactly what made it look small.
+
+**What is done.** `--right` sets `PointerFlags::SecondButton` — which does
+exist, discharging the row's "check first whether the flag even exists"
+(`gmpi_ui/helpers/NativeUi.h:94`, `0x20`). It REPLACES the primary rather than
+joining it: a real right-click reports SecondButton alone, and a widget testing
+for FirstButton would otherwise read one gesture as both a context menu and a
+selection change.
+
+**What is not, and why it cannot be a flag.**
+
+- the menu is raised by `DrawingFrameCommon::doContextMenu(point, flags)`, on
+  the **FRAME**;
+- `cmdPointer` calls `context.inputClient->onPointerDown(...)` — the **INPUT
+  CLIENT** — and never touches the frame;
+- and `doContextMenu`'s own comment says macOS deliberately does not call it
+  from the shared path (*"Doing it here too gave macOS two presses per
+  right-click"*), so on macOS the menu comes from the Cocoa view's right-mouse
+  handler, further still from the channel.
+
+**THE MEASUREMENT, AND THE CONTROL IS THE WHOLE POINT.** A right-click that
+changes nothing looks identical to a right-click that missed. So:
+
+```
+LEFT  click at (286,390)  ->  96543 pixels changed   (selects the module,
+                                                      opens the properties pane)
+RIGHT click at (286,390)  ->  {"right":true}, ZERO pixels changed
+probe in populateEditorContextMenu -> ZERO hits
+```
+
+Without the left-click control the zero would have read as a bad coordinate,
+and I would have spent the next hour hunting DIP conversions. I nearly did: my
+first attempt clicked (700,400), got zero, and the left-click control there was
+*also* zero — because it was empty canvas, where a left click legitimately does
+nothing. Two zeros meaning two different things. Moving to a point where the
+control was non-zero is what made the second zero mean something.
+
+**And the Accept's instrument was never going to work either.** It asks that
+`--screenshot` show the menu. `cmdScreenshot` reads `context.framePixels` — the
+app's **own render buffer** — and a macOS popup is a separate window, so a
+native menu could not appear in it at any point. Whoever re-attempts this wants
+a probe in `populateContextMenu` or the menu model, not a picture.
+
+**What is actually left:** a VERB, not a modifier, calling `doContextMenu` or
+the platform equivalent, which means exposing the frame to the dispatcher.
+Larger than the row assumed. V7's on-screen half stays unverified meanwhile,
+which is honest and recorded on both rows.
+
 ## 2026-08-26 — macos — E33: TIDE was throwing away the view the document stored, and it cost an empty rack (scheduled run)
 
 **Prompt:** "i merged stuff, sync repos, continue."
