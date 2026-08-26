@@ -49,7 +49,13 @@ and forced a relink.
 That staleness is worth more attention than either break: **a developer editing
 prefabs cannot see this failure without a clean stage**, so it will keep
 reaching CI. M11 fixed exactly that for the iOS path (`rm` before `cp`); the
-macOS/Windows staging still merges.
+macOS/Windows staging still merges. **Filed as E40**, with M11's generated
+script as the worked example — written one day before this bit twice.
+
+One detail for whoever takes it: deleting the staged `Prefabs/` folder is NOT
+enough to re-measure. The POST_BUILD that restages only runs when the target
+LINKS, so a rebuild after deleting the folder leaves it absent and the gate
+then fails for a different reason. Delete the executable too.
 
 ## 2026-08-26 — macos — E30: the watchdog could not see the questions it exists to surface (scheduled run)
 
