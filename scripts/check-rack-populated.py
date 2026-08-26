@@ -63,6 +63,8 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
+import time
 
 # The four module-description XMLs TideApp::InitInstance merges. Keep in step
 # with the list in TideApp.cpp -- a file added there and not here is simply not
@@ -160,21 +162,65 @@ def check(text, expect_prefabs=EXPECTED_PREFABS):
     return failures, notes
 
 
-def capture_standalone(binary, timeout):
-    """Run the standalone and read its stderr. It opens a window, so it is
-    killed once it has said its piece rather than waited on."""
+def capture_standalone(binary, timeout, expect_prefabs=EXPECTED_PREFABS):
+    """Run the standalone, read its stderr, and stop the moment the evidence is
+    complete.
+
+    THE TIMEOUT IS A CEILING, NOT A DURATION, and the difference is the whole
+    point of this function. The standalone is a GUI app: it never exits on its
+    own, so the first version here called communicate(timeout=...) and always
+    ran the FULL timeout before killing it -- 90 seconds by default. Everything
+    this script asserts is printed within about two seconds of launch, so those
+    remaining 88 seconds bought nothing and cost plenty: mac CI runs on a
+    SELF-HOSTED runner on the developer's own desktop (build.yml's `guard` job
+    routes there for every same-repo push), so each run parked a TIDE window on
+    a real person's screen for a minute and a half. Reported as exactly that.
+
+    So: poll the accumulated output and stop as soon as check() is satisfied.
+    A healthy build now takes a couple of seconds.
+
+    A FAILING build still waits out the ceiling, deliberately. The failure this
+    whole script exists for is an ABSENT line (see the module docstring), and
+    absence cannot be concluded early -- you can only wait long enough to be
+    sure it is not coming. Slow on failure is the right trade when the
+    alternative is a false pass.
+
+    A reader thread rather than select(): stderr here is a pipe, and select on
+    pipes does not work on Windows. The `--standalone` arm is the portable one,
+    so it should not acquire a POSIX-only dependency.
+    """
     binary = pathlib.Path(binary)
     if not binary.exists():
         sys.exit("no such binary: %s" % binary)
 
     proc = subprocess.Popen([str(binary)], stdout=subprocess.DEVNULL,
                             stderr=subprocess.PIPE, text=True, errors="replace")
-    try:
-        _, err = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
+
+    lines = []
+    def reader():
+        # readline() returns "" only at EOF, i.e. when the process has gone.
+        for line in iter(proc.stderr.readline, ""):
+            lines.append(line)
+    pump = threading.Thread(target=reader, daemon=True)
+    pump.start()
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        # Snapshot before testing: the reader thread appends concurrently, and
+        # list slicing is atomic under the GIL while "".join(lines) mid-append
+        # is not guaranteed to be.
+        failures, _ = check("".join(lines[:]), expect_prefabs)
+        if not failures:
+            break
+        if proc.poll() is not None:      # it exited or crashed; no more output
+            break
+        time.sleep(0.1)
+
+    if proc.poll() is None:
         proc.kill()
-        _, err = proc.communicate()
-    return err or ""
+    proc.wait()
+    pump.join(timeout=1.0)
+    return "".join(lines)
 
 
 def capture_au3(timeout):
@@ -233,7 +279,7 @@ def main():
     auval_rc = 0
     if args.standalone:
         subject = "standalone %s" % args.standalone
-        text = capture_standalone(args.standalone, args.timeout)
+        text = capture_standalone(args.standalone, args.timeout, args.expect_prefabs)
     elif args.au3:
         subject = "AUv3 %s %s %s" % (AU_TYPE, AU_SUBTYPE, AU_MANUFACTURER)
         text, auval_rc = capture_au3(args.timeout)
