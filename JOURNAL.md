@@ -8,6 +8,78 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — E33: TIDE was throwing away the view the document stored, and it cost an empty rack (scheduled run)
+
+**Prompt:** "i merged stuff, sync repos, continue."
+
+**I went to take E37 and found E33 underneath it.** E37 says the rack origin,
+the content and the viewport are in three different places. Chasing which,
+after V6, produced a much sharper answer: TIDE never applied the document's
+stored pan and zoom, and V6 had just moved the default content somewhere that
+made the omission fatal.
+
+**THE OUT-OF-BOX EXPERIENCE ON `main` WAS BARE RAILS.** A fresh standalone drew
+an empty rack. The rack was loaded the whole time —
+`check-rack-populated.py` says `default rack loaded, 24894 byte document` and
+the gate passes — and `DefaultRack.synthedit` even stores the view that would
+show it, `PanelLocationCenter (1349, 284)`. TIDE discarded it on every open.
+
+That is precisely the trap E33's own row records costing a windows run most of a
+session, and the reason for its rule: **a claim of absence needs a trace or a
+document dump, never a screenshot.** I nearly filed "the default rack does not
+render" off a screenshot before checking the document.
+
+**THE FIX IS THE ONE LINE THE ROW PROMISED, AND THE OLD LINE WAS IN THE WRONG
+UNITS.** `viewOb->setCenter({ kRackViewDips / 2, kRackViewDips / 2 })`.
+`kRackViewDips` is 1008 — the rack view's **size in DIPs** — and half of it, 504,
+was being used as a **document coordinate**. The canvas is 7968 across,
+`CContainer`'s default centre is (3984, 3984), and the rack origin is the panel
+rect at (3732, 3732). So the viewport was parked **3400 DIPs from the rack**.
+That is why this is not a like-for-like swap and why a blank document is
+*better* off after it: (3984, 3984) is 252 DIPs from the rack origin.
+
+Only the RESTORE was ever missing. The persist half already worked: `ViewBase`'s
+pan and zoom handlers call `Presenter()->SetViewCenter`/`SetPanZoom`,
+`MfcDocPresenter` writes them into the container, and they serialise.
+
+**MEASURED THREE WAYS, because "the picture looks better" is not a measurement:**
+
+1. **Same build, same document, only the stored view changed** — `(1349,284)@0.38`
+   against `(3984,3984)@1.0`: **20.1% of the rack canvas differs.** The view
+   demonstrably follows the document.
+2. **Before vs after on the shipped default rack: 20.6% differs** — bare rails to
+   a drawn module.
+3. An injected `center=(400,3900) zoom=1.0` survives launch+quit **exactly**.
+
+**A metric I threw away, recorded because it was tempting and wrong.** My first
+readout counted "light pixels in the rack canvas", expecting more of them once a
+module appeared. It went DOWN, 4.69% to 2.69% — because the rails are light too,
+and the after-shot is zoomed to 38% so there is less rail on screen. The metric
+measured rails, not modules. A pairwise diff between the two shots says what I
+actually wanted to know.
+
+**E33's own coupling rule, honoured.** The row says whoever moves second must
+re-run the other's Accept, because `setCenter` existed to feed
+`AddModule(id, getCenter())`. E36 has since replaced that with a next-free-slot
+search, so the coupling is weaker than the row assumed — but I re-ran E36's
+Accept anyway: **`ok  no overlaps among 6 placed module(s)`**, every insert
+`on-grid  fits row`, only the same pre-existing off-grid `MIDI In`.
+
+**WHAT THIS EXPOSES NEXT, and I did NOT fix it.** The shipped default rack puts
+its two modules **1341 DIPs apart on rack row −9**, while the rack's panel rect
+is **480 wide at row 0** — outside the rails and 2.8x wider than the window a DAW
+would export. The file compensates with `PanelLocationZoom="0.38146973"`, which
+is why the view is now legible but tiny, and which looks like an artifact of
+wheel-zooming while authoring. That is a DATA change to V6's file, landed hours
+earlier from another box, and re-authoring someone's shipped default is a
+product decision rather than a bug fix. E37 is re-scoped to exactly that and
+nothing else.
+
+**Not verified, stated rather than implied:** a pan driven by a real user
+gesture — the command channel has no wheel verb, the sibling of E38's missing
+right-click — so the persist leg is verified by code path and document
+round-trip, not by scrolling; and a DAW project, which the Accept also asks for.
+
 ## 2026-08-26 — macos — M9: the iOS AUv3 has been instantiated, and it made a sound (scheduled run)
 
 **Prompt:** "i merged stuff, sync repos, continue."
