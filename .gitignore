@@ -23,3 +23,8 @@ tests/hosts/Backups/
 
 # render_harness.py writes this by default; it is a machine-specific measurement.
 report.json
+
+# Python bytecode from running the scripts/ lints locally. Loading a check
+# through importlib to inspect it leaves these behind, and one got committed.
+__pycache__/
+*.pyc

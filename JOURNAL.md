@@ -8,6 +8,110 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — linux — three boxes fixed one duplicate ID in two minutes, and a duplicate breaks two checks not one (interactive, Jeff directing)
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** STEP 1 — closed [#430](https://github.com/JeffMcClintock/TideSynth/issues/430)
+by building `main` (492/492 rc=0, all four Linux artifacts). Then found the
+duplicate `E34` and fixed it — **and so did two other boxes, inside two
+minutes.** This entry keeps what survived the collision.
+
+### The race
+
+| PR | box | opened |
+|---|---|---|
+| [#447](https://github.com/JeffMcClintock/TideSynth/pull/447) | windows | **merged** — landed the fix |
+| [#445](https://github.com/JeffMcClintock/TideSynth/pull/445) | macos | 02:33:48 |
+| [#446](https://github.com/JeffMcClintock/TideSynth/pull/446) | linux (mine) | 02:34:04 |
+
+**Sixteen seconds** between the mac PR and mine. All three renumbered the *same*
+row — the insert-stacking pile → `E36` — and all three gave the same reason for
+choosing that one over the cable row: `JOURNAL.md`'s citation of `E34` is
+append-only and cannot be corrected, so the row with only backlog-side
+references is the one that moves.
+
+**Three independent runs converging on the identical repair is a good sign about
+the rules and a bad sign about the coordination.** STEP 2's collision check
+(`git ls-remote`, `gh pr list`) is run *before claiming a backlog item* — but
+none of us was claiming an item. We each found a red lint while doing something
+else and fixed it on the spot, which is exactly the path that check does not
+cover.
+
+My PR is rebuilt as a **delta on top of theirs**, per STEP 2's rule for a
+collision discovered after the fact. Everything already on `main` — the
+renumber, and the ID-correction note on `E31` — is dropped from it.
+
+### What survived, and it is the part worth keeping
+
+**A duplicate ID breaks TWO checks, and only one repair direction passes the
+second one.** `check-id-refs.py` names the duplicate. `check-backlog-diff.py`
+never mentions it — it parses rows into a **dict keyed by ID**, so a duplicate
+silently *collapses* and the last occurrence wins. Its baseline for `E34` is
+therefore the cable-drag row, and I measured both repairs against it:
+
+| renumbered | `check-backlog-diff` |
+|---|---:|
+| cable-drag → E36 | **exit 1** — `E34: Item column differs` |
+| insert-stacking → E36 | **exit 0** |
+
+So the choice of which row to move was **forced by a dict's last-wins ordering**,
+not by which row was newer or better-referenced. The other boxes reached the same
+answer from the journal-is-append-only argument, which is a different and equally
+valid route — but it happens to agree only because the two constraints point the
+same way here. **They need not, and nothing checks that they do.**
+
+### The third instance of a trap this journal already documents twice
+
+My first run of the lint was:
+
+```
+python3 scripts/check-id-refs.py 2>&1 | tail -6; echo "rc=$?"
+```
+
+That reports **`tail`'s** exit status, and the duplicate block was above the
+lines `tail` kept — so it printed a clean summary and `rc=0` while a duplicate
+sat in front of it. **I spent a while investigating the check before checking my
+own command.** The lessons *"check a lint's EXIT CODE, never grep its output"*
+and *"`$?` after a pipeline is the LAST command's status"* are both already here.
+
+### `__pycache__` was never ignored
+
+Loading a check through `importlib` to inspect its internals leaves
+`scripts/__pycache__/*.pyc`, and one got committed before I noticed. `.gitignore`
+had no entry — that is what this PR adds, and it is the only file change.
+
+**Verified:** `main` builds 492/492 rc=0 · `main`'s duplicate is gone (1 `E34`,
+1 `E36`, `check-id-refs` exit 0) · both repair directions measured against
+`check-backlog-diff` · no `.pyc` is tracked on `main`.
+
+**Not verified:** neither E34 nor E36 was investigated as a defect; both are the
+mac box's findings.
+
+**Learned:**
+
+- **A duplicate ID is not one broken check.** The one that reports it is not the
+  one that constrains the fix; `check-backlog-diff` collapses duplicates by dict
+  and then rejects the repair from the wrong side, silently.
+- **Two correct-looking arguments can agree by luck.** "Renumber the row the
+  append-only journal does not cite" and "renumber the row that is not the dict's
+  last-wins baseline" gave the same answer here and are not the same rule.
+- **`cmd | tail -n; echo $?` cannot report the command's status**, and I proved
+  it for the third time in this project. Redirect to a file, echo `$?`, read the
+  file.
+- **STEP 2's collision check does not cover opportunistic fixes.** It guards
+  claiming an item; three boxes fixed the same red lint in two minutes because
+  none of us was claiming anything.
+- **Losing a race is cheap if you rebase to the delta.** Everything on `main`
+  came out of my branch in one command; what was left was genuinely mine.
+
+**Machine left clean.** Scratch worktrees removed; the stray `scripts/__pycache__`
+deleted from Jeff's checkout as well as from the branch. All six repos on their
+default branches and clean.
+
+**Branch/PR:** `tide/linux/E34-duplicate-id` — `.gitignore` and this entry.
+**No backlog row and no product code change**, both dropped as already-landed.
+
 ## 2026-08-26 — macos — E36: inserts fill the row now, and the fix made a second bug visible (scheduled run)
 
 **Prompt:** "Work continuously through the TideSynth backlog... The standalone
@@ -1126,580 +1230,7 @@ running (checked); nothing installed. `HetrickCV_gmpi` and the adaptor clone are
 deliberate additions.
 
 **Branch/PR:** `tide/mac/E25-sync-export-crash` — the E25 row and this entry.
-## 2026-08-25 — macos — HetrickCV runs in TIDE: 66 modules registered, 104 with Fundamental alongside (interactive, Jeff directing)
 
-**Prompt:** merge PRs / then lets run the standalone with the new modules
-
-**Did:** merged [SynthEdit_Rack_Adaptor#3](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/3),
-built the HetrickCV port, added `TIDE_VCV_HETRICKCV`, and **ran it**. This is
-the entry where E20 stops being a reading and becomes an observation:
-
-```
-TIDE: HetrickCV — 66 module(s) registered
-```
-
-The port repo does not exist on GitHub yet — everything here was built against
-the local tree through `HETRICKCV_FOLDER_OVERRIDE`, which is exactly what the
-override mechanism is for.
-
-### Linking found four things a syntax check could not
-
-The previous entry said 66 TUs compiled and warned they were **not linked**.
-That caveat paid, in order:
-
-1. **`plugin.hpp`** — `rack_module_resources()` generates
-   `RackPanelResources.h` with `#include "plugin.hpp"`, Rack's convention.
-   HetrickCV's equivalent is `HetrickCV.hpp`. Fixed with a one-line forwarder in
-   the port, not by teaching the generator a second filename — every ported pack
-   would inherit that.
-2. **Shared implementation units.** HetrickCV keeps class bodies in their own
-   `.cpp`; `HCVCuspMap::generate()` surfaced it. Compiling only the module
-   wrappers left four units out.
-3. **Gamma sources** — only its headers were vendored. Upstream's Makefile
-   compiles `arr`, `Domain`, `scl`; Gamma's own CMakeLists names four more the
-   plugin build does not use.
-4. **`vtable for InverterWidget`**, which was really a missing NanoVG blend
-   enum: that TU failed to compile, and the *link* reported the vtable.
-   [Adaptor#4](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/4).
-
-**A guard I wrote wrong, and it is the instructive one.** The single-copy check
-for `RackAdaptorStaticRegistration` was a `CACHE INTERNAL` variable. A cache
-entry **survives between configures**, so the first configure added the object
-and the *second* skipped it — every `autoRegisterModel()` came out undefined,
-on a tree that had built minutes earlier. It is a `GLOBAL PROPERTY` now, which
-is the per-configure scope the guard actually wanted.
-
-### Both packs together: one real collision
-
-I wrote "both packs can be ON together" into a CMake comment and then tested
-it. **It was false.** A Rack `Model` is a **global symbol**, so a module name in
-two packs collides at link with a duplicate-symbol error naming neither pack.
-
-**The overlap is exactly one name — `MidSide` — out of 66 and 38.** The port
-takes `HETRICKCV_EXCLUDE_MODULES` and TIDE sets it to `MidSide` when both
-options are on; Fundamental's copy wins because its set is smaller and more
-curated, and the line says how to invert that.
-
-| build | registered |
-|---|---|
-| HetrickCV alone | **66** |
-| both packs | **104** |
-
-104 rather than 103 because **Fundamental registers 39 from 38 object
-libraries** — one TU registers two models. 39 + 65 = 104, so the totals are
-consistent rather than one of them being wrong.
-
-**Verified:** configure rc=0 and build rc=0 in both configurations; the
-standalone launched and stayed up in both; the S17 shadowing guard correctly
-refused a tree that had both a fetched and an overridden adaptor, which is what
-sent me to a clean build dir.
-
-**Not verified, and it is the same gap one step further on:**
-
-- **No module has been PLAYED.** Registration and a clean launch are not audio.
-- **No panel has been LOOKED at.** After all the rendering work two entries ago,
-  I still have not seen a HetrickCV module drawn in TIDE.
-- **The 13 excluded modules** are still excluded.
-- **Windows and Linux.** macOS only.
-
-**Learned:**
-
-- **A cache variable is the wrong tool for a once-per-configure guard**, and it
-  fails on the *second* run, which is the one you do not re-test.
-- **Syntax-only tells you nothing about shared implementation units.** Four of
-  them, invisible until the link, in a pack whose modules all compiled.
-- **A comment asserting a capability is a claim; test it.** "Both packs can be
-  ON together" was written by me, believed by me, and wrong — one link away.
-- **A missing enum can surface as a missing vtable**, because the TU that fails
-  to compile is also the one defining the class.
-
-**Next:**
-
-1. **Create `HetrickCV_gmpi`** and push — the tree is committed and ready at
-   `~/Documents/GitHub/HetrickCV_gmpi`, remote preset. Until it exists the
-   option only works via the folder override.
-2. **Play one.** Registration is proven; audio and panels are not.
-3. **[Adaptor#4](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/4)**
-   is a prerequisite for the build in this entry.
-
-**Machine left clean.** Scratch worktrees and build trees only; nothing built in
-Jeff's checkouts, nothing installed. `HetrickCV_gmpi` and the adaptor clone are
-deliberate additions, both committed.
-
-**Branch/PR:** `tide/mac/E20-hetrickcv-option` — the option, the link, the
-flush, and this entry.
-## 2026-08-25 — macos — E20: 66 of HetrickCV's 79 files compile, and the CC0 pack has an MIT dependency (interactive, Jeff directing)
-
-**Prompt:** great. do E20
-
-**Did:** took **E20**. The adaptor-side work is done and landed as
-[SynthEdit_Rack_Adaptor#3](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/3);
-the row is not finished, and the reason is a repo that does not exist rather
-than anything technical.
-
-### What E20 actually needed, which the row understated
-
-The row said *"the option is a copy of a working one"*. True, and beside the
-point: **`VCV_Fundamental_gmpi` is a PORT, not upstream.** Each module there is
-a directory with a two-line wrapper (`#include "RackModule.h"` + the upstream
-`.cpp` byte-for-byte), its `res/`, and a `CMakeLists.txt`; `static_library/`
-aggregates them as OBJECT libraries. HetrickCV upstream has none of that. So
-E20 is a port repo plus an option, and the option is the small half.
-
-### The measurement: 1 → 66 of 79
-
-Compiling every HetrickCV source against the adaptor, syntax-only, C++23:
-
-| | compiling |
-|---|---|
-| before | **1 / 79** — the first died on the first missing SDK include path |
-| after #3 | **66 / 79** |
-
-What it took: an `Engine` with a **global sample rate the adaptor keeps in step
-with `ProcessArgs`** — HetrickCV's `HCVTiming` reads
-`APP->engine->getSampleTime()` from DSP helpers with no args in scope, and a
-hardcoded 44100 there mistunes quietly rather than failing; six SDK path shims;
-`Rogan` (three-layer knob, `bg`/`fg` reached directly by `HCVThemedRogan`);
-`settings::preferDarkPanels`; `SvgPanel::fb`; a `setPanel(shared_ptr<Svg>)`
-overload and `getPanel()`; `TL1105`/`CKD6`; and the `app::` widgets re-exported
-into `rack::`.
-
-**The 13 failures are named, not structural.** Two are not modules at all
-(`HetrickCV.cpp` is the plugin entry, `HetrickUtilities.cpp` a shared impl
-unit); the rest want `dsp::approxExp2_taylor5` (3), `LEDBezel` (2), simd
-`int32_4` and an `abs` overload (3), and three singletons.
-
-**The regression control is what makes it landable:** TIDE with
-`TIDE_VCV_FUNDAMENTAL=ON` against the modified adaptor still reports
-**39 module(s) registered**, rc=0, clean runtime including the feedback line.
-
-### The licensing correction, and it matters
-
-E20 was filed as *"CC0 ... no attribution obligation, no share-alike, and no
-artwork question at all"*. **HetrickCV carries Gamma as a git submodule**
-(`github.com/mhetrick/Gammin`) — **MIT, © Lance Putnam 2006**. Permissive and
-GPL-free, so the pack is still bundleable, **but MIT requires notice retention**,
-and `HetrickUtilities.hpp` includes Gamma, so effectively every module depends
-on it.
-
-**So E20 needs E22's attribution mechanism, which was filed as a follow-on and
-is actually a prerequisite.** Both rows now say so. A CC0 headline does not
-survive a submodule, and nothing in the licence table I built from Cardinal
-would have shown this — it lists repos, not their dependencies.
-
-Also recorded, and NOT a problem: `HCVThemedRogan` names VCV's own
-`res/ComponentLibrary/Rogan1P*.svg`. Nothing ships — `asset::system` and
-`Svg::load` are mock stubs and `RackEditor` draws its own knobs — but the
-reference is in the source and should not be mistaken for a licence breach by
-the next reader.
-
-### A break that was not a break
-
-Mid-regression the build failed with `no member named 'receiveDspMessages' in
-'SynthRuntime_editor'` — TideSynth `main` calling a SynthEditLib symbol that
-SynthEditLib `main` did not have. That looks exactly like a broken default
-branch worth a `platform:mac` issue. **It was my worktrees:** cut at
-SynthEditLib `af42bd6`, while the other half of #410 landed in `3dca4d3`
-minutes later. Re-fetched, rebuilt, rc=0. **No issue filed** — this is S45's
-lesson arriving on schedule: *a link error naming a symbol you have never heard
-of is usually someone else's half-landed change.*
-
-**Verified:** 66/79 compile, each module its own TU; the 39-module Fundamental
-regression control built and RUN against the modified adaptor; Gamma's licence
-read from its own `LICENSE` rather than a summary; the submodule confirmed from
-`.gitmodules`.
-
-**Not verified:**
-
-- **No HetrickCV module has been RUN.** Compilation only. Whether they register,
-  draw and sound right is unmeasured, and is what E24 exists for.
-- **The 66 are syntax-only** — not linked, so undefined symbols would still be
-  ahead.
-- **Windows and Linux.** macOS only.
-
-**Learned:**
-
-- **A CC0 headline does not survive a submodule.** HetrickCV is genuinely CC0
-  and genuinely depends on MIT code; the licence table I built lists repos, not
-  their dependency graphs, and would never have shown it. Check `.gitmodules`
-  before quoting a pack's licence.
-- **"Copy the working option" hid the actual work.** The option is small; the
-  port repo it points at is the item. The row said medium and meant it about the
-  wrong half.
-- **Compile-everything is a cheap sizing instrument.** 79 TUs, one loop, and it
-  turned "unknown per-module porting cost" into a list of eight named symbols.
-- **The regression control is the thing that makes mock edits safe.** Adding
-  declarations to a header shared with a working 39-module set is exactly where
-  a silent break would hide.
-
-**Next:**
-
-1. **Jeff creates `HetrickCV_gmpi`** (or rules that the port lives elsewhere).
-   Everything else here is mechanical and proven.
-2. **[SynthEdit_Rack_Adaptor#3](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/3)**
-   wants review — it is the whole adaptor half of E20.
-3. **E22 before or with E20**, now that MIT attribution is a prerequisite rather
-   than a follow-on.
-
-**Machine left clean.** All work in scratch worktrees and build trees; nothing
-built in any of Jeff's checkouts, nothing installed. The `SynthEdit_Rack_Adaptor`
-clone is on its branch pending review.
-
-**Branch/PR:** `tide/mac/E20-hetrickcv-port` — TideSynth: the E20 and E22 rows
-and this entry. The product change is the adaptor PR.
-## 2026-08-25 — macos — A stale comment inverted a recommendation, twice; the adaptor already draws the components (interactive, Jeff directing)
-
-**Prompt:** explain E23 / yes
-
-**A correction to the two entries below**, prepended rather than edited — both
-are pushed and [#413](https://github.com/JeffMcClintock/TideSynth/pull/413) is
-open.
-
-**Did:** Jeff asked me to explain **E23**. Reading the code to explain it
-accurately is what showed the row is wrong. **E23's premise is false and the
-work it proposes is already done.** E19, E20, E21 and the research doc all
-inherited the error and are corrected; the comment that caused it is fixed in
-[SynthEdit_Rack_Adaptor#2](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/2).
-
-### The error
-
-`RackEditor.h:25-29` says the editor draws **no** knob caps, jacks or screws —
-only *"an indicator line per knob"* — and that panels omitting component art
-*"will look bare"*. Twelve lines below, the render path is:
-
-```
-panel art -> drawModuleWidgets(-1) -> drawJacks() -> drawKnobs() -> drawLights()
-```
-
-`drawJacks()` draws a five-ring VCV-style jack sized from the module's widget.
-`drawKnobs()` draws rim, body **and** pointer. Both read
-`layout.inputs`/`outputs`/`params`, which come from the module's `ModuleWidget`
-and **have nothing to do with the panel SVG**.
-
-Provenance: accurate at `d4de897` (initial commit), superseded by `623f1f7`
-*"Draw the jacks, VCV-style, sized from the module's own widget"* **the same
-day**. Never updated.
-
-### What it cost, and it is worth being exact
-
-I quoted that comment as authoritative **twice, in consecutive turns, while
-reading the file it is wrong about.** It produced:
-
-- a filed row (E23) proposing to build something that exists;
-- a **wrong inversion of the recommendation** — HetrickCV, the best-licensed
-  pack on the board (CC0 code *and* art, ~70 modules), was demoted to
-  `BLOCKED(E23)` on the grounds that its labels-only panels would render bare.
-  They will not.
-- an escalation to Jeff that the permissive packs were unusable without new work.
-
-**The rendering session that produced the inversion was itself good work.** Its
-measurements are sound and it caught two broken SVG-geometry screens with a
-positive control. The failure was one layer up: I validated the *instrument* and
-never validated the *premise* the instrument was serving.
-
-### What survives, and it is not nothing
-
-The renders surfaced a real difference nobody had noticed: **authoring units.**
-HetrickCV panels are 380-unit (Rack pixels); **CVfunk and DHE are viewBox height
-128.5 — millimetres.** `RackEditor` carries an explicit 75-vs-96-dpi correction
-(`panelMetrics`) whose own comment warns a mm panel *"draws 96/75 = 28% too
-large for the coordinates its own module places controls at"*. The mechanism
-exists and **nobody has verified it lands correctly**. That is now E23's real
-content, and it belongs to E22's packs rather than E20's.
-
-### An id collision landed mid-correction
-
-`check-id-refs.py` failed the merge: **two E19 rows, `BACKLOG.md:130` and
-`:178`, same id, different items.** The windows box allocated **E19** for *"Test
-the DSP→GUI feedback path on EVERY format target"* from the same `main` this
-session's pilot row was cut from, and theirs landed first
-([#416](https://github.com/JeffMcClintock/TideSynth/pull/416)). This is A23's
-race exactly, and the lint is the only thing that sees it — git merged both rows
-cleanly because they sit at different points in the file.
-
-**Renumbered mine to E24**, per the check's own advice that the newer row moves:
-theirs is on `main`, mine is unlanded and referenced only from this branch. 11
-references updated. **Entries already pushed still say "E19" meaning the pilot** —
-they are the record and are not edited; from 2026-08-25 read them as E24.
-
-### Rows after the correction
-
-- **E20 → TODO**, restored as the first attempt. Both prerequisites are met:
-  the adaptor is dual-licensed on `main` and the bot has write access.
-- **E23** rewritten down to screws plus the mm-panel check, and **it blocks
-  nothing**.
-- **E24** (was E19) keeps its renders, loses its conclusion. Still worth a session: nothing
-  here has been observed in a running TIDE.
-- **E21**'s re-scope withdrawn — NLC's advantage was an artefact of the same error.
-
-**Verified:** the render path and both draw functions read from `main`, not from
-memory; `623f1f7` confirmed an ancestor of `origin/main`; the comment fix is
-comment-only, checked by diffing for non-comment lines.
-
-**Not verified:** still no module ported. Every claim across E20-E24 comes from
-source and rendered SVGs, not a running rack — which is exactly what E19 exists
-to fix and why it stays open.
-
-**Learned:**
-
-- **A comment twelve lines above the code it contradicts will be believed.** I
-  read `drawKnobs` and `drawJacks` in the same file, in the same session, and
-  still quoted the header.
-- **Validating the instrument is not validating the premise.** The previous
-  entry is a careful account of catching two broken screens with a control — and
-  the whole exercise was answering a question that did not need asking.
-- **"Explain X" is a real check on X.** Nothing else in three turns forced a read
-  of the render path; being asked to explain the row is what broke it.
-- **Correct the source, not just the conclusion.** The row, the doc and the
-  journal were all downstream of one comment; fixing only the row would have left
-  the trap armed for the next reader.
-
-**Next:**
-
-1. **E20 is the take-target** — `TIDE_HETRICKCV`, both prerequisites met.
-2. **E24 alongside it**: port one and look, which is still the only thing that
-   would make any of this an observation rather than a reading.
-3. **[SynthEdit_Rack_Adaptor#2](https://github.com/JeffMcClintock/SynthEdit_Rack_Adaptor/pull/2)**
-   wants a merge; it is comment-only.
-
-**Branch/PR:** `tide/mac/E19-permissive-rack-packs` — [#413](https://github.com/JeffMcClintock/TideSynth/pull/413), same branch.
-## 2026-08-25 — macos — Rendered the candidate panels: the permissive packs don't draw their controls, and that inverts the pick (interactive, Jeff directing)
-
-**Prompt:** for the first attempts lets avoid modules unless we can use the artwork too / ps: help me grant access for tide-rack-bot
-
-**A correction to the entry below**, prepended rather than edited — that entry is
-pushed and [#413](https://github.com/JeffMcClintock/TideSynth/pull/413) is open,
-and a log you edit is not a log (#121). Rows updated on the same branch, per
-STEP 1.5.
-
-**Did:** Jeff's constraint — *"for the first attempts lets avoid modules unless
-we can use the artwork too"* — reads two ways, and they lead to different work.
-**Licensing:** all four packs already pass; that was the selection criterion, so
-under that reading the instruction is a no-op. **As-rendered:** does the panel
-actually carry its knobs and jacks, or does it come out bare? That one was open,
-so I settled it instead of asking.
-
-### Two geometry screens, both wrong, and the reason is the same
-
-**Screen 1** counted `<circle>` by radius against a jack-sized bucket. The
-**control** — Fundamental, which `RackEditor.h` states *does* carry component art
-— scored **zero jacks**. Its jack holes are `r=5.0` inside a 380-px viewBox,
-below my threshold.
-
-**Screen 2**, recalibrated on that, then reported **HetrickCV: 0 circles across
-12 panels**. That looked like a devastating result and it was an artefact:
-HetrickCV converts every shape to `<path>` (39-129 paths per panel). **The circle
-count was measuring AUTHORING STYLE, not content.** I nearly wrote "HetrickCV
-panels have no component art" off a number that could not have detected it.
-
-The control is what caught both. A screen that reports the known-good case as
-failing is broken, and that is cheaper to notice than to reason about.
-
-### Rendering answered it in one command
-
-`rsvg-convert -h 420 -b white`, two panels per pack, Fundamental as control:
-
-| pack | draws its own knobs/jacks? |
-|---|---|
-| **Fundamental** (control, GPL) | **yes** — knob circles with indicator lines |
-| **HetrickCV** | **no**, both samples — labels and dashed leaders on a blank faceplate |
-| **Nonlinear Circuits** | **mixed, per-module** — `1050 Mixer Sequencer` is the best panel measured, `8BitCipher` draws none |
-| **DHE-Modules** | no — labels and rules |
-| **CVfunk** | not evident — stylised dark panel |
-
-**The uncomfortable conclusion: the only pack that demonstrably carries its
-control art is Fundamental — the GPL one we are trying to avoid.** Licensing and
-drawability point at different packs, and no permissive pack is clean on both.
-**So the honest answer to Jeff's constraint is that E20 as filed does not satisfy
-it**, and saying so is worth more than shipping the pick I had already argued for.
-
-### What changed on the branch
-
-- **E23 filed** and it is now the highest-leverage row: teach `RackEditor` to
-  draw TIDE's own `TiDEknob` / `TiDE Patch Point In/Out` at the positions the
-  module already reports. The adaptor **has** the coordinates — it is placing an
-  indicator line per knob already. This converts four packs at once and touches
-  no licence.
-- **E20 demoted to `BLOCKED(E23)`.** Not withdrawn: CC0 code-and-art plus ~70
-  modules is still the best licensing on the board.
-- **E21 re-scoped** — NLC is mixed per-module, which means it holds genuine
-  first-attempt candidates. Its status stays `BLOCKED(E20)` because the row is
-  the pack-wide option; **the per-module path is E19's, which is TODO.** I first
-  wrote takeable-sounding prose onto that blocked row and had to fix it —
-  eligibility lives in the status column alone.
-- **E19** carries the measurement and the three renders, committed under
-  `docs/images/`.
-
-**Verified:** the renders themselves, with a positive control; two panels per
-pack rather than one, after `Crackle.svg` alone proved unrepresentative.
-
-**Not verified:** **no module has been ported.** This is a prediction from panel
-art plus `RackEditor.h`'s own statement, not an observed TIDE render — E19 still
-owns that. Only 2 of 31-86 panels were looked at per pack, so "mixed" for NLC is
-a floor, not a census.
-
-**Learned:**
-
-- **A screen that fails its positive control is broken, not informative** — and I
-  built two before rendering anything. The control cost nothing and caught both.
-- **Counting SVG primitives measures the authoring tool.** `<circle>` vs
-  `<path>` is Inkscape's "object to path", not a fact about the artwork.
-- **"Can we use the artwork" has a legal reading and a practical one**, and the
-  packs that pass each are different sets. Worth separating explicitly.
-- **`rsvg-convert` + looking is cheaper than any amount of parsing**, and it was
-  available the whole time.
-
-**Next:**
-
-1. **E23 first**, then E20/E21/E22 become straightforward.
-2. **`tide-rack-bot` still has `push=false`** on `SynthEdit_Rack_Adaptor`, where
-   E23's work lives, and **404s on `VCV_Fundamental_gmpi`**. No invitations are
-   pending — Jeff has the two `gh api` commands; I can accept from the bot side.
-3. The adaptor relicence branch is still unpushed, awaiting Jeff's read-back.
-
-**Branch/PR:** `tide/mac/E19-permissive-rack-packs` — [#413](https://github.com/JeffMcClintock/TideSynth/pull/413), same branch, no second PR.
-## 2026-08-25 — macos — The adaptor is dual-licensed, and the permissive packs are picked and filed (interactive, Jeff directing)
-
-**Prompt:** research any VCV or Cardinal module that we could use that are permissively licensed including artwork / so lets change the adaptor to dual license. Then add to the backlog to add support for your pick of the best and most compatible collections. same as VCV fundamental pack, switchable at the cmake level. / make it a pr i can push myself
-
-**Did:** researched the permissive end of the VCV/Cardinal ecosystem, found the
-finding that reframes it, executed Jeff's dual-licence ruling as a pushable
-branch, and filed **E19-E22**. Research is
-[docs/vcv-permissive-modules.md](docs/vcv-permissive-modules.md); the ruling is
-in [docs/decisions.md](docs/decisions.md). No product code changed.
-
-### The finding: the adaptor's GPL was a CHOICE, not an inheritance
-
-Everything else follows from this, and it was one grep away.
-`SynthEdit_Rack_Adaptor/rack/rack.hpp` is **99 KB of Jeff's own code**, headed
-*"A MOCK of VCV Rack's plugin.hpp"*, `Copyright 2007-2026 Jeff McClintock`. The
-three `compat/` headers are stubs or reimplementations that say so in their own
-comments (`dr_wav` "STUBBED", `osdialog` "STUBBED", `samplerate` "implemented
-rather than mocked", linear instead of sinc). **All 19 tracked files carry one
-copyright holder and no other**, and the README states outright: *"This
-repository contains no VCV Rack code and no VCV artwork."*
-
-`grep -rniE "copyright.*(vcv|andrew belt)"` across the repo returns **nothing**.
-The only VCV artefact anywhere is the constant `23.7f` — the pixel size of
-Rack's `PJ301M.svg` — which is a measurement, not artwork.
-
-So it was always Jeff's to relicence, and the GPL was chosen (the README says
-*"That is deliberate"*) to match the modules it was written for. **The module was
-always the source of the obligation; the adaptor merely looked like it.**
-
-### The trap the question was really about
-
-Code licence and artwork licence are separate, and the art is usually stricter.
-Two rows from Cardinal's own table make it concrete:
-
-| pack | code | artwork |
-|---|---|---|
-| **AS** | MIT | **CC-BY-NC-ND-4.0** |
-| **Mog** | CC0-1.0 | `Mog/*` CC0 — but **`components/*` CC-BY-NC-4.0** |
-
-Also worth carrying: *"used and distributed with permission"* (AudibleInstruments,
-Befaco, E-Series) means permission granted to **Cardinal**, not to us. And **NC is
-disqualifying even though TIDE is free** — NC cannot be sublicensed under ISC,
-which grants recipients commercial use.
-
-### The pick, verified at source rather than taken from a summary
-
-Cardinal's `LICENSES.md` is the curated bulk survey; I used it to find
-candidates and then checked the top ones against their own repos:
-
-| pack | code | artwork | modules | how verified |
-|---|---|---|---|---|
-| **HetrickCV** | CC0-1.0 | CC0-1.0 | ~70 | its own `LICENSE.txt` |
-| **Nonlinear Circuits** | CC0-1.0 | CC0-1.0 | 18 | its own `LICENSE.txt` |
-| **CVfunk** | MIT | same as code | 43 | its own `plugin.json` |
-| **DHE-Modules** | MIT | same as code | 28 | its own `plugin.json` |
-
-HetrickCV leads because CC0 removes every licensing question at once, ~70
-modules is a real catalogue, the same author's Nonlinear Circuits follows for
-free, and the content is **complementary rather than duplicative** — phasors,
-boolean logic, chaos, Rungler, Waveshaper — not a second VCO/VCF/ADSR.
-
-### The risk is not licensing, and E19 exists to settle it
-
-`RackEditor.h:25-29` says it plainly: it does **not** draw knob caps, jacks or
-screws, because *"Fundamental's panel SVGs already carry that artwork"*, and
-*"modules whose panels do NOT include the component art will look bare."*
-Whether a pack bakes its components in is a **per-pack property** and nobody has
-checked one outside Fundamental.
-
-**I tried to settle it for HetrickCV and could not, so the row says so.**
-`Crackle.svg` is 37 KB, 38 `<path>`, 9 `<circle>`, 0 `<text>` on a 90x380 panel
-— substantial art, not a bare rectangle — but the nine circles are a nested
-decorative motif (each at `cx = -r`, all tangent to x=0), **not** jack art. That
-is suggestive of nothing. One ported module answers it; that is E19, and E20-E22
-are blocked on it.
-
-### What landed where, and the one thing that did not
-
-**The adaptor change is a branch Jeff pushes himself, and that is not a
-preference — `tide-rack-bot` has `push=false` on that repo** (and cannot even
-see `VCV_Fundamental_gmpi`, which 404s). Cloned to
-`~/Documents/GitHub/SynthEdit_Rack_Adaptor`, branch `relicense-dual-isc-gpl`,
-one commit, clean tree, ready to push.
-
-Sequencing was deliberate: decisions.md's 2026-08-09 rule says **verbally-relayed
-decisions get a read-back confirmation before execution**, because the MIT/ISC
-flip-flop was a real public push of the wrong licence. So this is prepared and
-NOT landed, with the read-back stated: **ISC OR GPL-3.0-or-later**, ISC chosen
-to match TideSynth, SynthEditLib, GMPI and gmpi_ui.
-
-**Verified:** all 19 files' copyright swept for a second holder — there is none;
-the patch `git apply --check`s clean against a pristine clone of `main`; **zero
-non-SPDX lines changed in any source file** (checked by diffing with `LICENSE*`
-excluded, after a first check was polluted by the GPL text matching `*.txt`);
-E19-E22 duplicate-id checked against every file on freshly-fetched `origin/main`;
-grep-before-filing found no existing row naming any of these packs or the adaptor.
-
-**Not verified:**
-
-- **Nothing was rebuilt.** The adaptor change is comment lines and licence files
-  only, but no build was run against it.
-- **The MIT tier's artwork** is Cardinal's claim plus each `plugin.json`; I did
-  not read CVfunk's or DHE's panel files.
-- **Tier B's long tail** — 21kHz, Biset, mscHack and the rest — is Cardinal's
-  table alone, unverified at source. E22 covers only the two I checked.
-- **Whether any candidate panel draws its own components.** That is E19.
-
-**Learned:**
-
-- **"Why is this GPL?" is worth asking of your own code.** The adaptor looked
-  like the source of the obligation for as long as nobody read its headers; one
-  grep for a foreign copyright holder settled it and unlocked the whole line of
-  work.
-- **A permissive code licence is not permission to ship the panels**, and the
-  two diverge often enough that AS and Mog are both in the same short table.
-- **A licence is the one thing to prepare rather than land.** The read-back rule
-  exists because this project already pushed a wrong licence publicly once.
-- **A file being big is not evidence about what is in it.** 37 KB of panel SVG
-  felt like an answer and was not; the nine circles were decoration.
-- **Check push access before designing the delivery.** `push=false` changed the
-  shape of this task from "open a PR" to "hand over a branch", and it is one API
-  call to find out.
-
-**Next:**
-
-1. **Jeff confirms the ISC half and pushes `relicense-dual-isc-gpl`.** E20-E22
-   are worth nothing until the adaptor is dual-licensed.
-2. **E19 is takeable now** and needs neither the relicence nor a ruling — it is
-   one module, one build, one look.
-3. **Consider granting `tide-rack-bot` write on `SynthEdit_Rack_Adaptor`** if the
-   fleet is to work on it, and access to `VCV_Fundamental_gmpi`, which the bot
-   cannot see at all.
-
-**Machine left clean.** Work in throwaway worktrees plus two scratch clones of
-the adaptor; nothing built in any of Jeff's checkouts. **One intentional
-addition to his tree: `~/Documents/GitHub/SynthEdit_Rack_Adaptor`, a fresh clone
-parked on the relicence branch — that is the deliverable, not litter.** The
-earlier VCV build tree was left in the scratchpad for iteration.
-
-**Branch/PR:** `tide/mac/E19-permissive-rack-packs` — TideSynth only: E19-E22,
-the decision entry, the research doc and this entry. The adaptor's own change is
-`relicense-dual-isc-gpl` in that repo, unpushed, awaiting Jeff.
 ## Rotation — do this as part of STEP 4, every run
 
 Every run on three machines reads this file in full, so its size is a cost paid
