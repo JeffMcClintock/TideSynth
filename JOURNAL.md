@@ -150,15 +150,71 @@ which is exactly the direction E19's own lessons warn about.
 
 - **The VST3 cell is not measured.** REAPER was never launched this session.
   Everything above is the standalone.
-- **No stack for E49.** There is **no `cdb.exe` on this box** — the WinDbg store
-  package ships `WinDbgX.exe` and `dbgsrv*.exe` only, so the memory note saying
-  cdb lives under WindowsApps is out of date — and Windows logged no
-  `Application Error` event. A faulting address needs a debugger installed or WER
-  LocalDumps enabled, and enabling the latter is a machine config change a
-  scheduled run should not make.
 - **E50 is not tested**, only observed with a control.
 - **Nothing was built for macOS or Linux**, and none of these three defects has
   been checked on either.
+
+### I said there was no debugger on this box. There is, and it gave me the crash.
+
+**This is the run's own worst mistake and it nearly shipped in a row.** I searched
+for `cdb.exe` with
+
+```
+Get-ChildItem 'C:\Program Files\WindowsApps' -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue
+```
+
+got nothing back, and wrote *"there is no `cdb.exe` on this box"* into E49.
+**`WindowsApps` denies directory LISTING**, so `-ErrorAction SilentlyContinue`
+swallowed an access-denied and handed me an empty result that I read as absence.
+My own memory note had the exact path all along, and probing it directly answers
+`True`:
+
+```
+C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2603.20001.0_x64__8wekyb3d8bbwe\amd64\cdb.exe
+```
+
+**This is the same failure the archive already records** — *"An empty result from
+a missing input is not evidence. Check the input exists before believing an empty
+result."* (2026-08-25, macos). I hit it in the same shape, from the same kind of
+suppressed error, and I only caught it because I went to correct the memory note
+and re-read what it actually said.
+
+**With the debugger, E49 stops being a characterisation and becomes a diagnosis:**
+
+```
+ExceptionAddress: TIDE_Rack!ug_patch_param_setter::ConnectParameter+0x5e
+ExceptionCode:    c0000005 (Access violation)
+Parameter[0]: 0            <- a read
+Parameter[1]: 0x64         <- the address read: offset 0x64 from NULL
+faulting insn: mov ecx,dword ptr [rbp+64h]
+next insn:     call TIDE_Rack!HostControlisPolyphonic
+```
+
+That pair of instructions is
+`HostControlisPolyphonic(parameter->getHostControlId())` with **`parameter`
+null**, and the null is made two lines earlier in
+`SynthEditLib/ug_patch_param_setter.cpp:172`:
+
+```cpp
+auto parameter = parent_container->get_patch_manager()->GetParameter(moduleHandle, moduleParameterId);
+ConnectParameter(parameter, plug);      // nothing checks it
+```
+
+The only guards on the receiving overload are `assert`s and TIDE ships `-DNDEBUG`.
+**Called from `ug_base::HookUpParameters` (`ug_base.cpp:745`) on the WASAPI render
+thread** — `AudioDriverWasapi::renderThread` → `processAudio` → `prepareToPlay` →
+`BuildDspGraph` → `BuildModules` → `Setup` — so the DSP graph is built on the
+audio thread and this kills the render thread rather than surfacing as a load
+error.
+
+**And it sharpens the E46 relationship rather than settling it.** It is E46's
+SHAPE — an assert-only guard on a lookup that can miss — at a different site in a
+different file, and it is the measured crash E46 says it lacks. But E46's own data
+condition really is absent here (25 handles defined, 13 referenced, zero
+dangling), and **`GetParameter` takes a `(moduleHandle, parameterId)` PAIR while my
+document test only checked module handles** — so the miss comes from the parameter
+id on a module that does exist. That is narrower and more findable than E46's case,
+and I would not have known it without the faulting address.
 
 ### Bookkeeping
 
@@ -217,12 +273,22 @@ running. The build tree is `C:\SE\_scratch\e19`, outside every repo.
   The source file said one thing and the running app said another.
 - **The command channel cannot lay out a rack.** Double-click inserts; drag does
   not move. Anything about position has to be authored in the document.
+- **`-ErrorAction SilentlyContinue` turns "I was not allowed to look" into "it is
+  not there."** `WindowsApps` denies directory listing; the suppressed
+  access-denied cost me a wrong sentence in a filed row, and the debugger it said
+  was missing is what turned that row from a description into a diagnosis.
+  **Suppress errors only when you already know which error you are suppressing.**
+- **Check a lint by its EXIT CODE, not by reading the first lines of its output.**
+  I piped `check-id-refs.py` through `head -2`, saw the advisory, called it green,
+  and CI failed on a stale reference sitting four lines below the cut.
 
 **Next:** **E50** first, and it is cheap — one `TIDE_VCV_FUNDAMENTAL=OFF` build
-and one document size. If it is the common cause then E48 and E49 go with it and
-E19's VST3 cell becomes reachable, because the whole obstacle today was that no
-prepared rack reloads reliably. If it is not, E49 needs a debugger on this box
-and that needs Jeff.
+and one document size. It is now the only unexplained one of the three: E49 has
+its faulting line, E48's dialog names its own symptom, and both are consistent
+with a parameter that no longer resolves. If E50 is the cause then all three go
+together and E19's VST3 cell becomes reachable, because the whole obstacle today
+was that no prepared rack reloads reliably. **E49's guard is one line and is
+GATED**, so it is filed rather than written whichever way E50 goes.
 
 **Branch/PR:** `tide/win/E19-vst3-feedback-leg` — TideSynth only. E19's row back
 to TODO, E51/E48/E49/E50 filed, X2 flipped, the `PROPOSED:` entry, and this
@@ -882,74 +948,6 @@ nominal zoom, which is wrong because `calcViewTransform` QUANTISES zoom so that
 instead makes each screenshot calibrate itself and removes both mistakes at
 once. **When the thing you are measuring has a known period, use the period as
 the ruler.**
-
-## 2026-08-26 — macos — E29: the mac box is fine, and the obvious fix would break it (interactive, Jeff directing)
-
-**Prompt:** "continue", then — on seeing a headless render stall —
-*"blocked on a plugin-not-available dialog"* and *"drive it interactvly"*.
-
-He was right on both counts, and driving it interactively is what turned a
-plausible inference into a screenshot.
-
-**THE QUESTION THE ROW LEFT OPEN IS ANSWERED: the mac box is NOT affected.**
-REAPER **7.45** loads the committed raw-TUID token and renders `v1-rack.rpp` at
-**peak -6.3 / rms -17.0 dBFS** — M7's and E2a's figure exactly. Negative control
-first, as the harness itself instructs: `v1-rack-uncabled.rpp` -> `-inf`,
-SILENCE. So the harness discriminates and the -6.3 means something.
-
-**THE FINDING THAT CHANGES THE PLAN is the other direction.** Substituting the
-Windows box's 7.78 token into the same fixture makes REAPER 7.45 refuse it:
-
-```
-Project Load Warning
-The following effects were in the project file and are not available.
-    Track 1: VST3i: TIDE Rack (TIDE Synth)
-```
-
-and the FX slot reads *"could not be loaded"*. **The two tokens are mutually
-exclusive across these versions**, so this row's first repair option — *"a
-re-save from a current REAPER"* — would fix Windows and break macOS. Ruled out
-unless the fleet first agrees a single REAPER version. Worth knowing before
-anyone tries: this mac is on 7.45 and REAPER is offering **7.79**, so upgrading
-it casually would flip it to the Windows behaviour and break every committed
-fixture here.
-
-**IT FAILS AS A HANG, NOT AN ERROR — the part that would have bitten CI.** The
-warning is modal, so `-renderproject` blocks on it forever. My first attempt sat
-**over seven minutes** producing no render and no error, and I killed it by
-hand. `render-and-measure.py` had no timeout at all. It does now: 300 s, kills
-REAPER, and writes into the log exactly why and where to read about it. I fired
-that path deliberately with a 25 s cap to prove it works (`rc=-9999`, REAPER
-gone, message present) rather than trusting that I had written it correctly, and
-re-ran the control and `v1-rack.rpp` to show nothing else moved.
-
-**A METHOD NOTE WORTH KEEPING.** My second headless attempt reported SILENCE
-rather than hanging, which nearly sent me down the wrong path — "the plugin
-loads but makes no sound" is a completely different bug from "the plugin does
-not load". Driving REAPER by hand settled it in one screenshot. **A headless
-harness can only report what it can see, and a modal dialog is invisible to it;
-the two failures it collapses into "no audio" are not the same failure.**
-
-**Delivered:** the row's SECOND option verbatim — a note in
-`tests/hosts/README.md` naming both tokens, which REAPER writes which, the
-one-line `sed` for a LOCAL copy, how to discover what your own REAPER writes,
-and the hang.
-
-**CLOSED BY JEFF THE SAME HOUR — WONTFIX.** *"this product is not released. We can break DAW
-sessions, they only exist only for our tests anyhow"*, then *"we simply don't care about broken
-test sessions. don't waste time on it."* The escalation is WITHDRAWN rather than answered, and
-that is the right call: the fixtures are instruments, not deliverables, and a one-line `sed`
-unblocks any box that needs one. **The lesson for me is about proportion** — I had a NEEDS-JEFF
-row with a default and a decide-by drafted for a question whose real answer was "this does not
-matter". The measurement was worth ten minutes; the escalation machinery around it was not.
-Two things survive and are worth keeping on their own merits: the README recipe, and the
-harness timeout, which bounds a hang on ANY modal dialog rather than just this one.
-
-**The Accept is half met and the row says so.** *"loads its plugin on all three
-boxes"* is not true and no commit here can make it true without breaking macOS.
-E29 is now NEEDS-JEFF with a default in effect (per-box local swap) and a
-decide-by (before the next multi-box REAPER-rendered measurement), so an
-unanswered question cannot quietly become the answer.
 
 ## Rotation — do this as part of STEP 4, every run
 
