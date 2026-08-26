@@ -47,7 +47,7 @@ set -euo pipefail
 BUILD_DIR="${1:?usage: package-macos.sh <build-dir> [out-dir]}"
 OUT_DIR="${2:-$BUILD_DIR/package}"
 
-PRODUCT="TIDE Rack"          # display form  -- docs/distribution.md
+PRODUCT="TiDE Rack"          # display form  -- docs/distribution.md
 ASSET="TIDE-Rack-macOS.pkg"  # shipped form  -- constant, version lives in the tag
 IDENTIFIER="com.synthedit.tiderack"
 # Kept in step with SynthEdit.cpp's <Plugin version="...">, which is what the

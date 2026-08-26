@@ -16,7 +16,7 @@
             </Parameters>
         </PatchManager>
         <modules>
-            <module type="Container" handle="1709088982" PanelLocationZoom="1" StructLocationZoom="1" rack_module="true" skin="default3" name="TIDE MIDI-CV">
+            <module type="Container" handle="1709088982" PanelLocationZoom="1" StructLocationZoom="1" rack_module="true" skin="default3" name="TiDE MIDI-CV">
                 <plugs>
                     <plug default="1" idx="2" />
                     <plug name="Input" idx="7" />

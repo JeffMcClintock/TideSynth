@@ -53,14 +53,14 @@ bool clipboardAvailable();
 // 1. Product and version. TIDE has no release yet — the whole R2..R6 series is
 // blocked on there being something to ship — so this is the honest placeholder
 // and those rows own the real number when they land.
-inline constexpr std::string_view kProductLine = "TIDE Rack — version 0.1 (unreleased)";
+inline constexpr std::string_view kProductLine = "TiDE Rack — version 0.1 (unreleased)";
 
 // 2. The credit, verbatim from R1(a) via the design doc. It names the
 // ORGANISATION deliberately: TIDE Rack is a product of TIDE Synth, and TIDE
 // Synth is SynthEdit Ltd's. Dropping the middle term is the one edit that
 // defeats the purpose. This is also NOT the plug-in name or vendor string —
 // those are P5's two fields and this pane is a third thing.
-inline constexpr std::string_view kCreditLine = "TIDE Synth — by SynthEdit Ltd";
+inline constexpr std::string_view kCreditLine = "TiDE Synth — by SynthEdit Ltd";
 
 // 3. Donation. Lowercase spelling: Ko-fi canonicalises to lowercase and both
 // spellings reach the same page (verified in a browser — Ko-fi 403s curl).

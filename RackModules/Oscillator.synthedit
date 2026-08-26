@@ -16,7 +16,7 @@
             </Parameters>
         </PatchManager>
         <modules>
-            <module type="Container" handle="606633040" PanelLocationZoom="1" StructLocationZoom="1" rack_module="true" skin="default3" name="TIDE Oscillator">
+            <module type="Container" handle="606633040" PanelLocationZoom="1" StructLocationZoom="1" rack_module="true" skin="default3" name="TiDE Oscillator">
                 <plugs>
                     <plug default="1" idx="2" />
                     <plug idx="7" />

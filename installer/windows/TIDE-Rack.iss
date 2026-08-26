@@ -1,4 +1,4 @@
-; Inno Setup script for TIDE Rack -- BACKLOG R2.
+; Inno Setup script for TiDE Rack -- BACKLOG R2.
 ;
 ; Produces the asset docs/distribution.md names:
 ;
@@ -25,7 +25,7 @@
 ; carries the full reasoning and the measurement behind it.
 ;
 ; NAMING, and the three forms must not be mixed (docs/distribution.md):
-;   display form   TIDE Rack    -- AppName, wizard title, program group
+;   display form   TiDE Rack    -- AppName, wizard title, program group
 ;   shipped form   TIDE-Rack    -- every filename and every path
 ;   target form    TIDE_Rack    -- CMake only, and it does not appear here
 ;
@@ -77,9 +77,9 @@
 #endif
 
 [Setup]
-AppName=TIDE Rack
+AppName=TiDE Rack
 AppVersion={#AppVersion}
-AppVerName=TIDE Rack {#AppVersion}
+AppVerName=TiDE Rack {#AppVersion}
 AppPublisher=SynthEdit Limited
 AppPublisherURL=https://tidesynth.com/
 AppSupportURL=https://tidesynth.com/
@@ -93,7 +93,7 @@ AppSupportURL=https://tidesynth.com/
 ; off: offering to "install" a VST3 somewhere else produces a plug-in no host
 ; scans.
 DefaultDirName={#AppDirOverride}
-DefaultGroupName=TIDE Rack
+DefaultGroupName=TiDE Rack
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 
@@ -107,7 +107,7 @@ WizardStyle=modern
 ; Common Files\VST3 lives under Program Files, so a shipped install cannot be
 ; per-user without putting the plug-in somewhere no host looks.
 PrivilegesRequired={#PrivilegesLevel}
-UninstallDisplayName=TIDE Rack {#AppVersion}
+UninstallDisplayName=TiDE Rack {#AppVersion}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -126,7 +126,7 @@ Source: "{#PayloadDir}\*"; DestDir: "{#Vst3Dir}"; \
 Source: "{#PayloadDir}\..\README.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Uninstall TIDE Rack"; Filename: "{uninstallexe}"
+Name: "{group}\Uninstall TiDE Rack"; Filename: "{uninstallexe}"
 
 [UninstallDelete]
 ; [Files] entries are removed one by one, which leaves the now-empty bundle
