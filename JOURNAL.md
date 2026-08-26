@@ -8,6 +8,68 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — E26 closed by measurement: the chunk's own tag says the save refreshed it (scheduled run)
+
+**Prompt:** "Work continuously through the TideSynth backlog... Verify against
+the row's ACCEPT, not a tool's exit line... If you cannot measure it, write
+'unverified' and say exactly what is missing."
+
+**No commit was needed. The defect cannot occur on today's `main`, and both
+halves of the row's premise have been fixed since it was written.**
+
+E26 asks *"whether `syncState()` ... is meant to be the hook — nothing in GMPI
+or the wrappers calls it today"*. Both parts are now false:
+
+- `StandaloneHost::syncPluginState()` **calls it**, immediately before capturing
+  state, and its comment names this exact case: *"for one whose real state lives
+  behind a chunk parameter (TIDE's document) it is the difference between saving
+  the patch and saving a stale copy."*
+- `SynthEditController::syncState()` **implements it**, re-exporting through
+  `exportChunkXmlForSave()`. Its comment closes the row in one sentence: *"until
+  this existed a knob tweaked after the last structural edit was NOT in the saved
+  file."*
+
+**BUT READING TWO COMMENTS IS NOT A MEASUREMENT, and this row deserved one.**
+
+It turns out the artifact answers the question itself. `ChunkPrefix.h` puts a
+four-byte tag on the front of every chunk recording WHY it was written:
+
+```
+TDb1  Build   a structural push from serviceDocumentSync
+TDs1  Sync    the SAVE-TIME REFRESH, written only by syncState()
+(none)Legacy  written before the tag existed
+```
+
+So "did the save re-export the chunk?" is answered by the **first four bytes of
+any saved file**, with no instrumentation, no build flag and no staged failure.
+
+**Eleven session files checked — the nine this run's driven standalones wrote,
+plus Jeff's own live `session.xml` and its `session.previous.xml` backup — and
+all eleven carry `TDs1`.** Not one `TDb1`, not one Legacy. Every save on this
+box re-exports from the live document.
+
+**A corollary worth enjoying:** those are the same four bytes that made
+`e5_rack_footprint_probe.py` die with *"not well-formed (invalid token): line 1,
+column 4"* until E36 taught it to skip them this afternoon. The prefix that was
+an obstacle in one row is the evidence in this one.
+
+**WHAT I TRIED FIRST AND WHY IT DID NOT WORK, because the next person will reach
+for it too.** I went looking for a value edit to drive through the GUI: tweak
+something, save, see it survive. Two dead ends:
+
+1. A patch-cable **ADD** looks like a value edit and is not. It trips `dspDirty`
+   through a `SuspendDSP` guard and pushes the document structurally — observed
+   directly, `TIDE: DSP structure changed, pushing 18049 byte document`. That
+   exercises the path E26 is *not* about. (E28's journal already recorded this
+   as the reason cable-add "worked" before its fix; same trap, different row.)
+2. A cable **REMOVE** does not trip it and is the right edit — but driving one
+   is unreliable because of **E34**, which is precisely that the cable-end drag
+   does not end.
+
+The tag reads the answer off the artifact instead of trying to stage the
+failure. When a mechanism records what it did, measure that, rather than
+building a scenario to watch it.
+
 ## 2026-08-26 — macos — E25: the SIGSEGV is a missing null check, and the trigger is not the timer (scheduled run)
 
 **Prompt:** "Work continuously through the TideSynth backlog... If you cannot
