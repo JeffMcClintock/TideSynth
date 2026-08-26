@@ -68,7 +68,8 @@ PROPOSED: What does a TIDE binary do when it needs to ask the user a question
 ```
 
 **Measured 2026-08-27 (windows), which is what prompted the question.** Relaunching
-the standalone on a saved 49,607-byte rack of TIDE's own prefabs:
+the standalone on a saved 49,607-byte rack (five prefabs inserted by hand, plus a
+`VCV: Compare` that turned out to be there already -- see BACKLOG **E50**):
 
 ```
 process alive, Responding=True, CPU 0.09 s, 30 s+     no pipe name ever printed
