@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="1157435856" SelectedViewType="256" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0" rack_mode="true">
+<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="1996595734" SelectedViewType="128" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0" rack_mode="true">
     <WindowLayout>
         <MainWindow l="152" t="152" r="3032" b="1689" monitor="\\.\DISPLAY1" ml="0" mt="0" mr="3840" mb="2160"/>
     </WindowLayout>
-    <master_container type="Container" handle="1996595734" name="Main" PanelLocationZoom="0.38146973" StructLocationZoom="1" ViewOpenFlags="384" skin="default3">
+    <master_container type="Container" handle="1996595734" name="Main" PanelLocationZoom="0.74505806" StructLocationZoom="1" ViewOpenFlags="384" skin="default3">
         <plugs>
             <plug idx="7"/>
         </plugs>
@@ -20,7 +20,7 @@
             </Parameters>
         </PatchManager>
         <modules>
-            <module type="Container" handle="1157435856" name="TiDE Output" PanelLocationZoom="1" StructLocationZoom="1" ViewOpenFlags="256" rack_module="true" skin="default3">
+            <module type="Container" handle="1157435856" name="TiDE Output" PanelLocationZoom="0.1" StructLocationZoom="1" ViewOpenFlags="384" rack_module="true" skin="default3">
                 <plugs>
                     <plug default="1" idx="2"/>
                     <plug idx="7"/>
@@ -62,12 +62,12 @@
                     <line type="Line" handle="364000405" lineType="1" fMod="960331852" tMod="786111745" fPlg="1"/>
                     <line type="Line" handle="2099833648" lineType="1" fMod="596823750" tMod="786111745" fPlg="1" tPlg="1"/>
                 </lines>
-                <PanelLocationCenter x="3984" y="3984"/>
+                <PanelLocationCenter x="5007" y="2349"/>
                 <StructLocationCenter x="3984" y="3984"/>
                 <PanelWndPosition l="1329" r="1377" t="276" b="660"/>
                 <PanelLocation l="0" r="500" t="0" b="500"/>
                 <StructLocation l="0" r="500" t="0" b="500"/>
-                <PanelScroll x="3734" y="3734"/>
+                <PanelScroll x="4757" y="2099"/>
                 <StructScroll x="3734" y="3734"/>
                 <PanelWndOffset cx="-99999" cy="-99999"/>
                 <panel_rect l="0" r="48" t="0" b="384"/>
@@ -193,13 +193,13 @@
             <line type="Line" handle="4224648" lineType="1" fMod="70768971" tMod="1709088982" fPlg="6" tPlg="11"/>
             <line type="Line" handle="840371022" lineType="1" fMod="732585325" tMod="70768971" fPlg="1"/>
         </lines>
-        <PanelLocationCenter x="1349.3143" y="283.96948"/>
-        <StructLocationCenter x="3984" y="3984"/>
+        <PanelLocationCenter x="940.37683" y="584.74042"/>
+        <StructLocationCenter x="4140" y="3864"/>
         <PanelWndPosition l="0" r="0" t="0" b="0"/>
         <PanelLocation l="0" r="500" t="0" b="500"/>
         <StructLocation l="0" r="500" t="0" b="500"/>
-        <PanelScroll x="1099" y="33"/>
-        <StructScroll x="3734" y="3734"/>
+        <PanelScroll x="690" y="334"/>
+        <StructScroll x="3890" y="3614"/>
         <PanelWndOffset cx="-99999" cy="-99999"/>
         <panel_rect l="3732" r="4212" t="3732" b="4212"/>
     </master_container>
