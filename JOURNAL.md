@@ -8,6 +8,102 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — E25: the crash report's faulting address disproves E25's own diagnosis, and moves the fix to a different file (interactive session, Jeff directing)
+
+**Prompt:** standing backlog-loop instruction in the session, not `docs/weekly-run-prompt.md` · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
+
+**Did:** took **E25**, the `EXC_BAD_ACCESS` in `CContainer::getIgnoreProgramChange()`.
+Row stays **TODO** — its Accept is not met — but the diagnosis it carried is
+wrong, and the one-line fix it recommended would not have stopped the crash.
+Also flipped **E43** to DONE (both PRs verified merged) and filed **E46**.
+Branch `tide/mac/E25-null-container-diagnosis`.
+
+### The whole thing turns on one number nobody had used
+
+The report says `KERN_INVALID_ADDRESS at **0x50**`. The previous entry read the
+stack and concluded the container's plug table was short of `PN_IGNORE_PC` (3),
+so `GetPlug(3)` returned nullptr and `->GetDefault()` faulted. **That story
+faults at `0x0`, not `0x50`** — `GetDefault` is pure virtual (`Plug.h:39`), so
+the null goes through `ldr x8, [x0]`, a vtable read at offset zero.
+
+What faults at exactly `0x50` is the OTHER null. `otool -tV` on the shipped
+binary:
+
+```
+__ZN3CUG7GetPlugEi:
+    tbnz  w1, #0x1f, ...        <- guards the INDEX, not `this`
+    ldp   x8, x9, [x0, #0x50]   <- Plugs (std::vector) — this+0x50
+```
+
+So `getIgnoreProgramChange` **entered with `this == nullptr`** faults at `0x50`.
+Forcing exactly that under lldb reproduces the report's stack **frame for
+frame**, `EXC_BAD_ACCESS (code=1, address=0x50)` included. Shipped as
+`tests/e25_null_container_probe.py`; `--run` is that control, and the default
+static mode needs only `otool`.
+
+**And it explains the frame that ISN'T in the report.** There is no
+`PatchParameter_base::ignoreProgramChange` frame, which is what made the
+previous run read `ExportXml` as calling `getIgnoreProgramChange` directly. The
+disassembly shows `ignoreProgramChange` is inlined into `ExportXml` and
+**tail-calls** (`b`, not `bl`) `getIgnoreProgramChange` — a tail call owns no
+frame. A missing frame was evidence, not the absence of it.
+
+### Where the null comes from, and why the recommended fix could not have worked
+
+```
+__ZN19PatchParameter_base19ignoreProgramChangeEv:
+    ldrb  w8, [x0, #0xd0]       <- m_ignoreProgramChange
+    tbz   w8, #0x0, ...
+    mov   w0, #0x1; ret         <- true short-circuits, module() never touched
+    ldr   x8, [x0, #0x1c0]      <- module()
+    cbz   x8, ...               <- module() IS null-checked
+    ldr   x0, [x8, #0x38]       <- module()->Container()  — NOT checked
+    b     __ZN10CContainer22getIgnoreProgramChangeEv
+```
+
+`PatchParameter.cpp:1297`. The load-bearing gated fix is that second guard, in
+`PatchParameter.cpp` — **not** `CContainer.cpp:1654`, which is what the row told
+Jeff to change. With `this` already null the fault happens inside `GetPlug`,
+before any guard added to `getIgnoreProgramChange`'s body could run. The
+`CContainer.cpp` guard is still worth having; it is a different bug.
+
+### The remaining hunt is much smaller than "which document state"
+
+`m_ignoreProgramChange` **defaults to `true`** (`PatchParameter.h:307`), so the
+deref is unreachable for almost every parameter. It needs one that is **false**:
+`HC_PATCH_CABLES` and `HC_PROGRAM_CATEGORY` set it false in code, and the
+Properties pane's `Ignore Program Change` toggle sets it false on anything —
+and that toggle was on screen when the crash happened.
+
+Who has a null `Container()` is not a guess either; `DocOb.cpp:40` says it, in a
+special case commented *"for 'Main' container"*. In a live document that is
+`<master_container handle="1920872816" name="Main">`, and four parameters already
+point at it — all four carrying `ignoreProgramChange="1"`.
+
+**Three crafted documents did NOT reproduce it, recorded so nobody repeats
+them:** `Module="1"` (that is the DSP-side id, not the editor handle — did not
+resolve); `Module="999999999"` (did not resolve; became **E46**); and
+`ignoreProgramChange="0"` on a master-container host control — which **does not
+survive import**, because the host-control factory re-asserts its own default.
+That last one is the useful negative: the flip has to happen *after* load, which
+is what the Properties toggle does and what the next run should drive.
+
+**Also gone: both `.ips` files.** macOS rotated them, and
+`~/Library/Logs/DiagnosticReports` now holds no TIDE report at all — so the
+Accept's *"crash-report count before and after"* has no *before* left and needs
+re-stating by whoever takes the row.
+
+### Two traps worth the lines, both cost real time here
+
+- **`otool -p` and lldb's `breakpoint set -n` spell the same symbol
+  differently.** otool wants the Mach-O `__ZN10CContainer22...`; lldb wants one
+  fewer underscore. Feeding otool's spelling to lldb sets a breakpoint that
+  never resolves, and lldb reports that as **silence**, not as an error — it
+  reads exactly like "the condition never occurred". And `lstrip("_")` is the
+  wrong fix: it eats both underscores and fails the same silent way. `[1:]`.
+- **`breakpoint list` before `run` always says `no locations (pending)`**, so a
+  check for that string is a false negative on a breakpoint that resolves fine
+  at launch.
 ## 2026-08-27 — linux — X2: the tree has 1,982 unique warnings and fifteen of them are ours (interactive, Jeff directing)
 
 **Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
