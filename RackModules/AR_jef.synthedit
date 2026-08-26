@@ -38,40 +38,47 @@
                 </plugs>
                 <structRect l="24" r="72" t="24" b="48"/>
                 <modules>
+                    <module type="SE Label" handle="306011854">
+                        <plugs>
+                            <plug default="Out"/>
+                        </plugs>
+                        <structRect l="540" r="648" t="480" b="552"/>
+                        <panelRect l="3968" r="4004" t="4104" b="4110"/>
+                    </module>
                     <module type="SE Label" handle="751257471">
                         <plugs>
                             <plug default="Trig"/>
                         </plugs>
                         <structRect l="552" r="660" t="480" b="552"/>
-                        <panelRect l="3967" r="4003" t="3890" b="3898"/>
+                        <panelRect l="3967" r="4003" t="3890" b="3896"/>
                     </module>
                     <module type="SE Label" handle="1039017689">
                         <plugs>
                             <plug default="Gate"/>
                         </plugs>
                         <structRect l="540" r="648" t="420" b="492"/>
-                        <panelRect l="3968" r="4004" t="3928" b="3936"/>
+                        <panelRect l="3968" r="4004" t="3928" b="3934"/>
                     </module>
                     <module type="SE Label" handle="1808329957">
                         <plugs>
                             <plug default="A"/>
                         </plugs>
                         <structRect l="552" r="660" t="432" b="504"/>
-                        <panelRect l="3968" r="4004" t="4010" b="4018"/>
+                        <panelRect l="3968" r="4004" t="4010" b="4016"/>
                     </module>
                     <module type="SE Label" handle="1167319384">
                         <plugs>
                             <plug default="R"/>
                         </plugs>
                         <structRect l="564" r="672" t="348" b="420"/>
-                        <panelRect l="3968" r="4004" t="4051" b="4059"/>
+                        <panelRect l="4632" r="4668" t="3800" b="3806"/>
                     </module>
                     <module type="SE Label" handle="1105680368">
                         <plugs>
                             <plug default="In"/>
                         </plugs>
                         <structRect l="564" r="672" t="240" b="312"/>
-                        <panelRect l="3968" r="4004" t="3969" b="3977"/>
+                        <panelRect l="3968" r="4004" t="3969" b="3975"/>
                     </module>
                     <module type="SE Label" handle="94852515">
                         <plugs>
@@ -107,6 +114,8 @@
                     <module type="SE TiDE:Panel" handle="1412763883">
                         <plugs>
                             <plug default="knob big 24 200;knob big 24 240;grill 24 20; jack 24 80;jack 24 120;jack 24 160; jack 24 337; slots 24 371" idx="3"/>
+                            <plug default="2"/>
+                            <plug default="FFdfd1a9"/>
                         </plugs>
                         <structRect l="744" r="816" t="84" b="544"/>
                         <panelRect l="3962" r="4010" t="3794" b="4178"/>
@@ -136,7 +145,7 @@
                 </lines>
                 <PanelLocationCenter x="4039.165" y="4061.209"/>
                 <StructLocationCenter x="362.5" y="274"/>
-                <PanelWndPosition l="424" r="514" t="192" b="576"/>
+                <PanelWndPosition l="424" r="472" t="192" b="576"/>
                 <PanelLocation l="0" r="500" t="0" b="500"/>
                 <StructLocation l="0" r="500" t="0" b="500"/>
                 <PanelScroll x="3789" y="3811"/>
