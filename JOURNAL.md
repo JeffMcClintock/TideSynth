@@ -8,6 +8,231 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — E43: the command channel now always answers, and the fix is a heartbeat rather than a list of verbs (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.1** (there is no `claude` CLI on this box's PATH, so this is the desktop app's `CFBundleShortVersionString`, which is the version A13 recorded as the discoverable one on a mac) · as **tide-rack-bot** (both paths)
+
+**Did:** took **E43**. Its Accept is met. The product change is a
+`GMPI_Wrappers` PR off branch `tide/mac/E43-bounded-command-deadline`; TideSynth
+carries the row, two new rows and this entry. Per A22 the rows and this entry
+name the **branch** — the PR number does not exist until after the commit that
+would cite it, and predicting one is how a placeholder reached `main` once
+already.
+
+### Why E43 and not the four TODO rows above it
+
+Written down because the next run will walk the same list. `S1b` and `S8` are
+wholly GATED and were re-measured yesterday — there is no non-gated half left to
+do. `E25`, `E34`, `E39` and `E42` each have their cause found and their fix in
+`SynthEditLib`, filed not written. `E7` is a fact Jeff has ruled is not a
+blocker; `E2` is an umbrella whose own row says its Accept cannot be stated.
+
+That leaves **E38** and **E19**, and both were passed over for reasons I put on
+their rows rather than only here:
+
+- **E38's Accept is unsatisfiable by construction on macOS**, which its own
+  entry measured yesterday: it asks that `--screenshot` show the context menu,
+  and `cmdScreenshot` reads the app's own render buffer while a macOS popup is a
+  separate window. STEP 2 says to name what is missing and move on, so the row
+  now carries `NEEDS-SPEC: a readout that can observe a native popup menu`.
+- **E19's mac cell wants AU3 in a real host**, and the row itself says the
+  command channel is standalone-only so a rack cannot be built inside a hosted
+  instance. That needs a human at the keyboard, not a scheduled run.
+
+### What was wrong, measured before anything was changed
+
+`--pointer-down 29,13` on the `File` menu, on a stock `origin/main` build:
+
+```
+--pointer-down 29,13    no answer in 25 s
+--info, 2nd connection  no answer in 25 s      <- the channel, not the command
+--info, 3rd connection  no answer in 20 s      <- and it never comes back
+kill -TERM              STILL ALIVE            <- only kill -9 recovers
+```
+
+**The control is what makes those zeros mean "wedged" rather than "bad
+coordinate":** `--pointer-down 500,400` on the rack canvas answers in **0.01 s**
+on the same build, and a second connection right after it answers too. E38's
+entry made exactly this mistake in the other direction yesterday — two zeros
+that meant two different things — and it cost an hour there.
+
+### The fix: a second deadline, and a heartbeat rather than a verb list
+
+`MainThreadQueue::run` had one deadline and it is on the job **starting**. The
+menu job *starts*, then opens an `NSMenu` whose nested modal run loop runs
+inside the job, so the item is already `kRunning`, the compare-exchange fails
+and the old code fell through to an unbounded `future.get()`. Because every
+transport dispatches inline on its single listener thread, that one blocked
+command took the whole channel with it.
+
+So a started job is now on a clock too — `kProgressDeadline`, 20 s — and the
+clock is a **heartbeat**, not a total: a job that is genuinely working calls
+`MainThreadQueue::heartbeat()`, which is one line in `--render-audio`'s block
+loop and nothing anywhere else.
+
+**The row proposed "a deadline on finishing for the input verbs", and I did not
+do that, deliberately.** A list of verbs that may block ages silently as verbs
+are added — this repo has the lesson twice already, in A4's path allowlist and
+in A20's. Inverted, an unheard-of new verb that blocks forever simply gets the
+bounded answer, and only a verb that is *legitimately* slow has to opt out. That
+is the safe direction to be wrong in.
+
+**The two answers say different things, and that is load-bearing.** The
+start-deadline line still says *"this command was NOT run"*. The new one says
+*"this command STARTED and has not finished ... It was NOT cancelled and may
+still complete"*. Reusing the first wording would be a lie about a running job,
+and it is the one kind of lie a caller acts on — by retrying an edit that is
+about to land anyway.
+
+**A race I had to close on the way, and it would have fired at once.** The
+waiter can reach the post-start wait in the sliver between `drain()`'s state CAS
+and its own beat stamp. A zero beat there reads as "stalled since the epoch" and
+answers immediately, so the beat is seeded at **enqueue** as well as stamped at
+**start**. Worst case is then a deadline measured from the enqueue, which is
+still bounded and still generous.
+
+### Measured — A/B, one build tree, one header different
+
+```
+                              origin/main        with the fix
+--pointer-down 29,13 (File)   no answer in 25s   20.01 s  "started":true
+--info, 2nd connection        no answer in 25s   20.03 s  (opened at t+5s)
+--info, 3rd connection        no answer in 20s    5.01 s
+--pointer-down 500,400        0.01 s              0.01 s  (control, unchanged)
+--render-audio 60 s           0.11 s              0.11 s  (control, unchanged)
+```
+
+The second row is the honest shape of what this buys: that connection was opened
+five seconds into the stalled command, waited the first command out, and then
+served its own 5 s start deadline. **So the worst case for any command is now
+`kProgressDeadline + kStartDeadline` = 25 s**, because dispatch is still inline
+on one listener thread. Bounded, and it explains itself, which is all the row
+asked for.
+
+### The rescue half is not measurable on the app, so it has a probe
+
+`--render-audio` is the only verb that can legitimately outlive 20 s — and
+**TIDE's default rack renders its 240-second maximum in 0.11 s on this box**, so
+there is no way to watch the heartbeat save anything from the app side. A hook
+nobody has watched work is not a hook (V7).
+
+`GMPI_Wrappers/tests/main_thread_queue_deadline_probe.cpp` drives the real class
+with no GMPI, no plugin, no window and no build system —
+`c++ -std=c++17 -O1 -o /tmp/p tests/main_thread_queue_deadline_probe.cpp` — and
+reports **13 checks, 0 failures** in 72 s.
+
+**And it can fail.** Recompiled against `origin/main`'s `run()` — the same probe
+source, that header patched only to expose the two constants and add a no-op
+`heartbeat()`, leaving the unbounded `future.get()` exactly as it stands — it
+reports **3 FAILURES**, and they are exactly the three clauses that describe the
+fix: not reported as STARTED, not released at the deadline, and the job had
+already finished by the time the caller got anything.
+
+Its sleeps are sized off `MainThreadQueue`'s own published constants rather than
+off the numbers 5 and 20, so changing a deadline cannot leave the probe quietly
+measuring the wrong thing. It is opt-in
+(`-DGMPI_WRAPPERS_BUILD_TESTS=ON`) and **not in CI**, because it has to sleep out
+two real 20-second deadlines.
+
+### Not verified, stated rather than implied
+
+- **The menu is still not drivable.** This row bought a bounded *failure*, not a
+  working gesture. Filed as **E44** rather than left on a row about to close.
+- **Windows.** `IpcServerWin.h` and a different menu implementation. The change
+  is in the shared, platform-free `MainThreadQueue.h` so it applies there too,
+  but nobody has run the measurement.
+- **A wedged app still ignores SIGTERM**, on both binaries. The handler posts to
+  a main thread that is inside the modal loop. E43's own `kill -TERM` save
+  workaround therefore does **not** apply to an app whose menu is open — worth
+  knowing, because the row presents that workaround as general.
+
+### STEP 4 bookkeeping, and two holes it exposed
+
+Four IN-REVIEW rows had all their PRs merged, each state read from `gh pr view`
+rather than inferred from a merge commit. **M9**, **E33** and **E40** went DONE
+and were **moved to `BACKLOG-DONE.md`**, which is what STEP 4 actually says to
+do. **E32** did not: every linked PR merged, but the row says in its own words
+that the macOS position half is still open, so DONE would be false and IN-REVIEW
+is false once nothing is open. It is back to **TODO**, re-scoped in the row to
+exactly the mac half.
+
+**Nothing had been archived since 2026-08-20** — six days and roughly sixty
+merged PRs — and `BACKLOG.md` had reached **723 KB**. That is A8 recurring at
+nine times the size that triggered A8, in the file every run on three machines
+reads to find the handful of rows it can act on. `check-backlog-diff.py`
+*permits* an archive move and never requires one, so a DONE row left in place is
+silently legal. Filed as **E45**, with this run's three moves as the worked
+example: one scripted pass, 13 KB.
+
+**And a hole underneath that one.** The `E43` row on `origin/main` was missing
+its closing `|`, so `check-backlog-diff.py`'s row regex never matched it —
+**that row did not exist as far as that lint was concerned**, and a run could
+have rewritten or deleted it against a clean report. Terminated here.
+
+I nearly wrote that up as *two* rows, S24 and E43. S24 ends with `| ` and a
+trailing space, which my hand-rolled detector rejected and the lint's `\|\s*$`
+correctly accepts. Measured with the lint's own regex instead: **1 invisible row
+before, 0 after.** Checking with the regex that matters rather than one that
+looks equivalent is the reusable half.
+
+### Build and tree state
+
+Full `cmake --build` of TIDE on macOS from a fresh tree: **27 targets, rc=0** —
+standalone, VST3, AU2, AU3 + appex, CLAP, GMPI and the AUv3 container app.
+`SynthEditLib` was taken **fetched at `origin/main`** rather than from the local
+checkout, deliberately: that working copy is parked on
+`fix-patchmanager-dangling-properties-observer` with `EditorLib/PatchManager.cpp`
+modified, which is Jeff's work in progress and not mine to build from, commit or
+revert. Left exactly as found. `GMPI`, `GMPI_Wrappers` and `gmpi_ui` were each
+parked on an already-merged agent branch with clean trees and were returned to
+`main`.
+
+**Still red on `main`, still needs Jeff, unchanged from yesterday:**
+`check-prefab-layout` fails on `AR_jef.synthedit` (an SE Label overhangs the
+panel, introduced by `322df0f`). It needs re-saving in SynthEdit; no run can fix
+it.
+
+**Learned:**
+
+- **A deadline on "did it start" cannot bound "did it come back", and the two
+  failures are indistinguishable from outside.** The escape hatch existed, its
+  own comment said why it could not fire here, and nobody had read that sentence
+  against this case.
+- **Invert an allowlist when the unknown case is the dangerous one.** "Which
+  verbs may block?" ages silently; "which verbs are allowed to take their time?"
+  fails safe for every verb nobody has written yet.
+- **A bounded error must not reuse a wording that was true of a different
+  failure.** "NOT run" and "started, not finished" call for opposite actions
+  from the caller.
+- **When the app cannot exercise the path, the probe is the deliverable — and it
+  is only worth anything once you have made it fail.** Three failures against
+  the old logic is what makes thirteen passes against the new logic mean
+  something.
+- **Check with the regex the tool uses, not one that looks equivalent.** A
+  trailing space is the difference between a row a lint cannot see and a row it
+  reads fine.
+- **STEP 4's archive move is a written rule that nothing enforces, and it
+  stopped happening six days ago without anyone noticing.** A rule with no check
+  behind it decays at exactly the rate the file grows.
+
+**Next:** E44 (a `--menu <action>` verb, so `File > Save` is reachable at all)
+is the row that makes every *"save and reload"* Accept in this backlog
+executable by a scheduled run on macOS. E45's sweep is mechanical and large, and
+should be its own PR separate from its check.
+
+**Machine left clean.** All six repos on their default branches; the two scratch
+build trees (`build-e43`, and the tests-only configure) are under gitignored
+paths; every driven standalone ran under an isolated `HOME` in the session
+scratchpad and all of them are killed. Nothing written to Jeff's config, and his
+`SynthEditLib` working tree is untouched.
+
+**Branch/PR:** `tide/mac/E43-bounded-command-deadline` in both repos. The
+`GMPI_Wrappers` branch is the change — `mcp/MainThreadQueue.h`,
+`mcp/CommandDispatcher.cpp`, `tests/main_thread_queue_deadline_probe.cpp`,
+`tests/CMakeLists.txt`. TideSynth carries E43's row, E44, E45 and this entry.
+**Merging TideSynth's side alone changes no behaviour**, and merging the
+wrappers' side alone leaves the backlog saying the work is open.
+
 ## 2026-08-26 — macos — S1b re-measured: the scan is NOT dead code, and the cut is smaller than the row says (scheduled run)
 
 **Prompt:** "compact. continue".
@@ -774,982 +999,6 @@ are PROPOSED, not merged.
 
 **Still not verified:** a real device — this is the simulator only — and any
 third-party host, of which iOS has none to try.
-
-## 2026-08-26 — macos — `main` is red twice from one prefab update; one half fixed, one is Jeff's (scheduled run)
-
-**Prompt:** "i merged stuff, sync repos, continue."
-
-Found while linting an unrelated branch: **`check-prefab-layout` failed on a
-tree whose only changes were BACKLOG.md and JOURNAL.md.** That is the tell — a
-lint that a docs-only diff cannot possibly break is failing on `main`, not on
-you. Checked it out clean and it fails there too.
-
-`322df0f update prefabs` breaks **two** gates:
-
-1. **`check-prefab-layout`** — `AR_jef.synthedit` now has
-   `SE Label handle 1167319384 at (4632,3800)..(4668,3806)` overhanging the
-   panel `(3962,3794)..(4010,4178)`. Bisected: at `6d813b3`, the commit before,
-   all seven prefabs pass.
-2. **The M6 rack-content gate** — the same commit also deleted
-   `Midi.synthedit` and `Output.synthedit`, so `RackModules/` holds **5** while
-   `EXPECTED_PREFABS` still said 7: `FAIL 5 rack prefab(s) seeded, expected 7`.
-
-Both run in CI, so every PR inherits them.
-
-**I fixed the count and not the prefab, and the split is deliberate.** The count
-is mechanical — the constant is a MIRROR of `RackModules/`, and the gate's own
-failure text says as much. Nothing loads the deleted files by name (checked; the
-`MidiCv.synthedit` hits in the tree are comments and a CMake path note), and the
-default rack supplies both roles, so 5 is simply what is there. The label
-overhang is prefab DATA, authored in SynthEdit, and re-authoring someone's
-prefab is not a lint fix.
-
-**THIS IS THE SECOND TIME IN ONE DAY, and that is the durable point.** The
-earlier one was `14a8fd3` deleting `MidiCv.synthedit` while `seedRootMidiCv`
-still inserted it by name. Same shape: a prefab file removed, a constant or a
-call site left pointing at it, and a gate that only notices on a CLEAN stage —
-because `copy_directory_if_different` merges and never deletes, so an
-incremental build keeps serving the file that is no longer in the repo. My
-local build said "7 rack prefab(s) seeded" until I deleted the staged folder
-and forced a relink.
-
-That staleness is worth more attention than either break: **a developer editing
-prefabs cannot see this failure without a clean stage**, so it will keep
-reaching CI. M11 fixed exactly that for the iOS path (`rm` before `cp`); the
-macOS/Windows staging still merges. **Filed as E40**, with M11's generated
-script as the worked example — written one day before this bit twice.
-
-One detail for whoever takes it: deleting the staged `Prefabs/` folder is NOT
-enough to re-measure. The POST_BUILD that restages only runs when the target
-LINKS, so a rebuild after deleting the folder leaves it absent and the gate
-then fails for a different reason. Delete the executable too.
-
-## 2026-08-26 — macos — E30: the watchdog could not see the questions it exists to surface (scheduled run)
-
-**Prompt:** "Work continuously through the TideSynth backlog... Verify against
-the row's ACCEPT, not a tool's exit line."
-
-**The fix is four lines and the reasoning behind the bug is the interesting
-part.** `check_proposed` skipped fenced code blocks before matching
-`^PROPOSED:`, to avoid the escalation template's literal
-`PROPOSED: <one-line question>` example. That is the right problem solved by the
-wrong discriminator: **the template PRESCRIBES the fenced form**, so every real
-entry is fenced too, and the skip swallowed all of them. The guard that actually
-works was already sitting in the same `if` — `'<one-line question>' not in line`
-— excluding the example BY CONTENT, which cannot be fooled by where the line
-sits or by the template moving.
-
-**Measured both sides, and the BEFORE is from the live issue rather than from
-reasoning.** [#44](https://github.com/JeffMcClintock/TideSynth/issues/44) read
-*"Open PROPOSED questions in docs/decisions.md: None."* while two were open —
-V7's naming question and V4's rack-relevance predicate, the latter invisible
-there since the day it was written. After: `--dry-run` prints both, and the
-template's example is still excluded. `--selftest` still 4/4.
-
-A6 built this digest as *"the single awaiting-Jeff surface"*, so a question it
-cannot see is a question nobody is asked. That is what makes this a silent
-failure of the thing's whole purpose rather than a formatting nit.
-
-**I TRIPPED AN EDGE OF MY OWN AND IT BELONGS HERE.** Measuring the BEFORE, I ran
-`python3 scripts/watchdog-digest.py` **without `--dry-run`** and it refreshed
-issue #44 for real. Harmless in outcome — the digest exists to be refreshed and
-what it posted was the true (buggy) state — but it was an outward-facing write I
-did not intend to make. **The script posts by default and `--dry-run` is
-opt-in**, which is the wrong way round for a tool a person is likely to run
-first out of curiosity. Not changed here, because inverting a default is a
-decision rather than a fix; noted on the row for whoever wants it.
-
-**#44 is deliberately left stale.** Running the digest from this branch would
-publish output generated by code that is not on `main`. The next scheduled run
-corrects it once this merges.
-
-## 2026-08-26 — macos — E26 closed by measurement: the chunk's own tag says the save refreshed it (scheduled run)
-
-**Prompt:** "Work continuously through the TideSynth backlog... Verify against
-the row's ACCEPT, not a tool's exit line... If you cannot measure it, write
-'unverified' and say exactly what is missing."
-
-**No commit was needed. The defect cannot occur on today's `main`, and both
-halves of the row's premise have been fixed since it was written.**
-
-E26 asks *"whether `syncState()` ... is meant to be the hook — nothing in GMPI
-or the wrappers calls it today"*. Both parts are now false:
-
-- `StandaloneHost::syncPluginState()` **calls it**, immediately before capturing
-  state, and its comment names this exact case: *"for one whose real state lives
-  behind a chunk parameter (TIDE's document) it is the difference between saving
-  the patch and saving a stale copy."*
-- `SynthEditController::syncState()` **implements it**, re-exporting through
-  `exportChunkXmlForSave()`. Its comment closes the row in one sentence: *"until
-  this existed a knob tweaked after the last structural edit was NOT in the saved
-  file."*
-
-**BUT READING TWO COMMENTS IS NOT A MEASUREMENT, and this row deserved one.**
-
-It turns out the artifact answers the question itself. `ChunkPrefix.h` puts a
-four-byte tag on the front of every chunk recording WHY it was written:
-
-```
-TDb1  Build   a structural push from serviceDocumentSync
-TDs1  Sync    the SAVE-TIME REFRESH, written only by syncState()
-(none)Legacy  written before the tag existed
-```
-
-So "did the save re-export the chunk?" is answered by the **first four bytes of
-any saved file**, with no instrumentation, no build flag and no staged failure.
-
-**Eleven session files checked — the nine this run's driven standalones wrote,
-plus Jeff's own live `session.xml` and its `session.previous.xml` backup — and
-all eleven carry `TDs1`.** Not one `TDb1`, not one Legacy. Every save on this
-box re-exports from the live document.
-
-**A corollary worth enjoying:** those are the same four bytes that made
-`e5_rack_footprint_probe.py` die with *"not well-formed (invalid token): line 1,
-column 4"* until E36 taught it to skip them this afternoon. The prefix that was
-an obstacle in one row is the evidence in this one.
-
-**WHAT I TRIED FIRST AND WHY IT DID NOT WORK, because the next person will reach
-for it too.** I went looking for a value edit to drive through the GUI: tweak
-something, save, see it survive. Two dead ends:
-
-1. A patch-cable **ADD** looks like a value edit and is not. It trips `dspDirty`
-   through a `SuspendDSP` guard and pushes the document structurally — observed
-   directly, `TIDE: DSP structure changed, pushing 18049 byte document`. That
-   exercises the path E26 is *not* about. (E28's journal already recorded this
-   as the reason cable-add "worked" before its fix; same trap, different row.)
-2. A cable **REMOVE** does not trip it and is the right edit — but driving one
-   is unreliable because of **E34**, which is precisely that the cable-end drag
-   does not end.
-
-The tag reads the answer off the artifact instead of trying to stage the
-failure. When a mechanism records what it did, measure that, rather than
-building a scenario to watch it.
-
-## 2026-08-26 — macos — E25: the SIGSEGV is a missing null check, and the trigger is not the timer (scheduled run)
-
-**Prompt:** "Work continuously through the TideSynth backlog... If you cannot
-measure it, write 'unverified' and say exactly what is missing. Never imply a
-measurement you did not take."
-
-That last sentence is what this entry is shaped by. **The cause is found; the
-fix is GATED; the on-demand repro is still open.** E25 stays TODO.
-
-**A SECOND CRASH REPORT EXISTS, and it is better evidence than the one the row
-was filed on.** `TIDE-Rack-2026-08-26-021533.ips`. Worth knowing: the original
-`...-2026-08-25-162615.ips` that E25 quotes is **already gone** — macOS rotates
-`~/Library/Logs/DiagnosticReports` and only one TIDE report survives today. So
-the stack is copied into the row rather than pointed at. Do the same next time;
-a row that cites a file the OS deletes is a row that loses its evidence.
-
-**THE TRIGGER IS SESSION RESTORE, NOT THE SYNC TIMER.** E25 reasons its way to
-"a document STATE or an interaction, not the timer", which is half right and
-stops one step short. The new stack names it:
-
-```
-start / main / runStandaloneApp / SessionState::restore /
-StandaloneHost::restoreState / notifyControllerOfPreset /
-SynthEditController::setParameter / TideApp::importChunkXml /
-TideApp::exportChunkXml / CContainer::ExportXml / CPatchManager::ExportXml /
-PatchParameter_base::ExportXml / CContainer::getIgnoreProgramChange /
-CUG::GetPlug(int)
-```
-
-`importChunkXml` ends with `lastPushedShape = documentShape(exportChunkXml());`
-(`TideApp.cpp:487`) — the export runs on a document rebuilt microseconds
-earlier. `SynthEditGui::onTimer` is not on this stack at all. The row's own
-"relaunched and let the timer tick for 100 s and it did not crash" was
-therefore the right experiment against the wrong hypothesis.
-
-**THE DEFECT, and it is one line.** `CContainer::getIgnoreProgramChange()`
-(`CContainer.cpp:1654`):
-
-```cpp
-return GetPlug(PN_IGNORE_PC)->GetDefault().compare(L"1") == 0
-       || (Container() && Container()->getIgnoreProgramChange());
-```
-
-`CUG::GetPlug(int)` (`CUG.cpp:1710`) **returns `nullptr` by design** when the
-index is out of range, and its comment says exactly what happens next:
-
-> callers that already null-check recover cleanly, and **the rest fault at a
-> known point** instead of dereferencing whatever the out-of-range read
-> produced.
-
-`getIgnoreProgramChange` is one of "the rest". The report's
-`KERN_INVALID_ADDRESS at 0x50` is a member access on a null `this`, which is
-what `GetDefault()` on a null plug looks like.
-
-**Why index 3 is the fragile one, and this is the part worth remembering:**
-`PN_IGNORE_PC` is 3, and a container's pin table (`ug_container.cpp:198`)
-declares exactly indices 0–3 with `Ignore Program Change` **LAST**. A container
-whose `Plugs` vector is short by a single entry faults here and nowhere else —
-so this accessor is the canary for an incomplete plug table, and it screams by
-segfaulting.
-
-**A second unguarded deref one frame up**, and fixing only the first would just
-move the next report by a line: `PatchParameter_base::ignoreProgramChange()`
-(`PatchParameter.cpp:1297`) is
-`m_ignoreProgramChange || (module() && module()->Container()->getIgnoreProgramChange())`
-— it guards `module()` for null, with a comment explaining why, and then
-dereferences `module()->Container()` unguarded. A module directly under the
-master container takes that one.
-
-**WHAT DID NOT REPRODUCE — negative results, recorded as evidence rather than
-omitted:**
-
-1. Restoring the live `~/Library/Application Support/TiDE Rack/session.xml`
-   into an isolated `HOME`: **clean**. (Its master container serialises
-   `plugs=1`, which looked damning and is not — the table is topped up.)
-2. A `TIDE_VCV_HETRICKCV=ON` build — 66 modules registered — with three ported
-   modules inserted by double-click, one selected to open its properties pane
-   (**this row's own stated lead**), saved and restored: **clean**.
-
-So it is not "a HetrickCV module is present", and it is not time-alone. **The
-one unknown left is which document state leaves a container's plug table short
-of four** — a far smaller target than "a crash somewhere in serialisation", and
-the next run should start there rather than re-deriving any of the above.
-
-**The fix is GATED** (`SynthEditLib/EditorLib`), so it is filed, not written.
-Both lines are in the row.
-
-## 2026-08-26 — macos — V7: the override hook, and the gate that turned out not to be one (scheduled run)
-
-**Prompt:** "Work continuously through the TideSynth backlog... GATED =
-SynthEditLib, SE16/EditorLib, SE16/SynthEdit2. Don't edit; file the gated half."
-
-**THE ROW SAID THIS NEEDED A GATED FILE. IT DOES NOT, AND THAT IS THE WHOLE
-FINDING.** V7 reasons that the context-menu items "come straight from
-EditorLib's `populateContextMenu` and TIDE has no hook, so the hook must exist
-before any string can differ" — which reads as: the hook goes where the items
-are made, in `SynthEditLib/EditorLib`, which is GATED.
-
-It does not have to. `SynthEditGui.cpp` already receives the host's sink and
-hands it **straight through** to `view->populateContextMenu`. Put a TIDE-owned
-`IContextItemSink` in that gap and every item EditorLib adds passes through
-TIDE on its way to the menu. `IContextItemSink` is one method —
-`addItem(text, id, flags, callback)` — so the wrapper is about thirty lines,
-and **`SynthEditLib` is not touched at all**.
-
-Worth generalising: "the string is made in a gated file" does not imply "the
-change is in a gated file". Ask where the string is *delivered*.
-
-**THE TABLE SHIPS EMPTY, AND THAT IS THE POINT.** V7 says in as many words:
-*"Do not land the override carrying placeholder strings."* The four names turn
-on what a TIDE user expects to read, which is a product decision still open as
-a `PROPOSED:` question. The row's own suggested scheme (`Goto Panel` /
-`Goto Structure`) is SynthEdit vocabulary — in TIDE a "panel" is the rack and a
-"structure" is the inside of a module, which is the exact mismatch the ruling
-names. Guessing would be worse than waiting.
-
-**WHICH LEAVES A HOOK WHOSE ONLY OBSERVABLE BEHAVIOUR IS "CHANGES NOTHING".** A
-hook nobody has watched work is not a hook — the same argument
-`tests/rack-content/` makes for its negative controls. So
-`tests/v7_menu_override_probe.cpp` drives the sink directly with a table of its
-own: **16 checks, 0 failures.** A table entry renames; a near miss does NOT
-(`Pa&nel Edit...` is a *different* EditorLib item from `Panel Edit...`, and a
-substring rule would silently catch both while hiding that there are two); an
-unlisted item passes through; `id`, `flags` and the callback pointer are
-forwarded untouched; `queryInterface` returns the wrapper for
-`IContextItemSink` and **delegates everything else**, which is what keeps a
-host that also implements `IPopupMenu` working. And one check that stops the
-probe becoming a rubber stamp: that the SHIPPED table is still empty, so this
-passing can never mean TIDE has quietly started renaming things.
-
-**A LATENT BUG FIXED ON THE WAY.** `sinkRef` was block-scoped, so the reference
-`queryInterface` returns was released before the new wrapper could forward to
-it. It survives today only because the hosts implementing this are
-`GMPI_REFCOUNT_NO_DELETE` and `release()` is a no-op — a coincidence, not a
-guarantee, and this file already carries a comment about the last time that
-distinction mattered. Function-scoped now.
-
-**NOT VERIFIED, and stated rather than implied: the menu was never re-checked
-ON SCREEN.** The command channel has no right-click — `cmdPointer`'s only
-option is `--double` — so a context menu cannot be raised headlessly. The
-change is a pass-through with an empty table and the standalone builds and
-runs, but that is an argument, not a measurement, and the difference is the
-whole reason this journal exists.
-
-Filed as **E38**, and it is the same shape as the gap `--double` closed: E31
-recorded *"the command channel cannot drive an insert gesture"* and handed a
-verification to a human; E35 added one flag and E36 was measurable end to end
-in a script the next day. A `--right` modifier buys the same thing.
-`CommandDispatcher.cpp` is **PR-GATED**, so E38 says propose, do not merge —
-and says to check first whether `gmpi::api::PointerFlags` can even express a
-secondary button, because if it cannot this is a GMPI change and a bigger row
-than it looks.
-
-## 2026-08-26 — linux — three boxes fixed one duplicate ID in two minutes, and a duplicate breaks two checks not one (interactive, Jeff directing)
-
-**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
-
-**Did:** STEP 1 — closed [#430](https://github.com/JeffMcClintock/TideSynth/issues/430)
-by building `main` (492/492 rc=0, all four Linux artifacts). Then found the
-duplicate `E34` and fixed it — **and so did two other boxes, inside two
-minutes.** This entry keeps what survived the collision.
-
-### The race
-
-| PR | box | opened |
-|---|---|---|
-| [#447](https://github.com/JeffMcClintock/TideSynth/pull/447) | windows | **merged** — landed the fix |
-| [#445](https://github.com/JeffMcClintock/TideSynth/pull/445) | macos | 02:33:48 |
-| [#446](https://github.com/JeffMcClintock/TideSynth/pull/446) | linux (mine) | 02:34:04 |
-
-**Sixteen seconds** between the mac PR and mine. All three renumbered the *same*
-row — the insert-stacking pile → `E36` — and all three gave the same reason for
-choosing that one over the cable row: `JOURNAL.md`'s citation of `E34` is
-append-only and cannot be corrected, so the row with only backlog-side
-references is the one that moves.
-
-**Three independent runs converging on the identical repair is a good sign about
-the rules and a bad sign about the coordination.** STEP 2's collision check
-(`git ls-remote`, `gh pr list`) is run *before claiming a backlog item* — but
-none of us was claiming an item. We each found a red lint while doing something
-else and fixed it on the spot, which is exactly the path that check does not
-cover.
-
-My PR is rebuilt as a **delta on top of theirs**, per STEP 2's rule for a
-collision discovered after the fact. Everything already on `main` — the
-renumber, and the ID-correction note on `E31` — is dropped from it.
-
-### What survived, and it is the part worth keeping
-
-**A duplicate ID breaks TWO checks, and only one repair direction passes the
-second one.** `check-id-refs.py` names the duplicate. `check-backlog-diff.py`
-never mentions it — it parses rows into a **dict keyed by ID**, so a duplicate
-silently *collapses* and the last occurrence wins. Its baseline for `E34` is
-therefore the cable-drag row, and I measured both repairs against it:
-
-| renumbered | `check-backlog-diff` |
-|---|---:|
-| cable-drag → E36 | **exit 1** — `E34: Item column differs` |
-| insert-stacking → E36 | **exit 0** |
-
-So the choice of which row to move was **forced by a dict's last-wins ordering**,
-not by which row was newer or better-referenced. The other boxes reached the same
-answer from the journal-is-append-only argument, which is a different and equally
-valid route — but it happens to agree only because the two constraints point the
-same way here. **They need not, and nothing checks that they do.**
-
-### The third instance of a trap this journal already documents twice
-
-My first run of the lint was:
-
-```
-python3 scripts/check-id-refs.py 2>&1 | tail -6; echo "rc=$?"
-```
-
-That reports **`tail`'s** exit status, and the duplicate block was above the
-lines `tail` kept — so it printed a clean summary and `rc=0` while a duplicate
-sat in front of it. **I spent a while investigating the check before checking my
-own command.** The lessons *"check a lint's EXIT CODE, never grep its output"*
-and *"`$?` after a pipeline is the LAST command's status"* are both already here.
-
-### `__pycache__` was never ignored
-
-Loading a check through `importlib` to inspect its internals leaves
-`scripts/__pycache__/*.pyc`, and one got committed before I noticed. `.gitignore`
-had no entry — that is what this PR adds, and it is the only file change.
-
-**Verified:** `main` builds 492/492 rc=0 · `main`'s duplicate is gone (1 `E34`,
-1 `E36`, `check-id-refs` exit 0) · both repair directions measured against
-`check-backlog-diff` · no `.pyc` is tracked on `main`.
-
-**Not verified:** neither E34 nor E36 was investigated as a defect; both are the
-mac box's findings.
-
-**Learned:**
-
-- **A duplicate ID is not one broken check.** The one that reports it is not the
-  one that constrains the fix; `check-backlog-diff` collapses duplicates by dict
-  and then rejects the repair from the wrong side, silently.
-- **Two correct-looking arguments can agree by luck.** "Renumber the row the
-  append-only journal does not cite" and "renumber the row that is not the dict's
-  last-wins baseline" gave the same answer here and are not the same rule.
-- **`cmd | tail -n; echo $?` cannot report the command's status**, and I proved
-  it for the third time in this project. Redirect to a file, echo `$?`, read the
-  file.
-- **STEP 2's collision check does not cover opportunistic fixes.** It guards
-  claiming an item; three boxes fixed the same red lint in two minutes because
-  none of us was claiming anything.
-- **Losing a race is cheap if you rebase to the delta.** Everything on `main`
-  came out of my branch in one command; what was left was genuinely mine.
-
-**Machine left clean.** Scratch worktrees removed; the stray `scripts/__pycache__`
-deleted from Jeff's checkout as well as from the branch. All six repos on their
-default branches and clean.
-
-**Branch/PR:** `tide/linux/E34-duplicate-id` — `.gitignore` and this entry.
-**No backlog row and no product code change**, both dropped as already-landed.
-
-## 2026-08-26 — macos — E36: inserts fill the row now, and the fix made a second bug visible (scheduled run)
-
-**Prompt:** "Work continuously through the TideSynth backlog... The standalone
-is drivable: /tmp/gmpi-standalone.<uid>/gmpi-standalone.<pid> ... Use
-`--pointer-down x,y --double` for a double-click (rapid clicks do NOT work).
-Run under an isolated HOME; read geometry back from session.xml (base64 in
-`<Param id="1">`, skip a 4-byte prefix) via tests/e5_rack_footprint_probe.py."
-
-Every clause of that was load-bearing. E36 was verifiable at all only because
-E35 landed the drivable channel yesterday; the row's own last line still says
-"Verifying this needs a HUMAN or E35".
-
-**THE FIX.** `SynthEditGui.cpp`'s insert has only ever been handed one point,
-the view centre, so E31's snap made the pile tidy without making it a pile of
-one. Now: walk the rack's top-level modules with `it_doc_ob`, take each
-`getViewObRect(CF_PANEL_VIEW)`, and scan rows-first / columns-left-to-right at
-`snapWidth` for the first rect the new footprint clears.
-
-**Three decisions inside that are worth more than the search:**
-
-1. **`AddPrefab`, not `AddModule`.** `AddModule` answers `-1` for any id
-   beginning `*P=` — which in TIDE is EVERY rack module, they are all prefabs —
-   so there was no handle to move. `AddPrefab` is implemented on top of it, so
-   the insert is the identical call; it just also says what got created.
-2. **Insert first, THEN move.** The free slot depends on the module's WIDTH and
-   nothing knows that until the module exists. Known limit, left visible rather
-   than papered over: the undo checkpoint `AddModule` takes internally records
-   the original point, so a REDO re-inserts at the centre. The checkpoint is
-   SynthEditLib's and GATED.
-3. **The group moves together.** A prefab may hold several top-level modules;
-   one offset for all of them keeps the layout its author chose. Scattering a
-   prefab would be a worse bug than the pile.
-
-**MEASURED, A/B, same script both sides, only `SynthEditGui.cpp` different:**
-
-```
-origin/main   7 violations -- SIX overlaps: 18432 sq between each pair of the
-              three inserts (a full 48x384 module exactly on a 48x384 module),
-              plus 8832 sq from each onto the seeded MIDI-CV
-with E36      1 violation, and "ok  no overlaps among 5 placed module(s)";
-              the three abut at 3732..3780, 3780..3828, 3828..3876
-```
-
-**THE PROBE STILL EXITS 1 AND THAT IS NOT THIS ROW.** The survivor is `MIDI In`
-— an 8x14 panelRect, 0.533 HP, off-grid — **identical in the baseline run**, so
-pre-existing. The run prompt warns about exactly this ("a probe can print
-RESULT: FAIL for criteria the row never claimed"), and the only reason I can
-say "pre-existing" rather than "probably pre-existing" is that the A/B was run.
-
-**Tooling: the probe now reads a standalone session on its own.** It died with
-`not well-formed (invalid token): line 1, column 4` on the four-byte `TDs1`
-magic in front of the XML declaration — which is why the run prompt has to
-explain those four bytes to every new session. It skips to the first `<` rather
-than a fixed offset of 4, so a future `TDs2` needs no change.
-
-**AND THEN THE INTERESTING PART: THE FIX IS CORRECT AND THE USER CANNOT SEE
-IT.** Row 0 column 0 is the rack ORIGIN, (3732, 3732) — V5 records the same
-number. The V3-seeded root MIDI-CV, the only thing on a fresh document, is at
-(480, 464): **not on the rack at all**. So three correctly-placed modules went
-3200 DIPs away and the window did not change.
-
-I wrote a scroll-to-reveal for that. Then I measured it, and **it can never
-fire**:
-
-```
-E36PROBE placed=3732,3732,3780,4116  visible=3734,3734,4234,4234  onScreen=1
-```
-
-`getVisibleRect(CF_PANEL_VIEW)` is computed from the CONTAINER's stored view
-centre — the canvas centre (3984, 3984) with the no-view-open half-size of 250
-— so by the document's own reckoning the module is on screen. The document is
-not lying; the **live pane** is the thing out of step with it, which is exactly
-what E33 says ("the document already stores them; TIDE throws them away on
-every open").
-
-**So the reveal was DELETED rather than shipped**, with the probe output kept
-in the comment where it happened. Untestable code that looks like it handles a
-case it cannot handle is worse than no code, and once E33 makes the live view
-agree with the document the question changes shape anyway. Filed as **E37**,
-with the split already done: (a) seed the root MIDI-CV at the rack origin —
-cheap, standalone, and it may make (b) evaporate; (b) is E33's.
-
-**Instrument, for the next run:** `--pointer-down x,y --double` then
-`--pointer-up x,y` over the unix socket, batch terminated with `--ping <token>`
-and read until the token echoes (that is what `mcp/src/session.ts` does).
-Coordinates: the screenshot is CANVAS pixels, pointer input is DIPs, so divide
-by `scale` from `--info`. Quit with SIGTERM — the quit-save is what writes
-`session.xml`.
-
-## 2026-08-26 — macos — M11: the iOS AUv3 has never actually been installed, and four bugs say why (scheduled run)
-
-**Prompt:** "Work continuously through the TideSynth backlog... Build trees go
-stale silently. If you hit 'no member named X', suspect a pinned dependency
-before your own code." The advice generalises: I hit a build break, suspected my
-own configure, and it was neither — it was `main`.
-
-**How this started.** M9 was the topmost takeable row (S1b and S8 are wholly
-GATED, M8 was mine an hour earlier). M9 needs an iOS build, so I made one. It
-did not build. Four times.
-
-**FOUR BUGS, ONE ROOT CAUSE, AND ALL FOUR ARE INVISIBLE UNLESS THE TREE IS
-FRESH.** That last clause is the whole reason they have survived: three of the
-four are skipped or already-satisfied in an incremental tree, so every iOS build
-anyone has done since they appeared has passed.
-
-1. **`plist_util_host` links against the wrong platform.** It is compiled with
-   `xcrun -sdk macosx`, but it runs inside an Xcode script phase, and Xcode
-   exports `IPHONEOS_DEPLOYMENT_TARGET`. clang reads that and decides the target
-   OS is iOS; `-sdk` only picks the sysroot. So: macOS sysroot, iPhone target,
-   link dies on the first system dylib. One command line, run twice, is the
-   entire proof — unset gives rc 0, `IPHONEOS_DEPLOYMENT_TARGET=18.0` gives
-   `ld: building for 'iOS', but linking in dylib ... built for 'macOS'`.
-   Invisible incrementally because the custom command has an `OUTPUT`.
-
-2. **CMake tells Xcode the `.appex` is an application.** productType comes from
-   the TARGET type, not from `BUNDLE_EXTENSION`, so Xcode adds an application's
-   Validate phase and it rejects the thing it was just handed:
-   `unknown application extension '.appex: expected '.app' or '.ipa'`.
-   **`VALIDATE_PRODUCT=NO` does not disable it** — I passed it on the xcodebuild
-   command line, confirmed it in the recorded invocation, and got the identical
-   error. The phase belongs to the product type. Declaring
-   `com.apple.product-type.app-extension` removes it at the source.
-
-3. **The resource staging wrote into a directory named after an unexpanded
-   variable — and this one shipped.** `$<TARGET_BUNDLE_CONTENT_DIR:...>` carries
-   Xcode's `${EFFECTIVE_PLATFORM_NAME}`, and CMake writes it into the script
-   phase with the **dollar escaped**, so Xcode does not resolve it and neither
-   does the shell. `cmake -E copy` does not mind an odd path, so it cheerfully
-   created a LITERAL directory:
-
-   ```
-   Release-iphonesimulator/TIDE-Rack.appex     Info.plist PkgInfo TIDE-Rack
-   Release${EFFECTIVE_PLATFORM_NAME}/...       + all four XMLs + Prefabs/
-   ```
-
-   **That is the M5 defect, live on iOS, on a green build.** No control pins, an
-   empty rack module browser, no MIDI jacks — precisely what M6's gate exists to
-   catch and what M8 (this morning) taught the plugin to say out loud. Nothing
-   caught it because no check can tell a copy into the wrong directory from a
-   copy into the right one.
-
-4. **`plist_util`'s Info.plist rewrite went to the same junk path**, so the
-   appex kept CMake's stub: `CFBundlePackageType APPL` instead of `XPC!`, the
-   un-prefixed bundle id M2 had already fixed once, and **no `NSExtension` key
-   at all**. `simctl install` then fails with "Failed to create app extension
-   placeholder", which names nothing useful.
-
-**AND THAT CORRECTS THE RECORD ON M2 AND M10 — neither of which was wrong about
-what it measured.** M2's `simctl install` rc=0 and M10's home-screen screenshot
-are both true **of a container app with an empty `PlugIns/`**. An app with no
-extension installs fine and shows its icon. M2's own "Not verified: the app was
-installed, **not launched**, and the Audio Unit was never opened in an iOS host"
-is the sentence that was doing the work, and it was right.
-
-**A TRAP I FELL INTO AND THEN MEASURED MY WAY OUT OF.** When install first
-failed *after* my fixes, the appex had gained resources — including a `Prefabs/`
-subdirectory — and M2's journal says an appex with a SUBDIRECTORY fails to
-install. That is a very plausible story and it is wrong. Bisected it the way M2
-bisected the original, five variants, re-signed each:
-
-```
-everything                  rc=2      no XMLs, Prefabs kept    rc=2
-no Prefabs/ dir             rc=2      empty Prefabs/ kept      rc=2
-nothing but binary + plist  rc=2
-```
-
-All five. So it was never the content — it was bug 4, the plist. **The prior
-journal entry supplied a ready-made explanation that fit the symptom and was not
-the cause.** Cheap to check, expensive to assume.
-
-**I also hit the `rc=$?`-after-a-pipe trap** — `out=$(... ) | tail` reporting
-`tail`'s status — and printed "install rc=0" for an install that had returned 2.
-[#446](https://github.com/JeffMcClintock/TideSynth/pull/446) documented that
-exact trap the same evening; I read it and then did it anyway. Every rc in this
-entry is captured before anything else runs.
-
-**MEASURED, from clean, after all four:**
-
-| check | result |
-|---|---|
-| clean `-G Xcode -DCMAKE_SYSTEM_NAME=iOS` build | `** BUILD SUCCEEDED **`, 0 errors |
-| `Release${EFFECTIVE_PLATFORM_NAME}` | gone, nowhere in the tree |
-| appex contents | 4 XMLs + `Prefabs/` (9) + binary |
-| appex plist | `XPC!`, `...au3app.extension`, `NSExtension` present |
-| `simctl install` / `launch` | **rc=0** / **rc=0** |
-| `pluginkit -mAv` on the simulator | `com.tidesynth.tiderack.au3app.extension(0.1.1)` |
-
-That last row has never happened. The extension had never been inside the app.
-
-**Split:** item 3's TideSynth half is in this PR (`SynthEditSem/CMakeLists.txt`,
-ALLOWED); items 1, 2 and 4 are GMPI and therefore GATED — proposed as
-[GMPI#18](https://github.com/JeffMcClintock/GMPI/pull/18), **not merged**. **M9
-is BLOCKED(M11)** until that lands: it cannot host an extension that will not
-install.
-
-**Also this run:** M8 shipped ([#444](https://github.com/JeffMcClintock/TideSynth/pull/444)),
-and my duplicate-E34 fix was **closed as redundant** — three boxes fixed it
-sixteen seconds apart and [#447](https://github.com/JeffMcClintock/TideSynth/pull/447)
-won. A fourth write-up of one incident is noise.
-
-## 2026-08-26 — macos — M8: the one silent way out of `seedPrefabsFromBundle()` now names itself (scheduled run)
-
-**Prompt:** "Work continuously through the TideSynth backlog... Take the topmost
-row that is TODO, platform mac or any, and not BLOCKED/NEEDS-JEFF." M8 was that
-row once S1b and S8 were skipped as wholly GATED (both live entirely in
-`SE16/EditorLib` / `SynthEditLib`, so there is no non-gated half to do).
-
-**What it was.** `seedPrefabsFromBundle()` opened with
-`if (resourceFolder.empty()) return;` — no message of any kind. Every OTHER
-outcome in that function reports itself, so an unresolvable resource folder was
-the single way to get an empty rack module browser in total silence. That is the
-M5 shape exactly: M5 was a `BundleInfo` resolution failure that shipped for two
-days behind a green `auval`.
-
-**It is not a hypothetical branch, and reading BundleInfo says why.**
-`getResource()` and `getResourceFolder()` are different lookups.
-`BundleInfo.cpp:560` reaches the embedded Win32 resources FIRST and only falls
-back to the folder, and `getResourceFolder()` returns `{}` unconditionally under
-`GMPI_IS_PLATFORM_JUCE`. So the four module-description XMLs can enrich
-perfectly while this one lookup comes back empty — which is what
-`silent-empty-rack.log` has always modelled.
-
-**MEASURED, NOT INFERRED — and the repro is worth keeping.** Copy the
-standalone's Mach-O out of `TIDE-Rack.app/Contents/MacOS/` and run the bare
-binary: `CreatePluginBundleRef()` fails and `getResourceFolder()` genuinely
-returns empty. Controlled A/B, same tree, same command, same isolated `HOME`,
-`SynthEditSem/TideApp.cpp` the only variable:
-
-```
-origin/main   ControlsXp/MidiPlayer2/Converters/VaFilters "missing from bundle
-              resources", "MidiCv.synthedit did not insert a container"
-              -- and nothing at all about the resource folder
-with M8       the same five lines, plus
-              TIDE: bundle resource folder did not resolve - the rack module
-              browser will be empty
-```
-
-Both halves of the row's Accept are met. `check-rack-populated.py` now reports
-it as `FAIL bundle resource folder did not resolve -- BundleInfo found no
-Resources folder`, a named failure, not an absence.
-
-**THE JUDGEMENT CALL, and it is the durable part of this entry.** The obvious
-move once the branch has a message is to lean on the message. Do not. A needle
-in `FATAL_LINES` can only catch a silence someone already thought of; the
-positive assertion ("N rack prefab(s) seeded") catches the next one too, and
-that asymmetry is the entire argument M6 was built on. So the absence check was
-KEPT and sharpened instead of retired: it now splits into *explained* (a known
-cause already fired — "Cause already named above: ...") and *unexplained* ("AND
-NOTHING SAID WHY ... either a new way out of that function, or diagnostics that
-never reached this channel"). Both are still failures. `silent-empty-rack.log`
-is deliberately left as a pure absence and must keep failing — it is now the
-only fixture that exercises the positive assertion alone, and that is a reason
-to keep it, not a reason to update it.
-
-**Verification.** Full Release build green (`-j8`, 100%). Healthy standalone
-still passes: 9 rack prefab(s) seeded, `rack is populated`. All three negative
-controls exit 1; `m5-empty-rack.log` still reports its documented 12 failures.
-
-**Left for Jeff — a comment, not behaviour.** `.github/workflows/build.yml`
-still reads *"seedPrefabsFromBundle() returns silently when the resource folder
-is empty (BACKLOG M8)"*. That sentence is now false. The bot token has no
-`workflow` scope, so it could not be corrected here.
-
-## 2026-08-26 — windows — the standalone can be driven from a test run, and driving it found a cable-gesture bug (interactive, Jeff directing)
-
-**Prompt:** hey, could you have driven tide via MCP to do that testing? / yes,
-wire it up / get cable drags working. Instrument it if needed / file it
-
-**Yes, it could have — and two sessions of hand-testing did not know.** The
-app has published a command channel all along (`\.\pipe\gmpi-standalone.<pid>`,
-printed at startup), and `GMPI_Wrappers/mcp/` is a BUILT MCP server for it:
-`gmpi_drag`, `gmpi_pointer`, `gmpi_set_param`, `gmpi_screenshot`, `gmpi_note`,
-`gmpi_render_audio`. Every knob and button test done by hand this week was
-scriptable. Registered for this project now — see BACKLOG **E35**.
-
-**Why it was missed, which is the reusable part:** `se_attach` failed, and I
-concluded "MCP discovery is broken". It is not — `se_attach` belongs to the
-SYNTHEDIT-EDITOR server and searches a different pipe prefix; TIDE's channel
-belongs to a SECOND server that was not registered. Two servers, two
-prefixes. The evidence was one `grep` apart: the failing tool's own error
-names the prefix it searched, and `mcp/src/discover.ts` names the other.
-
-**The coordinate trap, which cost three attempts.** The tool doc said
-coordinates are "the same space a screenshot is in at scale 1" — true, and a
-trap. This window runs at **scale 1.5**: 1100x626 DIPs, screenshot 1650x939.
-Raw PNG coordinates put y=637 below the 626-DIP window, and the app does not
-error — it takes the point and lands on whatever is nearest, so a drag aimed
-at a jack silently grabbed a MODULE. **Divide screenshot pixels by `scale`
-from `gmpi_info`.** The note now says so as an instruction (GMPI_Wrappers
-bc3988b).
-
-**Cable drags work, verified end to end.** LFO TRI (DIP 428,425) -> S&H ASR
-IN (DIP 664,217): cable drawn, restart parked, `rack requested rebuild`
-logged, `SHASR ins=0000101...` -> `1000101...`.
-
-**And driving it immediately found a real bug — E34.** Dragging an EXISTING
-cable end and releasing does not end the gesture; the cable clings to the
-pointer until a second click, and the release is discarded. Jeff had seen it
-by hand and named the two gestures TIDE means to accept: (1) click-release on
-a patch point, move, click-release on the destination; (2) press, drag,
-release on the destination. Gesture 2 works from a JACK and fails from an
-existing cable END.
-
-**Cause, located:** `ConnectorViewBase::onPointerUp`
-(`se_sdk3_hosting/ConnectorView.cpp:355`) has two "keep dragging"
-early-returns — the 6px `dragThreshold` (gesture 1, correct) and
-`if (wasPickedUp) { wasPickedUp = false; return Unhandled; }` (:365), where
-`wasPickedUp` is set unconditionally on left-press over a cable (:325). The
-first release after picking up an end is therefore ALWAYS swallowed, however
-far the pointer moved, so `EndCableDrag` never runs. The two guards overlap:
-the threshold already covers the did-not-move case, so past 6px `wasPickedUp`
-is not protecting gesture 1, it is breaking gesture 2.
-
-**The consequence is worse than a stuck cable:** while the gesture hangs, the
-view and the document disagree. Measured — drag an existing end to empty
-space and release: the cable stops being drawn, no rebuild fires, and the
-SAVED CHUNK still holds `fm="529566147" tm="1242924866" fp="6" tp="0"`.
-Relaunch and it is back, connection bit set. A user reads that as "my edit
-was lost".
-
-**Left in place deliberately:** Jeff's live session still contains that
-phantom cable, as a standing reproduction.
-
-## 2026-08-26 — windows — E28: a patch cable now rebuilds the rack, from the document the DSP already holds (interactive, Jeff directing)
-
-**Prompt:** yes, lets test the cable (then, on the first false pass: "removing
-cable from Scope keeps drawing the waveform (fail)". And the ruling that
-shaped the fix, from the day before: "If the user runs a patch-cable ... don't
-resend the document, send only the text-parameter ... will trigger a rebuild
-of the processor graph, but using the document it already should have. Not
-yet another copy.")
-
-**Two layers under the filed diagnosis.** E28 said the TRIGGER was uncalled.
-In fact the whole chain above it was severed, and then the call itself was
-swallowed:
-
-1. Before #423, `PendingDspClients()` answered null in TIDE, so a cable's
-   VALUE never left the editor at all — same null that ate every knob.
-2. With values flowing, per-link tracing showed `DoAsyncRestart firing` and
-   then silence: the call entered `TriggerRestart`'s fade machinery, whose
-   completion path never runs when the HOST drives the blocks. The guard
-   could not save itself — `synth_thread_running` is set unconditionally by
-   `prepareToPlay`; the name lies, it means "generator open".
-
-**The fix is Jeff's spec verbatim** (SynthEditLib #57): TIDE declares
-`setHostDrivenRestart(true)`; DoAsyncRestart in that mode PARKS the request —
-it arrives on the audio thread mid-process, and restarting there would tear
-the graph out from under the running process() — and TIDE's subProcess
-consumes it at the top of the next block, arming `documentPending_` with the
-pending string EMPTY, so `prepareToPlay` rebuilds from the cached
-`currentDspXml`. The document the DSP already holds; no copy travels.
-`persistAcrossResets` carries the new cable list into the rebuilt graph.
-Measured both directions: remove → `Scope ins=000`, add → `ins=100`.
-
-**THE FALSE PASS, in detail, because it will fool someone again:** cable-ADD
-appeared to work before any of this existed. Its code path happens to trip
-`dspDirty` (a `SuspendDSP` RAII guard in the connection code), the next sync
-tick's export happened to differ in shape, and the resulting document push
-rebuilt the rack — carrying the cable in its patch-list. REMOVE trips no such
-guard, which is how Jeff caught it: "removing cable from Scope keeps drawing
-the waveform." A mechanism that works for add and not for remove is not a
-mechanism; it is a coincidence with good aim.
-
-**Collateral caught on the way:** the TiDE respelling (#434) made the
-standalone REFUSE every session it had ever written — the identity check
-compared names exactly, "TIDE Rack" != "TiDE Rack", and the user's patch was
-quarantined on launch as if written by a foreign plugin. Case-insensitive now
-(GMPI_Wrappers af7323f): names differing only by case are the same product.
-A rename should never cost anyone their rack.
-
-**Also observed, not yet explained:** the standalone's quiet-timer autosave
-did not fire across ~50 minutes of edits in one instance (quit-save and
-startup-forced saves work; the FREQ round-trip this morning proves the
-syncState path). Not chased — the instance had lived through a
-session-refusal and two binary swaps, so the next fresh look should start
-clean before believing it.
-
-## 2026-08-26 — windows — E27 resolved, and the attribution reverses: the 14KB "threshold" was the test fixture, not the plugin (interactive, Jeff directing)
-
-**Prompt:** do E26 (whose VST3 half had become E27)
-
-**The lead was tested and it was not the bug.** E27 blamed unchecked
-`bytesRead` in the VST3 wrapper's state reads for racks over ~14.1KB restoring
-blank in REAPER. Instrumenting `setState` showed something better: on a padded
-fixture, **setState was never called at all**. REAPER's .RPP VST header line
-embeds the chunk size at byte offset 32; the fixture generator (the scheduled
-run's and mine alike) grew the chunk while copying the original header
-verbatim, and REAPER refused the inconsistent block before the plugin ever
-ran. Every row of the scheduled run's threshold table shares that artifact.
-
-**With the header corrected, everything passes.** The 40,138-byte padded
-document restores (`setState got 53605 bytes`), and its re-export is
-byte-identical to the unpadded control's — 14,128 bytes, the ignorable
-comment dropped. The real acceptance passed end to end: a 33,409-byte VCV
-rack (LFO/Scope/LFO2/SHASR/Pulses, the live session document) loads in
-REAPER, renders in the FX window with its FREQ light lit, REAPER saves it
-itself (44,637-byte chunk under its own header), and the reload builds the
-full document.
-
-**The bytesRead fix stands** (GMPI_Wrappers 6174f90 + 3ea69d0): IBStream
-genuinely permits short reads, both sites now loop, and a truly short stream
-is reported as kResultFalse — "the restore failed" is honest where a silently
-blank rack is not. It just was not THIS failure.
-
-**Instrument that outlives the bug:** `TIDE: building rack from N byte
-document` (SynthEdit.cpp) — E27's original sin was a blank restore printing
-the same nothing as a good one. A real rack is tens of KB; the seeded blank
-is ~13KB; one line now tells them apart in any host.
-
-**For the next fixture author:** patching a .RPP's chunk means patching the
-header line's size field at offset 32, or REAPER drops the block silently.
-And the stale-binary trap claimed another hour here — the VST3 bundle copy
-under Common Files did not refresh on an incremental build; the fresh DLL sat
-in the build tree while REAPER loaded the old one. Verify the LOADED file's
-timestamp before trusting a null result.
-
-## 2026-08-26 — windows — syncState: the save-time refresh the chunk was always meant to have (interactive, Jeff directing)
-
-**Prompt:** how are knobs state saved/restored? / have a look at the GMPI VST3
-adaptor and contrast how it handles this: "C:\SE\GMPI_Adaptors" / implement it
-
-**The chunk is stale BY DESIGN, and the design was already finished elsewhere.**
-E26 (a knob tweak after the last structural edit is not in the saved file) is
-not a hole in yesterday's work but the missing half of a pattern
-GMPI_Adaptors' VST3Adaptor completed long ago: a GMPI plugin hosting a complex
-inner world (there a third-party VST3, here the rack) keeps its chunk
-parameter stale and refreshes it ON DEMAND via `IController::syncState()` —
-"sync unsaved state from plugin to host" — invoked by the editor's
-`preSaveState()` walk ("warn modules of imminent save"). The interface
-declared it, SynthEdit's editor called it for hosted modules
-(`CUG2::preSaveState`, UG2.cpp:114), the VST3Adaptor implemented it
-(ControllerWrapper.cpp:172, with `inhibitFeedback` around the echo) — and no
-wrapper in GMPI_Wrappers ever called it. Grep says zero sites.
-
-**Wired end to end:**
-
-- GMPI_Wrappers: `SessionState::saveNow` calls the plugin controller's
-  `syncState()` synchronously before `captureState()`
-  (`StandaloneHost::syncPluginState`), with edit-notification suppressed so a
-  save cannot mark the session dirty and schedule the next save. VST3's
-  controller `getState` makes the same call, with the ordering caveat written
-  at the site: VST3 saves read the PROCESSOR's store and the refresh travels
-  there asynchronously.
-- TIDE: `SynthEditController::syncState()` runs the save-time export —
-  including `preSaveState()`, which `exportChunkXml` deliberately skips and
-  which is what will hand any future hosted-wrapper module ITS syncState —
-  and refreshes parameter 1. `preSaveState` is called through the CDocOb
-  base, where it is public; CContainer's override is protected.
-- The chunk now carries a 4-byte tag (`SynthEditSem/ChunkPrefix.h`): `TDb1`
-  build (structure changed, rebuild), `TDs1` sync (save refresh; a RUNNING
-  rack must not rebuild — the standalone autosaves ~2s after every knob
-  tweak — so a Sync chunk builds only a rack that does not exist yet, which
-  is exactly restore-after-restart, made FRESHER by this since the wrapper's
-  re-seed now carries current values). Untagged = legacy = build, so every
-  pre-tag session.xml still loads. Classification is a fixed 4-byte compare
-  on the audio thread, deliberately not a string comparison.
-
-**Measured:** a live-only knob value (FREQ 3.64, present in no prior save)
-survived quit-save and restore; the saved chunk carries the `TDs1` tag; zero
-rack rebuilds at save time.
-
-**The false trail, so nobody re-walks it:** the first end-to-end test showed
-an UNTAGGED chunk and no rebuild-free save — because the writer was not the
-new binary (a stale instance from before the rebuild wrote it), compounded by
-the session-quarantine renaming session.xml/previous under the test. Prove
-which binary wrote a file before debugging its bytes.
-
-**Two sessions, one repo, live:** origin/main moved twice DURING this work —
-Jeff's own #56 landed the identical BundleInfo fix minutes after I committed
-mine locally (mine dropped, his stands), and the mac session grew BACKLOG's
-E26 row with a further finding (VST3 wrapper state reads never check
-`bytesRead` — a real restore-truncation bug my fix does NOT address) and
-REAPER accept criteria this work does not yet satisfy. E26 is therefore NOT
-marked done here; the standalone half is fixed, the VST3 half (bytesRead
-loop + REAPER round-trip) remains open on that row.
-
-**Unresolved observation, recorded honestly:** one Release instance exited
-silently mid-`prepareToPlay` (during module construction, bare default
-document, no assert, not reproduced since — Debug ran clean immediately
-after). If a silent startup exit shows up again, start there.
-
-## 2026-08-26 - macos - M6's CI wiring, with the gate proved both ways first
-
-**Prompt:** interactive
-
-**Did:** Jeff: *"take m6"*. M6's code half had merged
-([#424](https://github.com/JeffMcClintock/TideSynth/pull/424)) leaving one thing
-open, which the row named as Jeff's because `.github/workflows/**` is what the
-bot token deliberately cannot push: **the CI step.** Did that half.
-
-**Proved the gate discriminates BEFORE wiring it, on a real build:**
-
-| subject | result |
-|---|---|
-| good standalone | **exit 0** - 4 XMLs enriched, **9 prefabs**, root MIDI-CV |
-| same binary, `Prefabs/` + `ControlsXp.xml` deleted | **exit 1** - 11 assertions failed |
-
-The negative case includes the one that matters most: *"no 'rack prefab(s)
-seeded' line at all. This is the silent case"* - `seedPrefabsFromBundle()`
-returning without a message, which is M8. **A grep-for-bad-lines gate would have
-passed that build.** Asserting positives is the whole design.
-
-**Extracted the step's bash out of the YAML and ran it verbatim.** A33 once
-shipped a jq program that parsed as perfectly valid YAML and was broken shell;
-YAML validity is not shell validity. Both branches exercised - populated -> 0,
-missing binary -> 1 with an `::error::` annotation.
-
-**macOS only, on purpose.** The script LAUNCHES the standalone and reads its
-stderr, and GitHub's linux runner is headless, so a GUI binary there could fail
-for a reason that has nothing to do with rack content. **A gate that cries wolf
-is worse than no gate.** Widening wants someone to verify headless startup first.
-
-**Not `continue-on-error`** - build.yml already carries that lesson in its own
-comments: the `File a platform issue on failure` step was swallowed by exactly
-that and *"had never once executed"* while every run reported success.
-
-**Not verified:** that the step passes on the CI runner itself. It is proved on
-this box against a real build; the runner is the next thing to watch.
-
-## 2026-08-25 - macos - iOS runs, the bundle rule was wrong in three places, and M9 filed
-
-**Prompt:** interactive
-
-**Did:** Jeff: *"IOS is still wanted"*. Took the iOS AUv3 from never-launched to
-installed, launched and registered - and found the fix I shipped this morning
-was only a third of the problem.
-
-**THREE functions located the bundle by walking for a `Contents` component**, not
-one. [SynthEditLib#52](https://github.com/JeffMcClintock/SynthEditLib/pull/52)
-fixed `CreatePluginBundleRef`; `getPluginPath` and `getBundleContentsFolder`
-still had the original first-`Contents` bug.
-
-**`Contents` cannot work for two independent reasons.** Nested bundles have TWO
-(so the first is the host app - the M5/M7 empty-plugin bug), and **iOS has NONE**
-- the layout is flat, `<host>.app/PlugIns/<plugin>.appex/<exe>`, payload in the
-bundle root. So iOS resource lookup has NEVER worked; #52 merely changed it from
-"wrong bundle" to "no bundle".
-
-`bundleRootOf()` takes the deepest ancestor with a bundle suffix. Checked against
-all seven artifacts TIDE builds - **old rule wrong on 3 of 7, new rule correct on
-7 of 7**. Standalone, `.vst3` and `.gmpi` have exactly one `Contents`, so they
-were never affected either way.
-[SynthEditLib#55](https://github.com/JeffMcClintock/SynthEditLib/pull/55), merged.
-
-**Verified:** macOS standalone still enriches 4 XMLs, seeds 9 prefabs and the
-root MIDI-CV; macOS AUv3 still passes `auval` with 0 `retrievedValue` warnings;
-iOS installs, launches, extension registers. **NOT verified:** that the iOS
-extension then loads its resources - that needs the AU instantiated, and **the
-simulator has no AUv3 host and no `auval`**.
-
-**A FALSE NEGATIVE, AGAIN, AND THE SAME SHAPE AS THIS MORNING.** Asked whether
-the code was still relevant, I grepped the scratchpad worktrees - which had been
-REAPED - got nothing back, and briefly read that as "the function is gone". An
-empty result from a missing input is not evidence. Caught only because the other
-half of the same command also failed. **Check the input exists before believing
-an empty result.**
-
-**Filed M9: the iOS container app should host its own AUv3.** (M8 was taken by a scheduled run the same day - the grep-before-filing rule caught it.) An iOS AUv3 cannot
-ship as a bare `.appex`, so the app exists regardless; making it host the
-extension gives iOS a standalone AND the AU host we otherwise have no way to get.
-
-**Jeff asked whether doing the same on macOS would mean less code overall.
-Measured: no, and the intuition inverts.** `wrapper/Standalone` is 17,311 lines,
-but 1209 is WASAPI, 990 PipeWire, ~2500 the MCP/IPC headless test surface - none
-replaced by AU hosting. Only CoreAudio's 1046 could go. You would end up with two
-standalone implementations instead of one. The real upside is coverage: an
-AU-hosted standalone would have caught the M5 empty-AU bug immediately - at the
-cost of the standalone-vs-AU divergence used as a diagnostic twice today.
 
 ## Rotation — do this as part of STEP 4, every run
 
