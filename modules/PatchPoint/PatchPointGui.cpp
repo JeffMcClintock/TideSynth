@@ -40,7 +40,7 @@ public:
 
 	// Fixed size: return the same constant regardless of availableSize. That is how
 	// an editor declares it does not resize (see PluginEditor::measure).
-	ReturnCode measure(const Size* availableSize, Size* returnDesiredSize) override
+	ReturnCode measure([[maybe_unused]] const Size* availableSize, Size* returnDesiredSize) override
 	{
 		*returnDesiredSize = Size{ 20.0f, 20.0f };
 		return ReturnCode::Ok;
@@ -50,7 +50,7 @@ public:
 	// The base class defaults to Ok so the user can select by clicking; here we
 	// narrow the hit area to the disc so the corners of the 20x20 box fall through.
 	// point will always be within the bounding rect.
-	ReturnCode hitTest(Point point, int32_t flags) override
+	ReturnCode hitTest(Point point, [[maybe_unused]] int32_t flags) override
 	{
 		const float dx = point.x - center.x;
 		const float dy = point.y - center.y;

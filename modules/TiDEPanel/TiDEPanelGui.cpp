@@ -341,14 +341,12 @@ constexpr size_t kTraceCachePixelBudget = 3u * 1024u * 1024u;
 // observations either side of it.
 constexpr double kMaxFallbackStretch = 2.0;
 
-// Milliseconds since the first call, for the settle timer below. Independent of
-// the diagnostic log, which may be compiled out.
-double monotonicMs()
-{
-	using clock = std::chrono::steady_clock;
-	static const clock::time_point t0 = clock::now();
-	return std::chrono::duration<double, std::milli>(clock::now() - t0).count();
-}
+// BACKLOG X2: `monotonicMs()` was here, and it is GONE rather than silenced.
+// Its own comment said it was "for the settle timer below" -- but the settle
+// timer now waits with a chrono duration (kSettleMs, used directly at the
+// scheduleFullTrace call) and never polls a clock, so the function had no
+// callers at all. A comment naming a consumer that no longer consumes it is
+// exactly what makes dead code look live, so the honest fix is deletion.
 
 // THE SETTLE TIMER, and note carefully WHICH step it guards.
 //
@@ -2174,12 +2172,12 @@ public:
 		result.fallback = bestFallbackLocked(key, result.target, result.fallbackStretch);
 
 		{
-			const int targetStage = result.target->stage.load(std::memory_order_acquire);
+			[[maybe_unused]] const int targetStage = result.target->stage.load(std::memory_order_acquire);
 			const int fbStage = result.fallback
 				? result.fallback->stage.load(std::memory_order_acquire) : 0;
-			const uint32_t fbW = !result.fallback ? 0u
+			[[maybe_unused]] const uint32_t fbW = !result.fallback ? 0u
 				: (fbStage >= 2 ? result.fallback->fullWidth : result.fallback->previewWidth);
-			const uint32_t fbH = !result.fallback ? 0u
+			[[maybe_unused]] const uint32_t fbH = !result.fallback ? 0u
 				: (fbStage >= 2 ? result.fallback->fullHeight : result.fallback->previewHeight);
 			TIDE_LOG("REQUEST  %ux%u  cached-stage=%d  stand-in=%s %ux%u  stretch=%.2fx",
 				key.width, key.height, targetStage,
@@ -2366,7 +2364,7 @@ private:
 			{
 				trace->previewWidth = key.width;
 				trace->previewHeight = key.height;
-				const double previewT0 = TIDE_LOG_NOW;
+				[[maybe_unused]] const double previewT0 = TIDE_LOG_NOW;
 				trace->preview = traceFaceplate(trace->previewWidth, trace->previewHeight,
 					spec, tide::render::Quality::Draft);
 				trace->stage.store(1, std::memory_order_release);
@@ -2423,7 +2421,7 @@ private:
 
 			trace->fullWidth = key.width;
 			trace->fullHeight = key.height;
-			const double fullT0 = TIDE_LOG_NOW;
+			[[maybe_unused]] const double fullT0 = TIDE_LOG_NOW;
 			trace->full = traceFaceplate(key.width, key.height, spec);
 			trace->stage.store(2, std::memory_order_release);
 			TIDE_LOG("FULL     ready %ux%u  traced in %.0f ms at %d spp",

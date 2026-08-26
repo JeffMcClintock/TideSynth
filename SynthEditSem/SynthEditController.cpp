@@ -153,7 +153,7 @@ public:
 	// guiPins and lands on an IEditor, which exists only while the plug-in
 	// window is open. The document has to be restored whether or not the user
 	// ever opens the window, so it belongs here, where TideApp lives.
-	ReturnCode setParameter(int32_t parameterHandle, gmpi::Field fieldId, int32_t voice, int32_t size, const uint8_t* data) override
+	ReturnCode setParameter(int32_t parameterHandle, gmpi::Field fieldId, [[maybe_unused]] int32_t voice, int32_t size, const uint8_t* data) override
 	{
 		constexpr int32_t chunkParamId = 1;
 

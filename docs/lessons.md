@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **333 KB** across **260** entries, so copying them
+Learned sections are **334 KB** across **261** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **95 KB / 1046 lessons — 3.5x smaller**, and represents
+A8. This is **95 KB / 1051 lessons — 3.5x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,14 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-27
+
+**linux — X2: the tree has 1,982 unique warnings and fifteen of them are ours (interactive, Jeff directing)**
+
+- Count unique warnings, not warning lines.
+- Bucket by repo before planning.
+- An unused variable can be a live one in another build configuration.
+- A comment claiming a consumer is evidence, and it can be stale.
+- Two of three "blocked" linux rows were not blocked.
 
 **macos — E43: the command channel now always answers, and the fix is a heartbeat rather than a list of verbs (scheduled run)**
 

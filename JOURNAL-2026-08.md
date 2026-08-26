@@ -31703,3 +31703,80 @@ enough to re-measure. The POST_BUILD that restages only runs when the target
 LINKS, so a rebuild after deleting the folder leaves it absent and the gate
 then fails for a different reason. Delete the executable too.
 
+## 2026-08-26 — macos — M9: the iOS AUv3 has been instantiated, and it made a sound (scheduled run)
+
+**Prompt:** "i merged stuff, sync repos, continue."
+
+M11 and GMPI#18 merged, which unblocked this. STEP 4 first: nine IN-REVIEW rows
+whose PRs are all merged flipped to DONE, verified with `gh pr view` rather than
+from the merge commits alone — M6, M8, M10, M11, E31, E36, V6, V7, E30. M11
+going DONE is what took M9 off `BLOCKED(M11)`.
+
+**And `main` is green again.** The break I reported at the end of the last run —
+`14a8fd3` deleting `RackModules/MidiCv.synthedit` while `seedRootMidiCv`
+inserted it by name — was fixed by V6 (#452) making the root assembly a default
+DOCUMENT, plus #459 staging it. Re-measured on a correctly-staged bundle rather
+than taken on trust: **7 rack prefab(s) seeded, default rack loaded, 24894 byte
+document, "rack is populated"**.
+
+**M9 ITSELF: THE FIRST TIME THE iOS AU HAS EVER BEEN INSTANTIATED.** It could be
+installed, launched and REGISTERED — all three verified over the past days — and
+never once opened, because there is no AUv3 host in the iOS simulator to open it
+with. The ruling's answer is that the container app hosts its own extension,
+which it has to ship anyway.
+
+**Accept met, and it is a real cross-platform comparison rather than a
+self-fulfilling one:**
+
+```
+macOS AU3  (tests/e9_au_rate_probe.mm)   440.0093 Hz     <- the control, run FIRST
+iOS  AU3   (container app hosts its own) 440.2062 Hz     <- 0.81 cents apart
+```
+
+Same preset both times — `tests/hosts/v1-rack.rpp` through
+`scripts/decode_rpp.py --preset-out`, which is also E2a's and M7's 440 Hz. The
+iOS render: out-of-process, 18893-byte GMPIPRESET through `fullState`, 2.00 s at
+48 kHz, **peak 0.4846 rms 0.1412**.
+
+**Establishing the macOS control first was the single best decision here.** Had
+I gone straight to iOS and got a number, I would not have known whether a
+discrepancy was the platform, the preset, my analyser, or my host. With the
+control in hand, one number on iOS settles it.
+
+**THE RULING'S ONE UNVERIFIED CLAUSE IS NOW MEASURED, AND THE QUESTION IS MOOT.**
+`docs/decisions.md` asked for "the full entitlement preconditions for in-process
+loading on iOS" to be checked before implementing. They are not merely unmet:
+
+```
+error: 'kAudioComponentInstantiation_LoadInProcess' is unavailable:
+       not available on iOS
+```
+
+The option does not exist — it will not compile, let alone need an entitlement.
+iOS loads every AUv3 out of process, which is the ruling's own default and its
+stated reason, so nothing is lost but an escape hatch that was never available.
+`--gmpi-in-process` is still ACCEPTED and REPORTED rather than silently ignored.
+The decision entry now carries the measured answer.
+
+**A trap that cost me three minutes and will cost the next person more.**
+`simctl launch --console` attaches to the app's stdio and does not return until
+the app EXITS. This is a GUI app; it never does. The probe hung for its full
+180-second timeout on a render that had **already succeeded in four seconds and
+was sitting on disk the whole time** — the most misleading failure available,
+because the artifact was there and the tool said nothing. Launch detached, poll
+for the artifact, then read NSLog back out of the unified log with
+`log show --start`. That is now what the probe does, with the reason in a
+comment beside it.
+
+**One design point worth keeping:** the host finds its OWN appex by reading
+`PlugIns/*.appex`'s `Info.plist`, not by taking the first `aumu` in the
+component registry. The registry holds every AUv3 on the device, so the lazy
+version would silently host somebody else's plugin the moment a second one is
+installed — and the measurement would look perfectly fine.
+
+**Split:** `tests/m9_ios_au_host_probe.py` and the bookkeeping are TIDE's; the
+host itself (`GMPI_Wrappers`) and its two link flags (`GMPI`) are PR-GATED and
+are PROPOSED, not merged.
+
+**Still not verified:** a real device — this is the simulator only — and any
+third-party host, of which iOS has none to try.

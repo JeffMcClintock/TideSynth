@@ -67,7 +67,7 @@ public:
 		pinStrokeColor.onUpdate = [this](PinBase*) { onSetpatchValue(); };
 	}
 
-	ReturnCode hitTest(Point point, int32_t flags) override
+	ReturnCode hitTest(Point point, [[maybe_unused]] int32_t flags) override
 	{
 		Point center;
 		float radius;
@@ -113,7 +113,7 @@ public:
 		return ReturnCode::Ok;
 	}
 
-	ReturnCode onPointerUp(Point point, int32_t flags) override
+	ReturnCode onPointerUp([[maybe_unused]] Point point, [[maybe_unused]] int32_t flags) override
 	{
 		if (!hasCapture())
 			return ReturnCode::Unhandled;
