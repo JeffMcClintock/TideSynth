@@ -8,6 +8,65 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — E24: a HetrickCV module on TIDE's rack, looked at for the first time (scheduled run)
+
+**Prompt:** "i merged stuff, sync repos, continue."
+
+E24 has been carrying predictions from source and rendered SVGs since it was
+filed, and says so: *"nothing here has been observed in TIDE"*. It is now
+observed. **Crackle**, the row's own suggestion, inserted into a running rack.
+
+**THE ANSWER IS NEITHER OPTION THE ROW OFFERED, and the third one is more
+useful.** Not "the panel carries its components" and not "it renders bare":
+
+```
+Crackle declares 4 controls          TIDE draws
+  createHCVKnob(28, 87)                NOTHING
+  createInput<PJ301MPort>(33, 146)     drawn
+  createParam<CKSS>(37, 220)           NOTHING
+  createOutput<PJ301MPort>(33, 285)    drawn
+```
+
+The panel's own art is fine — title, the concentric motif, all four labels, the
+HETRICK logo. **Two of the four controls are simply absent**, and the switch's
+absence is conspicuous because the panel paints `Classic` and `Broken` with an
+empty gap between them.
+
+**How I got positions rather than impressions.** The module is at doc
+`l=1352 t=280 r=1442 b=664`, 90x384 DIP over a 380-unit VCV panel, at zoom 1 and
+scale 2, so `canvas_y = 255 + vcvY * 1.0105 * 1.955`. That puts the knob at
+canvas 427, the input jack at 543, the switch at 689 and the output at 818 — and
+each prediction is checkable against the screenshot. Reading a screenshot without
+that arithmetic gets you "looks mostly fine", which is what the row already had.
+
+**Why jacks and not knobs, which is the mechanism worth keeping.**
+`RackEditor.h`'s warning is specifically about knob CAPS: it draws "only the
+moving part — an indicator line per knob" and relies on the panel for the body.
+HetrickCV's panel does not carry knob bodies, so the knob renders as nothing at
+all — not even an indicator I can see. Jacks are unaffected because TIDE draws
+those itself (E23's correction). **Switches are a THIRD case that neither E24 nor
+E23 names:** `CKSS` is not a knob and not a jack, and nothing draws it.
+
+**Verdict: (b), narrowed.** A Crackle on the rack is legible and half-usable, so
+this is a cost rather than a wall, and the fix is the one the row anticipated —
+`RackEditor` drawing TIDE's own `TiDEknob` at the reported position, plus a
+switch case. TIDE ships the knob already.
+
+**A separate bug fell out, filed as E41.** The inserted Crackle landed
+overlapping `TiDE Output` and **off the 3-DIP snap grid** — so E36's
+next-free-slot placement did not run for an adaptor-registered module. My first
+instinct was "AddPrefab's diff returns empty for a non-prefab", which is
+plausible and does NOT explain the off-grid position: the fallback is
+`snapToGrid(getCenter())`, which cannot produce an off-grid result. So something
+earlier in the path differs too, and the row says to instrument rather than
+guess. I have written down the hypothesis and its own counter-evidence rather
+than the hypothesis alone.
+
+**One instrument note:** seeing the module at all required parking the view on
+it, which required E33 (unmerged). The render finding does not depend on E33 —
+but on `main` today you cannot look at an inserted module, which is worth
+knowing before anyone tries to reproduce this.
+
 ## 2026-08-26 — macos — E38: the flag was the easy part, and it was not the problem (scheduled run)
 
 **Prompt:** "i merged stuff, sync repos, continue."
