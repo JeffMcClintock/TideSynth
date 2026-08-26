@@ -8,6 +8,53 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — E40: a deleted prefab kept shipping, and `rm` was only half the fix (scheduled run)
+
+**Prompt:** "merge PRs in order" / "the continue looping over tasks".
+
+E40 is my own row, filed after the second CI break in one day caused by the same
+thing. It names the cause as `copy_directory_if_different` MERGING and never
+deleting. **That is true and it is only half of it**, which I found by running
+the row's own Accept instead of trusting my edit.
+
+**The intermediate result is the whole lesson.** I added `rm -rf` before the
+copy at both staging sites, rebuilt, deleted a prefab, rebuilt again without
+clearing the tree — and the staged count stayed at **5**. Not because the delete
+failed, but because **the step never ran**: it was a `POST_BUILD`, and a
+POST_BUILD only fires when its target RELINKS. Editing `RackModules/` touches no
+source, so nothing relinked and nothing re-staged. The merge was never reached.
+
+Had I shipped after the edit and a green build, the row would have looked fixed
+and the next prefab deletion would have broken CI exactly as before.
+
+**So the per-target staging is now an always-run `add_custom_target(... ALL)`
+that the format target depends on**, mirroring `${PROJECT_NAME}_stage_resources`
+which already worked that way. It runs BEFORE the format target and makes its
+own directory, so it needs no bundle to exist yet — and running early keeps it
+out of the POST_BUILD ordering that `copy_plugin()` and the AU3 assemble step
+already contend over, which is the other reason not to just add another
+POST_BUILD.
+
+**Both halves are needed and neither alone passes the Accept:** always-run makes
+the step happen; `rm` before `copy_directory` makes it able to remove.
+
+```
+rm only, still POST_BUILD   staged 5   gate passes against a stale bundle
+always-run + rm, 1 deleted  staged 4   FAIL 4 rack prefab(s) seeded, expected 5
+prefab restored, rebuilt    staged 5   rack is populated
+```
+
+**Both sites changed** — the shared target (Windows/Linux/GMPI/CLAP) and the
+per-target bundle arm (macOS). The iOS arm has done rm-before-cp since M11 and
+is untouched; it needs its own generated shell script for
+`${EFFECTIVE_PLATFORM_NAME}`, which is a different problem.
+
+**Left alone deliberately:** the module XMLs are still individually
+`copy_if_different`, so dropping one from `_tide_xmls` would strand the old
+file. Same class — but that list is a CMake variable rather than a directory
+scan, so removing one is a deliberate code edit, and the gate asserts the exact
+four by name. Recorded rather than fixed speculatively.
+
 ## 2026-08-26 — macos — E39's prime suspect is wrong: the top strip is not a constant (scheduled run)
 
 **Prompt:** "continue".
@@ -59,6 +106,7 @@ nominal zoom, which is wrong because `calcViewTransform` QUANTISES zoom so that
 instead makes each screenshot calibrate itself and removes both mistakes at
 once. **When the thing you are measuring has a known period, use the period as
 the ruler.**
+
 ## 2026-08-26 — macos — E29: the mac box is fine, and the obvious fix would break it (interactive, Jeff directing)
 
 **Prompt:** "continue", then — on seeing a headless render stall —
