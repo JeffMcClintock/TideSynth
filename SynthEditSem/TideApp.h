@@ -94,7 +94,7 @@ private:
 	// SynthEdit the module scan does this; S1a deleted the scan by design, so
 	// nothing did, and the browser's Prefabs group was silent.
 	void seedPrefabsFromBundle();
-	void seedRootMidiCv();          // V3 -- the MIDI-CV every fresh document gets
+	bool loadDefaultDocument();     // V3/V6 -- the rack every fresh document gets
 
 	// ISeApp Notifier passthrough — disambiguate against the inherited
 	// Notifier::RegisterObserver / UnRegisterObserver via explicit `using`.
