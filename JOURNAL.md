@@ -171,7 +171,7 @@ decision about GATED `SynthEditLib`, not a task, while the row's own
 already DONE by the time I looked; both its PRs are merged.
 
 **An ID COLLISION, caught before either side merged.** I filed my dialog row as
-**E47** at 11:20; the mac box filed a different **E47** (*the properties pane can
+`E47` at 11:20; the mac box filed a different `E47` (*the properties pane can
 be left pointing at a freed module*) at 11:28, on branch
 `tide/mac/E47-properties-dangling-module`. Mine was first by eight minutes and I
 renumbered it anyway, to **E51** — theirs is already cited from an open
