@@ -962,7 +962,59 @@ foreach(_fmt ${FORMATS_LIST})
     set(_tide_resources "")
   endif()
 
-  if(NOT _tide_resources STREQUAL "")
+  # ON iOS THIS HAS TO GO THROUGH A GENERATED SHELL SCRIPT, FOR THE SAME REASON
+  # THE ICON STAGING ABOVE DOES -- and until BACKLOG M11 it did not, so every
+  # iOS build shipped an appex with NO XMLs and NO Prefabs.
+  #
+  # $<TARGET_BUNDLE_CONTENT_DIR:...> expands, under the Xcode generator, to a
+  # path containing Xcode's ${EFFECTIVE_PLATFORM_NAME}, and CMake writes it into
+  # the script phase with the dollar ESCAPED, so the shell does not expand it
+  # either. `cmake -E copy` does not go through a shell at all. Both commands
+  # below therefore succeeded -- into a LITERAL directory called
+  # Release${EFFECTIVE_PLATFORM_NAME} sitting beside the real one. Measured
+  # 2026-08-26 from a clean iOS tree:
+  #
+  #   Release-iphonesimulator/TIDE-Rack.appex   Info.plist PkgInfo TIDE-Rack
+  #   Release${EFFECTIVE_PLATFORM_NAME}/...     + all four XMLs + Prefabs/
+  #
+  # THAT IS THE M5 DEFECT, SHIPPED ON iOS: no control pins, an empty rack module
+  # browser, no MIDI jacks -- and the build is green, because nothing here can
+  # tell a copy into the wrong directory from a copy into the right one. It is
+  # exactly what M6's content gate exists to catch and what M8 taught the plugin
+  # to say out loud.
+  #
+  # bash expands ${EFFECTIVE_PLATFORM_NAME} from the environment Xcode exports
+  # to script phases; file(GENERATE) writes the dollar literally. Per-CONFIG
+  # filename for the same reason the icon script needs one.
+  if(NOT _tide_resources STREQUAL ""
+     AND CMAKE_SYSTEM_NAME STREQUAL "iOS" AND CMAKE_GENERATOR STREQUAL "Xcode")
+    set(_tide_stage_body "#!/bin/bash\n")
+    string(APPEND _tide_stage_body "set -e\n")
+    string(APPEND _tide_stage_body "dest=\"${_tide_resources}\"\n")
+    string(APPEND _tide_stage_body "mkdir -p \"$dest\"\n")
+    foreach(_tide_xml ${_tide_xmls})
+      get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
+      string(APPEND _tide_stage_body
+        "cp -f \"${SYNTHEDITLIB_DIR}/modules/${_tide_xml}\" \"$dest/${_tide_xml_leaf}\"\n")
+    endforeach()
+    # rm before cp, unlike the copy_directory_if_different below: a prefab
+    # deleted from RackModules/ would otherwise stay in the bundle forever, and
+    # check-rack-populated.py's prefab COUNT would then be measuring history.
+    string(APPEND _tide_stage_body "rm -rf \"$dest/Prefabs\"\n")
+    string(APPEND _tide_stage_body "mkdir -p \"$dest/Prefabs\"\n")
+    string(APPEND _tide_stage_body
+      "cp -R \"${CMAKE_CURRENT_SOURCE_DIR}/../RackModules/.\" \"$dest/Prefabs/\"\n")
+
+    set(_tide_stage_script
+      "${CMAKE_CURRENT_BINARY_DIR}/stage-resources-${_tide_target}-$<CONFIG>.sh")
+    file(GENERATE OUTPUT "${_tide_stage_script}" CONTENT "${_tide_stage_body}")
+
+    add_custom_command(TARGET ${_tide_target} POST_BUILD
+      COMMAND bash "${_tide_stage_script}"
+      COMMENT "Staging module XMLs and rack prefabs (${_tide_target}, iOS)"
+      VERBATIM
+    )
+  elseif(NOT _tide_resources STREQUAL "")
     foreach(_tide_xml ${_tide_xmls})
       get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
       add_custom_command(TARGET ${_tide_target} POST_BUILD
