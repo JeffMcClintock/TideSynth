@@ -8,6 +8,68 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — M8: the one silent way out of `seedPrefabsFromBundle()` now names itself (scheduled run)
+
+**Prompt:** "Work continuously through the TideSynth backlog... Take the topmost
+row that is TODO, platform mac or any, and not BLOCKED/NEEDS-JEFF." M8 was that
+row once S1b and S8 were skipped as wholly GATED (both live entirely in
+`SE16/EditorLib` / `SynthEditLib`, so there is no non-gated half to do).
+
+**What it was.** `seedPrefabsFromBundle()` opened with
+`if (resourceFolder.empty()) return;` — no message of any kind. Every OTHER
+outcome in that function reports itself, so an unresolvable resource folder was
+the single way to get an empty rack module browser in total silence. That is the
+M5 shape exactly: M5 was a `BundleInfo` resolution failure that shipped for two
+days behind a green `auval`.
+
+**It is not a hypothetical branch, and reading BundleInfo says why.**
+`getResource()` and `getResourceFolder()` are different lookups.
+`BundleInfo.cpp:560` reaches the embedded Win32 resources FIRST and only falls
+back to the folder, and `getResourceFolder()` returns `{}` unconditionally under
+`GMPI_IS_PLATFORM_JUCE`. So the four module-description XMLs can enrich
+perfectly while this one lookup comes back empty — which is what
+`silent-empty-rack.log` has always modelled.
+
+**MEASURED, NOT INFERRED — and the repro is worth keeping.** Copy the
+standalone's Mach-O out of `TIDE-Rack.app/Contents/MacOS/` and run the bare
+binary: `CreatePluginBundleRef()` fails and `getResourceFolder()` genuinely
+returns empty. Controlled A/B, same tree, same command, same isolated `HOME`,
+`SynthEditSem/TideApp.cpp` the only variable:
+
+```
+origin/main   ControlsXp/MidiPlayer2/Converters/VaFilters "missing from bundle
+              resources", "MidiCv.synthedit did not insert a container"
+              -- and nothing at all about the resource folder
+with M8       the same five lines, plus
+              TIDE: bundle resource folder did not resolve - the rack module
+              browser will be empty
+```
+
+Both halves of the row's Accept are met. `check-rack-populated.py` now reports
+it as `FAIL bundle resource folder did not resolve -- BundleInfo found no
+Resources folder`, a named failure, not an absence.
+
+**THE JUDGEMENT CALL, and it is the durable part of this entry.** The obvious
+move once the branch has a message is to lean on the message. Do not. A needle
+in `FATAL_LINES` can only catch a silence someone already thought of; the
+positive assertion ("N rack prefab(s) seeded") catches the next one too, and
+that asymmetry is the entire argument M6 was built on. So the absence check was
+KEPT and sharpened instead of retired: it now splits into *explained* (a known
+cause already fired — "Cause already named above: ...") and *unexplained* ("AND
+NOTHING SAID WHY ... either a new way out of that function, or diagnostics that
+never reached this channel"). Both are still failures. `silent-empty-rack.log`
+is deliberately left as a pure absence and must keep failing — it is now the
+only fixture that exercises the positive assertion alone, and that is a reason
+to keep it, not a reason to update it.
+
+**Verification.** Full Release build green (`-j8`, 100%). Healthy standalone
+still passes: 9 rack prefab(s) seeded, `rack is populated`. All three negative
+controls exit 1; `m5-empty-rack.log` still reports its documented 12 failures.
+
+**Left for Jeff — a comment, not behaviour.** `.github/workflows/build.yml`
+still reads *"seedPrefabsFromBundle() returns silently when the resource folder
+is empty (BACKLOG M8)"*. That sentence is now false. The bot token has no
+`workflow` scope, so it could not be corrected here.
 ## 2026-08-26 — windows — the standalone can be driven from a test run, and driving it found a cable-gesture bug (interactive, Jeff directing)
 
 **Prompt:** hey, could you have driven tide via MCP to do that testing? / yes,
