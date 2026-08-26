@@ -8,6 +8,104 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — E32: the mac window position, and a ruling that deleted 109 lines of it (interactive session, Jeff directing)
+
+**Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
+
+**Did:** took **E32's last remaining half** — macOS window position. Built and
+measured; branch `tide/mac/E32-window-position-mac`,
+[GMPI_Wrappers#23](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/23),
+**PR-gated so proposed, not merged**. Row is IN-REVIEW. Filed **E52** for a
+separate break found doing it.
+
+### The ruling, which is the durable part
+
+Jeff, on being shown that AppKit was undoing the restored position:
+
+> in the case that a platform has different conventions, lets stick to them. If
+> Appkit want's to move the window full on-screen. That's no big deal. esp if
+> users on that platform expect it anyway.
+
+**E32's Accept and `PlatformShell::setWindowPosition`'s own comment both encode a
+WINDOWS rule** — clamp so "enough of the caption is reachable", not "fully on
+screen", because a partly-off window is deliberate. Win32 needs that, because it
+leaves a window wherever it is put. **AppKit does not**: every frame about to be
+displayed goes through `constrainFrameRect:toScreen:`, which pulls the window
+fully on screen, and mac users expect that.
+
+The first cut fought it with an `NSWindow` subclass overriding that one method.
+It worked, it was measured, and it was **deleted**.
+
+### Deleting it measured BETTER, not merely smaller
+
+This is the part to carry into the next platform-difference argument. It took
+**109 lines** out of the change, and the platform's answer beat the hand-rolled
+one on the case that matters most:
+
+| saved `9000,9000` | result |
+|---|---|
+| hand-rolled clamp | `0,30` — position thrown away, window parked top-left |
+| AppKit unaided | `1140,520` — bottom-right corner, wholly visible |
+
+**The clamp was not just redundant, it was worse.** It replaced the user's
+position with a corner; AppKit kept as much of the intent as the screen allowed.
+Measured by bypassing the clamp in a throwaway build rather than by reading the
+docs — the two answers are indistinguishable on paper and four of the six test
+cases agree.
+
+### The measurement trap, which survives the rewrite
+
+The overhang cases are the only ones that can see this class of bug at all.
+Centred, exact, off-screen and clamped — the four anybody writes first — **all
+pass whether AppKit is constraining or not**, because every one of them produces
+a fully-on-screen window, which is what the constraint produces too. Only "user
+deliberately hung the window off the edge" separates them, and that is the case
+that looks least worth writing.
+
+### What macOS now costs, recorded so it is not re-filed as a bug
+
+**A deliberate overhang does not survive a round trip on macOS.** `x=1900` on a
+2240-point display reopens at `1140`, flush right. The value is stored and
+restored *exactly*; AppKit moves the window afterwards. Windows keeps the
+overhang, macOS does not. **E32's Accept should be read as satisfied
+per-platform, not uniformly** — which is the general shape of the ruling above.
+
+### Points, not pixels
+
+`PlatformShell` specifies *physical screen pixels*; the mac shell answers in
+**points**, deliberately. The seam's own comment gives its reason for wanting
+pixels — one unambiguous space spanning every monitor, because a value in DIPs
+"would have to say which monitor's scale it meant". On macOS that property
+belongs to points; backing pixels are per-display. A centred 1100-point window on
+a 2240-point display saves `x=570`, not `1140`.
+
+**Not `NSWindow` frame autosave**, which E32's row recommended: it writes to
+`NSUserDefaults` on its own schedule, which would put the position in a different
+file from the SIZE the portable half keeps in `standalone.conf`.
+
+### How to measure a window position with no verb for it
+
+`--info` reports size but not position, and the command channel has no move verb.
+The way round both: prepare `standalone.conf`, launch, `SIGTERM` (which runs the
+normal teardown), read the file back.
+
+### E52: a supported build option that does not compile
+
+`GMPI_STANDALONE_COMMAND_CHANNEL=OFF` is an `option(... ON)` with a comment
+explaining what an OFF build is for, and **`StandaloneApp.cpp` does not compile in
+it** — it calls `windowPosition`, `setWindowPosition` and `logicalSize`
+unconditionally while `PlatformShell` declares all three inside the guard. Three
+errors, and **one is E32's own already-merged size half**, so it has been broken
+since that landed.
+
+Measured against a **stashed** tree, so the result is `main`'s and not the
+branch's — worth doing deliberately, because "my change broke it" and "my change
+revealed it" look identical from a compiler.
+
+**Not fixed in #23 on purpose.** Moving the seam out of the guard means moving
+all three shells' overrides with it, and only the mac one can be built on this
+box.
+
 ## 2026-08-27 — macos — E25: the crash report's faulting address disproves E25's own diagnosis, and moves the fix to a different file (interactive session, Jeff directing)
 
 **Prompt:** standing backlog-loop instruction in the session, not `docs/weekly-run-prompt.md` · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
