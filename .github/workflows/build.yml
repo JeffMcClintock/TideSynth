@@ -386,6 +386,41 @@ jobs:
           echo "::notice::Building with -j${jobs}"
           cmake --build build --config Release --parallel "$jobs"
 
+      # --- M6: the rack-content gate ------------------------------------
+      #
+      # `auval` is not a sufficient shipping gate and M5 proved it the expensive
+      # way: for two days TIDE's AUv3 returned AU VALIDATION SUCCEEDED while
+      # having no control pins, an empty module browser and no MIDI jacks.
+      # `auval` validates the AU *interface* and never asks whether the plugin
+      # CONTAINS anything, so a resource-resolution failure that empties the
+      # whole rack is invisible to it.
+      #
+      # This asserts POSITIVES -- the four "enriched N of M" lines, "9 rack
+      # prefab(s) seeded", "root MIDI-CV seeded". A grep-for-bad-lines gate
+      # would NOT catch it, because seedPrefabsFromBundle() returns silently
+      # when the resource folder is empty (BACKLOG M8).
+      #
+      # MACOS ONLY, and the reason is not squeamishness. The script LAUNCHES the
+      # standalone and reads its stderr; the GitHub linux runner is headless, so
+      # a GUI binary there could fail for a reason that has nothing to do with
+      # rack content -- a gate that cries wolf is worse than no gate. Widening
+      # to linux/windows wants someone to verify headless startup first.
+      #
+      # Deliberately NOT continue-on-error. This file already carries the lesson
+      # (see "File a platform issue on failure" below): a swallowed failure made
+      # that step decorative for weeks while every run reported success.
+      - name: Rack content gate (M6)
+        if: matrix.name == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="build/SynthEditSem/TIDE-Rack.app/Contents/MacOS/TIDE-Rack"
+          if [ ! -x "$bin" ]; then
+            echo "::error::standalone not found at $bin -- the rack-content gate cannot run"
+            exit 1
+          fi
+          python3 scripts/check-rack-populated.py --standalone "$bin"
+
       # Always, including on a failed build -- a cache that is not being hit is
       # the thing worth seeing, and a red run is when you most want to know.
       - name: ccache statistics

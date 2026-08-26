@@ -8,6 +8,44 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 - macos - M6's CI wiring, with the gate proved both ways first
+
+**Prompt:** interactive
+
+**Did:** Jeff: *"take m6"*. M6's code half had merged
+([#424](https://github.com/JeffMcClintock/TideSynth/pull/424)) leaving one thing
+open, which the row named as Jeff's because `.github/workflows/**` is what the
+bot token deliberately cannot push: **the CI step.** Did that half.
+
+**Proved the gate discriminates BEFORE wiring it, on a real build:**
+
+| subject | result |
+|---|---|
+| good standalone | **exit 0** - 4 XMLs enriched, **9 prefabs**, root MIDI-CV |
+| same binary, `Prefabs/` + `ControlsXp.xml` deleted | **exit 1** - 11 assertions failed |
+
+The negative case includes the one that matters most: *"no 'rack prefab(s)
+seeded' line at all. This is the silent case"* - `seedPrefabsFromBundle()`
+returning without a message, which is M8. **A grep-for-bad-lines gate would have
+passed that build.** Asserting positives is the whole design.
+
+**Extracted the step's bash out of the YAML and ran it verbatim.** A33 once
+shipped a jq program that parsed as perfectly valid YAML and was broken shell;
+YAML validity is not shell validity. Both branches exercised - populated -> 0,
+missing binary -> 1 with an `::error::` annotation.
+
+**macOS only, on purpose.** The script LAUNCHES the standalone and reads its
+stderr, and GitHub's linux runner is headless, so a GUI binary there could fail
+for a reason that has nothing to do with rack content. **A gate that cries wolf
+is worse than no gate.** Widening wants someone to verify headless startup first.
+
+**Not `continue-on-error`** - build.yml already carries that lesson in its own
+comments: the `File a platform issue on failure` step was swallowed by exactly
+that and *"had never once executed"* while every run reported success.
+
+**Not verified:** that the step passes on the CI runner itself. It is proved on
+this box against a real build; the runner is the next thing to watch.
+
 ## 2026-08-25 - macos - iOS runs, the bundle rule was wrong in three places, and M9 filed
 
 **Prompt:** interactive
