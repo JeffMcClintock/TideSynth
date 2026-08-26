@@ -8,6 +8,45 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — windows — E27 resolved, and the attribution reverses: the 14KB "threshold" was the test fixture, not the plugin (interactive, Jeff directing)
+
+**Prompt:** do E26 (whose VST3 half had become E27)
+
+**The lead was tested and it was not the bug.** E27 blamed unchecked
+`bytesRead` in the VST3 wrapper's state reads for racks over ~14.1KB restoring
+blank in REAPER. Instrumenting `setState` showed something better: on a padded
+fixture, **setState was never called at all**. REAPER's .RPP VST header line
+embeds the chunk size at byte offset 32; the fixture generator (the scheduled
+run's and mine alike) grew the chunk while copying the original header
+verbatim, and REAPER refused the inconsistent block before the plugin ever
+ran. Every row of the scheduled run's threshold table shares that artifact.
+
+**With the header corrected, everything passes.** The 40,138-byte padded
+document restores (`setState got 53605 bytes`), and its re-export is
+byte-identical to the unpadded control's — 14,128 bytes, the ignorable
+comment dropped. The real acceptance passed end to end: a 33,409-byte VCV
+rack (LFO/Scope/LFO2/SHASR/Pulses, the live session document) loads in
+REAPER, renders in the FX window with its FREQ light lit, REAPER saves it
+itself (44,637-byte chunk under its own header), and the reload builds the
+full document.
+
+**The bytesRead fix stands** (GMPI_Wrappers 6174f90 + 3ea69d0): IBStream
+genuinely permits short reads, both sites now loop, and a truly short stream
+is reported as kResultFalse — "the restore failed" is honest where a silently
+blank rack is not. It just was not THIS failure.
+
+**Instrument that outlives the bug:** `TIDE: building rack from N byte
+document` (SynthEdit.cpp) — E27's original sin was a blank restore printing
+the same nothing as a good one. A real rack is tens of KB; the seeded blank
+is ~13KB; one line now tells them apart in any host.
+
+**For the next fixture author:** patching a .RPP's chunk means patching the
+header line's size field at offset 32, or REAPER drops the block silently.
+And the stale-binary trap claimed another hour here — the VST3 bundle copy
+under Common Files did not refresh on an incremental build; the fresh DLL sat
+in the build tree while REAPER loaded the old one. Verify the LOADED file's
+timestamp before trusting a null result.
+
 ## 2026-08-26 — windows — syncState: the save-time refresh the chunk was always meant to have (interactive, Jeff directing)
 
 **Prompt:** how are knobs state saved/restored? / have a look at the GMPI VST3
