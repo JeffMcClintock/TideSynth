@@ -8,6 +8,106 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — linux — X2: the tree has 1,982 unique warnings and fifteen of them are ours (interactive, Jeff directing)
+
+**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** Jeff asked for a linux-only task. **X1 and X2 are the only `platform: linux`
+rows and both carry a bare `BLOCKED` with no `(id)`.** Checked the blocker rather
+than assumed it, took **X2**, and annotated X1 without touching its status.
+
+### The blocked rows were stale, and the check was two commands
+
+Both sit under **After the carve-out**, and the carve-out is finished — **C7 is
+DONE**. The journal's own lesson covers this: *"a `BLOCKED` row with no stated
+blocker is a claim nobody has retested."*
+
+**X1's Accept is already met.** *"VST3 + CLAP on Linux, GCC 13+"* — this box is
+**GCC 13.3.0** and the full tree has built both artifacts repeatedly today.
+**Annotated, not flipped:** a status change on a row this run did not take is the
+drive-by edit that makes a queue untrustworthy.
+
+### The census, which is the actual finding
+
+`-Wall -Wextra` over the whole tree:
+
+```
+12,255 warning LINES
+ 1,982 UNIQUE warnings
+```
+
+**A 6x inflation from headers being re-included**, so the number this row's
+wording implies is not the number to work from. By origin:
+
+| origin | unique | |
+|---|---:|---|
+| **SynthEditLib** | **1,547** | 78%, GATED |
+| fetched `_deps` | 134 | |
+| gmpi_ui | 132 | |
+| GMPI_Wrappers | 112 | |
+| GMPI | 26 | PR-GATED |
+| third-party | 16 | |
+| **TideSynth (ours)** | **15** | |
+
+**The row reads like a mountain and TIDE's share was fifteen lines.** That is
+the whole value of measuring before planning: "zero-warning build" sounds like a
+sweep and is actually an afternoon, *for the part we own*.
+
+### One of the fifteen was a trap
+
+Five variables in `TiDEPanelGui.cpp` looked plainly unused. They exist only to
+feed `TIDE_LOG(...)`, which is `((void)0)` when `TIDE_PANEL_TRACE_LOG=0` — so
+**deleting them would have compiled fine here and broken the diagnostic build.**
+They are `[[maybe_unused]]` instead.
+
+The nine unused parameters are on overrides, where the name documents the
+interface, so they are `[[maybe_unused]]` rather than unnamed.
+
+**`monotonicMs()` is deleted, not silenced.** Its own comment said it was *"for
+the settle timer below"* — but that timer waits on a chrono duration and never
+polls a clock, so it had **no callers at all**. A comment naming a consumer that
+no longer consumes is exactly what makes dead code look live, so silencing it
+would have preserved the lie.
+
+### Verified both ways, which is the control
+
+| build | result |
+|---|---|
+| `-Wall -Wextra`, logging **off** | rc=0, **0 TIDE-own warnings** (was 15) |
+| `-Wall -Wextra -DTIDE_PANEL_TRACE_LOG=1` | rc=0, **0 TIDE-own warnings** |
+
+The logging build is the one a deletion would have broken, so running it is what
+makes `[[maybe_unused]]` a decision rather than a guess.
+
+**Not verified:** Windows and macOS were not built, and their compilers warn
+about different things — MSVC in particular. A tree-wide zero is **not** claimed
+and is not achievable from here: 78% of what is left is behind the GATED line,
+so it is a decision about `SynthEditLib`, not a task.
+
+**Learned:**
+
+- **Count unique warnings, not warning lines.** 12,255 against 1,982 is a 6x
+  difference and it decides whether a row looks impossible or looks like an
+  afternoon.
+- **Bucket by repo before planning.** 78% of this tree's warnings are in a GATED
+  repo; without that split, "zero-warning build" is an unownable goal rather
+  than one with a doable part.
+- **An unused variable can be a live one in another build configuration.** The
+  five here feed a macro that compiles away; the fix that looks obvious is the
+  one that breaks the build nobody runs by default.
+- **A comment claiming a consumer is evidence, and it can be stale.**
+  `monotonicMs()` said what it was for; that thing had been reimplemented and the
+  function had zero callers. Silencing it would have kept a false statement in
+  the tree.
+- **Two of three "blocked" linux rows were not blocked.** The bare `BLOCKED` with
+  no `(id)` is the tell, and re-checking cost two commands.
+
+**Machine left clean.** Two scratch build trees and four dependency worktrees,
+removed. All six repos on their default branches and clean.
+
+**Branch/PR:** `tide/linux/X2-wall-wextra` — TideSynth only: six source files,
+the X2 and X1 rows, and this entry.
+
 ## 2026-08-27 — macos — E43: the command channel now always answers, and the fix is a heartbeat rather than a list of verbs (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.1** (there is no `claude` CLI on this box's PATH, so this is the desktop app's `CFBundleShortVersionString`, which is the version A13 recorded as the discoverable one on a mac) · as **tide-rack-bot** (both paths)
@@ -414,7 +514,6 @@ file. Same class — but that list is a CMake variable rather than a directory
 scan, so removing one is a deliberate code edit, and the gate asserts the exact
 four by name. Recorded rather than fixed speculatively.
 
-
 ## 2026-08-26 — macos — E39's prime suspect is wrong: the top strip is not a constant (scheduled run)
 
 **Prompt:** "continue".
@@ -534,6 +633,7 @@ boxes"* is not true and no commit here can make it true without breaking macOS.
 E29 is now NEEDS-JEFF with a default in effect (per-box local swap) and a
 decide-by (before the next multi-box REAPER-rendered measurement), so an
 unanswered question cannot quietly become the answer.
+
 ## 2026-08-26 — macos — the restored view lands 240 DIP off, and it is not the re-save (interactive, Jeff reporting)
 
 **Prompt:** *"i re-saved defaultrack."* then, on seeing the result,
@@ -593,6 +693,7 @@ re-save fixed the zoom, he deliberately did not move the modules, and the only
 remaining complaint is the 240 DIP that belongs to E42. **He should not re-save
 the file again until E42 is in** — the framing that looks right while saving
 will keep reopening wrong.
+
 ## 2026-08-26 — macos — third-party modules are parked; the cluster goes with them (interactive, Jeff ruling)
 
 **Prompt:** *"E24: 3rd-party module compatibility is not important at this
@@ -921,84 +1022,6 @@ nothing else.
 gesture — the command channel has no wheel verb, the sibling of E38's missing
 right-click — so the persist leg is verified by code path and document
 round-trip, not by scrolling; and a DAW project, which the Accept also asks for.
-
-## 2026-08-26 — macos — M9: the iOS AUv3 has been instantiated, and it made a sound (scheduled run)
-
-**Prompt:** "i merged stuff, sync repos, continue."
-
-M11 and GMPI#18 merged, which unblocked this. STEP 4 first: nine IN-REVIEW rows
-whose PRs are all merged flipped to DONE, verified with `gh pr view` rather than
-from the merge commits alone — M6, M8, M10, M11, E31, E36, V6, V7, E30. M11
-going DONE is what took M9 off `BLOCKED(M11)`.
-
-**And `main` is green again.** The break I reported at the end of the last run —
-`14a8fd3` deleting `RackModules/MidiCv.synthedit` while `seedRootMidiCv`
-inserted it by name — was fixed by V6 (#452) making the root assembly a default
-DOCUMENT, plus #459 staging it. Re-measured on a correctly-staged bundle rather
-than taken on trust: **7 rack prefab(s) seeded, default rack loaded, 24894 byte
-document, "rack is populated"**.
-
-**M9 ITSELF: THE FIRST TIME THE iOS AU HAS EVER BEEN INSTANTIATED.** It could be
-installed, launched and REGISTERED — all three verified over the past days — and
-never once opened, because there is no AUv3 host in the iOS simulator to open it
-with. The ruling's answer is that the container app hosts its own extension,
-which it has to ship anyway.
-
-**Accept met, and it is a real cross-platform comparison rather than a
-self-fulfilling one:**
-
-```
-macOS AU3  (tests/e9_au_rate_probe.mm)   440.0093 Hz     <- the control, run FIRST
-iOS  AU3   (container app hosts its own) 440.2062 Hz     <- 0.81 cents apart
-```
-
-Same preset both times — `tests/hosts/v1-rack.rpp` through
-`scripts/decode_rpp.py --preset-out`, which is also E2a's and M7's 440 Hz. The
-iOS render: out-of-process, 18893-byte GMPIPRESET through `fullState`, 2.00 s at
-48 kHz, **peak 0.4846 rms 0.1412**.
-
-**Establishing the macOS control first was the single best decision here.** Had
-I gone straight to iOS and got a number, I would not have known whether a
-discrepancy was the platform, the preset, my analyser, or my host. With the
-control in hand, one number on iOS settles it.
-
-**THE RULING'S ONE UNVERIFIED CLAUSE IS NOW MEASURED, AND THE QUESTION IS MOOT.**
-`docs/decisions.md` asked for "the full entitlement preconditions for in-process
-loading on iOS" to be checked before implementing. They are not merely unmet:
-
-```
-error: 'kAudioComponentInstantiation_LoadInProcess' is unavailable:
-       not available on iOS
-```
-
-The option does not exist — it will not compile, let alone need an entitlement.
-iOS loads every AUv3 out of process, which is the ruling's own default and its
-stated reason, so nothing is lost but an escape hatch that was never available.
-`--gmpi-in-process` is still ACCEPTED and REPORTED rather than silently ignored.
-The decision entry now carries the measured answer.
-
-**A trap that cost me three minutes and will cost the next person more.**
-`simctl launch --console` attaches to the app's stdio and does not return until
-the app EXITS. This is a GUI app; it never does. The probe hung for its full
-180-second timeout on a render that had **already succeeded in four seconds and
-was sitting on disk the whole time** — the most misleading failure available,
-because the artifact was there and the tool said nothing. Launch detached, poll
-for the artifact, then read NSLog back out of the unified log with
-`log show --start`. That is now what the probe does, with the reason in a
-comment beside it.
-
-**One design point worth keeping:** the host finds its OWN appex by reading
-`PlugIns/*.appex`'s `Info.plist`, not by taking the first `aumu` in the
-component registry. The registry holds every AUv3 on the device, so the lazy
-version would silently host somebody else's plugin the moment a second one is
-installed — and the measurement would look perfectly fine.
-
-**Split:** `tests/m9_ios_au_host_probe.py` and the bookkeeping are TIDE's; the
-host itself (`GMPI_Wrappers`) and its two link flags (`GMPI`) are PR-GATED and
-are PROPOSED, not merged.
-
-**Still not verified:** a real device — this is the simulator only — and any
-third-party host, of which iOS has none to try.
 
 ## Rotation — do this as part of STEP 4, every run
 

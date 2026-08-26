@@ -145,12 +145,12 @@ static void tideDiag(const char* format, ...)
 #endif
 }
 
-void doDialogConnectUg(class CUG* cug)
+void doDialogConnectUg([[maybe_unused]] class CUG* cug)
 {
 	tideRemovedDialog("Connect...");
 }
 
-void doDialogPatchManager(CUG_with_patches* ug)
+void doDialogPatchManager([[maybe_unused]] CUG_with_patches* ug)
 {
 	tideRemovedDialog("Patch Manager");
 }

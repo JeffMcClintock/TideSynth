@@ -548,7 +548,7 @@ class FactorySpecial : public gmpi::api::IPluginFactory
 public:
 	// IMpPluginFactory methods
 	ReturnCode createInstance(
-		const char* uniqueId,
+		[[maybe_unused]] const char* uniqueId,
 		gmpi::api::PluginSubtype subType,
 		void** returnInterface) override
 	{
