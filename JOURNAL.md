@@ -8,6 +8,73 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — E29: the mac box is fine, and the obvious fix would break it (interactive, Jeff directing)
+
+**Prompt:** "continue", then — on seeing a headless render stall —
+*"blocked on a plugin-not-available dialog"* and *"drive it interactvly"*.
+
+He was right on both counts, and driving it interactively is what turned a
+plausible inference into a screenshot.
+
+**THE QUESTION THE ROW LEFT OPEN IS ANSWERED: the mac box is NOT affected.**
+REAPER **7.45** loads the committed raw-TUID token and renders `v1-rack.rpp` at
+**peak -6.3 / rms -17.0 dBFS** — M7's and E2a's figure exactly. Negative control
+first, as the harness itself instructs: `v1-rack-uncabled.rpp` -> `-inf`,
+SILENCE. So the harness discriminates and the -6.3 means something.
+
+**THE FINDING THAT CHANGES THE PLAN is the other direction.** Substituting the
+Windows box's 7.78 token into the same fixture makes REAPER 7.45 refuse it:
+
+```
+Project Load Warning
+The following effects were in the project file and are not available.
+    Track 1: VST3i: TIDE Rack (TIDE Synth)
+```
+
+and the FX slot reads *"could not be loaded"*. **The two tokens are mutually
+exclusive across these versions**, so this row's first repair option — *"a
+re-save from a current REAPER"* — would fix Windows and break macOS. Ruled out
+unless the fleet first agrees a single REAPER version. Worth knowing before
+anyone tries: this mac is on 7.45 and REAPER is offering **7.79**, so upgrading
+it casually would flip it to the Windows behaviour and break every committed
+fixture here.
+
+**IT FAILS AS A HANG, NOT AN ERROR — the part that would have bitten CI.** The
+warning is modal, so `-renderproject` blocks on it forever. My first attempt sat
+**over seven minutes** producing no render and no error, and I killed it by
+hand. `render-and-measure.py` had no timeout at all. It does now: 300 s, kills
+REAPER, and writes into the log exactly why and where to read about it. I fired
+that path deliberately with a 25 s cap to prove it works (`rc=-9999`, REAPER
+gone, message present) rather than trusting that I had written it correctly, and
+re-ran the control and `v1-rack.rpp` to show nothing else moved.
+
+**A METHOD NOTE WORTH KEEPING.** My second headless attempt reported SILENCE
+rather than hanging, which nearly sent me down the wrong path — "the plugin
+loads but makes no sound" is a completely different bug from "the plugin does
+not load". Driving REAPER by hand settled it in one screenshot. **A headless
+harness can only report what it can see, and a modal dialog is invisible to it;
+the two failures it collapses into "no audio" are not the same failure.**
+
+**Delivered:** the row's SECOND option verbatim — a note in
+`tests/hosts/README.md` naming both tokens, which REAPER writes which, the
+one-line `sed` for a LOCAL copy, how to discover what your own REAPER writes,
+and the hang.
+
+**CLOSED BY JEFF THE SAME HOUR — WONTFIX.** *"this product is not released. We can break DAW
+sessions, they only exist only for our tests anyhow"*, then *"we simply don't care about broken
+test sessions. don't waste time on it."* The escalation is WITHDRAWN rather than answered, and
+that is the right call: the fixtures are instruments, not deliverables, and a one-line `sed`
+unblocks any box that needs one. **The lesson for me is about proportion** — I had a NEEDS-JEFF
+row with a default and a decide-by drafted for a question whose real answer was "this does not
+matter". The measurement was worth ten minutes; the escalation machinery around it was not.
+Two things survive and are worth keeping on their own merits: the README recipe, and the
+harness timeout, which bounds a hang on ANY modal dialog rather than just this one.
+
+**The Accept is half met and the row says so.** *"loads its plugin on all three
+boxes"* is not true and no commit here can make it true without breaking macOS.
+E29 is now NEEDS-JEFF with a default in effect (per-box local swap) and a
+decide-by (before the next multi-box REAPER-rendered measurement), so an
+unanswered question cannot quietly become the answer.
 ## 2026-08-26 — macos — the restored view lands 240 DIP off, and it is not the re-save (interactive, Jeff reporting)
 
 **Prompt:** *"i re-saved defaultrack."* then, on seeing the result,
