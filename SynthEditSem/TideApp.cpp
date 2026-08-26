@@ -284,14 +284,53 @@ SE2::TopView* TideApp::OpenViewForContainer(gmpi::api::IUnknown* host, CContaine
 
 	viewOb->setDocument(presenter);
 
-	// BACKLOG U2c — TopView::centerPos defaults to {0,0}, which parks the
-	// viewport on the canvas's top-left corner and sends every
-	// insert-at-centre (AddModule(id, getCenter())) to that same corner:
-	// the "§6 offset / dead strip" on both platforms, and Windows'
-	// "every module lands on the same point". Centre on the canvas midpoint
-	// until U1c defines what "home" means for a rack. After setDocument so
-	// the first arrange has run and calcViewTransform sees real bounds.
-	viewOb->setCenter({ kRackViewDips / 2.0f, kRackViewDips / 2.0f });
+	// BACKLOG E33 — OPEN WHERE THE DOCUMENT SAYS, not on a fixed point.
+	//
+	// This line used to be `setCenter({ kRackViewDips / 2, kRackViewDips / 2 })`
+	// unconditionally, so whatever the document recorded was overwritten before
+	// the user saw it. The persist half already worked and always had:
+	// ViewBase's pan and zoom handlers call Presenter()->SetViewCenter /
+	// SetPanZoom, MfcDocPresenter writes them into the container, and they
+	// serialise as PanelLocationCenter / PanelLocationZoom. Only the RESTORE
+	// was missing -- a discard, not an absent feature.
+	//
+	// THE FIXED POINT WAS ALSO IN THE WRONG UNITS, which is why this is not a
+	// like-for-like swap. kRackViewDips (1008) is the rack view's SIZE in DIPs;
+	// half of it, 504, was being used as a DOCUMENT coordinate. The canvas is
+	// 7968 across and CContainer's own default centre is (3984, 3984), so the
+	// old line parked the viewport near the canvas's top-left -- 3400 DIPs from
+	// the rack, whose origin is the container's panel rect at (3732, 3732).
+	//
+	// The cost was live and measured on 2026-08-26: V6's DefaultRack.synthedit
+	// stores its content at (36..1377, 276..660) AND stores the matching
+	// PanelLocationCenter (1349, 284) -- and TIDE threw that away, so a fresh
+	// standalone opened on empty canvas and drew bare rails. The rack was
+	// there the whole time. That is the same trap E33 records costing a windows
+	// run most of a session, and the reason its rule exists: a claim of absence
+	// needs a trace or a document dump, never a screenshot.
+	//
+	// A FRESH DOCUMENT IS UNAFFECTED AND IS ACTUALLY BETTER OFF: CContainer's
+	// constructor initialises PanelLocationCenter to (3984, 3984), the canvas
+	// midpoint, which is 252 DIPs from the rack origin instead of 3400 -- so a
+	// blank rack now opens LOOKING AT the rack rather than beside it.
+	//
+	// U1c's insert-at-centre reason for the old line has expired twice over.
+	// The comment deferred to "until U1c defines what 'home' means for a rack";
+	// U1c closed 2026-08-17 without defining it. And E36 has since replaced
+	// AddModule(id, getCenter()) with a next-free-slot search, so an insert no
+	// longer depends on where the viewport happens to be at all.
+	//
+	// After setDocument, as before, so the first arrange has run and
+	// calcViewTransform sees real bounds.
+	// A zero or negative zoom would collapse calcViewTransform. A document can
+	// legitimately carry one -- CContainer synthesises zoom from the legacy
+	// scroll fields and leaves it 0 when they are absent -- so refuse it here
+	// rather than divide by it. MEASURED on the shipped default rack, which
+	// carries PanelLocationZoom="0.38146973": the guard does not fire, and the
+	// view opens at the 38% its author saved it at.
+	const auto storedZoom = targetContainer->GetZoom(view_flag);
+	viewOb->setPanZoom(targetContainer->GetViewCenter(view_flag),
+	                   storedZoom > 0.0f ? storedZoom : 1.0f);
 
 	// U1b — keep the breadcrumb trail current for every open, including
 	// navigation re-opens.
