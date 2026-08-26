@@ -60,6 +60,16 @@ the two failures it collapses into "no audio" are not the same failure.**
 one-line `sed` for a LOCAL copy, how to discover what your own REAPER writes,
 and the hang.
 
+**CLOSED BY JEFF THE SAME HOUR — WONTFIX.** *"this product is not released. We can break DAW
+sessions, they only exist only for our tests anyhow"*, then *"we simply don't care about broken
+test sessions. don't waste time on it."* The escalation is WITHDRAWN rather than answered, and
+that is the right call: the fixtures are instruments, not deliverables, and a one-line `sed`
+unblocks any box that needs one. **The lesson for me is about proportion** — I had a NEEDS-JEFF
+row with a default and a decide-by drafted for a question whose real answer was "this does not
+matter". The measurement was worth ten minutes; the escalation machinery around it was not.
+Two things survive and are worth keeping on their own merits: the README recipe, and the
+harness timeout, which bounds a hang on ANY modal dialog rather than just this one.
+
 **The Accept is half met and the row says so.** *"loads its plugin on all three
 boxes"* is not true and no commit here can make it true without breaking macOS.
 E29 is now NEEDS-JEFF with a default in effect (per-box local swap) and a
