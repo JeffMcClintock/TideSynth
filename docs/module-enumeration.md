@@ -582,3 +582,113 @@ which is a real refactor of a 2000-line file, not a `#ifdef` around a function.
 Sequencing: (b) and (c) touch exactly the files C3 and C4 move. Doing them
 before the carve-out means doing them twice. Recommend they wait on C0 and ride
 along with C4 rather than being attempted standalone.
+
+# Addendum — macOS run, 2026-08-26 (S1b re-measure)
+
+Measured against `TIDE-Rack.vst3` from a Release build of `main` at `1b99709`,
+and against `SynthEditLib` at the tree checked out beside it. B1–B5 were
+2026-08-08; the point of this pass is that the row had not been re-run in
+eighteen days and two of its conclusions have moved.
+
+## C1. The Accept still fails, and the symbol list needs one correction
+
+`nm -gU | c++filt` on the shipping VST3 — every symbol B1 listed is still
+present, at the same job:
+
+```
+T ApplicationBase::LoadOrScanModuleData()
+T SemCacheName()
+T ScanFolder(const std::filesystem::path&, const std::string&, const std::wstring&, bool)
+T ClearModuleDataCache()
+T LoadModuleData()
+T gmpi_dynamic_linking::MP_DllLoad(long*, const wchar_t*)
+T Module_Info3::LoadDllOnDemand()
+```
+
+`nm -u` imports `_dlopen`, `_dlsym`, `_dlclose` — **and `_dladdr`, which B1 did
+not list and which must NOT be removed**: `BundleInfo.cpp:69` uses it to find
+the plugin's own bundle (`dladdr((const void*)CreatePluginBundleRef, ...)`), and
+`xp_dynamic_linking.cpp:90` uses it again. Whoever takes this row will otherwise
+chase a fourth `dl*` symbol that has to stay. State the Accept as
+dlopen/dlsym/dlclose.
+
+## C2. THE SCAN IS NOT DEAD CODE IN TIDE — it is live, and `Save as Prefab` is what reaches it
+
+B1 and B5 read as "the code is linked but un-called; the job is to stop
+compiling it". That is no longer true, and it may never have been:
+
+```
+CContainer.cpp:1967   app->RefreshModuleData(false, false, true);
+Application.cpp:547     ScanFolder(getDefaultPath(L"syntheditprefab"),
+                                   ".synthedit,.syntheditprefab,.seprefab", L"");
+```
+
+`CContainer::OnEditToPrefab` (`CContainer.cpp:1920`) writes the prefab from its
+file-dialog completion and then
+rescans the prefab folder so the new one appears in the browser. `ScanFolder` is
+therefore reachable from TIDE's own editor, non-virtually and without a cache in
+the way. `ApplicationBase::LoadOrScanModuleData()` — the entry point S1a removed
+the call to — really has no caller in TIDE (`grep` finds only comments in
+`TideApp.cpp:741` and `TideAppStubs.cpp:5`), but it is not the only door.
+
+## C3. So the split is not "the scan half" — it is the BINARY LOADER vs the PREFAB SCANNER
+
+Reading `ScanFolder` (`ModuleFactory_Editor.cpp:1031`) against the extension
+list the prefab call passes it: a file whose extension is
+`.synthedit/.syntheditprefab/.seprefab` is pushed onto
+`ModuleFactory()->PrefabFileNames` and nothing else happens. Any other file goes
+to `ScanStandaloneSem`, which is a stub off Windows. A *directory* reaches
+`ScanBundle` only when its own extension is in the list — so on the prefab call,
+only a folder literally named `something.synthedit`.
+
+**The prefab scan never loads a binary.** Everything that does is reached from
+the `.sem,.gmpi` calls (`refresh_sems` / `refresh_vsts`) or from the SEM cache,
+which exists to avoid re-scanning binaries:
+
+| goes | stays |
+|---|---|
+| `ScanBundle`, `ScanStandaloneSem`, `ScanPluginBinary`, `ScanFile` | `ScanFolder`'s walk and its prefab branch |
+| `Module_Info3::LoadDllOnDemand`, `gmpi_dynamic_linking::MP_DllLoad`, `UnloadDll`, `ReloadDll` | `CModuleFactory::RegisterExternalPluginsXmlOnce` (`UgDatabase.cpp:532`) — a DIFFERENT function, called live from `Controller.cpp:278` |
+| `SemCacheName`, `LoadModuleData`, `StoreModuleData`, `ClearModuleDataCache` | `ApplicationBase::RefreshModuleData`, with its `refresh_sems`/`refresh_vsts` arms compiled out |
+| `RegisterExternalPluginsXml`, `RegisterExternalPluginsXml2` (EditorLib), `SetAsidePluginData`, `SetAsideAllPluginData` | `ApplicationBase::LoadOrScanModuleData` may go too — nothing in TIDE calls it |
+
+That is a smaller and much better-defined cut than B5's *"make
+`ModuleFactory_Editor.cpp` compile without its scan half"*, and it does not
+break `Save as Prefab`. **Jeff's 2026-08-26 ruling supports the cut** — *"3rd
+party module compatibility is not important at this stage. We ship with only our
+own modules"* ([decisions.md](decisions.md), and why E20–E23/E41 are parked):
+the half being removed is precisely the third-party half.
+
+## C4. The linker cannot do it for you, and here is the reason so nobody tries
+
+B1 notes there is no `-dead_strip`. There is also **no symbol visibility setting
+anywhere** — neither `gmpi_plugin.cmake` nor TIDE's own `CMakeLists.txt` sets
+`-fvisibility=hidden`, `CXX_VISIBILITY_PRESET`, or an exported-symbols list. So
+the Release VST3 exports **6,781 global symbols**, and every one of them is a
+dead-strip ROOT. `-dead_strip` on its own would remove nothing.
+
+`-fvisibility=hidden` plus `-dead_strip` is the pair that would actually strip —
+but **it still cannot satisfy this row**, and that is a call-graph fact rather
+than a build I ran: `ScanFolder` is reachable from `CContainer.cpp:1967` (C2),
+`ScanFolder` calls `ScanBundle` unconditionally on one branch, and `ScanBundle`
+reaches `LoadDllOnDemand` and `dlopen`. A reachable function is not stripped.
+The flags are worth having for other reasons; they are not this row.
+
+## C5. It is not a size story — say so before someone sells it as one
+
+Summing `__text` between consecutive symbols in the shipped binary, the whole
+scan/loader/cache family is **20,736 B across 17 symbols** — that is the
+matched set minus `SkinMgr::ScanFiles` (unrelated) and
+`RegisterExternalPluginsXmlOnce` (stays, C3) (largest:
+`RefreshModuleData` 3,832 B, `ScanBundle` 2,824 B, `ScanFolder` 2,544 B,
+`ScanPluginBinary` 1,892 B, `LoadModuleData` 1,352 B) against a **5,490,472 B**
+binary — **0.4%**, and the transitive tail is shared with code that stays. B4's
+before/after byte counts for stage (a) invite the size framing; the case for
+(b) and (c) is §7.1 and what an AUv3 reviewer sees, not bytes.
+
+## C6. Sequencing: B5's advice has expired
+
+B5 says *"Recommend they wait on C0 and ride along with C4"*. **C0 resolved
+2026-08-08 and C4 completed 2026-08-13** — S1b did not ride along, and thirteen
+days later it is still open. There is nothing left to wait for; the work has to
+be done standalone after all, and C3 is the cut to make.
