@@ -658,7 +658,23 @@ public:
 			const auto moduleId = JmUnicodeConversions::Utf8ToWstring(
 				static_cast<const char*>(pHint));
 			if (auto* p = view->Presenter())
-				p->AddModule(moduleId.c_str(), view->getCenter());
+			{
+				// BACKLOG E31 -- land it ON the rack grid, not at the raw
+				// centre. E5 ruled the grid and built the quantiser; it was
+				// simply never called on an INSERT, only on drag-move
+				// (ViewBase::onPointerMove) and resize (ResizeAdorner). So a
+				// dragged module snapped and a double-clicked one did not,
+				// which is the inconsistency a user actually notices.
+				//
+				// snapToGrid is a no-op outside rack mode -- it falls back to
+				// the user's square snap setting -- so this is not a rack-only
+				// branch and needs no guard.
+				//
+				// This is the ALLOWED half of E31. The drag-drop insert at
+				// ViewBase.cpp's AddModule call is the same one-line fix in
+				// SynthEditLib, which is GATED; the row carries it.
+				p->AddModule(moduleId.c_str(), view->snapToGrid(view->getCenter()));
+			}
 		}
 		else if (lHint == OM_SHOW_PROPERTIES)
 		{
