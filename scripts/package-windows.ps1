@@ -95,7 +95,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$PRODUCT = 'TIDE Rack'              # display form -- docs/distribution.md
+$PRODUCT = 'TiDE Rack'              # display form -- docs/distribution.md
 $ASSET_EXE = 'TIDE-Rack-Windows.exe'
 $ASSET_ZIP = 'TIDE-Rack-Windows.zip'
 $BUNDLE = 'TIDE-Rack.vst3'
@@ -219,7 +219,7 @@ $signedPayload = Invoke-TrustedSigning -Files @((Join-Path $contents "$ARCH_DIR\
 # --- the readme that ships in both assets ----------------------------------
 $readme = Join-Path $OutDir 'README.txt'
 @"
-TIDE Rack $Version
+TiDE Rack $Version
 ==================
 
 An open-source, free, Eurorack-style modular synthesizer plug-in.

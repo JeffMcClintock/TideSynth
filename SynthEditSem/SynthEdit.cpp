@@ -537,8 +537,8 @@ public:
 		// SynthEditSem/SynthEdit.xml looks like the source of truth and is NOT:
 		// it is only referenced by SynthEdit.rc, whose loader is behind #if 0.
 		//
-		//   name   -- the PRODUCT, "TIDE Rack" (PLAN's naming ruling).
-		//   vendor -- the ORGANISATION, "TIDE Synth". VST3 draws exactly this
+		//   name   -- the PRODUCT, "TiDE Rack" (PLAN's naming ruling).
+		//   vendor -- the ORGANISATION, "TiDE Synth". VST3 draws exactly this
 		//             vendor/product distinction, so the two fields get two
 		//             different answers rather than one name twice. Omitting
 		//             `vendor` defaults it to "GMPI" (xml_spec_reader.cpp:532-535),
@@ -573,7 +573,7 @@ public:
 		const static std::string xmlstr(R"XML(
 <?xml version="1.0" encoding="UTF-8"?>
 <PluginList>
-    <Plugin id="TIDE Synth: TIDE Rack" name="TIDE Rack" vendor="TIDE Synth" category="Experimental" version="0.1.1">
+    <Plugin id="TIDE Synth: TIDE Rack" name="TiDE Rack" vendor="TiDE Synth" category="Experimental" version="0.1.1">
 		<Parameters>
 			<Parameter id="0" name="controllerPtr" ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 			<Parameter id="1" name="chunk"         ignorePatchChange="true" datatype="blob"/>

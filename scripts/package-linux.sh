@@ -44,7 +44,7 @@ cp -a "$SRC/TIDE-Rack.vst3" "$ROOT/"
 #     What DOES work is the same header's search rule: each directory is
 #     "recursively searched" for files ending in .clap. So a plugin may live in
 #     its own subdirectory and still be found -- REAPER finds
-#     ~/.clap/TIDE-Rack/TIDE-Rack.clap and lists it as "TIDE Rack (TIDE Synth)".
+#     ~/.clap/TIDE-Rack/TIDE-Rack.clap and lists it as "TiDE Rack (TiDE Synth)".
 #
 #     That subdirectory is what buys us encapsulation for free.
 #     BundleInfo::getBundleContentsFolder() walks the module path for a
@@ -114,7 +114,7 @@ INSTALL
 chmod +x "$ROOT/install.sh"
 
 cat > "$ROOT/README.txt" <<'README'
-TIDE Rack - Linux
+TiDE Rack - Linux
 =================
 
   ./install.sh
@@ -136,7 +136,7 @@ CLAP has no bundle format on Linux, so a plug-in cannot hide its data inside
 the .clap file the way a macOS bundle does. But hosts search their CLAP folders
 RECURSIVELY, so a plug-in may sit in a subfolder of its own and still be found.
 
-TIDE Rack uses that: it ships as ~/.clap/TIDE-Rack/ containing the plug-in and
+TiDE Rack uses that: it ships as ~/.clap/TIDE-Rack/ containing the plug-in and
 its Resources. Everything it needs is inside one folder that belongs to it.
 
 Earlier versions put the plug-in loose in ~/.clap and its data in a SHARED

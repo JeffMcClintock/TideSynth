@@ -26,7 +26,7 @@ Three forms. Which one you use depends on who reads it:
 
 | | Form | Where |
 |---|---|---|
-| **Display** | `TIDE Rack` (space) | the plug-in name a DAW shows, installer titles, the website — anything a person reads |
+| **Display** | `TiDE Rack` (space) | the plug-in name a DAW shows, installer titles, the website — anything a person reads |
 | **Shipped files** | `TIDE-Rack` (dash) | binaries, bundles, release assets — anything with a path or a URL |
 | **CMake targets** | `TIDE_Rack` (underscore) | internal only, never shipped — see below |
 

@@ -425,7 +425,7 @@ gmpi_plugin(
 if(APPLE AND TARGET ${PROJECT_NAME}_AU3App)
     set_target_properties(${PROJECT_NAME}_AU3App PROPERTIES
         OUTPUT_NAME "TIDE-Rack-AUv3"
-        MACOSX_BUNDLE_BUNDLE_NAME "TIDE Rack (AUv3)"
+        MACOSX_BUNDLE_BUNDLE_NAME "TiDE Rack (AUv3)"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tidesynth.tiderack.au3app")
     message(STATUS "S40: AUv3 containing app named TIDE-Rack-AUv3.app")
 endif()
@@ -957,7 +957,7 @@ foreach(kind IN LISTS FORMATS_LIST)
         PDB_NAME "${SUB_PROJECT_NAME}"
         COMPILE_PDB_NAME "${SUB_PROJECT_NAME}"
         ARCHIVE_OUTPUT_NAME "${SUB_PROJECT_NAME}"
-        MACOSX_BUNDLE_BUNDLE_NAME "TIDE Rack"
+        MACOSX_BUNDLE_BUNDLE_NAME "TiDE Rack"
         MACOSX_BUNDLE_GUI_IDENTIFIER "${_tide_bundle_id}")
 
 	# U3 — EditorScreenshot is gone from this list along with the breadcrumb
