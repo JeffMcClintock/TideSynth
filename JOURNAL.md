@@ -8,6 +8,72 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — Recovered two days of uncommitted work out of a working tree, and filed the hole it left (interactive session, Jeff directing)
+
+**Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
+
+**Did:** `SynthEditLib` had been parked dirty for two days and every scheduled
+run is told to leave it alone *for that reason*. Recovered the work, landed it
+as [SynthEditLib#59](https://github.com/JeffMcClintock/SynthEditLib/pull/59),
+and filed **E47** for the half it does not fix. Also merged
+[#58](https://github.com/JeffMcClintock/SynthEditLib/pull/58) and
+[TideSynth#483](https://github.com/JeffMcClintock/TideSynth/pull/483).
+
+### The failure mode worth naming: a branch that promises a fix and holds nothing
+
+`fix-patchmanager-dangling-properties-observer` had **zero commits** — 10 behind
+`origin/main`, 0 ahead. All 33 lines of the fix were an **uncommitted edit in one
+file**, untouched since 2026-08-25. No stash, no commit, no PR, not on main.
+
+The dirt was load-bearing in the worst way: it was the only copy of the work
+**and** the thing blocking the repo from syncing, and the standing instruction to
+leave a dirty repo alone guaranteed nobody would look. **A dirty tree that
+survives more than a day is not a WIP, it is an outage** — check whether the
+branch actually holds anything before respecting it.
+
+**The recovery, and the order matters:** worktree off current `origin/main`, copy
+the file in, commit, push, and only THEN discard the working-tree edit — after
+`git rev-parse origin/<branch>:<file>` proved the blob was on the remote. Base
+blob was identical at both the stale HEAD and current main, so no rebase and no
+conflict; the committed blob was byte-identical to the working file, so nothing
+was reformatted in transit. This repo is CRLF — a text-mode round trip would have
+rewritten every line and buried 33 real lines in a 4,000-line diff.
+
+### E47, and why chasing a comment beat trusting it
+
+#59's comment says the LEAF-module case is unfixed. Checking it, **two obvious
+paths are already covered**: `CDocOb::OnDelete()` and
+`CSynthEditDocBase::DeleteContents()` both open with
+`NotifyFast(OM_SHOW_PROPERTIES, nullptr)`, which clears `currentModule`. So the
+single-module delete and every document reload are fine.
+
+What is left is one conditional: `~CContainer` runs `DeleteAll()` — which frees
+children with a bare `delete d` and never calls `OnDelete()` — and only then
+`if (m_patch_manager) delete m_patch_manager`. The pane's own `OM_DELETE` handler
+clears `layoutContainer` and **not** `currentModule`. **A container with no patch
+manager never reaches the line that closes the window.** Read off the call graph,
+not observed faulting, and E47 says so.
+
+### Worktrees are a place work goes to die quietly
+
+Four were registered against `SynthEditLib`, two from a session days old, living
+in `/private/tmp` — which macOS sweeps. One had an **uncommitted** `BundleInfo.cpp`
+that looked like lost work and was byte-identical to `origin/main`: already-landed
+#56. **Verify by blob before removing, and by blob before panicking.**
+`git diff --name-only origin/main..HEAD` is the wrong instrument — it lists
+everything main has moved past, so a consumed branch looks full of unique work.
+Compare `git rev-parse <commit>:<file>` against `origin/main:<file>` instead.
+
+### Merging into a moving main
+
+`TideSynth#483` was CLEAN, then conflicted before the merge landed — X2 (#484)
+had gone in touching the same `BACKLOG.md` and `JOURNAL.md`. Rebased, kept both
+journal entries with the base one byte-for-byte intact, confirmed E46 had not
+collided, re-ran every lint **against the new base**. `SynthEditLib` has no CI at
+all, so its only real check is TIDE compiling against it: built `TIDE_Rack` with
+all three changes applied and confirmed it **links**, which `-fsyntax-only` cannot
+tell you. `main` green on all three platforms afterwards.
+
 ## 2026-08-27 — macos — E25: the crash report's faulting address disproves E25's own diagnosis, and moves the fix to a different file (interactive session, Jeff directing)
 
 **Prompt:** standing backlog-loop instruction in the session, not `docs/weekly-run-prompt.md` · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
