@@ -879,7 +879,19 @@ if(_tide_shared_targets)
     # on a clean tree.
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_tide_shared_resources}"
     ${_tide_stage_cmds}
-    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+    # BACKLOG E40 -- rm BEFORE cp, because copy_directory_if_different MERGES
+    # and never deletes. A prefab removed from RackModules/ otherwise stays in
+    # every existing build tree forever, and the developer who deleted it
+    # cannot see the failure: their incremental build keeps serving the file
+    # while CI stages clean and fails. That happened TWICE on 2026-08-26 --
+    # 14a8fd3 (MidiCv) and 322df0f (Midi, Output) -- and both times the local
+    # gate reported the OLD count while the repo held fewer.
+    #
+    # The cost is re-copying a handful of small files each build, which is
+    # nothing against a gate that silently measures history. The iOS arm above
+    # has done this since M11; this is the same fix everywhere else.
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${_tide_shared_resources}/Prefabs"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
       "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
       "${_tide_shared_resources}/Prefabs"
     # BACKLOG V6 -- the default document, and it is a SIBLING of Prefabs/ rather
@@ -1015,26 +1027,50 @@ foreach(_fmt ${FORMATS_LIST})
       VERBATIM
     )
   elseif(NOT _tide_resources STREQUAL "")
+    # BACKLOG E40 -- AN ALWAYS-RUN TARGET, NOT A POST_BUILD, AND THAT IS THE
+    # WHOLE FIX. A POST_BUILD only fires when its target RELINKS. Editing
+    # RackModules/ touches no source, so an incremental build re-stages nothing
+    # and the bundle keeps whatever it had -- including prefabs deleted from the
+    # repo. Twice on 2026-08-26 (14a8fd3, 322df0f) a prefab was removed, every
+    # developer build went on serving it, and CI -- which stages clean -- was
+    # the first thing to notice. Measured directly while fixing this: with only
+    # `rm` added and the staging still a POST_BUILD, deleting a prefab and
+    # rebuilding left the count UNCHANGED at 5, because the step never ran.
+    #
+    # rm BEFORE copy for the same reason in the other direction:
+    # copy_directory_if_different MERGES and never deletes, so even when the
+    # step DOES run it cannot remove a file. Both halves are needed; neither
+    # alone satisfies this row's Accept.
+    #
+    # BEFORE the format target rather than after, mirroring
+    # ${PROJECT_NAME}_stage_resources above: it makes its own directory, so it
+    # does not need the bundle to exist yet, and running early keeps it clear of
+    # the POST_BUILD ordering that copy_plugin() and the AU3 assemble step
+    # already contend over. The iOS arm above solved the same problem its own
+    # way (M11) because it additionally needs a shell for
+    # ${EFFECTIVE_PLATFORM_NAME}.
+    set(_tide_target_stage_cmds "")
     foreach(_tide_xml ${_tide_xmls})
       get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
-      add_custom_command(TARGET ${_tide_target} POST_BUILD
+      list(APPEND _tide_target_stage_cmds
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "${SYNTHEDITLIB_DIR}/modules/${_tide_xml}"
-          "${_tide_resources}/${_tide_xml_leaf}"
-        VERBATIM
-      )
+          "${_tide_resources}/${_tide_xml_leaf}")
     endforeach()
 
-    # E2a — the rack prefabs. copy_directory_if_different so adding a rack module
-    # to RackModules/ needs no CMake edit; TideApp::seedPrefabsFromBundle
+    # E2a — the rack prefabs. A whole-directory copy so adding a rack module to
+    # RackModules/ needs no CMake edit; TideApp::seedPrefabsFromBundle
     # enumerates whatever lands here.
     #
     # This comment used to say TideModules/ while the command copied
     # TideModules/prefabs -- so a rack module dropped where the comment said went
     # nowhere, silently. Jeff hit exactly that with AR/Output/Sine. One flat
     # folder now, and the comment and the path agree.
-    add_custom_command(TARGET ${_tide_target} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+    add_custom_target(${_tide_target}_stage_resources ALL
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${_tide_resources}"
+      ${_tide_target_stage_cmds}
+      COMMAND ${CMAKE_COMMAND} -E rm -rf "${_tide_resources}/Prefabs"
+      COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
         "${_tide_resources}/Prefabs"
       # BACKLOG V6 -- the default document. A SIBLING of Prefabs/, never a
@@ -1046,6 +1082,7 @@ foreach(_fmt ${FORMATS_LIST})
       COMMENT "Staging rack prefabs (${_tide_target})"
       VERBATIM
     )
+    add_dependencies(${_tide_target} ${_tide_target}_stage_resources)
   endif()
 
   # ...and again into the INSTALLED bundle, because of POST_BUILD ordering.
