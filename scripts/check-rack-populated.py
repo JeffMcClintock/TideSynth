@@ -88,7 +88,14 @@ EXPECTED_XMLS = ("ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilte
 # MidiCv.synthedit redundant, and Output_jef.synthedit went with it as the
 # other duplicate. Keeping MidiCv browsable would have been actively unsafe --
 # a second root `SE MIDI to CV 2` breaks voice allocation.
-EXPECTED_PREFABS = 7
+#
+# 5 since `322df0f update prefabs` the same evening, which removed Midi and
+# Output for the same reason -- the default rack supplies both. This constant
+# is not a policy, it is a MIRROR of RackModules/, and it went stale within
+# hours for the second time in one day. If you delete a prefab, this number
+# moves with it; the gate's own failure text says so, and it is the only thing
+# that catches a prefab that silently failed to stage.
+EXPECTED_PREFABS = 5
 
 # The AudioComponent this project registers -- SynthEditSem/CMakeLists.txt:162.
 AU_TYPE, AU_SUBTYPE, AU_MANUFACTURER = "aumu", "Drck", "Dsyh"

@@ -8,6 +8,55 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — `main` is red twice from one prefab update; one half fixed, one is Jeff's (scheduled run)
+
+**Prompt:** "i merged stuff, sync repos, continue."
+
+Found while linting an unrelated branch: **`check-prefab-layout` failed on a
+tree whose only changes were BACKLOG.md and JOURNAL.md.** That is the tell — a
+lint that a docs-only diff cannot possibly break is failing on `main`, not on
+you. Checked it out clean and it fails there too.
+
+`322df0f update prefabs` breaks **two** gates:
+
+1. **`check-prefab-layout`** — `AR_jef.synthedit` now has
+   `SE Label handle 1167319384 at (4632,3800)..(4668,3806)` overhanging the
+   panel `(3962,3794)..(4010,4178)`. Bisected: at `6d813b3`, the commit before,
+   all seven prefabs pass.
+2. **The M6 rack-content gate** — the same commit also deleted
+   `Midi.synthedit` and `Output.synthedit`, so `RackModules/` holds **5** while
+   `EXPECTED_PREFABS` still said 7: `FAIL 5 rack prefab(s) seeded, expected 7`.
+
+Both run in CI, so every PR inherits them.
+
+**I fixed the count and not the prefab, and the split is deliberate.** The count
+is mechanical — the constant is a MIRROR of `RackModules/`, and the gate's own
+failure text says as much. Nothing loads the deleted files by name (checked; the
+`MidiCv.synthedit` hits in the tree are comments and a CMake path note), and the
+default rack supplies both roles, so 5 is simply what is there. The label
+overhang is prefab DATA, authored in SynthEdit, and re-authoring someone's
+prefab is not a lint fix.
+
+**THIS IS THE SECOND TIME IN ONE DAY, and that is the durable point.** The
+earlier one was `14a8fd3` deleting `MidiCv.synthedit` while `seedRootMidiCv`
+still inserted it by name. Same shape: a prefab file removed, a constant or a
+call site left pointing at it, and a gate that only notices on a CLEAN stage —
+because `copy_directory_if_different` merges and never deletes, so an
+incremental build keeps serving the file that is no longer in the repo. My
+local build said "7 rack prefab(s) seeded" until I deleted the staged folder
+and forced a relink.
+
+That staleness is worth more attention than either break: **a developer editing
+prefabs cannot see this failure without a clean stage**, so it will keep
+reaching CI. M11 fixed exactly that for the iOS path (`rm` before `cp`); the
+macOS/Windows staging still merges. **Filed as E40**, with M11's generated
+script as the worked example — written one day before this bit twice.
+
+One detail for whoever takes it: deleting the staged `Prefabs/` folder is NOT
+enough to re-measure. The POST_BUILD that restages only runs when the target
+LINKS, so a rebuild after deleting the folder leaves it absent and the gate
+then fails for a different reason. Delete the executable too.
+
 ## 2026-08-26 — macos — E30: the watchdog could not see the questions it exists to surface (scheduled run)
 
 **Prompt:** "Work continuously through the TideSynth backlog... Verify against
