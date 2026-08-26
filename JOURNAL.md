@@ -8,6 +8,57 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — E39's prime suspect is wrong: the top strip is not a constant (scheduled run)
+
+**Prompt:** "continue".
+
+E39 reports the rack's top row as a short strip and names a prime suspect:
+`kRackViewDips = 1008` is 2.625 rows of 384, and *"0.625 is close to the 0.68
+measured — so the leftover is the prime suspect"*. That is a good hypothesis
+and it makes a testable prediction: **the fraction should be the same every
+time.**
+
+**It is not.** Four screenshots off one build, each self-calibrated by measuring
+its own rail pitch (which comes out at exactly 384 DIP in every one, so E5's row
+height is not in question):
+
+```
+stored centre 3984 @ zoom 1.000   top strip 0.14 of a row
+stored centre  940 @ zoom 0.745             0.27
+stored centre 1353 @ zoom 1.000             0.29
+stored centre 1349 @ zoom 0.381             2.16
+(windows report)                            0.68
+```
+
+A canvas-height remainder is a property of the canvas and cannot vary with
+scroll position. **So it is not the constant, and changing `kRackViewDips` to a
+multiple of 384 would have produced no change and a wasted session.** That is
+the whole value of this entry.
+
+**What it actually is.** `TopView::renderRack` lays the case interior and its
+rails out from the RACK ORIGIN every `rowHeight`, across whatever clip rect it
+is handed — not from the top of the canvas. So the partial row at the top of the
+window is just where the viewport sits relative to that grid, and **every freely
+scrolled position shows one**. I checked the strip really is drawn as rack
+rather than as background: its luminance is identical to the case interior
+between rails, 27.7 in both. That is the row's *"no rails above it"* turned into
+a number.
+
+**This makes half the Accept unachievable as written.** *"Every rack row is a
+full 384 DIP with rails above and below"* cannot hold while the view scrolls
+freely — you would have to snap the viewport to row boundaries, which fights E33
+(open where the document says) and would make panning feel notched. The
+achievable half is the row's own alternative: **give the case a top** and stop
+painting rack interior above row 0. That is in `renderRack`, which is GATED.
+
+**A note on method, since I nearly measured the wrong thing twice.** My first
+detector sampled a column band at canvas x 1700..2100 and found no rails at all
+— that is outside the rack pane. My second used a hard-coded px-per-DIP from the
+nominal zoom, which is wrong because `calcViewTransform` QUANTISES zoom so that
+12 DIP maps to whole pixels. Deriving px-per-DIP from the measured rail pitch
+instead makes each screenshot calibrate itself and removes both mistakes at
+once. **When the thing you are measuring has a known period, use the period as
+the ruler.**
 ## 2026-08-26 — macos — E29: the mac box is fine, and the obvious fix would break it (interactive, Jeff directing)
 
 **Prompt:** "continue", then — on seeing a headless render stall —
