@@ -8,6 +8,60 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — windows — E28: a patch cable now rebuilds the rack, from the document the DSP already holds (interactive, Jeff directing)
+
+**Prompt:** yes, lets test the cable (then, on the first false pass: "removing
+cable from Scope keeps drawing the waveform (fail)". And the ruling that
+shaped the fix, from the day before: "If the user runs a patch-cable ... don't
+resend the document, send only the text-parameter ... will trigger a rebuild
+of the processor graph, but using the document it already should have. Not
+yet another copy.")
+
+**Two layers under the filed diagnosis.** E28 said the TRIGGER was uncalled.
+In fact the whole chain above it was severed, and then the call itself was
+swallowed:
+
+1. Before #423, `PendingDspClients()` answered null in TIDE, so a cable's
+   VALUE never left the editor at all — same null that ate every knob.
+2. With values flowing, per-link tracing showed `DoAsyncRestart firing` and
+   then silence: the call entered `TriggerRestart`'s fade machinery, whose
+   completion path never runs when the HOST drives the blocks. The guard
+   could not save itself — `synth_thread_running` is set unconditionally by
+   `prepareToPlay`; the name lies, it means "generator open".
+
+**The fix is Jeff's spec verbatim** (SynthEditLib #57): TIDE declares
+`setHostDrivenRestart(true)`; DoAsyncRestart in that mode PARKS the request —
+it arrives on the audio thread mid-process, and restarting there would tear
+the graph out from under the running process() — and TIDE's subProcess
+consumes it at the top of the next block, arming `documentPending_` with the
+pending string EMPTY, so `prepareToPlay` rebuilds from the cached
+`currentDspXml`. The document the DSP already holds; no copy travels.
+`persistAcrossResets` carries the new cable list into the rebuilt graph.
+Measured both directions: remove → `Scope ins=000`, add → `ins=100`.
+
+**THE FALSE PASS, in detail, because it will fool someone again:** cable-ADD
+appeared to work before any of this existed. Its code path happens to trip
+`dspDirty` (a `SuspendDSP` RAII guard in the connection code), the next sync
+tick's export happened to differ in shape, and the resulting document push
+rebuilt the rack — carrying the cable in its patch-list. REMOVE trips no such
+guard, which is how Jeff caught it: "removing cable from Scope keeps drawing
+the waveform." A mechanism that works for add and not for remove is not a
+mechanism; it is a coincidence with good aim.
+
+**Collateral caught on the way:** the TiDE respelling (#434) made the
+standalone REFUSE every session it had ever written — the identity check
+compared names exactly, "TIDE Rack" != "TiDE Rack", and the user's patch was
+quarantined on launch as if written by a foreign plugin. Case-insensitive now
+(GMPI_Wrappers af7323f): names differing only by case are the same product.
+A rename should never cost anyone their rack.
+
+**Also observed, not yet explained:** the standalone's quiet-timer autosave
+did not fire across ~50 minutes of edits in one instance (quit-save and
+startup-forced saves work; the FREQ round-trip this morning proves the
+syncState path). Not chased — the instance had lived through a
+session-refusal and two binary swaps, so the next fresh look should start
+clean before believing it.
+
 ## 2026-08-26 — windows — E27 resolved, and the attribution reverses: the 14KB "threshold" was the test fixture, not the plugin (interactive, Jeff directing)
 
 **Prompt:** do E26 (whose VST3 half had become E27)
