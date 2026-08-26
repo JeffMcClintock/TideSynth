@@ -8,6 +8,117 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — M11: the iOS AUv3 has never actually been installed, and four bugs say why (scheduled run)
+
+**Prompt:** "Work continuously through the TideSynth backlog... Build trees go
+stale silently. If you hit 'no member named X', suspect a pinned dependency
+before your own code." The advice generalises: I hit a build break, suspected my
+own configure, and it was neither — it was `main`.
+
+**How this started.** M9 was the topmost takeable row (S1b and S8 are wholly
+GATED, M8 was mine an hour earlier). M9 needs an iOS build, so I made one. It
+did not build. Four times.
+
+**FOUR BUGS, ONE ROOT CAUSE, AND ALL FOUR ARE INVISIBLE UNLESS THE TREE IS
+FRESH.** That last clause is the whole reason they have survived: three of the
+four are skipped or already-satisfied in an incremental tree, so every iOS build
+anyone has done since they appeared has passed.
+
+1. **`plist_util_host` links against the wrong platform.** It is compiled with
+   `xcrun -sdk macosx`, but it runs inside an Xcode script phase, and Xcode
+   exports `IPHONEOS_DEPLOYMENT_TARGET`. clang reads that and decides the target
+   OS is iOS; `-sdk` only picks the sysroot. So: macOS sysroot, iPhone target,
+   link dies on the first system dylib. One command line, run twice, is the
+   entire proof — unset gives rc 0, `IPHONEOS_DEPLOYMENT_TARGET=18.0` gives
+   `ld: building for 'iOS', but linking in dylib ... built for 'macOS'`.
+   Invisible incrementally because the custom command has an `OUTPUT`.
+
+2. **CMake tells Xcode the `.appex` is an application.** productType comes from
+   the TARGET type, not from `BUNDLE_EXTENSION`, so Xcode adds an application's
+   Validate phase and it rejects the thing it was just handed:
+   `unknown application extension '.appex: expected '.app' or '.ipa'`.
+   **`VALIDATE_PRODUCT=NO` does not disable it** — I passed it on the xcodebuild
+   command line, confirmed it in the recorded invocation, and got the identical
+   error. The phase belongs to the product type. Declaring
+   `com.apple.product-type.app-extension` removes it at the source.
+
+3. **The resource staging wrote into a directory named after an unexpanded
+   variable — and this one shipped.** `$<TARGET_BUNDLE_CONTENT_DIR:...>` carries
+   Xcode's `${EFFECTIVE_PLATFORM_NAME}`, and CMake writes it into the script
+   phase with the **dollar escaped**, so Xcode does not resolve it and neither
+   does the shell. `cmake -E copy` does not mind an odd path, so it cheerfully
+   created a LITERAL directory:
+
+   ```
+   Release-iphonesimulator/TIDE-Rack.appex     Info.plist PkgInfo TIDE-Rack
+   Release${EFFECTIVE_PLATFORM_NAME}/...       + all four XMLs + Prefabs/
+   ```
+
+   **That is the M5 defect, live on iOS, on a green build.** No control pins, an
+   empty rack module browser, no MIDI jacks — precisely what M6's gate exists to
+   catch and what M8 (this morning) taught the plugin to say out loud. Nothing
+   caught it because no check can tell a copy into the wrong directory from a
+   copy into the right one.
+
+4. **`plist_util`'s Info.plist rewrite went to the same junk path**, so the
+   appex kept CMake's stub: `CFBundlePackageType APPL` instead of `XPC!`, the
+   un-prefixed bundle id M2 had already fixed once, and **no `NSExtension` key
+   at all**. `simctl install` then fails with "Failed to create app extension
+   placeholder", which names nothing useful.
+
+**AND THAT CORRECTS THE RECORD ON M2 AND M10 — neither of which was wrong about
+what it measured.** M2's `simctl install` rc=0 and M10's home-screen screenshot
+are both true **of a container app with an empty `PlugIns/`**. An app with no
+extension installs fine and shows its icon. M2's own "Not verified: the app was
+installed, **not launched**, and the Audio Unit was never opened in an iOS host"
+is the sentence that was doing the work, and it was right.
+
+**A TRAP I FELL INTO AND THEN MEASURED MY WAY OUT OF.** When install first
+failed *after* my fixes, the appex had gained resources — including a `Prefabs/`
+subdirectory — and M2's journal says an appex with a SUBDIRECTORY fails to
+install. That is a very plausible story and it is wrong. Bisected it the way M2
+bisected the original, five variants, re-signed each:
+
+```
+everything                  rc=2      no XMLs, Prefabs kept    rc=2
+no Prefabs/ dir             rc=2      empty Prefabs/ kept      rc=2
+nothing but binary + plist  rc=2
+```
+
+All five. So it was never the content — it was bug 4, the plist. **The prior
+journal entry supplied a ready-made explanation that fit the symptom and was not
+the cause.** Cheap to check, expensive to assume.
+
+**I also hit the `rc=$?`-after-a-pipe trap** — `out=$(... ) | tail` reporting
+`tail`'s status — and printed "install rc=0" for an install that had returned 2.
+[#446](https://github.com/JeffMcClintock/TideSynth/pull/446) documented that
+exact trap the same evening; I read it and then did it anyway. Every rc in this
+entry is captured before anything else runs.
+
+**MEASURED, from clean, after all four:**
+
+| check | result |
+|---|---|
+| clean `-G Xcode -DCMAKE_SYSTEM_NAME=iOS` build | `** BUILD SUCCEEDED **`, 0 errors |
+| `Release${EFFECTIVE_PLATFORM_NAME}` | gone, nowhere in the tree |
+| appex contents | 4 XMLs + `Prefabs/` (9) + binary |
+| appex plist | `XPC!`, `...au3app.extension`, `NSExtension` present |
+| `simctl install` / `launch` | **rc=0** / **rc=0** |
+| `pluginkit -mAv` on the simulator | `com.tidesynth.tiderack.au3app.extension(0.1.1)` |
+
+That last row has never happened. The extension had never been inside the app.
+
+**Split:** item 3's TideSynth half is in this PR (`SynthEditSem/CMakeLists.txt`,
+ALLOWED); items 1, 2 and 4 are GMPI and therefore GATED — proposed as
+[GMPI#18](https://github.com/JeffMcClintock/GMPI/pull/18), **not merged**. **M9
+is BLOCKED(M11)** until that lands: it cannot host an extension that will not
+install.
+
+**Also this run:** M8 shipped ([#444](https://github.com/JeffMcClintock/TideSynth/pull/444)),
+and my duplicate-E34 fix was **closed as redundant** — three boxes fixed it
+sixteen seconds apart and [#447](https://github.com/JeffMcClintock/TideSynth/pull/447)
+won. A fourth write-up of one incident is noise.
+
 ## 2026-08-26 — macos — M8: the one silent way out of `seedPrefabsFromBundle()` now names itself (scheduled run)
 
 **Prompt:** "Work continuously through the TideSynth backlog... Take the topmost
@@ -70,6 +181,7 @@ controls exit 1; `m5-empty-rack.log` still reports its documented 12 failures.
 still reads *"seedPrefabsFromBundle() returns silently when the resource folder
 is empty (BACKLOG M8)"*. That sentence is now false. The bot token has no
 `workflow` scope, so it could not be corrected here.
+
 ## 2026-08-26 — windows — the standalone can be driven from a test run, and driving it found a cable-gesture bug (interactive, Jeff directing)
 
 **Prompt:** hey, could you have driven tide via MCP to do that testing? / yes,
