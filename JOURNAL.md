@@ -8,6 +8,66 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — windows — the standalone can be driven from a test run, and driving it found a cable-gesture bug (interactive, Jeff directing)
+
+**Prompt:** hey, could you have driven tide via MCP to do that testing? / yes,
+wire it up / get cable drags working. Instrument it if needed / file it
+
+**Yes, it could have — and two sessions of hand-testing did not know.** The
+app has published a command channel all along (`\.\pipe\gmpi-standalone.<pid>`,
+printed at startup), and `GMPI_Wrappers/mcp/` is a BUILT MCP server for it:
+`gmpi_drag`, `gmpi_pointer`, `gmpi_set_param`, `gmpi_screenshot`, `gmpi_note`,
+`gmpi_render_audio`. Every knob and button test done by hand this week was
+scriptable. Registered for this project now — see BACKLOG **E35**.
+
+**Why it was missed, which is the reusable part:** `se_attach` failed, and I
+concluded "MCP discovery is broken". It is not — `se_attach` belongs to the
+SYNTHEDIT-EDITOR server and searches a different pipe prefix; TIDE's channel
+belongs to a SECOND server that was not registered. Two servers, two
+prefixes. The evidence was one `grep` apart: the failing tool's own error
+names the prefix it searched, and `mcp/src/discover.ts` names the other.
+
+**The coordinate trap, which cost three attempts.** The tool doc said
+coordinates are "the same space a screenshot is in at scale 1" — true, and a
+trap. This window runs at **scale 1.5**: 1100x626 DIPs, screenshot 1650x939.
+Raw PNG coordinates put y=637 below the 626-DIP window, and the app does not
+error — it takes the point and lands on whatever is nearest, so a drag aimed
+at a jack silently grabbed a MODULE. **Divide screenshot pixels by `scale`
+from `gmpi_info`.** The note now says so as an instruction (GMPI_Wrappers
+bc3988b).
+
+**Cable drags work, verified end to end.** LFO TRI (DIP 428,425) -> S&H ASR
+IN (DIP 664,217): cable drawn, restart parked, `rack requested rebuild`
+logged, `SHASR ins=0000101...` -> `1000101...`.
+
+**And driving it immediately found a real bug — E34.** Dragging an EXISTING
+cable end and releasing does not end the gesture; the cable clings to the
+pointer until a second click, and the release is discarded. Jeff had seen it
+by hand and named the two gestures TIDE means to accept: (1) click-release on
+a patch point, move, click-release on the destination; (2) press, drag,
+release on the destination. Gesture 2 works from a JACK and fails from an
+existing cable END.
+
+**Cause, located:** `ConnectorViewBase::onPointerUp`
+(`se_sdk3_hosting/ConnectorView.cpp:355`) has two "keep dragging"
+early-returns — the 6px `dragThreshold` (gesture 1, correct) and
+`if (wasPickedUp) { wasPickedUp = false; return Unhandled; }` (:365), where
+`wasPickedUp` is set unconditionally on left-press over a cable (:325). The
+first release after picking up an end is therefore ALWAYS swallowed, however
+far the pointer moved, so `EndCableDrag` never runs. The two guards overlap:
+the threshold already covers the did-not-move case, so past 6px `wasPickedUp`
+is not protecting gesture 1, it is breaking gesture 2.
+
+**The consequence is worse than a stuck cable:** while the gesture hangs, the
+view and the document disagree. Measured — drag an existing end to empty
+space and release: the cable stops being drawn, no rebuild fires, and the
+SAVED CHUNK still holds `fm="529566147" tm="1242924866" fp="6" tp="0"`.
+Relaunch and it is back, connection bit set. A user reads that as "my edit
+was lost".
+
+**Left in place deliberately:** Jeff's live session still contains that
+phantom cable, as a standing reproduction.
+
 ## 2026-08-26 — windows — E28: a patch cable now rebuilds the rack, from the document the DSP already holds (interactive, Jeff directing)
 
 **Prompt:** yes, lets test the cable (then, on the first false pass: "removing
