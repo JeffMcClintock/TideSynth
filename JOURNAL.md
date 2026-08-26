@@ -16,7 +16,7 @@ runs; fixed by reordering, see commit abc123" is the whole point.
 the cell is not measured.** What the session produced instead is three filed
 defects — **E48**, **E49**, **E50** — a `PROPOSED:` entry in
 [docs/decisions.md](docs/decisions.md) that Jeff asked for in session, its parked
-row **E47**, and STEP 4 bookkeeping on **X2**. TideSynth carries all of it;
+row **E51**, and STEP 4 bookkeeping on **X2**. TideSynth carries all of it;
 nothing else was committed in any repo.
 
 ### Why E19, and why the row's own blockers were no longer the blockers
@@ -101,7 +101,7 @@ interface and has no equivalent on the other two platforms.
 
 Jeff asked, in session, whether dialogs should be reported over the channel and
 told me to file it as a `PROPOSED:` decision rather than a bug. It is in
-[docs/decisions.md](docs/decisions.md), with **E47** as the parked row. The part
+[docs/decisions.md](docs/decisions.md), with **E51** as the parked row. The part
 worth repeating here: all three options (report / report-and-answer / never
 raise) need the same prerequisite, **one app-owned function that every prompt
 goes through**, and that prerequisite is buildable today because it commits to
@@ -170,6 +170,19 @@ decision about GATED `SynthEditLib`, not a task, while the row's own
 *"NOT VERIFIED"* half is Windows and macOS and **is** takeable. **E43** was
 already DONE by the time I looked; both its PRs are merged.
 
+**An ID COLLISION, caught before either side merged.** I filed my dialog row as
+**E47** at 11:20; the mac box filed a different **E47** (*the properties pane can
+be left pointing at a freed module*) at 11:28, on branch
+`tide/mac/E47-properties-dangling-module`. Mine was first by eight minutes and I
+renumbered it anyway, to **E51** — theirs is already cited from an open
+[SynthEditLib#59](https://github.com/JeffMcClintock/SynthEditLib/pull/59) and from
+its own branch name, so moving it costs the fleet more than moving mine costs me.
+**A23's duplicate check cannot see this**: both rows are legal on their own branch
+and only collide once they meet on `main`. I found it because a push was rejected
+and I read the fetch output instead of retrying — the new branch was in the same
+three lines. **Worth a habit: after a rejected push, read what the fetch brought
+back before pushing again.**
+
 ### Machine state
 
 `main` is **green** — `build` and `verify` both `success` on `c106b6641`, and no
@@ -212,7 +225,7 @@ prepared rack reloads reliably. If it is not, E49 needs a debugger on this box
 and that needs Jeff.
 
 **Branch/PR:** `tide/win/E19-vst3-feedback-leg` — TideSynth only. E19's row back
-to TODO, E47/E48/E49/E50 filed, X2 flipped, the `PROPOSED:` entry, and this
+to TODO, E51/E48/E49/E50 filed, X2 flipped, the `PROPOSED:` entry, and this
 entry. **No product code changed in any repo**, so there is nothing here that can
 break a build.
 

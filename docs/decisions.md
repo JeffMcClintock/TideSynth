@@ -35,7 +35,7 @@ defaults are not.
 
 ```
 PROPOSED: What does a TIDE binary do when it needs to ask the user a question
-          and nobody is at the keyboard? (BACKLOG E47)
+          and nobody is at the keyboard? (BACKLOG E51)
 
   Options: (a) REPORT ONLY -- every prompt is announced on the command channel
                as an event, and as a field on any reply that follows. It still
