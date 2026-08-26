@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **332 KB** across **259** entries, so copying them
+Learned sections are **333 KB** across **260** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **94 KB / 1040 lessons — 3.5x smaller**, and represents
+A8. This is **95 KB / 1046 lessons — 3.5x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -37,6 +37,17 @@ by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
+## 2026-08-27
+
+**macos — E43: the command channel now always answers, and the fix is a heartbeat rather than a list of verbs (scheduled run)**
+
+- A deadline on "did it start" cannot bound "did it come back", and the two failures are indistinguishable from outside.
+- Invert an allowlist when the unknown case is the dangerous one.
+- A bounded error must not reuse a wording that was true of a different failure.
+- When the app cannot exercise the path, the probe is the deliverable — and it is only worth anything once you have made it fail.
+- Check with the regex the tool uses, not one that looks equivalent.
+- STEP 4's archive move is a written rule that nothing enforces, and it stopped happening six days ago without anyone noticing.
+
 ## 2026-08-26
 
 **linux — E32's size half: the standalone reopens where it was, and the save had to move before closeWindow() (interactive, Jeff directing)**
@@ -46,14 +57,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A protocol limit is a scope decision, not a TODO.
 - `git merge` into a worktree, then editing before resolving, corrupts the edit.
 - Backticks in a `--body` argument are shell-interpreted.
-
-**linux — three boxes fixed one duplicate ID in two minutes, and a duplicate breaks two checks not one (interactive, Jeff directing)**
-
-- A duplicate ID is not one broken check.
-- Two correct-looking arguments can agree by luck.
-- `cmd | tail -n; echo $?` cannot report the command's status
-- STEP 2's collision check does not cover opportunistic fixes.
-- Losing a race is cheap if you rebase to the delta.
 
 ## 2026-08-18
 
@@ -1901,3 +1904,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The AU3 appex is assembled by its own always-run target
 - `pluginkit -a` registers the extension; a GUI launch is not required.
 - The appex is reused across instantiations
+
+**linux — three boxes fixed one duplicate ID in two minutes, and a duplicate breaks two checks not one (interactive, Jeff directing)**
+
+- A duplicate ID is not one broken check.
+- Two correct-looking arguments can agree by luck.
+- `cmd | tail -n; echo $?` cannot report the command's status
+- STEP 2's collision check does not cover opportunistic fixes.
+- Losing a race is cheap if you rebase to the delta.
