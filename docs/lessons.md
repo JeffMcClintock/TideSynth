@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **330 KB** across **257** entries, so copying them
+Learned sections are **331 KB** across **258** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **93 KB / 1030 lessons — 3.5x smaller**, and represents
+A8. This is **94 KB / 1035 lessons — 3.5x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -39,6 +39,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-26
 
+**linux — three boxes fixed one duplicate ID in two minutes, and a duplicate breaks two checks not one (interactive, Jeff directing)**
+
+- A duplicate ID is not one broken check.
+- Two correct-looking arguments can agree by luck.
+- `cmd | tail -n; echo $?` cannot report the command's status
+- STEP 2's collision check does not cover opportunistic fixes.
+- Losing a race is cheap if you rebase to the delta.
+
 **macos — M6: auval passes an empty rack and this does not; the appex finally has a voice (scheduled run)**
 
 - `auval` passing is compatible with the plugin containing nothing
@@ -56,42 +64,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Rendering an asset and reading it are different tests.
 - `gh repo create --source` will not add a remote that already exists
 - Public does not mean writable.
-
-**macos — HetrickCV runs in TIDE: 66 modules registered, 104 with Fundamental alongside (interactive, Jeff directing)**
-
-- A cache variable is the wrong tool for a once-per-configure guard
-- Syntax-only tells you nothing about shared implementation units.
-- A comment asserting a capability is a claim; test it.
-- A missing enum can surface as a missing vtable
-
-**macos — E20: 66 of HetrickCV's 79 files compile, and the CC0 pack has an MIT dependency (interactive, Jeff directing)**
-
-- A CC0 headline does not survive a submodule.
-- "Copy the working option" hid the actual work.
-- Compile-everything is a cheap sizing instrument.
-- The regression control is the thing that makes mock edits safe.
-
-**macos — A stale comment inverted a recommendation, twice; the adaptor already draws the components (interactive, Jeff directing)**
-
-- A comment twelve lines above the code it contradicts will be believed.
-- Validating the instrument is not validating the premise.
-- "Explain X" is a real check on X.
-- Correct the source, not just the conclusion.
-
-**macos — Rendered the candidate panels: the permissive packs don't draw their controls, and that inverts the pick (interactive, Jeff directing)**
-
-- A screen that fails its positive control is broken, not informative
-- Counting SVG primitives measures the authoring tool.
-- "Can we use the artwork" has a legal reading and a practical one
-- `rsvg-convert` + looking is cheaper than any amount of parsing
-
-**macos — The adaptor is dual-licensed, and the permissive packs are picked and filed (interactive, Jeff directing)**
-
-- "Why is this GPL?" is worth asking of your own code.
-- A permissive code licence is not permission to ship the panels
-- A licence is the one thing to prepare rather than land.
-- A file being big is not evidence about what is in it.
-- Check push access before designing the delivery.
 
 ## 2026-08-18
 
@@ -1885,3 +1857,39 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `build.yml`'s close-on-success step works, observed in place
 - The `matrix.platform != 'win'` exclusion cuts both ways.
 - A commit whose meaning depends on a commit in another repo has to say so in its message.
+
+**macos — The adaptor is dual-licensed, and the permissive packs are picked and filed (interactive, Jeff directing)**
+
+- "Why is this GPL?" is worth asking of your own code.
+- A permissive code licence is not permission to ship the panels
+- A licence is the one thing to prepare rather than land.
+- A file being big is not evidence about what is in it.
+- Check push access before designing the delivery.
+
+**macos — Rendered the candidate panels: the permissive packs don't draw their controls, and that inverts the pick (interactive, Jeff directing)**
+
+- A screen that fails its positive control is broken, not informative
+- Counting SVG primitives measures the authoring tool.
+- "Can we use the artwork" has a legal reading and a practical one
+- `rsvg-convert` + looking is cheaper than any amount of parsing
+
+**macos — A stale comment inverted a recommendation, twice; the adaptor already draws the components (interactive, Jeff directing)**
+
+- A comment twelve lines above the code it contradicts will be believed.
+- Validating the instrument is not validating the premise.
+- "Explain X" is a real check on X.
+- Correct the source, not just the conclusion.
+
+**macos — E20: 66 of HetrickCV's 79 files compile, and the CC0 pack has an MIT dependency (interactive, Jeff directing)**
+
+- A CC0 headline does not survive a submodule.
+- "Copy the working option" hid the actual work.
+- Compile-everything is a cheap sizing instrument.
+- The regression control is the thing that makes mock edits safe.
+
+**macos — HetrickCV runs in TIDE: 66 modules registered, 104 with Fundamental alongside (interactive, Jeff directing)**
+
+- A cache variable is the wrong tool for a once-per-configure guard
+- Syntax-only tells you nothing about shared implementation units.
+- A comment asserting a capability is a claim; test it.
+- A missing enum can surface as a missing vtable
