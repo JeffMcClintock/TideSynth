@@ -8,6 +8,65 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — the restored view lands 240 DIP off, and it is not the re-save (interactive, Jeff reporting)
+
+**Prompt:** *"i re-saved defaultrack."* then, on seeing the result,
+*"might depend on how big the window is a bit. but that looked wrong"*.
+
+**He was right that it looked wrong, and right to be unsure why.** Window size
+DOES change what fits — TIDE's rack pane is ~340 DIP narrower than the window
+because the browser and properties strips eat the sides — so "it looked right
+when I saved it" and "it looks wrong on a default window" can both be true. But
+that is not what happened here.
+
+**THE MEASUREMENT: three runs, two zooms, one constant.**
+
+```
+stored centre 1353 @ zoom 1.000  ->  applied 1593   (+240 DIP)
+stored centre 1253 @ zoom 1.000  ->  applied 1493   (+240 DIP)
+stored centre  940 @ zoom 0.745  ->  applied 1260   (+320 DIP)
+```
+
+240 x 1.0 and 320 x 0.745 are both **~478 WINDOW pixels**. A constant in window
+space and not in document space is what rules out "the document is wrong" and
+points at the transform. The applied centre is derived from where `TiDE Output`
+(doc `1329..1377`) actually lands in the pane, so it is read off pixels rather
+than inferred.
+
+**THE CAUSE, one line.** `TopView::calcViewTransform` (ViewBase.cpp:1380):
+
+```cpp
+const Point canvasCenter{ (drawingBounds.right - drawingBounds.left) * 0.5f, ... };
+```
+
+That is half the pane's **SIZE** where it means its **MIDPOINT**. The transform
+is then consumed in WINDOW space, where the pane begins at
+`drawingBounds.left` — so the error is exactly `drawingBounds.left`, and
+`SynthEditGui.cpp:463` sets `editorContentRect` window-rooted from
+`editorStrip.left`: the two browser strips, **240 DIP**. The vertical axis
+carries the same error of `drawingBounds.top`, ~11 DIP, small enough to have
+gone unnoticed for as long as the horizontal one.
+
+**Why it surfaced today.** The bug is old and was harmless while the centre was
+meaningless: TIDE passed a hard-coded `kRackViewDips / 2` and nobody could tell
+it was 240 out. **E33 made the stored centre load-bearing**, and the very next
+person to save a framing they liked hit it. Filed as **E42**; the fix is
+`(left + right) * 0.5f` and it is in GATED SynthEditLib, so it is filed, not
+written.
+
+**A detour worth recording, because it nearly became a wrong conclusion.** My
+first pass at measuring this reported "no module visible at all" for two of the
+three runs. That was my detector, not the app — it searched canvas columns
+960..1620 while the module had been pushed to 520..615 by the very offset I was
+trying to measure. **The bug moved the thing out of the window I was looking
+in.** I only caught it by opening the screenshot and looking. An automated
+readout that assumes where the answer will be cannot measure a displacement.
+
+**E37 is now BLOCKED(E42)** and should probably close once E42 lands: Jeff's
+re-save fixed the zoom, he deliberately did not move the modules, and the only
+remaining complaint is the 240 DIP that belongs to E42. **He should not re-save
+the file again until E42 is in** — the framing that looks right while saving
+will keep reopening wrong.
 ## 2026-08-26 — macos — third-party modules are parked; the cluster goes with them (interactive, Jeff ruling)
 
 **Prompt:** *"E24: 3rd-party module compatibility is not important at this
