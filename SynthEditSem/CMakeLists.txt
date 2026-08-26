@@ -985,6 +985,12 @@ foreach(_fmt ${FORMATS_LIST})
       COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
         "${_tide_resources}/Prefabs"
+      # BACKLOG V6 -- the default document. A SIBLING of Prefabs/, never a
+      # member: seedPrefabsFromBundle() scans Prefabs/ into the browser, and a
+      # user-insertable root MIDI-CV breaks voice allocation.
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/../DefaultRack.synthedit"
+        "${_tide_resources}/DefaultRack.synthedit"
       COMMENT "Staging rack prefabs (${_tide_target})"
       VERBATIM
     )
@@ -1028,6 +1034,12 @@ foreach(_fmt ${FORMATS_LIST})
       COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
         "${_tide_installed}/Prefabs"
+      # BACKLOG V6 -- the default document. A SIBLING of Prefabs/, never a
+      # member: seedPrefabsFromBundle() scans Prefabs/ into the browser, and a
+      # user-insertable root MIDI-CV breaks voice allocation.
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/../DefaultRack.synthedit"
+        "${_tide_installed}/DefaultRack.synthedit"
       COMMENT "Staging bundle data into the installed ${_tide_target}"
       VERBATIM
     )
@@ -1084,6 +1096,12 @@ foreach(_fmt ${FORMATS_LIST})
       COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
         "${_tide_win_vst3_resources}/Prefabs"
+      # BACKLOG V6 -- the default document. A SIBLING of Prefabs/, never a
+      # member: seedPrefabsFromBundle() scans Prefabs/ into the browser, and a
+      # user-insertable root MIDI-CV breaks voice allocation.
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/../DefaultRack.synthedit"
+        "${_tide_win_vst3_resources}/DefaultRack.synthedit"
       COMMENT "Assembling the installed Windows VST3 as a real bundle folder (${_tide_target})"
       VERBATIM
     )
