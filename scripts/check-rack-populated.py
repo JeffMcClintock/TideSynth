@@ -84,7 +84,11 @@ EXPECTED_XMLS = ("ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilte
 # Output jef, Sine jef. Overridable, because adding a prefab is normal work and
 # this script should be updated deliberately rather than being a tripwire that
 # every prefab author has to guess at.
-EXPECTED_PREFABS = 9
+# 7 since 2026-08-26: V6 made the root assembly a default DOCUMENT, which made
+# MidiCv.synthedit redundant, and Output_jef.synthedit went with it as the
+# other duplicate. Keeping MidiCv browsable would have been actively unsafe --
+# a second root `SE MIDI to CV 2` breaks voice allocation.
+EXPECTED_PREFABS = 7
 
 # The AudioComponent this project registers -- SynthEditSem/CMakeLists.txt:162.
 AU_TYPE, AU_SUBTYPE, AU_MANUFACTURER = "aumu", "Drck", "Dsyh"
