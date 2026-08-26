@@ -122,6 +122,11 @@ public:
 	SynthEdit()
 	{
 		rack.connectPeer(this);
+
+		// The host drives every block here; a TriggerRestart fade can never
+		// complete. Restart requests (a re-cabling, a polyphony change) are
+		// parked instead and consumed at the top of subProcess.
+		rack.setHostDrivenRestart(true);
 	}
 
 	// TideSynth E10: is this blob a document the engine can actually build?
@@ -382,6 +387,22 @@ public:
 			for (auto* out : outputs)
 				std::fill(out, out + sampleFrames, 0.0f);
 			return;
+		}
+
+		// The rack asked for a rebuild (DoAsyncRestart in plugin mode - a
+		// host control like the patch-cable list changed). Consume it at a
+		// block BOUNDARY, never mid-process, and rebuild from the document
+		// the rack already holds; persistAcrossResets carries the new cable
+		// list into the rebuilt graph. Same synchronous audio-thread cost as
+		// a chunk arrival, and far rarer.
+		if (rackPrepared && host && rack.takePluginRestartRequest())
+		{
+			fprintf(stderr, "TIDE: rack requested rebuild (host control changed)\n");
+			rack.prepareToPlay(
+				this,
+				static_cast<int32_t>(host->getSampleRate()),
+				host->getBlockSize(),
+				true);
 		}
 
 		int64_t silenceFlagsOut{};
