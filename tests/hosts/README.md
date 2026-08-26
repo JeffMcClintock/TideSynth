@@ -77,3 +77,49 @@ prints `TIDE: host MIDI reaching the rack` when launched from a shell, and
 MIDI-CV 2's gate tracks the note exactly when read from inside its own container.
 See **E7**, and `build-prefabs.py --diagnostics` for the two probes that
 established it.
+
+## The VST3 UID token, and why a fixture may refuse to load — BACKLOG E29
+
+Every `.rpp` here names the plugin by a REAPER-specific token. **Different
+REAPER versions write and expect DIFFERENT byte orders for the SAME UID**, and a
+fixture carrying the wrong one loads with no plugin at all:
+
+> **Project Load Warning** — The following effects were in the project file and
+> are not available. `Track 1: VST3i: TIDE Rack (TIDE Synth)`
+
+| token | written/expected by | measured |
+|---|---|---|
+| `1386065673{506C7567696E474D50492050A2A07287}` | REAPER **7.45**, macOS — the raw TUID, and what is COMMITTED here | loads, renders `-6.3 / -17.0 dBFS` |
+| `1558955188{67756C506E694D4750492050A2A07287}` | REAPER **7.78**, Windows — COM little-endian | **refuses to load on 7.45** |
+
+**The plugin's identity has not changed.** The TUID is literally
+`"PluginGMPI     "` with byte 11 `'P'` plus a 4-byte id hash
+(`GMPI_Wrappers/wrapper/VST3/MyVstPluginFactory.cpp:200`); the two tokens are the
+same sixteen bytes in opposite order.
+
+**THE TWO ARE MUTUALLY EXCLUSIVE — measured 2026-08-26, both directions.** The
+committed token fails on 7.78 (the Windows box), and substituting the 7.78 token
+makes the same fixture fail on 7.45 (verified interactively on macOS: the dialog
+above, and the FX slot reading *"could not be loaded"*). **So re-saving these
+fixtures from a newer REAPER would fix one box and break the other.** Do not do
+it as a "fix" without deciding a fleet-wide REAPER version first.
+
+### If a fixture will not load on your box
+
+Swap the token in a LOCAL copy — do not commit it:
+
+```bash
+sed 's/1386065673{506C7567696E474D50492050A2A07287}/1558955188{67756C506E694D4750492050A2A07287}/g' \
+    tests/hosts/v1-rack.rpp > /tmp/v1-rack-local.rpp
+```
+
+To find what YOUR REAPER writes: load the plugin into an empty project, save it,
+and read the `<VST ...>` line.
+
+### It fails as a HANG, not an error
+
+The warning above is **modal**, so `REAPER -renderproject` blocks on it forever
+rather than exiting. `scripts/render-and-measure.py` now caps the render at
+`RENDER_TIMEOUT_SECONDS` (300) and kills REAPER, because the first measurement of
+this sat for over seven minutes producing nothing. A healthy render of these
+fixtures takes about four seconds.

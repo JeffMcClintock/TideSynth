@@ -49,6 +49,11 @@ import tempfile
 import wave
 
 REAPER = "/Applications/REAPER.app/Contents/MacOS/REAPER"
+
+# See the timeout's own comment in render() for why this exists at all.
+RENDER_TIMEOUT_SECONDS = 300
+RENDER_TIMED_OUT = -9999   # distinct from any REAPER exit code
+
 RENDER_SECONDS = 2.0
 
 # HC_PATCH_CABLES, counted off the enum in SynthEditLib/HostControls.h:14. This
@@ -99,8 +104,32 @@ def render(rpp_in, wav_out, workdir):
 
     log = os.path.join(workdir, "reaper.log")
     with open(log, "w") as fh:
-        rc = subprocess.call([REAPER, "-renderproject", staged],
-                             stdout=fh, stderr=subprocess.STDOUT)
+        # A TIMEOUT, and it is not belt-and-braces -- it is the difference
+        # between a failing test and a hung one.
+        #
+        # `-renderproject` is headless only while REAPER has nothing to ask.
+        # If the project names a plug-in REAPER cannot resolve it raises a
+        # MODAL "Project Load Warning ... are not available" and waits for a
+        # human who is not there. Measured 2026-08-26 (BACKLOG E29): a fixture
+        # carrying the wrong VST3 UID token blocked for over seven minutes with
+        # no output and no error, and had to be killed by hand.
+        #
+        # A healthy render of these fixtures takes about four seconds, so five
+        # minutes is far beyond any real render and still bounded. On timeout
+        # the child is killed and rc is a sentinel the caller reports, rather
+        # than an exception thrown from inside a `with`.
+        try:
+            rc = subprocess.call([REAPER, "-renderproject", staged],
+                                 stdout=fh, stderr=subprocess.STDOUT,
+                                 timeout=RENDER_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            fh.write("\n*** REAPER did not exit within %d s -- killed.\n"
+                     "*** It is almost certainly waiting on a modal dialog; the usual\n"
+                     "*** cause is a plug-in the project names that REAPER cannot\n"
+                     "*** resolve (see BACKLOG E29 and tests/hosts/README.md).\n"
+                     % RENDER_TIMEOUT_SECONDS)
+            subprocess.call(["pkill", "-f", "REAPER -renderproject"])
+            rc = RENDER_TIMED_OUT
     return rc, log
 
 
