@@ -155,15 +155,25 @@ def check_proposed(repo_root):
         return '\n'.join(lines)
     with open(path, encoding='utf-8') as f:
         text = f.read()
-    # Skip fenced code blocks -- the escalation template itself contains a
-    # literal "PROPOSED: <one-line question>" example line, not a real one.
-    in_fence, matches = False, []
+    # DO NOT SKIP FENCED BLOCKS. This used to, reasoning that the escalation
+    # template at the top of decisions.md contains a literal
+    # "PROPOSED: <one-line question>" example line -- true, but the template
+    # PRESCRIBES the fenced form, so every REAL entry is fenced too and the
+    # skip swallowed all of them. Measured 2026-08-26 with two genuinely open
+    # questions in the file (V7's naming and V4's rack-relevance predicate):
+    # issue #44 reported "Open PROPOSED questions in docs/decisions.md: None."
+    #
+    # A6 built this digest as "the single awaiting-Jeff surface", so a question
+    # it cannot see is a question nobody is asked -- V4's has been invisible
+    # here since it was written. That makes this a silent failure of the
+    # digest's whole purpose, not a formatting nit.
+    #
+    # The guard that actually works was already here: exclude the template's
+    # example BY CONTENT. That test cannot be fooled by where the line sits,
+    # and it keeps working if the template moves or a second one appears.
+    # BACKLOG E30.
+    matches = []
     for line in text.split('\n'):
-        if line.lstrip().startswith('```'):
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
         if re.match(r'^PROPOSED:', line) and '<one-line question>' not in line:
             matches.append(line)
     if matches:
