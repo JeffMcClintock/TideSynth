@@ -8,6 +8,95 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — E36: inserts fill the row now, and the fix made a second bug visible (scheduled run)
+
+**Prompt:** "Work continuously through the TideSynth backlog... The standalone
+is drivable: /tmp/gmpi-standalone.<uid>/gmpi-standalone.<pid> ... Use
+`--pointer-down x,y --double` for a double-click (rapid clicks do NOT work).
+Run under an isolated HOME; read geometry back from session.xml (base64 in
+`<Param id="1">`, skip a 4-byte prefix) via tests/e5_rack_footprint_probe.py."
+
+Every clause of that was load-bearing. E36 was verifiable at all only because
+E35 landed the drivable channel yesterday; the row's own last line still says
+"Verifying this needs a HUMAN or E35".
+
+**THE FIX.** `SynthEditGui.cpp`'s insert has only ever been handed one point,
+the view centre, so E31's snap made the pile tidy without making it a pile of
+one. Now: walk the rack's top-level modules with `it_doc_ob`, take each
+`getViewObRect(CF_PANEL_VIEW)`, and scan rows-first / columns-left-to-right at
+`snapWidth` for the first rect the new footprint clears.
+
+**Three decisions inside that are worth more than the search:**
+
+1. **`AddPrefab`, not `AddModule`.** `AddModule` answers `-1` for any id
+   beginning `*P=` — which in TIDE is EVERY rack module, they are all prefabs —
+   so there was no handle to move. `AddPrefab` is implemented on top of it, so
+   the insert is the identical call; it just also says what got created.
+2. **Insert first, THEN move.** The free slot depends on the module's WIDTH and
+   nothing knows that until the module exists. Known limit, left visible rather
+   than papered over: the undo checkpoint `AddModule` takes internally records
+   the original point, so a REDO re-inserts at the centre. The checkpoint is
+   SynthEditLib's and GATED.
+3. **The group moves together.** A prefab may hold several top-level modules;
+   one offset for all of them keeps the layout its author chose. Scattering a
+   prefab would be a worse bug than the pile.
+
+**MEASURED, A/B, same script both sides, only `SynthEditGui.cpp` different:**
+
+```
+origin/main   7 violations -- SIX overlaps: 18432 sq between each pair of the
+              three inserts (a full 48x384 module exactly on a 48x384 module),
+              plus 8832 sq from each onto the seeded MIDI-CV
+with E36      1 violation, and "ok  no overlaps among 5 placed module(s)";
+              the three abut at 3732..3780, 3780..3828, 3828..3876
+```
+
+**THE PROBE STILL EXITS 1 AND THAT IS NOT THIS ROW.** The survivor is `MIDI In`
+— an 8x14 panelRect, 0.533 HP, off-grid — **identical in the baseline run**, so
+pre-existing. The run prompt warns about exactly this ("a probe can print
+RESULT: FAIL for criteria the row never claimed"), and the only reason I can
+say "pre-existing" rather than "probably pre-existing" is that the A/B was run.
+
+**Tooling: the probe now reads a standalone session on its own.** It died with
+`not well-formed (invalid token): line 1, column 4` on the four-byte `TDs1`
+magic in front of the XML declaration — which is why the run prompt has to
+explain those four bytes to every new session. It skips to the first `<` rather
+than a fixed offset of 4, so a future `TDs2` needs no change.
+
+**AND THEN THE INTERESTING PART: THE FIX IS CORRECT AND THE USER CANNOT SEE
+IT.** Row 0 column 0 is the rack ORIGIN, (3732, 3732) — V5 records the same
+number. The V3-seeded root MIDI-CV, the only thing on a fresh document, is at
+(480, 464): **not on the rack at all**. So three correctly-placed modules went
+3200 DIPs away and the window did not change.
+
+I wrote a scroll-to-reveal for that. Then I measured it, and **it can never
+fire**:
+
+```
+E36PROBE placed=3732,3732,3780,4116  visible=3734,3734,4234,4234  onScreen=1
+```
+
+`getVisibleRect(CF_PANEL_VIEW)` is computed from the CONTAINER's stored view
+centre — the canvas centre (3984, 3984) with the no-view-open half-size of 250
+— so by the document's own reckoning the module is on screen. The document is
+not lying; the **live pane** is the thing out of step with it, which is exactly
+what E33 says ("the document already stores them; TIDE throws them away on
+every open").
+
+**So the reveal was DELETED rather than shipped**, with the probe output kept
+in the comment where it happened. Untestable code that looks like it handles a
+case it cannot handle is worse than no code, and once E33 makes the live view
+agree with the document the question changes shape anyway. Filed as **E37**,
+with the split already done: (a) seed the root MIDI-CV at the rack origin —
+cheap, standalone, and it may make (b) evaporate; (b) is E33's.
+
+**Instrument, for the next run:** `--pointer-down x,y --double` then
+`--pointer-up x,y` over the unix socket, batch terminated with `--ping <token>`
+and read until the token echoes (that is what `mcp/src/session.ts` does).
+Coordinates: the screenshot is CANVAS pixels, pointer input is DIPs, so divide
+by `scale` from `--info`. Quit with SIGTERM — the quit-save is what writes
+`session.xml`.
+
 ## 2026-08-26 — macos — M11: the iOS AUv3 has never actually been installed, and four bugs say why (scheduled run)
 
 **Prompt:** "Work continuously through the TideSynth backlog... Build trees go

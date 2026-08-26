@@ -24,6 +24,8 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "Notify_msg.h" // OM_DRAG_NEW_MODULE, OM_SHOW_PROPERTIES
 #include "ModuleBrowser.h"
 #include "PropertiesBrowser.h"
+#include "it_doc_ob.h" // E36 — walking the rack's top-level modules
+#include "CUG.h"       // E36 — getViewObRect / Handle on each of them
 #include "CContainer.h" // U3 — Container() for "Goto Parent"; used to arrive
                        // transitively via BreadcrumbBar.h, now gone
 #include "AboutPane.h" // D6 — the about pane, now opened from the context menu
@@ -36,6 +38,8 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "helpers/unicode_conversion.h" // JmUnicodeConversions::Utf8ToWstring
 #include "RefCountMacros.h"
 #include <algorithm>
+#include <optional> // E36 — findFreeRackSlot's "no room" answer
+#include <set>      // E36 — the just-created handles, excluded from the occupied set
 #include <chrono> // S26 — elapsed time for the se_sdk timer pump
 #ifdef _WIN32
 #include <windows.h> // SetCursor / LoadCursor / IDC_CROSS — drag-affordance cursor
@@ -628,6 +632,185 @@ public:
 		// their dtors unregister from the app's observer list.
 	}
 
+	// BACKLOG E36 — an insert must land in the next FREE slot.
+	//
+	// E31 made a double-clicked module land ON the grid; it still landed on the
+	// SAME grid point every time, because the insert has only ever been given
+	// one position (the view centre). Two prefabs measured at the identical
+	// rect l=504 r=552 t=664 b=1048 — a 48x384 module exactly on top of a
+	// 48x384 module. Snapping without advancing just makes the pile tidy.
+	//
+	// Returns the top-left the group should move to, or nullopt to leave it
+	// where the insert put it (not a rack, no room, no panel extent to work
+	// within — in every one of those the old behaviour is the right answer).
+	static std::optional<gmpi::drawing::Point> findFreeRackSlot(
+		const SE2::RackLayout& layout,
+		const std::vector<gmpi::drawing::RectL>& occupied,
+		float rowRight,
+		gmpi::drawing::Size wanted)
+	{
+		if (wanted.width <= 0.0f || wanted.height <= 0.0f)
+			return {};
+		if (layout.snapWidth <= 0.0f || layout.rowHeight <= 0.0f)
+			return {};
+		// A module wider than the case can never fit anywhere. Say so by
+		// declining rather than by scanning every row to the bound below.
+		if (layout.origin.x + wanted.width > rowRight)
+			return {};
+
+		// ROWS FIRST, THEN COLUMNS, and the row bound is a real one: a rack
+		// with no free slot must terminate rather than run to INT_MAX. 128
+		// rows is ~49000 DIPs of case, far past anything a user will build,
+		// and reaching it means "no room", which is a legitimate answer.
+		constexpr int maxRows = 128;
+		for (int row = 0; row < maxRows; ++row)
+		{
+			const float top = layout.origin.y + row * layout.rowHeight;
+
+			for (float left = layout.origin.x;
+			     left + wanted.width <= rowRight;
+			     left += layout.snapWidth)
+			{
+				const gmpi::drawing::Rect candidate{
+					left, top, left + wanted.width, top + wanted.height };
+
+				// Strict inequality on every edge: two modules that merely
+				// TOUCH are correctly placed neighbours, not an overlap. The
+				// probe agrees — E5's footprint check reports overlap area,
+				// and abutting rects have none.
+				const bool clash = std::any_of(occupied.begin(), occupied.end(),
+					[&candidate](const gmpi::drawing::RectL& o)
+					{
+						return candidate.left   < static_cast<float>(o.right)
+						    && candidate.right  > static_cast<float>(o.left)
+						    && candidate.top    < static_cast<float>(o.bottom)
+						    && candidate.bottom > static_cast<float>(o.top);
+					});
+
+				if (!clash)
+					return gmpi::drawing::Point{ left, top };
+			}
+		}
+
+		return {};
+	}
+
+	// Move the just-inserted modules into that slot, as a group.
+	//
+	// AS A GROUP, deliberately: a prefab may hold several top-level modules
+	// (AddPrefab exists because AddModule cannot say how many), and placing
+	// them one at a time would scatter a prefab that was authored as a unit.
+	// One offset for all of them keeps the relative layout the prefab's author
+	// chose and still guarantees the whole footprint is clear.
+	void placeInNextFreeRackSlot(SE2::IPresenter* presenter, CContainer* rack,
+	                             const std::vector<int32_t>& created)
+	{
+		if (!presenter || !rack || created.empty())
+			return;
+
+		const auto layout = presenter->getRackLayout();
+		if (!layout.enabled)
+			return; // not a rack: the snapped centre is still the right answer
+
+		const auto panel = rack->GetPanelRect();
+		const auto rowRight = static_cast<float>(panel.right);
+		if (rowRight <= layout.origin.x)
+			return; // no usable width; leave it alone rather than guess one
+
+		const std::set<int32_t> fresh(created.begin(), created.end());
+
+		// The occupied set, and the group's own bounding box, in one walk.
+		// dynamic_cast<CUG*> is the necessary filter, not decoration: a
+		// container's child list holds CLine2 connections alongside modules.
+		std::vector<gmpi::drawing::RectL> occupied;
+		// The fresh modules are collected as POINTERS, not re-looked-up by
+		// handle afterwards: the handle->object map lives on CSynthEditDocBase,
+		// which this translation unit only forward-declares, and one walk that
+		// already has each CUG* in hand needs no second lookup anyway.
+		std::vector<CUG*> group;
+		bool haveBounds = false;
+		gmpi::drawing::RectL bounds{};
+
+		it_doc_ob it(rack);
+		for (it.First(); !it.IsDone(); it.Next())
+		{
+			auto* m = dynamic_cast<CUG*>(it.CurrentItem());
+			if (!m)
+				continue;
+
+			const auto r = m->getViewObRect(CF_PANEL_VIEW);
+
+			if (fresh.find(m->Handle()) == fresh.end())
+			{
+				occupied.push_back(r);
+				continue;
+			}
+
+			group.push_back(m);
+
+			if (!haveBounds) { bounds = r; haveBounds = true; }
+			else
+			{
+				bounds.left   = (std::min)(bounds.left,   r.left);
+				bounds.top    = (std::min)(bounds.top,    r.top);
+				bounds.right  = (std::max)(bounds.right,  r.right);
+				bounds.bottom = (std::max)(bounds.bottom, r.bottom);
+			}
+		}
+
+		if (!haveBounds)
+			return;
+
+		const gmpi::drawing::Size wanted{
+			static_cast<float>(bounds.right  - bounds.left),
+			static_cast<float>(bounds.bottom - bounds.top) };
+
+		const auto slot = findFreeRackSlot(layout, occupied, rowRight, wanted);
+		if (!slot)
+			return;
+
+		const auto dx = static_cast<int32_t>(slot->x) - bounds.left;
+		const auto dy = static_cast<int32_t>(slot->y) - bounds.top;
+		if (dx == 0 && dy == 0)
+			return; // already where it belongs; do not churn the document
+
+		for (auto* m : group)
+		{
+			const auto r = m->getViewObRect(CF_PANEL_VIEW);
+			presenter->SetModuleRect(m->Handle(), gmpi::drawing::Rect{
+				static_cast<float>(r.left   + dx),
+				static_cast<float>(r.top    + dy),
+				static_cast<float>(r.right  + dx),
+				static_cast<float>(r.bottom + dy) });
+		}
+
+		// WHY THERE IS NO "SCROLL TO SHOW IT" HERE, and it is not an oversight.
+		//
+		// Row 0 column 0 is the rack ORIGIN, and on a fresh document that is
+		// nowhere near what the user can see: measured 2026-08-26, the origin is
+		// (3732, 3732) -- V5 records the same number -- while the V3-seeded root
+		// MIDI-CV, the only thing on screen, sits at (480, 464). Three correctly
+		// placed modules went 3200 DIPs away and the window did not change, so a
+		// reveal looked necessary. It was written, and then measured, and it can
+		// never fire:
+		//
+		//   E36PROBE placed=3732,3732,3780,4116
+		//            visible=3734,3734,4234,4234  onScreen=1
+		//
+		// getVisibleRect(CF_PANEL_VIEW) is computed from the CONTAINER's stored
+		// view centre, which is the canvas centre (3984, 3984) with the
+		// no-view-open half-size of 250. By that reckoning the module IS on
+		// screen. The document is not lying -- the LIVE pane is the thing out of
+		// step with it, which is exactly what E33 says ("the document already
+		// stores them; TIDE throws them away on every open").
+		//
+		// So the reveal was deleted rather than shipped: it is untestable today,
+		// it would read as handling a case it cannot handle, and once E33 makes
+		// the live view agree with the document the question changes shape
+		// anyway. Filed as E37.
+		presenter->DirtyView();
+	}
+
 	// Notifiable: forward app-level notifications to whichever pane needs them.
 	void OnNotify(Notifier* /*sender*/, int lHint, void* pHint) override
 	{
@@ -673,7 +856,31 @@ public:
 				// This is the ALLOWED half of E31. The drag-drop insert at
 				// ViewBase.cpp's AddModule call is the same one-line fix in
 				// SynthEditLib, which is GATED; the row carries it.
-				p->AddModule(moduleId.c_str(), view->snapToGrid(view->getCenter()));
+				//
+				// BACKLOG E36 — insert first, THEN move. Placing correctly in
+				// one shot is not available: the free slot depends on the
+				// module's WIDTH, and nothing knows that until the module
+				// exists. So the insert point is unchanged (which is what
+				// keeps the undo checkpoint AddModule takes internally exactly
+				// as it was), and the placement is a second, ordinary move.
+				//
+				// AddPrefab, not AddModule, and the reason is the return
+				// value: AddModule answers -1 for anything beginning "*P=",
+				// which in TIDE is EVERY rack module — they are prefabs. It is
+				// implemented on top of AddModule, so the insert itself is the
+				// identical call; it just also says what got created.
+				const auto created = p->AddPrefab(moduleId.c_str(),
+					view->snapToGrid(view->getCenter()));
+
+				// The rack is the top-level container, which is where the
+				// module browser inserts. currentContainer is where the USER
+				// is, and those differ the moment anyone opens a sub-panel --
+				// so walk up rather than assume.
+				CContainer* rack = currentContainer;
+				while (rack && rack->Container())
+					rack = rack->Container();
+
+				placeInNextFreeRackSlot(p, rack, created);
 			}
 		}
 		else if (lHint == OM_SHOW_PROPERTIES)

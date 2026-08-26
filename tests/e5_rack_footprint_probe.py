@@ -94,7 +94,26 @@ def load_document(path):
         param = root.find(".//Param")
         if param is None or not param.get("val"):
             raise SystemExit(f"{path}: <Preset> with no <Param val=...> to decode")
-        return base64.b64decode(param.get("val")).decode("utf-8", "replace")
+        raw = base64.b64decode(param.get("val"))
+
+        # THE STANDALONE'S CHUNK IS TAGGED, AND THE TAG IS NOT XML. A session
+        # written by TIDE Rack begins with a four-byte ASCII magic before the
+        # declaration -- `TDs1` on 2026-08-26 -- so feeding the decoded bytes
+        # straight to the parser dies with "not well-formed (invalid token):
+        # line 1, column 4", which reads like a corrupt file and is not one.
+        #
+        # Skipping to the first '<' rather than to a fixed offset of 4: the
+        # magic is a version tag, so a `TDs2` is expected to be the same shape
+        # and a longer header is not ruled out. A document that legitimately
+        # starts with '<' is unaffected -- the slice is a no-op there.
+        #
+        # BACKLOG E36. Before this, verifying an insert meant hand-stripping
+        # the prefix in a throwaway snippet, which is why the run prompt has to
+        # explain the four bytes to every new session.
+        start = raw.find(b"<")
+        if start > 0:
+            raw = raw[start:]
+        return raw.decode("utf-8", "replace")
     return text
 
 
