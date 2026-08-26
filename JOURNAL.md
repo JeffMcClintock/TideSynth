@@ -8,6 +8,71 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — windows — syncState: the save-time refresh the chunk was always meant to have (interactive, Jeff directing)
+
+**Prompt:** how are knobs state saved/restored? / have a look at the GMPI VST3
+adaptor and contrast how it handles this: "C:\SE\GMPI_Adaptors" / implement it
+
+**The chunk is stale BY DESIGN, and the design was already finished elsewhere.**
+E26 (a knob tweak after the last structural edit is not in the saved file) is
+not a hole in yesterday's work but the missing half of a pattern
+GMPI_Adaptors' VST3Adaptor completed long ago: a GMPI plugin hosting a complex
+inner world (there a third-party VST3, here the rack) keeps its chunk
+parameter stale and refreshes it ON DEMAND via `IController::syncState()` —
+"sync unsaved state from plugin to host" — invoked by the editor's
+`preSaveState()` walk ("warn modules of imminent save"). The interface
+declared it, SynthEdit's editor called it for hosted modules
+(`CUG2::preSaveState`, UG2.cpp:114), the VST3Adaptor implemented it
+(ControllerWrapper.cpp:172, with `inhibitFeedback` around the echo) — and no
+wrapper in GMPI_Wrappers ever called it. Grep says zero sites.
+
+**Wired end to end:**
+
+- GMPI_Wrappers: `SessionState::saveNow` calls the plugin controller's
+  `syncState()` synchronously before `captureState()`
+  (`StandaloneHost::syncPluginState`), with edit-notification suppressed so a
+  save cannot mark the session dirty and schedule the next save. VST3's
+  controller `getState` makes the same call, with the ordering caveat written
+  at the site: VST3 saves read the PROCESSOR's store and the refresh travels
+  there asynchronously.
+- TIDE: `SynthEditController::syncState()` runs the save-time export —
+  including `preSaveState()`, which `exportChunkXml` deliberately skips and
+  which is what will hand any future hosted-wrapper module ITS syncState —
+  and refreshes parameter 1. `preSaveState` is called through the CDocOb
+  base, where it is public; CContainer's override is protected.
+- The chunk now carries a 4-byte tag (`SynthEditSem/ChunkPrefix.h`): `TDb1`
+  build (structure changed, rebuild), `TDs1` sync (save refresh; a RUNNING
+  rack must not rebuild — the standalone autosaves ~2s after every knob
+  tweak — so a Sync chunk builds only a rack that does not exist yet, which
+  is exactly restore-after-restart, made FRESHER by this since the wrapper's
+  re-seed now carries current values). Untagged = legacy = build, so every
+  pre-tag session.xml still loads. Classification is a fixed 4-byte compare
+  on the audio thread, deliberately not a string comparison.
+
+**Measured:** a live-only knob value (FREQ 3.64, present in no prior save)
+survived quit-save and restore; the saved chunk carries the `TDs1` tag; zero
+rack rebuilds at save time.
+
+**The false trail, so nobody re-walks it:** the first end-to-end test showed
+an UNTAGGED chunk and no rebuild-free save — because the writer was not the
+new binary (a stale instance from before the rebuild wrote it), compounded by
+the session-quarantine renaming session.xml/previous under the test. Prove
+which binary wrote a file before debugging its bytes.
+
+**Two sessions, one repo, live:** origin/main moved twice DURING this work —
+Jeff's own #56 landed the identical BundleInfo fix minutes after I committed
+mine locally (mine dropped, his stands), and the mac session grew BACKLOG's
+E26 row with a further finding (VST3 wrapper state reads never check
+`bytesRead` — a real restore-truncation bug my fix does NOT address) and
+REAPER accept criteria this work does not yet satisfy. E26 is therefore NOT
+marked done here; the standalone half is fixed, the VST3 half (bytesRead
+loop + REAPER round-trip) remains open on that row.
+
+**Unresolved observation, recorded honestly:** one Release instance exited
+silently mid-`prepareToPlay` (during module construction, bare default
+document, no assert, not reproduced since — Debug ran clean immediately
+after). If a silent startup exit shows up again, start there.
+
 ## 2026-08-25 - macos - iOS runs, the bundle rule was wrong in three places, and M9 filed
 
 **Prompt:** interactive

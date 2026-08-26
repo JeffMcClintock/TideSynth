@@ -13,6 +13,8 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
+#include <cstring>
+#include <vector>
 #include <memory>
 #include <string_view>
 #include "RefCountMacros.h"
@@ -22,6 +24,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "TideAppWrapper.h"
 #include "SynthEditDocBase.h"
 #include "TideApp.h"
+#include "ChunkPrefix.h"
 
 using namespace gmpi;
 
@@ -81,8 +84,15 @@ public:
 		app->onPushChunk = [this](const void* data, size_t size)
 		{
 			constexpr int32_t chunkParamId = 1;
-			if (host)
-				host->setParameter(chunkParamId, Field::Value, 0, static_cast<int32_t>(size), (const uint8_t*)data);
+			if (!host)
+				return;
+
+			// Tagged Build: the shape changed, and the processor must rebuild.
+			// See ChunkPrefix.h for the whole story.
+			std::vector<uint8_t> tagged(tideChunk::tagSize + size);
+			memcpy(tagged.data(), tideChunk::tagBuild, tideChunk::tagSize);
+			memcpy(tagged.data() + tideChunk::tagSize, data, size);
+			host->setParameter(chunkParamId, Field::Value, 0, static_cast<int32_t>(tagged.size()), tagged.data());
 		};
 
 		// Parameter EDITS take this route instead of the chunk: whole `ppc`
@@ -99,8 +109,37 @@ public:
 		return ReturnCode::Ok;
 	}
 	
+	// "Sync unsaved state from plugin to host" - and until this existed a
+	// knob tweaked after the last structural edit was NOT in the saved file.
+	//
+	// The chunk parameter is stale BY DESIGN between saves: keeping it
+	// continuously fresh cost a whole-document serialisation twice a second
+	// (removed 2026-08-25), and values now travel as messages. So the host
+	// calls here immediately before it serialises state, and the chunk is
+	// refreshed on demand - the exact pattern GMPI_Adaptors' VST3Adaptor
+	// established (ControllerWrapper::syncState, triggered by the editor's
+	// preSaveState walk).
+	//
+	// Tagged Sync, not Build: this refresh reaches the running processor too
+	// (the wrapper ships every changed blob), and a rebuild per autosave
+	// would be an audio glitch per knob tweak. A Sync chunk only builds a
+	// rack that does not exist yet - the restore-after-restart re-seed.
 	ReturnCode syncState() override
 	{
+		constexpr int32_t chunkParamId = 1;
+
+		if (!tideApp || !host)
+			return ReturnCode::Ok; // nothing loaded; nothing to sync
+
+		const auto xml = tideApp->exportChunkXmlForSave();
+		if (xml.empty())
+			return ReturnCode::Ok;
+
+		std::vector<uint8_t> tagged(tideChunk::tagSize + xml.size());
+		memcpy(tagged.data(), tideChunk::tagSync, tideChunk::tagSize);
+		memcpy(tagged.data() + tideChunk::tagSize, xml.data(), xml.size());
+		host->setParameter(chunkParamId, Field::Value, 0, static_cast<int32_t>(tagged.size()), tagged.data());
+
 		return ReturnCode::Ok;
 	}
 
@@ -124,12 +163,20 @@ public:
 		if (!tideApp || !data || size <= 0)
 			return ReturnCode::NoSupport;
 
+		// Either tag may come back from a save - Build if the last thing
+		// before saving was structural, Sync if it was syncState's refresh -
+		// and a pre-tag session.xml has none. The document is the same shape
+		// underneath all three.
+		const auto kind = tideChunk::classify(data, static_cast<size_t>(size));
+		const auto* doc = tideChunk::payload(data, kind);
+		const auto docSize = tideChunk::payloadSize(static_cast<size_t>(size), kind);
+
 		// A chunk we cannot use leaves the blank document standing - an empty
 		// rack, which is the fail-safe outcome S11 requires. It must never
 		// escape as an exception: we are on the host's main thread during
 		// project load.
 		const bool imported = tideApp->importChunkXml(
-			std::string_view(reinterpret_cast<const char*>(data), static_cast<size_t>(size)));
+			std::string_view(reinterpret_cast<const char*>(doc), docSize));
 
 		return imported ? ReturnCode::Ok : ReturnCode::Fail;
 	}

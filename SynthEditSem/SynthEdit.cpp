@@ -19,6 +19,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "SynthRuntime.h"          // TideSynth S12 - the rack's sound engine
 #include "IProcessorMessageQues.h"
 #include "tinyxml/tinyxml.h"       // TideSynth E10 - validating the chunk before the engine parses it
+#include "ChunkPrefix.h"           // why did this chunk arrive - Build, Sync, or Legacy
 
 using namespace gmpi;
 
@@ -244,7 +245,25 @@ public:
 			const auto& blob = pinChunk.getValue();
 			if (blob.size() > 0)
 			{
-				const std::string xml((const char*)blob.data(), blob.size());
+				// The 4-byte tag says why the bytes came (ChunkPrefix.h). A
+				// Sync chunk is a save-time refresh of the persistent value -
+				// the standalone autosaves moments after every knob tweak -
+				// and a running rack must not pay a rebuild for it. It only
+				// builds a rack that does not exist yet: the wrapper re-seeds
+				// this parameter into a FRESH processor after a restart, and
+				// there the very same bytes are the restore.
+				const auto kind = tideChunk::classify(blob.data(), blob.size());
+				if (kind == tideChunk::Kind::Sync && rackPrepared)
+				{
+					// Refresh only; the running rack already holds these
+					// values live. Fall through to the tail below - the
+					// sleep/subProcess re-assertions must run on every call.
+				}
+				else
+				{
+				const std::string xml(
+					(const char*)tideChunk::payload(blob.data(), kind),
+					tideChunk::payloadSize(blob.size(), kind));
 
 				const char* whyNot = "";
 				if (!documentIsBuildable(xml, whyNot))
@@ -304,6 +323,7 @@ public:
 						true);
 					rackPrepared = true;
 				}
+				} // else (not a Sync refresh)
 			}
 		}
 
