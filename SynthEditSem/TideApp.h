@@ -56,6 +56,17 @@ public:
 	// with it, and takeDspMessages ships what lands there.
 	gmpi::hosting::QueuedUsers* PendingDspClients() override;
 	std::string exportChunkXml();        // S12/S11 — the saved chunk: <DSP> + <Editor>
+
+	// The SAVE-TIME export, and the one place the mutating pre-save steps
+	// belong. exportChunkXml deliberately skips preSaveState() - it was
+	// written for a continuous sync where a mutating call per tick was
+	// unacceptable - but an imminent save is exactly what preSaveState
+	// exists for ("warn modules of imminent save, so wrappers can sync
+	// their state", CSynthEditDocBase::ExportXmlProject). Any hosted-wrapper
+	// module gets its own IController::syncState() through that walk, the
+	// same way the SynthEdit app delivers it. See SynthEditController's
+	// syncState.
+	std::string exportChunkXmlForSave();
 	bool importChunkXml(std::string_view xml); // S11 — rebuild the document from a saved chunk
 	void OnCloseView(SE2::TopView*) override;
 	void CloseAllViews() override;

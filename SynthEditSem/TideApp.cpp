@@ -615,6 +615,24 @@ void TideApp::receiveRackFeedback(const unsigned char* data, int size)
 	synthRuntime.receiveDspMessages(data, size);
 }
 
+std::string TideApp::exportChunkXmlForSave()
+{
+	if (Document() && Document()->MasterContainer)
+	{
+		// Through the CDocOb base, where preSaveState is public - CContainer
+		// re-declares its override protected, and TIDE is not on its friend
+		// list. The base declaration is the interface the save path uses.
+		static_cast<CDocOb*>(Document()->MasterContainer)->preSaveState();
+
+		// Catch-all cull of orphaned host controls, exactly as the app's own
+		// save does. If it removes anything the document genuinely changed,
+		// and the next sync tick will push a Build - correct, and rare.
+		Document()->MasterContainer->RemoveOrphanedHostControls();
+	}
+
+	return exportChunkXml();
+}
+
 bool TideApp::takeDspMessages(std::vector<unsigned char>& out)
 {
 	return synthRuntime.takeUiToDspMessages(out);
