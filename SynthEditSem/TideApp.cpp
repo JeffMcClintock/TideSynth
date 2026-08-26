@@ -1,5 +1,6 @@
 #include <cassert>
 #include <string_view>                  // S11 - importChunkXml
+#include <fstream>                      // V6 - loadDefaultDocument
 #include "tinyxml/tinyxml.h"            // S12 - exportChunkXml
 #include "SerializationHelper_XML.h"    // S12 - SAT_VST3 / EXP_PLUGIN
 #include "DocOb.h"                      // S12 - CDocOb::exportFlags
@@ -451,7 +452,18 @@ bool TideApp::importChunkXml(std::string_view xml)
 	if (!documentE)
 		return false;
 
+	// A saved CHUNK nests the editor tree in <Editor>; a document SAVED BY
+	// SYNTHEDIT (what V6's DefaultRack.synthedit is) puts <master_container>
+	// directly under <Document>. Accept both, and pick by structure rather
+	// than by which file it came from -- the importer wants the element that
+	// HOLDS the master container, and that is the only difference.
+	//
+	// The DSP-only case this used to reject still is: a chunk saved before
+	// <Editor> existed has neither an <Editor> nor a <master_container> child,
+	// so it fails the second test exactly as it used to fail the first.
 	auto* editorE = documentE->FirstChildElement("Editor");
+	if (!editorE && documentE->FirstChildElement("master_container"))
+		editorE = documentE;
 	if (!editorE)
 		return false; // a DSP-only chunk: saved before <Editor> existed
 
@@ -858,8 +870,9 @@ bool TideApp::InitInstance()
 	// so a Release TIDE could not reach it at all.
 	Document()->rackMode = true;
 
-	// BACKLOG V3 — every fresh document gets a wired MIDI-CV at the ROOT.
-	seedRootMidiCv();
+	// BACKLOG V3/V6 — every fresh document gets a wired MIDI-CV at the ROOT,
+	// and since V6 it arrives as DATA rather than as C++.
+	loadDefaultDocument();
 
 	assert(Document()->MasterContainer);
 	return true;
@@ -976,136 +989,74 @@ std::wstring TideApp::ResolveFilename(const std::wstring& name, const std::wstri
 }
 
 // ---------------------------------------------------------------------------
-// BACKLOG V3 — a wired MIDI-CV in every fresh document, at the ROOT.
+// BACKLOG V6 — the root assembly is DATA now, not code.
 //
-// WHY IT MUST BE AT THE ROOT. `SE MIDI to CV 2` is polyphonicSource/cloned, so
-// whatever container holds it becomes a voice container — and polyphony cannot
-// escape a container (E7). Inside a rack module its Gate is correct internally
-// and worth nothing outside, which is exactly what V3 measured. At the root the
-// root IS the voice context, so it works polyphonically, and the rack module the
-// user cables from is a FACADE: the "TIDE MIDI-CV" prefab holds nothing but
-// jacks, each fed inward from this MIDI-CV through the container's own pins.
+// This replaces seedRootMidiCv(), which built the same graph from two
+// AddModule calls, an AddPrefab and six AddConnectors. Jeff's observation is
+// what closed it: "You say 'it can't be a prefab' then you tell me you build a
+// container with a bunch of stuff in it, and insert it. That's the same as a
+// prefab isn't it." It was — and AddPrefab's own comment, two lines below the
+// workaround, already said a prefab may hold several top-level modules.
 //
-// WHY IT IS CREATED HERE rather than being something the user places: a MIDI-CV
-// is close to mandatory in an instrument, so there is exactly one, TIDE owns it,
-// and "what if the user adds a second" stops being a question. Jeff's ruling.
+// WHAT THE DELETION BUYS. The old code hard-coded `facadePin = 7 + jack index`
+// as an explicit contract with build-prefabs.py, and said in a comment that if
+// the jack list ever changed this had to change with it. A stored document has
+// no such coupling: the connections are data, so a jack added in SynthEdit
+// travels with them.
 //
-// THE PIN NUMBERS ARE A CONTRACT WITH build-prefabs.py. The facade's outer input
-// pins are 7 + jack index, because a Container's pins 0..6 are its own built-ins
-// (pin 2 is Visible) and 7 is the first synthesised IO pin. Verified for 1, 2 and
-// 4 jacks. If the jack list in build-prefabs.py's "TIDE MIDI-CV" entry changes,
-// this changes with it.
+// V3's reasoning survives the move and is worth keeping here, because the file
+// this loads is the only thing now enforcing it: `SE MIDI to CV 2` is
+// polyphonicSource/cloned, so whatever container holds it becomes a voice
+// container, and polyphony cannot escape a container (E7). It must sit at the
+// ROOT, with the rack module the user cables from being a FACADE of jacks fed
+// inward. A document that nests it is silently wrong in a way that still looks
+// right in the editor.
+//
+// IT LIVES OUTSIDE Prefabs/ ON PURPOSE. seedPrefabsFromBundle() scans
+// Resources/Prefabs recursively into the module browser, so a default document
+// shipped there would be user-insertable — and a SECOND root `SE MIDI to CV 2`
+// breaks voice allocation (Jeff, 2026-08-26: "two midi-cvs break it"). Keeping
+// this file a SIBLING of Prefabs/ rather than a member makes "there is exactly
+// one" a property of where it sits, not of anybody remembering.
+//
+// An absent or unreadable file leaves the blank document standing, exactly as
+// seedPrefabsFromBundle() leaves an empty browser: S13's ruling is that a
+// missing data file is a diagnostic, not an assert.
 // ---------------------------------------------------------------------------
-void TideApp::seedRootMidiCv()
+bool TideApp::loadDefaultDocument()
 {
-	auto* master = Document()->MasterContainer;
-	if (!master)
-		return;
+	const auto resourceFolder = BundleInfo::instance()->getResourceFolder();
+	if (resourceFolder.empty())
+		return false;
 
-	// `SE MIDI to CV 2`'s audio outputs, from its registration XML
-	// (SynthEditLib/MidiToCv2.cpp:18): 0 MIDI In, 1 Channel, then
-	enum { mcvTrigger = 2, mcvGate = 3, mcvPitch = 4, mcvVelocity = 5 };
+	const se_fs::path file = se_fs::path(resourceFolder) / L"DefaultRack.synthedit";
 
-	// The facade's jacks, in the order build-prefabs.py lays them out.
-	constexpr int kFirstIoPin = 7;
-	struct { int mcvPin; int facadePin; } const wiring[] = {
-		{ mcvPitch,    kFirstIoPin + 0 },   // PITCH
-		{ mcvGate,     kFirstIoPin + 1 },   // GATE
-		{ mcvVelocity, kFirstIoPin + 2 },   // VEL
-		{ mcvTrigger,  kFirstIoPin + 3 },   // TRIG
-	};
-
-	MfcDocPresenter presenter(master, CF_PANEL_VIEW);
-
-	// `MIDI In` is the plugin's MIDI ingress; its audio output `MIDI Data` is
-	// pin 1, NOT pin 0 — pin 0 is the GUI `Activity` INPUT, because a module's
-	// combined plug list interleaves its GUI and Audio pins, so the <Audio>
-	// block's declaration order is not the pin index. Checked by making
-	// SynthEditCL resolve the name and print the index.
-	// COORDINATES ARE DOCUMENT-SPACE AND RELATIVE TO THE CANVAS CENTRE. Passing
-	// small absolute numbers like {40,40} "works" and puts everything in the far
-	// top-left, off the visible rack, which looks exactly like the insert having
-	// failed. It did not; it was scrolled out of view. Measured, not guessed.
-	//
-	// V5: these were absolute (3600-3960), chosen against the old 7968 canvas
-	// whose centre was 3984. Derived from the centre now, so resizing the canvas
-	// cannot strand them off-rack -- which is exactly what shrinking it to 1008
-	// would have done.
-	const float cx = kRackViewDips / 2.0f;
-	//
-	// The two plumbing modules sit up and left of the rack row on purpose. `MIDI
-	// In` carries a GUI (its Activity indicator), so it DOES draw; left to itself
-	// it defaults to the canvas centre, i.e. the middle of the rack. Hiding it
-	// properly is rack styling — BACKLOG E5 — so for now it is merely out of the
-	// way, and deliberately so rather than by accident.
-	const int midiIn = presenter.AddModule(L"MIDI In", { cx -384.0f, cx -364.0f });
-	const int midiCv = presenter.AddModule(L"SE MIDI to CV 2", { cx -224.0f, cx -364.0f });
-	if (midiIn < 0 || midiCv < 0)
+	std::error_code ec;
+	if (!se_fs::is_regular_file(file, ec))
 	{
-		tideDiag("TIDE: could not create the root MIDI-CV (MIDI In=%d, MIDI-CV 2=%d)"
-		                " - the rack will have no MIDI jacks\n", midiIn, midiCv);
-		return;
+		tideDiag("TIDE: no DefaultRack.synthedit in bundle resources - starting with an empty rack\n");
+		return false;
 	}
 
-	presenter.AddConnector(midiIn, 1 /* MIDI Data */, midiCv, 0 /* MIDI In */, false);
-
-	// AddPrefab answers what AddModule structurally cannot: a prefab may hold
-	// several top-level modules, so AddModule returns -1 for any "*P=" path
-	// however well it worked. This used to be a hand-rolled snapshot-and-diff
-	// here, duplicating the same idiom in
-	// EditorScreenshot/EditorCommandDispatcher.cpp:1399; the presenter now owns
-	// it (MfcDocPresenter::AddPrefab) and both callers ask instead of deriving.
-	//
-	// An empty return is the error signal, and it covers the case that actually
-	// happens: the prefab file missing from the bundle.
-	const auto created = presenter.AddPrefab(L"*P=MidiCv.synthedit", { cx -24.0f, cx -40.0f });
-
-	// Still a search rather than created.front(): the facade is the CONTAINER,
-	// and this asks for that specifically rather than trusting the prefab to
-	// hold exactly one module. If a richer facade later ships alongside, say, a
-	// backdrop module at top level, this keeps working.
-	CContainer* facade = nullptr;
-	for (const auto handle : created)
+	std::ifstream in(file, std::ios::binary);
+	if (!in)
 	{
-		if (auto* c = dynamic_cast<CContainer*>(
-				master->Document()->uniqueIdDatabase.HandleToObjectWithNull(handle)); c)
-		{
-			facade = c;
-			break;
-		}
+		tideDiag("TIDE: DefaultRack.synthedit present but unreadable - starting with an empty rack\n");
+		return false;
 	}
 
-	if (!facade)
+	const std::string xml{ std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>() };
+
+	// The SAME importer a DAW-restored chunk uses, deliberately: a default
+	// document IS a saved document, so there is only one path to keep correct.
+	if (!importChunkXml(xml))
 	{
-		// Not an assert. A missing or malformed prefab is a data problem and S13's
-		// ruling is that those get a message, not an abort in someone's DAW.
-		tideDiag("TIDE: MidiCv.synthedit did not insert a container"
-		                " - the rack will have no MIDI jacks\n");
-		return;
+		tideDiag("TIDE: DefaultRack.synthedit did not import - starting with an empty rack\n");
+		return false;
 	}
 
-	for (const auto& w : wiring)
-	{
-		if (!presenter.AddConnector(midiCv, w.mcvPin, facade->Handle(), w.facadePin, false))
-			tideDiag("TIDE: root MIDI-CV pin %d -> facade pin %d refused\n",
-			        w.mcvPin, w.facadePin);
-	}
-
-	// NOT SEATED ON THE RACK GRID, and this is a measured negative rather than an
-	// omission. The facade renders correctly (light faceplate, black captions,
-	// jacks in front) but it straddles a mounting rail instead of sitting in a
-	// row. Trying to place it explicitly did NOT fix that: reading the layout
-	// (rack origin 3732,3732, rowHeight 380, railHeight 15) and calling
-	// presenter.SetModuleRect(facade, {3762,3747,3867,4097}) -- the same absolute
-	// rect path ViewBase::arrange uses for its own centring -- produced a
-	// pixel-identical screenshot. So either the rect is recomputed after this
-	// runs, or the rails are not drawn on the row grid this layout describes.
-	// Left alone rather than shipping a call that claims a seating it does not
-	// achieve; rack styling is BACKLOG E5 and the visual language is Jeff's.
-	master->setAllSelected(false);
-
-	tideDiag("TIDE: root MIDI-CV seeded (MIDI In %d -> MIDI-CV 2 %d -> facade %d)\n",
-	        midiIn, midiCv, facade->Handle());
+	tideDiag("TIDE: default rack loaded, %zu byte document\n", xml.size());
+	return true;
 }
 
 // BACKLOG S7. TIDE ships its own look and must write NOTHING outside its own

@@ -84,7 +84,11 @@ EXPECTED_XMLS = ("ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilte
 # Output jef, Sine jef. Overridable, because adding a prefab is normal work and
 # this script should be updated deliberately rather than being a tripwire that
 # every prefab author has to guess at.
-EXPECTED_PREFABS = 9
+# 7 since 2026-08-26: V6 made the root assembly a default DOCUMENT, which made
+# MidiCv.synthedit redundant, and Output_jef.synthedit went with it as the
+# other duplicate. Keeping MidiCv browsable would have been actively unsafe --
+# a second root `SE MIDI to CV 2` breaks voice allocation.
+EXPECTED_PREFABS = 7
 
 # The AudioComponent this project registers -- SynthEditSem/CMakeLists.txt:162.
 AU_TYPE, AU_SUBTYPE, AU_MANUFACTURER = "aumu", "Drck", "Dsyh"
@@ -94,7 +98,12 @@ DIAG_SUBSYSTEM = "com.tidesynth.tiderack"
 
 ENRICHED = re.compile(r"TIDE: (\S+) enriched (\d+) of (\d+) described class\(es\)")
 PREFABS = re.compile(r"TIDE: (\d+) rack prefab\(s\) seeded from the bundle")
-MIDI_CV = re.compile(r"TIDE: root MIDI-CV seeded \(")
+# V6 replaced seedRootMidiCv() with a default DOCUMENT, so the old
+# "root MIDI-CV seeded (...)" line no longer exists. Assert the OUTCOME the
+# gate always meant -- the rack came up populated -- rather than which code
+# path produced it. The byte count is part of the line on purpose: a rack
+# that loaded nothing cannot print one.
+DEFAULT_RACK = re.compile(r"TIDE: default rack loaded, (\d+) byte document")
 
 # Lines that are themselves the verdict. Each is a real message in TideApp.cpp;
 # a typo here would silently disarm one check, so the negative-control test in
@@ -106,8 +115,7 @@ FATAL_LINES = (
      "-- this is the M5 defect's own shape, and until M8 it was completely silent"),
     ("no Prefabs folder in bundle resources", "the rack module browser will be empty"),
     ("Prefabs folder present but empty", "the POST_BUILD staging step did not run"),
-    ("did not insert a container", "the rack will have no MIDI jacks"),
-    ("could not create the root MIDI-CV", "the MIDI-CV module is not registered"),
+    ("starting with an empty rack", "the default document is missing, unreadable or did not import"),
     ("refused", "a root MIDI-CV connection was refused"),
 )
 
@@ -185,12 +193,14 @@ def check(text, expect_prefabs=EXPECTED_PREFABS):
         else:
             notes.append("%d rack prefab(s) seeded" % count)
 
-    # --- positive assertion 3: the root MIDI-CV is in and wired
-    if not MIDI_CV.search(text):
-        failures.append("no 'root MIDI-CV seeded' line -- the rack has no MIDI "
-                        "jacks, which is one of the three things M5 shipped.")
+    # --- positive assertion 3: the default rack loaded, so the rack has content
+    m = DEFAULT_RACK.search(text)
+    if not m:
+        failures.append("no 'default rack loaded' line -- the rack came up EMPTY, "
+                        "so it has no MIDI jacks and no output, which is what M5 "
+                        "shipped and M6 exists to stop shipping again.")
     else:
-        notes.append("root MIDI-CV seeded")
+        notes.append("default rack loaded, %s byte document" % m.group(1))
 
     return failures, notes
 

@@ -882,6 +882,14 @@ if(_tide_shared_targets)
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules"
       "${_tide_shared_resources}/Prefabs"
+    # BACKLOG V6 -- the default document, and it is a SIBLING of Prefabs/ rather
+    # than a member ON PURPOSE. seedPrefabsFromBundle() scans Prefabs/
+    # recursively into the module browser, so shipping it there would make the
+    # root MIDI-CV user-insertable, and a second one breaks voice allocation.
+    # Staging it here keeps "there is exactly one" a property of the layout.
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${CMAKE_CURRENT_SOURCE_DIR}/../DefaultRack.synthedit"
+      "${_tide_shared_resources}/DefaultRack.synthedit"
     COMMENT "Staging rack prefabs and pin XMLs (once, shared by every format target that needs them)"
     VERBATIM
   )
