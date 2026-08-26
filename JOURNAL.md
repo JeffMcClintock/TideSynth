@@ -8,6 +8,93 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-26 — macos — E25: the SIGSEGV is a missing null check, and the trigger is not the timer (scheduled run)
+
+**Prompt:** "Work continuously through the TideSynth backlog... If you cannot
+measure it, write 'unverified' and say exactly what is missing. Never imply a
+measurement you did not take."
+
+That last sentence is what this entry is shaped by. **The cause is found; the
+fix is GATED; the on-demand repro is still open.** E25 stays TODO.
+
+**A SECOND CRASH REPORT EXISTS, and it is better evidence than the one the row
+was filed on.** `TIDE-Rack-2026-08-26-021533.ips`. Worth knowing: the original
+`...-2026-08-25-162615.ips` that E25 quotes is **already gone** — macOS rotates
+`~/Library/Logs/DiagnosticReports` and only one TIDE report survives today. So
+the stack is copied into the row rather than pointed at. Do the same next time;
+a row that cites a file the OS deletes is a row that loses its evidence.
+
+**THE TRIGGER IS SESSION RESTORE, NOT THE SYNC TIMER.** E25 reasons its way to
+"a document STATE or an interaction, not the timer", which is half right and
+stops one step short. The new stack names it:
+
+```
+start / main / runStandaloneApp / SessionState::restore /
+StandaloneHost::restoreState / notifyControllerOfPreset /
+SynthEditController::setParameter / TideApp::importChunkXml /
+TideApp::exportChunkXml / CContainer::ExportXml / CPatchManager::ExportXml /
+PatchParameter_base::ExportXml / CContainer::getIgnoreProgramChange /
+CUG::GetPlug(int)
+```
+
+`importChunkXml` ends with `lastPushedShape = documentShape(exportChunkXml());`
+(`TideApp.cpp:487`) — the export runs on a document rebuilt microseconds
+earlier. `SynthEditGui::onTimer` is not on this stack at all. The row's own
+"relaunched and let the timer tick for 100 s and it did not crash" was
+therefore the right experiment against the wrong hypothesis.
+
+**THE DEFECT, and it is one line.** `CContainer::getIgnoreProgramChange()`
+(`CContainer.cpp:1654`):
+
+```cpp
+return GetPlug(PN_IGNORE_PC)->GetDefault().compare(L"1") == 0
+       || (Container() && Container()->getIgnoreProgramChange());
+```
+
+`CUG::GetPlug(int)` (`CUG.cpp:1710`) **returns `nullptr` by design** when the
+index is out of range, and its comment says exactly what happens next:
+
+> callers that already null-check recover cleanly, and **the rest fault at a
+> known point** instead of dereferencing whatever the out-of-range read
+> produced.
+
+`getIgnoreProgramChange` is one of "the rest". The report's
+`KERN_INVALID_ADDRESS at 0x50` is a member access on a null `this`, which is
+what `GetDefault()` on a null plug looks like.
+
+**Why index 3 is the fragile one, and this is the part worth remembering:**
+`PN_IGNORE_PC` is 3, and a container's pin table (`ug_container.cpp:198`)
+declares exactly indices 0–3 with `Ignore Program Change` **LAST**. A container
+whose `Plugs` vector is short by a single entry faults here and nowhere else —
+so this accessor is the canary for an incomplete plug table, and it screams by
+segfaulting.
+
+**A second unguarded deref one frame up**, and fixing only the first would just
+move the next report by a line: `PatchParameter_base::ignoreProgramChange()`
+(`PatchParameter.cpp:1297`) is
+`m_ignoreProgramChange || (module() && module()->Container()->getIgnoreProgramChange())`
+— it guards `module()` for null, with a comment explaining why, and then
+dereferences `module()->Container()` unguarded. A module directly under the
+master container takes that one.
+
+**WHAT DID NOT REPRODUCE — negative results, recorded as evidence rather than
+omitted:**
+
+1. Restoring the live `~/Library/Application Support/TiDE Rack/session.xml`
+   into an isolated `HOME`: **clean**. (Its master container serialises
+   `plugs=1`, which looked damning and is not — the table is topped up.)
+2. A `TIDE_VCV_HETRICKCV=ON` build — 66 modules registered — with three ported
+   modules inserted by double-click, one selected to open its properties pane
+   (**this row's own stated lead**), saved and restored: **clean**.
+
+So it is not "a HetrickCV module is present", and it is not time-alone. **The
+one unknown left is which document state leaves a container's plug table short
+of four** — a far smaller target than "a crash somewhere in serialisation", and
+the next run should start there rather than re-deriving any of the above.
+
+**The fix is GATED** (`SynthEditLib/EditorLib`), so it is filed, not written.
+Both lines are in the row.
+
 ## 2026-08-26 — macos — V7: the override hook, and the gate that turned out not to be one (scheduled run)
 
 **Prompt:** "Work continuously through the TideSynth backlog... GATED =
