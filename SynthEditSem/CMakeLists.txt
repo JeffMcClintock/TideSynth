@@ -430,6 +430,150 @@ if(APPLE AND TARGET ${PROJECT_NAME}_AU3App)
     message(STATUS "S40: AUv3 containing app named TIDE-Rack-AUv3.app")
 endif()
 
+# The TiDE app icon -- SynthEditSem/TiDE.icon, Apple's Icon Composer document
+# format (Xcode 26 / OS 26 "Liquid Glass"). "TiDE" in Rosewater #F5E0DC on
+# Lavender #B4BEFE, the text pre-outlined into an SVG layer so nothing here
+# depends on a font at build time.
+#
+# ONE SOURCE, TWO RENDERS: actool compiles the .icon into Assets.car (the
+# layered glass icon, macOS/iOS 26+) AND a flattened TiDE.icns fallback that
+# every older macOS reads via CFBundleIconFile. Both are staged into the app
+# bundle and both plist keys are set, so the same wiring covers the whole OS
+# range.
+#
+# GUARDED ON XCODE >= 26, out loud: CI's macos-latest image carries an older
+# Xcode whose actool does not know the .icon format, and an unguarded step
+# would turn this cosmetic feature into a red mac leg. When the guard skips,
+# the app builds exactly as before -- no icon, not a broken one.
+#
+# WHY actool RUNS EXPLICITLY rather than riding Xcode's asset pipeline: this
+# repo configures with the DEFAULT generator (build.yml says so at :339), so
+# there is no Xcode build system in the loop to compile the .icon for us.
+#
+# iOS NOTE: the same document compiles for iphoneos (no .icns there -- iOS is
+# Assets.car only, keyed by CFBundleIcons), but actool additionally needs an
+# OS-26-class simulator runtime installed to render the layers. This box
+# currently has only the iOS 18.0 runtime, so the iOS arm is wired and waits
+# on `xcodebuild -downloadPlatform iOS` rather than on any code change.
+if(APPLE)
+    execute_process(COMMAND xcodebuild -version
+        OUTPUT_VARIABLE _tide_xcode_version_out
+        OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    string(REGEX MATCH "Xcode ([0-9]+)" _tide_xcode_match "${_tide_xcode_version_out}")
+    set(TIDE_XCODE_MAJOR "${CMAKE_MATCH_1}")
+
+    if(TIDE_XCODE_MAJOR AND TIDE_XCODE_MAJOR GREATER_EQUAL 26)
+        set(TIDE_ICON_TOOLING TRUE)
+        message(STATUS "TiDE icon: Xcode ${TIDE_XCODE_MAJOR}, .icon compilation enabled")
+    else()
+        set(TIDE_ICON_TOOLING FALSE)
+        message(STATUS "TiDE icon: SKIPPED -- Xcode '${TIDE_XCODE_MAJOR}' < 26 cannot compile the .icon format; apps build without an icon")
+    endif()
+endif()
+
+function(tide_apply_app_icon tgt)
+    if(NOT APPLE OR NOT TIDE_ICON_TOOLING OR NOT TARGET ${tgt})
+        if(APPLE AND TIDE_ICON_TOOLING)
+            message(STATUS "TiDE icon: target ${tgt} absent, nothing to decorate")
+        endif()
+        return()
+    endif()
+
+    set(_icon_src "${CMAKE_CURRENT_SOURCE_DIR}/TiDE.icon")
+    set(_icon_out "${CMAKE_CURRENT_BINARY_DIR}/tide-icon-${tgt}")
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        set(_icon_platform iphoneos)
+        set(_icon_products "${_icon_out}/Assets.car")
+    else()
+        set(_icon_platform macosx)
+        set(_icon_products "${_icon_out}/Assets.car" "${_icon_out}/TiDE.icns")
+    endif()
+
+    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
+    endif()
+
+    add_custom_command(OUTPUT ${_icon_products}
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_icon_out}"
+        COMMAND xcrun actool "${_icon_src}" --compile "${_icon_out}"
+            --platform ${_icon_platform}
+            --minimum-deployment-target ${CMAKE_OSX_DEPLOYMENT_TARGET}
+            --app-icon TiDE
+            --output-partial-info-plist "${_icon_out}/partial.plist"
+        DEPENDS "${_icon_src}/icon.json" "${_icon_src}/Assets/TiDE-text.svg"
+        COMMENT "Compiling TiDE.icon (${_icon_platform}) for ${tgt}"
+        VERBATIM)
+    add_custom_target(${tgt}_tide_icon DEPENDS ${_icon_products})
+
+    # CFBundleIconFile via the TARGET PROPERTY, not by editing the built plist.
+    # CMake's own MacOSXBundleInfo.plist.in substitutes this one, so the key is
+    # written when CMake generates the plist and SURVIVES every regeneration.
+    # CFBundleIconName (the Assets.car / Liquid Glass key) has no such property
+    # and must be patched in below.
+    set_target_properties(${tgt} PROPERTIES MACOSX_BUNDLE_ICON_FILE "TiDE")
+
+    # AN ALWAYS-RUN TARGET, NOT A POST_BUILD, AND THIS IS THE WHOLE LESSON.
+    #
+    # A POST_BUILD runs only when the target RELINKS. CMake regenerates the
+    # bundle's Info.plist on other occasions -- a reconfigure among them -- so
+    # the sequence "plist regenerated, target already up to date" leaves a
+    # bundle whose plist is NEWER than its signature and has lost the patched
+    # key. Measured here: Info.plist 437s newer than CodeResources, the
+    # CFBundleIconName gone, and `codesign --verify` failing with "invalid
+    # Info.plist (plist or signature have been modified)".
+    #
+    # The AU3 app hid this, because gmpi_plugin.cmake's own _assemble target
+    # re-signs unconditionally and healed it every time. The standalone has no
+    # such target, so it stayed broken -- the same defect, visible in only one
+    # of the two places it existed.
+    #
+    # ALL + always-out-of-date means this runs last on every build, so the
+    # signature is applied after anything else that touches the bundle.
+    if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        set(_stage
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_icon_out}/Assets.car" "$<TARGET_BUNDLE_CONTENT_DIR:${tgt}>/Assets.car"
+            COMMAND plutil -replace CFBundleIcons -xml
+                "<dict><key>CFBundlePrimaryIcon</key><dict><key>CFBundleIconName</key><string>TiDE</string></dict></dict>"
+                "$<TARGET_BUNDLE_CONTENT_DIR:${tgt}>/Info.plist")
+    else()
+        set(_stage
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_BUNDLE_CONTENT_DIR:${tgt}>/Resources"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_icon_out}/Assets.car" "$<TARGET_BUNDLE_CONTENT_DIR:${tgt}>/Resources/Assets.car"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_icon_out}/TiDE.icns" "$<TARGET_BUNDLE_CONTENT_DIR:${tgt}>/Resources/TiDE.icns"
+            COMMAND plutil -replace CFBundleIconFile -string TiDE
+                "$<TARGET_BUNDLE_CONTENT_DIR:${tgt}>/Info.plist"
+            COMMAND plutil -replace CFBundleIconName -string TiDE
+                "$<TARGET_BUNDLE_CONTENT_DIR:${tgt}>/Info.plist")
+    endif()
+
+    add_custom_target(${tgt}_tide_icon_apply ALL
+        ${_stage}
+        COMMAND codesign --force --sign - "$<TARGET_BUNDLE_DIR:${tgt}>"
+        COMMENT "TiDE icon -> ${tgt} bundle"
+        VERBATIM)
+    add_dependencies(${tgt}_tide_icon_apply ${tgt} ${tgt}_tide_icon)
+
+    # The AU3 app's _assemble copies the bundle and re-signs it, so the icon
+    # must be inside BEFORE it runs -- otherwise assemble ships a copy made
+    # before the staging step and the shipped appex host has no icon.
+    if(TARGET ${PROJECT_NAME}_AU3_assemble AND tgt STREQUAL "${PROJECT_NAME}_AU3App")
+        add_dependencies(${PROJECT_NAME}_AU3_assemble ${tgt}_tide_icon_apply)
+    endif()
+endfunction()
+
+# The tide_apply_app_icon() CALLS are at the BOTTOM of this file, not here.
+# POST_BUILD commands run in the order they were added, and the per-format
+# loop below stages the Prefabs into Resources via its own POST_BUILD -- so an
+# icon codesign added HERE would seal the bundle BEFORE the prefabs land, and
+# `codesign --verify` then fails with "a sealed resource is missing or
+# invalid: Resources/Prefabs/...". Measured, not theorised. The calls must be
+# the last POST_BUILD contributors so their re-sign seals everything.
+
 # NOT guarded silently. N1a lost a session to `if(TARGET ...)` skipping without
 # a word, so this says so out loud when the target is absent.
 if(APPLE)
@@ -1053,4 +1197,20 @@ foreach(kind IN LISTS FORMATS_LIST)
 endforeach()
 
 add_subdirectory(${GMPI_ADAPTORS} adaptors)
+
+# Last on purpose -- their POST_BUILD re-sign must be the final touch on each
+# app bundle, after the per-format loop's Prefabs staging. See the comment at
+# the function definition.
+tide_apply_app_icon(${PROJECT_NAME}_STANDALONE)
+tide_apply_app_icon(${PROJECT_NAME}_AU3App)
+
+# The Windows exe icon: a two-line .rc embedding the committed multi-size
+# icons/TiDE.ico (generated by scripts/render-icons.py from TiDE.icon -- the
+# CI runner cannot render it, so the .ico is checked in). Explorer, the
+# taskbar and Alt-Tab all read it from the executable; the plug-in DLLs get
+# nothing because nothing ever shows a plug-in file's icon to a user.
+if(WIN32 AND TARGET ${PROJECT_NAME}_STANDALONE)
+    target_sources(${PROJECT_NAME}_STANDALONE PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/TiDEIcon.rc)
+endif()
 
