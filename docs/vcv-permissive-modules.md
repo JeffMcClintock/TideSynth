@@ -1,5 +1,11 @@
 # Permissively-licensed VCV / Cardinal modules — code *and* artwork
 
+> **PARKED 2026-08-26.** Jeff ruled that *"3rd-party module compatibility is not important
+> at this stage. We ship with only our own modules"* — see
+> [decisions.md](decisions.md). **Nothing in this document is actionable right now.** It is
+> kept because the licensing and artwork research is the expensive part and does not go
+> stale; the rows it feeds (E20-E23) are `BLOCKED`, not `WONTFIX`.
+
 Research, 2026-08-25 (macos, interactive, Jeff directing). Companion to
 [vcv-fundamental.md](vcv-fundamental.md), which covers the GPL Fundamental
 ports. **This document asks a different question: which modules could TIDE ship
