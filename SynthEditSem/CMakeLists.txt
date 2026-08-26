@@ -423,11 +423,36 @@ gmpi_plugin(
 # is registered. So the install story is a copy PLUS a first launch, and
 # docs/distribution.md says so now.
 if(APPLE AND TARGET ${PROJECT_NAME}_AU3App)
+    # BACKLOG M10 -- the "(AUv3)" suffix is a macOS answer to a macOS problem,
+    # and iOS has neither the problem nor the room for it.
+    #
+    # On macOS this app sits in one folder beside TIDE-Rack.app (the STANDALONE
+    # format): two bundles cannot share a display name, and the suffix also
+    # tells a user what an app whose only job is carrying an extension is FOR.
+    #
+    # NEITHER holds on iOS. There is no standalone to collide with -- GMPI drops
+    # the format entirely there (gmpi_plugin.cmake, "STANDALONE skipped (no
+    # shell on this platform yet)") -- and M9 ruled the iOS containing app IS
+    # the product, hosting its own AUv3 rather than being a shipping shim. The
+    # name an iOS user reads on the home screen is therefore the PRODUCT name,
+    # and the product is TiDE Rack. Jeff, seeing it on the simulator: "on IOS
+    # the app name should not include (AUv3) it's messy."
+    #
+    # Only the DISPLAY name is conditional. OUTPUT_NAME stays TIDE-Rack-AUv3 on
+    # both: iOS shows CFBundleDisplayName rather than the bundle filename, so
+    # renaming the file would buy nothing and would churn the install path M2
+    # measured.
+    if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        set(_tide_au3app_name "TiDE Rack")
+    else()
+        set(_tide_au3app_name "TiDE Rack (AUv3)")
+    endif()
+
     set_target_properties(${PROJECT_NAME}_AU3App PROPERTIES
         OUTPUT_NAME "TIDE-Rack-AUv3"
-        MACOSX_BUNDLE_BUNDLE_NAME "TiDE Rack (AUv3)"
+        MACOSX_BUNDLE_BUNDLE_NAME "${_tide_au3app_name}"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.tidesynth.tiderack.au3app")
-    message(STATUS "S40: AUv3 containing app named TIDE-Rack-AUv3.app")
+    message(STATUS "S40: AUv3 containing app named TIDE-Rack-AUv3.app, displayed as \"${_tide_au3app_name}\" (M10)")
 endif()
 
 # The TiDE app icon -- SynthEditSem/TiDE.icon, Apple's Icon Composer document
