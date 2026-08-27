@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **346 KB** across **272** entries, so copying them
+Learned sections are **348 KB** across **274** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **100 KB / 1102 lessons — 3.5x smaller**, and represents
+A8. This is **101 KB / 1112 lessons — 3.4x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -39,6 +39,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
 
+**macos — STEP 1.5 was the whole run: #513 had gone CONFLICTING, and my first resolution of it was wrong**
+
+- A conflict is not on STEP 1.5's list of three, and should be.
+- A deletion outside a conflict hunk merges silently, so "I only touched the conflicts" is not a description of what you changed.
+- Do not half-apply another run's deliberate bookkeeping.
+- The lints are load-bearing, not ceremony.
+
 **macos — E52: a shipping build option that did not compile, and the control that proves the fix is not a deletion (scheduled run)**
 
 - An absent control makes a passing round-trip worthless.
@@ -49,6 +56,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A NEXT cell three days old is history, not a queue.
 
 ## 2026-08-27
+
+**macos — E25 reproduced from a document, and STEP 1's stale issue turned out to be E46 crashing in the wild (scheduled run)**
+
+- A truncated stderr and a crashed process look identical from the log.
+- One field can have two serialised names, and a row can spend three attempts on the wrong one.
+- When a row recommends a GUI route, check whether the document reaches the same state.
+- Revert the fix rather than checking out the tree that predates it.
+- A guard that stops a crash can blind the gate that caught it.
+- A stale NEXT cell is more dangerous than an empty one
 
 **windows — E48: a shipped prefab uses a module TIDE does not ship, and that one fact explains both dialogs and the 3,577 bytes (interactive, Jeff directing)**
 

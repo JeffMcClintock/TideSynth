@@ -8,6 +8,66 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — STEP 1.5 was the whole run: #513 had gone CONFLICTING, and my first resolution of it was wrong
+
+**Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell, recorded as unknown rather than guessed* · as tide-rack-bot (both)
+
+**Did:** no backlog item. STEP 1.5 found [#513](https://github.com/JeffMcClintock/TideSynth/pull/513) (E25) `CONFLICTING`, resolved it, and pushed to the same branch. It is `MERGEABLE` again. No product code, no fixture change.
+
+### Why this outranked a backlog row
+
+STEP 1.5 names "failing checks, requested changes, or unresolved review comments". **#513 had none of those — 12/12 checks pass, zero reviews — and still could not merge.** A conflict is not on that list, but the intent plainly reaches it: it is this platform's PR, it is stuck, and no other box will touch a `tide/mac/**` branch. The neighbouring rule settles it the other way round too — "green with nothing unresolved is just waiting for merge, leave it alone" — and #513 was *not* that. [#514](https://github.com/JeffMcClintock/TideSynth/pull/514) **was** exactly that, so it was left alone; it is stacked on #513's branch and clears when #513 lands.
+
+Third merge from main on this branch. E52 ([#515](https://github.com/JeffMcClintock/TideSynth/pull/515)) and the 2026-08-28 NEXT block landed since the last one.
+
+### The resolutions, on the merits
+
+| conflict | taken | why |
+|---|---|---|
+| `BACKLOG.md` NEXT block | origin/main | main's cells are dated 08-28 and already name this PR — *"#513 and #514 are both green … leave them alone"*. The branch's are 08-27 copies. |
+| `BACKLOG.md` E52 | origin/main | `IN-REVIEW` beats the branch's stale `TODO`; #515 merged. |
+| `BACKLOG-DONE.md` E50 | origin/main | archived on **both** sides with different dates. Kept main's 08-28 row (#508), dropped the branch's 08-27 duplicate, so E50 survives exactly once. |
+| `JOURNAL.md` | both | prepend-only file, both sides added entries. |
+
+### I GOT R6 WRONG, AND THREE LINTS CAUGHT IT INDEPENDENTLY
+
+I dropped the branch's R6 archive row, reasoning that main still carries R6 as `IN-REVIEW` so leaving main's state alone was conservative, and that promoting a row was not this PR's job.
+
+**It was not conservative, it was incoherent.** The branch had also **deleted** R6 from `BACKLOG.md` as the other half of the same deliberate act (`e626a0e`, *"E50 and R6 DONE and archived"*), and **that deletion sat outside every conflict hunk, so git auto-merged it silently.** I never saw it. Dropping the archive row on top of it made R6 vanish from both files:
+
+```
+check-backlog-diff     R6 missing from head, no verbatim copy in any other file
+check-id-refs          12 STALE references to R6
+check-journal-prepend  (separately) entries are not newest-first
+```
+
+Restored the branch's R6 row verbatim, keeping **both halves** of that run's bookkeeping. R6 is genuinely done — [#505](https://github.com/JeffMcClintock/TideSynth/pull/505) merged and `tidesynth.com` serves all five `releases/latest/download/` permalinks — so archived is the correct state, and it was that run's call to make, not mine to half-undo.
+
+The journal failure was separate and also mine: I put the branch's 08-27 entry above main's 08-28 one, having assumed `check-journal-prepend.py` only enforced the prepend-suffix property. **It enforces newest-first as well.** Moved below.
+
+**Verification artifact — all seven lints, after:**
+
+```
+check-id-refs           no stale ID references, no duplicate IDs, no shared live citations
+check-backlog-diff      status/date cells and new rows only, OK
+check-journal-prepend   prepend-only, OK
+check-backlog-archived  47 row(s), none DONE, all terminated, OK (244 KB)
+check-links / check-next-block / check-prompt-provenance   rc=0
+```
+
+`gh pr view 513` → `mergeable=MERGEABLE`, from `CONFLICTING`.
+
+**Learned:**
+
+- **A conflict is not on STEP 1.5's list of three, and should be.** No failing check, no requested change, no review comment — and unmergeable. The list reads as exhaustive and is not; the "leave a green PR alone" sentence next to it is what disambiguates.
+- **A deletion outside a conflict hunk merges silently, so "I only touched the conflicts" is not a description of what you changed.** Half of the branch's R6 act was invisible to me while I was deciding the other half.
+- **Do not half-apply another run's deliberate bookkeeping.** Taking one side of a two-part act produced a state neither run intended and no lint would have predicted from either input alone. Either keep it whole or leave it whole.
+- **The lints are load-bearing, not ceremony.** Three of them independently caught one wrong judgement call, each from a different direction, in a diff that looked entirely reasonable.
+
+**Next:** #513 is mergeable and waiting on Jeff; #514 clears with it. Nothing else on `tide/mac/**`. Two mac branches still sit on the remote with **no PR** — `tide/mac/E36-renumber-duplicate-e34` and `tide/mac/icon-tide-app` — flagged by the windows box on 08-27 and still true; that is the one end state STEP 5 forbids.
+
+**Branch/PR:** `tide/mac/E25-document-driven-repro`, [#513](https://github.com/JeffMcClintock/TideSynth/pull/513) — pushed to the same branch per STEP 1.5, no second PR.
+
 ## 2026-08-28 — macos — E52: a shipping build option that did not compile, and the control that proves the fix is not a deletion (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** (there is no `claude` CLI on this box's PATH, so this is the desktop app's `CFBundleShortVersionString`, the version A13 recorded as the discoverable one on a mac) · as **tide-rack-bot** (both paths)
@@ -185,6 +245,93 @@ E50's archive, the `win` NEXT cell's defused phrase, the `mac` NEXT cell, and th
 **Merging TideSynth's side alone changes no behaviour**; merging GMPI_Wrappers' alone
 leaves the backlog saying the work is open.
 
+## 2026-08-27 — macos — E25 reproduced from a document, and STEP 1's stale issue turned out to be E46 crashing in the wild (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude Code (no `claude` on this box's PATH, and `claude --version` reports `command not found`, so the version A13 calls discoverable is not available here — recorded rather than guessed) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, which matches the hard-coded `GIT_AUTHOR_EMAIL`)
+
+**Did:** STEP 1 on [#491](https://github.com/JeffMcClintock/TideSynth/issues/491) — diagnosed, closed. Then took **E25**, the `platform: mac` row the NEXT cell said did not exist, and **met its Accept**. Filed **E54**. Annotated **E46** with the reproduction it says it lacks. No product code changed in any repo.
+
+### The NEXT cell was five days stale and said this box had nothing
+
+The `mac` cell asserted *"There are still NO `platform: mac` TODO rows"*. The Status column said **E25 | TODO | mac**. STEP 2 is explicit that eligibility lives in the Status column alone, and it is the only reason this run had an item. Walking the rows above it in file order, with the reason each was skipped on its own row rather than only here: **S1b** and **S8** wholly GATED, **E38** carries `NEEDS-SPEC`, **E19**'s mac cell wants AU3 in a real host, **E7** and **E2** are product decisions.
+
+### STEP 1: #491 was real, reproduces at its own commit, and is not a macOS defect
+
+The issue named a branch that had been **deleted ten minutes before the issue was filed** — `build.yml`'s close-on-success step can never fire on such a branch, which is A33's case, and `watchdog.yml` (which closes exactly these) had not run since 2026-08-26T06:14Z.
+
+It was not a compile error. The build succeeded and `check-rack-populated.py` fired: *"no 'default rack loaded' line"*.
+
+Rebuilt the pair CI actually saw — TideSynth `0876c3ac` with `SYNTHEDITLIB_FOLDER_OVERRIDE` pinned to SynthEditLib `4f334b9` — **and it reproduces**. Two things ruled out first, so nobody re-checks them: a stale `session.xml` in the runner's `$HOME` (gate passes with and without one) and E42's `PanelLocationCenter` change to the same file (passes with either version staged).
+
+**The trigger is a cross-repo straddle.** `0876c3ac` pointed `DefaultRack.synthedit` at `<module type="MIDI In NL">`; `MIDI In NL` had **zero** occurrences in SynthEditLib at `4f334b9` and one in `main` today. TideSynth's half merged 01:08Z, SynthEditLib's (`b031ec6`) at 02:29Z. **81 minutes, and the run started at 01:06Z, inside the gap.**
+
+### I called it a silent failure, and it was a crash. Reading the exit status is the fix
+
+I wrote *"the app said nothing — no error, no warning"* into a comment on the issue, from a stderr that ends after `5 rack prefab(s) seeded`. **It ends because the process was gone.** `~/Library/Logs/DiagnosticReports` had two identical reports:
+
+```
+EXC_BAD_ACCESS  KERN_INVALID_ADDRESS at 0x8b890660a94c2680 (possible pointer authentication failure)
+  CUG::GetPlug(int) <- CContainer::getIgnoreProgramChange() <- PatchParameter_base::ExportXml
+  <- CPatchManager::ExportXml <- CContainer::ExportXml <- TideApp::exportChunkXml <- importChunkXml
+```
+
+**That is E46, reproduced in the wild** — and E46's row says in its own words that it was read off the source with no repro. The module never existed, so its handle never entered `uniqueIds`, and `InitModulePointers` at `4f334b9` was `assert(it != uniqueIds.end())` followed by a bare deref. The parameter took a garbage module pointer.
+
+**E46 and E25 are the same stack reached two ways, and the faulting address separates them:** `0x50` is a NULL container (E25); a PAC-failing address is a WILD one (E46). Both guards are on `main` now — `f85cf73` and `796bbc2` — and `796bbc2` landed at **08:05Z, seven hours after the crash it explains**. Verified the guard works rather than assuming: a document naming handle `999999999` now prints *"parameter names module handle 999999999, which this document does not contain"* and the app loads.
+
+Corrected on the issue rather than left standing.
+
+### E25: the three earlier attempts failed on one word of spelling
+
+The row records three crafted documents that did not reproduce, and recommends driving the Properties pane toggle instead. **The document route works; it was being spelled wrong.** Those attempts set `ignoreProgramChange="0"` — the attribute `PatchParameter_base::ExportXml` writes for an **exported plugin** (`PatchParameter.cpp:435`). The attribute a **document** carries is `ignorePC`, from the `SerialiseB` reflection list at `PatchParameter.h:101`, and any shipped prefab shows it (`modules/Filters/Lookahead.synthedit:143`). One field, two serialisations, two names.
+
+The fixture is `DefaultRack.synthedit` plus **one attribute pair**:
+
+```
+<param type="10" handle="1100194740" private="true" hostControl="49" module="1996595734" ignorePC="false">
+```
+
+Both halves are load-bearing, and neither alone reaches the deref: `m_ignoreProgramChange` **defaults to `true`** and `true` short-circuits before `module()` is read; and `module="1996595734"` is the `<master_container name="Main">`, the one object whose `Container()` is null (`DocOb.cpp:40`, *"special case for 'Main' container"*). `CPatchManager::Import` reads the attribute and `InitModulePointers` binds it out of `uniqueIds`, which every object joins via `uniqueIds[Handle()] = this` (`CUG.cpp:1216`) — master container included.
+
+**Measured. Same TideSynth `main` (`2612a2d`) in every cell; the guard is the only variable:**
+
+| | stock `DefaultRack.synthedit` | the fixture |
+|---|---|---|
+| **`f85cf73` reverted** | no crash, `default rack loaded, 25110 byte document` | **SIGSEGV, exit 139**, `KERN_INVALID_ADDRESS at 0x50` |
+| **`main`** | no crash, `25110 byte document` | no crash, `default rack loaded, 25147 byte document` |
+
+`0x50` is the address the original report named, which is the whole evidence this row turns on. The left column is the **control** — it is what makes the fixture the variable rather than the build. Crash reports: **one per faulting run, zero in the other three cells**, so the Accept's *"crash-report count before and after"* has a before again after macOS rotated the originals away.
+
+**The A/B arm had to be built by reverting the guard, not by checking out a pre-`f85cf73` `SynthEditLib`.** That was tried first and does not compile: TideSynth `main` calls `takeDivertedPrompts`, which E51 added *after* the guard. The same cross-repo coupling that caused #491, hit twice in one session.
+
+### E54: E46's fix opened a hole in the shipping gate
+
+Before the guard, a straddle crashed and `check-rack-populated.py` caught it by the absent line. **After the guard it loads degraded and the gate passes** — `rack is populated.`, exit 0 — on a rack missing a module, while the app printed the reason two lines earlier. Measured, not inferred. That is the M5 shape the script was written to stop, reintroduced by a fix that was right to make.
+
+### STEP 4 bookkeeping
+
+**E50** and **R6** had every linked PR merged and no clause left open in their own words, so both are DONE and moved to `BACKLOG-DONE.md` verbatim. PR state read with `gh pr view`, not inferred from a merge commit; R6 names a branch rather than a number (A22), so its PR was resolved from the head ref — [#505](https://github.com/JeffMcClintock/TideSynth/pull/505).
+
+**E45 was NOT flipped, deliberately.** Both its PRs merged, but its own row says the check is not wired into `lint.yml` and *"until it is, the check exists and enforces nothing"* — that line needs Jeff, because the bot token has no `workflow` scope. DONE would be false, which is the E32 precedent exactly.
+
+Archiving E50 then failed `check-next-block`: the `win` cell still carried a literal `TAKE **E50**` in its "previous cell follows" history, which the lint correctly reads as a live directive. Reworded as history rather than deleted — **my archive broke it, so my branch fixes it**.
+
+**Learned:**
+
+- **A truncated stderr and a crashed process look identical from the log.** Check the exit status before writing "it said nothing" — I put that sentence in a public comment and had to correct it.
+- **One field can have two serialised names, and a row can spend three attempts on the wrong one.** `ignoreProgramChange` is the export attribute; `ignorePC` is the document attribute. Grepping a shipped file for the attribute settles it in one command.
+- **When a row recommends a GUI route, check whether the document reaches the same state.** E25 asked for the Properties toggle, which the command channel cannot click; two attributes did it with no gesture at all.
+- **Revert the fix rather than checking out the tree that predates it.** A months-old sibling will not compile against today's consumer, and reverting keeps the fix as the only variable — which is the whole point of the A/B.
+- **A guard that stops a crash can blind the gate that caught it.** Worth asking, every time a silent-failure fix lands, what used to notice and whether it still does.
+- **A stale NEXT cell is more dangerous than an empty one**, because it reads as a measurement. Five days old, and wrong about the one row this box could take.
+
+**Next:** **E54** is small and this run filed it with its Accept as a command. **E52** is this box's own find and is ALLOWED code. **E51's** remaining grep — the one call site that consumes a dialog answer — has still not been run by anybody. E25's fixture covers the standalone only; no wrapper and no host was involved.
+
+**Machine state.** `main` green on macOS, verified locally by a CI-equivalent build (all four siblings `[fetched]`, no overrides) of `2612a2d`: configure rc=0, build rc=0, 0 errors, five artifacts. Zero open `platform:mac` issues. All six repos on their default branches and clean; TideSynth on this run's branch until STEP 5. Four scratch build trees and three worktrees, all under the session scratchpad and outside every repo, removed at the end. Every standalone ran under an isolated `HOME` in the scratchpad and all were killed; **Four `.ips` crash reports from this run's deliberate faults are in `~/Library/Logs/DiagnosticReports` and were left there** — they are OS diagnostic logs, not ours to delete, but a later run counting reports for E25 or E46 should know they are mine (two from the #491 repro build, two from the E25 no-guard arm) and not a live defect. **Jeff's `~/Library/Application Support/TIDE Rack/` was never written to** — the one file copied out of it was read-only, and the isolation was verified rather than assumed (the app loaded the default rack rather than his 46,890-byte session). Two mac branches still sit on the remote with no open PR — `tide/mac/E36-renumber-duplicate-e34` (its PR #445 was CLOSED unmerged) and `tide/mac/icon-tide-app` (PR #435 merged, branch not deleted); noted by the windows box yesterday, still not mine to unwind.
+
+**`main` moved under this branch mid-session** — [#511](https://github.com/JeffMcClintock/TideSynth/pull/511) archived E32/E34/E42 and added a note to E25 saying this box was working on it, which was true and is now superseded. Merged rather than rebased, because the claim commit was already pushed and STEP 4 forbids rewriting a pushed commit. Both conflicted files were reset to `origin/main`'s version and my edits re-applied on top, so their archive work is intact rather than resolved around; their journal entry is byte-for-byte unchanged below mine.
+
+**Branch/PR:** `tide/mac/E25-document-driven-repro` — TideSynth only: the fixture and its README, E25's row, E46's annotation, E54, the `mac` NEXT cell, and this entry. **No product code in any repo**, so there is nothing here that can break a build.
 ## 2026-08-27 — windows — E48: a shipped prefab uses a module TIDE does not ship, and that one fact explains both dialogs and the 3,577 bytes (interactive, Jeff directing)
 
 **Prompt:** *"take next windows task"* · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** · as **tide-rack-bot**
