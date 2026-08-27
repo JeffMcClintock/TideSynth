@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **348 KB** across **274** entries, so copying them
+Learned sections are **349 KB** across **276** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **101 KB / 1112 lessons — 3.4x smaller**, and represents
+A8. This is **102 KB / 1120 lessons — 3.4x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -39,6 +39,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
 
+**macos — #514 broke because I fixed #513, and a stacked pair will keep doing that**
+
+- Resolving a base branch's conflict breaks every PR stacked on it.
+- "Ours or theirs" is never the rule for the journal — the dates are.
+- An auto-merged file is a changed file.
+
 **macos — STEP 1.5 was the whole run: #513 had gone CONFLICTING, and my first resolution of it was wrong**
 
 - A conflict is not on STEP 1.5's list of three, and should be.
@@ -56,6 +62,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A NEXT cell three days old is history, not a queue.
 
 ## 2026-08-27
+
+**macos — E54: the gate reads the library's diagnostic now, and the obvious place to put it would have matched nothing (scheduled run, continued)**
+
+- "Add it to the existing list" is a claim about the list's matching rule, not just its contents.
+- A row's Size estimate is a claim about code the estimator did not open.
+- A guard that makes a crash survivable can blind the gate that caught it.
+- A fixture folder can hold two load-bearing cases that argue opposite ways
+- Say which arms a check covers when the channels differ.
 
 **macos — E25 reproduced from a document, and STEP 1's stale issue turned out to be E46 crashing in the wild (scheduled run)**
 

@@ -8,6 +8,52 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — #514 broke because I fixed #513, and a stacked pair will keep doing that
+
+**Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell; recorded as unknown rather than guessed* · as tide-rack-bot (both)
+
+**Did:** no backlog item, second iteration running. STEP 1.5 again: [#514](https://github.com/JeffMcClintock/TideSynth/pull/514) had gone `CONFLICTING` since the previous iteration. Resolved, pushed to the same branch. **Both #513 and #514 are now `MERGEABLE` with 12/12 checks.** No product code touched.
+
+### The conflict was self-inflicted, and that is the point
+
+#514's base is not `main` — it is `tide/mac/E25-document-driven-repro`, #513's branch. The previous iteration pushed two commits to that base to clear #513's own conflict, **and that is what made #514 conflict.** Nothing drifted from `main`; `origin/main` has not moved in 20 minutes (`9e64b00` both times). A reader looking for an external cause would not find one.
+
+**So the pair is a small treadmill, and a run "helping" is what turns it.** Clearing the base breaks the stacked PR; clearing the stacked PR is another push to a branch nobody has merged. Neither PR is waiting on a run — both are green and waiting on Jeff.
+
+**What the next run should expect:** when #513 merges, GitHub retargets #514 to `main` automatically, and it may conflict *again* at that moment, on the same coordination files. That is not a new problem and does not need pre-empting — **it needs #513 merged first, then one resolution, not two.** A run that finds only #514 conflicting and #513 already merged is in the normal case, not a broken one.
+
+### The ordering rule is "whichever is newer", not a side
+
+One conflict, `JOURNAL.md`, and it resolved the **opposite way** to the previous iteration: the base now carries two 2026-08-28 entries and this branch's is 2026-08-27, so the base's go above. Last time this branch's entry was the newer one and went first.
+
+`check-journal-prepend.py` enforces newest-first *as well as* prepend-only — which the previous iteration learned by failing it. **There is no standing "ours first" or "theirs first" answer; it has to be read off the dates each time.**
+
+### Checked for the previous iteration's failure mode
+
+`BACKLOG.md` auto-merged with no conflict. Last iteration a **deletion outside every conflict hunk merged silently** and cost R6 its row, so this time the auto-merged file was checked rather than trusted: R6 is still in `BACKLOG-DONE.md`, E54 is still `IN-REVIEW`, and `check-backlog-diff` reports no dropped rows.
+
+**Verification artifact — E54's own gate, untouched by this merge and still firing on the fixture it ships:**
+
+```
+$ python3 scripts/check-rack-populated.py --log-file tests/rack-content/lost-module-handle.log
+  ok   default rack loaded, 25109 byte document
+  FAIL parameter names module handle 999999999, which the document does not
+       contain -- the rack loaded DEGRADED, missing whatever that module was.
+1 assertion(s) failed -- the rack did NOT come up populated.
+```
+
+Eight lints green: `backlog-diff`, `journal-prepend`, `prompt-provenance`, `id-refs`, `backlog-archived`, `links`, `next-block`, and E54's gate.
+
+**Learned:**
+
+- **Resolving a base branch's conflict breaks every PR stacked on it.** Worth predicting before the push rather than discovering next iteration; the cost is one extra resolution per stacked PR, every time.
+- **"Ours or theirs" is never the rule for the journal — the dates are.** Two consecutive merges on the same pair of branches resolved in opposite directions, both correctly.
+- **An auto-merged file is a changed file.** "I only touched the conflicts" describes what git showed you, not what git did.
+
+**Next:** nothing on `tide/mac/**` needs a run — both PRs are green, mergeable, and waiting on Jeff. **Merge #513 first, then #514**, so its retarget to `main` costs one resolution instead of two. Still unaddressed from the windows box's 08-27 note: `tide/mac/E36-renumber-duplicate-e34` and `tide/mac/icon-tide-app` sit on the remote with **no PR**, the one end state STEP 5 forbids.
+
+**Branch/PR:** `tide/mac/E54-gate-lost-module`, [#514](https://github.com/JeffMcClintock/TideSynth/pull/514) — same branch per STEP 1.5, no second PR.
+
 ## 2026-08-28 — macos — STEP 1.5 was the whole run: #513 had gone CONFLICTING, and my first resolution of it was wrong
 
 **Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell, recorded as unknown rather than guessed* · as tide-rack-bot (both)
@@ -244,6 +290,62 @@ run's. No TIDE process left running.
 E50's archive, the `win` NEXT cell's defused phrase, the `mac` NEXT cell, and this entry).
 **Merging TideSynth's side alone changes no behaviour**; merging GMPI_Wrappers' alone
 leaves the backlog saying the work is open.
+## 2026-08-27 — macos — E54: the gate reads the library's diagnostic now, and the obvious place to put it would have matched nothing (scheduled run, continued)
+
+**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude Code (no `claude` on this box's PATH) · as **tide-rack-bot** (both paths) · continued from the E25 entry below at Jeff's *"fix E54"*
+
+**Did:** built **E54**, the row this run filed an hour earlier. Its Accept ran live on a real standalone, both arms. Branch `tide/mac/E54-gate-lost-module`, stacked on `tide/mac/E25-document-driven-repro` because E54's row exists only there until [#513](https://github.com/JeffMcClintock/TideSynth/pull/513) merges.
+
+### The one-line fix was in the wrong place, and it would have failed silently
+
+E54's own row sized this as *"one entry in `FATAL_LINES` plus the negative control"*. **That entry would have matched nothing.** The loop is
+
+```python
+for needle, why in FATAL_LINES:
+    for line in text.splitlines():
+        if needle in line and "TIDE:" in line:
+```
+
+and the message is `SynthEdit: parameter names module handle N, which this document does not contain` — prefixed **`SynthEdit:`**, because it comes from `CPatchManager::InitModulePointers` in **SynthEditLib**, not from `TideApp.cpp`. The constant's own comment says *"Each is a real message in TideApp.cpp"*, and that sentence is the guard rail; I only read it because I was about to add a line underneath it.
+
+So the check would have been **added, committed, reviewed and green, while asserting nothing** — the silently-disarmed check that file warns about, arrived at from a different direction. It is a separate `LOST_MODULE` regex instead, which also lets the failure **name the handle**: "a module is missing" sends the reader to the wrong repo, and the number is what they grep the document for.
+
+**I wrote the sizing in that row myself, three hours earlier, from reading the same file.** A row's size estimate is a claim about code the estimator did not open.
+
+### The Accept, run live rather than from a log
+
+Same binary in both arms; the document is the only variable.
+
+| arm | result |
+|---|---|
+| default rack, one `<param module=>` → `999999999` | **exit 1**, `FAIL parameter names module handle 999999999 …` |
+| stock default rack | **exit 0**, `rack is populated.` |
+
+And the four negative controls in `tests/rack-content/` all still exit 1, so nothing was disarmed on the way in.
+
+### The new fixture is load-bearing in the opposite direction to the old one
+
+`lost-module-handle.log` is a real capture, and what makes it worth keeping is that **every positive assertion the gate makes is present and healthy** — four XMLs enriched, five prefabs seeded, `default rack loaded, 25109 byte document` — on a rack that is missing a module.
+
+`silent-empty-rack.log` exists because a negative-line scan passes an ABSENT line. This one exists because a positive-line scan passes a PRESENT one. M8's note says the positive assertions are the load-bearing half; that is true of the case it was written about and **not true in general**, and this folder now holds the counterexample.
+
+### What I did not do, stated rather than implied
+
+**This covers `--standalone` and `--log-file` only, not `--au3`.** That arm reads os_log; `TideApp` mirrors its own diagnostics there precisely because an app extension's stderr reaches nothing, but this message is `std::cerr` inside SynthEditLib, which knows nothing about os_log. **So an AUv3 that lost a module is still invisible to this gate.** Checked by reading both files rather than assumed. Closing it means routing the library's diagnostics through the same channel — another repo, and not E54's job.
+
+**Learned:**
+
+- **"Add it to the existing list" is a claim about the list's matching rule, not just its contents.** The obvious entry here would have been inert, and every test that mattered would have been green.
+- **A row's Size estimate is a claim about code the estimator did not open.** I wrote this one's "one entry in FATAL_LINES" from the same file three hours earlier and it was wrong about the only detail that mattered.
+- **A guard that makes a crash survivable can blind the gate that caught it.** E46's fix was right and it cost this gate its coverage of that case; nothing would have reported the loss. Worth asking, whenever a silent-failure fix lands, what used to notice.
+- **A fixture folder can hold two load-bearing cases that argue opposite ways** — absent-line and present-line — and a note explaining one of them will be read as a general rule unless the other is there too.
+- **Say which arms a check covers when the channels differ.** os_log and stderr are different pipes, and a check that reads one is not a check on the other.
+
+**Next:** nothing outstanding on E54. The AUv3 gap above is real, is not filed, and is a SynthEditLib change — worth a row only if someone wants the gate to cover the extension.
+
+**Machine state.** All six repos on their default branches and clean at the end; TideSynth on this run's branch until STEP 5. The scratch build tree is under the session scratchpad, outside every repo, and removed. Every standalone ran under an isolated `HOME`; no TIDE process left running; Jeff's `~/Library/Application Support/TIDE Rack/` untouched, verified by mtime and size. No new crash reports — nothing in this entry faults.
+
+**Branch/PR:** `tide/mac/E54-gate-lost-module`, **based on `tide/mac/E25-document-driven-repro` rather than `main`**, because E54's row is only on that branch. Kept separate from #513 deliberately: E45's own argument is that a check and a bulk change are not reviewable together, and #513 is a fixture plus five rows. If #513 merges first GitHub retargets this to `main`.
 
 ## 2026-08-27 — macos — E25 reproduced from a document, and STEP 1's stale issue turned out to be E46 crashing in the wild (scheduled run)
 
