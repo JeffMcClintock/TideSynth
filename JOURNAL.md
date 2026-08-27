@@ -8,6 +8,70 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — E34: one steer found the fix, and a human ran the test the harness cannot (interactive session, Jeff directing)
+
+**Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
+
+**Did:** took **E34** — the swallowed release when dragging an existing cable
+end. Fix proposed as [SynthEditLib#60](https://github.com/JeffMcClintock/SynthEditLib/pull/60)
+(GATED, so proposed not merged), **manually tested by Jeff and PASSED**. Row is
+IN-REVIEW.
+
+### The steer was the whole fix
+
+Jeff, mid-investigation: *"note that the other type of cable (structure view)
+gets this correct already"*.
+
+`ConnectorViewBase::onPointerUp` is **shared** by both cable types, so the
+difference had to be elsewhere — and it is. `wasPickedUp` is set only in
+`PatchCableView::onPointerDown`; `ConnectorView2` never sets it. That is exactly
+why the structure view has always worked, and it turns a guess into a reference
+implementation sitting in the same file.
+
+**It also settled narrow-vs-delete**, which the row had left open. The flag looks
+like it protects click-then-move-then-click. It cannot: that gesture's second
+click is a pointer-**DOWN**, and both subclasses end the drag from the identical
+`imCaptured() → EndCableDrag` branch there. The 6px threshold covers
+did-not-move. So past 6px the flag could only ever fire for press-drag-release —
+the gesture it was breaking. Deleted, member and all.
+
+**The general lesson: when two sibling classes disagree and one is right, the fix
+is usually to delete what the broken one does extra, not to add to it.**
+
+### The harness could not run the test, and that is a finding
+
+**The command channel has no keyboard input and no scroll verb at all** — pointer
+and MIDI only, verb list verified against `CommandDispatcher.cpp` on 2026-08-27.
+Consequences hit immediately:
+
+- an inserted module lands at `X=3732` on a 1100-DIP-wide view,
+- there is no scroll verb to reach it, and no way to type into the properties
+  X/Y fields to move it back,
+- dragging jack-to-jack on the one visible module only selects it.
+
+So **a cabled two-module rack cannot be built headlessly**, and E34's own claim
+that *"repro is now scriptable — `--drag` from a connected jack to empty space"*
+**is not true as written**: it presupposes a *connected* jack, and there is no
+headless way to get one. That sentence misled this run; the row now says so.
+
+### What to do about that, per Jeff
+
+> If the MCP is insufficient to do your job, propose a fix/feature
+
+Recorded because it changes what a blocked run should produce. A missing verb is
+a **defect in our own code, in an ALLOWED gate** — not a constraint to work
+around. The precedent is already in this journal: E31 handed a whole verification
+to a human for want of an insert gesture, E35 added one flag, and E36 was then
+measurable end to end in a script. The deliverable for a channel-blocked row is
+**two PRs, not one** — the work, plus the proposed verb.
+
+### And when a human is the right instrument anyway
+
+Jeff ran the drag himself and it passed. Worth saying plainly: for this row that
+is a **better** result than a scripted one. The bug was reported by a human
+noticing a gesture felt wrong, and the fix has to be judged the same way. A
+scripted A/B would have proved the document changed; it would not have proved the
+gesture feels right.
 ## 2026-08-27 — macos — E32: the mac window position, and a ruling that deleted 109 lines of it (interactive session, Jeff directing)
 
 **Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
