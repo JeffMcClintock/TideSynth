@@ -8,6 +8,79 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — the queue is blocked, so I answered the one question a ruling said was open: which call site consumes a dialog answer
+
+**Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell; recorded as unknown rather than guessed* · as tide-rack-bot (both)
+
+**Did:** **no backlog item taken.** The mac/any queue is blocked, verified row by row. Instead: the **answer-consuming call site census** that `docs/decisions.md` names as unresolved and E51's row names as still open. **E51 stays TODO** — this supplies one of the two things its `NEEDS-SPEC` is missing, and changes no code.
+
+### First, a tooling error of mine that made three previous walks unreliable
+
+I had been extracting rows with `awk -F'|'` and reading `$5` as the Item. **Rows contain `|` characters**, so `$5` is a fragment. E51 read as **1,989 bytes** that way; it is **10,094**. The truncated read hid its `NEEDS-SPEC` marker entirely, and I nearly took the row on the strength of it.
+
+Re-walked with a proper regex (`^\| (id) \| ([^|]+) \| ([^|]+) \| (.*) \|$`). The corrected walk:
+
+| row | real blocker |
+|---|---|
+| S1b, S8, E39, E7 | GATED |
+| E38 | `NEEDS-SPEC` + GATED |
+| E2 | "not takeable" by its own row |
+| E48 | `NEEDS-JEFF` (product decision) |
+| E51 | `NEEDS-SPEC` |
+| E19 | needs E48/E49/E50 first, then a human at a DAW |
+| E53 | taken by windows, [#516](https://github.com/JeffMcClintock/TideSynth/pull/516) |
+
+**Also checked and it is fine:** E51's original text says it is *"BLOCKED on that ruling"* and points at a `PROPOSED:` entry. That entry was **answered and removed by the windows box on 2026-08-27** ([#495](https://github.com/JeffMcClintock/TideSynth/pull/495)) — the decisions entry says so in as many words. I checked because the "None." now in that section is text **I** wrote on 08-27, and I needed to know I had not deleted a live question. I had not.
+
+### The census
+
+The ruling: *"of the ~58 call sites only one consumes the answer — but that one site has not been identified."*
+
+**It is `CContainer::ReplaceModuleAsync`, `SynthEditLib/EditorLib/CContainer.cpp:3990`:**
+
+```cpp
+Document()->Application()->SeMessageBoxAsync(
+    L"Want to just set destination pins default instead?", L"", MB_YESNO | MB_ICONWARNING,
+    [...](int32_t answer)
+    {
+        const auto action = (answer == IDYES) ? ReplaceModuleAction::SetPinDefaults
+                                              : ReplaceModuleAction::Replace;
+```
+
+A second consumer exists — `ExportAsPlugin.cpp:840`, `MB_YESNOCANCEL`, *"Save Changes First?"* — so the ruling's "only one" is one too few, though both are outside TIDE's reach.
+
+**In TIDE the site is linked but UNREACHABLE, checked three ways:**
+
+1. **No caller.** Its only caller is `SynthEditApp::ReplaceModuleAsync` (`SynthEdit/SynthEdit2/SynthEditApp.cpp:680`), and TIDE does not build SynthEdit2 — `TideAppStubs.cpp` replaces it and never mentions `ReplaceModule`.
+2. **The menu route is inert.** `POPUP_MENU_REPLACE` (`CUG.cpp:2023`) only calls `VO_Notify(OM_WPF_REPLACE_DIALOG, handle)`, and EditorLib's handler for that message is an explicit **`break;`** (`MfcDocPresenter.h:392`, grouped with `OM_SCREENSHOT` as deliberately ignored). Its one real handler is SE16's WinUI3 `MainWindow.xaml.cpp:790`.
+3. **Symbols, with both controls:**
+
+```
+ReplaceModuleAsync   16 symbols   linked, as expected
+ExportAsPlugin        0 symbols   absent      <- negative control
+divertPrompt          1 symbol    present     <- positive control
+```
+
+**So quiet mode's blanket answer is safe in TIDE today, and safe for the right reason** — not because nothing consumes an answer, but because the one thing that does cannot be reached.
+
+### The latent trap, which is the part worth acting on
+
+`divertPrompt` returns `constexpr int32_t answer = MB_OK;` (`Application.cpp:475`).
+
+**`MB_OK` is a FLAGS constant, `0x0`. It is not a response constant at all.** The responses are `IDOK`=1, `IDCANCEL`=2, `IDYES`=6, `IDNO`=7. A diverted prompt therefore answers a value equal to *none* of them.
+
+It is correct here only by arithmetic accident: the sole consumer tests `== IDYES`, gets false, and falls to `Replace` — which is exactly the branch taken when the offer is not available at all, so the degradation is conservative. But **a consumer testing `== IDOK` would also read false**, which is the opposite of what "answered OK" implies. If the replace dialog is ever implemented TIDE-side, this should return `IDOK`, not `MB_OK`.
+
+**Learned:**
+
+- **`awk -F'|'` cannot read this backlog.** Rows contain pipes; field-splitting silently truncates them, and a blocker marker past the cut is invisible. Three of my walks were unreliable and one nearly took a `NEEDS-SPEC` row.
+- **"Linked" is not "reachable", and `nm` alone would have said the wrong thing.** The symbol is in the binary; the call graph is what decides, and here it takes a caller check, a message-dispatch check and a symbol check to be sure.
+- **A safe default reached by accident is still worth naming.** `MB_OK` works only because the one consumer asks a question it happens to answer correctly by being unequal to everything.
+
+**Next:** E51's remaining `NEEDS-SPEC` is now **one thing, not two** — a re-stated Accept. The census half is answered. Still blocked for a run otherwise: `GMPI_Wrappers#28` unmerged (holds E52), E48 needing its product decision, and S1b/S8/E39 GATED.
+
+**Branch/PR:** `tide/mac/E51-answer-consumer-census` — one row annotation, no code.
+
 ## 2026-08-28 — macos — the queue is blocked for a run, so this was STEP 4: three rows flipped, one deliberately not, and a false claim corrected at its source
 
 **Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell; recorded as unknown rather than guessed* · as tide-rack-bot (both)
