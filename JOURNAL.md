@@ -294,6 +294,71 @@ GATED**, so it is filed rather than written whichever way E50 goes.
 to TODO, E51/E48/E49/E50 filed, X2 flipped, the `PROPOSED:` entry, and this
 entry. **No product code changed in any repo**, so there is nothing here that can
 break a build.
+## 2026-08-27 — macos — Recovered two days of uncommitted work out of a working tree, and filed the hole it left (interactive session, Jeff directing)
+
+**Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
+
+**Did:** `SynthEditLib` had been parked dirty for two days and every scheduled
+run is told to leave it alone *for that reason*. Recovered the work, landed it
+as [SynthEditLib#59](https://github.com/JeffMcClintock/SynthEditLib/pull/59),
+and filed **E47** for the half it does not fix. Also merged
+[#58](https://github.com/JeffMcClintock/SynthEditLib/pull/58) and
+[TideSynth#483](https://github.com/JeffMcClintock/TideSynth/pull/483).
+
+### The failure mode worth naming: a branch that promises a fix and holds nothing
+
+`fix-patchmanager-dangling-properties-observer` had **zero commits** — 10 behind
+`origin/main`, 0 ahead. All 33 lines of the fix were an **uncommitted edit in one
+file**, untouched since 2026-08-25. No stash, no commit, no PR, not on main.
+
+The dirt was load-bearing in the worst way: it was the only copy of the work
+**and** the thing blocking the repo from syncing, and the standing instruction to
+leave a dirty repo alone guaranteed nobody would look. **A dirty tree that
+survives more than a day is not a WIP, it is an outage** — check whether the
+branch actually holds anything before respecting it.
+
+**The recovery, and the order matters:** worktree off current `origin/main`, copy
+the file in, commit, push, and only THEN discard the working-tree edit — after
+`git rev-parse origin/<branch>:<file>` proved the blob was on the remote. Base
+blob was identical at both the stale HEAD and current main, so no rebase and no
+conflict; the committed blob was byte-identical to the working file, so nothing
+was reformatted in transit. This repo is CRLF — a text-mode round trip would have
+rewritten every line and buried 33 real lines in a 4,000-line diff.
+
+### E47, and why chasing a comment beat trusting it
+
+#59's comment says the LEAF-module case is unfixed. Checking it, **two obvious
+paths are already covered**: `CDocOb::OnDelete()` and
+`CSynthEditDocBase::DeleteContents()` both open with
+`NotifyFast(OM_SHOW_PROPERTIES, nullptr)`, which clears `currentModule`. So the
+single-module delete and every document reload are fine.
+
+What is left is one conditional: `~CContainer` runs `DeleteAll()` — which frees
+children with a bare `delete d` and never calls `OnDelete()` — and only then
+`if (m_patch_manager) delete m_patch_manager`. The pane's own `OM_DELETE` handler
+clears `layoutContainer` and **not** `currentModule`. **A container with no patch
+manager never reaches the line that closes the window.** Read off the call graph,
+not observed faulting, and E47 says so.
+
+### Worktrees are a place work goes to die quietly
+
+Four were registered against `SynthEditLib`, two from a session days old, living
+in `/private/tmp` — which macOS sweeps. One had an **uncommitted** `BundleInfo.cpp`
+that looked like lost work and was byte-identical to `origin/main`: already-landed
+#56. **Verify by blob before removing, and by blob before panicking.**
+`git diff --name-only origin/main..HEAD` is the wrong instrument — it lists
+everything main has moved past, so a consumed branch looks full of unique work.
+Compare `git rev-parse <commit>:<file>` against `origin/main:<file>` instead.
+
+### Merging into a moving main
+
+`TideSynth#483` was CLEAN, then conflicted before the merge landed — X2 (#484)
+had gone in touching the same `BACKLOG.md` and `JOURNAL.md`. Rebased, kept both
+journal entries with the base one byte-for-byte intact, confirmed E46 had not
+collided, re-ran every lint **against the new base**. `SynthEditLib` has no CI at
+all, so its only real check is TIDE compiling against it: built `TIDE_Rack` with
+all three changes applied and confirmed it **links**, which `-fsyntax-only` cannot
+tell you. `main` green on all three platforms afterwards.
 
 ## 2026-08-27 — macos — E25: the crash report's faulting address disproves E25's own diagnosis, and moves the fix to a different file (interactive session, Jeff directing)
 
@@ -896,58 +961,6 @@ is untouched; it needs its own generated shell script for
 file. Same class — but that list is a CMake variable rather than a directory
 scan, so removing one is a deliberate code edit, and the gate asserts the exact
 four by name. Recorded rather than fixed speculatively.
-
-## 2026-08-26 — macos — E39's prime suspect is wrong: the top strip is not a constant (scheduled run)
-
-**Prompt:** "continue".
-
-E39 reports the rack's top row as a short strip and names a prime suspect:
-`kRackViewDips = 1008` is 2.625 rows of 384, and *"0.625 is close to the 0.68
-measured — so the leftover is the prime suspect"*. That is a good hypothesis
-and it makes a testable prediction: **the fraction should be the same every
-time.**
-
-**It is not.** Four screenshots off one build, each self-calibrated by measuring
-its own rail pitch (which comes out at exactly 384 DIP in every one, so E5's row
-height is not in question):
-
-```
-stored centre 3984 @ zoom 1.000   top strip 0.14 of a row
-stored centre  940 @ zoom 0.745             0.27
-stored centre 1353 @ zoom 1.000             0.29
-stored centre 1349 @ zoom 0.381             2.16
-(windows report)                            0.68
-```
-
-A canvas-height remainder is a property of the canvas and cannot vary with
-scroll position. **So it is not the constant, and changing `kRackViewDips` to a
-multiple of 384 would have produced no change and a wasted session.** That is
-the whole value of this entry.
-
-**What it actually is.** `TopView::renderRack` lays the case interior and its
-rails out from the RACK ORIGIN every `rowHeight`, across whatever clip rect it
-is handed — not from the top of the canvas. So the partial row at the top of the
-window is just where the viewport sits relative to that grid, and **every freely
-scrolled position shows one**. I checked the strip really is drawn as rack
-rather than as background: its luminance is identical to the case interior
-between rails, 27.7 in both. That is the row's *"no rails above it"* turned into
-a number.
-
-**This makes half the Accept unachievable as written.** *"Every rack row is a
-full 384 DIP with rails above and below"* cannot hold while the view scrolls
-freely — you would have to snap the viewport to row boundaries, which fights E33
-(open where the document says) and would make panning feel notched. The
-achievable half is the row's own alternative: **give the case a top** and stop
-painting rack interior above row 0. That is in `renderRack`, which is GATED.
-
-**A note on method, since I nearly measured the wrong thing twice.** My first
-detector sampled a column band at canvas x 1700..2100 and found no rails at all
-— that is outside the rack pane. My second used a hard-coded px-per-DIP from the
-nominal zoom, which is wrong because `calcViewTransform` QUANTISES zoom so that
-12 DIP maps to whole pixels. Deriving px-per-DIP from the measured rail pitch
-instead makes each screenshot calibrate itself and removes both mistakes at
-once. **When the thing you are measuring has a known period, use the period as
-the ruler.**
 
 ## Rotation — do this as part of STEP 4, every run
 
