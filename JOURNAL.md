@@ -8,6 +8,66 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — STEP 1.5 was the whole run: #513 had gone CONFLICTING, and my first resolution of it was wrong
+
+**Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell, recorded as unknown rather than guessed* · as tide-rack-bot (both)
+
+**Did:** no backlog item. STEP 1.5 found [#513](https://github.com/JeffMcClintock/TideSynth/pull/513) (E25) `CONFLICTING`, resolved it, and pushed to the same branch. It is `MERGEABLE` again. No product code, no fixture change.
+
+### Why this outranked a backlog row
+
+STEP 1.5 names "failing checks, requested changes, or unresolved review comments". **#513 had none of those — 12/12 checks pass, zero reviews — and still could not merge.** A conflict is not on that list, but the intent plainly reaches it: it is this platform's PR, it is stuck, and no other box will touch a `tide/mac/**` branch. The neighbouring rule settles it the other way round too — "green with nothing unresolved is just waiting for merge, leave it alone" — and #513 was *not* that. [#514](https://github.com/JeffMcClintock/TideSynth/pull/514) **was** exactly that, so it was left alone; it is stacked on #513's branch and clears when #513 lands.
+
+Third merge from main on this branch. E52 ([#515](https://github.com/JeffMcClintock/TideSynth/pull/515)) and the 2026-08-28 NEXT block landed since the last one.
+
+### The resolutions, on the merits
+
+| conflict | taken | why |
+|---|---|---|
+| `BACKLOG.md` NEXT block | origin/main | main's cells are dated 08-28 and already name this PR — *"#513 and #514 are both green … leave them alone"*. The branch's are 08-27 copies. |
+| `BACKLOG.md` E52 | origin/main | `IN-REVIEW` beats the branch's stale `TODO`; #515 merged. |
+| `BACKLOG-DONE.md` E50 | origin/main | archived on **both** sides with different dates. Kept main's 08-28 row (#508), dropped the branch's 08-27 duplicate, so E50 survives exactly once. |
+| `JOURNAL.md` | both | prepend-only file, both sides added entries. |
+
+### I GOT R6 WRONG, AND THREE LINTS CAUGHT IT INDEPENDENTLY
+
+I dropped the branch's R6 archive row, reasoning that main still carries R6 as `IN-REVIEW` so leaving main's state alone was conservative, and that promoting a row was not this PR's job.
+
+**It was not conservative, it was incoherent.** The branch had also **deleted** R6 from `BACKLOG.md` as the other half of the same deliberate act (`e626a0e`, *"E50 and R6 DONE and archived"*), and **that deletion sat outside every conflict hunk, so git auto-merged it silently.** I never saw it. Dropping the archive row on top of it made R6 vanish from both files:
+
+```
+check-backlog-diff     R6 missing from head, no verbatim copy in any other file
+check-id-refs          12 STALE references to R6
+check-journal-prepend  (separately) entries are not newest-first
+```
+
+Restored the branch's R6 row verbatim, keeping **both halves** of that run's bookkeeping. R6 is genuinely done — [#505](https://github.com/JeffMcClintock/TideSynth/pull/505) merged and `tidesynth.com` serves all five `releases/latest/download/` permalinks — so archived is the correct state, and it was that run's call to make, not mine to half-undo.
+
+The journal failure was separate and also mine: I put the branch's 08-27 entry above main's 08-28 one, having assumed `check-journal-prepend.py` only enforced the prepend-suffix property. **It enforces newest-first as well.** Moved below.
+
+**Verification artifact — all seven lints, after:**
+
+```
+check-id-refs           no stale ID references, no duplicate IDs, no shared live citations
+check-backlog-diff      status/date cells and new rows only, OK
+check-journal-prepend   prepend-only, OK
+check-backlog-archived  47 row(s), none DONE, all terminated, OK (244 KB)
+check-links / check-next-block / check-prompt-provenance   rc=0
+```
+
+`gh pr view 513` → `mergeable=MERGEABLE`, from `CONFLICTING`.
+
+**Learned:**
+
+- **A conflict is not on STEP 1.5's list of three, and should be.** No failing check, no requested change, no review comment — and unmergeable. The list reads as exhaustive and is not; the "leave a green PR alone" sentence next to it is what disambiguates.
+- **A deletion outside a conflict hunk merges silently, so "I only touched the conflicts" is not a description of what you changed.** Half of the branch's R6 act was invisible to me while I was deciding the other half.
+- **Do not half-apply another run's deliberate bookkeeping.** Taking one side of a two-part act produced a state neither run intended and no lint would have predicted from either input alone. Either keep it whole or leave it whole.
+- **The lints are load-bearing, not ceremony.** Three of them independently caught one wrong judgement call, each from a different direction, in a diff that looked entirely reasonable.
+
+**Next:** #513 is mergeable and waiting on Jeff; #514 clears with it. Nothing else on `tide/mac/**`. Two mac branches still sit on the remote with **no PR** — `tide/mac/E36-renumber-duplicate-e34` and `tide/mac/icon-tide-app` — flagged by the windows box on 08-27 and still true; that is the one end state STEP 5 forbids.
+
+**Branch/PR:** `tide/mac/E25-document-driven-repro`, [#513](https://github.com/JeffMcClintock/TideSynth/pull/513) — pushed to the same branch per STEP 1.5, no second PR.
+
 ## 2026-08-28 — macos — E52: a shipping build option that did not compile, and the control that proves the fix is not a deletion (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** (there is no `claude` CLI on this box's PATH, so this is the desktop app's `CFBundleShortVersionString`, the version A13 recorded as the discoverable one on a mac) · as **tide-rack-bot** (both paths)
