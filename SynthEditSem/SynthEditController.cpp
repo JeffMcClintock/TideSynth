@@ -18,6 +18,10 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <memory>
 #include <string_view>
 #include "RefCountMacros.h"
+#include "EditorLib/ApplySynthEditConfig.h"
+#if defined(GMPI_STANDALONE) && GMPI_STANDALONE
+#include "StandaloneApp.h"
+#endif
 #include "Common.h"
 #include "GmpiSdkCommon.h"
 #include "GmpiApiEditor.h"
@@ -27,6 +31,56 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "ChunkPrefix.h"
 
 using namespace gmpi;
+
+namespace
+{
+
+// -quiet and friends, but ONLY when this build is the standalone executable.
+//
+// WHY THE GUARD IS THE WHOLE POINT. This runs inside the plugin, which in every
+// other configuration is loaded into a DAW -- and a DAW's command line belongs
+// to the DAW. Reading it there would let REAPER's own flags decide how TIDE
+// behaves, silently and very hard to trace. Under the standalone the command
+// line IS ours, so the question is answerable.
+//
+// GMPI_STANDALONE rather than GMPI_STANDALONE_COMMAND_CHANNEL: the latter is
+// standalone-only today, but it answers "can a harness drive this build", which
+// is a different question and can be switched off on its own. See the comment
+// where GMPI_STANDALONE is defined.
+//
+// The argv comes from the wrapper's main(), which stashes it -- rather than from
+// __argv / _NSGetArgv / proc/self/cmdline, which need a different incantation
+// per platform AND work just as well inside a DAW, which is the one thing that
+// must not happen.
+void applyCommandLineConfig(CSynthEditAppBase& app)
+{
+#if defined(GMPI_STANDALONE) && GMPI_STANDALONE
+	const int argc = gmpi::standalone::standaloneArgc();
+	char** const argv = gmpi::standalone::standaloneArgv();
+
+	if (argc <= 1 || !argv)
+		return; // nothing but the program name: leave every default alone
+
+	// BEFORE InitInstance, which ApplySynthEditConfig.h requires and explains:
+	// --rescan is implemented here as a cache clear that InitInstance then
+	// regenerates from, and it is too late once the module set is loaded.
+	// argv[0] IS INCLUDED, deliberately: ParseSynthEditArgs starts its loop at
+	// index 1 because it expects a whole argv. Passing a pre-stripped vector puts
+	// the first real flag at index 0, where it is silently skipped -- which cost
+	// an hour here, because every other symptom (argc correct, argv non-null, the
+	// define present) says the wiring works.
+	std::vector<std::string_view> args;
+	args.reserve(static_cast<size_t>(argc));
+	for (int i = 0; i < argc; ++i)
+		args.emplace_back(argv[i]);
+
+	ApplyConfigPreInit(app, ParseSynthEditArgs(args));
+#else
+	(void)app;
+#endif
+}
+
+} // namespace
 
 class SynthEditController final : public gmpi::api::IController
 {
@@ -65,6 +119,9 @@ public:
 		auto app = new TideApp();
 		seApp.reset(app);
 		tideApp = app;
+
+		applyCommandLineConfig(*app);
+
 
 		app->InitInstance();
 
