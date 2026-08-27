@@ -8,6 +8,61 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E39 built: the rack is a whole number of rows, and the two measurements this row called contradictory are both right (interactive, Jeff directing)
+
+**Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell* · as tide-rack-bot (both)
+
+**Did:** built **E39** — a GATED change, at Jeff's explicit instruction (*"yes, do E39"*). [SynthEditLib#66](https://github.com/JeffMcClintock/SynthEditLib/pull/66), branch `tide/mac/E39-rack-whole-rows`. Row is IN-REVIEW.
+
+### The cause, and why the fill is the part that was wrong
+
+`TopView::renderRack` lays rails out from `rack.origin` — which `MfcDocPresenter::getRackLayout` sets to the **panel rect's top-left**, an arbitrary document coordinate — while filling the **whole cliprect** with case interior. The canvas edges at `0` and `viewDimensions` almost never land on a row boundary, so the canvas top carried case interior with a rail on **one side only**.
+
+The fix computes the row-aligned band inside the canvas and clamps both the fill and the row loop to it. **Against the canvas, not the cliprect** — the cliprect is whatever dirty region is repainting, so aligning to it would make the rack's extent depend on what happened to need redrawing.
+
+### The A/B
+
+One build tree, the commit the only variable, 1100×1500 window, one column sampled:
+
+```
+BEFORE                          AFTER
+  case  253..643  (391 px)  <-- gone
+  rail  644..663            <-- gone (the partial row's OWN bottom rail)
+  rail  666..686                rail  666..686
+  case  690..1219 (530 px)      case  690..1219 (530 px)
+  rail 1220..1262               rail 1220..1262
+  case 1266..1795 (530 px)      case 1266..1795 (530 px)
+  rail 1796..1838               rail 1796..1838
+  case 1842..2207               case 1842..2207
+```
+
+**Every interior row is byte-identical.** Only the canvas-edge partial row moved, which is the entire claim.
+
+### It reproduces the original Windows report exactly, and that is the good part
+
+The original report measured the strip at *"391 px = 261 DIP"*, 0.68 of a row. This measures **391 px**; at the effective 1.5 px/DIP (2.0 rasterization × 0.75 zoom, itself confirmed by the 576 px row pitch = 384 DIP = E5's row height) that is **261 DIP**. The arithmetic closes independently: `panelRect.top` is 3732, `3732 mod 384 = 276`, and `276 − 15` for the rail = **261**.
+
+**So the two measurements this row treats as contradictory are BOTH RIGHT.** The 2026-08-26 run got 0.14, 0.27, 0.29 and 2.16 of a row at four viewports and concluded that no fixed canvas quantity could explain it — and drew the correct conclusion, *"do not spend a session on `kRackViewDips`"*, because the canvas height genuinely is not the cause. But the strip is **not** variable: it is a fixed **261 DIP** set by `panelRect.top mod rowHeight`. What varies is **how much of it the viewport can see**. A row can be right about the refutation and wrong about what the refutation implies.
+
+### Not verified, and one of these is a new defect
+
+- **macOS renderer only**, and only at two window sizes.
+- **`--scroll` reports `ok` and moves nothing.** Three scroll positions produced **byte-identical** screenshots (same md5). I had intended to vary the viewport that way and it proved nothing; window height was used instead. **That verb looks broken and wants its own row** — filed as a note here rather than chased, per STEP 3's scope rule.
+
+### One judgement call left with Jeff
+
+The Accept is an either/or: *"every rack row is a full 384 DIP with rails above and below, **or** the partial region is not drawn as rack at all."* This is the **second** limb, because the first is unreachable at a canvas edge without moving `rack.origin` — and origin anchors row 0 to the panel, so moving it would shift every saved module relative to the rails. The visible consequence is that the leftover now paints as canvas background (black) rather than case interior: honestly *not rack*, but a starker band than before. Raised on the PR.
+
+**Learned:**
+
+- **A refutation and its implication are separate claims, and a row can carry the first correctly while the second is wrong.** "It varies, so it is not the canvas constant" was right; "therefore the strip is not a fixed quantity" did not follow. The fixed thing was one modulo away.
+- **Reproducing an earlier report's exact number is worth chasing.** 391 px on two platforms, and `panelRect.top mod rowHeight` arriving at the same 261 DIP from the source, is far stronger evidence than a screenshot that merely looks better.
+- **A verb that returns `ok` can still do nothing.** `--scroll` answered `{"ok":true,"delta":-720}` three times and moved zero pixels; only comparing image hashes caught it. An `ok` is a claim about the call, not about the effect.
+
+**Next:** #66 is Jeff's to merge, with the black-band question on it. `--scroll` needs a row.
+
+**Branch/PR:** `tide/mac/E39-row-in-review` (this row + entry) and `tide/mac/E39-rack-whole-rows` → [SynthEditLib#66](https://github.com/JeffMcClintock/SynthEditLib/pull/66).
+
 ## 2026-08-28 — macos — the queue is blocked and this run did nothing to it, deliberately
 
 **Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell; recorded as unknown rather than guessed* · as tide-rack-bot (both)
