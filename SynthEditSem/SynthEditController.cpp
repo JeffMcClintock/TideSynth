@@ -17,6 +17,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <vector>
 #include <memory>
 #include <string_view>
+#include <iostream>   // the command-line trace in applyCommandLineConfig
 #include "RefCountMacros.h"
 #include "EditorLib/ApplySynthEditConfig.h"
 #if defined(GMPI_STANDALONE) && GMPI_STANDALONE
@@ -58,6 +59,22 @@ void applyCommandLineConfig(CSynthEditAppBase& app)
 	const int argc = gmpi::standalone::standaloneArgc();
 	char** const argv = gmpi::standalone::standaloneArgv();
 
+	// SAY WHAT ARRIVED. This whole function failing open is invisible: every
+	// flag simply does nothing, and the only symptom is behaviour that looks
+	// like the default. Measured 2026-08-27 (TIDE BACKLOG E48/E51) -- -quiet
+	// was inert on Windows for as long as the standalone existed, because the
+	// Win32 and Wayland shells called runStandaloneApp(shell) and its argc/argv
+	// parameters are DEFAULTED, so nothing failed and nothing was said.
+	//
+	// stderr and unconditional: this runs once per launch, before the command
+	// channel exists, and it is the one line that distinguishes "the flag did
+	// not arrive" from "the flag arrived and did nothing".
+	std::cerr << "TIDE: command line: argc=" << argc
+	          << (argv ? "" : ", argv=NULL");
+	for (int i = 1; argv && i < argc; ++i)
+		std::cerr << ' ' << (argv[i] ? argv[i] : "(null)");
+	std::cerr << std::endl;
+
 	if (argc <= 1 || !argv)
 		return; // nothing but the program name: leave every default alone
 
@@ -74,7 +91,10 @@ void applyCommandLineConfig(CSynthEditAppBase& app)
 	for (int i = 0; i < argc; ++i)
 		args.emplace_back(argv[i]);
 
-	ApplyConfigPreInit(app, ParseSynthEditArgs(args));
+	const auto cfg = ParseSynthEditArgs(args);
+	std::cerr << "TIDE: parsed quiet=" << (cfg.quiet ? 1 : 0)
+	          << " rescan=" << (cfg.rescanModules ? 1 : 0) << std::endl;
+	ApplyConfigPreInit(app, cfg);
 #else
 	(void)app;
 #endif
