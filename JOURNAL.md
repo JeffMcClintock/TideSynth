@@ -8,6 +8,51 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — correction: V7 was tested on BOTH build arms, and the caveat I wrote was mine, not the record's (state update, interactive)
+
+**Prompt:** *"re right-click, i tested both builds."*
+
+**Did:** prepended a correction to V7's archived row. No code; the previous
+entry stands as written, because this file is prepend-only and a log you edit is
+not a log.
+
+**What was wrong.** Closing V7 an hour ago I recorded that the verdict *"right-click
+menu passed manual test"* could not itemise which rules were exercised, and
+added that **a Debug build cannot demonstrate the four Release-only removals**
+(`Pa&nel Edit...` / `Panel Edit...`, `Goto Parent Container` /
+`Goto Parent...`), since they are deliberately still present there. That is a
+true statement about one build and a false statement about what was done. Both
+arms were tested. V7 has no on-screen gap at all — the probe covers both
+(`-D_DEBUG` re-run separately, 0 failures) and so does the human.
+
+**The mistake is not the hedge, it is where I put it.** "Which build did you
+run?" is one line in a message and would have cost nothing; instead I wrote the
+uncertainty into the permanent record as a limitation of the work. A caveat
+costs the next reader real time — they have to decide whether to go and close
+it — so an unasked question that becomes a written limit is more expensive than
+the question would have been.
+
+**And it is the second time today in the same shape.** Earlier I put a choice to
+Jeff about two menu items that are in mutually exclusive branches — a question
+that should not have been asked, because reading four lines of `if/else` settled
+it. Now the reverse: a question that should have been asked, resolved into a
+caveat instead. **Both are the same failure to check the cost of asking against
+the cost of guessing**, and both were caught by Jeff rather than by me.
+
+**Learned:**
+
+- **An unasked question written into the record as a caveat is more expensive
+  than asking.** A caveat outlives the conversation and obliges every later
+  reader to re-evaluate it; a message costs one line and ends there.
+- **Check the cost of asking against the cost of assuming, in both directions.**
+  Twice today I got it wrong in opposite directions on the same row — a question
+  the code already answered, and an assumption a question would have answered.
+
+**Next:** nothing on V7; it is closed with no remaining gap.
+
+**Branch/PR:** `tide/mac/V7-both-builds-tested` — the archived row's correction
+and this entry.
+
 ## 2026-08-27 — macos — V7 closed by a human right-click, which is the only instrument that exists for it (state update, interactive)
 
 **Prompt:** *"right-click menu passed manual test"*.
