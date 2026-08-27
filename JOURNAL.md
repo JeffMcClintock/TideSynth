@@ -93,7 +93,22 @@ module handle  params  type            module handle  params  type
 
 **Machine state.** All six repos were on their default branches and clean at the start; `TideSynth` is on the branch below and returned to `main` at the end. **`RackModules/AR_jef.synthedit` went dirty at 07:55 with real content changes** (view zoom, panel window rects) — not mine, not CRLF churn (`git diff --ignore-all-space` still shows content), written by the `SynthEdit2.exe` the other session has open on E48's prefab. Left exactly as found, per STEP 5's third kind of dirt. **`%APPDATA%\TIDE Rack\` was never written by this run** — I copied it aside at 07:50 and then never restored it, deliberately, because by then it was the other session's live experiment and not a state of Jeff's to put back. No TIDE or cdb process left running by me.
 
-**Branch/PR:** `tide/win/E53-fixture-segv` — the fixture, its README, E53's annotation, E55, and this entry.
+### STEP 4 bookkeeping: two rows flipped, two deliberately not
+
+Every linked PR checked with `gh pr view`, not inferred:
+
+| row | linked PRs | state | action |
+|---|---|---|---|
+| **E25** | `SynthEditLib#58`, `#513` | both MERGED | **DONE**, archived |
+| **E54** | `#514` | MERGED | **DONE**, archived |
+| E52 | `GMPI_Wrappers#23`, **`#28`**, `#515` | **#28 still OPEN** | stays IN-REVIEW |
+| E45 | `#503`, `#504` | both MERGED | **left alone on purpose** |
+
+Both flips are on the **Accept** as well as on the merge, which is the E49/E50 lesson: E25's own first line is *"THE ACCEPT IS MET"*, and E54's gate was re-run against its shipped fixture by the 2026-08-28 macos run after merging.
+
+**E45 is the interesting one, and I did not re-decide it.** Its PRs have merged, so the literal STEP 4 rule would flip it — but the 2026-08-28 macos run considered exactly that and declined, because the row says the check *"exists and enforces nothing"* until one line lands in `lint.yml`, which the bot token cannot write. That is an Accept-not-met argument and it is still true. Overturning another run's stated, reasoned call on a row I have not worked is the *"do not half-apply another run's deliberate bookkeeping"* mistake from two entries below.
+
+**Branch/PR:** `tide/win/E53-fixture-segv`, [#516](https://github.com/JeffMcClintock/TideSynth/pull/516) — the fixture, its README, E53's annotation, E55, the `win` NEXT cell, the E25/E54 archive, and this entry.
 
 ## 2026-08-28 — macos — #514 broke because I fixed #513, and a stacked pair will keep doing that
 
