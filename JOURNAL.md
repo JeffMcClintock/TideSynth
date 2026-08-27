@@ -8,6 +8,75 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — E44: the menu verb, and an Accept that names an item TIDE does not have (interactive session, Jeff directing)
+
+**Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
+
+**Did:** took **E44** — a verb that drives a menu action without raising a menu.
+Built, measured and merged as
+[GMPI_Wrappers#27](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/27).
+Row is DONE-PENDING-ACCEPT, because its Accept cannot run.
+
+### The row's first instruction was the whole job
+
+> Check first whether the action can be invoked without raising the menu at all —
+> if `MenuBarView` dispatches through a table of named commands, this is small;
+> if the action only exists as a closure hung off a drawn item, it is medium and
+> wants designing.
+
+It is the small case. `MenuBarView::Item` is `{ label, std::function<void()>
+action, enabled, checked }` — a model, not a drawing. So the verb looks the item
+up by name and calls the function; the drawn bar and its native `NSMenu` are
+never involved.
+
+**Worth generalising: the row spent one sentence telling the next run where to
+look before committing to a size, and that sentence saved the session.** A row
+that says "check X first, and the answer changes the shape" is worth more than
+one that guesses the shape.
+
+### The clause that separates this from E43
+
+E43 made a wedged command *bounded and self-describing*; E44 has to make it not
+wedge at all. The Accept encodes that as *"`--info` answers immediately
+afterwards on the SAME connection"* — a bounded error satisfies E43 and must not
+satisfy this. Three commands, one connection:
+
+```
+--menu Revert to Plugin Defaults   0.002 s   ok
+--info                             0.018 s   ok
+--ping                             0.014 s   ok
+```
+
+Ordinary latency, not a deadline. And the actions really run: invoking
+`Audio/MIDI Settings...` visibly switched the window to the settings page, and
+`--menu File/Quit` **exits the process cleanly** — no `kill -9`, which is exactly
+what a pointer click could never manage.
+
+### The Accept names an item TIDE does not have
+
+It says **`--menu save`**. Measured: `File` holds *Revert to Plugin Defaults*, a
+separator, *Quit*; `Options` holds *Audio/MIDI Settings...*, a separator, *Quit*.
+**There is no Save and no Open.** The row was written assuming `File > Save`
+existed, so its instrument cannot run and *"the session file on disk changes"*
+has nothing to trigger it.
+
+**And that matters beyond bookkeeping, because it undercuts the row's own
+motivation.** E44 argues that every Accept phrased *"save and reload"* is
+unreachable headlessly on macOS. The wedge is now gone — but there is still **no
+Save item to invoke**, so those Accepts are no closer. They need either a Save
+menu item or E43's `kill -TERM` route, which saves unconditionally on the normal
+teardown.
+
+### Two design choices the menus forced
+
+- **TIDE has two items called *Quit***, one per menu. A bare ambiguous label is
+  an error naming both candidates rather than a guess — picking the first would
+  be a coin toss the caller cannot see.
+- **A slash is only a menu/item split when the left side names a menu.**
+  Otherwise `Audio/MIDI Settings...` reads as menu *Audio*, item *MIDI
+  Settings...*, and the one real item with a slash in its label becomes
+  unreachable.
+
 ## 2026-08-27 — macos — V7: the ruling arrived and it was not the question that was asked (interactive, Jeff directing)
 
 **Prompt:** *"re: V7 context-menu names"* followed by a three-part specification
