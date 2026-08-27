@@ -262,6 +262,32 @@ gmpi_plugin(
 	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/ListEntryGui.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/TextEntry.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/TextEntryGui.cpp
+	  # BACKLOG E48 -- the three modules the shipped prefabs use that TIDE never
+	  # registered, ruled in by Jeff 2026-08-27 ("we need to ship these extra
+	  # modules with TiDE"). In SynthEditLib these sit behind IF(SE2JUCE) in the
+	  # lib's own srcs and behind GMPI_IS_PLATFORM_JUCE in UgDatabase.cpp's
+	  # INIT_STATIC list, so linking the lib brings in neither; compiling the TU
+	  # into this target is what registers it, same as every entry above. The
+	  # symptom when one is missing is NOT a build error: the prefab inserts and
+	  # looks right, the saved document carries the type, and the RELOAD skips
+	  # the module, drops its connectors, and (before -quiet worked) blocked the
+	  # restore behind a captionless MessageBox. scripts/check-prefab-modules.py
+	  # screens for it; the authoritative census is a -quiet launch's stderr.
+	  # SE Scope3 XP: pins from ControlsXp.xml, already staged and read.
+	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/Scope3.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/Scope3Gui.cpp
+	  # SynthEdit ADSR: Adsr derives from Envelope (Adsr.h), whose impl is
+	  # envelope.cpp -- the lib pairs them too. Pins from EnvelopeAdsr.xml,
+	  # staged in _tide_xmls below and read in TideApp.cpp (the two lists MUST
+	  # MOVE TOGETHER -- see the comment at the read loop).
+	  ${SYNTHEDITLIB_DIR}/modules/EnvelopeAdsr/Adsr.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/EnvelopeAdsr/envelope.cpp
+	  # SE Oscillator: registers withId (Oscillator.cpp:614), so its pins come
+	  # from Oscillator.xml -- staged and read like EnvelopeAdsr.xml. NOT the
+	  # same module as OscillatorHD below, whose id is "SE Oscillator4" -- a
+	  # string that CONTAINS this one's, which is how the offline screen
+	  # mistook this module for present (JOURNAL 2026-08-27).
+	  ${SYNTHEDITLIB_DIR}/modules/Oscillator/Oscillator.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/PlainImageGui.cpp
 	  # BACKLOG E15 -- SE Rectangle XP is gone: the rack faceplate is TIDE's own
 	  # SE TiDE:Panel now (modules/TiDEPanel, static via TIDE_STATIC_EXTRAS), so
@@ -774,6 +800,11 @@ set(_tide_xmls
   ControlsXp/ControlsXp.xml
   MidiPlayer2/MidiPlayer2.xml
   Converters/Converters.xml
+  # E48 -- pins for SynthEdit ADSR and SE Oscillator, whose .cpps register
+  # withId and describe nothing inline. Scope3 needs no new entry: its pins
+  # are in ControlsXp.xml above.
+  EnvelopeAdsr/EnvelopeAdsr.xml
+  Oscillator/Oscillator.xml
   # E2c -- SE SV Filter4's pins. Oscillator HD is NOT here on purpose: its XML
   # is inline in its own .cpp, so it needs no staging.
   VaFilters/VaFilters.xml
