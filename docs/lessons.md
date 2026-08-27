@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **351 KB** across **277** entries, so copying them
+Learned sections are **354 KB** across **282** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **102 KB / 1125 lessons — 3.4x smaller**, and represents
+A8. This is **104 KB / 1142 lessons — 3.4x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,23 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — the queue is blocked and this run did nothing to it, deliberately**
+
+- A blocked queue is when invented work is most likely, so the bar for "is this actually my job?" should go up, not down.
+- "Every run" is ambiguous in a fleet that has both agent runs and workflow runs.
+
+**macos — the queue is blocked, so I answered the one question a ruling said was open: which call site consumes a dialog answer**
+
+- `awk -F'|'` cannot read this backlog.
+- "Linked" is not "reachable", and `nm` alone would have said the wrong thing.
+- A safe default reached by accident is still worth naming.
+
+**macos — the queue is blocked for a run, so this was STEP 4: three rows flipped, one deliberately not, and a false claim corrected at its source**
+
+- A merged PR does not mean a row is done — read what the PR changed.
+- The auto-merge allowlist makes docs-only halves land silently, which is exactly what makes this trap likely.
+- Verify a NEXT-block claim before repeating it, because that cell is the fleet's most-copied text.
 
 **windows — E53: the box was already taken, so the fixture got committed and the lead got measured instead (scheduled run)**
 
@@ -70,6 +87,21 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A NEXT cell three days old is history, not a queue.
 
 ## 2026-08-27
+
+**windows — The second gate was __argv itself, the whole quiet chain now measures working, and E46's guard fired in production (interactive, Jeff directing)**
+
+- `__argv` is NULL under `wWinMain` in a Unicode build.
+- One line of instrumentation beat three offline analyses.
+- A guard's best verification can arrive as a side effect.
+- When the product can report on itself, prefer that to screening it from outside.
+
+**windows — The instrument said argc=0; then Jeff photographed the dialog and it named a different module than I had (interactive, Jeff directing)**
+
+- A screen that catches one instance is not a diagnosis of the class.
+- Present-in-the-binary does not mean registered.
+- The instrument you need is often already printing.
+- Default arguments can turn a missing call into a silent no-op.
+- A photograph from a human beat three offline analyses.
 
 **macos — E54: the gate reads the library's diagnostic now, and the obvious place to put it would have matched nothing (scheduled run, continued)**
 
