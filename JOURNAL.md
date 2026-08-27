@@ -71,6 +71,14 @@ Both halves are load-bearing, and neither alone reaches the deref: `m_ignoreProg
 
 Before the guard, a straddle crashed and `check-rack-populated.py` caught it by the absent line. **After the guard it loads degraded and the gate passes** — `rack is populated.`, exit 0 — on a rack missing a module, while the app printed the reason two lines earlier. Measured, not inferred. That is the M5 shape the script was written to stop, reintroduced by a fix that was right to make.
 
+### STEP 4 bookkeeping
+
+**E50** and **R6** had every linked PR merged and no clause left open in their own words, so both are DONE and moved to `BACKLOG-DONE.md` verbatim. PR state read with `gh pr view`, not inferred from a merge commit; R6 names a branch rather than a number (A22), so its PR was resolved from the head ref — [#505](https://github.com/JeffMcClintock/TideSynth/pull/505).
+
+**E45 was NOT flipped, deliberately.** Both its PRs merged, but its own row says the check is not wired into `lint.yml` and *"until it is, the check exists and enforces nothing"* — that line needs Jeff, because the bot token has no `workflow` scope. DONE would be false, which is the E32 precedent exactly.
+
+Archiving E50 then failed `check-next-block`: the `win` cell still carried a literal `TAKE **E50**` in its "previous cell follows" history, which the lint correctly reads as a live directive. Reworded as history rather than deleted — **my archive broke it, so my branch fixes it**.
+
 **Learned:**
 
 - **A truncated stderr and a crashed process look identical from the log.** Check the exit status before writing "it said nothing" — I put that sentence in a public comment and had to correct it.
