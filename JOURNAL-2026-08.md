@@ -32289,3 +32289,129 @@ instead makes each screenshot calibrate itself and removes both mistakes at
 once. **When the thing you are measuring has a known period, use the period as
 the ruler.**
 
+## 2026-08-26 — macos — E34 reproduces on macOS, and its document half is provable without ever saving (scheduled run)
+
+**Prompt:** "compact. continue".
+
+E34 carried Windows-only evidence. It now carries macOS evidence too, and the
+fix is still GATED (`SynthEditLib/.../ConnectorView.cpp:365`), so the row stays
+TODO — only the verification moved.
+
+**What reproduces.** Fixture rack with one cable, MIDI-CV `PITCH` -> Oscillator
+`Pitch`. `--drag 283,307 660,468 --steps 20` picks up the EXISTING end at the
+Oscillator jack and releases in empty rack space. Twice, on two fresh launches.
+Afterwards the cable is drawn from `PITCH` to the release point and stays there:
+the release was swallowed, exactly as the row says.
+
+**What does NOT reproduce, and it matters for whoever writes the fix.** The
+title says the cable *"clings to the pointer until a second click"*. On macOS it
+does not cling — it FREEZES at the release point. `--hover 900,250`,
+`--hover 1000,600` and a second click at `900,250` each produced a screenshot
+**byte-identical** to the one taken right after the drag. So the second click
+does not end the gesture here either; the rack is just left with a cable drawn
+to nowhere until something else forces a rebuild.
+
+**The control that makes those md5s mean anything.** Three identical screenshots
+in a row is equally consistent with "nothing changed" and "the screenshot is
+cached". Clicking a module-browser entry in the same hung state DID change the
+image. Byte-identical is evidence only once you have shown the same call
+producing a different answer.
+
+**"No rebuild fires" is now a number, not a claim.** The pair
+`DSP structure changed, pushing N byte document` + `building rack from N byte
+document` appears exactly once, at startup — a control launch that received no
+input at all logged the same pair. Both drags left the log at 12 lines. An
+earlier reading of this nearly went wrong: the pair is in the log *after* the
+drag, and only the no-input control shows it was always going to be.
+
+**THE PART WORTH STEALING: you do not have to save to prove the document did
+not change.** `kill -TERM` runs the normal teardown (`StandaloneApp.cpp:304`
+installs the handler, the tick closes the window, `:447` calls
+`session.saveNow` unconditionally). `SessionState::saveNow` re-captures the
+patch — `syncPluginState()` then `captureState()` — and skips the write ONLY
+when the bytes equal the baseline taken at launch (`SessionState.cpp:504`).
+`session.xml` was not rewritten: same mtime, same md5, and no
+`Session state: ...` status line. So the app looked, and there was nothing to
+save. **A quiet session.xml is positive evidence, not a failed save** — provided
+you check for the status line, which is the only other way that path stays
+silent.
+
+**E43 filed: one click on `File` wedges the command channel permanently.**
+`--info` answers in 0.0 s; `--pointer-down 29,13` on `File` returns nothing in
+25 s; a fresh connection sending `--info` afterwards also returns nothing in
+25 s; the process sits alive and idle at 0.5% CPU. Two causes, both documented
+in the code that has them:
+
+  * `MainThreadQueue::run` has a 5 s busy escape hatch, and it cannot fire here
+    because *"the deadline is on the job STARTING, never on it finishing"*
+    (`MainThreadQueue.h:74`). `onPointerDown` over the menu bar opens a native
+    `NSMenu` and the nested modal run loop runs INSIDE the job. The item is
+    already `kRunning`, so `run()` falls through to an unbounded `future.get()`.
+  * Dispatch is inline on the single listener thread — *"one plugin, one command
+    at a time"* (`IpcServer.h:622`) — so the next connection is never accepted.
+
+That is why the measurement is two 25 s waits and not one: the second one is the
+whole channel, not the menu. Only `kill -9` recovers. Consequence: every Accept
+phrased "save and reload" is unreachable by pointer on macOS, and a run that
+tries it HANGS rather than fails, which reads as a crashed app.
+
+**Also this run:** PR #479 (E40) had gone CONFLICTING behind #477 and #478;
+rebased onto `origin/main`, keeping #477's E39 row and this branch's E40 row,
+and putting E40's journal entry above E39's. `check-commit-authorship.py` then
+blocked the push — the rebase turned an already-pushed Jeff-authored commit back
+into an unpushed one, which flips that check from advisory to blocking by
+design (A26). `gh api user` here is `JeffMcClintock`, not `tide-rack-bot`, so
+the right answer was `--expect "Jeff McClintock"`, which the script's own usage
+recommends, rather than re-authoring.
+
+**Still red on `main`, still needs Jeff:** `check-prefab-layout` fails on
+`AR_jef.synthedit` (SE Label overhangs the panel, introduced by `322df0f`). It
+needs re-saving in SynthEdit; no run can fix it.
+
+## 2026-08-26 — macos — E40: a deleted prefab kept shipping, and `rm` was only half the fix (scheduled run)
+
+**Prompt:** "merge PRs in order" / "the continue looping over tasks".
+
+E40 is my own row, filed after the second CI break in one day caused by the same
+thing. It names the cause as `copy_directory_if_different` MERGING and never
+deleting. **That is true and it is only half of it**, which I found by running
+the row's own Accept instead of trusting my edit.
+
+**The intermediate result is the whole lesson.** I added `rm -rf` before the
+copy at both staging sites, rebuilt, deleted a prefab, rebuilt again without
+clearing the tree — and the staged count stayed at **5**. Not because the delete
+failed, but because **the step never ran**: it was a `POST_BUILD`, and a
+POST_BUILD only fires when its target RELINKS. Editing `RackModules/` touches no
+source, so nothing relinked and nothing re-staged. The merge was never reached.
+
+Had I shipped after the edit and a green build, the row would have looked fixed
+and the next prefab deletion would have broken CI exactly as before.
+
+**So the per-target staging is now an always-run `add_custom_target(... ALL)`
+that the format target depends on**, mirroring `${PROJECT_NAME}_stage_resources`
+which already worked that way. It runs BEFORE the format target and makes its
+own directory, so it needs no bundle to exist yet — and running early keeps it
+out of the POST_BUILD ordering that `copy_plugin()` and the AU3 assemble step
+already contend over, which is the other reason not to just add another
+POST_BUILD.
+
+**Both halves are needed and neither alone passes the Accept:** always-run makes
+the step happen; `rm` before `copy_directory` makes it able to remove.
+
+```
+rm only, still POST_BUILD   staged 5   gate passes against a stale bundle
+always-run + rm, 1 deleted  staged 4   FAIL 4 rack prefab(s) seeded, expected 5
+prefab restored, rebuilt    staged 5   rack is populated
+```
+
+**Both sites changed** — the shared target (Windows/Linux/GMPI/CLAP) and the
+per-target bundle arm (macOS). The iOS arm has done rm-before-cp since M11 and
+is untouched; it needs its own generated shell script for
+`${EFFECTIVE_PLATFORM_NAME}`, which is a different problem.
+
+**Left alone deliberately:** the module XMLs are still individually
+`copy_if_different`, so dropping one from `_tide_xmls` would strand the old
+file. Same class — but that list is a CMake variable rather than a directory
+scan, so removing one is a deliberate code edit, and the gate asserts the exact
+four by name. Recorded rather than fixed speculatively.
+
