@@ -8,6 +8,52 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — #514 broke because I fixed #513, and a stacked pair will keep doing that
+
+**Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell; recorded as unknown rather than guessed* · as tide-rack-bot (both)
+
+**Did:** no backlog item, second iteration running. STEP 1.5 again: [#514](https://github.com/JeffMcClintock/TideSynth/pull/514) had gone `CONFLICTING` since the previous iteration. Resolved, pushed to the same branch. **Both #513 and #514 are now `MERGEABLE` with 12/12 checks.** No product code touched.
+
+### The conflict was self-inflicted, and that is the point
+
+#514's base is not `main` — it is `tide/mac/E25-document-driven-repro`, #513's branch. The previous iteration pushed two commits to that base to clear #513's own conflict, **and that is what made #514 conflict.** Nothing drifted from `main`; `origin/main` has not moved in 20 minutes (`9e64b00` both times). A reader looking for an external cause would not find one.
+
+**So the pair is a small treadmill, and a run "helping" is what turns it.** Clearing the base breaks the stacked PR; clearing the stacked PR is another push to a branch nobody has merged. Neither PR is waiting on a run — both are green and waiting on Jeff.
+
+**What the next run should expect:** when #513 merges, GitHub retargets #514 to `main` automatically, and it may conflict *again* at that moment, on the same coordination files. That is not a new problem and does not need pre-empting — **it needs #513 merged first, then one resolution, not two.** A run that finds only #514 conflicting and #513 already merged is in the normal case, not a broken one.
+
+### The ordering rule is "whichever is newer", not a side
+
+One conflict, `JOURNAL.md`, and it resolved the **opposite way** to the previous iteration: the base now carries two 2026-08-28 entries and this branch's is 2026-08-27, so the base's go above. Last time this branch's entry was the newer one and went first.
+
+`check-journal-prepend.py` enforces newest-first *as well as* prepend-only — which the previous iteration learned by failing it. **There is no standing "ours first" or "theirs first" answer; it has to be read off the dates each time.**
+
+### Checked for the previous iteration's failure mode
+
+`BACKLOG.md` auto-merged with no conflict. Last iteration a **deletion outside every conflict hunk merged silently** and cost R6 its row, so this time the auto-merged file was checked rather than trusted: R6 is still in `BACKLOG-DONE.md`, E54 is still `IN-REVIEW`, and `check-backlog-diff` reports no dropped rows.
+
+**Verification artifact — E54's own gate, untouched by this merge and still firing on the fixture it ships:**
+
+```
+$ python3 scripts/check-rack-populated.py --log-file tests/rack-content/lost-module-handle.log
+  ok   default rack loaded, 25109 byte document
+  FAIL parameter names module handle 999999999, which the document does not
+       contain -- the rack loaded DEGRADED, missing whatever that module was.
+1 assertion(s) failed -- the rack did NOT come up populated.
+```
+
+Eight lints green: `backlog-diff`, `journal-prepend`, `prompt-provenance`, `id-refs`, `backlog-archived`, `links`, `next-block`, and E54's gate.
+
+**Learned:**
+
+- **Resolving a base branch's conflict breaks every PR stacked on it.** Worth predicting before the push rather than discovering next iteration; the cost is one extra resolution per stacked PR, every time.
+- **"Ours or theirs" is never the rule for the journal — the dates are.** Two consecutive merges on the same pair of branches resolved in opposite directions, both correctly.
+- **An auto-merged file is a changed file.** "I only touched the conflicts" describes what git showed you, not what git did.
+
+**Next:** nothing on `tide/mac/**` needs a run — both PRs are green, mergeable, and waiting on Jeff. **Merge #513 first, then #514**, so its retarget to `main` costs one resolution instead of two. Still unaddressed from the windows box's 08-27 note: `tide/mac/E36-renumber-duplicate-e34` and `tide/mac/icon-tide-app` sit on the remote with **no PR**, the one end state STEP 5 forbids.
+
+**Branch/PR:** `tide/mac/E54-gate-lost-module`, [#514](https://github.com/JeffMcClintock/TideSynth/pull/514) — same branch per STEP 1.5, no second PR.
+
 ## 2026-08-28 — macos — STEP 1.5 was the whole run: #513 had gone CONFLICTING, and my first resolution of it was wrong
 
 **Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell, recorded as unknown rather than guessed* · as tide-rack-bot (both)
