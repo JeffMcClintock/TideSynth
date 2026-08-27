@@ -8,6 +8,54 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — windows — The gated guards are on SynthEditLib's main, and none of the three rows can honestly say DONE (state update, interactive, Jeff directing)
+
+**Prompt:** *"merge 64"*
+
+**Did:** merged
+[SynthEditLib#64](https://github.com/JeffMcClintock/SynthEditLib/pull/64) —
+`796bbc2`, squashed, branch deleted. **E49**, **E46** and **E47** go
+**DONE-PENDING-ACCEPT**, not DONE. No code changed; this is the flip and this
+entry.
+
+### Why not DONE, for each of the three
+
+A merged PR says the code landed. It does not say the row's Accept was met, and
+for all three of these it was not:
+
+- **E49** has two clauses and exactly one is met. *"A pair the patch manager does
+  not have is refused with a diagnostic rather than dereferenced"* — met and
+  measured. *"The 38,658-byte document loads without faulting"* — **not**: it
+  still segfaults 3/3, after the graph is live instead of during the build.
+  **That clause is now E53's**, and E53 is the row to take.
+- **E46** and **E47** are guards written from the source and the call graph, with
+  **no reproduction of either defect**. Their own rows say do not quote them as
+  measured, and merging the guard does not change that. E47's warning is the one
+  to keep in view: *"it did not crash this time" is what a dangling pointer also
+  looks like.*
+
+`DONE-PENDING-ACCEPT` is the status this backlog already has for exactly this,
+and `check-backlog-archived.py` deliberately does not treat it as archivable —
+so all three stay visible in `BACKLOG.md` instead of moving to the archive on the
+strength of a merge.
+
+**Learned:**
+
+- **A merge is evidence about the code, not about the row.** Three PRs landed
+  together and none of the three Accepts was met; flipping all three to DONE
+  would have retired two unreproduced defects and one half-fixed one in a single
+  edit that every lint would have passed.
+- **When a fix and its verification land apart, say which one you have.** The
+  distinction between "the guard is in" and "the bug is gone" is the entire
+  content of these three rows now.
+
+**Next:** **E53** — the fixture still faults, and it wants a faulting address
+first. **E48** has E49's diagnostic as a lead. Nobody has run SynthEdit's
+`ctest` against these changes.
+
+**Branch/PR:** `tide/win/E49-E46-E47-landed` — the three rows and this entry.
+Bookkeeping only.
+
 ## 2026-08-27 — windows — The gated null guards: one is measured, two are not, and the fixture still crashes one layer further in (interactive, Jeff directing)
 
 **Prompt:** *"do the gated fixes"*, after the E50 run above · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** · as **tide-rack-bot**
