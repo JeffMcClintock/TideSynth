@@ -8,6 +8,145 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — windows — The gated null guards: one is measured, two are not, and the fixture still crashes one layer further in (interactive, Jeff directing)
+
+**Prompt:** *"do the gated fixes"*, after the E50 run above · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** · as **tide-rack-bot**
+
+**Did:** wrote the three outstanding gated guards —
+[SynthEditLib#64](https://github.com/JeffMcClintock/SynthEditLib/pull/64), branch
+`tide/win/E49-E46-E47-null-guards`. **E49**, **E46** and **E47** go IN-REVIEW.
+Found **E25's** two guards already on `main` and corrected that row. Filed
+**E53** for a second crash the first fix exposed, and annotated **E48** with the
+lead it handed over.
+
+### One family, and only one of the three has a measurement
+
+All three are the same defect: **a lookup that returns `nullptr` (or `end()`) by
+design, dereferenced with an `assert` as the only guard, in a product that ships
+`-DNDEBUG`.** The evidence behind them is not the same, and the rows say so
+rather than letting the PR imply otherwise:
+
+| | site | evidence |
+|---|---|---|
+| **E49** | `ug_patch_param_setter.cpp` | **A/B on a reproducing document** |
+| **E46** | `EditorLib/PatchManager.cpp` | read off the source, no repro |
+| **E47** | `EditorLib/PropertiesBrowser.cpp` | read off the call graph, no repro |
+
+Writing a guard is not evidence a crash was real. E46 and E47 are guards worth
+having and their Accepts are **not met**; both rows still say do not quote them
+as measured.
+
+### E49's A/B, and the thing it printed that was worth more than the fix
+
+Same build tree, the commit the only difference, on the 38,658-byte fixture:
+
+| | before | after |
+|---|---|---|
+| rack modules constructed | **3 of 5** | **5 of 5** |
+| connections / DSP | never reached | made; `processing (block 96)`, `first NONZERO OUTPUT` |
+| command channel | never opened | opens |
+
+Then the diagnostic named the cause outright:
+
+```
+SynthEdit: no patch parameter for module 987654321 parameter id 0..7
+```
+
+**`987654321` is the `VCV: Scope`, and the document defines it** —
+`<Module Id="987654321" Type="VCV: Scope">`. So the pair misses because that
+module reached the graph with **no patch-manager parameters at all**, not because
+the handle dangles. E49's own refinement — *"the miss must come from the
+PARAMETER ID, on a module that does exist"* — was right that the module exists
+and wrong that one id is at fault; all eight are absent. **A module whose
+parameters went missing is a module whose connectors are lost**, which is E48's
+symptom seen from the DSP end instead of the editor end. Annotated there as a
+lead, untested as a cause.
+
+### And the fix moved the crash rather than removing it
+
+**The fixture still segfaults, 3/3 — later, and somewhere else.** Before, the
+process died *during* graph build. Now the graph completes, all five modules
+produce audio, the channel opens, and it faults after
+`LFO2 first nonzero light`. E49's Accept has two clauses and exactly one is met.
+
+Filed as **E53** rather than buried in E49, because it is a different fault with
+its own trivial repro. A guard that turns "dies at step 3" into "dies at step 9"
+is progress and is not a fix, and a row that says "fixed" when the document still
+crashes is the kind of row this journal keeps having to correct.
+
+### E25 was stale, and reading the file beat reading the row
+
+E25 asks for two gated guards and says twice that they are unwritten because
+`SynthEditLib` is GATED. **Both have been on `main` since earlier the same day** —
+Jeff landed them himself as
+[SynthEditLib#58](https://github.com/JeffMcClintock/SynthEditLib/pull/58), and
+both carry comments naming E25. I found it by opening
+`PatchParameter.cpp:1302`, which I was about to edit.
+
+Status left **TODO** deliberately: its Accept is a repro *and* a fix *and* a
+before/after crash-report count, and only the fix exists.
+
+### What made this session cost more than it should have
+
+**Seven minutes lost to `cdb`, and the reason is a finding.** Trying to get a
+faulting address for E53, the app under the debugger never crashed and never
+returned — and its log shows it built the **default** rack (17,960 bytes) rather
+than restoring the fixture. Jeff, watching the screen: *"Assign Controller dialog
+up for a long time"*, then *"gone now"*.
+
+**That launch was made with `-quiet`.** E51's divert covers `SeMessageBox` and
+`SeMessageBoxAsync`; *Assign Controller* is a different dialog class and goes
+straight to the screen. So a headless run can still be silently blocked by a
+modal, which is the exact failure E51 exists to prevent — recorded on E53 and
+pointed at E51.
+
+**I did not see it and could not have.** Nothing in the app's stderr mentions it,
+and by the time I enumerated every visible top-level window the owning process
+was gone. The only signal available from inside the run was a debugger that
+produced no output for seven minutes, which reads identically to a slow build.
+
+I then went on to propose running SynthEdit's `ctest` suite, which launches GUI
+tests — the same hazard again. Jeff stopped it. **Not run, and the PR says so.**
+
+**Learned:**
+
+- **Writing the guard is not the same as verifying the bug.** Three fixes, one
+  measurement. Marking all three the same way would have made two unmeasured
+  claims look settled, and both rows explicitly warn against exactly that.
+- **A guard that moves a crash has not fixed it.** "Dies at step 3" becoming
+  "dies at step 9" is real progress and a separate row, not a closed one.
+- **The diagnostic is often worth more than the guard.** `return` on null would
+  have stopped the crash silently; printing the pair identified the culprit
+  module, corrected the row's own hypothesis, and handed E48 a lead — for one
+  extra line.
+- **Read the file you are about to edit before believing the row that sent you.**
+  E25 was two commits out of date and would have had me re-apply a fix already on
+  `main`.
+- **A modal can block a headless run with no trace in its own output.** Seven
+  minutes of debugger silence and a slow build are indistinguishable from inside;
+  only a person looking at the screen could tell. `-quiet` is not proof against
+  it.
+- **`SynthEditLib` ships in SynthEdit too, so build SynthEdit.** 1088/1088 on the
+  `SE16` tree is what makes "TIDE builds" mean anything about the commercial
+  product, and it is one command on this box.
+
+**Next:** **E53** wants a faulting address, and getting one needs a debugger that
+does not deadlock on that modal, or a build with the dialog suppressed. **E48**
+now has a concrete lead. Nobody has run SynthEdit's `ctest` against these
+changes.
+
+**Machine state.** `SynthEditLib` on `tide/win/E49-E46-E47-null-guards` with
+[#64](https://github.com/JeffMcClintock/SynthEditLib/pull/64) open; every other
+repo on its default branch and clean. Two scratch build trees
+(`_scratch/e50-off`, `_scratch/e50-se16`) outside every repo. `%APPDATA%\TIDE
+Rack\` restored byte-for-byte, md5-verified; no TIDE, SynthEdit or `cdb` process
+left running, checked by enumerating every visible top-level window.
+
+**Branch/PR:** `tide/win/E49-E46-E47-gated-guards` in TideSynth (rows and this
+entry) and `tide/win/E49-E46-E47-null-guards` in SynthEditLib (the code).
+**Merging TideSynth's side alone changes no behaviour**; merging SynthEditLib's
+alone leaves the backlog saying the work is open.
+
 ## 2026-08-27 — windows — E50: the test the row asked for, with the controls it did not — the Compare does not reproduce, and the same wrong name is in E49's row (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** · as **tide-rack-bot** (both paths)
