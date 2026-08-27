@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **353 KB** across **280** entries, so copying them
+Learned sections are **353 KB** across **281** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **103 KB / 1135 lessons — 3.4x smaller**, and represents
+A8. This is **103 KB / 1137 lessons — 3.4x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,11 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — the queue is blocked and this run did nothing to it, deliberately**
+
+- A blocked queue is when invented work is most likely, so the bar for "is this actually my job?" should go up, not down.
+- "Every run" is ambiguous in a fleet that has both agent runs and workflow runs.
 
 **macos — the queue is blocked, so I answered the one question a ruling said was open: which call site consumes a dialog answer**
 
