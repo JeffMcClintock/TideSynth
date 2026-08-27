@@ -26,6 +26,9 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "PropertiesBrowser.h"
 #include "it_doc_ob.h" // E36 — walking the rack's top-level modules
 #include "CUG.h"       // E36 — getViewObRect / Handle on each of them
+#include "SynthEditDocBase.h" // V7 — uniqueIdDatabase, to turn the hit-tested
+                             // module HANDLE into the container "Show Circuit" opens.
+                             // Read-only use of EditorLib, which needs no permission.
 #include "CContainer.h" // U3 — Container() for "Goto Parent"; used to arrive
                        // transitively via BreadcrumbBar.h, now gone
 #include "AboutPane.h" // D6 — the about pane, now opened from the context menu
@@ -1538,30 +1541,71 @@ public:
 				});
 			addedOurs = true;
 
+			// V7 (2026-08-27 ruling) — "Show Circuit": open the structure view
+			// of the RACK MODULE that was right-clicked, not of the container
+			// the rack itself is.
+			//
+			// WHY IT IS ADDED HERE RATHER THAN RENAMED IN THE FILTER. In panel
+			// view EditorLib emits no module-specific items at all -- its whole
+			// `if (moduleHandle >= 0)` block sits inside the `else` of
+			// `if (viewType == CF_PANEL_VIEW)` -- so there is nothing to rename.
+			// The one item a rack module DOES get is "Delete (keep wires)",
+			// which the same ruling removes, and repurposing a delete into a
+			// navigation item by renaming it would be the worst possible way to
+			// do this.
+			//
+			// The module comes from the view's own hit test rather than from a
+			// second one of ours: `mouseOverObject` is what EditorLib itself
+			// resolves `moduleHandle` from, so this cannot disagree with the
+			// menu it sits in. A non-container module answers null to the cast
+			// and gets no item -- correct, since there is no circuit to show.
+			if (currentViewFlag == CF_PANEL_VIEW && view && view->mouseOverObject && currentContainer)
+			{
+				const int32_t handle = view->mouseOverObject->getModuleHandle();
+				CContainer* inner = handle < 0 ? nullptr : dynamic_cast<CContainer*>(
+					currentContainer->Document()->uniqueIdDatabase.HandleToObjectWithNull(handle));
+
+				if (inner)
+				{
+					menu.addItem("Show Circuit", [this, inner](int32_t)
+						{
+							requestNavigate(inner, CF_STRUCTURE_VIEW);
+						});
+				}
+			}
+
 			menu.addSeparator();
 		}
 
-		// BACKLOG V7 — the view's items go through TIDE's renaming sink.
+		// BACKLOG V7 — the view's items go through TIDE's filtering sink.
 		//
 		// Everything below "Goto Rack" and "About TIDE..." comes from
 		// EditorLib's populateContextMenu, which is SHARED WITH SYNTHEDIT
-		// PROPER: renaming there changes the menu for every existing SynthEdit
-		// user, and Jeff ruled on 2026-08-26 that it must not. So the strings
-		// are intercepted on the way out instead, and EditorLib is untouched.
+		// PROPER: deleting "Locked" there deletes it for every existing
+		// SynthEdit user, and Jeff ruled on 2026-08-26 that it must not. So the
+		// menu is filtered on the way out instead, and EditorLib is untouched.
 		//
-		// The override table is EMPTY today, deliberately -- the four
-		// replacement strings are a product decision still open as a
-		// `PROPOSED:` question, and V7 says in as many words not to land
-		// placeholders. So this changes no menu text yet; it is the hook that
-		// has to exist before any string can differ, and filling the table is
-		// then a one-line change per name.
+		// The table shipped EMPTY from 2026-08-26 to 2026-08-27, waiting on the
+		// `PROPOSED:` question V7 raised. That question is answered and the
+		// answer was not a list of renames -- it is a list of removals, per
+		// context, plus one addition. See MenuNameOverride.h for the rules and
+		// for the four corrections that reading the ruling against
+		// MfcDocPresenter.cpp produced.
+		//
+		// WHICH MENU is passed in rather than inferred, because three of the
+		// rules are view-scoped: "Locked" and "Goto Structure..." go from the
+		// rack and are not offered in the structure view anyway, while "Delete
+		// (keep wires)" is added BEFORE EditorLib's view-type branch and must
+		// survive in the structure view.
 		//
 		// The wrapper is stack-scoped and only lives for this one menu; it
 		// delegates every interface but IContextItemSink to the object the host
 		// gave us, so nothing that asks for something else is affected.
-		tide::RenamingContextItemSink renaming(sinkRaw, contextMenuItemsSink);
+		tide::FilteringContextItemSink filtering(
+			sinkRaw, contextMenuItemsSink,
+			currentViewFlag == CF_PANEL_VIEW ? tide::MenuView::Panel : tide::MenuView::Structure);
 		gmpi::api::IUnknown* viewSink = sinkRaw
-			? static_cast<gmpi::api::IUnknown*>(&renaming)
+			? static_cast<gmpi::api::IUnknown*>(&filtering)
 			: contextMenuItemsSink;
 
 		const auto viewResult = view ? view->populateContextMenu(point, viewSink) : ReturnCode::Unhandled;
