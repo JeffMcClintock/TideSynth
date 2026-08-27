@@ -8,6 +8,54 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E55 built: one config-root override, and the build that silently didn't contain it
+
+**Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell* · as tide-rack-bot (both)
+
+**Did:** took **E55**, built it, measured it. IN-REVIEW — [GMPI_Wrappers#30](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/30), branch `tide/mac/E55-config-root-override`. `GMPI_Wrappers` is an **ALLOWED** repo, so no gate.
+
+### Why it was takeable now when the filing run deliberately left it
+
+The row said outright why it was not built: *"the concurrent session was compiling from this same `GMPI_Wrappers` checkout, and editing shared source under somebody else's running build is the same mistake as contending for the config folder."* That reason is checkable rather than permanent — the windows box is on **E48**, whose open work is `TideSynth` and `SynthEditLib`, and no other session held this checkout. **A row parked on a transient condition is worth re-testing rather than inheriting.**
+
+### The change
+
+`configRoot()`'s three arms were not equivalent. mac reads `$HOME`, linux reads `$XDG_CONFIG_HOME` — either can be pointed at a scratch dir, which is how S23 kept Jeff's own config byte-identical. Windows called `SHGetKnownFolderPath` and consulted **nothing**, not even `%APPDATA%`.
+
+`GMPI_STANDALONE_CONFIG_DIR` is now checked **first, before the platform arms**, so its behaviour does not depend on which platform's fallbacks happen to be set. The name matches `GMPI_STANDALONE_IPC_DIR` (`mcp/IpcServer.h`), which redirects the command channel's socket dir for the same reason. **Not created if missing**, deliberately: a typo should fail loudly at the open rather than start a fresh config tree somewhere unexpected.
+
+### Measured — patched vs unpatched, one tree
+
+| check | result |
+|---|---|
+| symbol control | `GMPI_STANDALONE_CONFIG_DIR` **present** in the patched binary, **absent** from the unpatched one |
+| override **SET** | `session.xml` (24,382 B) and `standalone.conf` land under `<OVERRIDE>/TiDE Rack/`; **nothing** created under `$HOME` |
+| override **UNSET** | patched and unpatched resolve the **same** paths, `<HOME>/Library/Application Support/TiDE Rack/` |
+
+The last row is the Accept's second clause verbatim. The middle is the mac analogue of S23's control and is stronger in one respect — it shows where the files *do* go, not merely that a folder is unchanged.
+
+### The build that silently did not contain the change
+
+The first build I made of this reported `rc=0`, linked, and **contained none of the patch**. TideSynth fetches its siblings, and `build-e39` had only `FETCHCONTENT_SOURCE_DIR_SYNTHEDITLIB` set — so `Standalone_Wrapper_SOURCE_DIR` pointed at `build-e39/_deps/gmpi_wrappers-src/…`, a fetched copy, and my local edit was invisible to it.
+
+**Nothing about that build looked wrong.** It compiled the right target, relinked, and exited zero. What caught it was checking the binary for the symbol I had just added — and finding it absent — before running a single test. Had I gone straight to the behavioural test, the override would have "failed", and the obvious next move would have been to debug correct code.
+
+**This is the same shape as the stale-lib trap this project already records**, one level up: not a stale prebuilt library, but a *fetched source copy* standing in for the checkout being edited.
+
+### Not verified, and it is half the Accept
+
+**The `%APPDATA%` md5-identical control needs Windows.** The mac run does not exercise the `SHGetKnownFolderPath` arm at all. Whoever runs it there gets the point of the change: **E53's reproduction becomes runnable on Windows without touching the developer's live folder** — the session this asymmetry cost on 2026-08-28.
+
+**Learned:**
+
+- **A row parked on a transient condition should be re-tested, not inherited.** E55 was left unbuilt because another session held the checkout; that was true when written and false a day later, and the row said so plainly enough to check.
+- **Verify the binary contains your change before you test its behaviour.** A green build of the wrong sources is indistinguishable from a green build of the right ones, and a behavioural test then blames the code instead of the build. One `strings` grep, with the unpatched binary as the negative control, costs seconds.
+- **An additive override wants a same-paths control, not just a works control.** Showing the override redirects proves it does something; showing that *without* it patched and unpatched resolve identically proves it broke nothing.
+
+**Next:** the Windows half of E55's Accept, on the windows box. Then E53's two guards, which are GATED and not yet authorised.
+
+**Branch/PR:** `tide/mac/E55-config-root-override` → [GMPI_Wrappers#30](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/30); row and this entry on `tide/mac/E55-config-root-override` in TideSynth.
+
 ## 2026-08-28 — windows — E48 DONE and archived; the win NEXT cell points at E19 and sheds 9 KB of history (state update, interactive, Jeff directing)
 
 **Prompt:** *"merge in order"*
