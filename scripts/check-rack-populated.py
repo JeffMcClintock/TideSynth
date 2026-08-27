@@ -167,6 +167,15 @@ PREFAB_ABSENCE_CAUSES = (
 # NAME it. "A module is missing" sends the reader to the wrong repo; the number
 # is what they grep the document for.
 #
+# NOT THE SAME CHECK AS scripts/check-prefab-modules.py (BACKLOG E48), which
+# landed hours after this and is adjacent enough to be mistaken for it. That
+# one is STATIC and scans RackModules/*.synthedit, comparing each
+# `<module type=X>` string against the strings in the binary. This one is
+# RUNTIME, reads the app's own diagnostic, and catches a `<param module=HANDLE>`
+# that failed to BIND -- a different layer, a different failure, and it covers
+# DefaultRack.synthedit, which lives at the repo root and that script does not
+# scan. Neither subsumes the other; keep both.
+#
 # THIS COVERS THE --standalone AND --log-file ARMS ONLY, AND NOT --au3.
 # Stated because the alternative is implying coverage this does not have.
 # TideApp mirrors ITS diagnostics to os_log (kTideDiagSubsystem) because an app
