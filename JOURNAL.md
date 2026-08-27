@@ -8,6 +8,70 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — V7 closed by a human right-click, which is the only instrument that exists for it (state update, interactive)
+
+**Prompt:** *"right-click menu passed manual test"*.
+
+**Did:** flipped **V7** to DONE and archived it. No code changed;
+[#500](https://github.com/JeffMcClintock/TideSynth/pull/500) merged at 05:58Z
+and this was the row's one remaining gap.
+
+**The gap was structural, not an oversight, and that is why it took a person.**
+V7 shipped verified by probe — 23 checks across both build arms, asserting on
+the far side of the filtering sink. What a probe there can never assert is that
+a menu APPEARED. Three separate measured reasons close off every automated
+route:
+
+- **E38** — the command channel cannot raise a context menu. The menu is raised
+  by `DrawingFrameCommon::doContextMenu` on the FRAME; `cmdPointer` calls the
+  INPUT CLIENT and never touches the frame.
+- **E43** — trying it on macOS *wedges* the app: a native `NSMenu` runs a nested
+  modal run loop inside the command's job.
+- `--screenshot` reads `context.framePixels`, the app's own render buffer, and a
+  macOS popup is a separate window — so it could not have seen one even if one
+  opened.
+
+So the honest state of that clause was never "not done yet"; it was "not
+reachable from here", and it stayed that way through three rows trying.
+
+**WHAT THE VERDICT DOES NOT ITEMISE, recorded so nobody reads more into it than
+was said.** It is a human verdict on the menu as a whole, not a per-rule
+checklist — and **which rules a run of the app exercises depends on the build**.
+The four Release-only strings (`Pa&nel Edit...` / `Panel Edit...`,
+`Goto Parent Container` / `Goto Parent...`) are deliberately still PRESENT in a
+Debug build, so a Debug test cannot have observed their removal. The probe
+covers both arms (`-D_DEBUG` re-run separately, 0 failures), so what remains is
+on-screen coverage of one arm, which is the narrowest this row has ever been.
+A single right-click on a Release build would close it outright.
+
+**E45's check earned its keep on its first real customer.** Flipping V7 to DONE
+and leaving it in `BACKLOG.md` now FAILS `check-backlog-archived.py`, so the
+flip and the archive are one action instead of two — and the second one can no
+longer be the step somebody forgets. That is the exact failure the row was filed
+for, caught the same day the check landed:
+
+```
+50 row(s) in BACKLOG.md, none DONE, all terminated, OK (242 KB)
+```
+
+**Learned:**
+
+- **"Not verified" and "not verifiable from here" are different claims, and only
+  one of them is a to-do.** V7 carried the second for two days while reading like
+  the first. Naming which one it is tells the next reader whether to try again or
+  to go and find a human.
+- **A human verdict closes a clause; it does not itemise one.** Record what was
+  actually said and what it cannot cover — here, that a Debug build cannot
+  demonstrate a Release-only removal — rather than promoting "passed" into
+  "every rule observed".
+
+**Next:** nothing on V7. The same instrument gap is what **E44** was filed to
+fix for the app's own menu bar, and that has since merged — a context menu still
+has no equivalent.
+
+**Branch/PR:** `tide/mac/V7-manual-verified` — the row, its archive move, and
+this entry. Bookkeeping only.
+
 ## 2026-08-27 — macos — E45: the check found the row the sweep missed (interactive session, Jeff directing)
 
 **Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
