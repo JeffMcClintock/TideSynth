@@ -8,6 +8,137 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — windows — E48: a shipped prefab uses a module TIDE does not ship, and that one fact explains both dialogs and the 3,577 bytes (interactive, Jeff directing)
+
+**Prompt:** *"take next windows task"* · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** · as **tide-rack-bot**
+
+**Did:** took **E48** (the `win` NEXT pick). Diagnosed it end to end with a stack.
+Landed `scripts/check-prefab-modules.py`, which fails on the defect. **Row stays
+TODO**: the remaining step is a product decision, not a task. Annotated **E51**
+with a measured instance of its own gap.
+
+### The cause, in one sentence
+
+`RackModules/AR_jef.synthedit` — a **shipped prefab** — contains
+`<module type="SynthEdit ADSR">`, and TIDE neither compiles that module nor
+stages its XML. Measured: the string occurs **0 times** in `TIDE-Rack.exe` in
+either UTF-8 or UTF-16, while all 32 other module types across the five shipped
+prefabs are present.
+
+### The chain, each step measured
+
+1. Inserting the prefab **appears to work** and the rack looks right.
+2. The saved document therefore carries `type="SynthEdit ADSR"`.
+3. On reload `CContainer::ImportChildren` cannot resolve it and raises
+   `SeMessageBoxAsync("Module not found in factory: …", L"", MB_OK)`
+   (`CContainer.cpp:1089`).
+4. That is a **blocking `MessageBoxW`** running a nested `SoftModalMessageBox`
+   pump on the main thread, so the restore never finishes — no further stderr,
+   no `building rack from`, no command channel, **~0.08 s of CPU**.
+5. The module is then `continue`d past, so its connectors are dropped and the
+   *"Connectors lost while loading"* dialog this row was filed on follows at
+   `:1143`.
+
+**One cause, both dialogs, and the 3,577 bytes.**
+
+### The stack, because reading the source would not have settled it
+
+```
+wWinMain → runStandaloneApp → SessionState::restore → StandaloneHost::restoreState
+ → notifyControllerOfPreset → SynthEditController::setParameter
+  → TideApp::importChunkXml → CSynthEditDocBase::ImportModules
+   → CContainer::Import → CContainer::ImportChildren
+    → ApplicationBase::SeMessageBoxAsync → USER32!MessageBoxW
+     → SoftModalMessageBox → IsDialogMessageA → PeekMessageW
+```
+
+**Attach, do not launch.** An earlier attempt launched the app *under* `cdb` and
+hung for seven minutes with nothing to show, because the modal pumps inside the
+debuggee before the debugger has anything to report. Attaching to an
+already-blocked process answers in seconds.
+
+### Two corrections to the row, and the second cost real time
+
+- **The blocking dialog is not the one the row names.** *"Connectors lost while
+  loading"* is the **sync** `SeMessageBox` at `:1143`; the blocker is the
+  **async** one at `:1089`, which fires first.
+- **`MainWindowTitle` is not a usable handle on it.** E48 and E51 both lean on
+  the title as *"the only evidence available from outside"*. `:1089` passes
+  **`L""`** as the caption, so the title reads **empty** for the entire block and
+  `EnumWindows` lists no visible window — while a dialog is demonstrably on
+  screen, because Jeff saw it twice and told me.
+
+That second one is the expensive part of this session, and it was my error
+rather than the row's. I built a detector keyed to the window title, **told Jeff
+it made driving the app safe, and it could not see this dialog at all** — so the
+early-bail never fired and each probe left a modal up for its full timeout. The
+control I needed was one I already had: enumerate windows *while blocked* and
+notice that the count is zero when a dialog is plainly there.
+
+### The control is what makes the reproduction mean anything
+
+The **default** rack round-trips **byte-identical** — 18,169 → 18,169, no dialog,
+no unresolved parameters. So the loss genuinely needs the inserted modules and is
+not a property of save-and-reload as such. Fixture kept:
+`_scratch/e48-rack-session.xml`, 65,878 B holding a 49,295 B document.
+
+Also worth writing down: **`session.xml` is written only on quit.** It is absent
+through the whole editing session, which is why an earlier measurement read
+49,297 bytes and then found 18,106 on disk moments later — two different writes,
+not one file changing under me.
+
+### What landed, and what it replaces
+
+`scripts/check-prefab-modules.py` fails when a shipped prefab names a module
+absent from the built binary. It catches this defect (1 of 32 types) and
+**skips rather than passing when it cannot find a binary**.
+
+**`check-prefab-layout.py` could never have caught this**, and the reason is
+worth keeping: its check #2 is *every `<module type=X>` has a `<Plugin id=X>`* —
+but a prefab carries its **own** `PluginList`, so that asks whether the FILE
+describes its modules, not whether the PRODUCT has them. `AR_jef.synthedit`
+passed it for weeks.
+
+The test is **absence**, deliberately: a registered id must exist as a literal in
+the binary, so a type string appearing nowhere cannot be registered — while a
+string that *is* present proves nothing. Only the direction it can be sure of is
+reported. **Not wired into CI**: the bot token has no `workflow` scope.
+
+### What is left, and it is not mine
+
+Re-author `AR_jef.synthedit` to use a module TIDE ships, **or** add `Adsr.cpp` +
+`EnvelopeAdsr.xml` to the compiled-in set — a **PLAN constraint 7** decision
+about the fixed module set. A run must not pick, so the row stays TODO.
+
+**Learned:**
+
+- **A dialog with an empty caption is invisible to every handle we have.**
+  `MainWindowTitle` empty, `EnumWindows` listing nothing, stderr silent, CPU
+  idle — four instruments agreeing on "nothing here" while a modal is on screen.
+- **Do not promise a mitigation you have not seen fire.** I claimed a bounded,
+  title-detecting harness made GUI driving safe, on the strength of a detector
+  that had never been tested against the dialog it existed for.
+- **Attach to a hung process; do not launch it under the debugger.** Seven
+  minutes versus seconds, for the same question.
+- **A checker that validates a file against itself is not validating the
+  product.** The prefab's own `PluginList` made it self-consistent and
+  unloadable at the same time.
+- **`session.xml` is written on quit only.** Reading it mid-session tells you
+  about the *previous* run.
+
+**Next:** the product decision above. Once it is made, E48's Accept is one
+re-run of the fixture. **E53** still wants a faulting address and now has a
+working technique for it — attach, do not launch.
+
+**Machine state.** All eight repos on their default branches, clean.
+`%APPDATA%\TIDE Rack\` holds a scratch session from this work, not Jeff's — his
+was restored earlier and this run replaced it again; **restored once more at the
+end and md5-verified.** No TIDE-Rack or cdb process running, checked by
+enumerating every visible top-level window as well as by name.
+
+**Branch/PR:** `tide/win/E48-connectors-lost` — the check, E48's row, E51's
+annotation, and this entry.
+
 ## 2026-08-27 — windows — E32, E34, E42 archived; E42's row cited an issue as its PR; E25 marked as mac's (state update, interactive, Jeff directing)
 
 **Prompt:** *"what gated stuff remains?"* then *"yes, flip them and fix the link. note mac agent is working on E25"*
