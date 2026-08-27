@@ -177,8 +177,10 @@ every repo. `~/Library/Application Support/TIDE Rack/` was copied out before the
 launch and **restored byte-for-byte, md5-verified** — the three files are Jeff's, not this
 run's. No TIDE process left running.
 
-**Branch/PR:** `tide/mac/E52-geometry-seam-outside-channel` in GMPI_Wrappers (the code) and
-`tide/mac/E52-standalone-channel-off-build` in TideSynth (E52's row, E51's `NEEDS-SPEC`,
+**Branch/PR:** `tide/mac/E52-geometry-seam-outside-channel` in GMPI_Wrappers
+([#28](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/28), the code) and
+`tide/mac/E52-standalone-channel-off-build` in TideSynth
+([#515](https://github.com/JeffMcClintock/TideSynth/pull/515)) (E52's row, E51's `NEEDS-SPEC`,
 E50's archive, the `win` NEXT cell's defused phrase, the `mac` NEXT cell, and this entry).
 **Merging TideSynth's side alone changes no behaviour**; merging GMPI_Wrappers' alone
 leaves the backlog saying the work is open.
