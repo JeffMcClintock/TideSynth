@@ -8,6 +8,82 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — E51 answered, and the chokepoint it was waiting for already existed (interactive session, Jeff directing)
+
+**Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
+
+**Did:** recorded the **E51** ruling in `docs/decisions.md` and unblocked the row.
+The divert-and-keep half shipped with it —
+[TideSynth#493](https://github.com/JeffMcClintock/TideSynth/pull/493) +
+[GMPI_Wrappers#25](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/25) +
+[SynthEditLib#61](https://github.com/JeffMcClintock/SynthEditLib/pull/61), all
+merged, `main` green on all three platforms.
+
+### The ruling
+
+> we want to be able to test the app without it blocking while the agent is
+> unaware. So we want dialogs diverted to the agent, no modal windows opening.
+> … how about a command line argument to reroute such informational dialogs
+> silently to a list that can be communicated later once the channel is alive?
+> … plus direct them to stderr … TIDE is only quiet when launched with the
+> -quiet flag (and MCP will need to know/remember to do so).
+
+**The list is the part that closes the gap the options could not.** #486 offered
+report-only, report-and-answer, or never-raise. The prompts that matter are
+raised *before anything is listening* — E48's fired during session restore,
+before the command channel existed — so a callback registered later cannot be
+told what it missed. A list can be read whenever the reader turns up.
+
+### The row's premise was half wrong, and that is the transferable bit
+
+E51 said *"nothing can report, answer or suppress a dialog until one function
+owns them all"* and scoped itself as a census of `MessageBox`/`NSAlert` sites.
+**The chokepoint already existed.** `ApplicationBase::SeMessageBox` had a `quiet`
+branch that already diverted without blocking; `-quiet` was already a flag;
+`ApplyConfigPreInit` already joined them. TIDE simply never parsed its command
+line.
+
+**Sized "medium, mostly census". It was 57 lines of wiring, almost all comment.**
+The lesson is the one this journal keeps re-learning from the other end: read the
+code before believing the row, including when the row is a day old and written by
+a careful run. A row describes what its author could see from where they stood.
+
+### Two real defects found on the way, both fixed
+
+- **Quiet mode wrote to `std::cout`** — where SynthEditCL's JSON protocol lives,
+  and which the screenshot verb turns quiet **on** to produce. So a diverted
+  dialog corrupted the stream the flag exists to make. Jeff's "direct them to
+  stderr" was a bug fix, not a preference.
+- **`SeMessageBox` and `SeMessageBoxAsync` had separate quiet branches that had
+  already drifted** — the async one had lost the multi-line indenting the sync
+  one learned after *"VST3 plugins folder not found:"* reached the MCP client
+  without the path. Two copies of a rule is one copy too many; they share a
+  function now.
+
+### A control worth more than the fix
+
+Without the flag, the probe prompt returns **`IDCANCEL` and is LOST** on macOS —
+there is no dialog host that early in startup, so it does not block, it vanishes.
+E48 blocked because Windows *does* have one that early. **So the pre-existing mac
+behaviour was silent data loss, not a hang** — worse than the bug being fixed,
+and invisible until an A/B put the two side by side.
+
+### An hour lost to an off-by-one
+
+`ParseSynthEditArgs` starts its loop at index **1** because it expects a whole
+`argv`. Passing a pre-stripped vector puts the first real flag at index 0, where
+it is skipped **in silence** — while `argc`, `argv` and the define all read
+correct. Every symptom said the wiring worked. The comment now says so at the
+call site.
+
+### What is left on E51
+
+The **`--dialogs` verb** (drain the list over the channel — stderr covers
+shell-launched runs meanwhile), and **the one call site that consumes an answer**:
+`Application.cpp` says *of the ~58 call sites only ONE consumes the answer*, and
+that site has never been identified. It is a grep, and it should happen before
+anyone calls this row closed.
+
 ## 2026-08-27 — macos — E34: one steer found the fix, and a human ran the test the harness cannot (interactive session, Jeff directing)
 
 **Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
