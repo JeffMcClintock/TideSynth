@@ -8,6 +8,77 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — the queue is blocked for a run, so this was STEP 4: three rows flipped, one deliberately not, and a false claim corrected at its source
+
+**Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell; recorded as unknown rather than guessed* · as tide-rack-bot (both)
+
+**Did:** no backlog item — **the mac/any queue is genuinely blocked for a scheduled run**, re-walked and verified rather than inherited. Did STEP 4's mandated bookkeeping instead: **E25, E45 and E54 flipped DONE and archived; E52 deliberately NOT; the NEXT block's "two branches with no PR" claim corrected.**
+
+### The walk, verified rather than inherited
+
+The mac cell already said the queue was blocked. STEP 2 says eligibility lives in the status column and not in section prose, so each row was checked:
+
+| row | why not takeable | how established |
+|---|---|---|
+| S1b, S8 | GATED | `EditorLib`/`SynthEditLib` CMake |
+| E38, E51 | `NEEDS-SPEC` in the row itself | read |
+| E19 | mac cell wants AU3 in a real host | needs a human at a DAW |
+| E7 | a ruling that reframes, not a code task | read |
+| E2 | umbrella; its own row says the Accept cannot be stated | read |
+| **E39** | **GATED** | **located `TopView::renderRack` at `SynthEditLib/modules/se_sdk3_hosting/ViewBase.cpp:1518` — the cell asserted this, I checked it** |
+| E48 | `NEEDS-JEFF` on the fix (a PLAN constraint 7 product decision) | read |
+| E53 | taken by windows | [#516](https://github.com/JeffMcClintock/TideSynth/pull/516), `tide/win/E53-fixture-segv` |
+
+STEP 1.5 found only [GMPI_Wrappers#28](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/28) — green, mergeable, nothing unresolved, so left alone per the rule's own words.
+
+### E52 is the row that must NOT be flipped, and the reason generalises
+
+All four `IN-REVIEW` rows had their PRs checked with `gh pr view --json state` rather than read off the row text. Three were complete. E52 was not:
+
+```
+E52   GMPI_Wrappers#23  MERGED
+      TideSynth#515     MERGED      <- docs-only, A4 auto-merged
+      GMPI_Wrappers#28  OPEN        <- the entire fix
+```
+
+**#515 changed `BACKLOG`, `JOURNAL`, `JOURNAL-2026-08` and `lessons` and nothing else.** A4 auto-merged it because every changed file is on the allowlist. So from inside TideSynth the row looks satisfied while **the whole of E52's code sits unmerged in another repo.**
+
+This is the 2026-08-27 stale-row family (E32, X2, R5) **running the other way**: those rows asserted something a merged PR had made false; this one would mark done something that has not landed. The common cause is the same — *a row's status was inferred from a PR merging, rather than from the PR's contents.* Annotated on the row so the next STEP 4 cannot make the mistake, and it stays `IN-REVIEW` until #28 merges.
+
+### The false claim, and why correcting it at the source matters
+
+The mac cell said two mac branches sit on the remote with **no PR** — "the one end state STEP 5 forbids". **Both have PRs:**
+
+```
+tide/mac/icon-tide-app              #435  MERGED
+tide/mac/E36-renumber-duplicate-e34 #445  CLOSED, not merged
+```
+
+One command (`gh pr list --head <branch> --state all`) settles it, and **it had not been run by anyone.** The claim originated on the windows box 2026-08-27, was copied into this cell on 08-28, and **I repeated it to Jeff twice** before checking it myself.
+
+It also matters practically, because the two branches need opposite treatment: the merged one is redundant and safe to delete; deleting the closed-not-merged one **discards whatever was on it**, so it wants a human who knows why #445 was closed.
+
+**A NEXT-block cell is read far more often than it is verified**, so an unchecked assertion there propagates further than the same sentence in a journal entry. Corrected in the cell, not just here.
+
+**Verification artifact:**
+
+```
+check-backlog-archived  44 row(s), none DONE, all terminated, OK (224 KB)   (was 47 / 247 KB)
+check-next-block / check-id-refs / check-links / backlog-diff / journal-prepend / prompt-provenance   rc=0
+```
+
+Every PR state above came from `gh pr view --json state`, not from row text.
+
+**Learned:**
+
+- **A merged PR does not mean a row is done — read what the PR changed.** E52's TideSynth half was docs-only and auto-merged; its code is still open elsewhere. "All PRs merged" is only a safe flip test when every PR is checked for *contents*, not just state.
+- **The auto-merge allowlist makes docs-only halves land silently, which is exactly what makes this trap likely.** A cross-repo change whose bookkeeping half is allowlisted will always land before its code half.
+- **Verify a NEXT-block claim before repeating it, because that cell is the fleet's most-copied text.** A wrong sentence there was reproduced by two runs and reported to Jeff twice on the strength of nobody running one command.
+
+**Next:** the queue stays blocked for a run until one of: **#28 merges** (frees E52), **E48 gets its product decision** (it is fully diagnosed and waiting only on that), or a GATED session opens S1b/S8/E39. Nothing on `tide/mac/**` needs a run.
+
+**Branch/PR:** `tide/mac/step4-flip-e25-e45-e54` — bookkeeping only, no code.
+
 ## 2026-08-28 — macos — #514 broke because I fixed #513, and a stacked pair will keep doing that
 
 **Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell; recorded as unknown rather than guessed* · as tide-rack-bot (both)
