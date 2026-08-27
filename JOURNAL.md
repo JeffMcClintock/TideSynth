@@ -8,6 +8,108 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — windows — E48 built: the three prefab modules join the compiled-in set, and the round trip surfaces a serialization oscillation (interactive, Jeff directing)
+
+**Prompt:** *"so we need to ship these extra modules with TiDE i guess"* · Fable 5, `claude-fable-5` · as **tide-rack-bot**
+
+**Did:** implemented Jeff's E48 ruling — `SE Scope3 XP`, `SE Oscillator` and
+`SynthEdit ADSR` now compile into TIDE. Ruling recorded in
+[docs/decisions.md](docs/decisions.md). E48 → IN-REVIEW; **E56** filed for what
+the Accept test found underneath. Two branches, and **the SynthEditLib one must
+merge first** or TIDE's link fails.
+
+(Housekeeping: the session crossed midnight — entries above dated 2026-08-27
+from roughly `E19's VST3 cell` onward ran into the early hours of 08-28.)
+
+### Why linking the lib was never enough
+
+The three modules sit behind `IF(SE2JUCE)` in SynthEditLib's own source list and
+behind `#if GMPI_IS_PLATFORM_JUCE==1` in `UgDatabase.cpp`'s `INIT_STATIC_FILE`
+pull list — SynthEdit-product builds only, both ways. TIDE's route is the
+E7/MidiToGate pattern: compile the TU into `SynthEditSem`, where its static
+registration cannot be discarded. `EnvelopeAdsr.xml` and `Oscillator.xml` joined
+`_tide_xmls` **and** TideApp's read loop in the same edit — the two lists that
+must move together.
+
+### The collision only TIDE could ever see
+
+First link: **LNK2005 — `Oscillator::onSetPins` already defined.**
+`modules/Oscillator/Oscillator.cpp` and `modules/OscillatorHD/Oscillator.cpp`
+both declare a global `class Oscillator` with out-of-line virtual members.
+SynthEdit never links the two into one image — OscillatorHD ships there as a
+loadable — so the ODR violation was invisible until TIDE became the first
+consumer to compile both. Fixed in the lib (gated, own PR): the whole TU goes
+into an anonymous namespace, which is the linkage it always effectively had —
+`Oscillator.h` reads, in full, `// not used`.
+
+The same two files are also why the offline screen failed twice: OscillatorHD's
+id `SE Oscillator4` **contains** `SE Oscillator`, so a substring scan scored the
+missing module present.
+
+### Measured — a fresh five-prefab round trip on the new binary
+
+```
+Module not found:      0        (was 3 modules)
+could not be restored: 0        (was 8 connectors)
+--dialogs:             count=1  (the quiet-mode announcement only)
+ControlsXp.xml         enriched 4 of 18   (was 2)
+EnvelopeAdsr.xml       enriched 1 of 1
+Oscillator.xml         enriched 1 of 1
+```
+
+The old degraded fixture also reloads clean — with two stale placeholder cable
+lines reconciled away silently, the E42 lesson again: a fixture authored through
+the bug does not survive the fix byte-for-byte.
+
+### What the Accept test found underneath: E56
+
+E48's Accept asks for a **byte-identical** document, and three consecutive
+save/reload cycles give **49,421 → 49,419 → 49,421** — the serialization
+*oscillates between two forms*. The diff is pure `<Parameter>` reordering plus
+handle assignment; the same values, the same `0.494999`, different order. The
+default rack round-trips byte-identical, so the churn needs the prefab
+parameter population. Filed as **E56** with the likely fix named (a
+deterministic sort in `ExportGetSortedParameters` — GATED, so filed): until
+then, every "byte-identical" Accept in this backlog is unachievable by
+construction, and size-based instruments carry ±2 bytes of noise per cycle.
+
+**E48 should be judged on its loss clauses, which are met.**
+
+### The check's second screen retired the day its prediction came true
+
+`check-prefab-modules.py`'s described-only screen carried a note: a module both
+registered in C++ and described in a staged XML would be flagged wrongly, and
+"a maintainer who hits it should fix the rule rather than the prefab." Jeff's
+ruling made described-AND-registered the *normal* state — all three new modules
+tripped it. Screen retired, one absence screen kept, and the docstring now says
+what three revisions in one day converged on: **the authoritative census is a
+`-quiet` launch reading `Module not found` from the app itself.**
+
+**Learned:**
+
+- **A module set curated by conditional compilation has invisible seams.** Two
+  files named Oscillator.cpp with two global classes named Oscillator coexisted
+  for years because no build linked both. The first new consumer paid.
+- **An Accept can fail on a defect older than the row.** Byte-identical was the
+  right bar; the serialization order was never stable underneath it, and only a
+  fresh A/B/C cycle separated "my change lost data" from "the order oscillates".
+- **When the product becomes the instrument, retire the scaffolding honestly.**
+  The described-only screen was correct for exactly one day and wrong forever
+  after the ruling; keeping it would have failed every future legitimate module.
+
+**Next:** merge order — SynthEditLib `tide/win/E48-oscillator-tu-local` first,
+then TideSynth `tide/win/E48-ship-prefab-modules`. **E56** wants a ruling on a
+deterministic parameter sort. macOS/Linux have not built these three modules
+(Scope3Gui's `sys/time.h` path is guarded; expected clean, unverified).
+
+**Machine state.** `RackModules/AR_jef.synthedit` still dirty — Jeff's, left
+alone. `%APPDATA%\TIDE Rack\` restored and md5-verified; no TIDE process
+running. SynthEdit itself rebuilt against the namespaced Oscillator: rc=0.
+
+**Branch/PR:** TideSynth `tide/win/E48-ship-prefab-modules` (CMake, TideApp
+loop, check, rows, decisions.md, this entry) + SynthEditLib
+`tide/win/E48-oscillator-tu-local` (the anonymous namespace). Cross-linked;
+lib first.
 ## 2026-08-28 — macos — E53 reproduced 3/3 with a faulting address, and the cause is a guard #64 missed
 
 **Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell* · as tide-rack-bot (both)

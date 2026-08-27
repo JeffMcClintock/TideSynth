@@ -845,7 +845,7 @@ bool TideApp::InitInstance()
 	{
 		s_xmlMerged = true;
 
-		for (const auto* resourceName : { "ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilters.xml" })
+		for (const auto* resourceName : { "ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilters.xml", "EnvelopeAdsr.xml", "Oscillator.xml" })
 		{
 			const auto xml = BundleInfo::instance()->getResource(resourceName);
 			if (xml.empty())
