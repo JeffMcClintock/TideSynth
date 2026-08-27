@@ -1,0 +1,14 @@
+Logging dialogs to stderr, and keeping them for --dialogs.
+TIDE: ControlsXp.xml enriched 2 of 18 described class(es)
+TIDE: MidiPlayer2.xml enriched 2 of 7 described class(es)
+TIDE: Converters.xml enriched 26 of 70 described class(es)
+TIDE: VaFilters.xml enriched 2 of 7 described class(es)
+TIDE: 5 rack prefab(s) seeded from the bundle
+SynthEdit: parameter names module handle 999999999, which this document does not contain -- parameter left with no module.
+TIDE: default rack loaded, 25109 byte document
+command channel: /tmp/gmpi-standalone.501/gmpi-standalone.99834
+TIDE: unprepared - writing silence to the host's output buffers
+TIDE: DSP structure changed, pushing 18244 byte document
+TIDE: building rack from 18244 byte document
+TIDE: rack built for 48000 Hz, block 512
+TIDE: rack feedback reaching the editor - first 37 byte(s)

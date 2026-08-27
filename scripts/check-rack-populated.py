@@ -138,6 +138,47 @@ PREFAB_ABSENCE_CAUSES = (
     "Prefabs folder present but empty",
 )
 
+# BACKLOG E54. A parameter naming a module handle the document does not contain.
+#
+# NOT IN FATAL_LINES, AND THE REASON IS THE WHOLE POINT OF PUTTING IT HERE.
+# That loop requires `"TIDE:" in line`, and this message comes from
+# SynthEditLib's CPatchManager::InitModulePointers, so it is prefixed
+# "SynthEdit:". An entry added to FATAL_LINES would match NOTHING and the check
+# would look armed while asserting nothing -- the silently-disarmed check that
+# file's own comment warns about, arrived at by a different door. Keeping it
+# separate also states the provenance: keeping THIS one in step means reading
+# another repo, not TideApp.cpp.
+#
+# WHY IT IS FATAL, when the app now survives it. Before SynthEditLib `796bbc2`
+# the miss dereferenced `map::end()` and the process died, so this gate caught
+# the case by the ABSENT "default rack loaded" line -- the positive assertion
+# doing its job. The guard made the same document load DEGRADED instead: the
+# rack comes up missing whatever that module was, every positive assertion
+# still passes, and the gate said `rack is populated.` and exited 0. Measured
+# 2026-08-27 (macos) on exactly that document.
+#
+# That is the M5 shape -- a plugin that validates while containing less than it
+# should -- reintroduced by a fix that was right to make. The live case is not
+# a crafted handle: TideSynth #491 was DefaultRack.synthedit naming
+# `MIDI In NL` 81 minutes before SynthEditLib had the module, and a straddle
+# like that would now ship a rack with no MIDI input, green.
+#
+# The handle is captured rather than matched as a substring so the failure can
+# NAME it. "A module is missing" sends the reader to the wrong repo; the number
+# is what they grep the document for.
+#
+# THIS COVERS THE --standalone AND --log-file ARMS ONLY, AND NOT --au3.
+# Stated because the alternative is implying coverage this does not have.
+# TideApp mirrors ITS diagnostics to os_log (kTideDiagSubsystem) because an app
+# extension's stderr reaches nothing -- but this message is `std::cerr` inside
+# SynthEditLib's CPatchManager::InitModulePointers, which knows nothing about
+# os_log. So an AUv3 that lost a module is still invisible to this gate. Fixing
+# that means routing the library's diagnostics through the same channel, which
+# is a change in another repo and is not E54's job.
+LOST_MODULE = re.compile(
+    r"SynthEdit: parameter names module handle (\d+), "
+    r"which this document does not contain")
+
 
 def check(text, expect_prefabs=EXPECTED_PREFABS):
     """Return (failures, notes) for a blob of captured diagnostic output."""
@@ -155,6 +196,15 @@ def check(text, expect_prefabs=EXPECTED_PREFABS):
             if needle in line and "TIDE:" in line:
                 failures.append("%s -- %s\n      %s" % (needle, why, line.strip()))
                 fired.add(needle)
+
+    # --- fatal: a parameter whose module never resolved (E54; E46's guard is
+    # what makes this survivable enough to reach us at all)
+    for handle in dict.fromkeys(LOST_MODULE.findall(text)):
+        failures.append(
+            "parameter names module handle %s, which the document does not "
+            "contain -- the rack loaded DEGRADED, missing whatever that module "
+            "was.\n      Commonest cause is a cross-repo straddle: the document "
+            "names a module the linked SynthEditLib does not ship yet." % handle)
 
     # --- positive assertion 1: every module-description XML enriched something
     seen = {}
