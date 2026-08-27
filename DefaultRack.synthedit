@@ -200,7 +200,7 @@
             <line type="Line" handle="4224648" lineType="1" fMod="70768971" tMod="1709088982" fPlg="6" tPlg="11"/>
             <line type="Line" handle="407755986" lineType="1" fMod="258587584" tMod="70768971"/>
         </lines>
-        <PanelLocationCenter x="940.37683" y="584.74042"/>
+        <PanelLocationCenter x="1261.15720" y="584.74042"/>
         <StructLocationCenter x="3858" y="3882"/>
         <PanelWndPosition l="0" r="0" t="0" b="0"/>
         <PanelLocation l="0" r="500" t="0" b="500"/>
