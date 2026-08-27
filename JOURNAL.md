@@ -8,6 +8,155 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — V7: the ruling arrived and it was not the question that was asked (interactive, Jeff directing)
+
+**Prompt:** *"re: V7 context-menu names"* followed by a three-part specification
+of what to REMOVE, then *"makes no sense, I only see one of each"*, then
+*"great and push to main"*.
+
+**Did:** closed V7's `PROPOSED:` question with the ruling, re-scoped the row,
+and built it. All TIDE-side; `SynthEditLib/EditorLib` untouched.
+
+### The answer was not the question, and that is the whole shape of this
+
+V7 asked what to RENAME four view-navigation items to. Jeff answered with a list
+of REMOVALS, per context, plus one addition. Most of the four items it asked
+about do not survive, so there was nothing left to name — the rename table V7
+shipped empty on 2026-08-26 is deleted rather than filled.
+
+**A question can be answered by making it moot, and a row that waits for its own
+question to be answered on its own terms waits forever.**
+
+### Four corrections, from reading the ruling against MfcDocPresenter.cpp
+
+Each one would otherwise have cost the implementer a search for a string that is
+not there.
+
+* **"Arrange" and "Skin" are SUBMENUS** — `beginSubMenu("&Arrange")` at `:1112`,
+  `"&Skin"` at `:1134`. They reach a sink as an ordinary `addItem` carrying
+  `PopupMenuFlags::SubMenuBegin`, so a filter CAN drop one — but only by
+  swallowing through to the matching `SubMenuEnd`. Dropping the begin alone
+  splices "Move to Front"/"Move to Back" into the parent menu, where they look
+  like deliberate top-level items, and leaves a stray end marker that closes a
+  submenu nobody opened.
+* **The string is `Screenshot`, one word**, and already `#if defined(_DEBUG)` at
+  `:1366`, so Release never emitted it. Filtered unconditionally anyway: that is
+  what the ruling asks and it is a no-op where it was already absent.
+* **`Panel Edit` and `Goto Parent` each exist twice** — `"Pa&nel Edit..."` /
+  `"Goto Parent Container"` on a module, `"Panel Edit..."` / `"Goto Parent..."`
+  on the background.
+* **`Delete (keep wires)`** (`:1106`) is added BEFORE the view-type branch, so
+  it appears in the structure view too. The ruling removes it from the rack
+  only, so that rule is view-scoped or the item would vanish from both.
+
+### I turned the third one into a question and it was not one
+
+I asked Jeff which of the two "Panel Edit" items to drop. **They are in mutually
+exclusive branches** — `if (moduleHandle >= 0) { … } else { … }` — so a user
+only ever sees one of each, and his answer was *"makes no sense, I only see one
+of each"*. He was right and the question was noise: all four strings go in the
+table and the item is gone wherever you click.
+
+**I had read two call sites and reported them as co-occurring.** V7's own probe
+already carried the correct fact — that `"Pa&nel Edit..."` and `"Panel Edit..."`
+are different items needing two entries — and I turned a note about the MATCHING
+RULE into a claim about the MENU. **Before asking the user to choose between two
+things, check they can ever be present at once.** One look at the enclosing
+`if/else` would have settled it, and it is four lines above the call site I was
+already reading.
+
+### `Show Circuit` had to be added, not renamed
+
+In panel view EditorLib emits no module-specific items at all: its whole
+`if (moduleHandle >= 0)` block sits inside the `else` of
+`if (viewType == CF_PANEL_VIEW)`. So there was nothing to rename into it. The
+one item a rack module does get is `Delete (keep wires)` — which the same ruling
+removes, and repurposing a delete into a navigation item by renaming it would
+have been the worst available way to do this.
+
+It resolves `ViewBase::mouseOverObject->getModuleHandle()` through the document's
+`uniqueIdDatabase` — **the same hit test EditorLib itself resolves `moduleHandle`
+from**, so it cannot disagree with the menu it sits in — and calls
+`requestNavigate(inner, CF_STRUCTURE_VIEW)`. A non-container module answers null
+to the cast and gets no item, which is correct: there is no circuit to show.
+
+`mouseOverObject` being **public** on `ViewBase` is what kept this out of GATED
+code. That was checked, not assumed; the row had been written expecting to need
+an EditorLib accessor.
+
+### Verified by probe — 23 checks, 0 failures, both build arms
+
+`tests/v7_menu_override_probe.cpp` replays the rack and structure menus **in
+EditorLib's real order and flags**, and asserts on the far side of the wrapper.
+A filter that works on a tidied-up sequence and not on the real one is worth
+nothing.
+
+It covers each rule, and the ways a filter is wrong while still looking right: a
+submenu spliced open instead of removed, an orphaned `SubMenuEnd`, near misses
+(`Locked Groove` survives the `Locked` rule, bare `Arrange` survives the
+`&Arrange` rule), and separators left behind by the group they introduced —
+which is how a menu ends up opening with a rule. Re-run with `-D_DEBUG`: the
+four Release-only strings are KEPT, 0 failures, so both arms are tested rather
+than one being skipped.
+
+One check asserts the table still holds exactly ten rules, so **a green run can
+never mean TIDE has quietly started hiding something nobody agreed to.**
+
+Full `cmake --build` of TIDE on macOS: **27 targets, rc=0**.
+
+### Not verified, and it cannot be from a run
+
+**The menu was never seen on screen**, and the three reasons are all measured,
+not assumed: E38 — the command channel cannot raise a context menu, because the
+menu comes from the FRAME and `cmdPointer` only ever touches the input client;
+E43 — trying it on macOS WEDGES the app in a nested modal loop; and
+`--screenshot` reads the app's own render buffer while a macOS popup is a
+separate window. **The far side of the sink is the only place this behaviour is
+observable at all.** Somebody should right-click the rack once.
+
+### Two consequences, both put to Jeff
+
+**The master container's structure view is now unreachable** — `Goto Structure...`
+is gone from the rack and `Show Circuit` enters a *module's* container instead.
+Put to him explicitly: *"Intended — it should go."* That is constraint 1's "one
+view, two depths" taken literally.
+
+**In Release, TIDE's own `Goto Rack` becomes the only way out of a module**, once
+`Goto Parent` is filtered. It stops being a convenience and becomes
+load-bearing. It is greyed only when the rack panel is already on screen, which
+is correct, but nothing now covers for it if that logic is ever wrong.
+
+**Learned:**
+
+- **A ruling can answer a question by making it moot.** V7 waited on four
+  replacement strings; the answer deleted three of the four items. A row that
+  can only be closed on its own terms will wait past the point where its terms
+  still apply.
+- **Before offering the user a choice, check the options can co-occur.** I asked
+  which of two menu items to remove when an `if/else` four lines up makes them
+  mutually exclusive. The correct answer was "both, and there was never a
+  decision here".
+- **A note about a matching rule is not a claim about the world.** The probe's
+  existing comment — two distinct strings need two table entries — was right,
+  and I read it as "the user sees two items".
+- **Suppressing a submenu is not suppressing an item.** `beginSubMenu` is an
+  `addItem` with a flag, so a filter that drops it by name splices its contents
+  into the parent and orphans the end marker. Depth-count, or do not filter it.
+- **Removing a group leaves the separator that introduced it.** Defer separators
+  and flush them only when a real item follows; otherwise a menu ships opening
+  with a horizontal rule and nobody files it as a bug.
+- **Check whether the member you need is already public before designing around
+  a gate.** This row was written expecting to need an EditorLib accessor for the
+  clicked module; `ViewBase::mouseOverObject` is public and always was.
+
+**Next:** somebody with a mouse should confirm the rack menu on screen — it is
+the one clause no scheduled run can reach, and E44 is the row that would fix
+that for good.
+
+**Branch/PR:** `tide/mac/V7-menu-ruling` — `MenuNameOverride.h`,
+`SynthEditGui.cpp`, the probe, the ruling in `docs/decisions.md`, V7's row and
+this entry. Single repo; nothing else has to merge with it.
+
 ## 2026-08-27 — macos — R5 shipped a day before its row said so, and R6 was blocked behind an ask nobody still owed (interactive, Jeff directing)
 
 **Prompt:** Jeff asked what was waiting on him. I answered from R5's row and told
