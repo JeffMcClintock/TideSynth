@@ -8,6 +8,73 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — windows — E32, E34, E42 archived; E42's row cited an issue as its PR; E25 marked as mac's (state update, interactive, Jeff directing)
+
+**Prompt:** *"what gated stuff remains?"* then *"yes, flip them and fix the link. note mac agent is working on E25"*
+
+**Did:** flipped **E32**, **E34** and **E42** to DONE and moved all three to
+[BACKLOG-DONE.md](BACKLOG-DONE.md) — `BACKLOG.md` **259 KB → 237 KB**, 51 rows →
+48. Corrected E42's PR link. Marked **E25** as taken by the macOS agent. No code.
+
+### All three were stale in the same way
+
+Every linked PR merged, nothing open, all three still `IN-REVIEW`:
+
+- **E32** — its own words were *"E32 closes when #23 lands"*.
+  [GMPI_Wrappers#23](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/23)
+  landed.
+- **E34** — [SynthEditLib#60](https://github.com/JeffMcClintock/SynthEditLib/pull/60)
+  merged, and Jeff had already run the drag himself and passed it.
+- **E42** — [SynthEditLib#63](https://github.com/JeffMcClintock/SynthEditLib/pull/63)
+  merged, and its TideSynth half merged as
+  [#499](https://github.com/JeffMcClintock/TideSynth/pull/499).
+
+That makes **seven rows in two days** found saying something their own merged PRs
+had made false (E32, X2, R5, E25, E34, E42, and E49's clause). E45 shipped a
+check for the state *after* a flip — `check-backlog-archived.py`, which correctly
+refused to let these three be DONE and stay in `BACKLOG.md` — but **nothing
+anywhere notices a row that should have been flipped and was not.** That gap is
+the one still open.
+
+### E42's row cited an issue as its PR
+
+The row says its TideSynth half is `#497`. **#497 is an issue** — *"Build failure
+on macos — tide/mac/install-dialog-drain"* — not a pull request. The real one is
+**#499**.
+
+**Corrected in the prepended note, not in place**, because
+`check-backlog-diff.py` requires a row's base text to survive verbatim; the wrong
+number is left below deliberately. The underlying cause is the one **A22** exists
+for: a PR number written into a row before the PR exists is a guess, which is why
+A22 says name the **branch** and treat the number as a best-effort extra.
+
+### E25 is mac's, and nothing mechanical would have said so
+
+Marked at Jeff's instruction. Worth recording *why* the note is load-bearing:
+**STEP 2's collision check reads remote branches and open PRs, and work in
+progress on another box is invisible to both until something is pushed.** E25
+carries no DOING mark, so a windows or linux run walking the queue would have read
+it as free and taken it. The row now says otherwise.
+
+**Learned:**
+
+- **A check on the end state does not catch a transition that never happened.**
+  E45's archive check makes a *flipped* row behave; nothing raises a hand for a row
+  whose PRs all merged a day ago and which still says IN-REVIEW.
+- **A row can cite a number that resolves to the wrong kind of object.**
+  `#497` is a real, live, closed thing in the same repo — it just is not a PR.
+  Every link check passed it, because the link works.
+- **The queue cannot see another machine's uncommitted work.** If a box is
+  mid-row with nothing pushed, only a human can tell the other two.
+
+**Next:** unchanged — **E53** wants a faulting address, **E48** has E49's
+diagnostic as a lead. The remaining gated work is **S1b**, **S8**, E51's
+SynthEditLib half, **E23** (repo on neither STEP 5 list), and X2's 1,547 gated
+warnings, which is Jeff's decision rather than a task.
+
+**Branch/PR:** `tide/win/flip-E32-E34-E42` — three rows moved verbatim, E25
+annotated, and this entry. Bookkeeping only.
+
 ## 2026-08-27 — windows — The gated guards are on SynthEditLib's main, and none of the three rows can honestly say DONE (state update, interactive, Jeff directing)
 
 **Prompt:** *"merge 64"*
