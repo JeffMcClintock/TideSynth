@@ -8,6 +8,158 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — windows — E50: the test the row asked for, with the controls it did not — the Compare does not reproduce, and the same wrong name is in E49's row (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** · as **tide-rack-bot** (both paths)
+
+**Did:** took **E50**, the NEXT block's `win` pick. Ran its one-build test, added
+three controls it did not ask for, and **could not reproduce its premise**. The
+Accept's second limb is met by measurement rather than by a fix, so the row is
+**IN-REVIEW** with its content rewritten from a hypothesis into a result.
+Annotated **E48** and **E49** — they lose the common cause this row offered them
+— and re-pointed the `win` NEXT cell at E48. **No product code changed in any
+repo.**
+
+### The test, and what it takes for ON-vs-OFF to mean anything
+
+Five launches, three builds, two documents:
+
+| default rack staged | `main` `=ON` (39 modules, exe 5,346,816 B) | `main` `=OFF` (exe 3,780,096 B) | `c6697b80c` `=ON` |
+|---|---|---|---|
+| today's **25,110 B** | **17,958** | **17,962** | **17,958** (its own 25,109 B) |
+| the row's **25,257 B** (`bed03b0a0`) | **17,969** | **17,969** | **17,973** |
+
+**On the row's own document ON and OFF agree to the byte.** No `RackEditor:` and
+no `RackProcessor:` line appears in any of the five — not a `Compare`, not
+anything.
+
+**Know the noise floor before reading a difference.** Module handles are random
+and their decimal length varies, so the pushed document jitters a few bytes per
+launch: these five span **17,958–17,973**. The row's **18,183** is 210+ bytes
+outside that band, so it is real and cannot be the same rack measured twice —
+which is exactly why "it does not reproduce" is worth writing down rather than
+shrugging at.
+
+**The third build is the one that closes it.** A cold build of **`c6697b80c`** —
+the E19 run's own merge commit — with the pack ON and the trace live, on the
+exact 25,257-byte document, is clean too. So this is not "the tree has moved on";
+it does not reproduce at the commit that reported it.
+
+### The positive control is what makes an absence worth anything
+
+An absence and a trace that was never compiled in print the same thing. The same
+ON binary, given `_scratch/e19-fixture-doc.xml` — E49's own 38,658-byte fixture —
+prints five `RackEditor:` lines and three `RackProcessor:` lines, and **every one
+resolves to its own slug and its own art**:
+
+```
+RackEditor: 'LFO2'   art=yes(res/WTLFO.svg)     RackProcessor: 'Pulses' constructed
+RackEditor: 'Scope'  art=yes(res/Scope.svg)     RackProcessor: 'SHASR'  constructed
+RackEditor: 'LFO'    art=yes(res/LFO.svg)       RackProcessor: 'Scope'  constructed
+RackEditor: 'SHASR'  art=yes(res/SHASR.svg)
+RackEditor: 'Pulses' art=yes(res/Pulses.svg)
+```
+
+So the instrument fires, and **no module resolves to the wrong class** — the S46
+shape E50 rests on. The other half of that mechanism is ruled out by reading:
+`ModelRegistry::find` returns **`nullptr`** on a miss
+(`SynthEdit_Rack_Adaptor/rack/rack.hpp:2901`), with no first-entry fallback, so
+an unknown or empty slug cannot silently become the first registered model.
+
+### E49 reproduces, and its row names a module its own document does not contain
+
+That fixture launch **crashed**: exit `0xC0000005` after exactly
+`Pulses / SHASR / Scope constructed` and no further. E49 says the same, so that
+row is reproducible on demand and its diagnosis stands.
+
+But E49 records `LFO, LFO2, VCA x3, Compare` as never reached, and
+`e19-fixture-doc.xml` **has no Compare in it** — `grep -ci compare` is 0. Its
+module types are `VCV: LFO`, `VCV: LFO2`, `VCV: Pulses`, `VCV: SHASR`,
+`VCV: Scope`, three bare `VCA`, and TIDE's own parts.
+
+**So one session named a Compare twice, in two unrelated observations, and both
+documents are provably without one.** The economical reading is a mis-attributed
+module name rather than a defect that has since vanished — but that is a reading,
+not a measurement, and both rows now say so rather than closing on it.
+
+**What would reopen it, in one sentence:** any `RackEditor:`/`RackProcessor:`
+line naming a module the launched document does not contain. One
+`RACK_ADAPTOR_TRACE=1` build and one launch.
+
+### E48 and E49 lose their common cause
+
+"One cause, three symptoms" was E50's own framing and it was explicitly untested.
+With the pack ruled out, **E49's measured diagnosis stands alone** — a null
+`parameter` at `SynthEditLib/ug_patch_param_setter.cpp:172`, reached on the
+WASAPI render thread — and waits on nothing here. **E48 was not re-tested**, and
+it has not been re-run since `-quiet` landed (E51), which changes how its modal
+behaves headlessly. It is where the `win` cell now points.
+
+### A thing I got wrong on the way, and the command that fixed it
+
+`c6697b80c` changes `DefaultRack.synthedit` while its own journal entry says *"No
+product code changed in any repo"*, and I spent a while building a story about a
+run sweeping Jeff's working-tree edit into its branch — the exact hazard STEP 5's
+third kind of dirt exists for. **It is nothing of the sort.** One
+`git log -1` on the branch head named in issue #491:
+
+```
+0876c3ace  Jeff McClintock  13:06  switched Default Rack to MIDI-In (no LED). else LED appears on the rack
+```
+
+Jeff committed it onto the run's branch himself, two minutes before the squash
+merged. The run's claim was true of the run's own commits. **Nothing to file** —
+recorded because I was one command away from filing a row against a colleague's
+commit, and the accusation would have been in the permanent record.
+
+**Learned:**
+
+- **An absence is worth nothing until the instrument has been seen to fire.**
+  "No `RackProcessor: 'Compare'`" and "no trace compiled in" print the same
+  thing. Five named modules on a second document is what separated them, and it
+  cost one launch.
+- **Rule a hypothesis out from both ends.** ON-vs-OFF says the pack changes
+  nothing; the fixture says every module resolves to its own class. Either alone
+  leaves the other reading open.
+- **Measure the noise floor before reading the difference**, especially when the
+  row's whole argument is a size comparison. Random handles move this document a
+  few bytes a launch: 4 bytes is nothing, 214 is everything.
+- **Reproduce at the reporting commit, not just at `main`.** "It is fixed" and
+  "it never happened here" are different findings, and only a build of the
+  reporter's own commit tells them apart. It cost one worktree and six minutes.
+- **When a row's premise will not reproduce, check its siblings for the same
+  claim.** E49's never-reached list carried the identical absent module name;
+  finding it there turned "I cannot reproduce this" into a reading of what
+  happened.
+- **`strings` on a Windows PE found none of the format strings that were
+  demonstrably in the binary**; a plain `grep -c` on the file found all three. I
+  briefly concluded the trace was not compiled in. Do not read a silent tool as
+  evidence of absence — the archive already has this lesson from
+  `-ErrorAction SilentlyContinue`, and this is the same mistake with a different
+  tool.
+- **Check the author before writing a blame.** A commit that contradicts a run's
+  own journal entry is more likely to be someone else's than a run lying about
+  itself.
+
+**Next:** **E48** — the modal `Connectors lost while loading` and its 3,577
+dropped bytes — now that it has no candidate cause, on the box where it was
+seen. **E19's win VST3 cell stays blocked behind it.**
+
+**Machine state.** `main` green. No open `platform:win` issue — and the `win`
+cell's standing warning still holds, that `build.yml:409` excludes
+`matrix.platform == 'win'` from filing them, so an empty list has verified
+nothing. Two mac branches sit on the remote with no PR
+(`tide/mac/E36-renumber-duplicate-e34`, `tide/mac/icon-tide-app`), which is the
+one end state STEP 5 forbids; not mine to unwind, noted for whoever owns them.
+All six repos on their default branches and clean. `%APPDATA%\TIDE Rack\` was
+copied to the session scratchpad before the first launch and restored
+byte-for-byte after, verified by md5; no TIDE process left running. Build trees
+`_scratch/e50-off` and `_scratch/e50-base` are outside every repo; the
+`_scratch/e50-wt-c6697b8` worktree is removed.
+
+**Branch/PR:** `tide/win/E50-vcv-compare-default-rack` — TideSynth only: E50's
+row, annotations on E48 and E49, the `win` NEXT cell, and this entry.
+
 ## 2026-08-27 — macos — correction: V7 was tested on BOTH build arms, and the caveat I wrote was mine, not the record's (state update, interactive)
 
 **Prompt:** *"re right-click, i tested both builds."*
