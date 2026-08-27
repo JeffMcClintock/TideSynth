@@ -8,6 +8,68 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — E45: the check found the row the sweep missed (interactive session, Jeff directing)
+
+**Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
+
+**Did:** took **E45**. Both halves built, as two PRs the row explicitly asked to
+keep apart — the sweep is
+[#503](https://github.com/JeffMcClintock/TideSynth/pull/503), the check is
+[#504](https://github.com/JeffMcClintock/TideSynth/pull/504).
+
+**`BACKLOG.md` 754,322 → 241,344 bytes. 89 rows moved. A 68% cut** to the file
+every run on three machines reads first.
+
+### The order was the whole trick, and it was the row's idea
+
+E45 says to land the sweep and the check separately, because *"a move-only diff
+is reviewable by size, and a check plus a 600-row move is not."* That is a
+reviewability argument. It turned out to be a **correctness** one too.
+
+I wrote the sweep first, ran it, verified it four ways, and it looked clean: 88
+rows moved, 0 Item texts differing, 0 lines added. Then I wrote the check and ran
+it against my own output. It reported one row still `DONE`:
+
+```
+| E6 |  DONE | any | ...
+```
+
+**Two spaces before the status.** My sweep's regex required one; the lint's
+`\| ([^\|]+) \|` accepts either. So E6 would have stayed behind — `DONE`,
+invisible to me, and visible to every lint that mattered.
+
+**E45's own text warns about this**, in the other direction: a previous run's
+detector rejected a trailing space and reported two invisible rows where the real
+lint saw one. The row's conclusion is *"checking with the regex that matters,
+rather than one that looks equivalent, is the whole lesson."* I made the mirror
+image of that mistake inside the row that records it.
+
+**The transferable bit: when a bulk edit and its validator are both in scope,
+write the validator first and point it at your own output.** Four hand-rolled
+verifications agreed with each other and were all wrong the same way, because
+they shared my regex. The check disagreed because it borrowed the lint's.
+
+### What the check asserts
+
+Two things, and the second fails silently in the direction that removes
+protection:
+
+- **No row is `DONE` and still in `BACKLOG.md`.** `DONE-PENDING-CI`,
+  `DONE-PENDING-ACCEPT`, `IN-REVIEW`, `WONTFIX` and `RESOLVED` are deliberately
+  not flagged — only a bare `DONE` means "merged, belongs in the archive".
+- **Every row is terminated.** A row missing its closing `|` does not match
+  `check-backlog-diff.py`'s regex, so that row **does not exist** as far as that
+  lint is concerned — a run could rewrite or delete it and the diff check would
+  report clean. E43 sat in that state until E45 went looking. Zero invisible in
+  either file today; nothing stopped it recurring until now.
+
+### Still needs Jeff
+
+**One line in `.github/workflows/lint.yml`.** The check is not wired in, because
+the bot token deliberately has no `workflow` scope. **Until it is, the check
+exists and enforces nothing** — so E45 should not be flipped to DONE on the two
+PRs alone.
+
 ## 2026-08-27 — macos — E42: the one-line fix was right, and shipping it alone would have broken the default rack (interactive session, Jeff directing)
 
 **Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
