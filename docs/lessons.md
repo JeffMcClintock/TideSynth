@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **353 KB** across **281** entries, so copying them
+Learned sections are **354 KB** across **282** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **103 KB / 1137 lessons — 3.4x smaller**, and represents
+A8. This is **104 KB / 1142 lessons — 3.4x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -55,6 +55,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A merged PR does not mean a row is done — read what the PR changed.
 - The auto-merge allowlist makes docs-only halves land silently, which is exactly what makes this trap likely.
 - Verify a NEXT-block claim before repeating it, because that cell is the fleet's most-copied text.
+
+**windows — E53: the box was already taken, so the fixture got committed and the lead got measured instead (scheduled run)**
+
+- A reproduction that lives in `_scratch/` is not a reproduction.
+- Two sessions on one Windows box cannot both test the standalone, and nothing tells you until you look.
+- The rule that made E48 ineligible is not in the status column.
+- "That module has no parameters" is only a finding once you count the others.
+- Declining to contend has to apply to source as well as to state.
 
 **macos — #514 broke because I fixed #513, and a stacked pair will keep doing that**
 
@@ -119,46 +127,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Attach to a hung process; do not launch it under the debugger.
 - A checker that validates a file against itself is not validating the product.
 - `session.xml` is written on quit only.
-
-**windows — E32, E34, E42 archived; E42's row cited an issue as its PR; E25 marked as mac's (state update, interactive, Jeff directing)**
-
-- A check on the end state does not catch a transition that never happened.
-- A row can cite a number that resolves to the wrong kind of object.
-- The queue cannot see another machine's uncommitted work.
-
-**windows — The gated guards are on SynthEditLib's main, and none of the three rows can honestly say DONE (state update, interactive, Jeff directing)**
-
-- A merge is evidence about the code, not about the row.
-- When a fix and its verification land apart, say which one you have.
-
-**windows — The gated null guards: one is measured, two are not, and the fixture still crashes one layer further in (interactive, Jeff directing)**
-
-- Writing the guard is not the same as verifying the bug.
-- A guard that moves a crash has not fixed it.
-- The diagnostic is often worth more than the guard.
-- Read the file you are about to edit before believing the row that sent you.
-- A modal can block a headless run with no trace in its own output.
-- `SynthEditLib` ships in SynthEdit too, so build SynthEdit.
-
-**windows — E50: the test the row asked for, with the controls it did not — the Compare does not reproduce, and the same wrong name is in E49's row (scheduled run)**
-
-- An absence is worth nothing until the instrument has been seen to fire.
-- Rule a hypothesis out from both ends.
-- Measure the noise floor before reading the difference
-- Reproduce at the reporting commit, not just at `main`.
-- When a row's premise will not reproduce, check its siblings for the same claim.
-- `strings` on a Windows PE found none of the format strings that were demonstrably in the binary
-- Check the author before writing a blame.
-
-**macos — correction: V7 was tested on BOTH build arms, and the caveat I wrote was mine, not the record's (state update, interactive)**
-
-- An unasked question written into the record as a caveat is more expensive than asking.
-- Check the cost of asking against the cost of assuming, in both directions.
-
-**macos — V7 closed by a human right-click, which is the only instrument that exists for it (state update, interactive)**
-
-- "Not verified" and "not verifiable from here" are different claims, and only one of them is a to-do.
-- A human verdict closes a clause; it does not itemise one.
 
 ## 2026-08-18
 
@@ -2068,3 +2036,43 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - When the app cannot exercise the path, the probe is the deliverable — and it is only worth anything once you have made it fail.
 - Check with the regex the tool uses, not one that looks equivalent.
 - STEP 4's archive move is a written rule that nothing enforces, and it stopped happening six days ago without anyone noticing.
+
+**macos — V7 closed by a human right-click, which is the only instrument that exists for it (state update, interactive)**
+
+- "Not verified" and "not verifiable from here" are different claims, and only one of them is a to-do.
+- A human verdict closes a clause; it does not itemise one.
+
+**macos — correction: V7 was tested on BOTH build arms, and the caveat I wrote was mine, not the record's (state update, interactive)**
+
+- An unasked question written into the record as a caveat is more expensive than asking.
+- Check the cost of asking against the cost of assuming, in both directions.
+
+**windows — E50: the test the row asked for, with the controls it did not — the Compare does not reproduce, and the same wrong name is in E49's row (scheduled run)**
+
+- An absence is worth nothing until the instrument has been seen to fire.
+- Rule a hypothesis out from both ends.
+- Measure the noise floor before reading the difference
+- Reproduce at the reporting commit, not just at `main`.
+- When a row's premise will not reproduce, check its siblings for the same claim.
+- `strings` on a Windows PE found none of the format strings that were demonstrably in the binary
+- Check the author before writing a blame.
+
+**windows — The gated null guards: one is measured, two are not, and the fixture still crashes one layer further in (interactive, Jeff directing)**
+
+- Writing the guard is not the same as verifying the bug.
+- A guard that moves a crash has not fixed it.
+- The diagnostic is often worth more than the guard.
+- Read the file you are about to edit before believing the row that sent you.
+- A modal can block a headless run with no trace in its own output.
+- `SynthEditLib` ships in SynthEdit too, so build SynthEdit.
+
+**windows — The gated guards are on SynthEditLib's main, and none of the three rows can honestly say DONE (state update, interactive, Jeff directing)**
+
+- A merge is evidence about the code, not about the row.
+- When a fix and its verification land apart, say which one you have.
+
+**windows — E32, E34, E42 archived; E42's row cited an issue as its PR; E25 marked as mac's (state update, interactive, Jeff directing)**
+
+- A check on the end state does not catch a transition that never happened.
+- A row can cite a number that resolves to the wrong kind of object.
+- The queue cannot see another machine's uncommitted work.
