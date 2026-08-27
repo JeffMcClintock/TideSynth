@@ -156,6 +156,71 @@ that for good.
 **Branch/PR:** `tide/mac/V7-menu-ruling` — `MenuNameOverride.h`,
 `SynthEditGui.cpp`, the probe, the ruling in `docs/decisions.md`, V7's row and
 this entry. Single repo; nothing else has to merge with it.
+## 2026-08-27 — macos — E42: the one-line fix was right, and shipping it alone would have broken the default rack (interactive session, Jeff directing)
+
+**Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
+
+**Did:** took **E42**. The row's diagnosis was correct to the line, the Accept is
+met at both zooms, and the fix needed a second half the row did not anticipate.
+[SynthEditLib#63](https://github.com/JeffMcClintock/SynthEditLib/pull/63) +
+[#497](https://github.com/JeffMcClintock/TideSynth/pull/497), which **must land
+together**.
+
+### The moment it looked like the row was wrong
+
+Applied the one line, rebuilt, launched — and the rack rendered **empty**. The
+module had moved 236 DIP the wrong way, off the right edge of the pane. The
+obvious reading is that the fix is backwards.
+
+It is not. Working the arithmetic against the actual numbers settled it in one
+step, and the point is that **the prediction matched both sides**:
+
+```
+stored centre 940.38 @ zoom 0.745, TiDE Output doc centre 1353, pane 239..807
+  before   (1353-940.38)*0.745 + 284  = 591     measured 593
+  after    (1353-940.38)*0.745 + 523  = 830     measured 829
+```
+
+So the fix does exactly what it should. What moved was the *view*, correctly, to
+honour a stored centre of 940 — and **940 is not where Jeff was actually
+looking**. He panned `DefaultRack.synthedit` until it looked right, and the app
+stored a centre 240 DIP away from what it was displaying. **The document's
+framing was authored THROUGH the bug.**
+
+**The lesson is about what "verify the fix" means.** A screenshot A/B said the
+change made things worse. The arithmetic said it made things right. Both were
+true, because the fixture was itself a product of the defect. When a stored value
+was captured by the broken code, fixing the code invalidates the fixture — and a
+before/after picture cannot tell you that. Predicting the number first is what
+separates the two.
+
+Re-centring the document by `drawingBounds.left / zoom` restores the framing Jeff
+chose to within **0.5 DIP** (592.5 → 592.0).
+
+**This generalises: every TIDE document framed before this lands has the same
+offset baked in**, and will shift by `drawingBounds.left` when it does.
+
+### The Accept, run as written
+
+Stored centre placed ON a module: renders at **523.8 DIP** at zoom 1.0 and
+**523.0 DIP** at zoom 0.745, against a pane midpoint of **523**. Met at both.
+
+### Two corrections to the row
+
+- **The vertical error is ZERO, not ~11 DIP.** Measured by rail position before
+  vs after: `0.0 px`. TIDE's rack pane is top-rooted, so only the horizontal half
+  bites. The vertical is still corrected, for a pane that is not.
+- **The other-consumers check is a proof, not a survey.** With `left == 0` the
+  two expressions are *identical* — `(0 + right) * 0.5` **is** `(right - 0) * 0.5`.
+  So the change cannot move any origin-rooted pane. Only a consumer that is both
+  non-origin-rooted *and* relying on the old behaviour moves, and TIDE's rack pane
+  is the non-origin-rooted case that was broken by it rather than relying on it.
+
+### Still not verified
+
+**The structure view**, which the Accept also names. It is reached through a
+context menu the command channel cannot raise (E38/E44) — the same gap E34 hit.
+Same `TopView`, same correction, so it wants a human check before E42 closes.
 
 ## 2026-08-27 — macos — R5 shipped a day before its row said so, and R6 was blocked behind an ask nobody still owed (interactive, Jeff directing)
 
