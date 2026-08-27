@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **339 KB** across **266** entries, so copying them
+Learned sections are **347 KB** across **273** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **97 KB / 1073 lessons — 3.5x smaller**, and represents
+A8. This is **100 KB / 1108 lessons — 3.5x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -37,7 +37,65 @@ by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
+## 2026-08-28
+
+**macos — E52: a shipping build option that did not compile, and the control that proves the fix is not a deletion (scheduled run)**
+
+- An absent control makes a passing round-trip worthless.
+- A "pure move" is the strongest argument available for editing code you cannot build.
+- Guarding the call site is the fix that passes and deletes the feature.
+- Quoting a lint's trigger re-arms it.
+- Check a lint by its exit code, not by the tail of its output.
+- A NEXT cell three days old is history, not a queue.
+
 ## 2026-08-27
+
+**macos — E25 reproduced from a document, and STEP 1's stale issue turned out to be E46 crashing in the wild (scheduled run)**
+
+- A truncated stderr and a crashed process look identical from the log.
+- One field can have two serialised names, and a row can spend three attempts on the wrong one.
+- When a row recommends a GUI route, check whether the document reaches the same state.
+- Revert the fix rather than checking out the tree that predates it.
+- A guard that stops a crash can blind the gate that caught it.
+- A stale NEXT cell is more dangerous than an empty one
+
+**windows — E48: a shipped prefab uses a module TIDE does not ship, and that one fact explains both dialogs and the 3,577 bytes (interactive, Jeff directing)**
+
+- A dialog with an empty caption is invisible to every handle we have.
+- Do not promise a mitigation you have not seen fire.
+- Attach to a hung process; do not launch it under the debugger.
+- A checker that validates a file against itself is not validating the product.
+- `session.xml` is written on quit only.
+
+**windows — E32, E34, E42 archived; E42's row cited an issue as its PR; E25 marked as mac's (state update, interactive, Jeff directing)**
+
+- A check on the end state does not catch a transition that never happened.
+- A row can cite a number that resolves to the wrong kind of object.
+- The queue cannot see another machine's uncommitted work.
+
+**windows — The gated guards are on SynthEditLib's main, and none of the three rows can honestly say DONE (state update, interactive, Jeff directing)**
+
+- A merge is evidence about the code, not about the row.
+- When a fix and its verification land apart, say which one you have.
+
+**windows — The gated null guards: one is measured, two are not, and the fixture still crashes one layer further in (interactive, Jeff directing)**
+
+- Writing the guard is not the same as verifying the bug.
+- A guard that moves a crash has not fixed it.
+- The diagnostic is often worth more than the guard.
+- Read the file you are about to edit before believing the row that sent you.
+- A modal can block a headless run with no trace in its own output.
+- `SynthEditLib` ships in SynthEdit too, so build SynthEdit.
+
+**windows — E50: the test the row asked for, with the controls it did not — the Compare does not reproduce, and the same wrong name is in E49's row (scheduled run)**
+
+- An absence is worth nothing until the instrument has been seen to fire.
+- Rule a hypothesis out from both ends.
+- Measure the noise floor before reading the difference
+- Reproduce at the reporting commit, not just at `main`.
+- When a row's premise will not reproduce, check its siblings for the same claim.
+- `strings` on a Windows PE found none of the format strings that were demonstrably in the binary
+- Check the author before writing a blame.
 
 **macos — correction: V7 was tested on BOTH build arms, and the caveat I wrote was mine, not the record's (state update, interactive)**
 
@@ -48,50 +106,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - "Not verified" and "not verifiable from here" are different claims, and only one of them is a to-do.
 - A human verdict closes a clause; it does not itemise one.
-
-**macos — V7: the ruling arrived and it was not the question that was asked (interactive, Jeff directing)**
-
-- A ruling can answer a question by making it moot.
-- Before offering the user a choice, check the options can co-occur.
-- A note about a matching rule is not a claim about the world.
-- Suppressing a submenu is not suppressing an item.
-- Removing a group leaves the separator that introduced it.
-- Check whether the member you need is already public before designing around a gate.
-
-**macos — R5 shipped a day before its row said so, and R6 was blocked behind an ask nobody still owed (interactive, Jeff directing)**
-
-- "Am I synced?" has two answers and only one of them is `git`.
-- A PR that satisfies a row must move the row.
-- Three rows in 24 hours (E32, X2, R5) were found saying something their own merged PRs had made false.
-- An artifact can answer a question about a credential you may not look at.
-- When a row's blocker is one HTTP status, spend the one command.
-
-**windows — E19's VST3 cell is still not measured, and what stopped it is three defects upstream of REAPER (scheduled run)**
-
-- A deadline needs a connection to answer on.
-- `Responding=True` with 0.09 s of CPU is the modal-dialog signature
-- Rule a nearby defect out by ITS stated condition, not by impression.
-- A control has to be verified, not assembled.
-- The command channel cannot lay out a rack.
-- `-ErrorAction SilentlyContinue` turns "I was not allowed to look" into "it is not there."
-- Check a lint by its EXIT CODE, not by reading the first lines of its output.
-
-**linux — X2: the tree has 1,982 unique warnings and fifteen of them are ours (interactive, Jeff directing)**
-
-- Count unique warnings, not warning lines.
-- Bucket by repo before planning.
-- An unused variable can be a live one in another build configuration.
-- A comment claiming a consumer is evidence, and it can be stale.
-- Two of three "blocked" linux rows were not blocked.
-
-**macos — E43: the command channel now always answers, and the fix is a heartbeat rather than a list of verbs (scheduled run)**
-
-- A deadline on "did it start" cannot bound "did it come back", and the two failures are indistinguishable from outside.
-- Invert an allowlist when the unknown case is the dangerous one.
-- A bounded error must not reuse a wording that was true of a different failure.
-- When the app cannot exercise the path, the probe is the deliverable — and it is only worth anything once you have made it fail.
-- Check with the regex the tool uses, not one that looks equivalent.
-- STEP 4's archive move is a written rule that nothing enforces, and it stopped happening six days ago without anyone noticing.
 
 ## 2026-08-18
 
@@ -1955,3 +1969,49 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A protocol limit is a scope decision, not a TODO.
 - `git merge` into a worktree, then editing before resolving, corrupts the edit.
 - Backticks in a `--body` argument are shell-interpreted.
+
+## 2026-08-27
+
+**macos — V7: the ruling arrived and it was not the question that was asked (interactive, Jeff directing)**
+
+- A ruling can answer a question by making it moot.
+- Before offering the user a choice, check the options can co-occur.
+- A note about a matching rule is not a claim about the world.
+- Suppressing a submenu is not suppressing an item.
+- Removing a group leaves the separator that introduced it.
+- Check whether the member you need is already public before designing around a gate.
+
+**macos — R5 shipped a day before its row said so, and R6 was blocked behind an ask nobody still owed (interactive, Jeff directing)**
+
+- "Am I synced?" has two answers and only one of them is `git`.
+- A PR that satisfies a row must move the row.
+- Three rows in 24 hours (E32, X2, R5) were found saying something their own merged PRs had made false.
+- An artifact can answer a question about a credential you may not look at.
+- When a row's blocker is one HTTP status, spend the one command.
+
+**windows — E19's VST3 cell is still not measured, and what stopped it is three defects upstream of REAPER (scheduled run)**
+
+- A deadline needs a connection to answer on.
+- `Responding=True` with 0.09 s of CPU is the modal-dialog signature
+- Rule a nearby defect out by ITS stated condition, not by impression.
+- A control has to be verified, not assembled.
+- The command channel cannot lay out a rack.
+- `-ErrorAction SilentlyContinue` turns "I was not allowed to look" into "it is not there."
+- Check a lint by its EXIT CODE, not by reading the first lines of its output.
+
+**linux — X2: the tree has 1,982 unique warnings and fifteen of them are ours (interactive, Jeff directing)**
+
+- Count unique warnings, not warning lines.
+- Bucket by repo before planning.
+- An unused variable can be a live one in another build configuration.
+- A comment claiming a consumer is evidence, and it can be stale.
+- Two of three "blocked" linux rows were not blocked.
+
+**macos — E43: the command channel now always answers, and the fix is a heartbeat rather than a list of verbs (scheduled run)**
+
+- A deadline on "did it start" cannot bound "did it come back", and the two failures are indistinguishable from outside.
+- Invert an allowlist when the unknown case is the dangerous one.
+- A bounded error must not reuse a wording that was true of a different failure.
+- When the app cannot exercise the path, the probe is the deliverable — and it is only worth anything once you have made it fail.
+- Check with the regex the tool uses, not one that looks equivalent.
+- STEP 4's archive move is a written rule that nothing enforces, and it stopped happening six days ago without anyone noticing.
