@@ -32415,3 +32415,58 @@ file. Same class — but that list is a CMake variable rather than a directory
 scan, so removing one is a deliberate code edit, and the gate asserts the exact
 four by name. Recorded rather than fixed speculatively.
 
+## 2026-08-26 — macos — S1b re-measured: the scan is NOT dead code, and the cut is smaller than the row says (scheduled run)
+
+**Prompt:** "compact. continue".
+
+S1b's Accept is *"constraint 7 verifiable from the Release binary — none of
+those symbols present"*, which is a command, so I ran it rather than reasoning
+about it. It still fails. What is worth the handoff is the two conclusions that
+moved. Full working is addendum **C1–C6** of
+[docs/module-enumeration.md](docs/module-enumeration.md).
+
+**The scan is reachable in TIDE, and B1/B5 say otherwise.** They read as "the
+code is linked but nothing calls it; the job is to stop compiling it".
+`CContainer::OnEditToPrefab` (`CContainer.cpp:1920`) rescans the prefab folder
+after writing a prefab — `RefreshModuleData(false,false,true)` at `:1967` →
+`ScanFolder(getDefaultPath("syntheditprefab"), ...)` at `Application.cpp:547`.
+`ApplicationBase::LoadOrScanModuleData()` genuinely has no caller in TIDE, which
+is what S1a removed and what B1 checked; it is simply not the only door. **A
+symbol having no caller at the entry point you removed is not the same as the
+symbol being unreachable** — that is the reusable half of this.
+
+**So the cut is the BINARY LOADER, not "the scan half".** On the prefab
+extension list, `ScanFolder` only pushes filenames onto `PrefabFileNames`; it
+reaches `ScanBundle` only for a *directory* named `*.synthedit`. Everything that
+dlopens hangs off the `.sem,.gmpi` arms or off the SEM cache, which exists to
+avoid rescanning binaries. That is a much smaller and better-defined cut than
+B5's "make ModuleFactory_Editor.cpp compile without its scan half", it keeps
+Save-as-Prefab working, and it is exactly the third-party half Jeff parked on
+2026-08-26.
+
+**The linker cannot do it, and I nearly spent a build finding that out the
+expensive way.** Nothing sets symbol visibility anywhere — not
+`gmpi_plugin.cmake`, not TIDE's `CMakeLists.txt` — so the Release VST3 exports
+**6,781** globals and every one is a dead-strip root; `-dead_strip` on its own
+removes nothing. `-fvisibility=hidden` + `-dead_strip` would strip, and still
+cannot satisfy this row, because `ScanFolder` is reachable and calls
+`ScanBundle` unconditionally on one branch. **That is read off the call graph,
+not a build I ran**, and the row says so in those words.
+
+**One correction to B1's symbol list.** `nm -u` imports `_dladdr` as well as
+`_dlopen`/`_dlsym`/`_dlclose`, and `_dladdr` must stay — `BundleInfo.cpp:69`
+uses it to find the plugin's own bundle. An Accept that says "no `dl*`" sends
+the next run after a symbol that cannot be removed.
+
+**And it is not a size story.** The whole family is 20,736 B of `__text` across
+17 symbols against a 5,490,472 B binary — 0.4%. B4 quoted before/after byte
+counts for stage (a), which invites that framing. The case for (b) and (c) is
+§7.1 and what an AUv3 reviewer sees.
+
+**Sequencing note that had gone stale:** B5 recommended riding along with C4.
+C0 resolved 2026-08-08 and C4 completed 2026-08-13; S1b did not ride along, so
+thirteen days later there is nothing left to wait for.
+
+The change itself is GATED (`SynthEditLib/EditorLib/**`), so this run filed the
+gated half rather than making it. Row stays TODO.
+

@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **334 KB** across **261** entries, so copying them
+Learned sections are **337 KB** across **263** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **95 KB / 1051 lessons — 3.5x smaller**, and represents
+A8. This is **96 KB / 1063 lessons — 3.5x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -39,6 +39,24 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-27
 
+**macos — R5 shipped a day before its row said so, and R6 was blocked behind an ask nobody still owed (interactive, Jeff directing)**
+
+- "Am I synced?" has two answers and only one of them is `git`.
+- A PR that satisfies a row must move the row.
+- Three rows in 24 hours (E32, X2, R5) were found saying something their own merged PRs had made false.
+- An artifact can answer a question about a credential you may not look at.
+- When a row's blocker is one HTTP status, spend the one command.
+
+**windows — E19's VST3 cell is still not measured, and what stopped it is three defects upstream of REAPER (scheduled run)**
+
+- A deadline needs a connection to answer on.
+- `Responding=True` with 0.09 s of CPU is the modal-dialog signature
+- Rule a nearby defect out by ITS stated condition, not by impression.
+- A control has to be verified, not assembled.
+- The command channel cannot lay out a rack.
+- `-ErrorAction SilentlyContinue` turns "I was not allowed to look" into "it is not there."
+- Check a lint by its EXIT CODE, not by reading the first lines of its output.
+
 **linux — X2: the tree has 1,982 unique warnings and fifteen of them are ours (interactive, Jeff directing)**
 
 - Count unique warnings, not warning lines.
@@ -55,16 +73,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - When the app cannot exercise the path, the probe is the deliverable — and it is only worth anything once you have made it fail.
 - Check with the regex the tool uses, not one that looks equivalent.
 - STEP 4's archive move is a written rule that nothing enforces, and it stopped happening six days ago without anyone noticing.
-
-## 2026-08-26
-
-**linux — E32's size half: the standalone reopens where it was, and the save had to move before closeWindow() (interactive, Jeff directing)**
-
-- "Save on shutdown" has an ordering, and the wrong one fails silently.
-- Share the validity bound between read and write, not the clamp.
-- A protocol limit is a scope decision, not a TODO.
-- `git merge` into a worktree, then editing before resolving, corrupts the edit.
-- Backticks in a `--body` argument are shell-interpreted.
 
 ## 2026-08-18
 
@@ -1920,3 +1928,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `cmd | tail -n; echo $?` cannot report the command's status
 - STEP 2's collision check does not cover opportunistic fixes.
 - Losing a race is cheap if you rebase to the delta.
+
+**linux — E32's size half: the standalone reopens where it was, and the save had to move before closeWindow() (interactive, Jeff directing)**
+
+- "Save on shutdown" has an ordering, and the wrong one fails silently.
+- Share the validity bound between read and write, not the clamp.
+- A protocol limit is a scope decision, not a TODO.
+- `git merge` into a worktree, then editing before resolving, corrupts the edit.
+- Backticks in a `--body` argument are shell-interpreted.

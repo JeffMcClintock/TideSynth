@@ -8,6 +8,86 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — macos — R5 shipped a day before its row said so, and R6 was blocked behind an ask nobody still owed (interactive, Jeff directing)
+
+**Prompt:** Jeff asked what was waiting on him. I answered from R5's row and told
+him to export a `.p12`. His reply: *"we did this already. are you synced?"* Then,
+on the correction: *"yes, do that"*.
+
+**He was right, and the shape of my error is the entry.** My checkout WAS synced
+— `main` was byte-identical to `origin/main`. What was stale was the row, and I
+read the row instead of the world.
+
+**R5 is DONE, and every clause ran on a real tag.** Its own open question was
+*"NOT VERIFIED, and it cannot be without a tag: that any of it actually runs. No
+release has been cut, nothing has been notarized, and Apple's verdict on a real
+submission is still the open question R6 depends on."*
+[v0.1.3](https://github.com/JeffMcClintock/TideSynth/releases/tag/v0.1.3), run
+[33037471004](https://github.com/JeffMcClintock/TideSynth/actions/runs/33037471004),
+answers all of it: `build-linux`, `build-macos`, `build-windows` and `publish`
+all **success**, five constant-named assets plus `SHA256SUMS.txt`.
+
+**I read the macOS job's STEPS rather than its green tick,** because the whole
+history of this row is a job that got a long way and then failed at
+`productbuild`: `Import signing certificate (macOS)` **success**, `Package
+(macOS)` **success**, `Notarize and staple (macOS)` **success**.
+
+**And the artifact settles the credential question without anyone reading a
+secret.** `productbuild` cannot produce a signed pkg without the Developer ID
+**Installer** identity — the exact thing the row said was missing — so a
+5,512,092-byte `TIDE-Rack-macOS.pkg` on the release page IS the evidence that it
+landed. That matters procedurally: a run must never inspect a secret's value, so
+being able to conclude this from the output is what makes the row checkable by a
+scheduled run at all.
+
+**WHY THE ROW WAS STALE, which is the durable part.**
+[#494](https://github.com/JeffMcClintock/TideSynth/pull/494) landed the last of
+the work the same morning and changed `scripts/package-macos.sh` plus a probe —
+**it never touched the row.** So a row that had been shipped against went on
+saying `TODO` and went on carrying *"What Jeff needs to do: export a `.p12`
+containing BOTH the Application and the Installer identities"*, an instruction
+already carried out. The newest date anywhere in that row was **2026-08-22**,
+five days of release work ago. I repeated it back to Jeff as outstanding, which
+is how it was found — by a human who happened to remember, not by any check.
+
+**R6's blocker is gone, and I measured it rather than inferring it.** The row
+said the permalinks *"404 until a release actually exists"*. A release exists, so
+the inference is available and cheap — and inference is what put R5 wrong in the
+first place. `curl -I` on all five
+`releases/latest/download/<asset>` URLs: every one answers **302** and redirects
+to `releases/download/v0.1.3/<asset>`. R6 is `TODO`.
+
+**One thing left on R6 for whoever takes it,** noted on the row: it asks for iOS
+as a plain-text App Store link, and there is no iOS build on the store — M9 has
+the AUv3 instantiated in the **simulator** only, never on a device and never
+submitted. Omit the line or say it is not shipped; a dead App Store link on a
+public page is the same failure the blocker existed to prevent.
+
+**Learned:**
+
+- **"Am I synced?" has two answers and only one of them is `git`.** The checkout
+  was current to the commit; the row it contained was five days behind the work
+  done against it. A clean `git status` says nothing about whether the backlog
+  describes the world.
+- **A PR that satisfies a row must move the row.** #494 was correct, green and
+  complete, and left the queue lying. Nothing in CI or in the lints notices —
+  `check-backlog-diff.py` guards how a row may change, never whether it should
+  have.
+- **Three rows in 24 hours (E32, X2, R5) were found saying something their own
+  merged PRs had made false.** Three is not a coincidence; it is
+  [E45](BACKLOG.md)'s case for a sweep and a check, rather than for more care.
+- **An artifact can answer a question about a credential you may not look at.**
+  A signed pkg proves the Installer identity is present, which is a better
+  instrument than any secret inspection a run is permitted to do.
+- **When a row's blocker is one HTTP status, spend the one command.** Reasoning
+  "a release exists, so the permalink resolves" is exactly the move that made
+  this entry necessary.
+
+**Next:** R6 is takeable by any box. E45's sweep is the thing that stops the
+next one of these.
+
+**Branch/PR:** `tide/mac/R5-flip-on-v0.1.3` — bookkeeping only, no code.
+
 ## 2026-08-27 — macos — E51 answered, and the chokepoint it was waiting for already existed (interactive session, Jeff directing)
 
 **Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
@@ -1017,61 +1097,6 @@ scratchpad and all of them are killed. Nothing written to Jeff's config, and his
 `tests/CMakeLists.txt`. TideSynth carries E43's row, E44, E45 and this entry.
 **Merging TideSynth's side alone changes no behaviour**, and merging the
 wrappers' side alone leaves the backlog saying the work is open.
-
-## 2026-08-26 — macos — S1b re-measured: the scan is NOT dead code, and the cut is smaller than the row says (scheduled run)
-
-**Prompt:** "compact. continue".
-
-S1b's Accept is *"constraint 7 verifiable from the Release binary — none of
-those symbols present"*, which is a command, so I ran it rather than reasoning
-about it. It still fails. What is worth the handoff is the two conclusions that
-moved. Full working is addendum **C1–C6** of
-[docs/module-enumeration.md](docs/module-enumeration.md).
-
-**The scan is reachable in TIDE, and B1/B5 say otherwise.** They read as "the
-code is linked but nothing calls it; the job is to stop compiling it".
-`CContainer::OnEditToPrefab` (`CContainer.cpp:1920`) rescans the prefab folder
-after writing a prefab — `RefreshModuleData(false,false,true)` at `:1967` →
-`ScanFolder(getDefaultPath("syntheditprefab"), ...)` at `Application.cpp:547`.
-`ApplicationBase::LoadOrScanModuleData()` genuinely has no caller in TIDE, which
-is what S1a removed and what B1 checked; it is simply not the only door. **A
-symbol having no caller at the entry point you removed is not the same as the
-symbol being unreachable** — that is the reusable half of this.
-
-**So the cut is the BINARY LOADER, not "the scan half".** On the prefab
-extension list, `ScanFolder` only pushes filenames onto `PrefabFileNames`; it
-reaches `ScanBundle` only for a *directory* named `*.synthedit`. Everything that
-dlopens hangs off the `.sem,.gmpi` arms or off the SEM cache, which exists to
-avoid rescanning binaries. That is a much smaller and better-defined cut than
-B5's "make ModuleFactory_Editor.cpp compile without its scan half", it keeps
-Save-as-Prefab working, and it is exactly the third-party half Jeff parked on
-2026-08-26.
-
-**The linker cannot do it, and I nearly spent a build finding that out the
-expensive way.** Nothing sets symbol visibility anywhere — not
-`gmpi_plugin.cmake`, not TIDE's `CMakeLists.txt` — so the Release VST3 exports
-**6,781** globals and every one is a dead-strip root; `-dead_strip` on its own
-removes nothing. `-fvisibility=hidden` + `-dead_strip` would strip, and still
-cannot satisfy this row, because `ScanFolder` is reachable and calls
-`ScanBundle` unconditionally on one branch. **That is read off the call graph,
-not a build I ran**, and the row says so in those words.
-
-**One correction to B1's symbol list.** `nm -u` imports `_dladdr` as well as
-`_dlopen`/`_dlsym`/`_dlclose`, and `_dladdr` must stay — `BundleInfo.cpp:69`
-uses it to find the plugin's own bundle. An Accept that says "no `dl*`" sends
-the next run after a symbol that cannot be removed.
-
-**And it is not a size story.** The whole family is 20,736 B of `__text` across
-17 symbols against a 5,490,472 B binary — 0.4%. B4 quoted before/after byte
-counts for stage (a), which invites that framing. The case for (b) and (c) is
-§7.1 and what an AUv3 reviewer sees.
-
-**Sequencing note that had gone stale:** B5 recommended riding along with C4.
-C0 resolved 2026-08-08 and C4 completed 2026-08-13; S1b did not ride along, so
-thirteen days later there is nothing left to wait for.
-
-The change itself is GATED (`SynthEditLib/EditorLib/**`), so this run filed the
-gated half rather than making it. Row stays TODO.
 
 ## Rotation — do this as part of STEP 4, every run
 
