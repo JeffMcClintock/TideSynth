@@ -8,6 +8,292 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-27 — windows — E19's VST3 cell is still not measured, and what stopped it is three defects upstream of REAPER (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.1** · as **tide-rack-bot** (both paths)
+
+**Did:** took **E19**, scoped to the windows VST3 cell. **Its Accept is not met and
+the cell is not measured.** What the session produced instead is three filed
+defects — **E48**, **E49**, **E50** — a `PROPOSED:` entry in
+[docs/decisions.md](docs/decisions.md) that Jeff asked for in session, its parked
+row **E51**, and STEP 4 bookkeeping on **X2**. TideSynth carries all of it;
+nothing else was committed in any repo.
+
+### Why E19, and why the row's own blockers were no longer the blockers
+
+The NEXT block's `win` cell says nothing is takeable, but it is dated 2026-08-25
+and predates E32–E50. Walking the rows in file order: **S1b** and **S8** are
+wholly GATED, **E38** carries `NEEDS-SPEC`, and **E19** is the next one that is
+TODO, `any`, unblocked, and states its Accept as observables. It is also this
+box's own platform.
+
+E19 recorded its VST3 and GMPI cells as blocked on **E27** and **E29**. Both have
+since closed — E27 DONE (the ~14.1 KB "threshold" turned out to be the fixture
+generator, not the plugin) and E29 WONTFIX with a per-box `sed` workaround — so
+the cell looked reachable. **The wall turned out to be somewhere else entirely:
+I could not get a prepared rack to reload in the STANDALONE, never mind inside a
+host.**
+
+### What actually happened, in the order it happened
+
+**1. The instrumented build is fine.** `C:\SE\_scratch\e19` rebuilt against
+today's `origin/main` — `TIDE_Rack_STANDALONE` and `TIDE_Rack_VST3`, 0 errors —
+and the standalone runs, opens its command channel, and drives normally.
+
+**2. Building the rack by script works, and two things about it are worth
+keeping.** A **double-click** on a module-browser entry inserts; a single click
+only selects. `--drag` on an inserted rack module **did not move it**, twice —
+once via `--drag ... --steps 15` and once as explicit `--pointer-down` /
+four `--pointer-move`s / `--pointer-up`, with no `DSP structure changed` either
+time. So rack layout has to come from the document, not from a scripted gesture.
+The Scope landed on top of the LFO, which is **E41**.
+
+**3. Reusing yesterday's saved rack SEGFAULTS the app. 4/4.** `e19-fixture-doc.xml`
+is 38,658 bytes, written by the 2026-08-26 windows run, whose journal entry
+records it restoring correctly in the standalone that day. It now dies during
+rack construction, at the same point every time:
+
+```
+Pulses constructed / SHASR constructed / Scope constructed   <- last line, always
+LFO, LFO2, VCA x3, Compare                                   <- never reached
+```
+
+**The wrapper is not the variable.** Today's builds write a 4-byte `TDs1` header
+in front of the document inside `<Param id="1">`; I reproduced the crash both
+with that header and without it, so the reader skips it and it is not the cause.
+Filed as **E49**.
+
+**4. E46 is ruled out for that crash, by its own stated condition.** E46 —
+filed by the mac box hours earlier, and it asks in its own words not to be quoted
+as a measured crash — is a `map::end()` deref reached when a document names a
+module handle the document does not contain. I parsed the crashing document for
+every handle-bearing attribute (`Module`, `module`, `tiedtomod`, `fMod`, `tMod`,
+case-insensitive) against every `<Module Id=>` / `<module handle=>` it defines:
+**25 handles defined, 13 referenced, zero dangling.** The condition is absent.
+A measured crash and a plausible nearby defect are not the same finding, and
+E46's own row is the reason to check rather than assume.
+
+**5. A rack saved TODAY reloads — but raises a modal dialog and loses part of
+the document.** Five prefabs inserted by double-click, quit with `taskkill /IM`
+(the graceful path, which saves), relaunch:
+
+```
+session.xml 66,294 B, document 49,607 B
+relaunch:  stops after "default rack loaded, 25257 byte document"
+           alive, Responding=True, CPU 0.09 s over 30 s, no pipe name, no window
+           MainWindowTitle == "Connectors lost while loading"
+Jeff dismissed it:  restore completes
+next line:  "DSP structure changed, pushing 46030 byte document"
+```
+
+**49,607 in, 46,030 out — 3,577 bytes gone, and the dialog names them as
+connectors.** Filed as **E48**. This is PLAN's v0.1 clause *"the patch survives
+save-and-reload"* failing; v0.1 was measured on a 14 KB document and this is
+49.6 KB.
+
+**The headless half of it is worse than the loss.** A native modal runs a nested
+message loop on the main thread, so while it is up there is no code of ours on
+the stack. E43 bounded the same mechanism one layer up last night, but E43's
+deadline needs a connection to answer on and **this dialog is raised before the
+command channel opens** — there is nothing to bound and nothing to answer. The
+only handle a caller has is the Win32 `MainWindowTitle`, which is not an
+interface and has no equivalent on the other two platforms.
+
+Jeff asked, in session, whether dialogs should be reported over the channel and
+told me to file it as a `PROPOSED:` decision rather than a bug. It is in
+[docs/decisions.md](docs/decisions.md), with **E51** as the parked row. The part
+worth repeating here: all three options (report / report-and-answer / never
+raise) need the same prerequisite, **one app-owned function that every prompt
+goes through**, and that prerequisite is buildable today because it commits to
+none of them.
+
+**6. And then the control I was trying to establish fell over, which is the
+finding I least expected.** I wanted a third-party-free rack so E48 could not be
+dismissed as a VCV problem. **I never got one.** On a launch with an EMPTY config
+folder, from a default rack whose file contains no VCV module of any kind:
+
+```
+DefaultRack.synthedit  25,257 B at bed03b0a0,  grep -c Compare == 0
+                       (repo copy and staged bundle copy, same bytes)
+
+app:  "default rack loaded, 25257 byte document"
+      RackEditor: 'Compare' model=yes art=yes(res/Compare.svg)
+      "building rack from 18183 byte document"
+      RackProcessor: 'Compare' constructed / processing (block 96)
+                     first NONZERO OUTPUT pin 5 (1.000000)
+```
+
+It is in the DSP graph and running. **The control that makes it mean something:**
+the same binary launched with a session file present builds a **13,464**-byte
+rack and constructs **no** Compare at all — same executable, same bundle, same
+default-rack file. So it is the default-rack path specifically, not a property of
+the build. Filed as **E50** with the hypothesis stated as a hypothesis: if a
+module resolves to the wrong class once the VCV pack is registered — the **S46**
+shape — then mismatched pins would drop connectors (E48) and a larger document
+could construct something inconsistent and fault (E49). **One cause, three
+symptoms, untested.** The test is one build with `TIDE_VCV_FUNDAMENTAL=OFF` and
+one number to compare; I did not run it and the row says so.
+
+### A correction I made to my own row before pushing it
+
+E48's first draft said the loss happened *"on TIDE's OWN modules, with no
+third-party module involved"*. **That was wrong** — the rogue Compare was in the
+rack the whole time, and I only found it afterwards while trying to build the
+control. The claim was the most load-bearing sentence in the row and would have
+sent whoever took it looking in the wrong repo. Corrected in place, with the
+correction left visible rather than tidied away. **The general form: a "control"
+you assembled but never verified is not a control**, and I asserted its
+third-party-freeness from the source file rather than from the running app,
+which is exactly the direction E19's own lessons warn about.
+
+### What I did NOT do, stated rather than implied
+
+- **The VST3 cell is not measured.** REAPER was never launched this session.
+  Everything above is the standalone.
+- **E50 is not tested**, only observed with a control.
+- **Nothing was built for macOS or Linux**, and none of these three defects has
+  been checked on either.
+
+### I said there was no debugger on this box. There is, and it gave me the crash.
+
+**This is the run's own worst mistake and it nearly shipped in a row.** I searched
+for `cdb.exe` with
+
+```
+Get-ChildItem 'C:\Program Files\WindowsApps' -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue
+```
+
+got nothing back, and wrote *"there is no `cdb.exe` on this box"* into E49.
+**`WindowsApps` denies directory LISTING**, so `-ErrorAction SilentlyContinue`
+swallowed an access-denied and handed me an empty result that I read as absence.
+My own memory note had the exact path all along, and probing it directly answers
+`True`:
+
+```
+C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2603.20001.0_x64__8wekyb3d8bbwe\amd64\cdb.exe
+```
+
+**This is the same failure the archive already records** — *"An empty result from
+a missing input is not evidence. Check the input exists before believing an empty
+result."* (2026-08-25, macos). I hit it in the same shape, from the same kind of
+suppressed error, and I only caught it because I went to correct the memory note
+and re-read what it actually said.
+
+**With the debugger, E49 stops being a characterisation and becomes a diagnosis:**
+
+```
+ExceptionAddress: TIDE_Rack!ug_patch_param_setter::ConnectParameter+0x5e
+ExceptionCode:    c0000005 (Access violation)
+Parameter[0]: 0            <- a read
+Parameter[1]: 0x64         <- the address read: offset 0x64 from NULL
+faulting insn: mov ecx,dword ptr [rbp+64h]
+next insn:     call TIDE_Rack!HostControlisPolyphonic
+```
+
+That pair of instructions is
+`HostControlisPolyphonic(parameter->getHostControlId())` with **`parameter`
+null**, and the null is made two lines earlier in
+`SynthEditLib/ug_patch_param_setter.cpp:172`:
+
+```cpp
+auto parameter = parent_container->get_patch_manager()->GetParameter(moduleHandle, moduleParameterId);
+ConnectParameter(parameter, plug);      // nothing checks it
+```
+
+The only guards on the receiving overload are `assert`s and TIDE ships `-DNDEBUG`.
+**Called from `ug_base::HookUpParameters` (`ug_base.cpp:745`) on the WASAPI render
+thread** — `AudioDriverWasapi::renderThread` → `processAudio` → `prepareToPlay` →
+`BuildDspGraph` → `BuildModules` → `Setup` — so the DSP graph is built on the
+audio thread and this kills the render thread rather than surfacing as a load
+error.
+
+**And it sharpens the E46 relationship rather than settling it.** It is E46's
+SHAPE — an assert-only guard on a lookup that can miss — at a different site in a
+different file, and it is the measured crash E46 says it lacks. But E46's own data
+condition really is absent here (25 handles defined, 13 referenced, zero
+dangling), and **`GetParameter` takes a `(moduleHandle, parameterId)` PAIR while my
+document test only checked module handles** — so the miss comes from the parameter
+id on a module that does exist. That is narrower and more findable than E46's case,
+and I would not have known it without the faulting address.
+
+### Bookkeeping
+
+**X2** was IN-REVIEW with [#484](https://github.com/JeffMcClintock/TideSynth/pull/484)
+merged and nothing open, and its own words say *"ACCEPT MET FOR TIDE'S OWN CODE;
+NOT MET TREE-WIDE"* — so DONE would be false. Back to **TODO**, per the **E32**
+precedent, with the remaining work split in the row: a tree-wide zero is a
+decision about GATED `SynthEditLib`, not a task, while the row's own
+*"NOT VERIFIED"* half is Windows and macOS and **is** takeable. **E43** was
+already DONE by the time I looked; both its PRs are merged.
+
+**An ID COLLISION, caught before either side merged.** I filed my dialog row as
+`E47` at 11:20; the mac box filed a different `E47` (*the properties pane can
+be left pointing at a freed module*) at 11:28, on branch
+`tide/mac/E47-properties-dangling-module`. Mine was first by eight minutes and I
+renumbered it anyway, to **E51** — theirs is already cited from an open
+[SynthEditLib#59](https://github.com/JeffMcClintock/SynthEditLib/pull/59) and from
+its own branch name, so moving it costs the fleet more than moving mine costs me.
+**A23's duplicate check cannot see this**: both rows are legal on their own branch
+and only collide once they meet on `main`. I found it because a push was rejected
+and I read the fetch output instead of retrying — the new branch was in the same
+three lines. **Worth a habit: after a rejected push, read what the fetch brought
+back before pushing again.**
+
+### Machine state
+
+`main` is **green** — `build` and `verify` both `success` on `c106b6641`, and no
+open `platform:*` issue on any platform.
+
+**All six repos are on their default branches and clean.** `GMPI_Wrappers` was
+one commit behind and was fast-forwarded to pick up E43's `#22`. Jeff's
+`DefaultRack.synthedit` was modified in the working tree when this run started —
+STEP 5's third kind of dirt, left untouched — and he committed it himself
+mid-session as `bed03b0a0`, so the tree is clean now.
+
+`%APPDATA%\TIDE Rack\` **cannot be redirected by environment** — Windows resolves
+it with `SHGetKnownFolderPath(FOLDERID_RoamingAppData)`, which ignores `%APPDATA%`
+— so the folder was copied to the session scratchpad before the first launch and
+restored byte-for-byte afterwards, verified by md5. No TIDE process is left
+running. The build tree is `C:\SE\_scratch\e19`, outside every repo.
+
+**Learned:**
+
+- **A deadline needs a connection to answer on.** E43 bounded a wedged command;
+  a dialog raised during startup happens before the channel exists, so the same
+  mechanism produces a failure nothing can report. The fix for that one is not a
+  longer deadline, it is not raising the dialog.
+- **`Responding=True` with 0.09 s of CPU is the modal-dialog signature**, and it
+  is indistinguishable from a slow build unless you go looking for a window title.
+  Worth checking before concluding "hung".
+- **Rule a nearby defect out by ITS stated condition, not by impression.** E46
+  and my crash look alike and are not the same; parsing the document for dangling
+  handles took one command and turned "probably E46" into "measurably not E46".
+- **A control has to be verified, not assembled.** I built a "third-party-free"
+  rack out of TIDE prefabs and it had a VCV module in it from the first frame.
+  The source file said one thing and the running app said another.
+- **The command channel cannot lay out a rack.** Double-click inserts; drag does
+  not move. Anything about position has to be authored in the document.
+- **`-ErrorAction SilentlyContinue` turns "I was not allowed to look" into "it is
+  not there."** `WindowsApps` denies directory listing; the suppressed
+  access-denied cost me a wrong sentence in a filed row, and the debugger it said
+  was missing is what turned that row from a description into a diagnosis.
+  **Suppress errors only when you already know which error you are suppressing.**
+- **Check a lint by its EXIT CODE, not by reading the first lines of its output.**
+  I piped `check-id-refs.py` through `head -2`, saw the advisory, called it green,
+  and CI failed on a stale reference sitting four lines below the cut.
+
+**Next:** **E50** first, and it is cheap — one `TIDE_VCV_FUNDAMENTAL=OFF` build
+and one document size. It is now the only unexplained one of the three: E49 has
+its faulting line, E48's dialog names its own symptom, and both are consistent
+with a parameter that no longer resolves. If E50 is the cause then all three go
+together and E19's VST3 cell becomes reachable, because the whole obstacle today
+was that no prepared rack reloads reliably. **E49's guard is one line and is
+GATED**, so it is filed rather than written whichever way E50 goes.
+
+**Branch/PR:** `tide/win/E19-vst3-feedback-leg` — TideSynth only. E19's row back
+to TODO, E51/E48/E49/E50 filed, X2 flipped, the `PROPOSED:` entry, and this
+entry. **No product code changed in any repo**, so there is nothing here that can
+break a build.
 ## 2026-08-27 — macos — Recovered two days of uncommitted work out of a working tree, and filed the hole it left (interactive session, Jeff directing)
 
 **Prompt:** standing backlog-loop instruction in the session · Opus 5, `claude-opus-5` · Claude Code · commits authored `Jeff McClintock` per the interactive convention
@@ -675,515 +961,6 @@ is untouched; it needs its own generated shell script for
 file. Same class — but that list is a CMake variable rather than a directory
 scan, so removing one is a deliberate code edit, and the gate asserts the exact
 four by name. Recorded rather than fixed speculatively.
-
-## 2026-08-26 — macos — E39's prime suspect is wrong: the top strip is not a constant (scheduled run)
-
-**Prompt:** "continue".
-
-E39 reports the rack's top row as a short strip and names a prime suspect:
-`kRackViewDips = 1008` is 2.625 rows of 384, and *"0.625 is close to the 0.68
-measured — so the leftover is the prime suspect"*. That is a good hypothesis
-and it makes a testable prediction: **the fraction should be the same every
-time.**
-
-**It is not.** Four screenshots off one build, each self-calibrated by measuring
-its own rail pitch (which comes out at exactly 384 DIP in every one, so E5's row
-height is not in question):
-
-```
-stored centre 3984 @ zoom 1.000   top strip 0.14 of a row
-stored centre  940 @ zoom 0.745             0.27
-stored centre 1353 @ zoom 1.000             0.29
-stored centre 1349 @ zoom 0.381             2.16
-(windows report)                            0.68
-```
-
-A canvas-height remainder is a property of the canvas and cannot vary with
-scroll position. **So it is not the constant, and changing `kRackViewDips` to a
-multiple of 384 would have produced no change and a wasted session.** That is
-the whole value of this entry.
-
-**What it actually is.** `TopView::renderRack` lays the case interior and its
-rails out from the RACK ORIGIN every `rowHeight`, across whatever clip rect it
-is handed — not from the top of the canvas. So the partial row at the top of the
-window is just where the viewport sits relative to that grid, and **every freely
-scrolled position shows one**. I checked the strip really is drawn as rack
-rather than as background: its luminance is identical to the case interior
-between rails, 27.7 in both. That is the row's *"no rails above it"* turned into
-a number.
-
-**This makes half the Accept unachievable as written.** *"Every rack row is a
-full 384 DIP with rails above and below"* cannot hold while the view scrolls
-freely — you would have to snap the viewport to row boundaries, which fights E33
-(open where the document says) and would make panning feel notched. The
-achievable half is the row's own alternative: **give the case a top** and stop
-painting rack interior above row 0. That is in `renderRack`, which is GATED.
-
-**A note on method, since I nearly measured the wrong thing twice.** My first
-detector sampled a column band at canvas x 1700..2100 and found no rails at all
-— that is outside the rack pane. My second used a hard-coded px-per-DIP from the
-nominal zoom, which is wrong because `calcViewTransform` QUANTISES zoom so that
-12 DIP maps to whole pixels. Deriving px-per-DIP from the measured rail pitch
-instead makes each screenshot calibrate itself and removes both mistakes at
-once. **When the thing you are measuring has a known period, use the period as
-the ruler.**
-
-## 2026-08-26 — macos — E29: the mac box is fine, and the obvious fix would break it (interactive, Jeff directing)
-
-**Prompt:** "continue", then — on seeing a headless render stall —
-*"blocked on a plugin-not-available dialog"* and *"drive it interactvly"*.
-
-He was right on both counts, and driving it interactively is what turned a
-plausible inference into a screenshot.
-
-**THE QUESTION THE ROW LEFT OPEN IS ANSWERED: the mac box is NOT affected.**
-REAPER **7.45** loads the committed raw-TUID token and renders `v1-rack.rpp` at
-**peak -6.3 / rms -17.0 dBFS** — M7's and E2a's figure exactly. Negative control
-first, as the harness itself instructs: `v1-rack-uncabled.rpp` -> `-inf`,
-SILENCE. So the harness discriminates and the -6.3 means something.
-
-**THE FINDING THAT CHANGES THE PLAN is the other direction.** Substituting the
-Windows box's 7.78 token into the same fixture makes REAPER 7.45 refuse it:
-
-```
-Project Load Warning
-The following effects were in the project file and are not available.
-    Track 1: VST3i: TIDE Rack (TIDE Synth)
-```
-
-and the FX slot reads *"could not be loaded"*. **The two tokens are mutually
-exclusive across these versions**, so this row's first repair option — *"a
-re-save from a current REAPER"* — would fix Windows and break macOS. Ruled out
-unless the fleet first agrees a single REAPER version. Worth knowing before
-anyone tries: this mac is on 7.45 and REAPER is offering **7.79**, so upgrading
-it casually would flip it to the Windows behaviour and break every committed
-fixture here.
-
-**IT FAILS AS A HANG, NOT AN ERROR — the part that would have bitten CI.** The
-warning is modal, so `-renderproject` blocks on it forever. My first attempt sat
-**over seven minutes** producing no render and no error, and I killed it by
-hand. `render-and-measure.py` had no timeout at all. It does now: 300 s, kills
-REAPER, and writes into the log exactly why and where to read about it. I fired
-that path deliberately with a 25 s cap to prove it works (`rc=-9999`, REAPER
-gone, message present) rather than trusting that I had written it correctly, and
-re-ran the control and `v1-rack.rpp` to show nothing else moved.
-
-**A METHOD NOTE WORTH KEEPING.** My second headless attempt reported SILENCE
-rather than hanging, which nearly sent me down the wrong path — "the plugin
-loads but makes no sound" is a completely different bug from "the plugin does
-not load". Driving REAPER by hand settled it in one screenshot. **A headless
-harness can only report what it can see, and a modal dialog is invisible to it;
-the two failures it collapses into "no audio" are not the same failure.**
-
-**Delivered:** the row's SECOND option verbatim — a note in
-`tests/hosts/README.md` naming both tokens, which REAPER writes which, the
-one-line `sed` for a LOCAL copy, how to discover what your own REAPER writes,
-and the hang.
-
-**CLOSED BY JEFF THE SAME HOUR — WONTFIX.** *"this product is not released. We can break DAW
-sessions, they only exist only for our tests anyhow"*, then *"we simply don't care about broken
-test sessions. don't waste time on it."* The escalation is WITHDRAWN rather than answered, and
-that is the right call: the fixtures are instruments, not deliverables, and a one-line `sed`
-unblocks any box that needs one. **The lesson for me is about proportion** — I had a NEEDS-JEFF
-row with a default and a decide-by drafted for a question whose real answer was "this does not
-matter". The measurement was worth ten minutes; the escalation machinery around it was not.
-Two things survive and are worth keeping on their own merits: the README recipe, and the
-harness timeout, which bounds a hang on ANY modal dialog rather than just this one.
-
-**The Accept is half met and the row says so.** *"loads its plugin on all three
-boxes"* is not true and no commit here can make it true without breaking macOS.
-E29 is now NEEDS-JEFF with a default in effect (per-box local swap) and a
-decide-by (before the next multi-box REAPER-rendered measurement), so an
-unanswered question cannot quietly become the answer.
-
-## 2026-08-26 — macos — the restored view lands 240 DIP off, and it is not the re-save (interactive, Jeff reporting)
-
-**Prompt:** *"i re-saved defaultrack."* then, on seeing the result,
-*"might depend on how big the window is a bit. but that looked wrong"*.
-
-**He was right that it looked wrong, and right to be unsure why.** Window size
-DOES change what fits — TIDE's rack pane is ~340 DIP narrower than the window
-because the browser and properties strips eat the sides — so "it looked right
-when I saved it" and "it looks wrong on a default window" can both be true. But
-that is not what happened here.
-
-**THE MEASUREMENT: three runs, two zooms, one constant.**
-
-```
-stored centre 1353 @ zoom 1.000  ->  applied 1593   (+240 DIP)
-stored centre 1253 @ zoom 1.000  ->  applied 1493   (+240 DIP)
-stored centre  940 @ zoom 0.745  ->  applied 1260   (+320 DIP)
-```
-
-240 x 1.0 and 320 x 0.745 are both **~478 WINDOW pixels**. A constant in window
-space and not in document space is what rules out "the document is wrong" and
-points at the transform. The applied centre is derived from where `TiDE Output`
-(doc `1329..1377`) actually lands in the pane, so it is read off pixels rather
-than inferred.
-
-**THE CAUSE, one line.** `TopView::calcViewTransform` (ViewBase.cpp:1380):
-
-```cpp
-const Point canvasCenter{ (drawingBounds.right - drawingBounds.left) * 0.5f, ... };
-```
-
-That is half the pane's **SIZE** where it means its **MIDPOINT**. The transform
-is then consumed in WINDOW space, where the pane begins at
-`drawingBounds.left` — so the error is exactly `drawingBounds.left`, and
-`SynthEditGui.cpp:463` sets `editorContentRect` window-rooted from
-`editorStrip.left`: the two browser strips, **240 DIP**. The vertical axis
-carries the same error of `drawingBounds.top`, ~11 DIP, small enough to have
-gone unnoticed for as long as the horizontal one.
-
-**Why it surfaced today.** The bug is old and was harmless while the centre was
-meaningless: TIDE passed a hard-coded `kRackViewDips / 2` and nobody could tell
-it was 240 out. **E33 made the stored centre load-bearing**, and the very next
-person to save a framing they liked hit it. Filed as **E42**; the fix is
-`(left + right) * 0.5f` and it is in GATED SynthEditLib, so it is filed, not
-written.
-
-**A detour worth recording, because it nearly became a wrong conclusion.** My
-first pass at measuring this reported "no module visible at all" for two of the
-three runs. That was my detector, not the app — it searched canvas columns
-960..1620 while the module had been pushed to 520..615 by the very offset I was
-trying to measure. **The bug moved the thing out of the window I was looking
-in.** I only caught it by opening the screenshot and looking. An automated
-readout that assumes where the answer will be cannot measure a displacement.
-
-**E37 is now BLOCKED(E42)** and should probably close once E42 lands: Jeff's
-re-save fixed the zoom, he deliberately did not move the modules, and the only
-remaining complaint is the 240 DIP that belongs to E42. **He should not re-save
-the file again until E42 is in** — the framing that looks right while saving
-will keep reopening wrong.
-
-## 2026-08-26 — macos — third-party modules are parked; the cluster goes with them (interactive, Jeff ruling)
-
-**Prompt:** *"E24: 3rd-party module compatibility is not important at this
-stage. We ship with only our own modules."*
-
-Recorded in [docs/decisions.md](docs/decisions.md) and applied to every row it
-reaches, so nothing is left looking takeable that is not.
-
-**`BLOCKED`, not `WONTFIX`, and the distinction is the whole of the
-bookkeeping.** *"At this stage"* is a sequencing call, not a rejection. WONTFIX
-carries "do not re-file this", which would be wrong and would throw away real
-work: E20's portability measurement, E22's licensing research, E23's render-path
-correction and E24's screenshot all keep their value if this is revisited.
-
-Parked: **E20, E21, E22, E23, E41**. Closed: **E24** — its PR merged and the
-ruling makes its question moot as well as answered.
-
-**THE PILOT PAID FOR ITSELF ON THE DAY IT LANDED, which is the pleasing part.**
-E24 existed to stop E20-E22 proceeding on a guess about whether ported modules
-render. It returned a number — **two of Crackle's four controls invisible**,
-the knob and the switch drawing nothing — hours before the call was made. That
-turned "should we ship third-party packs?" from a taste question into one with a
-price attached. Whether or not it changed the answer, it made the answer cheap.
-
-**A contradiction I made sure to leave behind rather than tidy away.** E23
-states, from reading the code, that *"`drawKnobs()` draws rim, body AND
-pointer"* and that *"a panel that is labels-only still gets grabbable
-controls"*. E24 measured the opposite on a running rack. One of them is wrong.
-Parking the rows would have buried that, so E23's row now carries the
-contradiction explicitly and says whoever revives it starts by reconciling the
-two, not by trusting either. A code reading and a screenshot disagreeing is
-exactly the thing a future reader deserves to be warned about — and it is the
-same failure mode E23 itself was filed to correct, in the other direction.
-
-**What the ruling deliberately does NOT touch,** written down so a later run
-does not over-apply it: the `TIDE_VCV_FUNDAMENTAL` / `TIDE_VCV_HETRICKCV` CMake
-options stay (both default OFF, both harmless — deleting build capability is
-more than the ruling asks); the adaptor repos are untouched; and **E2/E16's
-curated set is unaffected**, because that is TIDE's own modules and is precisely
-what the ruling says to concentrate on.
-
-`docs/vcv-permissive-modules.md` gained a banner, because a research document
-that reads as a plan is how a parked decision quietly restarts.
-
-## 2026-08-26 — linux — E32's size half: the standalone reopens where it was, and the save had to move before closeWindow() (interactive, Jeff directing)
-
-**Prompt:** 5146a61 · Opus 5 (1M context), `claude-opus-5[1m]` · app: Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
-
-**Did:** took **E32** scoped to the **size** half. Product change is
-[GMPI_Wrappers#20](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/20) —
-one file, +92 lines. **Position is not done**, deliberately, and the row is
-IN-REVIEW rather than closed because of it.
-
-### Why size here and position elsewhere
-
-Size is portable, so it belongs in `StandaloneApp.cpp` where all three shells
-get it at once. Position is not: **xdg-shell has no set-position**, so a Wayland
-client can never place its own window. That is a property of the protocol rather
-than a gap to close later, which is why the Linux half of this row was always
-going to be smaller than the other two — and why doing the shared half from this
-box is the useful contribution rather than a partial one.
-
-`SessionState.h` already had the rule this follows: *"Window size and position
-are the shell's business, not the plugin's, and are not kept here."* So the keys
-go in `standalone.conf`, beside the device selection, and the patch stays clean.
-
-### The trap the row did not name
-
-The row lists three. A fourth turned up by running it: **the save has to happen
-before `closeWindow()`.**
-
-Afterwards the Wayland shell reports **0x0** — the frame is gone. Writing that
-would persist a size the next launch rejects, so it would silently fall back to
-the default **and look exactly like the feature had never worked**. The failure
-is invisible in the code and obvious the moment you read the file.
-
-### One bound, both directions
-
-The sanity check is shared by the read and the write, so a size this build
-refuses to restore is also one it refuses to save — the file cannot accumulate
-values that are silently ignored forever. It only rejects nonsense; clamping to
-the real minimum stays `setMinimumClientSize`'s job, which runs on **every**
-path including the ones that never read a file. Duplicating that clamp here
-would have been a second place to get it wrong.
-
-### Verified — eight cases, headless weston
-
-| case | result |
-|---|---|
-| first run, no config | **1100x626** (editor default) — unchanged |
-| quit | conf gets `window.width=1100`, `height=626` |
-| conf hand-set 900x500 | reopens **900x500** |
-| conf zeros | 1100x626 |
-| conf **width only** | 1100x626 — both or neither |
-| conf `99999 / -7` | 1100x626 |
-| unknown key alongside | **preserved** across the save |
-| reopen 960x540, then quit | conf gets **960x540**, not the default |
-
-**The last row is the one that matters.** Every other restore case proves the
-read; only that one proves the *write* follows the live window rather than
-re-writing the editor default — which is the failure mode that would have
-shipped silently.
-
-**Not verified:**
-
-- **An interactive resize.** A real xdg-shell resize is a compositor gesture
-  this harness cannot send, so the live-size path is demonstrated by restoring a
-  non-default size and reading it back at quit. That is a proxy and I am calling
-  it one.
-- **Windows and macOS were not built**, and **both still need their position
-  half.** The row is not complete and is marked IN-REVIEW, not DONE.
-
-**Learned:**
-
-- **"Save on shutdown" has an ordering, and the wrong one fails silently.**
-  Reading the window after `closeWindow()` gives 0x0, which the next launch
-  rejects — so the bug presents as "the feature does nothing" rather than as an
-  error. Save before you tear down, and check the file rather than the code.
-- **Share the validity bound between read and write, not the clamp.** One
-  predicate means the file can never hold a value this build ignores; copying
-  `setMinimumClientSize`'s job in would have been a second place to drift.
-- **A protocol limit is a scope decision, not a TODO.** Wayland cannot position
-  a window, so the linux slice of this row is *complete at size* — worth saying
-  plainly so nobody files a follow-up to "finish" it here.
-- **`git merge` into a worktree, then editing before resolving, corrupts the
-  edit.** I ran a scripted row update while `BACKLOG.md` still had conflict
-  markers. `git reset --hard origin/main` and redoing it took a minute; noticing
-  took longer than it should have because the lint I ran first was on the *other*
-  file.
-- **Backticks in a `--body` argument are shell-interpreted.** Three lines of my
-  first PR body ran as commands. `--body-file`, or `gh api -X PATCH` with JSON.
-
-**Machine left clean.** Headless weston stopped, standalone stopped, scratch
-`HOME`s throughout; nothing written to Jeff's config. All six repos on their
-default branches and clean.
-
-**Branch/PR:** `tide/linux/E32-window-size` in both repos —
-[GMPI_Wrappers#20](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/20) is
-the change; TideSynth carries the row and this entry. **Merging TideSynth's side
-alone changes no behaviour.**
-
-## 2026-08-26 — macos — E24: a HetrickCV module on TIDE's rack, looked at for the first time (scheduled run)
-
-**Prompt:** "i merged stuff, sync repos, continue."
-
-E24 has been carrying predictions from source and rendered SVGs since it was
-filed, and says so: *"nothing here has been observed in TIDE"*. It is now
-observed. **Crackle**, the row's own suggestion, inserted into a running rack.
-
-**THE ANSWER IS NEITHER OPTION THE ROW OFFERED, and the third one is more
-useful.** Not "the panel carries its components" and not "it renders bare":
-
-```
-Crackle declares 4 controls          TIDE draws
-  createHCVKnob(28, 87)                NOTHING
-  createInput<PJ301MPort>(33, 146)     drawn
-  createParam<CKSS>(37, 220)           NOTHING
-  createOutput<PJ301MPort>(33, 285)    drawn
-```
-
-The panel's own art is fine — title, the concentric motif, all four labels, the
-HETRICK logo. **Two of the four controls are simply absent**, and the switch's
-absence is conspicuous because the panel paints `Classic` and `Broken` with an
-empty gap between them.
-
-**How I got positions rather than impressions.** The module is at doc
-`l=1352 t=280 r=1442 b=664`, 90x384 DIP over a 380-unit VCV panel, at zoom 1 and
-scale 2, so `canvas_y = 255 + vcvY * 1.0105 * 1.955`. That puts the knob at
-canvas 427, the input jack at 543, the switch at 689 and the output at 818 — and
-each prediction is checkable against the screenshot. Reading a screenshot without
-that arithmetic gets you "looks mostly fine", which is what the row already had.
-
-**Why jacks and not knobs, which is the mechanism worth keeping.**
-`RackEditor.h`'s warning is specifically about knob CAPS: it draws "only the
-moving part — an indicator line per knob" and relies on the panel for the body.
-HetrickCV's panel does not carry knob bodies, so the knob renders as nothing at
-all — not even an indicator I can see. Jacks are unaffected because TIDE draws
-those itself (E23's correction). **Switches are a THIRD case that neither E24 nor
-E23 names:** `CKSS` is not a knob and not a jack, and nothing draws it.
-
-**Verdict: (b), narrowed.** A Crackle on the rack is legible and half-usable, so
-this is a cost rather than a wall, and the fix is the one the row anticipated —
-`RackEditor` drawing TIDE's own `TiDEknob` at the reported position, plus a
-switch case. TIDE ships the knob already.
-
-**A separate bug fell out, filed as E41.** The inserted Crackle landed
-overlapping `TiDE Output` and **off the 3-DIP snap grid** — so E36's
-next-free-slot placement did not run for an adaptor-registered module. My first
-instinct was "AddPrefab's diff returns empty for a non-prefab", which is
-plausible and does NOT explain the off-grid position: the fallback is
-`snapToGrid(getCenter())`, which cannot produce an off-grid result. So something
-earlier in the path differs too, and the row says to instrument rather than
-guess. I have written down the hypothesis and its own counter-evidence rather
-than the hypothesis alone.
-
-**One instrument note:** seeing the module at all required parking the view on
-it, which required E33 (unmerged). The render finding does not depend on E33 —
-but on `main` today you cannot look at an inserted module, which is worth
-knowing before anyone tries to reproduce this.
-
-## 2026-08-26 — macos — E38: the flag was the easy part, and it was not the problem (scheduled run)
-
-**Prompt:** "i merged stuff, sync repos, continue."
-
-**E38 stays TODO. The flag is written and proposed; its Accept is not met, and
-the remaining work is a different shape than the row assumed.**
-
-E38 reasoned by analogy: `--double` was one flag, it made an entire row (E36)
-measurable in a script the next day, and a right-click looked "the same size".
-It is not, and the analogy is exactly what made it look small.
-
-**What is done.** `--right` sets `PointerFlags::SecondButton` — which does
-exist, discharging the row's "check first whether the flag even exists"
-(`gmpi_ui/helpers/NativeUi.h:94`, `0x20`). It REPLACES the primary rather than
-joining it: a real right-click reports SecondButton alone, and a widget testing
-for FirstButton would otherwise read one gesture as both a context menu and a
-selection change.
-
-**What is not, and why it cannot be a flag.**
-
-- the menu is raised by `DrawingFrameCommon::doContextMenu(point, flags)`, on
-  the **FRAME**;
-- `cmdPointer` calls `context.inputClient->onPointerDown(...)` — the **INPUT
-  CLIENT** — and never touches the frame;
-- and `doContextMenu`'s own comment says macOS deliberately does not call it
-  from the shared path (*"Doing it here too gave macOS two presses per
-  right-click"*), so on macOS the menu comes from the Cocoa view's right-mouse
-  handler, further still from the channel.
-
-**THE MEASUREMENT, AND THE CONTROL IS THE WHOLE POINT.** A right-click that
-changes nothing looks identical to a right-click that missed. So:
-
-```
-LEFT  click at (286,390)  ->  96543 pixels changed   (selects the module,
-                                                      opens the properties pane)
-RIGHT click at (286,390)  ->  {"right":true}, ZERO pixels changed
-probe in populateEditorContextMenu -> ZERO hits
-```
-
-Without the left-click control the zero would have read as a bad coordinate,
-and I would have spent the next hour hunting DIP conversions. I nearly did: my
-first attempt clicked (700,400), got zero, and the left-click control there was
-*also* zero — because it was empty canvas, where a left click legitimately does
-nothing. Two zeros meaning two different things. Moving to a point where the
-control was non-zero is what made the second zero mean something.
-
-**And the Accept's instrument was never going to work either.** It asks that
-`--screenshot` show the menu. `cmdScreenshot` reads `context.framePixels` — the
-app's **own render buffer** — and a macOS popup is a separate window, so a
-native menu could not appear in it at any point. Whoever re-attempts this wants
-a probe in `populateContextMenu` or the menu model, not a picture.
-
-**What is actually left:** a VERB, not a modifier, calling `doContextMenu` or
-the platform equivalent, which means exposing the frame to the dispatcher.
-Larger than the row assumed. V7's on-screen half stays unverified meanwhile,
-which is honest and recorded on both rows.
-
-## 2026-08-26 — macos — E33: TIDE was throwing away the view the document stored, and it cost an empty rack (scheduled run)
-
-**Prompt:** "i merged stuff, sync repos, continue."
-
-**I went to take E37 and found E33 underneath it.** E37 says the rack origin,
-the content and the viewport are in three different places. Chasing which,
-after V6, produced a much sharper answer: TIDE never applied the document's
-stored pan and zoom, and V6 had just moved the default content somewhere that
-made the omission fatal.
-
-**THE OUT-OF-BOX EXPERIENCE ON `main` WAS BARE RAILS.** A fresh standalone drew
-an empty rack. The rack was loaded the whole time —
-`check-rack-populated.py` says `default rack loaded, 24894 byte document` and
-the gate passes — and `DefaultRack.synthedit` even stores the view that would
-show it, `PanelLocationCenter (1349, 284)`. TIDE discarded it on every open.
-
-That is precisely the trap E33's own row records costing a windows run most of a
-session, and the reason for its rule: **a claim of absence needs a trace or a
-document dump, never a screenshot.** I nearly filed "the default rack does not
-render" off a screenshot before checking the document.
-
-**THE FIX IS THE ONE LINE THE ROW PROMISED, AND THE OLD LINE WAS IN THE WRONG
-UNITS.** `viewOb->setCenter({ kRackViewDips / 2, kRackViewDips / 2 })`.
-`kRackViewDips` is 1008 — the rack view's **size in DIPs** — and half of it, 504,
-was being used as a **document coordinate**. The canvas is 7968 across,
-`CContainer`'s default centre is (3984, 3984), and the rack origin is the panel
-rect at (3732, 3732). So the viewport was parked **3400 DIPs from the rack**.
-That is why this is not a like-for-like swap and why a blank document is
-*better* off after it: (3984, 3984) is 252 DIPs from the rack origin.
-
-Only the RESTORE was ever missing. The persist half already worked: `ViewBase`'s
-pan and zoom handlers call `Presenter()->SetViewCenter`/`SetPanZoom`,
-`MfcDocPresenter` writes them into the container, and they serialise.
-
-**MEASURED THREE WAYS, because "the picture looks better" is not a measurement:**
-
-1. **Same build, same document, only the stored view changed** — `(1349,284)@0.38`
-   against `(3984,3984)@1.0`: **20.1% of the rack canvas differs.** The view
-   demonstrably follows the document.
-2. **Before vs after on the shipped default rack: 20.6% differs** — bare rails to
-   a drawn module.
-3. An injected `center=(400,3900) zoom=1.0` survives launch+quit **exactly**.
-
-**A metric I threw away, recorded because it was tempting and wrong.** My first
-readout counted "light pixels in the rack canvas", expecting more of them once a
-module appeared. It went DOWN, 4.69% to 2.69% — because the rails are light too,
-and the after-shot is zoomed to 38% so there is less rail on screen. The metric
-measured rails, not modules. A pairwise diff between the two shots says what I
-actually wanted to know.
-
-**E33's own coupling rule, honoured.** The row says whoever moves second must
-re-run the other's Accept, because `setCenter` existed to feed
-`AddModule(id, getCenter())`. E36 has since replaced that with a next-free-slot
-search, so the coupling is weaker than the row assumed — but I re-ran E36's
-Accept anyway: **`ok  no overlaps among 6 placed module(s)`**, every insert
-`on-grid  fits row`, only the same pre-existing off-grid `MIDI In`.
-
-**WHAT THIS EXPOSES NEXT, and I did NOT fix it.** The shipped default rack puts
-its two modules **1341 DIPs apart on rack row −9**, while the rack's panel rect
-is **480 wide at row 0** — outside the rails and 2.8x wider than the window a DAW
-would export. The file compensates with `PanelLocationZoom="0.38146973"`, which
-is why the view is now legible but tiny, and which looks like an artifact of
-wheel-zooming while authoring. That is a DATA change to V6's file, landed hours
-earlier from another box, and re-authoring someone's shipped default is a
-product decision rather than a bug fix. E37 is re-scoped to exactly that and
-nothing else.
-
-**Not verified, stated rather than implied:** a pan driven by a real user
-gesture — the command channel has no wheel verb, the sibling of E38's missing
-right-click — so the persist leg is verified by code path and document
-round-trip, not by scrolling; and a DAW project, which the Accept also asks for.
 
 ## Rotation — do this as part of STEP 4, every run
 

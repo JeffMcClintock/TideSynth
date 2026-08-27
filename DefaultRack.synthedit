@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="1709088982" SelectedViewType="128" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0" rack_mode="true">
+<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="1996595734" SelectedViewType="256" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0" rack_mode="true">
     <WindowLayout>
         <MainWindow l="152" t="152" r="3032" b="1689" monitor="\\.\DISPLAY1" ml="0" mt="0" mr="3840" mb="2160"/>
     </WindowLayout>
@@ -11,15 +11,19 @@
         <PatchManager>
             <ProgramNames/>
             <Parameters>
-                <param type="8" handle="13007926" stateful="false" module="732585325" moduleParamId="0"/>
                 <param type="10" handle="1100194740" private="true" hostControl="49">
                     <patch-list>
                         <s repeat="128"></s>
                     </patch-list>
                 </param>
+                <param type="8" handle="1730994779" stateful="false" module="258587584" moduleParamId="0"/>
             </Parameters>
         </PatchManager>
         <modules>
+            <module type="MIDI In NL" handle="258587584">
+                <structRect l="3540" r="3600" t="3828" b="3852"/>
+                <panelRect l="0" r="0" t="0" b="0"/>
+            </module>
             <module type="Container" handle="1157435856" name="TiDE Output" PanelLocationZoom="0.1" StructLocationZoom="1" ViewOpenFlags="384" rack_module="true" skin="default3">
                 <plugs>
                     <plug default="1" idx="2"/>
@@ -71,10 +75,6 @@
                 <StructScroll x="3734" y="3734"/>
                 <PanelWndOffset cx="-99999" cy="-99999"/>
                 <panel_rect l="0" r="48" t="0" b="384"/>
-            </module>
-            <module type="MIDI In" handle="732585325">
-                <structRect l="3528" r="3588" t="3828" b="3870"/>
-                <panelRect l="3852" r="3860" t="3732" b="3746"/>
             </module>
             <module type="SE MIDI to CV 2" handle="70768971">
                 <structRect l="3660" r="3720" t="3828" b="3912"/>
@@ -183,7 +183,7 @@
                 </lines>
                 <PanelLocationCenter x="5.8741093" y="222.72729"/>
                 <StructLocationCenter x="3984" y="3984"/>
-                <PanelWndPosition l="36" r="150" t="276" b="660"/>
+                <PanelWndPosition l="36" r="132" t="276" b="660"/>
                 <PanelLocation l="0" r="500" t="0" b="500"/>
                 <StructLocation l="0" r="500" t="0" b="500"/>
                 <PanelScroll x="-244" y="-27"/>
@@ -198,15 +198,15 @@
             <line type="Line" handle="185720371" lineType="1" fMod="70768971" tMod="1709088982" fPlg="4" tPlg="9"/>
             <line type="Line" handle="1311285963" lineType="1" fMod="70768971" tMod="1709088982" fPlg="5" tPlg="10"/>
             <line type="Line" handle="4224648" lineType="1" fMod="70768971" tMod="1709088982" fPlg="6" tPlg="11"/>
-            <line type="Line" handle="840371022" lineType="1" fMod="732585325" tMod="70768971" fPlg="1"/>
+            <line type="Line" handle="407755986" lineType="1" fMod="258587584" tMod="70768971"/>
         </lines>
         <PanelLocationCenter x="940.37683" y="584.74042"/>
-        <StructLocationCenter x="4140" y="3864"/>
+        <StructLocationCenter x="3858" y="3882"/>
         <PanelWndPosition l="0" r="0" t="0" b="0"/>
         <PanelLocation l="0" r="500" t="0" b="500"/>
         <StructLocation l="0" r="500" t="0" b="500"/>
         <PanelScroll x="690" y="334"/>
-        <StructScroll x="3890" y="3614"/>
+        <StructScroll x="3608" y="3632"/>
         <PanelWndOffset cx="-99999" cy="-99999"/>
         <panel_rect l="3732" r="4212" t="3732" b="4212"/>
     </master_container>
@@ -230,7 +230,7 @@
                 <Pin name="Spare" datatype="float" rate="audio" autoRename="true" autoDuplicate="true" isContainerIoPlug="true"/>
             </Audio>
         </Plugin>
-        <Plugin id="MIDI In" class="2" name="MIDI In" flags="384" category="MIDI">
+        <Plugin id="MIDI In NL" class="2" name="MIDI In (no LED)" flags="256" category="MIDI">
             <Parameters>
                 <Parameter id="0" datatype="int" name="" persistant="false"/>
             </Parameters>
@@ -239,9 +239,6 @@
                 <Pin name="Activity" datatype="int" direction="out" private="true" parameterId="0"/>
                 <Pin name="MPE Mode" datatype="bool"/>
             </Audio>
-            <GUI graphicsApi="GmpiGui">
-                <Pin name="Activity" datatype="int" private="true" parameterId="0"/>
-            </GUI>
         </Plugin>
         <Plugin id="SE Label" name="Label" flags="384" category="Sub-Controls">
             <GUI graphicsApi="GmpiGui">

@@ -34,6 +34,66 @@ defaults are not.
 ## Open — PROPOSED, awaiting a merge to become decisions
 
 ```
+PROPOSED: What does a TIDE binary do when it needs to ask the user a question
+          and nobody is at the keyboard? (BACKLOG E51)
+
+  Options: (a) REPORT ONLY -- every prompt is announced on the command channel
+               as an event, and as a field on any reply that follows. It still
+               blocks; a headless caller can at least say WHAT it is blocked on.
+           (b) REPORT AND ANSWER -- (a) plus a `--dialog <button>` verb, so a
+               run can clear the prompt and carry on.
+           (c) HEADLESS POLICY -- a prompt raised while no user is present never
+               becomes a window at all: it resolves to a declared default and is
+               reported as a structured result.
+
+  Recommended default: (c), with (a) as its reporting half -- because the
+    failure this is being asked about happens DURING STARTUP, before the
+    command channel exists, and neither (a) nor (b) can reach it. A prompt that
+    is never raised is the only kind a pre-channel run survives.
+
+  Default in effect meanwhile: what happens today -- the dialog goes up, the
+    main thread sits in its nested modal loop, and a scheduled run sees a live
+    process with no window, no channel and no output. Indistinguishable from a
+    crash or a slow build.
+
+  May proceed meanwhile: THE CHOKEPOINT, which is the actual work and is
+    identical under every option -- every user-facing prompt routed through one
+    app-owned function instead of calling `MessageBox` / `NSAlert` directly.
+    Nothing can be reported, answered or suppressed until that exists, and it
+    commits to none of (a), (b) or (c).
+
+  Decide-by: before any Accept phrased "save and reload" is claimed as
+    automated. Such an Accept cannot be run headlessly today, and a run that
+    tries it hangs rather than fails.
+```
+
+**Measured 2026-08-27 (windows), which is what prompted the question.** Relaunching
+the standalone on a saved 49,607-byte rack (five prefabs inserted by hand, plus a
+`VCV: Compare` that turned out to be there already -- see BACKLOG **E50**):
+
+```
+process alive, Responding=True, CPU 0.09 s, 30 s+     no pipe name ever printed
+only evidence available:  MainWindowTitle == "Connectors lost while loading"
+after a human dismissed it: restore completed normally
+```
+
+Three things that make this a policy question rather than a bug report:
+
+- **It is upstream of E43's fix.** E43 bounded a command that starts and never
+  finishes, which is the same modal-loop mechanism one layer up. Its deadline
+  needs a connection to answer on; this dialog is raised before the channel
+  opens, so there is nothing to bound and nothing to answer.
+- **The only handle a caller has is `MainWindowTitle`.** Reading a Win32 window
+  title to discover why an automated run is stuck is not an interface, and it
+  has no equivalent on the other two platforms.
+- **PLAN's constraint 5 already leans one way.** *"If something needs a dialog,
+  question whether it needs to exist."* This particular prompt reports data loss
+  the user cannot act on at a moment they cannot act at, and it fires on the path
+  a DAW takes when loading a project -- a session with twenty instances would
+  raise twenty of them. Whatever is decided here, that one is also **E48**.
+
+
+```
 PROPOSED: What should TIDE call the four view-navigation context-menu items,
           given they keep their SynthEdit names there? (BACKLOG V7)
 
