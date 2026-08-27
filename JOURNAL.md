@@ -8,6 +8,33 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — windows — E48 DONE and archived; the win NEXT cell points at E19 and sheds 9 KB of history (state update, interactive, Jeff directing)
+
+**Prompt:** *"merge in order"*
+
+**Did:** merged [SynthEditLib#65](https://github.com/JeffMcClintock/SynthEditLib/pull/65) then
+[#521](https://github.com/JeffMcClintock/TideSynth/pull/521) — CI green on all
+three platforms, which also verifies the mac and linux builds of the three new
+modules. **E48 → DONE, archived.** Its byte-identical clause lives on as **E56**
+(renumbered from E55 after colliding with the mac agent's #523 row — the fourth
+same-day id collision this project has logged).
+
+**The `win` NEXT cell now points at E19's VST3 cell**, whose every named blocker
+is closed: E27/E29 long done, and "no prepared rack reloads reliably" ended with
+E48. E53 is taken (open #516 plus the macOS diagnosis in #523); E56 waits on a
+gated ruling.
+
+**And the cell lost 9 KB of history, forced by its own lint.** Flipping E48 made
+`check-next-block.py` flag `TAKE E48` in the cell — then a second phrasing three
+generations down, then a third. Each accreted "Previous cell follows" layer
+carried live-looking imperatives about rows that have since archived. Pruned to
+the current generation plus the one standing warning (STEP 1's structurally
+empty feed); the history is all in this journal under its dates. **A cell that
+only ever prepends becomes a list of instructions that were once true** — the
+lint was right three times, and pruning beat a fourth reword.
+
+**Branch/PR:** `tide/win/E48-flip-done` — rows, the cell, this entry. Bookkeeping only.
+
 ## 2026-08-28 — windows — E48 built: the three prefab modules join the compiled-in set, and the round trip surfaces a serialization oscillation (interactive, Jeff directing)
 
 **Prompt:** *"so we need to ship these extra modules with TiDE i guess"* · Fable 5, `claude-fable-5` · as **tide-rack-bot**
