@@ -361,6 +361,221 @@ run's. No TIDE process left running.
 E50's archive, the `win` NEXT cell's defused phrase, the `mac` NEXT cell, and this entry).
 **Merging TideSynth's side alone changes no behaviour**; merging GMPI_Wrappers' alone
 leaves the backlog saying the work is open.
+## 2026-08-27 — windows — The second gate was __argv itself, the whole quiet chain now measures working, and E46's guard fired in production (interactive, Jeff directing)
+
+**Prompt:** *"find the second gate"* · Fable 5, `claude-fable-5` · as **tide-rack-bot**
+
+**Did:** found it, fixed it on
+[GMPI_Wrappers#29](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/29)'s
+branch (`ed03305`), and measured the whole chain end to end. **E46 goes DONE and
+is archived** — its Accept was met by observation on the way. E48 gains a third
+missing module. E51's mechanism is now real on Windows, pending #29's merge.
+
+### The gate, and why the first fix could not have worked
+
+**In a Unicode build entered through `wWinMain`, the CRT populates only
+`__wargv`; `__argv` stays NULL.** The first commit on #29's branch passed
+`__argc, __argv` — a count without its strings — and `applyCommandLineConfig`
+correctly refused the pair. Exactly as inert as the `(0, nullptr)` it replaced,
+one line later.
+
+**The trace found it in one launch.** On the previously-rebuilt exe:
+
+```
+TIDE: command line: argc=2, argv=NULL
+```
+
+`argc` arrived; `argv` did not. No amount of stack reading had produced that —
+three offline analyses ruled things *out*, and the one line of instrumentation
+ruled the answer *in*. That is what "instrument the app" bought.
+
+The fix converts `__wargv` to UTF-8 once, into function-local statics, because
+`gArgv` aliases the pointers for the life of the process. Still the CRT's own
+parse — same splitter that fed `wWinMain`, nothing to `LocalFree`, no second
+parser to disagree with the first.
+
+### The chain, measured end to end on the fixture that blocked every run today
+
+```
+TIDE: command line: argc=2 -quiet
+TIDE: parsed quiet=1 rescan=0
+Logging dialogs to stderr, and keeping them for --dialogs.
+...
+Module not found in factory: SE Scope3 XP
+Module not found in factory: SE Oscillator
+Module not found in factory: SynthEdit ADSR
+3 connector(s) in "Sine" could not be restored ...
+5 connector(s) in "AR" could not be restored ...
+command channel: \\.\pipe\gmpi-standalone.30644
+```
+
+**The restore completes. The channel opens. `--dialogs` answers count=6** with
+every title and text intact — the two `Connectors lost while loading` reports
+carry their captions, the factory prompts their empty ones. Jeff's question from
+this morning — *"is the dialog fixed so it reports to MCP?"* — is now **yes**,
+measured, on this branch.
+
+### Three modules, not two — and the best census was never the check
+
+The unblocked restore enumerates **`SE Oscillator`** as missing too.
+**It passed BOTH of the check's screens**: its string occurs in the binary by
+coincidence and no staged XML describes it, so offline screening scored it
+registered. Third correction to that count today (one → two → three), and the
+lesson has stabilised: **the authoritative census is one `-quiet` launch of the
+fixture and a read of stderr or `--dialogs`** — the app names exactly what it
+cannot resolve, per container, connectors included. The offline check stays as a
+cheap screen; its pass proves nothing.
+
+### E46's Accept, met by an event nobody staged
+
+Three times in that log:
+
+```
+SynthEdit: parameter names module handle 481794193, which this document does not contain -- parameter left with no module.
+```
+
+That is the guard from
+[SynthEditLib#64](https://github.com/JeffMcClintock/SynthEditLib/pull/64) firing
+on a **real saved document** in a Release build — the exact condition E46 was
+filed on, reached by the route the row predicted second (a parameter whose
+module was dropped) via E48's missing-prefab-module class. The document loaded
+degraded, the rack built, the app ran on. Every crafted document had failed to
+reach the condition; a genuinely broken prefab reached it naturally. **E46 is
+DONE and archived.**
+
+**Learned:**
+
+- **`__argv` is NULL under `wWinMain` in a Unicode build.** A count forwarded
+  without its strings is as inert as no count, and the compiler is happy with
+  both.
+- **One line of instrumentation beat three offline analyses.** The stack, the
+  vcxproj and the source each ruled something out; only the app saying
+  `argc=2, argv=NULL` said what was true.
+- **A guard's best verification can arrive as a side effect.** E46's Accept was
+  unreachable by construction for two days of crafted documents, then a real
+  defective prefab met it in passing.
+- **When the product can report on itself, prefer that to screening it from
+  outside.** Three rounds of check-corrections converged on: launch it quiet and
+  read what it says.
+
+**Next:** #29 is ready for Jeff's review — with it, every "save and reload"
+Accept on Windows becomes drivable headlessly, which is the population E44 was
+counting. E48's remaining work is unchanged and now three modules wide. E53
+still wants its faulting address.
+
+**Machine state.** `RackModules/AR_jef.synthedit` still dirty — Jeff's, left
+untouched. One regret owned in the moment: an unconditional pre-sweep killed the
+TIDE instance Jeff had the dialog open in (PID 25328). All repos on expected
+branches; `%APPDATA%\TIDE Rack\` restored and md5-verified; nothing of ours
+running.
+
+**Branch/PR:** rows and this entry on `tide/win/E51-argv-trace`
+([#518](https://github.com/JeffMcClintock/TideSynth/pull/518)); the code is the
+second commit on [GMPI_Wrappers#29](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/29).
+
+## 2026-08-27 — windows — The instrument said argc=0; then Jeff photographed the dialog and it named a different module than I had (interactive, Jeff directing)
+
+**Prompt:** *"is the dialog fixed so it reports to MCP?"* → *"chase it"* → *"instrument the app to find out"* · Opus 5 (1M context), `claude-opus-5[1m]` · as **tide-rack-bot**
+
+**Did:** answered the question — **no** — found the measured cause of quiet mode
+being inert on Windows, proposed the fix as
+[GMPI_Wrappers#29](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/29)
+(PR-GATED, not merged), landed a permanent command-line trace, and **corrected
+E48 and the check I had shipped hours earlier**.
+
+### Answer: no, and here is why, in one line per shell
+
+```
+int runStandaloneApp(PlatformShell& shell, int argc = 0, char** argv = nullptr);
+```
+
+**Defaulted parameters, and only the mac shell passes them.** Windows and Linux
+both called `runStandaloneApp(shell)`, so `gArgc`/`gArgv` stay `0`/`nullptr`,
+`applyCommandLineConfig` bails at `argc <= 1 || !argv`, `SetQuiet()` is never
+called, and **`-quiet` has never done anything on two of three platforms.**
+
+The defaults are what made it silent — without them the shells would not have
+compiled.
+
+**The instrument settled it in one launch:** `TIDE: command line: argc=0,
+argv=NULL`. That trace is now permanent (`SynthEditController.cpp`,
+standalone-only), because this function failing open is otherwise invisible:
+every flag simply does nothing and the symptom looks like the default.
+
+**The corroboration was already in every log I had.**
+`CSynthEditAppBase::SetQuiet()` announces itself — it sets `quiet` then calls
+`SeMessageBox("Logging dialogs to stderr, and keeping them for --dialogs.")`.
+Across every `-quiet` launch of a long session that line appeared **zero** times.
+I had the positive control the whole time and did not think to look for it.
+
+**Necessary but not sufficient, measured:** with argv forwarded and the exe
+relinked, `SetQuiet()` **still** does not fire and E48's modal still blocks. A
+second gate remains and I have not found it. Ruled out: the `GMPI_STANDALONE`
+guard (target-wide on the standalone), ordering (`applyCommandLineConfig` runs in
+`initialize`, before `setParameter`), and the divert itself.
+
+### And then the photograph
+
+Jeff sent a screenshot of the actual box:
+**`Module not found in factory: SE Scope3 XP`** — from `Sine_jef.synthedit`, not
+the `SynthEdit ADSR` in `AR_jef.synthedit` that I had named as *the* cause hours
+earlier and merged into E48.
+
+**Both are real. Neither is "the" cause. The defect is a class:** shipped prefabs
+using modules TIDE does not register.
+
+**Why my check missed the one the user actually sees.** It tested only *absence
+from the binary*. `SE Scope3 XP` **is** a string in the exe and **is** described
+by the staged `ControlsXp.xml`, so it scored as present. But **staging an XML
+enriches the pins of a module TIDE already registers; it registers nothing.**
+
+And the measurement of exactly that has been printed at every startup all
+session:
+
+```
+TIDE: ControlsXp.xml enriched 2 of 18 described class(es)
+```
+
+**Sixteen described classes TIDE does not have.** I read past that line in a
+dozen logs, including in the entry where I quoted the surrounding lines verbatim.
+
+The check now runs two screens and catches both — with the false-positive
+direction stated, because (b) would wrongly flag a module both registered in C++
+and described in a staged XML.
+
+**Learned:**
+
+- **A screen that catches one instance is not a diagnosis of the class.** I found
+  one missing module, stopped, and wrote "the cause" into a merged row. The
+  second one was in a different prefab and was the one on screen.
+- **Present-in-the-binary does not mean registered.** I wrote in the script's own
+  docstring that presence proves nothing and absence is decisive — and then
+  treated a single absence hit as the complete answer. Being right about the
+  logic did not stop me misusing it.
+- **The instrument you need is often already printing.** `enriched 2 of 18` and
+  `SetQuiet`'s announcement were both in every log; each would have saved hours,
+  and I went looking for new instruments instead of reading the ones running.
+- **Default arguments can turn a missing call into a silent no-op.** Two of three
+  shells threw the command line away and nothing failed anywhere.
+- **A photograph from a human beat three offline analyses.** The stack told me
+  which call site; only the screen told me which module.
+
+**Next:** the second gate on quiet mode. The trace now landed is the tool for it —
+the next step is one line reporting whether `SetQuiet()` was reached. And **E48's
+fix is Jeff's, now twice over**: two prefabs to re-author, or two modules to add
+to the compiled-in set.
+
+**Machine state.** `RackModules/AR_jef.synthedit` is dirty in the working tree —
+**Jeff's, being edited in SynthEdit 1.6 while this ran, left untouched.** A
+TIDE-Rack he launched is showing the dialog above; not mine and not swept. All
+other repos on their default branches and clean; `%APPDATA%\TIDE Rack\` restored
+and md5-verified.
+
+**Branch/PR:** `tide/win/E51-argv-trace` — the corrected check, the command-line
+trace, E48's and E51's corrections, and this entry. The wrapper fix is
+[GMPI_Wrappers#29](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/29),
+proposed only.
+
 ## 2026-08-27 — macos — E54: the gate reads the library's diagnostic now, and the obvious place to put it would have matched nothing (scheduled run, continued)
 
 **Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude Code (no `claude` on this box's PATH) · as **tide-rack-bot** (both paths) · continued from the E25 entry below at Jeff's *"fix E54"*
