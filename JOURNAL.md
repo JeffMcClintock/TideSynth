@@ -8,6 +8,68 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E53 reproduced 3/3 with a faulting address, and the cause is a guard #64 missed
+
+**Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell* · as tide-rack-bot (both)
+
+**Did:** took **E53**, reproduced it on macOS **3/3**, and produced the faulting address and named cause the row's first stage asked for. **Row back to TODO** — the Accept (*"the fixture loads and runs without faulting"*) is **not** met and the fix is GATED. Branch `tide/mac/E53-mac-repro`.
+
+### Why this box could take a row the windows box could not
+
+E53 could not be re-measured on 2026-08-28 because the repro needs a config folder only one process can own, and `configRoot()` has **no environment override on Windows** — that asymmetry is **E55**. On macOS the same function reads `$HOME`, so the fixture ran in a fully isolated config root, three times, touching nothing of Jeff's. **The row's blocker was platform-specific, not intrinsic**, which is the kind of thing worth checking before recording a row as stuck.
+
+### The fault — 3/3 identical
+
+```
+EXC_BAD_ACCESS / SIGSEGV   KERN_INVALID_ADDRESS at 0x51
+faulting thread 11 = the CoreAudio render thread
+
+  dsp_patch_parameter_base::UpdateOutputParameter(int, UPlug*) +24
+  ug_base::HandleEvent(SynthEditEvent*) +124
+  ug_base::DoProcess(int, int) +260
+  SeAudioMaster::DoProcess_plugin(...)
+  SynthRuntime::process(...)
+  gmpi::standalone::StandaloneHost::processAudio(...)
+  gmpi::standalone::AudioDriverCoreAudio::renderProc(...)
+```
+
+Three `.ips` reports, same address, same top frame. **This confirms the row's "after the graph is live" as a thread fact, not an impression:** E49 died *during graph build*; this dies inside `process()`.
+
+### The cause: a fourth assert-only lookup that #64 missed
+
+`ug_patch_param_watcher::onSetPin`, `SynthEditLib/ug_patch_param_watcher.cpp:160-161`:
+
+```cpp
+assert(patchParams[paramNumber]);                        // compiles out under NDEBUG
+patchParams[ paramNumber ]->UpdateOutputParameter( ... ); // unguarded deref
+```
+
+`:145` has no assert at all. And [#64](https://github.com/JeffMcClintock/SynthEditLib/pull/64) — *"Guard three assert-only lookups that compile out under NDEBUG"* — touched `PatchManager.cpp`, `PropertiesBrowser.cpp` and `ug_patch_param_setter.cpp`. **`ug_patch_param_watcher.cpp` was not among them**, verified with `git show --stat 796bbc2`.
+
+### And that links E49 and E53 mechanically, which is the durable part
+
+E49's guard (`ug_patch_param_setter.cpp:203`) leaves the pin *"unconnected rather than dereferenced"* — the eight `no patch parameter for module 987654321 parameter id 0..7` lines print on every run of this fixture, and `987654321` is the `VCV: Scope`. Those eight entries stay **null** in `patchParams[]`. The watcher then dereferences one of them on the audio thread.
+
+**So #64 did not fix the null — it moved where the null is dereferenced, from graph build into `process()`. It made the document loadable but not runnable.** That is not a criticism of #64, which did exactly what it claimed; it is the reason a guard that converts a crash into a degraded state needs someone to ask what consumes the degraded state.
+
+### Not done, deliberately
+
+**The fix is two guards of the same shape as #64, and it is GATED.** Not written: Jeff authorised the **E39** GATED edit specifically, not a standing exception, and this is not a build break so STEP 5's exception does not reach it.
+
+**One trap for whoever reproduces it:** the fixture holds five VCV modules, and `TIDE_VCV_FUNDAMENTAL` defaults **OFF** — with it off they do not resolve and you get an E48-shaped missing-module failure instead of this one. I nearly measured the wrong bug; the giveaway was `strings` finding no VCV symbols in the first binary I reached for.
+
+Fixture verified byte-exact before use: 38,658 B, md5 `9248a7ee283cf8a4c1dfaaeb811f32b4`, `grep -ci compare` = 0 — which independently confirms the README's correction to E49's module list.
+
+**Learned:**
+
+- **A row blocked by a platform's tooling is not blocked everywhere.** E53 sat unmeasured because Windows cannot redirect its config root; macOS can, and the whole reproduction took three runs. Check whether a stated blocker is intrinsic or local before recording a row as stuck.
+- **A guard that turns a crash into a degraded state has moved the failure, not removed it.** #64 was correct and its own Accept was met; the null it stopped dereferencing was still null, and the next consumer was on the audio thread.
+- **Fixing three of a kind invites checking for a fourth.** #64's own title says *three* assert-only lookups; the same pattern in a fourth file is what E53 turned out to be.
+
+**Next:** E53 needs two guards in `ug_patch_param_watcher.cpp` — GATED, and the same shape Jeff already merged once as #64. **E55** would remove the reason this row stalled on Windows at all.
+
+**Branch/PR:** `tide/mac/E53-mac-repro`.
+
 ## 2026-08-28 — macos — E39 built: the rack is a whole number of rows, and the two measurements this row called contradictory are both right (interactive, Jeff directing)
 
 **Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell* · as tide-rack-bot (both)
