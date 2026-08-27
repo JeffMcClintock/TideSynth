@@ -464,10 +464,23 @@ jobs:
             echo "  ok $f ($(wc -c < "$f") bytes)"
           done
 
+          # ONLY the named assets leave this job. `dist/` is a WORK directory,
+          # not a manifest: package-macos.sh leaves its entire staging payload
+          # there (root/ with every bundle unpacked, plus component.pkg and
+          # Distribution.xml) and package-windows.ps1 leaves the README it folds
+          # into both of its assets. Uploading dist/ wholesale published TWENTY
+          # of those on v0.1.3 as individual downloads -- bundle internals
+          # (Info.plist, CodeResources, Assets.car) and raw Mach-O executables
+          # among them. Copy out what is named; leave the rest behind.
+          mkdir -p "$GITHUB_WORKSPACE/upload"
+          for f in $expected; do cp "$f" "$GITHUB_WORKSPACE/upload/"; done
+          echo "==> staged for upload:"
+          ls -l "$GITHUB_WORKSPACE/upload"
+
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.name }}
-          path: dist/
+          path: upload/
           if-no-files-found: error
 
   publish:
@@ -485,8 +498,32 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          find staging -type f -exec mv -n {} dist/ \;
+          # -mindepth/-maxdepth 2: an artifact arrives as staging/<name>/<file>,
+          # so its files sit at exactly depth 2. The bare recursive `find` this
+          # replaces walked INTO whatever a job uploaded, which is how bundle
+          # internals got flattened onto v0.1.3 as individual release assets.
+          find staging -mindepth 2 -maxdepth 2 -type f -exec mv -n {} dist/ \;
           cd dist
+
+          # ASSERT THE SET, NOT JUST ITS MEMBERS. The per-platform check in the
+          # build job says the named assets are PRESENT. Nothing said nothing
+          # ELSE was, and that gap is exactly how v0.1.3 shipped twenty extra
+          # files behind a check that reported success. A release is public and
+          # permanent, so an unexpected asset now FAILS the release rather than
+          # being published and pruned by hand afterwards.
+          #
+          # The list is docs/distribution.md's. SHA256SUMS.txt is written after
+          # this check, so it is never compared against itself.
+          want="TIDE-Rack-Linux.tar.gz TIDE-Rack-Windows.exe TIDE-Rack-Windows.zip TIDE-Rack-macOS.pkg"
+          want="$(printf '%s\n' $want | sort)"
+          got="$(ls | sort)"
+          if [ "$want" != "$got" ]; then
+            echo "::error::release asset set is not what docs/distribution.md specifies"
+            echo "--- want ---"; printf '%s\n' "$want"
+            echo "--- got  ---"; printf '%s\n' "$got"
+            exit 1
+          fi
+
           # Sorted so the file is byte-stable for a given set of assets, which
           # makes two releases diffable.
           sha256sum $(ls | sort) > SHA256SUMS.txt
