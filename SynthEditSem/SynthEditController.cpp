@@ -80,6 +80,34 @@ void applyCommandLineConfig(CSynthEditAppBase& app)
 #endif
 }
 
+
+// Let the command channel read the prompts quiet mode diverted.
+//
+// The converting layer between two types that must not know each other: the
+// wrapper is built against plugins that have never heard of EditorLib, and
+// EditorLib has never heard of the standalone. This file is the one place that
+// sees both, so the copy happens here.
+//
+// SAME GUARD AS THE FLAG ITSELF. Inside a DAW there is no standalone to install
+// into, and the wrapper's symbols are not even linked.
+void installDialogDrain(CSynthEditAppBase& app)
+{
+#if defined(GMPI_STANDALONE) && GMPI_STANDALONE
+	// `app` outlives the channel: the controller owns it and the channel is
+	// stopped during the same teardown, so capturing the address is safe.
+	gmpi::standalone::setDialogDrain([&app]()
+	{
+		std::vector<gmpi::standalone::DivertedDialog> out;
+		for (auto& p : app.takeDivertedPrompts())
+			out.push_back({ p.title, p.text, p.flags, p.answered });
+
+		return out;
+	});
+#else
+	(void)app;
+#endif
+}
+
 } // namespace
 
 class SynthEditController final : public gmpi::api::IController
@@ -121,6 +149,7 @@ public:
 		tideApp = app;
 
 		applyCommandLineConfig(*app);
+		installDialogDrain(*app);
 
 
 		app->InitInstance();
