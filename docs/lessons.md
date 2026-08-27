@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **356 KB** across **284** entries, so copying them
+Learned sections are **356 KB** across **285** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **105 KB / 1148 lessons — 3.4x smaller**, and represents
+A8. This is **105 KB / 1151 lessons — 3.4x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,12 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — E55 built: one config-root override, and the build that silently didn't contain it**
+
+- A row parked on a transient condition should be re-tested, not inherited.
+- Verify the binary contains your change before you test its behaviour.
+- An additive override wants a same-paths control, not just a works control.
 
 **macos — E53 reproduced 3/3 with a faulting address, and the cause is a guard #64 missed**
 
