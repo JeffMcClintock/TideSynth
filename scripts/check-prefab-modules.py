@@ -24,32 +24,30 @@ What that costs, measured 2026-08-27 (windows):
 So a shipped prefab makes a saved project unloadable, which is PLAN's v0.1
 clause "the patch survives save-and-reload" failing on a shipped asset.
 
-TWO TESTS, BECAUSE ONE WAS NOT ENOUGH -- corrected 2026-08-27 the same day it
-shipped, when Jeff photographed the actual dialog and it named a DIFFERENT
-module from the one this script had found:
+ONE SCREEN, AND ITS HISTORY IS THE REASON IT IS ONLY ONE:
 
-  (a) ABSENT FROM THE BINARY. A registered module id has to exist as a string
-      literal somewhere in it, so a type appearing NOWHERE cannot be registered.
-      This is what caught `SynthEdit ADSR` in AR_jef.
+  ABSENT FROM THE BINARY. A registered module id has to exist as a string
+  literal somewhere in it, so a type appearing NOWHERE cannot be registered.
+  This caught `SynthEdit ADSR` in AR_jef. Its known weakness is SUBSTRINGS:
+  `SE Oscillator` scored as present for as long as OscillatorHD's id
+  `SE Oscillator4` contained it (2026-08-28).
 
-  (b) DESCRIBED ONLY BY A STAGED XML. TIDE stages ControlsXp.xml,
-      MidiPlayer2.xml, Converters.xml and VaFilters.xml to ENRICH the pins of
-      modules it already registers -- staging one registers NOTHING. So a type
-      whose only presence is a `<Plugin id=>` in one of those files is
-      described and absent, which reads as present to test (a). The startup
-      line says how bad it is: `ControlsXp.xml enriched 2 of 18 described
-      class(es)` -- sixteen described classes TIDE does not have. This is what
-      caught `SE Scope3 XP` in Sine_jef, which test (a) scored as fine.
+A second screen -- described-only-by-a-staged-XML -- existed for one day. It
+caught `SE Scope3 XP` (described by ControlsXp.xml, registered by nothing),
+and was retired by the fix for what it caught: Jeff ruled the prefab modules
+INTO the compiled-in set, at which point described-AND-registered became the
+normal state and the screen flagged every one of them wrongly, exactly as its
+own note predicted.
 
-FALSE POSITIVES ARE POSSIBLE UNDER (b) AND NOT UNDER (a): a module that is both
-properly registered in C++ AND described in a staged XML would be flagged
-wrongly. Measured today that set is empty -- across 14 distinct prefab module
-types the two rules together flagged exactly the two real defects and nothing
-else -- but it is the direction this script can be wrong in, and a maintainer
-who hits it should fix the rule rather than the prefab.
+THE AUTHORITATIVE CENSUS IS THE APP, NOT THIS SCRIPT. A `-quiet` launch of a
+saved rack reports every module it cannot resolve on stderr and via the
+command channel's --dialogs verb, per container, dropped connectors included:
 
-The real authority is what the running app registers, which no offline test can
-read. These two are screens, and the honest name for them is screens.
+    Module not found in factory: <type>
+
+One launch of the fixture answers what three revisions of offline screening
+each got partly wrong. This script remains as the cheap CI screen for the
+one direction it is sure of; treat its pass as a screen passing, not proof.
 
     python3 scripts/check-prefab-modules.py [--binary PATH] [--prefabs DIR]
 
@@ -111,20 +109,6 @@ def main():
         return (blob.count(name.encode('utf-8')) > 0
                 or blob.count(name.encode('utf-16-le')) > 0)
 
-    # Classes the staged XMLs merely DESCRIBE. Staging an XML enriches the pins
-    # of a module TIDE already registers; it registers nothing. So being here
-    # and nowhere else means described-but-absent -- see test (b) above.
-    described = {}
-    for x in sorted(glob.glob(os.path.join(os.path.dirname(binpath), '*.xml'))):
-        try:
-            xt = open(x, encoding='utf-8', errors='replace').read()
-        except OSError:
-            continue
-        for m in re.finditer(r'<Plugin\s+id="([^"]+)"', xt):
-            described.setdefault(m.group(1), os.path.basename(x))
-    print('%d class(es) described by %d staged XML(s)'
-          % (len(described), len(set(described.values()))))
-
     files = sorted(glob.glob(os.path.join(args.prefabs, '*.synthedit')))
     if not files:
         print('SKIP -- no prefabs under %s; nothing was checked.' % args.prefabs)
@@ -154,8 +138,6 @@ def main():
         for t in types:
             if not present(t):
                 bad.append((f, t, 'absent from the binary'))
-            elif t in described:
-                bad.append((f, t, 'described only by %s' % described[t]))
 
     print('%d prefab(s), %d distinct module type(s) checked' % (len(files), total))
     if bad:
@@ -170,7 +152,7 @@ def main():
         print('a product decision (PLAN constraint 7), not a build fix.')
         return 1
 
-    print('every prefab module type passes both screens, OK')
+    print('every prefab module type passes the screen, OK')
     return 0
 
 
