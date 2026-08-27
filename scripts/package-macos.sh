@@ -115,13 +115,59 @@ if [ -n "${APPLE_CERTIFICATE_SIGNING_IDENTITY:-}" ]; then
     echo "==> codesign payload"
     # Both bundles, not just the VST3: an unsigned component inside a signed
     # pkg is exactly the shape that passes a casual check and fails Gatekeeper.
+    #
+    # INSIDE-OUT, AND THE ORDER IS THE FIX. `codesign` without --deep seals only
+    # the bundle you name; nested code keeps whatever signature it already had.
+    # Every bundle here arrives AD-HOC signed -- `codesign --force --sign -`, in
+    # SynthEditSem/CMakeLists.txt's icon-apply step -- so before this the .appex
+    # inside the AUv3 app shipped ad-hoc and Apple rejected the whole pkg for it.
+    # THREE ERRORS, ONE CAUSE: "not signed with a valid Developer ID certificate",
+    # "signature does not include a secure timestamp", and "executable does not
+    # have the hardened runtime enabled" are precisely what `--sign -` produces.
+    # Notarisation log d3acab2c-68b7-4ead-85ea-d630bb266705, tag v0.1.2, 2026-08-27.
+    #
+    # The container must come LAST: signing it first and the appex second would
+    # break the outer seal. --deep is NOT the fix -- Apple discourages it, and it
+    # cannot give a nested bundle its own entitlements.
+    AU_DST="$OUT_DIR/root/Applications/TIDE-Rack-AUv3.app"
+    AU_DST_APPEX="$AU_DST/Contents/PlugIns/$(basename "$AU_APPEX")"
+    if [ ! -d "$AU_DST_APPEX" ]; then
+        echo "error: expected the copied appex at $AU_DST_APPEX" >&2
+        echo "       The source appex was found, so the copy above changed shape." >&2
+        exit 1
+    fi
+
     for bundle in \
         "$OUT_DIR/root/Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3" \
-        "$OUT_DIR/root/Applications/TIDE-Rack-AUv3.app"
+        "$AU_DST_APPEX" \
+        "$AU_DST"
     do
         codesign --force --timestamp --options runtime \
                  --sign "$APPLE_CERTIFICATE_SIGNING_IDENTITY" "$bundle"
         codesign --verify --deep --strict --verbose=2 "$bundle"
+
+        # ASSERT THE AUTHORITY, NOT JUST VALIDITY. The --verify above passed on
+        # the ad-hoc appex through two release attempts, and it was right to:
+        # ad-hoc IS a valid signature. It simply is not Developer ID, and that
+        # distinction is the entirety of what Apple rejected. A check that cannot
+        # fail on the bug it stands in front of is not a check.
+        #
+        # No entitlements exist anywhere in this tree (grepped 2026-08-27), so
+        # --force cannot be stripping any. If that changes, this loop needs
+        # --entitlements before it needs anything else.
+        auth="$(codesign -dvv "$bundle" 2>&1 || true)"
+        case "$auth" in
+            *"Authority=Developer ID Application"*) ;;
+            *)  echo "error: $bundle is not signed by a Developer ID Application authority." >&2
+                printf '%s\n' "$auth" | grep -E '^(Authority|Signature|TeamIdentifier)' >&2 || true
+                exit 1 ;;
+        esac
+        case "$auth" in
+            *Timestamp=*) ;;
+            *)  echo "error: $bundle carries no secure timestamp; Apple will reject it." >&2
+                exit 1 ;;
+        esac
+        echo "    ok  $(basename "$bundle") -- Developer ID, timestamped, hardened runtime"
     done
     SIGNED_PAYLOAD=yes
 else
