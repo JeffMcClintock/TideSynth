@@ -140,7 +140,10 @@
     border-radius: 2px;
   }
 
-  ul.plain { list-style: none; padding: 0; margin: 0; }
+  ul.plain { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+  /* the rules are per-item border-tops, so the list needs one at the end
+     too -- otherwise the text after it sits flush against the last row. */
+  ul.plain { border-bottom: 1px solid var(--rule); }
   ul.plain li {
     padding: .5rem 0;
     border-top: 1px solid var(--rule);
@@ -250,12 +253,66 @@
 
   <div class="status">
     <p>
-      <strong>Status: in development.</strong> There is nothing to download
-      yet. The first release will do one thing — load in a DAW, let you wire an
-      oscillator and an envelope to an output, play it from your keyboard, and
-      still be there when you reopen the project.
+      <strong>Status: early.</strong> Version 0.1.3 does one thing, and does it
+      end to end — load in a DAW, wire an oscillator and an envelope to an
+      output, play it from your keyboard, and still be there when you reopen the
+      project. Everything past that is unfinished.
     </p>
   </div>
+
+  <h2>Download</h2>
+
+  <p>
+    Version 0.1.3, free, the same build for everyone. Each link always points at
+    the newest release.
+  </p>
+
+  <ul class="plain">
+    <li>
+      <span><a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE-Rack-Windows.exe">Windows installer</a> — VST3</span>
+      <span>signed</span>
+    </li>
+    <li>
+      <span><a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE-Rack-Windows.zip">Windows, zip</a> — the same plugin, copy it yourself</span>
+      <span>signed</span>
+    </li>
+    <li>
+      <span><a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE-Rack-macOS.pkg">macOS installer</a> — AUv3 and VST3</span>
+      <span>signed and notarised</span>
+    </li>
+    <li>
+      <span><a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/TIDE-Rack-Linux.tar.gz">Linux</a> — VST3 and CLAP</span>
+      <span>unsigned</span>
+    </li>
+    <li>
+      <span><a href="https://github.com/JeffMcClintock/TideSynth/releases/latest/download/SHA256SUMS.txt">SHA256SUMS.txt</a></span>
+      <span>checksums</span>
+    </li>
+  </ul>
+
+  <p>
+    <strong>On macOS, open <code>TIDE-Rack-AUv3.app</code> once
+    after installing.</strong> The Audio Unit lives inside that app and macOS
+    does not register it until the app has been launched, so until you do, the
+    AUv3 will not appear in your host. The VST3 needs no such step.
+  </p>
+
+  <p>
+    On Linux the archive carries a short <code>install.sh</code> that copies the
+    VST3 into <code>~/.vst3/</code> and the CLAP into <code>~/.clap/</code>.
+  </p>
+
+  <p>
+    <strong>iOS is not ready.</strong> An AUv3 for iPad and iPhone is intended
+    and partly built, but it has never run on a real device and has not been
+    submitted to the App Store. There is nothing to link to yet; when there is,
+    it will be here.
+  </p>
+
+  <p>
+    Older versions, and the source, are on
+    <a href="https://github.com/JeffMcClintock/TideSynth/releases">the releases page</a>.
+  </p>
 
   <h2>Price</h2>
 
@@ -312,13 +369,13 @@
        the Ko-fi page is ever retitled, retitle this link with it. -->
   <p><a href="https://ko-fi.com/TideRack">Buy Jeff a coffee</a>.</p>
 
-  <h2>Planned formats</h2>
+  <h2>Formats</h2>
 
   <ul class="plain">
     <li><span>Windows</span> <span>VST3</span></li>
-    <li><span>macOS</span> <span>AU, AUv3, VST3</span></li>
-    <li><span>iOS</span> <span>AUv3</span></li>
+    <li><span>macOS</span> <span>AUv3, VST3</span></li>
     <li><span>Linux</span> <span>VST3, CLAP</span></li>
+    <li><span>iOS</span> <span>AUv3 — not released</span></li>
   </ul>
 
   <h2>Community</h2>
@@ -374,7 +431,7 @@
        would be advertising; a footer line is provenance. -->
   <footer>
     <p>© 2026 Jeff McClintock.</p>
-    <p>TiDE Synth — by <a href="https://www.synthedit.com/">SynthEdit Ltd</a>.</p>
+    <p>TiDE Synth — open source by <a href="https://www.synthedit.com/">SynthEdit</a>.</p>
   </footer>
 
 </main>
