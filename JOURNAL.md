@@ -8,6 +8,34 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E51 closed: the chain guarded, the trap was platform-divergent, and the richest fixture turned out to be extinct (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"lets do E51"*). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** **E51 → DONE**, archived, with the `NEEDS-SPEC` answered by stating the Accept that was actually met. Three deliverables: [SynthEditLib#73](https://github.com/JeffMcClintock/SynthEditLib/pull/73) (the divert answer), [tests/e51_dialog_divert_probe.py](tests/e51_dialog_divert_probe.py) (8 checks + a control), and the row's re-stated Accept naming the fatal-alert sites out of scope by design.
+
+### The trap was worse than the census recorded: the answer differed BY PLATFORM
+
+The census said `answer = MB_OK` was a flags constant posing as a response. Measuring it found the sharper fact: **`IDOK` is 1 in `<winuser.h>` and 0 in `SafeMessageBox.h`'s shim.** So the same diverted prompt read as *answered OK* on mac and as *no known response* on Windows — a `== IDOK` consumer would have behaved differently per platform under `-quiet`. #73 answers per button set — YESNO → `IDNO` (keeps the sole consumer's Replace branch on **both** platforms, and is actually a button), YESNOCANCEL → `IDCANCEL`, else `IDOK` — behaviour-preserving at every consumer the census found.
+
+### The fixture I wanted cannot be built any more, and that is a finding, not a failure
+
+The obvious rich fixture is E48's: a session whose document names modules that do not exist, which on Windows 2026-08-27 raised three *"Module not found in factory"* prompts. Built it twice — `Type="Multiply"` (×2, inside a prefab), then `Type="TiDE Patch Point Out"` (×10, everywhere). **Zero prompts, both times, and the re-saved document came back byte-identical to the uncorrupted original.** Rack restore reseeds every prefab container from the compiled-in bundle, so corrupted content is discarded wholesale; `GetByIdSerializing` — whose null return is what prompts — is never consulted for it. The Windows prompts were possible precisely because prefab modules were **not yet compiled in**; E48's own fix killed the class. Chasing a bigger fixture would have been chasing a ghost.
+
+So the probe's sentinel is the quiet banner, which rides the identical chain (`SetQuiet` → `SeMessageBox` → `divertPrompt` → stderr + kept → `--dialogs` → drained), and its docstring records why — including the two corruption attempts, so nobody re-runs them.
+
+### The probe, and its control
+
+Two arms: with `-quiet` (argv parsed → banner on stderr → kept → drained with a **valid response constant** recorded → second call zero) and without (verb works, count 0, no banner — quiet is opt-in, as ruled). The control is an argv-dropping wrapper — the exact regression GMPI_Wrappers#29 fixed — and it fails checks 1a–1d with rc=1. Check 1e (answers must be response constants) is the CI tripwire for the MB_OK trap returning; on Windows, #73 is what makes it true.
+
+**Learned:**
+
+- **A constant's value depends on which header won, and a shim that renumbers a Win32 constant makes the same line mean different things per platform.** `IDOK`=0 in the shim vs 1 in winuser.h turned "harmless flags-as-answer" into a real platform divergence.
+- **When a fixture refuses to reproduce, ask what shipped since it was last seen.** The E48 prompts died because E48 itself was fixed; the corruption "healing" byte-identically was the tell that a reseed, not an import, was running.
+- **Answer a NEEDS-SPEC by stating the Accept that was met, not by building more.** The row's own blockers were a re-statement and a census; both were paper, and the paper was the work.
+- **Give a probe a control that simulates the historical regression, not a synthetic one.** The argv-dropper is GMPI_Wrappers#29's bug replayed; when it fails 4 checks, the probe is proven able to catch the thing that actually happened.
+
+**Next:** Jeff pushes the `build.yml` step for the probe (workflow scope, patch supplied). E56 is with the windows agent. Remaining gated: S1b, S8, E7, E38.
 ## 2026-08-28 — windows — E56 reevaluated: the sort was innocent, the allocator assumed a sorted map, and the document never round-tripped at all (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"sync repos then reevaluate E56"*, then *"annotate E56 and take the fix"*). Fable 5, `claude-fable-5` (switched from Opus 5 mid-session). As **tide-rack-bot** (both paths). Prompt sha b97bc00.
