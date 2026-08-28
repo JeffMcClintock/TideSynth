@@ -486,6 +486,20 @@ jobs:
           fi
           python3 tests/s1b_no_external_modules_probe.py --binary "$bin"
 
+      # BACKLOG E38 -- the context-menu verb, and with it every V7 menu rule,
+      # verified on the real menus. macOS only: launches the GUI standalone.
+      - name: Context menu verb + V7 rules (E38)
+        if: matrix.name == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="build/SynthEditSem/TIDE-Rack.app/Contents/MacOS/TIDE-Rack"
+          if [ ! -x "$bin" ]; then
+            echo "::error::standalone not found at $bin -- the E38 gate cannot run"
+            exit 1
+          fi
+          python3 tests/e38_context_menu_probe.py --standalone "$bin"
+
       # Always, including on a failed build -- a cache that is not being hit is
       # the thing worth seeing, and a red run is when you most want to know.
       - name: ccache statistics
