@@ -8,6 +8,49 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E53 fixed: the fourth assert-only lookup, and the guard is observed firing (interactive, Jeff directing)
+
+**Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell* · as tide-rack-bot (both)
+
+**Did:** built **E53**'s fix — a GATED change, at Jeff's instruction (*"lets do E53"*). [SynthEditLib#67](https://github.com/JeffMcClintock/SynthEditLib/pull/67). **Accept met.** Also merged E39 (#66) and E55 (GMPI_Wrappers#30) at his instruction, and stopped the loop.
+
+### The fix
+
+`ug_patch_param_watcher::onSetPin` had `assert(patchParams[paramNumber]);` as the **only** guard before dereferencing, plus a second unguarded deref at `:145` with no assert at all. `patchParams` is `push_back`'d at `:83` and `:122` behind asserts too, so under NDEBUG a **null is stored** and arrives at both sites intact. Both sites now check bounds as well as the pointer — `paramNumber` indexes `plugs` while `patchParams` is filled per created parameter plug, so a skipped push desynchronises them.
+
+**Reported once per process, not per event.** #64's sibling guard prints one line per miss during graph build, bounded by the pin count. This one is in `onSetPin`, which fires per parameter event for the life of the process — an unbounded `std::cerr` on the render thread would be worse than the crash it replaces.
+
+### The A/B
+
+Same build tree, same fixture, the commit the only variable:
+
+| | |
+|---|---|
+| **BEFORE** | 3/3 SIGSEGV, `rc=-11` in ~1.5 s, `KERN_INVALID_ADDRESS at 0x51`, three `.ips` with identical address and top frame |
+| **AFTER** | 3/3 alive, channel opens, `--info` answers, clean `rc=0`, **zero** new crash reports |
+
+**And the guard is observed firing**, which is what makes this more than "the crash stopped". One run's stderr carries the whole chain: #64's eight `no patch parameter for module 987654321 parameter id 0..7` lines (the `VCV: Scope`), then `patch parameter slot is null in ug_patch_param_watcher — output parameter update skipped rather than dereferenced`, then the app keeps serving. **The crashing path is still being taken; it is now survived.**
+
+### Two process notes worth more than the fix
+
+**The CRLF near-miss.** My first write of this patch produced a **274-insertion / 212-deletion** diff for what should be 62 added lines — Python's default text mode had rewritten the whole file from CRLF to LF. `git diff --stat` is what caught it, before any review could. Reverted and redone with `newline=''`, giving **62 insertions, 0 deletions**. A whole-file line-ending flip is invisible in a rendered diff view and would have made this unreviewable.
+
+**Checking the binary before testing paid off again.** Per the E55 lesson, I grepped the built binary for the new guard string — with #64's string as the control — *before* running anything. It was present, so the behavioural result means what it says.
+
+### What this does NOT do, stated because it would be easy to over-read
+
+**The null is still stored.** This stops it being dereferenced, exactly as #64 did one level up. The document is now loadable *and* runnable, but the `VCV: Scope`'s eight parameters are **still absent from the patch manager** — that root cause is untouched and wants a row of its own. Two guards in a row have now converted the same missing-parameter condition into a survivable one without anyone asking why it is missing.
+
+**Learned:**
+
+- **Guarding a deref is not fixing the cause, and the second time it happens is a signal.** #64 moved the null's dereference from graph build to the audio thread; this moves it out of the audio thread. Nobody has yet asked why eight parameters of an existing module are missing from the patch manager.
+- **A guard should be observed firing, not just correlated with a crash disappearing.** The once-latch message is what turns "3/3 no longer crashes" into "the crashing path executed and was survived".
+- **Text-mode writes silently rewrite line endings.** A 62-line change showed as 274/212 until `git diff --stat` was read. Check the shape of your own diff before pushing, not just that it compiles.
+
+**Next:** the missing patch parameters themselves — the `VCV: Scope`'s eight — have no row. E56 is the windows box's related serialization churn; this is not that.
+
+**Branch/PR:** `tide/mac/E53-watcher-guards` → [SynthEditLib#67](https://github.com/JeffMcClintock/SynthEditLib/pull/67).
+
 ## 2026-08-28 — macos — E55 built: one config-root override, and the build that silently didn't contain it
 
 **Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell* · as tide-rack-bot (both)
