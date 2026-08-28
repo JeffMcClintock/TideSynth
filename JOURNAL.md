@@ -82,6 +82,22 @@ So these are not two bugs, they are one seam — editor and processor are seeded
 - **A negative control belongs on a screenshot too.** "The editor shows one module" means nothing until an instance with no state at all is shot the same way — and here it showed the same module, which is what made the reading honest.
 - **A comment that reasons from the code's origin ages badly.** *"a 700 byte string"* was accurate for the demo synth this wrapper was copied from and had been false since TIDE's first rack.
 
+### E59's fix landed mid-run, so I re-measured rather than shipped a stale reading
+
+`origin/main` moved while this branch was measuring: **E59 is fixed and merged** ([#547](https://github.com/JeffMcClintock/TideSynth/pull/547)), confirmed on mac ([#549](https://github.com/JeffMcClintock/TideSynth/pull/549)). Its fix is in `SynthEditSem/` and is **not format-specific**, so every CLAP reading above was taken against a tree that predates it — the E62 trap exactly, and I nearly pushed through it because my own PR going `CONFLICTING` is what made me look.
+
+Rebuilt, and **verified the binary contains #547 before trusting the re-run** — its own new strings, `syncState` ×5 and `startup default` ×2. Every finding survives, and the re-run is *better*, because #547's new trace says out loud what I had inferred from a screenshot:
+
+```
+TIDE: controller #2 startup default is 17961 bytes (syncState will not publish this document)
+TIDE: controller #2 restore of a 17963 byte document -> imported
+TIDE: building rack from 17963 byte document (Sync chunk, rack not yet prepared)
+```
+
+**17,963 is the default.** In the same run, `stateLoad` received the 18,893-byte prepared preset. So the CLAP's controller-side restore and its processor-side `stateLoad` are fed from **different documents** — which is what the screenshot showed and now has a named mechanism. The editor shot post-#547 is unchanged from the no-state control.
+
+**One datum for whoever owns E59's remainder, because it bears on that fix's own stated trade-off.** The document arriving here is **17,963** bytes against a captured startup default of **17,961** — **2 bytes apart, so the byte-identical refusal does not fire.** #547 says in as many words that the comparison *"fails towards publishing on purpose"*; this is that false negative, observed rather than predicted. I did not chase it: it is E59's row, not this one.
+
 **Not verified:** why the CLAP editor is not seeded (deliberately left to E59); whether the fix behaves on win/mac (no platform code in the changed function — it is `std::string` and the CLAP stream API — but neither box compiled it, and CI will say); module insertion inside a hosted editor, E60's observation (c), which I did not re-test; and whether any rack above 32 KB has ever been attempted in a CLAP host other than REAPER.
 
 **Machine state.** All six repos were clean and on their default branches at the start — verified, not assumed. `TideSynth` and `GMPI_Wrappers` are on the branches above until STEP 5 returns them; no other sibling was modified. REAPER 7.43 was downloaded into the session scratchpad and run only against a scratch `HOME`, so **`~/.vst3`, `~/.clap` and `~/.config/REAPER` were never written** — checked after. `~/.config/TIDE Rack/` untouched. Headless weston stopped, no REAPER or TIDE process left running. `build-e60/` is a scratch tree (gitignored); Jeff's `build/` was not touched, and a full configure+build of all three formats from cold took ~25 minutes and finished **rc=0**, which is also this run's evidence that `main` builds on linux.
