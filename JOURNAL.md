@@ -100,6 +100,38 @@ Repaired with the check's own prescribed remedy — `git rebase --exec 'git comm
 **One process note, because it will recur on this fleet, and my first diagnosis of it was wrong.** `origin/main` moved three times while this ran (#543, #544, and a third) and the PR went `CONFLICTING`. Merging `origin/main` in made the branch **unpushable**: the fleet token deliberately has no `workflow` scope, and GitHub refused the push naming `.github/workflows/build.yml`. I assumed the merge commit was carrying the workflow change and that rebasing would avoid it. **It did not** -- the rebased branch was refused too, and so was a brand-new branch. **The actual rule is about the TREE, not the commits:** a push is refused whenever the pushed tip's `.github/workflows/**` differs from what the remote already has, **in either direction**. My branch was based on a main that predated a 14-line `build.yml` addition, so from GitHub's side it *deleted* those lines. Nothing I had written touched a workflow at all. **The one command that settles it**, and it took a deliberate probe rather than more reasoning -- push a branch that IS `origin/main` (accepted, so the token is fine), then `git diff origin/main HEAD -- .github/workflows/` (14 deletions, so the branch is stale). **Rebasing onto the CURRENT `origin/main` is the fix**, and it has to be the current one; rebasing onto a main from twenty minutes ago fails identically. That cost a force-push of my own two commits: no reviews, no other session on the branch.
 
 **Branch/PR:** `tide/win/E59-controller-chunk-seeding` — the fix and its trace (`SynthEditSem/SynthEditController.cpp`, `SynthEditSem/SynthEdit.cpp`), the Windows plug-in-isolation recipe in `tests/hosts/README.md`, the E59 and E19 rows, and this entry.
+## 2026-08-28 — macos — E59's fix confirmed on mac, and E7 re-measured: the root MIDI-CV path already works (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"ensure all tide related PRs merged. then sync"*, continuing from E7's measurement). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** synced after the windows agent's [#547](https://github.com/JeffMcClintock/TideSynth/pull/547) landed (*"syncState published the startup default before the host restored anything"*), rebuilt, and re-ran the fixtures. **E59's fix is confirmed on macOS** and **E7's Accept is measurable again — and still fails, cleanly.**
+
+### E59, confirmed on the platform that bracketed it
+
+`v1-rack.rpp` renders **−6.3 / −17.0 dBFS**, exactly its 2026-08-18 number and exactly what the Aug 25 build gave when I used it as a bisect endpoint this afternoon. The double `building rack from` signature is gone. Their mechanism and my bracket agree.
+
+### E7 re-measured by ENVELOPE, which is what its Accept actually asks
+
+Peak/rms alone would have misled here: `v1-rack-midi` reports −6.3/−17.0, which *looks* like a pass and is in fact the failing signature — identical to the no-MIDI fixture, i.e. the oscillator's own default droning. The Accept is about TIMING, so measure timing (10 ms windows, 5% of peak):
+
+| fixture | sounds during | verdict |
+|---|---|---|
+| `v1-rack` (no MIDI) | 0.00–2.99 s | correct drone |
+| **`v1-rack-midi` (E7's Accept)** | **0.00–2.99 s** | **FAILS** — the note contributes nothing |
+| `v3-midi-pitch` (root MIDI-CV) | **0.50–1.30 s** | the note: on 0.500, off 1.200 + release |
+
+### The contrast is worth more than the failure
+
+`v3-midi-pitch` is the architecture Jeff ruled on 2026-08-21 — MIDI-CV at ROOT level, routed into a Container that presents it as patch points — and it **plays the note correctly, today, in a real host**. So that is not a design awaiting implementation; it is a working reference. What E7 still lacks is only the facade the rack-module path needs, which is this row's own last open question, *"where do the jacks live"*, now answerable by reading a fixture that already does it.
+
+**Learned:**
+
+- **Measure what the Accept says, not what the harness reports.** E7's Accept is about onset and offset; peak/rms made a failure look like a pass because a drone and a note can share a peak.
+- **A failing fixture beside a passing sibling localises better than either alone.** v1-rack-midi vs v3-midi-pitch reduces E7 from "MIDI does not reach the rack" to "the rack-module facade does not, while the root path does."
+- **Re-run a blocked measurement the moment the blocker lands.** E59 was fixed minutes before this; the fixtures were already staged, so confirming their fix and unblocking E7 cost one rebuild.
+
+**Next:** E7 wants Jeff's pick on where the facade's jacks live — with `v3-midi-pitch` as the working reference. E59 is IN-REVIEW (windows agent's). S8 remains gated.
+
 ## 2026-08-28 — macos — the mac render E59's row asked for: it is a REGRESSION, bracketed to three days (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"run the measurement"* on E7's Accept). As **tide-rack-bot**. Prompt sha b97bc00.
