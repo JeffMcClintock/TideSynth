@@ -8,6 +8,54 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E47 driven twice with Jeff at the keyboard: the guard was never reached, and the hole looks unreachable by construction
+
+**Prompt:** interactive, Jeff driving. As tide-rack-bot (both). Prompt sha b97bc00.
+
+**Did:** drove E47's reproduction — the thing the row had been waiting for since #64 landed. **Two runs, 8 binds, zero guard hits.** Status unchanged (`DONE-PENDING-ACCEPT`), but *"no reproduction was driven"* no longer describes why. Filed **E57**.
+
+### How it was measured
+
+Four `std::cerr` probes added **temporarily** to `EditorLib/PropertiesBrowser.cpp` — at the `OM_SHOW_PROPERTIES` bind, after `layoutContainer` is assigned, and either side of the guard's `currentModule = nullptr`. Reverted afterwards; nothing shipped. A Release build with them printed pointers while Jeff drove the real GUI.
+
+**Instrumentation rather than an attached debugger, deliberately.** The Accept says *"checked under a debugger on the field itself, since 'it did not crash this time' is what a dangling pointer also looks like"* — the demand is to **read the field**, not to use a particular tool. lldb was tried first; its breakpoint-command output never reached the log, and I was spending more on debugger plumbing than on the question.
+
+### Run 1 — the simple case
+
+Pane put on a module inside `TiDE Output`: `layoutContainer=0xbeadc8000`, **the same pointer the pane held for the container itself at startup** — so the nesting is proven by identity, not assumed. Navigate out, delete. **Guard hits: 0.** The pane was cleared by a `bind` to `nullptr` — `CDocOb::OnDelete()`'s `OM_SHOW_PROPERTIES(nullptr)`, which this row already lists as *already covered*.
+
+### Run 2 — the nested case the guard's own comment describes
+
+Jeff built master → `TiDE Output` (`0x1011c8b00`) → new `Container` (`0x9ef386200`) → a module (`0x9efbc4140`); the probe confirms both levels by pointer identity. Pane bound with `layoutContainer=0x9ef386200`. Then delete the **outer** container, so the inner dies through `DeleteAll()`'s bare `delete d` with no `OnDelete()` — exactly the route the guard exists for.
+
+**Guard hits: 0.**
+
+### Why — and this is structural, not bad luck
+
+Jeff, driving: *"delete key not working, had to right-click outer container (which switched the properties pane) so properties pane no longer referenced the inner module."*
+
+**The Delete key does nothing**, confirmed independently headless (`--type \x7f` → `{"ok":true,"characters":1}`, nothing deleted). So the only delete route is the context menu — and **right-clicking a module binds the pane to it**.
+
+> To delete X you must select X. Selecting X sets `layoutContainer` to X's **parent**. Therefore `sender == layoutContainer` can never hold for X.
+
+The guard's condition is unsatisfiable by any single-selection UI path.
+
+### What this does and does not establish
+
+It does **not** prove #64's E47 hunk is dead code, and **it must not be reverted on this evidence**. One route is untested: **multi-selection** — bind the pane to the inner module, then *add* the outer container to the selection without re-binding, then delete. If the pane keeps its first selection, `sender == layoutContainer` holds and the guard fires. Non-UI routes (undo, scripted delete) are untested too; document reload is already covered by `DeleteContents`.
+
+**Learned:**
+
+- **"No reproduction was driven" and "the reproduction cannot be driven" are different row states, and only the second is a finding.** E47 sat in the first for a day; one hour with a human moved it to the second, and the second names the obstacle (E57) instead of asking the next run to try again.
+- **A guard whose condition is set by the same action that triggers it may be unsatisfiable.** Selecting-to-delete rebinds the very field the guard tests. Worth checking, for any "clear X when Y dies" guard, whether reaching Y clears X first.
+- **The Accept's demand was to read the field, not to use a debugger.** Instrumentation answered it more reliably than lldb did, and the distinction is worth keeping when a tool fights back.
+
+**Two things landed after this entry's measurements and are folded into the rows rather than rewritten above.** **(1) Jeff: *"note the delete key is meant to work. so bug may recur in future"*** — so **E57** is a REGRESSION of intended behaviour, not a missing capability, and its Accept is written to run unattended in CI so a second occurrence fails a build instead of waiting for someone to press the key. **(2) Jeff, within the hour of #66 merging: *"area above top rail is drawing garbage, smears of the 'real' content"*** — that is **E58**, and it is a regression I caused. `TopView::renderRack` OWNS the fill of the whole editing area (its call site is commented `// fill the drawing area`), and E39 clamped `cliprect` to the band *before* the fill, so the strip above `bandTop` receives no fill from anything. **#66's own text claims that strip "paints as the canvas background" — it does not, nothing paints it.** My after-screenshots showed flat black and I read it as the background working; a fresh launch simply had a black buffer. **A screenshot proves what WAS drawn, never what OWNS the drawing** — that is the lesson, and it is the second time today a green-looking artefact hid a build/paint ownership question.
+
+**Next:** **E58** first — it is a live visual regression from my own merged change, and the fix is small: fill the full cliprect unclamped, clamp only the rail loop. Then **E57**, which gates anything phrased *"delete X and observe Y"*. Multi-selection is the one untested route to E47's guard.
+
+**Branch/PR:** `tide/mac/E47-guard-unreachable` — rows and this entry, no code.
+
 ## 2026-08-28 — macos — E53 fixed: the fourth assert-only lookup, and the guard is observed firing (interactive, Jeff directing)
 
 **Prompt:** b97bc00 · claude-opus-5 · app *unavailable — `claude --version` does not answer in this shell* · as tide-rack-bot (both)
