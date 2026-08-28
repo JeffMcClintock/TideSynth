@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **371 KB** across **300** entries, so copying them
+Learned sections are **372 KB** across **301** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **112 KB / 1218 lessons — 3.3x smaller**, and represents
+A8. This is **112 KB / 1222 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — E51 closed: the chain guarded, the trap was platform-divergent, and the richest fixture turned out to be extinct (interactive, Jeff directing)**
+
+- A constant's value depends on which header won, and a shim that renumbers a Win32 constant makes the same line mean different things per platform.
+- When a fixture refuses to reproduce, ask what shipped since it was last seen.
+- Answer a NEEDS-SPEC by stating the Accept that was met, not by building more.
+- Give a probe a control that simulates the historical regression, not a synthetic one.
 
 **windows — E56 reevaluated: the sort was innocent, the allocator assumed a sorted map, and the document never round-tripped at all (interactive, Jeff directing)**
 
