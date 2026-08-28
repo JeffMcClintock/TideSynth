@@ -8,6 +8,44 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E38: the verb the row said to design, and V7 verified on the real menus at last (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"lets do E38"*). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** **E38 → DONE.** [GMPI_Wrappers#31](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/31) adds `--context-menu <x,y> [label]`; [tests/e38_context_menu_probe.py](tests/e38_context_menu_probe.py) is the shipped evidence (9 checks + control). **All three V7 rules verified on the real menus for the first time**, and *Show Circuit* invoked headlessly swaps to the structure view — the step every E61-class repro handed back to a human.
+
+### The design fell out of the row's own dead ends
+
+E38 had already measured both wrong shapes: `--right` reaches only the input client while the menu belongs to the FRAME (macOS: the Cocoa view's right-mouse handler), and `--screenshot` reads `framePixels` while a native popup is a separate window. What is left is the only readout that can work: **run the frame's own population path into a recorder.** `DrawingFrameCommon::doContextMenu` is four lines — createPopupMenu, populateContextMenu, showAsync — so the verb does the same with a recording `IPopupMenu` and skips the show. Invocation is `IPopupMenuCallback::onComplete(Ok, id)`, exactly the native pick. Nothing simulated further up.
+
+### The menu is built for the SELECTION, not the point
+
+First run returned the background menu at both coordinates and looked like broken routing. It is not: select the module first (`--pointer-down/up`, the two steps a hand performs) and "Show Circuit" appears while "Goto Rack" grays. Measured, then written into the verb's comment and the probe, because the first reading of "same menu at both points" will always be "the routing is broken".
+
+### What it proved the moment it existed
+
+| V7 rule | verified |
+|---|---|
+| 1 — rack background | no Arrange / Skin / Locked / Goto Structure... |
+| 2 — module (selected) | "Show Circuit" present, "Delete (keep wires)" absent |
+| 3 — structure view (Release) | no Arrange / Screenshot / Panel Edit / Goto Parent |
+
+Plus the invocation: 1.46M pixels changed and the canvas centre turns light — the structure view, entered headlessly. V7 shipped its mechanism 2026-08-27 with the on-screen half unverified for want of exactly this.
+
+### Two small traps
+
+- **The E55 stale-source trap nearly recurred**: build-e57 fetches GMPI_Wrappers, so the first build would have compiled none of the patch. `-DFETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS=<local>` before building, and `strings` on the binary for the verb name as the positive check.
+- **`gmpi::shared_ptr` addRefs on raw-pointer assignment** (`assign()`), so a manual `addRef()` alongside it leaks; and its conversion operator is non-const, so `!ptr` on a const ref does not compile — `.get()` or non-const iteration.
+
+**Learned:**
+
+- **When a row has measured two instruments dead, the spec is nearly written: the design is whatever the remaining instrument is.** The model-readout verb was not clever; it was the only door left open, and the row's own annotations said so.
+- **A menu model readout beats a pixel readout even where pixels are possible.** Labels, grayed state and structure come back as data; a screenshot of a menu would still need OCR to assert rule 1.
+- **Verify a routing surprise against the GUI's own behaviour before calling it a bug.** "Same menu at both points" mirrored what a hand sees pre-selection; the fix was two pointer verbs, not a code change.
+- **An invoke path should be the native path's tail, not a parallel one.** Calling the item's own onComplete means the probe exercises the same callback objects a user does — nothing bespoke to drift.
+
+**Next:** Jeff pushes the `build.yml` step (workflow scope, patch supplied) and merges. Remaining gated: S8 (79 files), E7 (polyphony, unknown).
+
 ## 2026-08-28 — macos — remote sweep: one branch is live work, the rest are ruled out of the fleet's scope (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"check remotes for unmerged branches, forgotton work"*, then *"not concerned with SSG work"*). As **tide-rack-bot**. Prompt sha b97bc00.
