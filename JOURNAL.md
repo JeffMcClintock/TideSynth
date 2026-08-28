@@ -8,6 +8,53 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E58 fixed: my own E39 clamped a rectangle that was doing two jobs, and left a hole nothing painted (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"fix E58"*). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** **E58 → DONE**, [SynthEditLib#69](https://github.com/JeffMcClintock/SynthEditLib/pull/69). One row, one small fix, and one review habit that has to change. The entry below it covers E57 and files E61; this is E58 only.
+
+### The rectangle was doing two jobs and I only saw one
+
+`TopView::renderRack` bounds the rack **and** backs the canvas. Its call site is commented `// fill the drawing area`, and the non-rack branch beside it fills the same bounds with LightGray — both facts were on screen when I wrote E39 and neither registered.
+
+E39 clamped `cliprect` to the row-aligned band **before** the `fillRectangle` that paints the case interior. The clamp was right for the rack and wrong for the canvas: the strip above `bandTop` was painted by nothing at all and showed stale framebuffer. Jeff saw it within the hour of #66 merging.
+
+The fix keeps E39's Accept instead of reverting it — fill the full canvas-clamped rectangle, *then* clamp to the band. The 261-DIP one-sided strip E39 removed stays fixed. `0x555555`, the colour `ContainerView.cpp:49` already fills outside `editingBounds` with, so the surround reads the same above, below and beside the rack rather than being a fourth colour invented at the fix site. **The row had left that colour open for Jeff to rule on; I chose, and wrote the alternative on the row, rather than stopping a one-line change on a question.** The partial region is still not drawn *as rack* — no rails, no case interior — which is what that clause of E39's Accept always meant.
+
+### The review that passed it used the one instrument that could not see it
+
+#66's own text asserts the leftover strip *"paints as the canvas background"*. **It does not. Nothing paints it.** My after-shots showed flat black and I read that as the background working — but a fresh launch simply has a black buffer, and **an unpainted hole and a deliberate dark background are pixel-identical in a static screenshot**. The defect only appears once content has been drawn there and scrolled away, which is exactly what a review screenshot never does.
+
+So the artefact I produced to prove E39 correct was structurally incapable of showing the bug E39 introduced. That is not carelessness in reading it; it is the wrong instrument.
+
+### Verifying the fix needed a different instrument again, and my first one was inconclusive
+
+My first check was `otool -tV | grep 555555` on the object file: **0 hits**. That looks like a failure and is not evidence either way — `colorFromHex` folds to floats, so the grep returns 0 whether or not the change is present. I recorded it as inconclusive rather than acting on it, and measured rendered pixels down a column instead:
+
+```
+other (44,44,44)     y    0..51    app chrome
+SURROUND 0x555555    y   52..665   the 614px strip that was garbage
+rail                 y  666..686
+case interior        y  690..1219  unchanged
+... every rail and row below unchanged
+```
+
+### The bookkeeping lint caught a false claim in my own previous entry
+
+`check-id-refs` failed on `E61` — the entry below named it as *filed* when no such row existed on the base I had. It existed because **#531 merged while I was working** and my local `main` was one commit behind; I had run `git fetch` and read `git status` as clean without ever comparing to `origin/main`. My first pass at this entry silently dropped #531's journal entry and filed a **duplicate E61**. Reset onto `origin/main` and re-applied E58 alone.
+
+**Learned:**
+
+- **A screenshot proves what WAS drawn, never what OWNS the drawing.** An unpainted region and a deliberately dark one are pixel-identical on a fresh launch, because the buffer starts black. E58 shipped through review on exactly that ambiguity.
+- **When you clamp a rectangle, ask what paints the part you clamped away.** E39 narrowed a rectangle serving two purposes and only one was intended; the second had no other owner.
+- **A grep for a colour constant in a binary is inconclusive, not a pass or a fail** — `colorFromHex` folds to floats. Verify a rendering change by measuring rendered pixels.
+- **`git status` clean means no local edits, not up to date.** Compare against `origin/main` with `rev-list --left-right --count` before committing; a fetch that you never read the result of is not a sync.
+- **Run the repo's own lints before believing your bookkeeping** — `check-id-refs` caught a "filed" claim about a row that did not exist, which no amount of re-reading my own entry would have.
+- **A Learned section must use the bold form, not a markdown heading, or the extractor silently ignores it.** `extract-lessons.py` matches `**Learned` and nothing else; mine was the only `### Learned` in 292 entries. The script still reported success, just without my lessons, and the total went UP anyway because another entry had landed. **A generator reporting a plausible number is not confirmation your input was read** -- grep the output for your own text.
+
+**Next:** **#69 awaits Jeff**, as do the three E57 PRs (gmpi_ui#14 and SynthEditLib#68 are a required pair). **E61** is GATED. E57's CI-runnable recurrence guard is still unwritten — its Accept asks for one and no run has delivered it.
+
 ## 2026-08-28 — macos — E57 fixed on real hardware, and fixing it exposed a use-after-free (interactive, Jeff driving)
 
 **Prompt:** interactive, Jeff driving. As tide-rack-bot (both). Prompt sha b97bc00.

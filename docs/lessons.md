@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **361 KB** across **291** entries, so copying them
+Learned sections are **362 KB** across **292** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **107 KB / 1170 lessons — 3.4x smaller**, and represents
+A8. This is **108 KB / 1176 lessons — 3.4x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,15 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — E58 fixed: my own E39 clamped a rectangle that was doing two jobs, and left a hole nothing painted (interactive, Jeff directing)**
+
+- A screenshot proves what WAS drawn, never what OWNS the drawing.
+- When you clamp a rectangle, ask what paints the part you clamped away.
+- A grep for a colour constant in a binary is inconclusive, not a pass or a fail
+- `git status` clean means no local edits, not up to date.
+- Run the repo's own lints before believing your bookkeeping
+- A Learned section must use the bold form, not a markdown heading, or the extractor silently ignores it.
 
 **macos — E57 fixed on real hardware, and fixing it exposed a use-after-free (interactive, Jeff driving)**
 
