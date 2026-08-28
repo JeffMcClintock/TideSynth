@@ -37,6 +37,14 @@ TIDE: instance #5 building rack from 17959 byte document (Sync chunk, rack not y
 
 **The instance numbers are worth reading.** The two builds are instances **#3** and **#5**, not #1 and #2 — five processor objects were constructed in that process, and the three that never appear got no chunk at all (`start_processor` `continue`s on an empty blob). `this` would not have shown this: the holder frees the old plugin before creating the new one, so the addresses repeat.
 
+### The macOS box answered the fork in this row while I was working, and it agrees
+
+[#548](https://github.com/JeffMcClintock/TideSynth/pull/548) landed mid-session with the one `-renderproject` E59's row had been asking for. **macOS is REGRESSED, not different**: the Aug 25 install renders `v1-rack.rpp` at −6.3 dBFS and today's main renders it silent, so the fork that row carried — *either a regression since 2026-08-18, or macOS differs* — closes on the first limb, and the 2026-08-18 number was real.
+
+**Their trace is the same shape as mine, measured independently**: first chunk `Legacy` 14,136 B, second `Sync` 17,957 B, both `rack not yet prepared`. The earlier windows run had only the E53 fixture, whose two chunks are both `Sync`, which is why `Legacy`-then-`Sync` reads as new there and not here — `v1-rack.rpp` produces it on both platforms. And they reached the same sender from the outside: *"the second is seeded from a controller chunk parameter that already holds the DEFAULT — consistent with `syncState()` exporting `exportChunkXmlForSave()` while the app still holds the default document."* That is this entry's finding, arrived at from a different box and a different direction.
+
+**What it changes for the fix:** the defect is confirmed present on macOS, so this is not a Windows-only repair — but nobody has yet watched *this fix* work anywhere but here, which is what the "not verified" note below still means. Their bracket (something between Aug 25 and Aug 28) is also worth keeping: E59 is recent, which is why so much of this project's host evidence predates it and looks fine.
+
 ### The fix is a refusal, and it is TIDE-side only
 
 `SynthEditSem/SynthEditController.cpp` captures its startup default once, immediately after `InitInstance`, and `syncState()` declines to publish a document byte-identical to it. Before any restore that is the only thing the controller can be holding, so the comparison means *"I have nothing to say yet"*.
