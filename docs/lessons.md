@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **369 KB** across **298** entries, so copying them
+Learned sections are **370 KB** across **299** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **111 KB / 1209 lessons — 3.3x smaller**, and represents
+A8. This is **111 KB / 1213 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — E56 does not reproduce on macOS: four cycles, byte-identical, instrument validated (interactive, Jeff directing)**
+
+- "Add a sort" was already done — read the export before proposing it.
+- A negative result is only worth recording with the instrument proven live.
+- When the domain owner corrects a premise mid-analysis, re-derive, do not patch.
+- A platform-specific repro belongs to the platform that showed it.
 
 **macos — E47 closed on Jeff's ruling: the guard is unreachable because SELECTION binds the pane, and that is what I kept getting wrong (interactive, Jeff directing)**
 

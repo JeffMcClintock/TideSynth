@@ -8,6 +8,36 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E56 does not reproduce on macOS: four cycles, byte-identical, instrument validated (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"measure"*). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** measured only — no code, row untouched (an Item rewrite is not the bot's to make; this entry is the record). Built a five-prefab rack in the standalone (AR jef, Envelope, Filter, Oscillator, Sine jef — doc 17,960 → 49,639 bytes), then ran four quit/relaunch cycles with an isolated `GMPI_STANDALONE_CONFIG_DIR`. **Result: A, B, C, D all 66,338 bytes, all sha256-identical.** The serialized document inside — 49,639 bytes, 9 `<Parameter>` elements — round-trips byte-for-byte on macOS. E56's Windows oscillation (49,421 → 49,419 → 49,421) did not appear.
+
+### Why the instrument is sound, which took more care than the measurement
+
+- **Each cycle is a fresh serialization, not a pass-through.** The load-time *"pushing 49639 byte document"* line comes from `TideApp.cpp:649`, and the string it pushes is `exportChunkXml()` — a re-export of the just-rebuilt model. The session then stores that pushed chunk (decoded it: base64 `TDs1<?xml…`, exactly 49,639 bytes). So byte-equal session files mean the *reloaded patch manager re-serialized identically*, which is precisely E56's question.
+- **My planned nudge-to-force-a-rewrite was unnecessary and did nothing** — `documentShape()` ignores layout, so the nudge never re-pushed. The load push alone is the measurement.
+- Sort order confirmed ascending by handle in the document, `ParametergreaterHandle` as read.
+
+### Two prior beliefs corrected by Jeff mid-measurement, both material
+
+1. *"parameter handle is meant to be unique, and it's quite heavily enforced"* — kills my ties-under-`std::sort` explanation outright. With a total order, the sort is innocent; only the **handles themselves** changing can reorder the output.
+2. *"some parameters have no module… host-controls"* — kills a naïve module+index sort key. Confirmed in code: `ModuleHandle()` returns **-1** with no module, and container-scoped host-controls carry `ContainerHandle`. Any stable key must lead with `hostControlId_`/owner, not module.
+
+### What the macOS data says about the Windows churn
+
+The parameter the Windows row saw *"gaining a real handle"* is visible here — `Handle="0" HostControl="59"` — and it **kept handle 0 through all four cycles**. So the reassignment that drives the oscillation (`RegisterHandles`: *"handle already in use, re-allocated during register()"*, its warning commented out as *"not OK if loading prefab"*) needs a collision this rack does not produce. The churn is not "serialization is unordered" — it is **load-history-dependent handle reassignment**, and it wants reproducing where it was seen: the Windows box, whose `freshA/B/C.xml` evidence sits in that machine's `_scratch`.
+
+**Learned:**
+
+- **"Add a sort" was already done — read the export before proposing it.** Both serializers have sorted by handle for years (*"Sort for export consistancy"*); E56's row proposes a fix that exists. The defect, if any, is the KEY, and only on evidence of handle churn.
+- **A negative result is only worth recording with the instrument proven live.** Byte-identical files prove nothing if nothing rewrote them; tracing the push to `exportChunkXml()` is what turned "same bytes" into "round-trips clean".
+- **When the domain owner corrects a premise mid-analysis, re-derive, do not patch.** Two corrections each invalidated a candidate explanation before any code was written on it.
+- **A platform-specific repro belongs to the platform that showed it.** Four clean macOS cycles cannot rule on a Windows oscillation; they narrow it — the trigger is a handle collision macOS's load order does not produce.
+
+**Next:** E56 stays TODO. The productive next step is on the **windows** box: diff `_scratch/freshA/B/C.xml` to name exactly which parameters swap and which handles reassign, then decide between a stable sort key (lead with `hostControlId_`, `ContainerHandle`, `Module`, `ModuleParamId`; raw handle last) and stabilising registration. Jeff has not yet ruled; nothing is blocked on macOS.
+
 ## 2026-08-28 — macos — E47 closed on Jeff's ruling: the guard is unreachable because SELECTION binds the pane, and that is what I kept getting wrong (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"lets do E47"*, then *"actually, we already did this"*, then *"close it"*). As **tide-rack-bot**. Prompt sha b97bc00.
