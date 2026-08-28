@@ -8,6 +8,53 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-29 — windows — E64 diagnosed to the byte: E56's own fix aimed a parameter at the DSP's root container, and the queue now survives it loudly (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"rebuilt, reproduced it, check the log"* ×3, *"do (b) for sure. Then explain why you changed the handles"*, *"ensure it fires an assertion when this happens"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** closed E64's open question with three measured links, built fix (b) as [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20) (PR-GATED — proposed, not merged), and deliberately did NOT touch the handle allocation — that is Jeff's ruling to make, and the options are laid out below. Row **IN-REVIEW** on the queue half.
+
+### The chain, each link measured rather than argued
+
+1. **The desync line, from the live Ableton reproduction** (a file-logging probe, because a GUI host swallows stderr): `declaredLen=1 actuallyRead=0 readyBytes=1 partial=0 handle=1 fourcc=ppc.` — a 1-byte patch-parameter change whose target consumed nothing.
+2. **Who owns handle 1**, from a registration probe on a plain launch: `handle 1 registered to class ug_container`. The DSP export has always wrapped the graph in a root `<Module Id="1" Type="Container">` — decoded from the pushed chunk itself, after the on-disk document showed no low handles at all. `ug_container` inherits `dsp_msg_target::OnUiMsg`, a silent no-op, so it "handles" the message and reads none of it.
+3. **Who sends a ppc for handle 1**: the host-control parameter that [SynthEditLib#72](https://github.com/JeffMcClintock/SynthEditLib/pull/72) (E56) now deterministically hands handle **1** — that PR's own measurement is `hc6=0 hc59=1`, and `HC_PROCESSOR_OFFLINE` is a bool: the 1 byte. It changes only in a HOSTED lifecycle (processor recreate under `setActive`), which is why three standalone reproductions were clean and Ableton failed every time.
+
+`ProcessMessage` drained an unconsumed payload only when the client returned false; a target that EXISTS but reads short left its bytes to be parsed as the next header — misaligned forever, assert in Debug, silent garbage in Release. Also measured in passing: `ppc for handle 0 -> target (none)` — hc6's updates are silently discarded on every launch, the same disease with a benign face, and `RegisterDspMsgHandle` keeps the FIRST owner on a duplicate (`map::insert`, collision assert commented out), so none of this was visible.
+
+### The fix, and Jeff's correction to it
+
+[GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20): `ProcessMessage` snapshots the FIFO read index around the client call (new wrap-safe `readIndex()`/`consumedSince()`, deliberately not `_DEBUG`-only) and drains any remainder to the declared length — a misbehaving client damages its own message and nothing after it.
+
+**My first cut demoted the Debug assert to a bounded log, and Jeff rejected that in as many words:** *"ensure it fires an assertion when this happens. because plastering over the root cause and silently swallowing the bug is only going to cause pain later."* He is right, and the shipped shape is: **drain AND assert.** Release gets containment (one lost message, aligned stream); Debug stays loud, with the diagnostic numbers on stderr before the modal. Only the ordinary no-target discard is quiet, as it always was. Consequence stated plainly: **the Debug dialog keeps appearing until the handle collision itself is resolved — by design.**
+
+### Verified
+
+- **Unit A/B** (`C:\SE\_scratch\e64\quetest`, Release = the shipped behaviour): origin/main FAILS the E64 shape — the message behind the short read is lost and the queue never drains; the branch passes 9/9, including the no-target discard control and twenty exact reads across a buffer wrap. The fix's own diagnostic line reproduces the Ableton signature verbatim (`handle 1 msg ppc. consumed 0 of 1`).
+- **TIDE VST3 + standalone** (Debug, Jeff's tree) rebuilt and smoke-clean; the fixed plugin is installed locally, so his next insert-and-cable session is the live confirmation (Release-shape: no corruption; Debug: assert until the collision is ruled on).
+- **SynthEditCL 113/113** in the scratch Ninja tree with `GMPI_SDK_FOLDER_OVERRIDE` at the branch — GMPI is the bottom layer and SynthEdit is a consumer.
+
+### The handle question, laid out for the ruling rather than decided
+
+Jeff: *"explain why you changed the handles, we can't just mess with how they work."* The honest answer: **#72 did not change the design — it made a broken implementation do what its own comment always promised.** The sequential-ID intent predates it (*"Generate nice sequential IDs… Using the same ID every time ensures resulting DSP XML is consistant and comparable each run"*); the old loop iterated an `unordered_map` expecting sorted order, so in practice the FIRST host-control parameter got 0 and every later one collided and fell back to a **random** handle per load — which is exactly E56's document-never-round-trips bug. What nobody knew: the brokenness was also load-bearing. Random handles almost never landed on the export's root container Id 1; deterministic ones do, every time. And handle **0** was already colliding-and-lost before #72 — measured — so the namespace overlap is old; #72 widened it from a silent data loss into a stream corruption.
+
+Options, all his call: **(i) revert #72** — restores E56's nondeterminism to keep the accidental safety; **(ii) start the sequential IDs at a reserved base** — keeps E56's byte-identical property, one line, but hard-codes knowledge of the export's Id 1; **(iii) stop exporting the root wrapper as Id 1** — cleanest namespace, riskiest change; **(iv) stop the editor queueing ppc for parameters with no DSP-side registration** — fixes the handle-0 loss too. None taken; #20 makes every one of them safe to take slowly.
+
+**Learned:**
+
+- **A fix can be correct by its own Accept and still be load-bearing for a bug it cannot see.** #72's determinism was the right fix for E56 and is what armed E64; the randomness it removed was accidentally keeping a parameter's messages away from a container that would eat them.
+- **"Handled" and "consumed" are different claims, and the queue only ever checked the first.** The discard path keyed on the client's return value; nothing anywhere compared bytes consumed against bytes declared outside a `_DEBUG` block.
+- **Containment and alarm are separate requirements — do not trade one for the other.** I shipped the drain and demoted the assert in the same edit; Jeff caught it immediately. The drain protects users, the assert protects the codebase, and the fix needed both.
+- **Print the numbers before the modal.** The assert dialog ends the session; the fprintf above it is why the next reproduction costs a glance instead of an attach.
+- **A four-char code is not a string.** `'ppc'` is three chars + NUL; printing its bytes as `%c` before the lengths truncated the one line the whole reproduction existed to produce.
+- **`map::insert` on a duplicate key is a silent policy decision.** First-wins, no error — and the assert that would have said so was commented out. The registration probe found in one launch what three sessions of queue-side analysis could not.
+
+**Not verified:** mac/linux builds of the changed TU (no platform code; CI on the PR will say); the live Ableton confirmation against the fixed binary (installed, awaiting Jeff's next session); which of options (i)–(iv) Jeff rules — nothing is built on any of them.
+
+**Machine state.** `SynthEditLib` probe reverted, clean on `main`. `GMPI` parked on `tide/win/E64-que-selfheal` (open PR #20) — returned to `main` at session end per STEP 5 once Jeff has seen the diff, but left checked out for now since his local rebuild consumes it. TideSynth on `tide/win/E64-diagnosed` until this lands. The installed Debug VST3 carries the fix; Jeff's REAPER config untouched this session. Unit test kept at `C:\SE\_scratch\e64\quetest` with the round-1/round-2 probe logs.
+
+**Branch/PR:** [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20) (the fix) + `tide/win/E64-diagnosed` (this row and entry). Merging the TideSynth side alone changes no behaviour; GMPI#20 is the substance.
+
 ## 2026-08-29 — macos — E19's mac AU3 cell: the host CAN be isolated here, the locked screen is the real wall, and a second AUv3 will not register (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** (no `claude` CLI on this box's PATH; the app's `CFBundleShortVersionString`, which A13 records as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`)
