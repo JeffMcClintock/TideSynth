@@ -174,3 +174,89 @@ go by window id.
 **Menus need the keyboard, not the mouse.** XTest clicks land correctly on
 REAPER's ordinary controls, but a click on an item in an open SWELL dropdown
 selects nothing. Open the dropdown with a click, then `Down`/`Up` and `Return`.
+
+---
+
+# macOS — a portable REAPER isolates completely, and the lock is the real boundary
+
+**Measured 2026-08-29 (macos, scheduled run) for BACKLOG E19's mac AU3 cell.**
+This document was Linux-only; the macOS answer is different in every respect
+worth knowing, and one half of it is better than Linux's while the other half
+is worse.
+
+## Portable mode works, and it is total
+
+Copy `REAPER.app` into a directory and `touch reaper.ini` beside it. REAPER
+then keeps its ENTIRE resource tree there — `ColorThemes/`, `Data/`,
+`Effects/`, every `reaper-*.ini`, the plug-in caches — and never writes
+`~/Library/Application Support/REAPER`.
+
+Verified rather than assumed, both directions: after four REAPER launches and
+four renders, the developer's config compared **identical, mtimes and sizes
+included**, and his `~/Library/Audio/Plug-Ins` plus `~/Applications` compared
+identical across **1,019 files**.
+
+**This is the opposite of the Windows result, which matters for reading the
+fleet's per-platform notes.** Windows was measured TWICE as un-isolatable —
+`reaper.ini` beside `reaper.exe` does not engage portable mode there, deleting
+`reaper-install-rev.txt` does not either, and REAPER resolves `%APPDATA%` via
+`SHGetKnownFolderPath`, which ignores the environment. On macOS the same idea
+simply works. So "we cannot isolate the host" is a Windows fact, not a fleet
+fact, and a mac run has no excuse for touching the developer's REAPER.
+
+## A FRESH portable config hangs, and it looks exactly like a plug-in fault
+
+The trap costs a session if you meet it cold: a newly-created portable config
+**hangs on a first-run modal** that an unattended run cannot dismiss. Every
+symptom points at the plug-in — `-renderproject` never returns, no output file
+appears, and the timeout looks like TIDE wedging the render.
+
+It is not TIDE, and the control that proves it is the repo's own:
+
+```
+python3 scripts/render-and-measure.py --control     # no plug-in involved at all
+```
+
+With a fresh config this **times out**. Seed the portable directory with the
+developer's configured settings — copying `reaper.ini` is the load-bearing
+one, and the plug-in caches and `reaper-reginfo2.ini` save a rescan — and the
+same control returns **rc=0 in 14 seconds**, `peak -6.0 / rms -9.0 dBFS`.
+
+Copy those files; never quote `reaper-reginfo2.ini`'s contents anywhere, since
+it carries the developer's registration.
+
+## The boundary a SCHEDULED run actually hits: the screen is locked
+
+A scheduled run on this box finds the login window up — the console is owned by
+the developer and the session is locked. Two behaviours follow, and they are
+NOT the same, which is why this section exists rather than a flat "GUI does not
+work":
+
+| path | locked session |
+|---|---|
+| `REAPER -renderproject project.rpp` (offline) | **works** — 3–4 s per fixture |
+| full GUI launch driven by `Scripts/__startup.lua` | **hangs**, no script output |
+
+So audio measurement through a real host is available to an unattended mac run,
+and anything needing the plug-in's editor — animation counters, pixel diffs,
+menu toggles — is not. `screencapture` on a locked session returns an
+**all-black frame of the full screen size**, which is worth naming because a
+black PNG reads as "the window drew nothing" rather than "the display is off";
+that is E58's lesson in a new place.
+
+The separation was measured, not assumed: the offline render succeeds and the
+GUI launch fails **in the same session, minutes apart**, so neither result is
+about the machine being busy.
+
+## Measured through this harness, 2026-08-29
+
+Both renders through the isolated portable REAPER, on a locked session:
+
+```
+tests/hosts/v1-rack.rpp            peak -6.3 dBFS  rms -17.0 dBFS   AUDIO PRESENT
+tests/hosts/v1-rack-uncabled.rpp   peak -inf       rms -inf         SILENCE
+```
+
+The first reproduces the 2026-08-18 macOS reference to the decimal and confirms
+**E59's fix holds on macOS `main`**; the second is the negative control, and the
+pair is what makes either number mean anything.
