@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **374 KB** across **305** entries, so copying them
+Learned sections are **375 KB** across **306** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **114 KB / 1236 lessons — 3.3x smaller**, and represents
+A8. This is **114 KB / 1242 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,15 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**linux — E60: the CLAP state path works, the blocker was our own harness, and a 32 KB cap was hiding under it (scheduled run)**
+
+- A harness defect and a product defect can hide behind one symptom, and the harness one goes first.
+- A truncated document that still parses is the worst possible failure.
+- Split a two-sided question with an instrument that only has one side.
+- Check the format's own file for its conventions before inventing them.
+- A negative control belongs on a screenshot too.
+- A comment that reasons from the code's origin ages badly.
 
 **macos — the mac render E59's row asked for: it is a REGRESSION, bracketed to three days (interactive, Jeff directing)**
 

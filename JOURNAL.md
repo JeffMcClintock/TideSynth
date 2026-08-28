@@ -8,6 +8,88 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — linux — E60: the CLAP state path works, the blocker was our own harness, and a 32 KB cap was hiding under it (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`)
+
+**Did:** the `linux` NEXT cell said take **E59**; E59 was claimed by the windows box minutes earlier (`tide/win/E59-controller-chunk-seeding`, [#547](https://github.com/JeffMcClintock/TideSynth/pull/547)), so per STEP 2 I took the cell's next name, **E60**. **Its headline is refuted** — a prepared rack does reach a hosted CLAP — and a real product defect was found underneath and fixed. Row **IN-REVIEW**. Branches `tide/linux/E60-clap-state-trace` in both repos; the fix is [GMPI_Wrappers#32](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/32).
+
+### The open question was "REAPER or us", and the answer is neither
+
+E60 ended: *"whether the state is dropped by REAPER 7.43's CLAP implementation or by TIDE's own `clap_plugin_state.save/load` — nobody has looked at the wrapper side"*. Both were innocent. **REAPER truncates a single `<STATE>` base64 line at 4,096 characters**, and every attempt so far wrote the block as one long line.
+
+| the same 18,893-byte preset | bytes reaching `stateLoad` | result |
+|---|---|---|
+| one 25,192-char line | **3,071** | `load` returns **true**, rack unchanged |
+| wrapped at 128 chars (198 lines) | **18,893** | `load` true, `save` returns **18,933** |
+
+4,096 base64 chars decode to 3,072 bytes, and the trailing partial quantum makes 3,071 — the arithmetic closes exactly, which is what turned "REAPER is dropping it" into "we are handing it 16% of a document".
+
+**The silent-success part is why nobody caught it.** A truncated TIDE preset still *begins* `<?xml version="1.0"?><Preset>`, so `setPresetUnsafe` parses it, finds nothing it can use, and returns — `stateLoad` reports success. There is no error anywhere in the chain. 128 chars per line is not a guess either: REAPER's own saved project writes 198 lines of exactly 128 payload chars.
+
+### The two numbers E60 recorded are now explained rather than quoted
+
+- ***"the default 116 chars"*** is `stateSave` on a fresh instance. It writes `<?xml…?><Preset><Param id="1" val=""/></Preset>` — **85 bytes plus the NUL = 86**, and `ceil(86/3)*4` is **exactly 116**. Not a truncation; the default state genuinely is one empty parameter.
+- ***"698 chars"*** is the whole default **TRACK** chunk, measured here at 698 too. It was never the state block.
+
+### The defect underneath, which is the part that ships
+
+`Processor_CLAP::stateLoad` read into `char buffer[4096 * 8]` and `return false`d once the total passed **32,511 bytes**, with a comment reasoning about *"a 700 byte string"* — true of the clap-saw-demo this wrapper grew from, false of a plug-in whose state is a document. The VST3 `setState` has never had a limit: it reads a length-prefixed chunk into a `std::string`.
+
+**This was live, not theoretical.** The repo's own host fixtures are 18,893 / 29,117 / **32,025** bytes — the last of them **486 bytes** from the cliff — and `tests/fixtures/e53-vcv-rack-segv.xml` is **51,690** and was refused outright. Now a growing `std::string`, the same shape as the VST3 path.
+
+**A/B — one probe, four fixtures, the commit the only variable:**
+
+```
+                bytes    BEFORE                        AFTER
+v1-rack        18,893    PASS  18,934 saved back       PASS  18,934
+v1-rack-midi   29,117    PASS  29,158                  PASS  29,158
+v3-midi-pitch  32,025    PASS  32,066                  PASS  32,066
+e53-vcv-rack   51,690    FAIL  REFUSED at totalRd=32512  PASS  51,630
+```
+
+The three unchanged rows are the point as much as the fourth: they are byte-identical either side, so the fix is not a rewrite of behaviour that worked.
+
+### The Accept is NOT met, and the reason is worth more than the fix
+
+The state reaches the **processor** — its own `stateSave` hands back the 18,933-byte rack after a project reopen — but the **editor still draws the default**. Screenshotted, against a no-state control taken the same way, and against the VST3 opening a prepared rack in the same REAPER minutes apart: the VST3 editor shows patch cables, the CLAP editor shows the default `Out` module and no cables.
+
+**That is E59 with the sign reversed**, and stating it that way is the useful part:
+
+| | editor | processor |
+|---|---|---|
+| VST3 (E59) | **prepared** | default |
+| CLAP (E60) | default | **prepared** |
+
+So these are not two bugs, they are one seam — editor and processor are seeded from different sources — seen from opposite ends. I did **not** chase the editor half: E59 is windows' live work and this would have raced their fix.
+
+### Three traps, each of which cost something
+
+- **`nohup ninja &` inside a tool call dies with the call.** The first build reported `rc=0` at 47 of 471 targets, which looks exactly like a successful short build. Check the artifact, not the exit code.
+- **A `.clap` is not a `.vst3` when it comes to instruments.** REAPER exposes no `vst_chunk` for a CLAP (`ok=false, len=0`), so the track chunk's `<STATE>` block is the only route, and that is what makes its line-length rule load-bearing.
+- **PIL cannot read `xwd`.** Twenty lines of `struct.unpack` against the 100-byte header can; the format is trivial and the alternative was installing ImageMagick into a scratch run.
+
+### The instrument is shipped, not described
+
+`tests/e60_clap_state_probe.cpp` dlopens the `.clap`, drives `clap_plugin_state` against a minimal host, and reports the byte counts and both return values **with no DAW present**. It is what separated wrapper from host in a question that had been open on that exact ambiguity, it runs in about a second, and its input stream deliberately returns short counts (≤4,096) so a wrapper that only works when the first read delivers everything cannot pass it. Exit codes distinguish setup failure (2) from plug-in refusal (1), per the E62 lesson. **It needs a `build.yml` step and the agent token has no `workflow` scope**, so that is Jeff's push.
+
+**Learned:**
+
+- **A harness defect and a product defect can hide behind one symptom, and the harness one goes first.** E60 spent a session concluding "no prepared rack can be got in" about a path that works; the real product bug was 486 bytes away from the fixture that was being used to look for it.
+- **A truncated document that still parses is the worst possible failure.** `<?xml…<Preset>` at the head means every layer reports success on 16% of a file. An error at any level would have named this in minutes.
+- **Split a two-sided question with an instrument that only has one side.** "REAPER or us" had been open for a day; a 200-line host harness with no DAW in it answered it before any DAW was started.
+- **Check the format's own file for its conventions before inventing them.** REAPER writes 128 base64 chars per line in the project it saves; nobody had opened one and counted.
+- **A negative control belongs on a screenshot too.** "The editor shows one module" means nothing until an instance with no state at all is shot the same way — and here it showed the same module, which is what made the reading honest.
+- **A comment that reasons from the code's origin ages badly.** *"a 700 byte string"* was accurate for the demo synth this wrapper was copied from and had been false since TIDE's first rack.
+
+**Not verified:** why the CLAP editor is not seeded (deliberately left to E59); whether the fix behaves on win/mac (no platform code in the changed function — it is `std::string` and the CLAP stream API — but neither box compiled it, and CI will say); module insertion inside a hosted editor, E60's observation (c), which I did not re-test; and whether any rack above 32 KB has ever been attempted in a CLAP host other than REAPER.
+
+**Machine state.** All six repos were clean and on their default branches at the start — verified, not assumed. `TideSynth` and `GMPI_Wrappers` are on the branches above until STEP 5 returns them; no other sibling was modified. REAPER 7.43 was downloaded into the session scratchpad and run only against a scratch `HOME`, so **`~/.vst3`, `~/.clap` and `~/.config/REAPER` were never written** — checked after. `~/.config/TIDE Rack/` untouched. Headless weston stopped, no REAPER or TIDE process left running. `build-e60/` is a scratch tree (gitignored); Jeff's `build/` was not touched, and a full configure+build of all three formats from cold took ~25 minutes and finished **rc=0**, which is also this run's evidence that `main` builds on linux.
+
+**Next:** **E59 is the blocker for both rows now**, and it has a new datum: whatever seeds the editor and whatever seeds the processor disagree in *both* formats, in opposite directions. **X1's stale `BLOCKED` mark wants flipping** — three linux runs have noticed it and none has done it. **E19's linux CLAP cell is newly measurable** and was only ever blocked by the harness bug this run removed.
+
+**Branch/PR:** `tide/linux/E60-clap-state-trace` in TideSynth (the probe, the corrected recipe, the E60 row, the `linux` NEXT cell, this entry) and in GMPI_Wrappers ([#32](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/32), the `stateLoad` fix). **Merging TideSynth's side alone leaves the 32 KB cap in place; merging the wrapper's alone leaves the backlog saying the work is open.**
+
 ## 2026-08-28 — macos — the mac render E59's row asked for: it is a REGRESSION, bracketed to three days (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"run the measurement"* on E7's Accept). As **tide-rack-bot**. Prompt sha b97bc00.
