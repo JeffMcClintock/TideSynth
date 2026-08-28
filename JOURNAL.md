@@ -8,6 +8,39 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — linux — STEP 4 bookkeeping: E39 and E53 flipped DONE, E55 deliberately not
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** the STEP 4 chore the entry below did not get to. **E39 → DONE, E53 → DONE**, both archived to `BACKLOG-DONE.md`; **E55 stays `IN-REVIEW`** with the reason written on the row. No code, no new item.
+
+### Every linked PR checked individually, not read off the row
+
+The E52 precedent is that "all PRs merged" is only a safe flip test when each one is checked with `gh pr view --json state`:
+
+| row | linked PRs | state |
+|---|---|---|
+| E39 | SynthEditLib#66 | MERGED |
+| E53 | SynthEditLib#64, SynthEditLib#67, TideSynth#516 | all MERGED |
+| E55 | GMPI_Wrappers#30 | MERGED |
+
+### E55 passes that test and is still not flipped
+
+Its own row says **half its Accept is unrun** — the `%APPDATA%` md5-identical control needs Windows, and no box has done it. Flipping on the merge alone would record an unverified clause as verified. That is the E52 trap with the sign reversed: E52 was a row that looked done because a *docs-only* PR merged; this is a row that looks done because the *code* merged while its verification did not. Both are "status inferred from a merge rather than from what the merge contained".
+
+### E39 is flipped with its regression named, not buried
+
+**E58** is an open regression from the very PR E39 is being closed on — Jeff reported it within the hour of #66 merging. `DONE` here means *landed*, which it is; it does not mean the drawing is right. Saying so in the archived row costs one sentence and stops the next reader concluding that E39 shipped clean.
+
+**Learned:**
+
+- **The mechanical flip test and the honest one differ, and the row usually says which applies.** E55's own text names the unrun half. Reading the row beats applying the rule.
+- **Archiving a row whose fix caused an open regression is fine; archiving it silently is not.** The two rows have to be findable from each other, and `DONE` is a claim about landing, not about correctness.
+
+**Next:** E55 wants one windows session to run the `%APPDATA%` control it already specifies.
+
+**Branch/PR:** `tide/linux/step4-flip-e39-e53` — BACKLOG, BACKLOG-DONE and this entry. Bookkeeping only.
+
 ## 2026-08-28 — linux — E19's linux cell: the VST3 fails, and the reason is that the DSP is running a different rack from the one on screen (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
