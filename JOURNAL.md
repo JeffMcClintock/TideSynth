@@ -8,6 +8,52 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-29 — windows — E67: ctrl+wheel translated the document under the cursor — E42's defect, one function from where E42 fixed it (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"new bug: ctrl mouse wheel is meant to zoom in/out while keeping same point of document under the mouse"*, then *"the zoom works, but the document moves under the mouse"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** diagnosed by reading, fixed, made the gesture drivable, and measured the A/B. [SynthEditLib#75](https://github.com/JeffMcClintock/SynthEditLib/pull/75) (GATED — proposed for review, never merged by a run) + [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) (`--scroll --ctrl`). **E67 → IN-REVIEW.**
+
+### Jeff's clarification did the triage
+
+The first report read as "broken"; I was half-way into the delivery path (E39's old note that `--scroll` "reports ok and moves nothing" pointed that way) when the clarification landed: **the zoom works, the document translates**. That eliminated delivery entirely — a zoom that works proves the event arrives with the ctrl flag intact — and reduced the search to the anchor arithmetic in one function.
+
+### The defect, and where the answer was already written
+
+`TopView::onMouseWheel` keeps the doc point under the cursor by recomputing the view centre — against `viewWidth * 0.5f`, the pane's half-SIZE. `calcViewTransform`, thirty lines below, anchors the actual transform on the pane's MIDPOINT, `(left+right)/2`, under a long E42 comment explaining **precisely this distinction**, measured to +240 DIP of browser strips. `(left+right)/2 − (right−left)/2 = left`, so every zoom step translated the view by `left/zoom` (and `top/zoom`) while the zoom factor itself was right. Origin-rooted panes hide it — midpoint equals half-size there — which is every other view in the repo, and why only TIDE showed it.
+
+The fix is the same substitution E42 made, term for term against `calcViewTransform`.
+
+### Making the gesture drivable was half the work, and it pays forever
+
+The command channel could not express ctrl+wheel — `--scroll` built its flags from `kHoverFlags` only. [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) adds `--ctrl`, the `--double`/`--right` precedent for the third time: each was one flag, and each turned a verification that "needs a human at the window" into a script. Also resolves E39's dangling note — the verb was never broken; the *gesture* was inexpressible.
+
+### Measured — one variable, self-calibrating
+
+`measure_zoom.py`: anchor one ctrl+wheel notch on the Out module's edge, find the module's two panel edges along the anchor row before and after, derive the ACTUAL zoom ratio from the edge spread (no assumption about snap), and compare each edge's landing spot with the doc-anchored prediction `anchor + (edge − anchor) × ratio`.
+
+| build | result |
+|---|---|
+| origin/main | module **clean out of the viewport** after one notch; rails jumped rows |
+| SynthEditLib#75 | left edge drift **+0.3 px**, right edge drift **+0.3 px**, ratio 1.302 |
+
+The BEFORE build was produced by checking SynthEditLib back to `main` in the second build tree, so both binaries share the `--ctrl` flag and differ by exactly one commit's worth of view math.
+
+**Consumers built:** TIDE standalone Debug and **SynthEditCL 90/90** — `ViewBase.cpp` is shared, so SynthEdit's own ctrl+wheel gets the same correction; origin-rooted panes are unchanged by construction.
+
+**Learned:**
+
+- **"The zoom works but it translates" is a complete triage in one sentence.** It rules out delivery, flags, and the zoom path, and leaves only the anchor arithmetic — the user's second sentence saved the session the delivery investigation the first sentence had started.
+- **When a bug is fixed in one function, grep for the same expression in its callers.** E42 fixed midpoint-vs-half-size in `calcViewTransform` and documented it loudly; the identical expression sat in `onMouseWheel` computing the input to that very function. A fix that renames or wraps the corrected quantity (a `canvasCenter()` helper) would have fixed both sites at once.
+- **An inexpressible gesture is a class of unverifiable rows.** Third time one flag on the command channel converted "needs a human" into a script — `--double` (E36), `--right` (E38), now `--ctrl`.
+- **Self-calibrate the measurement against the artifact, not the spec.** Deriving the zoom ratio from the edge spread made the drift number independent of the snap formula — the measurement cannot be fooled by the very quantity under test.
+
+**Not verified:** mac/linux builds (no platform code; CI on #75 will say); SynthEdit's interactive feel beyond compiling — the correction is mathematically the E42 fix, but nobody has wheel-zoomed the full editor against this branch.
+
+**Machine state.** `SynthEditLib` on `tide/win/E67-zoom-anchor-drift` (PR #75), `GMPI_Wrappers` on `tide/win/E67-scroll-ctrl-flag` (PR #34), TideSynth on `tide/win/E67-filed` — all with open PRs. gmpi_ui still parked on its #16 branch awaiting Jeff's review click. Measurement artifacts under `C:\SE\_scratch\e64\zoom-*\`, script at `measure_zoom.py`.
+
+**Branch/PR:** [SynthEditLib#75](https://github.com/JeffMcClintock/SynthEditLib/pull/75) + [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) + `tide/win/E67-filed` (row and entry). The lib PR is the substance; #34 lands alone harmlessly.
+
 ## 2026-08-29 — windows — E66 fixed both halves: reload releases the visuals first, and State's death is now loud at the cause (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"drive the computer... should crash"*, then *"yes, fix E66"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
