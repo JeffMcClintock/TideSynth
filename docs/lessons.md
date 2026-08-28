@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **362 KB** across **292** entries, so copying them
+Learned sections are **363 KB** across **293** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **108 KB / 1176 lessons — 3.4x smaller**, and represents
+A8. This is **108 KB / 1181 lessons — 3.4x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,14 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — E57 closed, and the guard that replaces the human who pressed the key (interactive, Jeff directing)**
+
+- A source check that does not strip comments is a check on documentation, not on code.
+- Guard the compiled-out case explicitly, because it is invisible to text search.
+- State a proxy as a proxy in the artefact itself.
+- Write the controls before believing the guard.
+- When shipping less than the Accept asked for, file the remainder as a row rather than noting it.
 
 **macos — E58 fixed: my own E39 clamped a rectangle that was doing two jobs, and left a hole nothing painted (interactive, Jeff directing)**
 

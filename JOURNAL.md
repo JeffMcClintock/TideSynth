@@ -8,6 +8,53 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E57 closed, and the guard that replaces the human who pressed the key (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"flip E57 to DONE and write the recurrence guard"*). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** merged the outstanding PRs, **E57 → DONE** and archived, wrote [tests/e57_delete_key_probe.py](tests/e57_delete_key_probe.py) and wired it as the `e57-delete-key` job in `lint.yml`. **Filed E62** for the limb of E57's Accept the guard does not satisfy. Recommended closing #528 rather than merging it.
+
+### The guard is not a grep, because a grep would have passed on the broken tree
+
+E57's most expensive hour went to a patch anchored inside `#if !USE_BACKING_BUFFER`, which compiled out entirely while the build stayed `rc=0`. **`grep keyDown:` would have found the text and reported success.** So the probe does two things instead:
+
+1. **Strips comments before matching.** E57's fix is heavily commented and the comments name every constant the code uses — `0x2E`, `NSDeleteFunctionKey`, all of it. Matching raw text would keep passing after someone deleted the code and left the comment.
+2. **Computes `#if` nesting depth** and requires each guarded construct to sit at the same depth as its enclosing `@implementation` or function. Burying the fix in any conditional raises its depth and fails.
+
+Rule 2 is a **proxy and is documented as one**: the script cannot evaluate macros, so it demands the code be unconditional. If a future change genuinely needs it conditional, this fails and a human decides. Selling that proxy as a proof is how E57 got expensive in the first place.
+
+### Five controls, because a guard never observed failing is not a guard
+
+| control | caught |
+|---|---|
+| remove `-acceptsFirstResponder` | A1 |
+| **bury `-keyDown:` in `#if !USE_BACKING_BUFFER`** — the real trap | A2 |
+| miscode `NSDeleteFunctionKey` → `0x99` | C |
+| drop `case 0x2E` from `onKey` | B2 |
+| **delete the binding, keep every comment** — a grep passes here | B |
+
+All five returned rc=1 with the expected check failing. The probe also `--selftest`s its own two mechanisms before CI trusts its reading.
+
+### What it does NOT do, said plainly rather than left for someone to discover
+
+E57's Accept asked for `--type \x7f` to remove a module **and** for that to run in CI. **What shipped is structural, not behavioural** — it asserts the binding exists and is reachable; it never presses a key. It would pass on a tree where `DeleteSelection()` is wired correctly but deletes the wrong object.
+
+I shipped it anyway because all three E57 defects were reachability failures, which this catches completely, and it runs in the fast lint job on every PR without needing a build. **The gap is E62**, not a footnote — along with a second tier I deliberately did not write: a check on a built binary's Objective-C metadata, which would prove compilation directly instead of by proxy. There was no macOS build on the box, and I was not willing to ship a check I had never seen pass or fail. That is the same standard I applied to the E58 `otool` grep an hour earlier.
+
+### #528 should be closed, not merged
+
+Its 48-line journal entry is **already in main** — it came from `ac3c647`, the pre-squash commit of #527, byte-identical to main's `a6b7723`. That duplicated ancestry is the whole conflict. Its only unique change is one line rewriting E57's row *backwards*, from **FIXED AND VERIFIED** to **DIAGNOSED, nothing written yet**. Merging it would also trip `check-backlog-diff`, which forbids editing an Item in place. Left open — closing it is Jeff's call on his own record.
+
+**Learned:**
+
+- **A source check that does not strip comments is a check on documentation, not on code.** E57's fix names every one of its constants in prose; deleting the code and keeping the comment would have passed a naive probe.
+- **Guard the compiled-out case explicitly, because it is invisible to text search.** Tracking `#if` depth is what turns a grep into a check that would have caught the bug that cost the most.
+- **State a proxy as a proxy in the artefact itself.** The probe cannot evaluate macros and says so in its own docstring; a reader who believes it proves compilation will trust it past its evidence.
+- **Write the controls before believing the guard.** Five deliberate regressions, five expected failures — without that the probe is an assertion that it works.
+- **When shipping less than the Accept asked for, file the remainder as a row rather than noting it.** E57 closed on a structural guard; the behavioural limb is E62 and survives the close.
+
+**Next:** **E62** (behavioural delete in CI, plus the binary-metadata tier). **E61** is GATED and awaits authorisation. **#528** awaits Jeff's decision to close.
+
 ## 2026-08-28 — macos — E58 fixed: my own E39 clamped a rectangle that was doing two jobs, and left a hole nothing painted (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"fix E58"*). As **tide-rack-bot**. Prompt sha b97bc00.
