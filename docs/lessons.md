@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **370 KB** across **299** entries, so copying them
+Learned sections are **371 KB** across **300** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **111 KB / 1213 lessons — 3.3x smaller**, and represents
+A8. This is **112 KB / 1218 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,14 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**windows — E56 reevaluated: the sort was innocent, the allocator assumed a sorted map, and the document never round-tripped at all (interactive, Jeff directing)**
+
+- An allocator that iterates an unordered container expecting sorted order fails silently and per-call.
+- "Oscillates between two forms" from three samples of a random process is the pattern, not the mechanism.
+- A platform that cannot reproduce a bug may simply lack the collision, not the defect.
+- Evidence in a session scratchpad is one tidy-up from gone.
+- The fix a row proposes can be the one thing already implemented.
 
 **macos — E56 does not reproduce on macOS: four cycles, byte-identical, instrument validated (interactive, Jeff directing)**
 
