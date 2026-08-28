@@ -8,6 +8,44 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E61 reproduced, fixed, and then asked the better question (interactive, Jeff driving)
+
+**Prompt:** interactive, Jeff driving (*"lets do it interactivly"*). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** **E61 → DONE.** Reproduced the crash with Jeff at the keyboard, confirmed [SynthEditLib#70](https://github.com/JeffMcClintock/SynthEditLib/pull/70) stops it, then landed [SynthEditLib#71](https://github.com/JeffMcClintock/SynthEditLib/pull/71) for the question the first fix left standing. The entry below this one shipped #70 as *"argued, not witnessed"* — it is witnessed now.
+
+### Three runs of one repro, which is what made this conclusive
+
+The pre-fix binary I had kept as E62's control turned out to be pre-#70 as well, so before/after needed no extra build:
+
+| build | result |
+|---|---|
+| pre-fix (13:53) | `EXC_BAD_ACCESS`, `KERN_INVALID_ADDRESS`, pointer-auth failure |
+| #70 (14:08) | no crash — commit declined |
+| #71 | pane blanks on delete; nothing left to edit |
+
+The crash report matched the row's stack frame for frame — `Body()::$_13` ← `dismissTextField` ← `-[NSTextField textDidEndEditing:]` — so what was reproduced is unambiguously E61 and not a neighbour. Saved as evidence. Stderr showed `17960 -> 14614` on the same run, proving the container really had been deleted first.
+
+### Jeff asked the better question, and it was in the row all along
+
+Watching #70 silently decline the commit: *"why are we even showing the deleted modules properties in the first place?"*
+
+Because #64 stopped at the pointer — *"a repaint driven from inside a destructor is more than removing a dangling pointer requires"*. The row had already called that link *"the part worth keeping"*: the stale display **is** what hands the user a live control over freed memory. I had fixed the crash and left its cause on screen.
+
+The caution was answerable rather than wrong. `invalidateView()` synchronously runs only `clear()` + `redraw()`; `Body()` re-runs at the **next paint**, after `~CContainer` has returned, sees `currentModule == nullptr` and returns immediately — a blank pane is its ordinary launch state, so there was never anything to build inside the destructor.
+
+**Both fixes stay, and they are not redundant.** E61 established the one thing widget teardown does *not* do — dismiss a live native field — so a field already open when the container dies outlives the repaint, and its commit must still be declined. The guard makes a stale commit safe; the repaint makes the stale display not exist.
+
+**Learned:**
+
+- **A user's "why is it like that at all?" is usually aimed at the cause you routed around.** #70 made the crash safe; Jeff's question was about the stale pane that produced it, and the row had flagged that link before I started.
+- **A comment declining to do something records a concern, not a measurement.** #64's "more than required" was worth re-testing rather than inheriting; the repaint turned out to defer safely out of the destructor.
+- **Keep the pre-fix binary the moment you have one.** The same stale build served as E62's control and E61's before-case; two Accepts, no deliberate rebuilds.
+- **Match the reproduced stack against the reported one frame by frame.** "It crashed" is not the same claim as "it crashed for this reason", and only the second closes a row.
+- **A guard and a cause-removal are not duplicates when they fail differently.** One covers a field already open; the other stops the field being reachable.
+
+**Next:** nothing open on E61. The fleet's queue is clear of TIDE rows in flight.
+
 ## 2026-08-28 — macos — E61: the fix the row called a coin-toss is decided by one line in MacTextEdit.h (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"and do E61"* — GATED work, authorised). As **tide-rack-bot**. Prompt sha b97bc00.
