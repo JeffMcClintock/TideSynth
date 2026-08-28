@@ -292,7 +292,20 @@ public:
 				// blank restore printed the same nothing as a good one. The
 				// size is the discriminator a log reader needs: a real rack is
 				// tens of KB, the seeded blank is ~13KB.
-				fprintf(stderr, "TIDE: building rack from %zu byte document\n", xml.size());
+				// The KIND and the rack's prior state are here for E59, where a
+				// hosted instance builds TWICE - the restored document, then the
+				// editor's default one - and the size alone cannot say which
+				// sender is responsible. Build comes from serviceDocumentSync
+				// (which prints its own line), Sync from syncState()'s save-time
+				// refresh, Legacy from a pre-tag document; and a Sync reaching
+				// here at all proves the rack was NOT prepared, because the arm
+				// above returns early otherwise. Reading those two facts off the
+				// log is what separates "the editor pushed over the restore" from
+				// "the processor was rebuilt and re-seeded with a stale value".
+				const char* kindName = kind == tideChunk::Kind::Build ? "Build"
+					: kind == tideChunk::Kind::Sync ? "Sync" : "Legacy";
+				fprintf(stderr, "TIDE: building rack from %zu byte document (%s chunk, rack %s)\n",
+					xml.size(), kindName, rackPrepared ? "already prepared" : "not yet prepared");
 
 				rack.setDocumentXml(xml);
 
