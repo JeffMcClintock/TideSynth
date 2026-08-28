@@ -99,6 +99,106 @@ If the click misses, nothing is selected, Delete correctly does nothing, and a n
 
 **Next:** **E61** is GATED and awaits authorisation. The `build.yml` step needs Jeff to push it — the agent token has no `workflow` scope.
 
+## 2026-08-28 — windows — E19's windows VST3 cell: it FAILS, and the mechanism this fleet wrote down for the cause is wrong (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3.0** (no `claude` CLI on this box's PATH; the Appx package version, which A13 records as the discoverable one on Windows) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`)
+
+**Did:** took **E19**'s windows VST3 cell, the `win` NEXT pick. Measured it: **FAIL**, same cause as linux — **E59**. Then measured E59 itself and **refuted the mechanism its row proposes**. Row back to **TODO**. Also: **E55 → DONE** (its Windows Accept clause finally run), **E63** filed, and `scripts/render-and-measure.py` now runs on all three platforms instead of macOS only. Branch `tide/win/E19-vst3-windows-leg`.
+
+### The cell fails, and the sharpest evidence is this repo's own v0.1 fixture
+
+`tests/hosts/v1-rack.rpp` is the fixture PLAN cites for *"the patch plays after reload"* — three prefabs cabled to the output, measured at **−6.3 dBFS, 440.0 Hz on macOS on 2026-08-18**. Through REAPER 7.78 on this box it renders **peak −inf, rms −inf: digital silence**, with its 2 patch cables intact in the saved document.
+
+The control that makes that mean something ran first, and it is the repo's own:
+
+```
+$ python3 scripts/render-and-measure.py --control
+  control (known -6 dBFS 1 kHz sine)
+    peak=   -6.0 dBFS  rms=   -9.0 dBFS  -> AUDIO PRESENT
+  PASS -- the render-and-measure chain does detect audio
+```
+
+The plug-in's stderr says why, and it is E59: the saved rack restores and is then replaced by the default one.
+
+| fixture | prepared rack restores | then | rendered |
+|---|---|---|---|
+| `v1-rack.rpp` | `14136 byte document (Legacy chunk...)` | `17957 byte document (Sync chunk...)` | **−inf** |
+| E53's five-VCV rack | `38654 byte document (Sync chunk...)` | `17961 byte document (Sync chunk...)` | −inf, but see below |
+
+17,955–17,961 across four runs, squarely inside the **17,957–17,963** the linux run measured for the default rack. **So E59 is not platform-specific**, which its own row listed as unknown.
+
+**One honest limit on the second row:** E53's rack has no cable to the rack output, so *both* documents render silence and the audio is **not** a discriminator there. Only `v1-rack` is, which is why it is the headline.
+
+### The mechanism E59's row proposes is not what happens
+
+E59 names `serviceDocumentSync` — the editor's *"DSP structure changed"* push — as the likely sender of the second document. **It is not.** That function prints `TIDE: DSP structure changed, pushing N byte document` immediately before every push it makes, and **that line appears nowhere in a hosted run**, while it *does* appear in a standalone run.
+
+**An absent line is only evidence if the code could have printed it**, so: the string `DSP structure changed` is present (`x1`) in both binaries tested. It never executed.
+
+What does happen came from one line added to the existing diagnostic on this branch — the kind of chunk, and whether a rack was already built:
+
+```
+TIDE: building rack from 38654 byte document (Sync chunk, rack not yet prepared)
+TIDE: building rack from 17961 byte document (Sync chunk, rack not yet prepared)
+```
+
+Both **`Sync`**, both **`not yet prepared`**. Sync is `syncState()`'s save-time refresh, not a structural push; and `rackPrepared` false at *both* means these are **two different processor instances**, each fresh — not one processor overwritten by a late push. The second is seeded from the controller's chunk parameter, which by then holds the editor's default document.
+
+**That reframes the row**: not an ordering race on one processor, but a second processor seeded from a controller value that no longer holds the restored rack. *Which* sender wrote that value is still open and is the next question.
+
+### The one datum that does not fit, stated rather than smoothed over
+
+If this were universal and old, macOS could not have rendered `v1-rack.rpp` at −6.3 dBFS on 2026-08-18. Either it is a **regression since then**, or **macOS differs**. **One `-renderproject` on the mac box settles it** and is the cheapest next move on E59. I could not run it here.
+
+### Two traps, each of which cost a measurement
+
+**A local build does not shadow the installed plug-in, and REAPER silently loads either one.** It alternated across runs here — the same project, the same command, two different binaries. My first attributed measurement was void because REAPER had loaded Jeff's installed build, which of course lacks the diagnostic I had just added. The fix is not cleverness about paths: **put a distinguishing string in the build and read it back off the log**, which is what the `(%s chunk, rack %s)` suffix became.
+
+**A bare `.vst3` copied out of the build tree has no `Contents/Resources`.** It prints `no DefaultRack.synthedit in bundle resources - starting with an empty rack` and every measurement of rack CONTENT against it is void. That is how I briefly measured a 1,498-byte "default", which is the empty rack, not the default one. Assemble the bundle folder.
+
+### E55 is DONE — its Windows control finally ran, and it paid for itself the same hour
+
+E55 has been `IN-REVIEW` with a merged PR and one unrun clause: the `%APPDATA%` md5-identical control, which needs Windows. Run:
+
+| | |
+|---|---|
+| override SET to a scratch dir | app read the fixture from it (`building rack from 38658 byte document`) and wrote back there, 51,690 → 58,022 B |
+| `%APPDATA%\TIDE Rack\` after | **md5-identical** — `b16bd2c5…` and `721460e3…`, both unchanged |
+
+**And it is why this run could reproduce E53's document at all** without touching the developer's live folder — the exact session that asymmetry cost on 2026-08-28. E53's guards were observed surviving it. **One clause I did NOT re-run on Windows and say so on the row:** *override unset resolves the same folder* — the only way to observe it is to let the standalone write to Jeff's real config, which is the thing the row exists to avoid.
+
+### E63: the Windows release package omits three files, found in passing
+
+`scripts/package-windows.ps1:127` lists its resources **by name** — four XMLs plus `Prefabs\`. The build stages **six** XMLs *and* `DefaultRack.synthedit`. So a packaged Windows build ships without `EnvelopeAdsr.xml`, `Oscillator.xml` (E48's, added 2026-08-28) and the default rack itself.
+
+**Only Windows can drift**, because only Windows maintains a second list: `package-linux.sh` copies the whole bundle and the whole `Resources` directory, and macOS copies assembled bundles. And the local CMake POST_BUILD install *is* correct, which is why no local test catches it. The script's own comment at `:122` says the two lists **MUST MOVE TOGETHER**. Not fixed here — STEP 3 scope.
+
+### What this run left behind so the re-take is cheap
+
+- **`scripts/make-host-fixture.py`** — builds a `.rpp` carrying any prepared rack. `tests/hosts/README.md` said these were GUI artifacts with no script to write them; that is true of *authoring* a rack and false of *carrying* one, because the standalone's `session.xml` **is** the `<Preset>` a VST3 instance stores. Round-trips back through `decode_rpp.py` to the same 38,658-byte document.
+- **`scripts/render-and-measure.py` runs everywhere now.** Three things stopped it: a macOS-only REAPER constant; `re.sub`'s replacement **string** expanding escapes, so a Windows temp path raised `bad escape \U` and it died before REAPER started (a macOS path has no backslashes, which is the only reason it stood); and a `pkill` sweep Windows does not have.
+- Its silence NOTE used to send readers to `ug_container::ConnectPatchCables`. That is the wrong suspect now, so it says to **count the rack-build lines first**.
+
+**Learned:**
+
+- **An absent log line is evidence only after you prove the binary could print it.** `DSP structure changed` missing from a hosted run refutes E59's mechanism *because* the string is in the binary; without that check it is equally consistent with having loaded a build that predates the line — which, on this box, I had actually done.
+- **A local build does not shadow an installed plug-in, and the host picks silently.** Two binaries, one project, alternating across runs. Only a distinguishing string in the build makes the log self-identifying.
+- **A bare `.vst3` DLL is not the plug-in.** No `Contents/Resources` means no default rack and no prefabs, so any measurement of rack CONTENT taken against one is void while looking entirely normal.
+- **Two silences are not the same finding.** E53's rack has nothing cabled to its output, so its silence says nothing; `v1-rack` is cabled, so its silence is the whole result. Check what the fixture could have emitted before quoting −inf.
+- **`re.sub`'s replacement is a template, not a literal**, and every Windows path is full of its escapes. The repo's one audio instrument could not run on two of three boxes for that reason alone.
+- **A resource list maintained by hand in one platform's packaging script will drift, and the local install hides it.** CMake's POST_BUILD assembles the correct bundle; only the shipped zip is wrong, so nothing a developer runs locally can notice.
+- **Isolation proved for one process is not isolation proved for another.** I measured the standalone's config isolation and then assumed the host's, which is how four renders reached the developer's own REAPER configuration.
+
+**Not verified:** whether E59 also breaks the mac box (the 2026-08-18 −6.3 dBFS says it may not — one render settles it); which sender writes the stale controller value; the 60-second animation, int/bool/enum and pixel-diff clauses of E19's Accept, which cannot pass while the DSP runs a different document; and whether any release was actually cut with E63's gap.
+
+**Machine state, including one thing I got wrong.** All six repos were clean and on their default branches at the start — the cleanest start in a while — and TideSynth is on this run's branch until STEP 5. Sibling repos were **not** modified: `SynthEditLib`, `GMPI_Wrappers` and `gmpi_ui` were behind `origin/main`, so the build used **detached worktrees** at `origin/main` under `C:\SE\_scratch\e19w\` rather than moving Jeff's checkouts. `%APPDATA%\TIDE Rack\` is **md5-identical** and was never written — E55's override is why. Jeff's installed `Common Files\VST3\TIDE-Rack.vst3` is untouched (still 07:59, 16.5 MB); my build tree is `build-e19win/`, gitignored, and did not run the POST_BUILD that would have replaced it. No TIDE or REAPER process left running.
+
+**What I got wrong: I ran REAPER against the developer's own configuration before checking that I could isolate it, and I cannot fully undo that.** I copied REAPER to a scratch dir and wrote a `reaper.ini` beside it expecting portable mode; it did not engage, and neither did removing `reaper-install.ini` nor redirecting `APPDATA` (REAPER resolves its resource path the way TIDE does — `SHGetKnownFolderPath`, which ignores the variable). Four renders therefore used `%APPDATA%\REAPER\`, updating its ini and plug-in cache, **before** I thought to back it up. What I did after: took the backup, avoided touching his VST scan paths, staged my probe build in `%LOCALAPPDATA%\Programs\Common\VST3\` (already on his scan path) rather than editing config, then removed the probe bundle and its one cache line. Diffed against the backup afterwards: the plug-in **set** is identical — same entries, same UIDs, same order — and the only remaining differences are REAPER's own re-stamped scan timestamps, which any launch rewrites. **The lesson is not "REAPER is awkward": it is that I proved isolation for the standalone (E55's override, measured) and merely assumed it for the host.**
+
+**Next:** **E59 is the blocker and it now has a sharper question** — not *"does the editor push over the restore"* (it does not) but *"what writes the default document into the controller's chunk parameter before the second processor is seeded"*. **One `-renderproject` of `tests/hosts/v1-rack.rpp` on the mac box** is the cheapest single measurement in this backlog right now: it either dates E59 as a regression since 2026-08-18 or makes it non-macOS. **E19's windows VST3 cell should not be re-taken until E59 closes.** **E63** is small and Windows-only.
+
+**Branch/PR:** `tide/win/E19-vst3-windows-leg` — the chunk-kind diagnostic (`SynthEditSem/SynthEdit.cpp`), `scripts/render-and-measure.py`, `scripts/make-host-fixture.py`, the E19/E59 rows, E55's flip and archive, E63, and this entry. TideSynth only; no sibling repo was committed to.
+
 ## 2026-08-28 — macos — E57 closed, and the guard that replaces the human who pressed the key (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"flip E57 to DONE and write the recurrence guard"*). As **tide-rack-bot**. Prompt sha b97bc00.
@@ -1308,496 +1408,6 @@ run's. No TIDE process left running.
 E50's archive, the `win` NEXT cell's defused phrase, the `mac` NEXT cell, and this entry).
 **Merging TideSynth's side alone changes no behaviour**; merging GMPI_Wrappers' alone
 leaves the backlog saying the work is open.
-## 2026-08-27 — windows — The second gate was __argv itself, the whole quiet chain now measures working, and E46's guard fired in production (interactive, Jeff directing)
-
-**Prompt:** *"find the second gate"* · Fable 5, `claude-fable-5` · as **tide-rack-bot**
-
-**Did:** found it, fixed it on
-[GMPI_Wrappers#29](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/29)'s
-branch (`ed03305`), and measured the whole chain end to end. **E46 goes DONE and
-is archived** — its Accept was met by observation on the way. E48 gains a third
-missing module. E51's mechanism is now real on Windows, pending #29's merge.
-
-### The gate, and why the first fix could not have worked
-
-**In a Unicode build entered through `wWinMain`, the CRT populates only
-`__wargv`; `__argv` stays NULL.** The first commit on #29's branch passed
-`__argc, __argv` — a count without its strings — and `applyCommandLineConfig`
-correctly refused the pair. Exactly as inert as the `(0, nullptr)` it replaced,
-one line later.
-
-**The trace found it in one launch.** On the previously-rebuilt exe:
-
-```
-TIDE: command line: argc=2, argv=NULL
-```
-
-`argc` arrived; `argv` did not. No amount of stack reading had produced that —
-three offline analyses ruled things *out*, and the one line of instrumentation
-ruled the answer *in*. That is what "instrument the app" bought.
-
-The fix converts `__wargv` to UTF-8 once, into function-local statics, because
-`gArgv` aliases the pointers for the life of the process. Still the CRT's own
-parse — same splitter that fed `wWinMain`, nothing to `LocalFree`, no second
-parser to disagree with the first.
-
-### The chain, measured end to end on the fixture that blocked every run today
-
-```
-TIDE: command line: argc=2 -quiet
-TIDE: parsed quiet=1 rescan=0
-Logging dialogs to stderr, and keeping them for --dialogs.
-...
-Module not found in factory: SE Scope3 XP
-Module not found in factory: SE Oscillator
-Module not found in factory: SynthEdit ADSR
-3 connector(s) in "Sine" could not be restored ...
-5 connector(s) in "AR" could not be restored ...
-command channel: \\.\pipe\gmpi-standalone.30644
-```
-
-**The restore completes. The channel opens. `--dialogs` answers count=6** with
-every title and text intact — the two `Connectors lost while loading` reports
-carry their captions, the factory prompts their empty ones. Jeff's question from
-this morning — *"is the dialog fixed so it reports to MCP?"* — is now **yes**,
-measured, on this branch.
-
-### Three modules, not two — and the best census was never the check
-
-The unblocked restore enumerates **`SE Oscillator`** as missing too.
-**It passed BOTH of the check's screens**: its string occurs in the binary by
-coincidence and no staged XML describes it, so offline screening scored it
-registered. Third correction to that count today (one → two → three), and the
-lesson has stabilised: **the authoritative census is one `-quiet` launch of the
-fixture and a read of stderr or `--dialogs`** — the app names exactly what it
-cannot resolve, per container, connectors included. The offline check stays as a
-cheap screen; its pass proves nothing.
-
-### E46's Accept, met by an event nobody staged
-
-Three times in that log:
-
-```
-SynthEdit: parameter names module handle 481794193, which this document does not contain -- parameter left with no module.
-```
-
-That is the guard from
-[SynthEditLib#64](https://github.com/JeffMcClintock/SynthEditLib/pull/64) firing
-on a **real saved document** in a Release build — the exact condition E46 was
-filed on, reached by the route the row predicted second (a parameter whose
-module was dropped) via E48's missing-prefab-module class. The document loaded
-degraded, the rack built, the app ran on. Every crafted document had failed to
-reach the condition; a genuinely broken prefab reached it naturally. **E46 is
-DONE and archived.**
-
-**Learned:**
-
-- **`__argv` is NULL under `wWinMain` in a Unicode build.** A count forwarded
-  without its strings is as inert as no count, and the compiler is happy with
-  both.
-- **One line of instrumentation beat three offline analyses.** The stack, the
-  vcxproj and the source each ruled something out; only the app saying
-  `argc=2, argv=NULL` said what was true.
-- **A guard's best verification can arrive as a side effect.** E46's Accept was
-  unreachable by construction for two days of crafted documents, then a real
-  defective prefab met it in passing.
-- **When the product can report on itself, prefer that to screening it from
-  outside.** Three rounds of check-corrections converged on: launch it quiet and
-  read what it says.
-
-**Next:** #29 is ready for Jeff's review — with it, every "save and reload"
-Accept on Windows becomes drivable headlessly, which is the population E44 was
-counting. E48's remaining work is unchanged and now three modules wide. E53
-still wants its faulting address.
-
-**Machine state.** `RackModules/AR_jef.synthedit` still dirty — Jeff's, left
-untouched. One regret owned in the moment: an unconditional pre-sweep killed the
-TIDE instance Jeff had the dialog open in (PID 25328). All repos on expected
-branches; `%APPDATA%\TIDE Rack\` restored and md5-verified; nothing of ours
-running.
-
-**Branch/PR:** rows and this entry on `tide/win/E51-argv-trace`
-([#518](https://github.com/JeffMcClintock/TideSynth/pull/518)); the code is the
-second commit on [GMPI_Wrappers#29](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/29).
-
-## 2026-08-27 — windows — The instrument said argc=0; then Jeff photographed the dialog and it named a different module than I had (interactive, Jeff directing)
-
-**Prompt:** *"is the dialog fixed so it reports to MCP?"* → *"chase it"* → *"instrument the app to find out"* · Opus 5 (1M context), `claude-opus-5[1m]` · as **tide-rack-bot**
-
-**Did:** answered the question — **no** — found the measured cause of quiet mode
-being inert on Windows, proposed the fix as
-[GMPI_Wrappers#29](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/29)
-(PR-GATED, not merged), landed a permanent command-line trace, and **corrected
-E48 and the check I had shipped hours earlier**.
-
-### Answer: no, and here is why, in one line per shell
-
-```
-int runStandaloneApp(PlatformShell& shell, int argc = 0, char** argv = nullptr);
-```
-
-**Defaulted parameters, and only the mac shell passes them.** Windows and Linux
-both called `runStandaloneApp(shell)`, so `gArgc`/`gArgv` stay `0`/`nullptr`,
-`applyCommandLineConfig` bails at `argc <= 1 || !argv`, `SetQuiet()` is never
-called, and **`-quiet` has never done anything on two of three platforms.**
-
-The defaults are what made it silent — without them the shells would not have
-compiled.
-
-**The instrument settled it in one launch:** `TIDE: command line: argc=0,
-argv=NULL`. That trace is now permanent (`SynthEditController.cpp`,
-standalone-only), because this function failing open is otherwise invisible:
-every flag simply does nothing and the symptom looks like the default.
-
-**The corroboration was already in every log I had.**
-`CSynthEditAppBase::SetQuiet()` announces itself — it sets `quiet` then calls
-`SeMessageBox("Logging dialogs to stderr, and keeping them for --dialogs.")`.
-Across every `-quiet` launch of a long session that line appeared **zero** times.
-I had the positive control the whole time and did not think to look for it.
-
-**Necessary but not sufficient, measured:** with argv forwarded and the exe
-relinked, `SetQuiet()` **still** does not fire and E48's modal still blocks. A
-second gate remains and I have not found it. Ruled out: the `GMPI_STANDALONE`
-guard (target-wide on the standalone), ordering (`applyCommandLineConfig` runs in
-`initialize`, before `setParameter`), and the divert itself.
-
-### And then the photograph
-
-Jeff sent a screenshot of the actual box:
-**`Module not found in factory: SE Scope3 XP`** — from `Sine_jef.synthedit`, not
-the `SynthEdit ADSR` in `AR_jef.synthedit` that I had named as *the* cause hours
-earlier and merged into E48.
-
-**Both are real. Neither is "the" cause. The defect is a class:** shipped prefabs
-using modules TIDE does not register.
-
-**Why my check missed the one the user actually sees.** It tested only *absence
-from the binary*. `SE Scope3 XP` **is** a string in the exe and **is** described
-by the staged `ControlsXp.xml`, so it scored as present. But **staging an XML
-enriches the pins of a module TIDE already registers; it registers nothing.**
-
-And the measurement of exactly that has been printed at every startup all
-session:
-
-```
-TIDE: ControlsXp.xml enriched 2 of 18 described class(es)
-```
-
-**Sixteen described classes TIDE does not have.** I read past that line in a
-dozen logs, including in the entry where I quoted the surrounding lines verbatim.
-
-The check now runs two screens and catches both — with the false-positive
-direction stated, because (b) would wrongly flag a module both registered in C++
-and described in a staged XML.
-
-**Learned:**
-
-- **A screen that catches one instance is not a diagnosis of the class.** I found
-  one missing module, stopped, and wrote "the cause" into a merged row. The
-  second one was in a different prefab and was the one on screen.
-- **Present-in-the-binary does not mean registered.** I wrote in the script's own
-  docstring that presence proves nothing and absence is decisive — and then
-  treated a single absence hit as the complete answer. Being right about the
-  logic did not stop me misusing it.
-- **The instrument you need is often already printing.** `enriched 2 of 18` and
-  `SetQuiet`'s announcement were both in every log; each would have saved hours,
-  and I went looking for new instruments instead of reading the ones running.
-- **Default arguments can turn a missing call into a silent no-op.** Two of three
-  shells threw the command line away and nothing failed anywhere.
-- **A photograph from a human beat three offline analyses.** The stack told me
-  which call site; only the screen told me which module.
-
-**Next:** the second gate on quiet mode. The trace now landed is the tool for it —
-the next step is one line reporting whether `SetQuiet()` was reached. And **E48's
-fix is Jeff's, now twice over**: two prefabs to re-author, or two modules to add
-to the compiled-in set.
-
-**Machine state.** `RackModules/AR_jef.synthedit` is dirty in the working tree —
-**Jeff's, being edited in SynthEdit 1.6 while this ran, left untouched.** A
-TIDE-Rack he launched is showing the dialog above; not mine and not swept. All
-other repos on their default branches and clean; `%APPDATA%\TIDE Rack\` restored
-and md5-verified.
-
-**Branch/PR:** `tide/win/E51-argv-trace` — the corrected check, the command-line
-trace, E48's and E51's corrections, and this entry. The wrapper fix is
-[GMPI_Wrappers#29](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/29),
-proposed only.
-
-## 2026-08-27 — macos — E54: the gate reads the library's diagnostic now, and the obvious place to put it would have matched nothing (scheduled run, continued)
-
-**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude Code (no `claude` on this box's PATH) · as **tide-rack-bot** (both paths) · continued from the E25 entry below at Jeff's *"fix E54"*
-
-**Did:** built **E54**, the row this run filed an hour earlier. Its Accept ran live on a real standalone, both arms. Branch `tide/mac/E54-gate-lost-module`, stacked on `tide/mac/E25-document-driven-repro` because E54's row exists only there until [#513](https://github.com/JeffMcClintock/TideSynth/pull/513) merges.
-
-### The one-line fix was in the wrong place, and it would have failed silently
-
-E54's own row sized this as *"one entry in `FATAL_LINES` plus the negative control"*. **That entry would have matched nothing.** The loop is
-
-```python
-for needle, why in FATAL_LINES:
-    for line in text.splitlines():
-        if needle in line and "TIDE:" in line:
-```
-
-and the message is `SynthEdit: parameter names module handle N, which this document does not contain` — prefixed **`SynthEdit:`**, because it comes from `CPatchManager::InitModulePointers` in **SynthEditLib**, not from `TideApp.cpp`. The constant's own comment says *"Each is a real message in TideApp.cpp"*, and that sentence is the guard rail; I only read it because I was about to add a line underneath it.
-
-So the check would have been **added, committed, reviewed and green, while asserting nothing** — the silently-disarmed check that file warns about, arrived at from a different direction. It is a separate `LOST_MODULE` regex instead, which also lets the failure **name the handle**: "a module is missing" sends the reader to the wrong repo, and the number is what they grep the document for.
-
-**I wrote the sizing in that row myself, three hours earlier, from reading the same file.** A row's size estimate is a claim about code the estimator did not open.
-
-### The Accept, run live rather than from a log
-
-Same binary in both arms; the document is the only variable.
-
-| arm | result |
-|---|---|
-| default rack, one `<param module=>` → `999999999` | **exit 1**, `FAIL parameter names module handle 999999999 …` |
-| stock default rack | **exit 0**, `rack is populated.` |
-
-And the four negative controls in `tests/rack-content/` all still exit 1, so nothing was disarmed on the way in.
-
-### The new fixture is load-bearing in the opposite direction to the old one
-
-`lost-module-handle.log` is a real capture, and what makes it worth keeping is that **every positive assertion the gate makes is present and healthy** — four XMLs enriched, five prefabs seeded, `default rack loaded, 25109 byte document` — on a rack that is missing a module.
-
-`silent-empty-rack.log` exists because a negative-line scan passes an ABSENT line. This one exists because a positive-line scan passes a PRESENT one. M8's note says the positive assertions are the load-bearing half; that is true of the case it was written about and **not true in general**, and this folder now holds the counterexample.
-
-### What I did not do, stated rather than implied
-
-**This covers `--standalone` and `--log-file` only, not `--au3`.** That arm reads os_log; `TideApp` mirrors its own diagnostics there precisely because an app extension's stderr reaches nothing, but this message is `std::cerr` inside SynthEditLib, which knows nothing about os_log. **So an AUv3 that lost a module is still invisible to this gate.** Checked by reading both files rather than assumed. Closing it means routing the library's diagnostics through the same channel — another repo, and not E54's job.
-
-**Learned:**
-
-- **"Add it to the existing list" is a claim about the list's matching rule, not just its contents.** The obvious entry here would have been inert, and every test that mattered would have been green.
-- **A row's Size estimate is a claim about code the estimator did not open.** I wrote this one's "one entry in FATAL_LINES" from the same file three hours earlier and it was wrong about the only detail that mattered.
-- **A guard that makes a crash survivable can blind the gate that caught it.** E46's fix was right and it cost this gate its coverage of that case; nothing would have reported the loss. Worth asking, whenever a silent-failure fix lands, what used to notice.
-- **A fixture folder can hold two load-bearing cases that argue opposite ways** — absent-line and present-line — and a note explaining one of them will be read as a general rule unless the other is there too.
-- **Say which arms a check covers when the channels differ.** os_log and stderr are different pipes, and a check that reads one is not a check on the other.
-
-**Next:** nothing outstanding on E54. The AUv3 gap above is real, is not filed, and is a SynthEditLib change — worth a row only if someone wants the gate to cover the extension.
-
-**Machine state.** All six repos on their default branches and clean at the end; TideSynth on this run's branch until STEP 5. The scratch build tree is under the session scratchpad, outside every repo, and removed. Every standalone ran under an isolated `HOME`; no TIDE process left running; Jeff's `~/Library/Application Support/TIDE Rack/` untouched, verified by mtime and size. No new crash reports — nothing in this entry faults.
-
-**Branch/PR:** `tide/mac/E54-gate-lost-module`, **based on `tide/mac/E25-document-driven-repro` rather than `main`**, because E54's row is only on that branch. Kept separate from #513 deliberately: E45's own argument is that a check and a bulk change are not reviewable together, and #513 is a fixture plus five rows. If #513 merges first GitHub retargets this to `main`.
-
-## 2026-08-27 — macos — E25 reproduced from a document, and STEP 1's stale issue turned out to be E46 crashing in the wild (scheduled run)
-
-**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude Code (no `claude` on this box's PATH, and `claude --version` reports `command not found`, so the version A13 calls discoverable is not available here — recorded rather than guessed) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, which matches the hard-coded `GIT_AUTHOR_EMAIL`)
-
-**Did:** STEP 1 on [#491](https://github.com/JeffMcClintock/TideSynth/issues/491) — diagnosed, closed. Then took **E25**, the `platform: mac` row the NEXT cell said did not exist, and **met its Accept**. Filed **E54**. Annotated **E46** with the reproduction it says it lacks. No product code changed in any repo.
-
-### The NEXT cell was five days stale and said this box had nothing
-
-The `mac` cell asserted *"There are still NO `platform: mac` TODO rows"*. The Status column said **E25 | TODO | mac**. STEP 2 is explicit that eligibility lives in the Status column alone, and it is the only reason this run had an item. Walking the rows above it in file order, with the reason each was skipped on its own row rather than only here: **S1b** and **S8** wholly GATED, **E38** carries `NEEDS-SPEC`, **E19**'s mac cell wants AU3 in a real host, **E7** and **E2** are product decisions.
-
-### STEP 1: #491 was real, reproduces at its own commit, and is not a macOS defect
-
-The issue named a branch that had been **deleted ten minutes before the issue was filed** — `build.yml`'s close-on-success step can never fire on such a branch, which is A33's case, and `watchdog.yml` (which closes exactly these) had not run since 2026-08-26T06:14Z.
-
-It was not a compile error. The build succeeded and `check-rack-populated.py` fired: *"no 'default rack loaded' line"*.
-
-Rebuilt the pair CI actually saw — TideSynth `0876c3ac` with `SYNTHEDITLIB_FOLDER_OVERRIDE` pinned to SynthEditLib `4f334b9` — **and it reproduces**. Two things ruled out first, so nobody re-checks them: a stale `session.xml` in the runner's `$HOME` (gate passes with and without one) and E42's `PanelLocationCenter` change to the same file (passes with either version staged).
-
-**The trigger is a cross-repo straddle.** `0876c3ac` pointed `DefaultRack.synthedit` at `<module type="MIDI In NL">`; `MIDI In NL` had **zero** occurrences in SynthEditLib at `4f334b9` and one in `main` today. TideSynth's half merged 01:08Z, SynthEditLib's (`b031ec6`) at 02:29Z. **81 minutes, and the run started at 01:06Z, inside the gap.**
-
-### I called it a silent failure, and it was a crash. Reading the exit status is the fix
-
-I wrote *"the app said nothing — no error, no warning"* into a comment on the issue, from a stderr that ends after `5 rack prefab(s) seeded`. **It ends because the process was gone.** `~/Library/Logs/DiagnosticReports` had two identical reports:
-
-```
-EXC_BAD_ACCESS  KERN_INVALID_ADDRESS at 0x8b890660a94c2680 (possible pointer authentication failure)
-  CUG::GetPlug(int) <- CContainer::getIgnoreProgramChange() <- PatchParameter_base::ExportXml
-  <- CPatchManager::ExportXml <- CContainer::ExportXml <- TideApp::exportChunkXml <- importChunkXml
-```
-
-**That is E46, reproduced in the wild** — and E46's row says in its own words that it was read off the source with no repro. The module never existed, so its handle never entered `uniqueIds`, and `InitModulePointers` at `4f334b9` was `assert(it != uniqueIds.end())` followed by a bare deref. The parameter took a garbage module pointer.
-
-**E46 and E25 are the same stack reached two ways, and the faulting address separates them:** `0x50` is a NULL container (E25); a PAC-failing address is a WILD one (E46). Both guards are on `main` now — `f85cf73` and `796bbc2` — and `796bbc2` landed at **08:05Z, seven hours after the crash it explains**. Verified the guard works rather than assuming: a document naming handle `999999999` now prints *"parameter names module handle 999999999, which this document does not contain"* and the app loads.
-
-Corrected on the issue rather than left standing.
-
-### E25: the three earlier attempts failed on one word of spelling
-
-The row records three crafted documents that did not reproduce, and recommends driving the Properties pane toggle instead. **The document route works; it was being spelled wrong.** Those attempts set `ignoreProgramChange="0"` — the attribute `PatchParameter_base::ExportXml` writes for an **exported plugin** (`PatchParameter.cpp:435`). The attribute a **document** carries is `ignorePC`, from the `SerialiseB` reflection list at `PatchParameter.h:101`, and any shipped prefab shows it (`modules/Filters/Lookahead.synthedit:143`). One field, two serialisations, two names.
-
-The fixture is `DefaultRack.synthedit` plus **one attribute pair**:
-
-```
-<param type="10" handle="1100194740" private="true" hostControl="49" module="1996595734" ignorePC="false">
-```
-
-Both halves are load-bearing, and neither alone reaches the deref: `m_ignoreProgramChange` **defaults to `true`** and `true` short-circuits before `module()` is read; and `module="1996595734"` is the `<master_container name="Main">`, the one object whose `Container()` is null (`DocOb.cpp:40`, *"special case for 'Main' container"*). `CPatchManager::Import` reads the attribute and `InitModulePointers` binds it out of `uniqueIds`, which every object joins via `uniqueIds[Handle()] = this` (`CUG.cpp:1216`) — master container included.
-
-**Measured. Same TideSynth `main` (`2612a2d`) in every cell; the guard is the only variable:**
-
-| | stock `DefaultRack.synthedit` | the fixture |
-|---|---|---|
-| **`f85cf73` reverted** | no crash, `default rack loaded, 25110 byte document` | **SIGSEGV, exit 139**, `KERN_INVALID_ADDRESS at 0x50` |
-| **`main`** | no crash, `25110 byte document` | no crash, `default rack loaded, 25147 byte document` |
-
-`0x50` is the address the original report named, which is the whole evidence this row turns on. The left column is the **control** — it is what makes the fixture the variable rather than the build. Crash reports: **one per faulting run, zero in the other three cells**, so the Accept's *"crash-report count before and after"* has a before again after macOS rotated the originals away.
-
-**The A/B arm had to be built by reverting the guard, not by checking out a pre-`f85cf73` `SynthEditLib`.** That was tried first and does not compile: TideSynth `main` calls `takeDivertedPrompts`, which E51 added *after* the guard. The same cross-repo coupling that caused #491, hit twice in one session.
-
-### E54: E46's fix opened a hole in the shipping gate
-
-Before the guard, a straddle crashed and `check-rack-populated.py` caught it by the absent line. **After the guard it loads degraded and the gate passes** — `rack is populated.`, exit 0 — on a rack missing a module, while the app printed the reason two lines earlier. Measured, not inferred. That is the M5 shape the script was written to stop, reintroduced by a fix that was right to make.
-
-### STEP 4 bookkeeping
-
-**E50** and **R6** had every linked PR merged and no clause left open in their own words, so both are DONE and moved to `BACKLOG-DONE.md` verbatim. PR state read with `gh pr view`, not inferred from a merge commit; R6 names a branch rather than a number (A22), so its PR was resolved from the head ref — [#505](https://github.com/JeffMcClintock/TideSynth/pull/505).
-
-**E45 was NOT flipped, deliberately.** Both its PRs merged, but its own row says the check is not wired into `lint.yml` and *"until it is, the check exists and enforces nothing"* — that line needs Jeff, because the bot token has no `workflow` scope. DONE would be false, which is the E32 precedent exactly.
-
-Archiving E50 then failed `check-next-block`: the `win` cell still carried a literal `TAKE **E50**` in its "previous cell follows" history, which the lint correctly reads as a live directive. Reworded as history rather than deleted — **my archive broke it, so my branch fixes it**.
-
-**Learned:**
-
-- **A truncated stderr and a crashed process look identical from the log.** Check the exit status before writing "it said nothing" — I put that sentence in a public comment and had to correct it.
-- **One field can have two serialised names, and a row can spend three attempts on the wrong one.** `ignoreProgramChange` is the export attribute; `ignorePC` is the document attribute. Grepping a shipped file for the attribute settles it in one command.
-- **When a row recommends a GUI route, check whether the document reaches the same state.** E25 asked for the Properties toggle, which the command channel cannot click; two attributes did it with no gesture at all.
-- **Revert the fix rather than checking out the tree that predates it.** A months-old sibling will not compile against today's consumer, and reverting keeps the fix as the only variable — which is the whole point of the A/B.
-- **A guard that stops a crash can blind the gate that caught it.** Worth asking, every time a silent-failure fix lands, what used to notice and whether it still does.
-- **A stale NEXT cell is more dangerous than an empty one**, because it reads as a measurement. Five days old, and wrong about the one row this box could take.
-
-**Next:** **E54** is small and this run filed it with its Accept as a command. **E52** is this box's own find and is ALLOWED code. **E51's** remaining grep — the one call site that consumes a dialog answer — has still not been run by anybody. E25's fixture covers the standalone only; no wrapper and no host was involved.
-
-**Machine state.** `main` green on macOS, verified locally by a CI-equivalent build (all four siblings `[fetched]`, no overrides) of `2612a2d`: configure rc=0, build rc=0, 0 errors, five artifacts. Zero open `platform:mac` issues. All six repos on their default branches and clean; TideSynth on this run's branch until STEP 5. Four scratch build trees and three worktrees, all under the session scratchpad and outside every repo, removed at the end. Every standalone ran under an isolated `HOME` in the scratchpad and all were killed; **Four `.ips` crash reports from this run's deliberate faults are in `~/Library/Logs/DiagnosticReports` and were left there** — they are OS diagnostic logs, not ours to delete, but a later run counting reports for E25 or E46 should know they are mine (two from the #491 repro build, two from the E25 no-guard arm) and not a live defect. **Jeff's `~/Library/Application Support/TIDE Rack/` was never written to** — the one file copied out of it was read-only, and the isolation was verified rather than assumed (the app loaded the default rack rather than his 46,890-byte session). Two mac branches still sit on the remote with no open PR — `tide/mac/E36-renumber-duplicate-e34` (its PR #445 was CLOSED unmerged) and `tide/mac/icon-tide-app` (PR #435 merged, branch not deleted); noted by the windows box yesterday, still not mine to unwind.
-
-**`main` moved under this branch mid-session** — [#511](https://github.com/JeffMcClintock/TideSynth/pull/511) archived E32/E34/E42 and added a note to E25 saying this box was working on it, which was true and is now superseded. Merged rather than rebased, because the claim commit was already pushed and STEP 4 forbids rewriting a pushed commit. Both conflicted files were reset to `origin/main`'s version and my edits re-applied on top, so their archive work is intact rather than resolved around; their journal entry is byte-for-byte unchanged below mine.
-
-**Branch/PR:** `tide/mac/E25-document-driven-repro` — TideSynth only: the fixture and its README, E25's row, E46's annotation, E54, the `mac` NEXT cell, and this entry. **No product code in any repo**, so there is nothing here that can break a build.
-## 2026-08-27 — windows — E48: a shipped prefab uses a module TIDE does not ship, and that one fact explains both dialogs and the 3,577 bytes (interactive, Jeff directing)
-
-**Prompt:** *"take next windows task"* · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** · as **tide-rack-bot**
-
-**Did:** took **E48** (the `win` NEXT pick). Diagnosed it end to end with a stack.
-Landed `scripts/check-prefab-modules.py`, which fails on the defect. **Row stays
-TODO**: the remaining step is a product decision, not a task. Annotated **E51**
-with a measured instance of its own gap.
-
-### The cause, in one sentence
-
-`RackModules/AR_jef.synthedit` — a **shipped prefab** — contains
-`<module type="SynthEdit ADSR">`, and TIDE neither compiles that module nor
-stages its XML. Measured: the string occurs **0 times** in `TIDE-Rack.exe` in
-either UTF-8 or UTF-16, while all 32 other module types across the five shipped
-prefabs are present.
-
-### The chain, each step measured
-
-1. Inserting the prefab **appears to work** and the rack looks right.
-2. The saved document therefore carries `type="SynthEdit ADSR"`.
-3. On reload `CContainer::ImportChildren` cannot resolve it and raises
-   `SeMessageBoxAsync("Module not found in factory: …", L"", MB_OK)`
-   (`CContainer.cpp:1089`).
-4. That is a **blocking `MessageBoxW`** running a nested `SoftModalMessageBox`
-   pump on the main thread, so the restore never finishes — no further stderr,
-   no `building rack from`, no command channel, **~0.08 s of CPU**.
-5. The module is then `continue`d past, so its connectors are dropped and the
-   *"Connectors lost while loading"* dialog this row was filed on follows at
-   `:1143`.
-
-**One cause, both dialogs, and the 3,577 bytes.**
-
-### The stack, because reading the source would not have settled it
-
-```
-wWinMain → runStandaloneApp → SessionState::restore → StandaloneHost::restoreState
- → notifyControllerOfPreset → SynthEditController::setParameter
-  → TideApp::importChunkXml → CSynthEditDocBase::ImportModules
-   → CContainer::Import → CContainer::ImportChildren
-    → ApplicationBase::SeMessageBoxAsync → USER32!MessageBoxW
-     → SoftModalMessageBox → IsDialogMessageA → PeekMessageW
-```
-
-**Attach, do not launch.** An earlier attempt launched the app *under* `cdb` and
-hung for seven minutes with nothing to show, because the modal pumps inside the
-debuggee before the debugger has anything to report. Attaching to an
-already-blocked process answers in seconds.
-
-### Two corrections to the row, and the second cost real time
-
-- **The blocking dialog is not the one the row names.** *"Connectors lost while
-  loading"* is the **sync** `SeMessageBox` at `:1143`; the blocker is the
-  **async** one at `:1089`, which fires first.
-- **`MainWindowTitle` is not a usable handle on it.** E48 and E51 both lean on
-  the title as *"the only evidence available from outside"*. `:1089` passes
-  **`L""`** as the caption, so the title reads **empty** for the entire block and
-  `EnumWindows` lists no visible window — while a dialog is demonstrably on
-  screen, because Jeff saw it twice and told me.
-
-That second one is the expensive part of this session, and it was my error
-rather than the row's. I built a detector keyed to the window title, **told Jeff
-it made driving the app safe, and it could not see this dialog at all** — so the
-early-bail never fired and each probe left a modal up for its full timeout. The
-control I needed was one I already had: enumerate windows *while blocked* and
-notice that the count is zero when a dialog is plainly there.
-
-### The control is what makes the reproduction mean anything
-
-The **default** rack round-trips **byte-identical** — 18,169 → 18,169, no dialog,
-no unresolved parameters. So the loss genuinely needs the inserted modules and is
-not a property of save-and-reload as such. Fixture kept:
-`_scratch/e48-rack-session.xml`, 65,878 B holding a 49,295 B document.
-
-Also worth writing down: **`session.xml` is written only on quit.** It is absent
-through the whole editing session, which is why an earlier measurement read
-49,297 bytes and then found 18,106 on disk moments later — two different writes,
-not one file changing under me.
-
-### What landed, and what it replaces
-
-`scripts/check-prefab-modules.py` fails when a shipped prefab names a module
-absent from the built binary. It catches this defect (1 of 32 types) and
-**skips rather than passing when it cannot find a binary**.
-
-**`check-prefab-layout.py` could never have caught this**, and the reason is
-worth keeping: its check #2 is *every `<module type=X>` has a `<Plugin id=X>`* —
-but a prefab carries its **own** `PluginList`, so that asks whether the FILE
-describes its modules, not whether the PRODUCT has them. `AR_jef.synthedit`
-passed it for weeks.
-
-The test is **absence**, deliberately: a registered id must exist as a literal in
-the binary, so a type string appearing nowhere cannot be registered — while a
-string that *is* present proves nothing. Only the direction it can be sure of is
-reported. **Not wired into CI**: the bot token has no `workflow` scope.
-
-### What is left, and it is not mine
-
-Re-author `AR_jef.synthedit` to use a module TIDE ships, **or** add `Adsr.cpp` +
-`EnvelopeAdsr.xml` to the compiled-in set — a **PLAN constraint 7** decision
-about the fixed module set. A run must not pick, so the row stays TODO.
-
-**Learned:**
-
-- **A dialog with an empty caption is invisible to every handle we have.**
-  `MainWindowTitle` empty, `EnumWindows` listing nothing, stderr silent, CPU
-  idle — four instruments agreeing on "nothing here" while a modal is on screen.
-- **Do not promise a mitigation you have not seen fire.** I claimed a bounded,
-  title-detecting harness made GUI driving safe, on the strength of a detector
-  that had never been tested against the dialog it existed for.
-- **Attach to a hung process; do not launch it under the debugger.** Seven
-  minutes versus seconds, for the same question.
-- **A checker that validates a file against itself is not validating the
-  product.** The prefab's own `PluginList` made it self-consistent and
-  unloadable at the same time.
-- **`session.xml` is written on quit only.** Reading it mid-session tells you
-  about the *previous* run.
-
-**Next:** the product decision above. Once it is made, E48's Accept is one
-re-run of the fixture. **E53** still wants a faulting address and now has a
-working technique for it — attach, do not launch.
-
-**Machine state.** All eight repos on their default branches, clean.
-`%APPDATA%\TIDE Rack\` holds a scratch session from this work, not Jeff's — his
-was restored earlier and this run replaced it again; **restored once more at the
-end and md5-verified.** No TIDE-Rack or cdb process running, checked by
-enumerating every visible top-level window as well as by name.
-
-**Branch/PR:** `tide/win/E48-connectors-lost` — the check, E48's row, E51's
-annotation, and this entry.
-
 ## Rotation — do this as part of STEP 4, every run
 
 Every run on three machines reads this file in full, so its size is a cost paid

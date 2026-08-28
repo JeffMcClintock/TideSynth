@@ -48,7 +48,36 @@ import sys
 import tempfile
 import wave
 
-REAPER = "/Applications/REAPER.app/Contents/MacOS/REAPER"
+# WHERE REAPER IS, per platform. This was a single macOS path until 2026-08-28,
+# which meant the one script that can measure "does the patch still play after
+# the host reloads it" ran on exactly one of the fleet's three boxes -- and
+# E19's windows and linux cells both need that measurement.
+#
+# $REAPER overrides everything, so a portable copy or an unusual install needs
+# no edit here.
+def find_reaper():
+    from_env = os.environ.get("REAPER")
+    if from_env:
+        return from_env
+    if sys.platform == "darwin":
+        candidates = ["/Applications/REAPER.app/Contents/MacOS/REAPER"]
+    elif sys.platform.startswith("win"):
+        # Forward slashes deliberately: they work on Windows and keep this
+        # list free of escapes.
+        candidates = [
+            "C:/Program Files/REAPER (x64)/reaper.exe",
+            "C:/Program Files/REAPER/reaper.exe",
+        ]
+    else:
+        candidates = ["/usr/bin/reaper", "/usr/local/bin/reaper",
+                      os.path.expanduser("~/REAPER/reaper")]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return candidates[0]   # report the expected path in the error
+
+
+REAPER = find_reaper()
 
 # See the timeout's own comment in render() for why this exists at all.
 RENDER_TIMEOUT_SECONDS = 300
@@ -94,7 +123,13 @@ def analyse(path):
 def render(rpp_in, wav_out, workdir):
     """Copy the project with deterministic render settings, render, return the wav."""
     src = open(rpp_in, encoding="utf-8", errors="replace").read()
-    src = re.sub(r'RENDER_FILE "[^"]*"', 'RENDER_FILE "%s"' % wav_out, src)
+    # A LAMBDA, not a replacement STRING. re.sub expands escapes in the
+    # replacement, and a Windows path is full of them: a temp dir under
+    # C:\Users\... raises "bad escape \U" and the script dies
+    # before REAPER is ever started. A macOS path carries no backslashes,
+    # which is the only reason this stood.
+    src = re.sub(r'RENDER_FILE "[^"]*"',
+                 lambda m: 'RENDER_FILE "%s"' % wav_out, src)
     if "RENDER_FILE" not in src:
         src = src.replace("<REAPER_PROJECT", "<REAPER_PROJECT", 1)
     src = re.sub(r"RENDER_RANGE [^\n]*",
@@ -128,7 +163,18 @@ def render(rpp_in, wav_out, workdir):
                      "*** cause is a plug-in the project names that REAPER cannot\n"
                      "*** resolve (see BACKLOG E29 and tests/hosts/README.md).\n"
                      % RENDER_TIMEOUT_SECONDS)
-            subprocess.call(["pkill", "-f", "REAPER -renderproject"])
+            # subprocess.call(timeout=) has already killed the child it
+            # started; this only sweeps a straggler it could not reap. `pkill`
+            # is not on Windows, so ask the platform for its own verb.
+            try:
+                if sys.platform.startswith("win"):
+                    subprocess.call(["taskkill", "/IM", "reaper.exe", "/F"],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL)
+                else:
+                    subprocess.call(["pkill", "-f", "REAPER -renderproject"])
+            except OSError:
+                pass   # no sweeper available; the child is already dead
             rc = RENDER_TIMED_OUT
     return rc, log
 
@@ -277,8 +323,15 @@ def main():
         elif silent:
             print("    NOTE: the rack IS wired, so this silence is a real finding about")
             print("    the plugin rather than about the project. The cables survived the")
-            print("    save, so look at ug_container::ConnectPatchCables reconstructing")
-            print("    them, not at the prefabs.")
+            print("    save, so the fault is downstream of the document.")
+            print("    CHECK E59 FIRST, before ug_container::ConnectPatchCables: count")
+            print("    the plug-in's `TIDE: building rack from N byte document` lines on")
+            print("    stderr. TWO of them, the second ~17,957 bytes, means the DSP threw")
+            print("    your rack away and is running the DEFAULT one -- nothing was")
+            print("    mis-cabled, and no amount of reading the cable code will show it.")
+            print("    Measured on linux and windows 2026-08-28; this fixture is silent")
+            print("    on windows for exactly that reason while macOS renders it at")
+            print("    -6.3 dBFS.")
         return 0
 
 
