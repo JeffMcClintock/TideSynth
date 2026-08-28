@@ -8,6 +8,38 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E47 closed on Jeff's ruling: the guard is unreachable because SELECTION binds the pane, and that is what I kept getting wrong (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"lets do E47"*, then *"actually, we already did this"*, then *"close it"*). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** **E47 → DONE**, archived. No code: [SynthEditLib#64](https://github.com/JeffMcClintock/SynthEditLib/pull/64)'s guard already shipped, and what closed the row was settling that its Accept cannot be met through the UI. **I started re-running an experiment Jeff had already done, and he stopped me.**
+
+### The claim I retracted this morning did not need retracting
+
+#528 argued the hole was unreachable *"by construction"*: to delete X you must select X, selecting X binds the pane to X, so `layoutContainer` becomes X's PARENT and `sender == layoutContainer` can never hold. When E57 made the delete key work I retracted that, on the grounds that the argument had rested on the context menu being the only delete route.
+
+**It never rested on the menu. It rests on SELECTION**, and Jeff put it in one line: *"The outer container MUST be selected for the delete key to work and delete it."* A new delete route changes nothing, because every route needs the thing selected, and selection is what rebinds the pane. Multi-select does not escape it either — the outer still has to join the selection. So my retraction was wrong and the original claim stands.
+
+### E61 looked like a counter-example this morning and is actually the third proof
+
+E61's crash needed the pane bound to the CHILD, yet the container was deleted while the pane was on the OUTER. Those are only compatible because the native `NSTextField` **self-extends its own lifetime** and outlives the rebind — which is exactly why E61 crashed with the guard never firing. The two rows were never in tension; I had been reading a lifetime bug as a selection bug.
+
+That makes three independent lines to the same place: 8 probed binds with 0 guard hits (this morning), the selection argument, and E61's reproduction.
+
+### What closing it does and does not assert
+
+The guard is **not** dead code and must not be reverted on this: undo and scripted-delete routes remain untested, and `DeleteAll()`'s bare `delete d` is a real hole for anything that does not go through selection. It is retained as defence in depth. What is settled is narrower and worth having written once: **no UI path a user can drive reaches it.** [SynthEditLib#71](https://github.com/JeffMcClintock/SynthEditLib/pull/71) also now gives that branch a second job — blanking the pane — so it earns its place regardless.
+
+**Learned:**
+
+- **When an argument survives the fact that seemed to kill it, re-read the argument rather than the fact.** E57 did not break "unreachable by construction"; I had misremembered which premise it stood on, and retracted a correct claim.
+- **Name the load-bearing premise in the row, not an example of it.** #528 said "the only delete route is the context menu" when it meant "deletion requires selection". The example aged in a day; the premise did not.
+- **Two rows that seem to contradict each other may differ in what they are ABOUT.** E61 and E47 disagreed only while I read a text-edit lifetime bug as a selection-binding bug.
+- **When the user says "we already did this", stop and ask what it showed.** I had a probe build half-written for an experiment whose answer was already known.
+- **Closing a row is not the same as asserting its code is unnecessary.** E47 closes because its Accept is unreachable through the UI, explicitly NOT because the guard is dead.
+
+**Next:** **E56** wants a ruling from Jeff — is a deterministic sort at export acceptable in `CPatchManager::ExportXml`? Small if yes. E51, S8, E7 and S1b remain gated and larger.
+
 ## 2026-08-28 — macos — E61 reproduced, fixed, and then asked the better question (interactive, Jeff driving)
 
 **Prompt:** interactive, Jeff driving (*"lets do it interactivly"*). As **tide-rack-bot**. Prompt sha b97bc00.

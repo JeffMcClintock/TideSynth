@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **368 KB** across **297** entries, so copying them
+Learned sections are **369 KB** across **298** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **110 KB / 1204 lessons — 3.3x smaller**, and represents
+A8. This is **111 KB / 1209 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,14 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — E47 closed on Jeff's ruling: the guard is unreachable because SELECTION binds the pane, and that is what I kept getting wrong (interactive, Jeff directing)**
+
+- When an argument survives the fact that seemed to kill it, re-read the argument rather than the fact.
+- Name the load-bearing premise in the row, not an example of it.
+- Two rows that seem to contradict each other may differ in what they are ABOUT.
+- When the user says "we already did this", stop and ask what it showed.
+- Closing a row is not the same as asserting its code is unnecessary.
 
 **macos — E61 reproduced, fixed, and then asked the better question (interactive, Jeff driving)**
 
