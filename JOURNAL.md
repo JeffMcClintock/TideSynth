@@ -8,6 +8,78 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — windows — E64 filed: the ui->dsp queue desyncs in a HOST but not in the standalone, and three negatives are the finding (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"hmm"* with a screenshot, then *"take it"*, then *"you can instrument it"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** took the assertion Jeff hit in Ableton, established which queue it is by attaching to the live process, built an instrumented Debug build that names the offending message, failed to reproduce it three different ways, and filed **E64** with the negatives as its content. **No fix. The row is the deliverable**, and the instrument is left in place for the one reproduction only a human can currently drive.
+
+### First: it is not E59, and one command settled that
+
+The binary that faulted was built at 17:39 and contains **zero** of E59's new strings (`syncState exporting` ×0, `declined to publish the startup default` ×0). E59 merged as [#547](https://github.com/JeffMcClintock/TideSynth/pull/547) after that, so the fault predates it. Worth doing before any analysis: the alternative is a session spent auditing your own change.
+
+### The stack, from attaching to the live process rather than reasoning
+
+Ableton was still up with the modal open — `MainWindowTitle` was literally *"Microsoft Visual C++ Runtime Library"*, which is how the PID was found without asking. `cdb -p <pid> -c "~*k; qd"` (**`qd`, not `q`** — `q` would have killed his DAW):
+
+```
+ucrtbased!wassert
+TIDE_Rack!gmpi::hosting::interThreadQue::pollMessage+0x218
+TIDE_Rack!SynthRuntime::ServiceDspRingBuffers+0x75
+TIDE_Rack!SeAudioMaster::ServiceGuiQue+0x3f
+TIDE_Rack!ug_patch_automator::HandleEvent+0x9d
+TIDE_Rack!SynthEdit::subProcess+0x329
+TIDE_Rack!wrapper::Processor_VST3::process+0x15a8
+```
+
+So it is **TIDE's own `queUiToDsp`** (parameter 3), on an Ableton `AudioCalc` thread — not the wrapper's queue and not the DSP->GUI direction #410 fixed. There were two candidate queues before this and no way to choose between them; the stack costs one command and removes the guess.
+
+I went back for the locals and **lost that race** — the process was gone. Thread NUMBERS also change between attaches, so the second attempt selected a dialog-pump thread; select by thread ID (`~~[0x258c]s`), not by index.
+
+### Three negatives, and they are the actual finding
+
+An instrumented Debug build replaces the bare assert with a line naming `handle`, `msgId`, `declaredLen`, `actuallyRead`, `readyBytes`, `partial`. With it:
+
+| attempt | result |
+|---|---|
+| hosted state-restore + `-renderproject` of `v1-rack.rpp` | **no desync** |
+| STANDALONE, insert an Oscillator over the command channel — document really rebuilt, `18307 -> 23397 bytes` | **no desync** |
+| 160 `--set-param` writes | no desync — but see below, this arm proves little |
+
+**The `--set-param` arm is weak and I am labelling it rather than counting it:** `--info` reports `parameterCount: 4`, which is the plug-in's four GMPI parameters, not rack knobs. Rack edits never travel that way, so that burst never touched the path under test.
+
+The other two are real. **`queUiToDsp`'s bytes come from `SynthRuntime_editor::takeUiToDspMessages`, which the standalone shares** — and the standalone, doing the same insert, is clean. What differs is how a changed blob parameter reaches the processor: the standalone calls `onParameterChanged` **directly** (`StandaloneHost.cpp:162`), while VST3 goes `sendNonNativeParameterToProcessor` -> `IMessage` -> `Processor_VST3::notify` -> `m_message_que_ui_to_dsp` -> pin, **asynchronously, through a last-writer-wins parameter**. That is what is left.
+
+### What I ruled OUT, including my own first answer
+
+**Overflow is not it.** My first hypothesis was `SynthEdit::onSetPins`' drop-on-full arm — it discards the whole blob when it will not fit, and a drop while the receiver is mid-partial-message would desync it permanently. Then I measured the capacities: **both queues are `AUDIO_MESSAGE_QUE_SIZE` = 5 MB**. An insert-plus-cable burst overflowing that is not plausible, so the story was wrong and I said so before building anything on it.
+
+Two candidates survive, both unconfirmed and both written on the row: a blob overwritten before the processor consumed it, or `ServiceWaitersIncremental`'s **multi-part mode** (`startMultiPartSend`) splitting an oversize message across calls, where a lost part cannot be reassembled. Note `takeUiToDspMessages`' own comment asserts *"ServiceWaitersIncremental only ever Sends complete messages"* — that is **not unconditionally true**, and it is load-bearing.
+
+### The instrument left behind, and the one thing that must be undone
+
+The probe now appends to a **file** (`C:\SE\_scratch\e64\tide-e64.log`) as well as stderr, because a GUI host swallows stderr — the first version was stderr-only and would have told Jeff nothing in Ableton. The **assert is left intact**, so his experience is unchanged. His build tree is `SE_LOCAL_BUILD=ON`, so his next rebuild installs it where Ableton loads it; one reproduction then names the message.
+
+**That probe is UNCOMMITTED in the `GMPI` working tree and must be reverted** — `git -C C:\SE\GMPI checkout -- Hosting/message_queues.cpp`. GMPI is PR-GATED; this is the E47 precedent (temporary probes, reverted, nothing shipped), not a change.
+
+**Learned:**
+
+- **When a modal is on screen, the process is a live specimen — attach before anyone dismisses it.** The window title of an assert dialog is the app's own title, so the PID is greppable without asking. `qd` detaches; `q` would have killed the DAW.
+- **Thread numbers are per-attach; thread IDs are not.** My second attach selected a completely different thread under the same number and reported a dialog pump as the fault site.
+- **A negative in one host is evidence about the TRANSPORT when the content path is shared.** The standalone and the plug-in build the same bytes from the same function; only the delivery differs, so "reproduces in one and not the other" points at delivery rather than at the message.
+- **Measure the capacity before believing an overflow story.** Two queues at 5 MB killed my first hypothesis in one grep, after I had already written it down as the likely cause.
+- **A probe that writes only to stderr is useless in a GUI host.** Ableton shows none of it; the file is what makes the next reproduction worth anything.
+- **`--set-param` on a plug-in's GMPI parameters is not a rack edit.** `parameterCount: 4` should have told me before I sent 160 of them.
+- **This tool's heredocs collapse backslashes**, so escape-heavy Python must go through a file, not `<<'PY'`. It cost three malformed edits today, one of which silently ate characters out of a documented path.
+
+**Not verified:** the mechanism, entirely — two candidates are named and neither is confirmed; whether it reproduces in REAPER as well as Ableton (which would make it scriptable here); and whether Release silently mis-parses rather than merely skipping the check, which is the part that matters for a shipped build.
+
+**Machine state.** `%APPDATA%\REAPER` was backed up, narrowed to the probe bundle, restored and verified **identical including mtimes**. Jeff's installed VST3 is untouched by me (he rebuilds it himself). Build tree `build-e59/` is gitignored and multi-config; the Debug bundle, fixtures and logs are under `C:\SE\_scratch\e64\`. No TIDE or REAPER process left running by me. **`C:\SE\GMPI` is deliberately DIRTY with the probe described above.**
+
+**Next:** **Jeff rebuilds and repeats the gesture in Ableton**; the log file then names the message and the two candidate mechanisms collapse to one. After that the fix is likely in `Processor_VST3`'s blob transport rather than in TIDE.
+
+**Branch/PR:** `tide/win/E64-uidsp-que-desync` — the E64 row and this entry. No product code; the probe is not committed.
+
 ## 2026-08-28 — linux — E60: the CLAP state path works, the blocker was our own harness, and a 32 KB cap was hiding under it (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`)

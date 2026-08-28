@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **380 KB** across **308** entries, so copying them
+Learned sections are **381 KB** across **309** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **116 KB / 1254 lessons — 3.3x smaller**, and represents
+A8. This is **116 KB / 1261 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,16 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**windows — E64 filed: the ui->dsp queue desyncs in a HOST but not in the standalone, and three negatives are the finding (interactive, Jeff directing)**
+
+- When a modal is on screen, the process is a live specimen — attach before anyone dismisses it.
+- Thread numbers are per-attach; thread IDs are not.
+- A negative in one host is evidence about the TRANSPORT when the content path is shared.
+- Measure the capacity before believing an overflow story.
+- A probe that writes only to stderr is useless in a GUI host.
+- `--set-param` on a plug-in's GMPI parameters is not a rack edit.
+- This tool's heredocs collapse backslashes
 
 **linux — E60: the CLAP state path works, the blocker was our own harness, and a 32 KB cap was hiding under it (scheduled run)**
 
