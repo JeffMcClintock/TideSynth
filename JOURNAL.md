@@ -8,6 +8,28 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — remote sweep: one branch is live work, the rest are ruled out of the fleet's scope (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"check remotes for unmerged branches, forgotton work"*, then *"not concerned with SSG work"*). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** swept every branch on all six remotes for commits not contained in the default branch. Verdict, recorded so the next run does not re-do the investigation:
+
+| branch | ahead | verdict |
+|---|---|---|
+| TideSynth `tide/win/E59-controller-chunk-seeding` | +1 | **live** — the windows agent claiming E59, minutes old. Not forgotten. |
+| SynthEdit `Release_V14` / `Release_V15` | +999 / +1396 | Jeff's release lines, build-machine commits. Intentional. |
+| gmpi_ui `release_1_5` | +2 | release line. Intentional. |
+| SynthEditLib `Optimus_1_5` | +18 | **ruled out of scope by Jeff**: *"not concerned with SSG work"*. |
+
+**On `Optimus_1_5`, so nobody re-derives it:** it is the SE_GRAPHICS_SUPPORT / SE2JUCE working line, 3 months old, no PR. Its important halves are already in `main` by other routes — both fastmath commits verbatim (`0819897`, `0d17af4`), `listPins` (`ef1da6c`), and the `SE_GRAPHICS_SUPPORT` flag itself with later refinements. The net `main...Optimus_1_5` diff (12 files, +241/−74) is guard-placement deltas, a JUCE-side change TIDE does not build, and older versions of things main has. **Do not merge it wholesale and do not delete it — it is not the fleet's.**
+
+**Learned:**
+
+- **`git cherry` before judging an old branch.** 2 of its 18 commits were content-identical to main; the subject lines alone suggested none were.
+- **A branch minutes old with no PR is a claim, not a leak.** The fleet's DOING convention shows up in exactly this shape mid-run.
+
+**Next:** E59 is the windows agent's. Remaining gated on macos: S8, E7, E38.
+
 ## 2026-08-28 — macos — S1b built: the loader compiled out with zero deletions, and the row's homework made it a half-day instead of a week (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"lets do S1b"*). As **tide-rack-bot**. Prompt sha b97bc00.

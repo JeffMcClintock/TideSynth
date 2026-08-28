@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **373 KB** across **302** entries, so copying them
+Learned sections are **373 KB** across **303** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **113 KB / 1227 lessons — 3.3x smaller**, and represents
+A8. This is **113 KB / 1229 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,11 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — remote sweep: one branch is live work, the rest are ruled out of the fleet's scope (interactive, Jeff directing)**
+
+- `git cherry` before judging an old branch.
+- A branch minutes old with no PR is a claim, not a leak.
 
 **macos — S1b built: the loader compiled out with zero deletions, and the row's homework made it a half-day instead of a week (interactive, Jeff directing)**
 
