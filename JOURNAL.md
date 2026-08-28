@@ -8,6 +8,79 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — linux — E19's linux cell: the VST3 fails, and the reason is that the DSP is running a different rack from the one on screen (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
+
+**Did:** took **E19**'s **linux** cell — VST3 + CLAP, never measured on any linux box. Built the harness that measures it, measured the VST3 leg (**FAIL**), measured the standalone as its control (**PASS**), and could not measure the CLAP leg for a reason that is itself measured. Row back to **TODO**; **E59** and **E60** filed. Branch `tide/linux/E19-linux-feedback-leg`.
+
+**The headline is not the FAIL, it is the cause.** The feedback path is not frozen because forwarding regressed, which is what this row told me to watch for. It is frozen because **there is nothing on the DSP side to forward**: after a host state restore, the editor shows the prepared rack and the processor is running the *default* one.
+
+### The three-line proof, from the processor's own stderr
+
+One TIDE instance, one track, project opened from disk:
+
+```
+TIDE: building rack from 29101 byte document      <- the prepared rack. correct.
+TIDE: rack built for 48000 Hz, block 512
+TIDE: building rack from 17957 byte document      <- the DEFAULT rack. seconds later.
+```
+
+17,957–17,963 bytes is what the editor pushes for `DefaultRack.synthedit`; it appeared with that size in every run today, in both the standalone and the host. So the second line is not a re-push of the restored document, it is a different document.
+
+### Measured, transport rolling, 60 s
+
+`playstate=1` and `GetPlayPosition()` 0 → 65 s throughout, so the audio engine really is running — that control matters more than it looks, because "the plug-in is frozen" and "nothing is being processed" are indistinguishable from inside the plug-in.
+
+| | linux/STANDALONE (control) | linux/VST3, REAPER 7.43 |
+|---|---|---|
+| `light` | update **#276800**, still climbing after ~40 min | frozen at **#2**, `value 0.000` |
+| `display-state` | **#65150**, 65,548 bytes/frame | frozen at **#1**, `arrived (0 bytes)` |
+| `apply` | `sum=19931`, varying | `expect=65548 sum=0` |
+| pixels changed | **1,214** (498 of them in the 100×100 tile over the Scope) | **0 of 690,800** |
+
+Same build, same document, same box, same headless compositor. The only variable is the host.
+
+### The audio control, which is what turns that into a fact
+
+A frozen readout could still be a readout bug. So the LFO's **TRI** output was cabled to the rack's output as well, and the same project rendered with `reaper -renderproject`: **−inf, digital silence**. The default rack has nothing patched to its output; the prepared one would have emitted a slow triangle. Two independent instruments, one conclusion.
+
+### The CLAP leg: not measured, and the blocker is measured rather than assumed
+
+REAPER lists it (`CLAPi: TiDE Rack (TiDE Synth)`, from the S37 semi-bundle), instantiates it, opens its editor, draws the default rack, registers 39 VCV modules. What could not be done is get a prepared rack *in*, three ways:
+
+- a 39 KB `<STATE>` block written into the `.rpp` by hand read back as the **default 116 chars**;
+- `SetTrackStateChunk` with 53,605 chars returned **`true`** and read back **698**;
+- clicking the rack together inside the hosted editor: the double-click on a browser entry **does** select it (the properties pane switches to `LFO`), but neither of two follow-up clicks placed a module, while the identical gesture places one every time in the standalone.
+
+The identical VST3 construction works, so this is a CLAP-path finding — but **nobody has looked at `GMPI_Wrappers/wrapper/CLAP/`**, so whether REAPER 7.43 drops it or TIDE never writes it is open. Filed as **E60** saying exactly that, rather than guessing.
+
+### The harness, because it was most of the work
+
+**A real DAW has now opened TIDE on linux, in two formats.** That retires a claim the `linux` NEXT cell has carried for days. REAPER 7.43's Linux build is portable, runs under `weston --backend=headless --xwayland`, and drives from `__startup.lua`. Full recipe in [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md). Two traps cost a measurement each:
+
+- **`GDK_BACKEND=x11` AND `WAYLAND_DISPLAY` unset.** A scheduled run inherits `WAYLAND_DISPLAY=wayland-0`, so GDK connects to *Jeff's own compositor* while REAPER's SWELL takes the X11 path — `gdk_screen_get_root_window` assertion failures, then `segfault … in libX11`. It fires while the plug-in's editor is being opened, so the plug-in is the obvious suspect and is innocent.
+- **`linux_audio_mode=2`** (Dummy Audio) in `reaper.ini`, or a modal *"Error opening devices"* stops everything. `prefs_audiodev` is **not** the key — it is a string sitting next to the device names in the binary, which is exactly why it looks like one; 0–3 were each tried. Found by setting it once through the GUI and diffing the ini.
+
+### Three side facts, recorded so nobody re-derives them
+
+- **REAPER 7.43/Linux writes the VST3 token `1013510754{506C7567696E474D50492050A2A07287}`** — the *same hex* as the committed 7.45/macOS token with a different leading id. An **E29** datum: the hex is what E29 says decides it, and here it agrees across platforms.
+- **A second TIDE instance in one REAPER process logs `VCV Fundamental — 0 module(s) registered`.** The deferred-registration queue is one-shot per process. Only reachable with `TIDE_VCV_FUNDAMENTAL=ON`, which is not a shipped build, so it is a note and not a row.
+- **`--drag` does not move a rack module on linux either**, matching the windows finding. Rack layout has to come from the document; two modules placed by clicking landed on the *same* slot (identical `panelRect l=`), and moving one meant editing the saved XML.
+
+**Learned:**
+
+- **"The feedback is frozen" and "the DSP is running a different patch" produce the same trace, and only an audio measurement separates them.** This row's own instrument — light and display-state counters — was working perfectly and reporting the truth about a rack that was never running. A readout that says nothing is happening cannot tell you *which* nothing.
+- **A control that proves the HOST is alive is not optional when the plug-in looks dead.** `playstate` and `GetPlayPosition` cost four lines of Lua and are the difference between filing E59 and filing "REAPER doesn't process TIDE".
+- **A crash in a plug-in's editor is worth blaming on the environment first when the environment was assembled by the run.** The libX11 segfault looked exactly like a GUI bug in TIDE, arrived at exactly the moment the editor opened, and was one inherited environment variable.
+- **"No `platform: linux` rows" is not "no linux work".** The `linux` NEXT cell has said the lane is out of work for four days while the one thing only this box can do — run a real DAW unattended — sat unmeasured.
+
+**Not verified:** whether E59 also happens on win/mac (no reason to think it does not — the ordering is not platform-specific, but neither box has opened a prepared rack in a host); the CLAP path at all; and the *mechanism* of E59, which is a hypothesis about push ordering and is labelled as one in the row.
+
+**Machine left clean.** REAPER 7.43 downloaded to the session scratchpad and run only against a scratch `HOME` — **Jeff's `~/.vst3`, `~/.clap` and `~/.config/REAPER` were never written**, checked after. The standalone ran against a scratch `XDG_CONFIG_HOME`; `~/.config/TIDE Rack/` is untouched (mtime still 2026-08-21). Headless weston stopped, REAPER stopped, standalone stopped. `build-e19/` is a scratch build tree (`TIDE_VCV_FUNDAMENTAL=ON`, `-DRACK_ADAPTOR_TRACE=1`) and is gitignored; Jeff's `build/` was not touched. All six repos clean and on their default branches.
+
+**Branch/PR:** `tide/linux/E19-linux-feedback-leg` — the E19 row, E59, E60, the `linux` NEXT cell, the REAPER section of `docs/ci/headless-gui-verification.md`, and this entry. TideSynth only; no product code changed.
+
 ## 2026-08-28 — macos — E47 driven twice with Jeff at the keyboard: the guard was never reached, and the hole looks unreachable by construction
 
 **Prompt:** interactive, Jeff driving. As tide-rack-bot (both). Prompt sha b97bc00.
