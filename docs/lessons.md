@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **373 KB** across **303** entries, so copying them
+Learned sections are **374 KB** across **304** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **113 KB / 1229 lessons — 3.3x smaller**, and represents
+A8. This is **114 KB / 1233 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — E38: the verb the row said to design, and V7 verified on the real menus at last (interactive, Jeff directing)**
+
+- When a row has measured two instruments dead, the spec is nearly written: the design is whatever the remaining instrument is.
+- A menu model readout beats a pixel readout even where pixels are possible.
+- Verify a routing surprise against the GUI's own behaviour before calling it a bug.
+- An invoke path should be the native path's tail, not a parallel one.
 
 **macos — remote sweep: one branch is live work, the rest are ruled out of the fleet's scope (interactive, Jeff directing)**
 
