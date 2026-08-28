@@ -395,7 +395,7 @@ std::string TideApp::exportChunkXml()
 			auto* masterCopy = masterE->Clone();
 
 			auto* outer = new TiXmlElement("Module");
-			outer->SetAttribute("Id", "1");
+			outer->SetAttribute("Id", kDspWrapperContainerHandle); // E64 - reserved in InitInstance, see TideApp.h
 			outer->SetAttribute("Type", "Container");
 			outer->LinkEndChild(new TiXmlElement("Plugs"));
 			auto* mods = new TiXmlElement("Modules");
@@ -529,6 +529,20 @@ bool TideApp::importChunkXml(std::string_view xml)
 	// field, so a freshly imported document needs it set exactly as
 	// InitInstance sets it on a blank one.
 	Document()->rackMode = true;
+
+	// E64 -- the wrapper reservation must have survived the rebuild.
+	// DeleteContents leaves it registered (it is not in the document tree)
+	// and an imported module claiming the same handle is renumbered by
+	// Register's collision path, so this failing means an assumption above
+	// broke. Loud, not corrected: silently re-registering here would hide
+	// exactly the class of drift E64 came from.
+	if (Document()->uniqueIdDatabase.HandleToObjectWithNull(kDspWrapperContainerHandle) != &dspWrapperReservation)
+	{
+		std::fprintf(stderr,
+			"TIDE: DSP wrapper handle %d reservation LOST across importChunkXml\n",
+			kDspWrapperContainerHandle);
+		assert(false && "DSP wrapper handle reservation lost");
+	}
 
 	// Baseline the sync against what was JUST IMPORTED rather than forcing a
 	// push: the wrapper re-seeds the chunk parameter into the processor when
@@ -893,6 +907,29 @@ bool TideApp::InitInstance()
 
 	// create a blank document
 	createNewDocument();
+
+	// E64 -- reserve the DSP wrapper's handle BEFORE anything else in this
+	// document allocates one. Order is the whole point: host-control
+	// parameters take smallest-free sequential handles during document build,
+	// so a reservation made after them is a collision instead of a
+	// reservation. Registered once; DeleteContents only unregisters objects
+	// in the document tree, so this survives every later importChunkXml.
+	// A latecomer claiming the same handle (a hand-edited document, say) is
+	// renumbered by UniqueSnowflakeOwner::Register's existing collision path.
+	dspWrapperReservation.setHandle(kDspWrapperContainerHandle);
+	Document()->uniqueIdDatabase.Register(&dspWrapperReservation);
+	if (Document()->uniqueIdDatabase.HandleToObjectWithNull(kDspWrapperContainerHandle) != &dspWrapperReservation)
+	{
+		// Somebody beat us to it, and Register re-handled OUR reservation --
+		// the export below would then write a handle the namespace thinks
+		// belongs to someone else. Loud, per the E64 ruling: plastering over
+		// a root cause is how this bug family survives.
+		std::fprintf(stderr,
+			"TIDE: FAILED to reserve DSP wrapper handle %d - it was already taken at InitInstance\n",
+			kDspWrapperContainerHandle);
+		assert(false && "DSP wrapper handle reservation failed");
+	}
+
 	Document()->OnNewDocument(); // creates an empty main container
 
 	// BACKLOG U1c — TIDE *is* the rack (PLAN constraint 1), so rack mode is
