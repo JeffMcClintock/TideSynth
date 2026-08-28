@@ -8,6 +8,48 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E61: the fix the row called a coin-toss is decided by one line in MacTextEdit.h (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"and do E61"* — GATED work, authorised). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** **E61 → IN-REVIEW**, [SynthEditLib#70](https://github.com/JeffMcClintock/SynthEditLib/pull/70). **Not DONE, and deliberately so:** I could not reproduce it, so nobody has yet watched this fix stop the crash.
+
+### The row said the choice wanted measuring. It measured, and one candidate is impossible
+
+E61 offered two shapes: dismiss the open edit when `currentModule` is cleared, or make the lambda capture something validatable. **The first cannot work**, and `MacTextEdit.h` says why in its own comment:
+
+- `showAsync` calls `addRef()` on **itself** — *"Self-extend lifetime"*
+- `~GMPI_MAC_TextEdit` only does `[textField removeFromSuperview]`; it **never calls `dismissTextField`**
+
+So tearing down the pane's widgets does **not** dismiss the field. It keeps first responder and commits later, exactly as reported. And the stack corroborates it from the other side: `Body()::$_13` **ran**, so the callback chain was intact — only the captured `pin` was dead. A fix aimed at the callback would have been aimed at the half that was working.
+
+### The guard compares and never dereferences
+
+```cpp
+bool moduleStillShown(const void* captured) const
+{ return captured && static_cast<const void*>(viewModel.currentModule) == captured; }
+```
+
+Testing a freed pointer is safe as long as you only compare it. `OM_DELETE` nulls `currentModule` at the last moment the module is valid (#64), so a freed module cannot match. **#64 and this are one fix seen from two ends** — which is why *"the pane still shows the dead child"* was never cosmetic: it is what hands the user a live control over freed memory.
+
+Seven lambdas guarded, not the one that crashed: module name, four layout rect fields, pin rename, both numeric defaults, hex colour, plain default. Same defect, same line of reasoning.
+
+### What I could not do, said plainly
+
+The reproduction needs a **native context menu** to reach the structure view and a **native text field** to commit. The command channel documents it can drive neither — E51's territory — and I confirmed it: right-click produced no in-surface menu, double-click did not enter the structure view. **So this PR is a fix with a mechanism argued from the stack and the source, not a fix anyone has watched work.** The row stays IN-REVIEW and carries a verification recipe for a human.
+
+Two things I did verify: it compiles, and the **E62 probe passes against this build** (17956 → 14610), so the guard has not broken the ordinary delete path. My `nm` check for the inlined guard returned 0 and I recorded it as **inconclusive**, not as a pass — the same shape as E58's `colorFromHex` grep, and I was not going to make that mistake twice in one day.
+
+**Learned:**
+
+- **When a row calls a design choice a coin-toss, look for the constraint that settles it before weighing the options.** One comment in `MacTextEdit.h` — "self-extend lifetime" — made one of E61's two candidates impossible, and it took less time to find than an argument about which was nicer.
+- **A stack trace tells you which half was WORKING.** `Body()::$_13` appearing means the callback chain survived, so the bug had to be in the capture. That halved the search before any code was read.
+- **You may compare a freed pointer; you may not dereference it.** The whole fix rests on that distinction.
+- **Fix every sibling that shares the defect, not the one in the bug report.** Seven lambdas had the same raw capture; only one had been pressed.
+- **A fix that compiles and does not regress is still not a verified fix.** Say IN-REVIEW and name what nobody has watched happen, rather than letting a green build imply a green bug.
+
+**Next:** **E61 needs a human to run the recipe** — pin-name field open on a module inside a container, delete the container, click away. Before: `EXC_BAD_ACCESS`. After: the commit should be silently declined.
+
 ## 2026-08-28 — macos — E62: the delete key driven end-to-end, and the control was already sitting on disk (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"do E62"*). As **tide-rack-bot**. Prompt sha b97bc00.
