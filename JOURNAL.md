@@ -8,6 +8,80 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — windows — E59 answered and fixed: the sender is our own syncState, and the host asks for state before it gives us any (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3.0** (no `claude` CLI on this box's PATH; the Appx package version, which A13 records as the discoverable one on Windows) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`)
+
+**Did:** took **E59** — the blocker the `win` NEXT cell's own target now waits on. Answered its open question, fixed it, and measured the fix against this repo's own v0.1 acceptance fixture. Row **IN-REVIEW**. Branch `tide/win/E59-controller-chunk-seeding`. TideSynth only; no sibling repo was committed to.
+
+**Why E59 and not E19, which the `win` cell names.** The cell is dated 2026-08-28 and was written before the run that consumed it: E19's windows VST3 cell was measured hours later the same day ([#536](https://github.com/JeffMcClintock/TideSynth/pull/536), merged 02:24Z), came back FAIL, and its row says in as many words *do not re-take this cell until E59 closes*. The row is the more recent authority and E59 is what it points at. The rest of the walk, so nobody repeats it: S1b/S8 GATED, E38 `NEEDS-SPEC`, E7 a ruling rather than a task, E2 not takeable by its own row, X2 `linux`, E60 the CLAP half and linux-measured, E63 small and still open.
+
+### The trace, and the two numbers that close it are the same number
+
+One instrumented render of `tests/hosts/v1-rack.rpp`, REAPER 7.78:
+
+```
+TIDE: controller #1 initialized (TideApp fresh - holds the DEFAULT rack ...)
+TIDE: default rack loaded, 25110 byte document
+TIDE: controller #1 syncState exporting 17959 byte document (host asked for state)
+TIDE: controller #1 restore of a 14136 byte document -> imported
+TIDE: instance #3 building rack from 14136 byte document (Legacy chunk, rack not yet prepared)
+TIDE: instance #5 building rack from 17959 byte document (Sync chunk, rack not yet prepared)
+```
+
+**17,959 out of `syncState`, 17,959 into the second processor.** The previous run could only say the second document's size fell inside the range it had measured for the default rack; this is byte-identity between a named producer and a named consumer in one log, which is a different class of claim.
+
+**The mechanism.** `Controller_VST3::getState` calls `IController::syncState`, and its own comment — *"The host is saving"* — is true of a save and **false of the call a host makes while instantiating**. At that moment `TideApp` holds nothing but the starter rack `InitInstance` loaded, so `syncState` published it. Those bytes are then **retained by the processor holder and re-seeded into every processor started later** (`gmpi_processor::start_processor`, `processor_holder.cpp:215`; `Processor_VST3::setActive` → `reInitialise` is what starts them). So the editor shows the restored rack and the next processor instance is born running the default one. Nothing is refused, nothing is truncated, and every exit code is 0.
+
+**It also refutes an assumption this repo states in as many words.** `importChunkXml` declines to push after a restore because *"the wrapper re-seeds the chunk parameter into the processor when it starts, so the processor builds this same document on its own"*. It does re-seed; the bytes were just not that document's.
+
+**The instance numbers are worth reading.** The two builds are instances **#3** and **#5**, not #1 and #2 — five processor objects were constructed in that process, and the three that never appear got no chunk at all (`start_processor` `continue`s on an empty blob). `this` would not have shown this: the holder frees the old plugin before creating the new one, so the addresses repeat.
+
+### The fix is a refusal, and it is TIDE-side only
+
+`SynthEditSem/SynthEditController.cpp` captures its startup default once, immediately after `InitInstance`, and `syncState()` declines to publish a document byte-identical to it. Before any restore that is the only thing the controller can be holding, so the comparison means *"I have nothing to say yet"*.
+
+**The comparison fails towards publishing on purpose.** A false negative costs the bug that already exists; a false positive would lose a user's work. A knob tweak still publishes — it changes the exported bytes though it changes no structure — which is exactly what `syncState` was added for.
+
+**Both sides come from `exportChunkXmlForSave()`, not one from it and one from `exportChunkXml()`**, so a mismatch of producers cannot make the comparison fail spuriously. Same-process is what makes it sound: the baseline measured **17,963** bytes while the pre-fix run's export was **17,959** — E56's per-load handle churn, still unmerged ([SynthEditLib#72](https://github.com/JeffMcClintock/SynthEditLib/pull/72)), which is per-LOAD and not per-export.
+
+### Measured — one build tree, the commit the only variable
+
+| | BEFORE | AFTER |
+|---|---|---|
+| second build line | `17959` — the default | `14136` — the saved rack |
+| `v1-rack.rpp` render | **peak −inf, rms −inf** | **peak −6.3 dBFS, rms −17.0 dBFS** |
+| pitch / channels | — | **440.0 Hz, left channel only** (right at −138.5 dBFS) |
+
+**Those AFTER figures are the macOS 2026-08-18 reference in `tests/hosts/README.md` to the decimal, including the left-channel-only detail** — a fixture that rendered digital silence on this box this morning now reproduces another platform's recorded numbers exactly. `--control` reported its expected −6.0 / −9.0 in the same session, so the chain was proven to detect audio first.
+
+**One honest qualification on the Accept as written.** It asks for *exactly ONE* `building rack from` line. There are still **two** — but both are now the saved document. Two lines are the wrapper's ordinary create/recreate cycle, not a defect; that clause was written from the symptom rather than the mechanism. The substantive half — *a render of a rack cabled to its output is not silent* — is met.
+
+### A portable REAPER does not isolate the config on Windows, and that is now measured twice
+
+The 2026-08-27 run tried it and said so; I tried it properly before trusting that, because *"not verifiable here"* is a claim about a machine and deserves one command. Copied the whole 152 MB install to a scratch dir, added `reaper.ini` beside `reaper.exe`, **deleted `reaper-install.ini`** — and REAPER 7.78 still read and wrote `%APPDATA%\REAPER`, proven by snapshotting that directory and diffing after a render. **So it is not the leftover install marker, and nobody should spend a third session on it.**
+
+What works instead, and it is in `tests/hosts/README.md` now: back the directory up, narrow `vstpath64` to a single folder holding one assembled bundle, move the plug-in cache aside to force a rescan, restore afterwards **and verify the restore**. This run's `%APPDATA%\REAPER` compares **identical to its pre-run snapshot, mtimes included**, and Jeff's installed `Common Files\VST3\TIDE-Rack.vst3` is sha256-unchanged (`0B52C056…`, mtime still 07:59:59).
+
+**Learned:**
+
+- **An absent log line has a twin: a transition nothing logs at all.** The Sync-refresh early return was correct and silent, and that silence is what made a poisoned document unobservable between the moment it arrived and the moment a new processor was born holding it.
+- **A size that falls inside a measured range and a size that is byte-identical to a named producer are different claims.** The previous run had the first and correctly called it a reproduction; one trace turned it into a producer/consumer pair, and only the second names a sender.
+- **When a comment states the condition a function runs under, test the condition rather than the function.** *"The host is saving"* was the whole bug: true of a save, false of the call a host makes while instantiating, and nothing in three sessions had questioned it.
+- **Log a sequence number, not `this`, when the thing you are counting is destroyed and recreated.** The holder frees the old processor before creating the new one, so pointers repeat; the counter is what showed five instances where two were assumed.
+- **Design a comparison so that its failure direction is the bug you already have.** Declining to publish a byte-identical startup default fails towards today's behaviour, never towards losing a save — which is what made it shippable without first resolving whether some host calls `getState` on an untouched fresh instance.
+- **`re.sub` is not the only Python escape trap in this repo's docs.** A `\r` and a `\v` inside a non-raw string silently ate characters out of a PowerShell path in the README I was writing about escaping traps. Read back what you wrote, not just the exit code.
+- **Verify a restore, do not just perform one.** Comparing size and mtime against a snapshot taken before the run is what turns "I put it back" into a fact, and it is cheap.
+
+**Not verified:** mac and linux (there is no platform code in the change and the ordering is the host's, so both should behave identically — one `-renderproject` of `tests/hosts/v1-rack.rpp` each settles it, and on macOS it should simply stay at −6.3 dBFS); whether any host calls `getState` on a fresh user-inserted instance the user never touched, which is the only case where declining changes what is saved — and there the reload loads the same starter rack from the bundle anyway; and E19's remaining Accept clauses, which are cheap once this merges but were not run here.
+
+**Machine state.** All six repos were clean and on their default branches at the start, and TideSynth is on this run's branch until STEP 5 returns it. No sibling repo was modified — `SynthEditLib`, `GMPI_Wrappers`, `gmpi_ui`, `GMPI` and `SE16` are untouched and were only read. Build tree `build-e59/` (gitignored; `SE_LOCAL_BUILD=OFF`, so its POST_BUILD cannot replace the installed plug-in, and `TIDE_VCV_FUNDAMENTAL=OFF`, so it is the shipped configuration). Scratch bundle, fixtures and logs under `C:\SE\_scratch\e59\`; the REAPER backup under `C:\SE\_scratch\e59-reaper-backup\`. `%APPDATA%\REAPER` restored and verified identical; the installed VST3 sha256-unchanged. No REAPER or TIDE process left running.
+
+**Next:** **E59 needs merging**, and after that E19's windows and linux VST3 cells are cheap — the harness for their remaining clauses already exists. **One `-renderproject` on the mac and linux boxes** confirms the fix travels; the macOS one is also the measurement E59's row has wanted since it was filed, because it dates whether that platform ever had the bug. **E63** is still open, small and Windows-only.
+
+**One process note, because it will recur on this fleet.** `origin/main` moved twice while this ran ([#543](https://github.com/JeffMcClintock/TideSynth/pull/543), [#544](https://github.com/JeffMcClintock/TideSynth/pull/544)) and the PR went `CONFLICTING` on JOURNAL.md. **Merging `origin/main` into the branch made it unpushable**: #543 touched `.github/workflows/build.yml`, so the merge commit carried a workflow change and the fleet token -- which deliberately has no `workflow` scope -- was refused by GitHub. **Rebasing the two commits onto `origin/main` instead is what works**, because then no commit being pushed modifies that path even though the branch tip's tree contains main's version of it. That cost a force-push of my own two commits: no reviews, no other session on the branch, and the alternative was handing over a PR somebody else had to untangle by hand. **Worth knowing before you reach for `git merge origin/main` on this fleet: whether the merge is pushable depends on what landed on main, not on what you changed.**
+
+**Branch/PR:** `tide/win/E59-controller-chunk-seeding` — the fix and its trace (`SynthEditSem/SynthEditController.cpp`, `SynthEditSem/SynthEdit.cpp`), the Windows plug-in-isolation recipe in `tests/hosts/README.md`, the E59 and E19 rows, and this entry.
 ## 2026-08-28 — macos — the mac render E59's row asked for: it is a REGRESSION, bracketed to three days (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"run the measurement"* on E7's Accept). As **tide-rack-bot**. Prompt sha b97bc00.
