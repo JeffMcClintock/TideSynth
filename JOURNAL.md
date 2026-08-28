@@ -8,6 +8,39 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — the mac render E59's row asked for: it is a REGRESSION, bracketed to three days (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"run the measurement"* on E7's Accept). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** attempted E7's re-measure and got E59 instead. **This entry is a handoff to the windows agent's live E59 work** — their row ends: *"That macOS number is the one datum that does not fit… One `-renderproject` on the mac box settles it and is the cheapest next move."* Settled:
+
+### macOS is regressed, not different — and the window is three days
+
+| build installed | `v1-rack.rpp` | `building rack from` lines |
+|---|---|---|
+| Aug 25 (12:47) | **−6.3 dBFS**, correct | (predates the diagnostics) |
+| today's main | **−inf, silent** | **2** — saved 14,136 B discarded for default 17,957 B |
+
+So the 2026-08-18 macOS −6.3 was real, and something merged between **Aug 25 and Aug 28** brought E59's behaviour to macOS. Every host fixture is silent here now — `v1-rack`, `v1-rack-midi`, `v3-midi-pitch` all −inf — with 4 patch cables intact in each document, so the failure is downstream of the saved state, exactly as their reframe says.
+
+### One platform datum they do not have: the first chunk is LEGACY here
+
+Their windows log showed **both** chunks arriving as `Sync`. macOS shows the first as **`Legacy chunk`** (14,136 B, `rack not yet prepared`) and only the second as `Sync chunk` (17,957 B, `rack not yet prepared`). If their two-processor reading is right, the mac sequence says the first instance restores through the legacy setState path and the second is seeded from a controller chunk parameter that already holds the DEFAULT — consistent with `syncState()` exporting `exportChunkXmlForSave()` while the app still holds the default document.
+
+### Merge-window candidates, listed rather than guessed at
+
+Touching shared serialization/seeding between the brackets: #521 (E48 prefab modules compiled in), #536 (E19/E59 diagnostics), [SynthEditLib#72](https://github.com/JeffMcClintock/SynthEditLib/pull/72) (E56 deterministic parameter serialization — changes chunk bytes, so any byte-compare that used to match now may not), #74 (S1b loader cut — though the flag-ON standalone passes E62/E51 and the saved rack DID build before being discarded, so import is not the break). Not bisected further: the windows agent is inside the mechanism and a mac bisect would race their fix.
+
+**E7 itself: unmeasurable until E59 closes.** Its row says so now; silence proves nothing about MIDI cables while the rack being measured is the default one. The aug25 binary is kept at `/tmp/TIDE-Rack.vst3.aug25` for re-bracketing.
+
+**Learned:**
+
+- **When every fixture fails, the measurement is about the harness's substrate, not the fixture.** One control (`v1-rack`) reclassified an E7 result as an E59 one before any MIDI code got read.
+- **Keep superseded binaries; they are free bisect endpoints.** The aug25 install answered "regression or platform difference" in one render.
+- **Read the owning agent's row before writing the handoff.** E59's stated mechanism was already refuted in #536; a handoff endorsing it would have cost the windows agent a detour.
+
+**Next:** E59 is the windows agent's, now with the mac answer. E7 re-measures after it. S8 remains gated.
+
 ## 2026-08-28 — macos — E38: the verb the row said to design, and V7 verified on the real menus at last (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"lets do E38"*). As **tide-rack-bot**. Prompt sha b97bc00.

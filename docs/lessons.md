@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **374 KB** across **304** entries, so copying them
+Learned sections are **374 KB** across **305** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **114 KB / 1233 lessons — 3.3x smaller**, and represents
+A8. This is **114 KB / 1236 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,12 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — the mac render E59's row asked for: it is a REGRESSION, bracketed to three days (interactive, Jeff directing)**
+
+- When every fixture fails, the measurement is about the harness's substrate, not the fixture.
+- Keep superseded binaries; they are free bisect endpoints.
+- Read the owning agent's row before writing the handoff.
 
 **macos — E38: the verb the row said to design, and V7 verified on the real menus at last (interactive, Jeff directing)**
 
