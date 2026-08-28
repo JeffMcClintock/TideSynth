@@ -8,6 +8,97 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E61: the fix the row called a coin-toss is decided by one line in MacTextEdit.h (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"and do E61"* — GATED work, authorised). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** **E61 → IN-REVIEW**, [SynthEditLib#70](https://github.com/JeffMcClintock/SynthEditLib/pull/70). **Not DONE, and deliberately so:** I could not reproduce it, so nobody has yet watched this fix stop the crash.
+
+### The row said the choice wanted measuring. It measured, and one candidate is impossible
+
+E61 offered two shapes: dismiss the open edit when `currentModule` is cleared, or make the lambda capture something validatable. **The first cannot work**, and `MacTextEdit.h` says why in its own comment:
+
+- `showAsync` calls `addRef()` on **itself** — *"Self-extend lifetime"*
+- `~GMPI_MAC_TextEdit` only does `[textField removeFromSuperview]`; it **never calls `dismissTextField`**
+
+So tearing down the pane's widgets does **not** dismiss the field. It keeps first responder and commits later, exactly as reported. And the stack corroborates it from the other side: `Body()::$_13` **ran**, so the callback chain was intact — only the captured `pin` was dead. A fix aimed at the callback would have been aimed at the half that was working.
+
+### The guard compares and never dereferences
+
+```cpp
+bool moduleStillShown(const void* captured) const
+{ return captured && static_cast<const void*>(viewModel.currentModule) == captured; }
+```
+
+Testing a freed pointer is safe as long as you only compare it. `OM_DELETE` nulls `currentModule` at the last moment the module is valid (#64), so a freed module cannot match. **#64 and this are one fix seen from two ends** — which is why *"the pane still shows the dead child"* was never cosmetic: it is what hands the user a live control over freed memory.
+
+Seven lambdas guarded, not the one that crashed: module name, four layout rect fields, pin rename, both numeric defaults, hex colour, plain default. Same defect, same line of reasoning.
+
+### What I could not do, said plainly
+
+The reproduction needs a **native context menu** to reach the structure view and a **native text field** to commit. The command channel documents it can drive neither — E51's territory — and I confirmed it: right-click produced no in-surface menu, double-click did not enter the structure view. **So this PR is a fix with a mechanism argued from the stack and the source, not a fix anyone has watched work.** The row stays IN-REVIEW and carries a verification recipe for a human.
+
+Two things I did verify: it compiles, and the **E62 probe passes against this build** (17956 → 14610), so the guard has not broken the ordinary delete path. My `nm` check for the inlined guard returned 0 and I recorded it as **inconclusive**, not as a pass — the same shape as E58's `colorFromHex` grep, and I was not going to make that mistake twice in one day.
+
+**Learned:**
+
+- **When a row calls a design choice a coin-toss, look for the constraint that settles it before weighing the options.** One comment in `MacTextEdit.h` — "self-extend lifetime" — made one of E61's two candidates impossible, and it took less time to find than an argument about which was nicer.
+- **A stack trace tells you which half was WORKING.** `Body()::$_13` appearing means the callback chain survived, so the bug had to be in the capture. That halved the search before any code was read.
+- **You may compare a freed pointer; you may not dereference it.** The whole fix rests on that distinction.
+- **Fix every sibling that shares the defect, not the one in the bug report.** Seven lambdas had the same raw capture; only one had been pressed.
+- **A fix that compiles and does not regress is still not a verified fix.** Say IN-REVIEW and name what nobody has watched happen, rather than letting a green build imply a green bug.
+
+**Next:** **E61 needs a human to run the recipe** — pin-name field open on a module inside a container, delete the container, click away. Before: `EXC_BAD_ACCESS`. After: the commit should be silently declined.
+
+## 2026-08-28 — macos — E62: the delete key driven end-to-end, and the control was already sitting on disk (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"do E62"*). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** **E62 → DONE**. [tests/e62_delete_key_behaviour_probe.py](tests/e62_delete_key_behaviour_probe.py) launches the standalone, finds a module by its pixels, selects it, presses Delete over the command channel, and requires both pieces of evidence E57 named. Wired as a macOS step in `build.yml`. **Both verdicts demonstrated against real builds.**
+
+### The evidence E57 asked for turned out to be printed on stderr
+
+E57's Accept wanted the deletion *"shown by the document byte size changing"*. The app already prints exactly that whenever the DSP structure changes:
+
+```
+TIDE: DSP structure changed, pushing 17960 byte document      <- before
+TIDE: DSP structure changed, pushing 14614 byte document      <- after Delete
+```
+
+So the assertion is a number, not an impression — 3,346 bytes smaller, plus 143,095 pixels changed and the panel column no longer light against the case.
+
+### The control was a build I already had, and I nearly mistook it for a bug
+
+The first run against `build-e57` reported the delete key dead. That looked like a regression until the arrow keys were tried through the same path:
+
+| key | result |
+|---|---|
+| UP `0x26`, DOWN `0x28`, LEFT `0x25` | 42–46k px moved — **`onKey` is running** |
+| DEL `0x7f`, `0x2e`, BKSP `0x08` | 0 px — nothing |
+
+Arrows moving proves keys arrive, `ViewBase::onKey` executes, and a module is selected. Only the delete case was missing. **That binary was stamped 13:14 and #68 merged at 13:26** — it predated the fix by twelve minutes. A ten-second incremental rebuild against current main produced a binary where Delete works, and the old one became the control. **Both halves of the Accept, no second build needed.**
+
+### The failure mode I designed against is a false alarm, not a missed bug
+
+If the click misses, nothing is selected, Delete correctly does nothing, and a naive probe blames the key. That is worse than no probe — it looks exactly like the real defect. So the probe asserts the selection changed the screen first, and a click that changes nothing exits **2 (setup failed)**, never 1. In the control run it printed `selection changed 102209 px` before returning its verdict, so the "NOT DELETED" reading is about the key and nothing else.
+
+### Three traps, all measured rather than guessed
+
+1. **A unix socket path has a 103-byte limit.** My first launch put the IPC dir in the session scratchpad — 150 bytes — and the app opened no channel at all. It said so on stderr; a caller watching only for the socket file would have seen a timeout and guessed. The probe now rejects an over-long dir up front, with the arithmetic.
+2. **The standalone restores its last session**, so a probe that deleted from the real one would hand the user a damaged rack next launch. `GMPI_STANDALONE_CONFIG_DIR` isolates it, which also makes the run deterministic.
+3. **`--type` on SynthEditCL is not `--type` on the standalone.** The EditorScreenshot dispatcher requires an active key *listener* — the opt-in text-widget path — and never reaches `ViewBase::onKey`. Only the standalone's `--type` calls `client->onKeyPress(c)`, the same entry the real `keyDown:` uses. **A version of this probe written against SynthEditCL would test nothing and pass.**
+
+**Learned:**
+
+- **Before blaming the code under test, drive a NEIGHBOURING path through the same function.** Arrow keys proved `onKey` was running and a module was selected, which turned "delete is broken" into "this binary predates the fix" in one step.
+- **Check the binary's timestamp against the merge you are testing.** Twelve minutes separated the two here, and every symptom of a stale build imitates the bug it lacks.
+- **A stale build is a free control.** Keeping the pre-fix binary gave both halves of an Accept that otherwise needs two deliberate builds.
+- **A harness must distinguish its own failure from the app's.** A click that selects nothing has to exit differently from a key that does nothing, or the probe cries wolf in exactly the shape of the real bug.
+- **The evidence an Accept asks for is often already on stderr.** The document byte size was being printed all along; no instrumentation was needed.
+- **Two probes for one row is not duplication when they fail differently.** The structural probe catches an unbound or compiled-out key in seconds with no build; this one catches a bound key that declines. Neither subsumes the other.
+
+**Next:** **E61** is GATED and awaits authorisation. The `build.yml` step needs Jeff to push it — the agent token has no `workflow` scope.
+
 ## 2026-08-28 — macos — E57 closed, and the guard that replaces the human who pressed the key (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"flip E57 to DONE and write the recurrence guard"*). As **tide-rack-bot**. Prompt sha b97bc00.
