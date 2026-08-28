@@ -451,6 +451,24 @@ jobs:
           fi
           python3 tests/e62_delete_key_behaviour_probe.py --standalone "$bin"
 
+      # BACKLOG E51 -- the divert chain, guarded. -quiet must parse, prompts
+      # must route through the chokepoint to stderr AND the kept list, and
+      # --dialogs must drain that list over the command channel. The probe's
+      # control (an argv-dropping wrapper) replays the exact regression
+      # GMPI_Wrappers#29 fixed, so red here means the chain broke, not the
+      # harness. macOS only, same reason as the two gates above.
+      - name: Dialog divert chain (E51)
+        if: matrix.name == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="build/SynthEditSem/TIDE-Rack.app/Contents/MacOS/TIDE-Rack"
+          if [ ! -x "$bin" ]; then
+            echo "::error::standalone not found at $bin -- the E51 gate cannot run"
+            exit 1
+          fi
+          python3 tests/e51_dialog_divert_probe.py --standalone "$bin"
+
       # Always, including on a failed build -- a cache that is not being hit is
       # the thing worth seeing, and a red run is when you most want to know.
       - name: ccache statistics
