@@ -108,3 +108,46 @@ jobs:
             echo "::error::one or more lint checks failed -- see the step above for detail"
             exit 1
           fi
+
+  # BACKLOG E57 -- THE DELETE KEY, GUARDED UNATTENDED.
+  #
+  # Jeff, 2026-08-28: *"note the delete key is meant to work. so bug may recur in
+  # future"*. E57 was three defects across two sibling repos and took a session
+  # with a human pressing keys to find. This job is what replaces that session.
+  #
+  # SEPARATE JOB, NOT A STEP IN `lint`, because it needs the sibling repos
+  # checked out and `check-links`/`check-id-refs`/`check-next-block` above read
+  # the WHOLE TREE -- sibling markdown landing in the workspace would be scanned
+  # as if it were ours. Isolating it also lets it run in parallel.
+  #
+  # `ref: main` on both siblings deliberately mirrors CMakeLists.txt, which
+  # declares them with `GIT_TAG origin/main`. This tests what TIDE actually
+  # builds, so a regression pushed to a sibling turns this red here -- which is
+  # the point, since that is exactly how E57 arrived.
+  e57-delete-key:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: JeffMcClintock/gmpi_ui
+          ref: main
+          path: siblings/gmpi_ui
+
+      - uses: actions/checkout@v7
+        with:
+          repository: JeffMcClintock/SynthEditLib
+          ref: main
+          path: siblings/syntheditlib
+
+      # The probe rests on two non-obvious mechanisms -- comment stripping and
+      # #if-depth tracking. Test the instrument before trusting its reading.
+      - name: Probe selftest
+        run: python3 tests/e57_delete_key_probe.py --selftest
+
+      - name: Delete key still reaches the presenter
+        run: |
+          python3 tests/e57_delete_key_probe.py \
+            --gmpi-ui siblings/gmpi_ui \
+            --syntheditlib siblings/syntheditlib
