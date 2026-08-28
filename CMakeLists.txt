@@ -380,6 +380,14 @@ endif()
 set(TIDE_RENDER_PREVIEW OFF CACHE BOOL "" FORCE)
 add_subdirectory(modules/common TideRender)
 
+# BACKLOG S1b -- TIDE ships with only its own modules (Jeff, 2026-08-26), so the
+# third-party binary loader is compiled out: no ScanBundle/ScanPluginBinary, no
+# SEM cache, no dlopen/dlsym/dlclose imports in the shipped binaries. The prefab
+# scanner (ScanFolder's walk) stays -- save-as-prefab depends on it. The full
+# cut is documented at the option's declaration in EditorLib/CMakeLists.txt;
+# the Accept lives in tests/s1b_no_external_modules_probe.py.
+set(SE_NO_EXTERNAL_MODULES ON CACHE BOOL "" FORCE)
+
 add_subdirectory(${syntheditlib_folder} SynthEditLib)
 add_subdirectory(${syntheditlib_folder}/EditorLib EditorLib)
 
