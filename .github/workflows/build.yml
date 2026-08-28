@@ -421,6 +421,36 @@ jobs:
           fi
           python3 scripts/check-rack-populated.py --standalone "$bin"
 
+      # BACKLOG E62 -- THE DELETE KEY ACTUALLY DELETES, not merely bound.
+      #
+      # E57's Accept asked for "--type \x7f removes it from the document" to run
+      # unattended. `e57_delete_key_probe.py` in the lint workflow is the
+      # STRUCTURAL half -- it proves the binding exists and is unconditional, but
+      # never presses a key, so it would pass on a build where DeleteSelection()
+      # is wired correctly and declines. This is the behavioural half.
+      #
+      # MACOS ONLY, for the same reason as the gate above: it launches the GUI
+      # standalone. The linux runner is headless and a failure there could mean
+      # anything.
+      #
+      # The probe distinguishes its own failures from the app's -- a click that
+      # selects nothing exits 2, not 1 -- so a red step here means the delete key
+      # is broken, not that the harness slipped. Demonstrated 2026-08-28 against
+      # a build predating SynthEditLib#68: document unchanged at 17954 bytes, 0
+      # pixels moved, verdict NOT DELETED. Against the fixed build: 17960 ->
+      # 14614 bytes and the panel gone.
+      - name: Delete key deletes (E62)
+        if: matrix.name == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="build/SynthEditSem/TIDE-Rack.app/Contents/MacOS/TIDE-Rack"
+          if [ ! -x "$bin" ]; then
+            echo "::error::standalone not found at $bin -- the E62 gate cannot run"
+            exit 1
+          fi
+          python3 tests/e62_delete_key_behaviour_probe.py --standalone "$bin"
+
       # Always, including on a failed build -- a cache that is not being hit is
       # the thing worth seeing, and a red run is when you most want to know.
       - name: ccache statistics

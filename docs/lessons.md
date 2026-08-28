@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **363 KB** across **293** entries, so copying them
+Learned sections are **364 KB** across **294** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **108 KB / 1181 lessons — 3.4x smaller**, and represents
+A8. This is **109 KB / 1187 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,15 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — E62: the delete key driven end-to-end, and the control was already sitting on disk (interactive, Jeff directing)**
+
+- Before blaming the code under test, drive a NEIGHBOURING path through the same function.
+- Check the binary's timestamp against the merge you are testing.
+- A stale build is a free control.
+- A harness must distinguish its own failure from the app's.
+- The evidence an Accept asks for is often already on stderr.
+- Two probes for one row is not duplication when they fail differently.
 
 **macos — E57 closed, and the guard that replaces the human who pressed the key (interactive, Jeff directing)**
 
