@@ -8,6 +8,44 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — S1b built: the loader compiled out with zero deletions, and the row's homework made it a half-day instead of a week (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"lets do S1b"*). As **tide-rack-bot**. Prompt sha b97bc00.
+
+**Did:** **S1b → DONE.** [SynthEditLib#74](https://github.com/JeffMcClintock/SynthEditLib/pull/74) (`SE_NO_EXTERNAL_MODULES`, OFF by default, 138 insertions **0 deletions**), TIDE sets it ON, [tests/s1b_no_external_modules_probe.py](tests/s1b_no_external_modules_probe.py) is the Accept as a command. Measured: the 12-symbol family → `ScanFolder` alone; imports → `_dladdr` alone.
+
+### The row's accumulated corrections were the map, and every one of them paid
+
+B1/C1-C6 had already established: the exact symbol list; that `_dladdr` must stay (C1 exists because a run nearly chased it); that the cut is the BINARY LOADER vs the PREFAB SCANNER, not "the scan half" (ScanFolder is live via `OnEditToPrefab`); that the linker cannot do it (no visibility settings, 6,781 exported globals, every one a dead-strip root); and that `SE_EXTERNAL_SEM_SUPPORT` guards two lines and removes nothing. Not one of those had to be rediscovered. The whole session was executing a plan five prior runs had written.
+
+### Zero deletions is the SynthEdit-safety argument
+
+Everything is `#ifndef SE_NO_EXTERNAL_MODULES` guards. The OFF control is what makes that claim measured rather than structural: an OFF rebuild restores all 12 symbols and all 4 imports bit-for-bit identical in kind. SynthEdit proper compiles the same code it always did.
+
+Three shapes of guard, chosen per symbol:
+- **compiled out entirely** where the Accept names the symbol (`LoadDllOnDemand`, the scanners, the cache quartet, the `MP_Dll` trio, `LoadOrScanModuleData` — no caller in TIDE);
+- **stub keeping the symbol** where the vtable needs it (`Build`/`BuildSynthOb` return empty — EditorLib's `dynamic_cast<Module_Info3*>`s need the typeinfo, and typeinfo needs the vtable);
+- **no-op bodies** for `PluginHolder` (embedded member, its dtor is everywhere).
+
+### Two discoveries the addenda missed
+
+1. **`LoadDll_old` and `Module_Info3::Unload` are inside `#if 0` and declared in NO header.** I spent real time hunting their declarations before reading the preprocessor structure — `awk '/^#/'` over the region answered in one command what four greps could not.
+2. **The wrapper's `MP_Dll` references are all comments and typedefs** — GMPI_Wrappers needed no change at all, and GMPI's `dynamic_linking.cpp` copies only feed the host-side plist tool.
+
+### The define had to reach TWO targets, and the first build measured the wrong claim
+
+My first pass put the define on EditorLib only; `Module_Info3.cpp` and `xp_dynamic_linking.cpp` compile into **SynthEditLib**, which does not link EditorLib — so `LoadDllOnDemand` and `MP_DllLoad` survived the first measurement. The fix is PUBLIC on both targets. The lesson is old but keeps being paid for: a compile definition follows the target graph, not the repo layout.
+
+**Learned:**
+
+- **A row that has been annotated by five runs is a plan, not a backlog item.** Executing S1b took hours because C1-C6 had already made every mistake once; the corrections were the deliverable of those runs and this one spent them.
+- **Prefer guards to deletions when a library has two masters.** 138 insertions / 0 deletions means the OFF configuration is not "restored" -- it was never touched, and the control proves it cheaply.
+- **A vtable is a linker obligation, not a call graph.** Symbols with no callers still cannot be compiled out if a dynamic_cast anywhere needs the class's typeinfo; stub those, remove the rest.
+- **When a member function seems declared nowhere, read the preprocessor before the headers.** `#if 0` regions produce exactly that mystery.
+- **A "required export" makes a symbol probe self-controlling.** Requiring `ScanFolder` present means the probe cannot pass vacuously against the wrong binary -- the same trick as E62's selection check.
+
+**Next:** Jeff pushes the `build.yml` step (workflow scope, patch supplied), then merges. Remaining gated: S8 (79 files), E7 (polyphony, unknown), E38 (native menu readout).
+
 ## 2026-08-28 — macos — E51 closed: the chain guarded, the trap was platform-divergent, and the richest fixture turned out to be extinct (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"lets do E51"*). As **tide-rack-bot**. Prompt sha b97bc00.

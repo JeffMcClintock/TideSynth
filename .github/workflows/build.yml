@@ -469,6 +469,23 @@ jobs:
           fi
           python3 tests/e51_dialog_divert_probe.py --standalone "$bin"
 
+      # BACKLOG S1b -- the shipped VST3 must carry no third-party module
+      # loader: 13 symbols absent, ScanFolder present (the prefab scanner
+      # stays, and requiring it stops this passing against the wrong file),
+      # dlopen/dlsym/dlclose gone, dladdr kept. Demonstrated failing 15
+      # checks against a pre-cut binary.
+      - name: No third-party loader in the VST3 (S1b)
+        if: matrix.name == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="build/SynthEditSem/TIDE-Rack.vst3/Contents/MacOS/TIDE-Rack"
+          if [ ! -f "$bin" ]; then
+            echo "::error::VST3 binary not found at $bin -- the S1b gate cannot run"
+            exit 1
+          fi
+          python3 tests/s1b_no_external_modules_probe.py --binary "$bin"
+
       # Always, including on a failed build -- a cache that is not being hit is
       # the thing worth seeing, and a red run is when you most want to know.
       - name: ccache statistics

@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **372 KB** across **301** entries, so copying them
+Learned sections are **373 KB** across **302** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **112 KB / 1222 lessons — 3.3x smaller**, and represents
+A8. This is **113 KB / 1227 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,14 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — S1b built: the loader compiled out with zero deletions, and the row's homework made it a half-day instead of a week (interactive, Jeff directing)**
+
+- A row that has been annotated by five runs is a plan, not a backlog item.
+- Prefer guards to deletions when a library has two masters.
+- A vtable is a linker obligation, not a call graph.
+- When a member function seems declared nowhere, read the preprocessor before the headers.
+- A "required export" makes a symbol probe self-controlling.
 
 **macos — E51 closed: the chain guarded, the trap was platform-divergent, and the richest fixture turned out to be extinct (interactive, Jeff directing)**
 
