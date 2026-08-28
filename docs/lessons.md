@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **359 KB** across **288** entries, so copying them
+Learned sections are **361 KB** across **291** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **106 KB / 1160 lessons — 3.4x smaller**, and represents
+A8. This is **107 KB / 1170 lessons — 3.4x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,25 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — E57 fixed on real hardware, and fixing it exposed a use-after-free (interactive, Jeff driving)**
+
+- A file compiling is not your code compiling.
+- A partial fix to a code-mapping bug looks like a total one when some codes collide by luck.
+- Enabling an input path can make latent memory bugs reachable.
+- "It beeps" is not evidence the handler declined.
+
+**linux — STEP 4 bookkeeping: E39 and E53 flipped DONE, E55 deliberately not**
+
+- The mechanical flip test and the honest one differ, and the row usually says which applies.
+- Archiving a row whose fix caused an open regression is fine; archiving it silently is not.
+
+**linux — E19's linux cell: the VST3 fails, and the reason is that the DSP is running a different rack from the one on screen (scheduled run)**
+
+- "The feedback is frozen" and "the DSP is running a different patch" produce the same trace, and only an audio measurement separates them.
+- A control that proves the HOST is alive is not optional when the plug-in looks dead.
+- A crash in a plug-in's editor is worth blaming on the environment first when the environment was assembled by the run.
+- "No `platform: linux` rows" is not "no linux work".
 
 **macos — E47 driven twice with Jeff at the keyboard: the guard was never reached, and the hole looks unreachable by construction**
 

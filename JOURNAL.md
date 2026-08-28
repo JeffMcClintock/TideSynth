@@ -8,6 +8,62 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-28 — macos — E57 fixed on real hardware, and fixing it exposed a use-after-free (interactive, Jeff driving)
+
+**Prompt:** interactive, Jeff driving. As tide-rack-bot (both). Prompt sha b97bc00.
+
+**Did:** fixed **E57** — [gmpi_ui#14](https://github.com/JeffMcClintock/gmpi_ui/pull/14) + [SynthEditLib#68](https://github.com/JeffMcClintock/SynthEditLib/pull/68), both required. Verified by Jeff: *"all keys work now"*. Filed **E61**. Proved **E47**'s guard correct along the way.
+
+### Three defects, and only two were predicted
+
+**(A)** `GMPI_VIEW_CLASS` had neither `acceptsFirstResponder` nor `keyDown:`, so macOS delivered **no key to the client at all** — delete, arrow-nudge and ESC were all dead, and only delete had ever been reported.
+
+**(B)** `ViewBase::onKey` had no Delete case on any platform. SynthEdit binds it in its own view (`HostedView.cpp:883`), which TIDE does not build, so **Windows TIDE would have failed too**.
+
+**(C) — not predicted, and only visible after A was fixed.** AppKit sends arrows and forward-delete as Unicode private-use values (`0xF700`.., `0xF728`); `onKey` switches on VK `0x25`–`0x28`/`0x2E`. **ESC and Apple-delete worked by luck** — `0x1B` and `0x7F`/`0x08` collide with their VK values — so a two-thirds fix looked total for a whole round, until Jeff reported *"arrows do not [work]"* and *"PC `<delete>` does nothing"*.
+
+### The trap, worth more than the fix
+
+The first patch was anchored on a line inside `#if !USE_BACKING_BUFFER` and **compiled out entirely**. The app had no handler, the key fell through the responder chain, and macOS beeped — **indistinguishable from a handler that ran and declined**. I had checked the build log: it showed the file compiling, from the right path, into two targets. All true, and all irrelevant.
+
+What caught it was `strings` on the **object files** — zero probe occurrences while the source had two.
+
+> **A file compiling is not your code compiling.** Check the object, not the log.
+
+This is the third variant of the same lesson in two days: E55 was a fetched *source copy* standing in for the checkout; this was the right file with the code conditioned out.
+
+### Fixing it made a latent use-after-free reachable
+
+Jeff, immediately after: *"deleting the outer container with the keyboard leaves the properties pane showing it's child"*, then *"crash after deleting outer and editing pin name (of it's child)"*.
+
+**That vindicates E47's guard and indicts something else.** Probes caught #64's guard reaching `sender == layoutContainer` (`0x1055c07a0` both) with `currentModule` the live child `0x7d3084700`, and clearing it to `0x0`. **E47's Accept is met.** The crash is through a *different* pointer:
+
+```
+PropertiesBrowser::Body()::$_13(std::string const&)
+GMPI_MAC_TextEdit::dismissTextField(gmpi::ReturnCode)
+-[NSTextField textDidEndEditing:]
+EXC_BAD_ACCESS / KERN_INVALID_ADDRESS, pointer-authentication failure
+```
+
+A live `NSTextField`'s completion lambda held a stale capture into the freed module. Filed as **E61**.
+
+**And the two symptoms are causally linked.** #64 deliberately *clears without invalidating* — *"a repaint driven from inside a destructor is more than removing a dangling pointer requires"*. Correct for the pointer, but the pane keeps **displaying** the dead child's fields, and that is what hands the user a live control over freed memory. "The pane still shows it" reads cosmetic and is not.
+
+### And it retires a claim I made this morning
+
+#528 said E47's hole was *"unreachable through the UI by construction"* — to delete X you must select X, which re-binds the pane. **True of the mouse-only app I measured, and my own E57 fix invalidated it.** Keyboard delete removes the constraint. Corrected on the rows rather than left standing.
+
+**Learned:**
+
+- **A file compiling is not your code compiling.** The build log cannot see a `#if` that excluded your change; the object file can.
+- **A partial fix to a code-mapping bug looks like a total one when some codes collide by luck.** ESC and Apple-delete worked because `0x1B`/`0x7F` happen to equal their VK values. Test every member of a class of inputs, not one.
+- **Enabling an input path can make latent memory bugs reachable.** E47 sat unreachable behind a mouse-only constraint for a day; one keyboard binding turned it into a user-triggerable crash. Worth asking, when unblocking an input route, what was only safe because nobody could get there.
+- **"It beeps" is not evidence the handler declined.** An absent handler and a declining one produce the same sound.
+
+**Next:** **E61** — dismiss or re-key the text edit; GATED. **E58** — my own rack-fill regression, still open. E57's recurrence guard is still unwritten and now matters more, not less.
+
+**Branch/PR:** `tide/mac/E57-fixed-E59-filed` — rows and this entry; code in gmpi_ui#14 and SynthEditLib#68.
+
 ## 2026-08-28 — linux — STEP 4 bookkeeping: E39 and E53 flipped DONE, E55 deliberately not
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths)
