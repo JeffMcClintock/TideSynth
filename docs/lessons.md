@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **365 KB** across **295** entries, so copying them
+Learned sections are **367 KB** across **296** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **109 KB / 1192 lessons — 3.3x smaller**, and represents
+A8. This is **110 KB / 1199 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -55,6 +55,16 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A harness must distinguish its own failure from the app's.
 - The evidence an Accept asks for is often already on stderr.
 - Two probes for one row is not duplication when they fail differently.
+
+**windows — E19's windows VST3 cell: it FAILS, and the mechanism this fleet wrote down for the cause is wrong (scheduled run)**
+
+- An absent log line is evidence only after you prove the binary could print it.
+- A local build does not shadow an installed plug-in, and the host picks silently.
+- A bare `.vst3` DLL is not the plug-in.
+- Two silences are not the same finding.
+- `re.sub`'s replacement is a template, not a literal
+- A resource list maintained by hand in one platform's packaging script will drift, and the local install hides it.
+- Isolation proved for one process is not isolation proved for another.
 
 **macos — E57 closed, and the guard that replaces the human who pressed the key (interactive, Jeff directing)**
 
@@ -174,48 +184,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Quoting a lint's trigger re-arms it.
 - Check a lint by its exit code, not by the tail of its output.
 - A NEXT cell three days old is history, not a queue.
-
-## 2026-08-27
-
-**windows — The second gate was __argv itself, the whole quiet chain now measures working, and E46's guard fired in production (interactive, Jeff directing)**
-
-- `__argv` is NULL under `wWinMain` in a Unicode build.
-- One line of instrumentation beat three offline analyses.
-- A guard's best verification can arrive as a side effect.
-- When the product can report on itself, prefer that to screening it from outside.
-
-**windows — The instrument said argc=0; then Jeff photographed the dialog and it named a different module than I had (interactive, Jeff directing)**
-
-- A screen that catches one instance is not a diagnosis of the class.
-- Present-in-the-binary does not mean registered.
-- The instrument you need is often already printing.
-- Default arguments can turn a missing call into a silent no-op.
-- A photograph from a human beat three offline analyses.
-
-**macos — E54: the gate reads the library's diagnostic now, and the obvious place to put it would have matched nothing (scheduled run, continued)**
-
-- "Add it to the existing list" is a claim about the list's matching rule, not just its contents.
-- A row's Size estimate is a claim about code the estimator did not open.
-- A guard that makes a crash survivable can blind the gate that caught it.
-- A fixture folder can hold two load-bearing cases that argue opposite ways
-- Say which arms a check covers when the channels differ.
-
-**macos — E25 reproduced from a document, and STEP 1's stale issue turned out to be E46 crashing in the wild (scheduled run)**
-
-- A truncated stderr and a crashed process look identical from the log.
-- One field can have two serialised names, and a row can spend three attempts on the wrong one.
-- When a row recommends a GUI route, check whether the document reaches the same state.
-- Revert the fix rather than checking out the tree that predates it.
-- A guard that stops a crash can blind the gate that caught it.
-- A stale NEXT cell is more dangerous than an empty one
-
-**windows — E48: a shipped prefab uses a module TIDE does not ship, and that one fact explains both dialogs and the 3,577 bytes (interactive, Jeff directing)**
-
-- A dialog with an empty caption is invisible to every handle we have.
-- Do not promise a mitigation you have not seen fire.
-- Attach to a hung process; do not launch it under the debugger.
-- A checker that validates a file against itself is not validating the product.
-- `session.xml` is written on quit only.
 
 ## 2026-08-18
 
@@ -2165,3 +2133,43 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A check on the end state does not catch a transition that never happened.
 - A row can cite a number that resolves to the wrong kind of object.
 - The queue cannot see another machine's uncommitted work.
+
+**windows — The second gate was __argv itself, the whole quiet chain now measures working, and E46's guard fired in production (interactive, Jeff directing)**
+
+- `__argv` is NULL under `wWinMain` in a Unicode build.
+- One line of instrumentation beat three offline analyses.
+- A guard's best verification can arrive as a side effect.
+- When the product can report on itself, prefer that to screening it from outside.
+
+**windows — The instrument said argc=0; then Jeff photographed the dialog and it named a different module than I had (interactive, Jeff directing)**
+
+- A screen that catches one instance is not a diagnosis of the class.
+- Present-in-the-binary does not mean registered.
+- The instrument you need is often already printing.
+- Default arguments can turn a missing call into a silent no-op.
+- A photograph from a human beat three offline analyses.
+
+**macos — E54: the gate reads the library's diagnostic now, and the obvious place to put it would have matched nothing (scheduled run, continued)**
+
+- "Add it to the existing list" is a claim about the list's matching rule, not just its contents.
+- A row's Size estimate is a claim about code the estimator did not open.
+- A guard that makes a crash survivable can blind the gate that caught it.
+- A fixture folder can hold two load-bearing cases that argue opposite ways
+- Say which arms a check covers when the channels differ.
+
+**macos — E25 reproduced from a document, and STEP 1's stale issue turned out to be E46 crashing in the wild (scheduled run)**
+
+- A truncated stderr and a crashed process look identical from the log.
+- One field can have two serialised names, and a row can spend three attempts on the wrong one.
+- When a row recommends a GUI route, check whether the document reaches the same state.
+- Revert the fix rather than checking out the tree that predates it.
+- A guard that stops a crash can blind the gate that caught it.
+- A stale NEXT cell is more dangerous than an empty one
+
+**windows — E48: a shipped prefab uses a module TIDE does not ship, and that one fact explains both dialogs and the 3,577 bytes (interactive, Jeff directing)**
+
+- A dialog with an empty caption is invisible to every handle we have.
+- Do not promise a mitigation you have not seen fire.
+- Attach to a hung process; do not launch it under the debugger.
+- A checker that validates a file against itself is not validating the product.
+- `session.xml` is written on quit only.
