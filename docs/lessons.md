@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **357 KB** across **286** entries, so copying them
+Learned sections are **358 KB** across **287** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **105 KB / 1154 lessons — 3.4x smaller**, and represents
+A8. This is **106 KB / 1157 lessons — 3.4x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,12 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-28
+
+**macos — E53 fixed: the fourth assert-only lookup, and the guard is observed firing (interactive, Jeff directing)**
+
+- Guarding a deref is not fixing the cause, and the second time it happens is a signal.
+- A guard should be observed firing, not just correlated with a crash disappearing.
+- Text-mode writes silently rewrite line endings.
 
 **macos — E55 built: one config-root override, and the build that silently didn't contain it**
 
