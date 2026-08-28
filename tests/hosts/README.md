@@ -116,6 +116,69 @@ sed 's/1386065673{506C7567696E474D50492050A2A07287}/1558955188{67756C506E694D475
 To find what YOUR REAPER writes: load the plugin into an empty project, save it,
 and read the `<VST ...>` line.
 
+## Measuring YOUR build on Windows, not the one that happens to be installed
+
+**A local build does not shadow the installed plug-in, and REAPER picks silently.**
+Both live on the scan path, both answer to the same VST3 UID, and a measurement
+taken against the wrong one looks completely normal. This cost a measurement on
+2026-08-28 and again on the run that fixed **E59**.
+
+Two things make a run attributable, and you want both:
+
+1. **A distinguishing string in the build, read back off the log.** Every
+   `TIDE:` diagnostic added for a row is one; check the *binary* for it before
+   running anything, with the installed plug-in as the negative control:
+
+   ```bash
+   python3 -c "
+   for p in ['build-e59/SynthEditSem/Release/TIDE-Rack.vst3',
+             'C:/Program Files/Common Files/VST3/TIDE-Rack.vst3/Contents/x86_64-win/TIDE-Rack.vst3']:
+       print(p, open(p,'rb').read().count(b'syncState exporting'))"
+   ```
+
+   `strings` is not a substitute — it found none of these format strings in a
+   Windows PE that demonstrably contained them (**E50**).
+
+2. **Narrow REAPER's scan path to one folder**, so there is only one candidate.
+   Back the whole resource directory up first, then:
+
+   ```powershell
+   Copy-Item -Recurse "$env:APPDATA\REAPER\*" C:\SE\_scratch\reaper-backup
+   (Get-Content "$env:APPDATA\REAPER\REAPER.ini") -replace '^vstpath64=.*$', `
+     'vstpath64=C:\SE\_scratch\e59\vst3' | Set-Content "$env:APPDATA\REAPER\REAPER.ini"
+   Move-Item "$env:APPDATA\REAPER\reaper-vstplugins64.ini" C:\SE\_scratch\   # force a rescan
+   ```
+
+   Restore by copying the backup back afterwards, and **verify it** — sizes and
+   mtimes should compare identical to a snapshot taken before the run.
+
+**Assemble a bundle; do not copy the bare DLL.** A `.vst3` lifted straight out
+of `build-*/SynthEditSem/Release/` has no `Contents/Resources`, so it starts with
+an empty rack and prints `no DefaultRack.synthedit in bundle resources` — every
+measurement of rack CONTENT against it is void while looking entirely normal.
+The shape is the one `SynthEditSem/CMakeLists.txt` builds under `SE_LOCAL_BUILD`:
+
+```
+TIDE-Rack.vst3/Contents/x86_64-win/TIDE-Rack.vst3   <- the built DLL
+TIDE-Rack.vst3/Contents/Resources/                  <- the six XMLs,
+                                                       DefaultRack.synthedit,
+                                                       and Prefabs/
+```
+
+**Configure with `-DSE_LOCAL_BUILD=OFF`** (the default) so the build's POST_BUILD
+step does not replace the developer's installed plug-in at
+`C:\Program Files\Common Files\VST3\TIDE-Rack.vst3`.
+
+### A portable REAPER does NOT isolate the config on Windows — measured
+
+Copying the whole 152 MB install to a scratch directory, adding a `reaper.ini`
+beside `reaper.exe` and deleting `reaper-install.ini` **does not engage portable
+mode**: REAPER 7.78 still read and wrote `%APPDATA%\REAPER`, which was proven by
+snapshotting that directory and diffing it after a render (`REAPER.ini` grew, three
+other `.ini`s were re-stamped). This is the second run to try it. **Back the
+directory up and restore it instead** — a `-renderproject` run only adds a recent-project
+entry and re-stamps timestamps, so a restore-and-verify comes back byte-identical.
+
 ### It fails as a HANG, not an error
 
 The warning above is **modal**, so `REAPER -renderproject` blocks on it forever

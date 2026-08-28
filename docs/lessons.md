@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **375 KB** across **306** entries, so copying them
+Learned sections are **378 KB** across **308** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **114 KB / 1242 lessons — 3.3x smaller**, and represents
+A8. This is **116 KB / 1254 lessons — 3.3x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -47,6 +47,24 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Check the format's own file for its conventions before inventing them.
 - A negative control belongs on a screenshot too.
 - A comment that reasons from the code's origin ages badly.
+
+**windows — E59 answered and fixed: the sender is our own syncState, and the host asks for state before it gives us any (scheduled run)**
+
+- An absent log line has a twin: a transition nothing logs at all.
+- A size that falls inside a measured range and a size that is byte-identical to a named producer are different claims.
+- When a comment states the condition a function runs under, test the condition rather than the function.
+- Log a sequence number, not `this`, when the thing you are counting is destroyed and recreated.
+- Design a comparison so that its failure direction is the bug you already have.
+- `re.sub` is not the only Python escape trap in this repo's docs.
+- Export the identity in EVERY shell that commits — `git rebase --continue` is a commit.
+- A check in the same unconditional command block as the action it gates is decoration.
+- Verify a restore, do not just perform one.
+
+**macos — E59's fix confirmed on mac, and E7 re-measured: the root MIDI-CV path already works (interactive, Jeff directing)**
+
+- Measure what the Accept says, not what the harness reports.
+- A failing fixture beside a passing sibling localises better than either alone.
+- Re-run a blocked measurement the moment the blocker lands.
 
 **macos — the mac render E59's row asked for: it is a REGRESSION, bracketed to three days (interactive, Jeff directing)**
 

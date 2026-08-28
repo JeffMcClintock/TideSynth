@@ -12,6 +12,7 @@ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
+#include <atomic>                  // TideSynth E59 - the per-instance sequence number
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -65,6 +66,40 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	bool loggedMidiDropped = false;
 	bool loggedBadDocument = false;
 	bool loggedUnpreparedSilence = false;
+
+	// E59: a Sync refresh that lands on an ALREADY-PREPARED rack is the one
+	// event in this class that used to leave no trace at all, and it is the
+	// event the bug is made of.
+	//
+	// The arm below returns early for it -- correctly, because rebuilding the
+	// graph per autosave would be an audio glitch per knob tweak. What that
+	// early return does NOT do, and what nothing here could see, is stop the
+	// bytes being RETAINED by the holder: gmpi_processor keeps the blob
+	// parameter's current value and re-seeds it into the next processor it
+	// starts (processor_holder.cpp:215, and the long comment above
+	// preparedSampleRate walks the mechanism). So a refresh ignored here is
+	// still the document the NEXT instance will be born holding.
+	//
+	// Logging the size is the whole point: a refresh carrying the DEFAULT rack
+	// arriving on a processor that just built the RESTORED one is E59's
+	// mechanism, and the two are indistinguishable without the number.
+	//
+	// Latched, because this is the audio thread and a host may refresh per
+	// autosave. One line per instance is a report, not a trace.
+	bool loggedSyncIgnored = false;
+
+	// E59: which processor OBJECT is talking. Two `building rack from` lines
+	// with different documents mean either one instance overwritten or two
+	// instances each built once, and those want opposite fixes. `this` is no
+	// use -- the holder frees the old plugin before creating the new one, so
+	// the addresses are routinely identical. A monotonic counter cannot be
+	// reused.
+	static int nextInstanceSeq()
+	{
+		static std::atomic<int> counter{ 0 };
+		return ++counter;
+	}
+	const int instanceSeq = nextInstanceSeq();
 
 	// TideSynth: the sample rate the rack was last built for. prepareToPlay is
 	// reached from exactly one place -- the chunk arriving in onSetPins -- so the
@@ -263,6 +298,21 @@ public:
 					// Refresh only; the running rack already holds these
 					// values live. Fall through to the tail below - the
 					// sleep/subProcess re-assertions must run on every call.
+					//
+					// E59: say so, once. See loggedSyncIgnored's comment -- the
+					// bytes are retained by the holder even though the rebuild
+					// is skipped, so this is the last place a poisoned refresh
+					// is observable before it silently becomes the next
+					// instance's starting document.
+					if (!loggedSyncIgnored)
+					{
+						loggedSyncIgnored = true;
+						fprintf(stderr,
+							"TIDE: instance #%d ignored a Sync refresh of %zu bytes"
+							" (rack already prepared; the holder RETAINS these bytes)\n",
+							instanceSeq,
+							tideChunk::payloadSize(blob.size(), kind));
+					}
 				}
 				else
 				{
@@ -304,8 +354,11 @@ public:
 				// "the processor was rebuilt and re-seeded with a stale value".
 				const char* kindName = kind == tideChunk::Kind::Build ? "Build"
 					: kind == tideChunk::Kind::Sync ? "Sync" : "Legacy";
-				fprintf(stderr, "TIDE: building rack from %zu byte document (%s chunk, rack %s)\n",
-					xml.size(), kindName, rackPrepared ? "already prepared" : "not yet prepared");
+				// E59 added `instance #N`: the two builds a hosted session
+				// produces come from two different processor OBJECTS, and
+				// nothing in this line said so.
+				fprintf(stderr, "TIDE: instance #%d building rack from %zu byte document (%s chunk, rack %s)\n",
+					instanceSeq, xml.size(), kindName, rackPrepared ? "already prepared" : "not yet prepared");
 
 				rack.setDocumentXml(xml);
 

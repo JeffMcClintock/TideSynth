@@ -13,9 +13,11 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
+#include <atomic>     // TideSynth E59 - the controller sequence number
 #include <cstring>
 #include <vector>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <iostream>   // the command-line trace in applyCommandLineConfig
 #include "RefCountMacros.h"
@@ -137,6 +139,37 @@ class SynthEditController final : public gmpi::api::IController
 	gmpi::shared_ptr<gmpi::api::IControllerHost> host;
 	int32_t handle = 0;
 
+	// E59: which controller, and in what ORDER did its two state calls happen.
+	//
+	// The chunk parameter has exactly two writers on this side -- onPushChunk
+	// (Build) and syncState (Sync) -- and exactly one reader, setParameter.
+	// From outside, a hosted session shows a restored rack in the editor and
+	// the DEFAULT one in the DSP, and every explanation of that is a statement
+	// about the ORDER of those three calls. Nothing printed any of them.
+	//
+	// A counter rather than `this`: a host may create and destroy controllers
+	// during a project load, and a reused address reads as one object.
+	static int nextControllerSeq()
+	{
+		static std::atomic<int> counter{ 0 };
+		return ++counter;
+	}
+	const int controllerSeq = nextControllerSeq();
+
+	// E59: the document this instance was BORN holding, captured once, before
+	// the host has had any chance to restore anything.
+	//
+	// It exists to answer one question in syncState(): "is what I am about to
+	// publish anything the user has ever seen, or is it just the bundle's
+	// starter rack?" Publishing the latter is never useful and is actively
+	// harmful -- see the comment there.
+	//
+	// Captured through exportChunkXmlForSave(), not exportChunkXml(), so that
+	// both sides of the comparison are produced by the identical function. A
+	// mismatch of PRODUCERS would make the comparison fail spuriously, and this
+	// comparison must only ever fail towards publishing.
+	std::string startupDefaultChunk;
+
 public:
 	SynthEditController()
 	{
@@ -168,11 +201,24 @@ public:
 		seApp.reset(app);
 		tideApp = app;
 
+		// E59: the first line of the ordering trace. See controllerSeq.
+		std::cerr << "TIDE: controller #" << controllerSeq
+		          << " initialized (TideApp fresh - holds the DEFAULT rack until"
+		             " setParameter restores one)" << std::endl;
+
 		applyCommandLineConfig(*app);
 		installDialogDrain(*app);
 
 
 		app->InitInstance();
+
+		// E59: capture the starter rack now. InitInstance has just loaded
+		// DefaultRack.synthedit and nothing else can have touched the document
+		// yet, so this is exactly "the rack a user has not chosen".
+		startupDefaultChunk = app->exportChunkXmlForSave();
+		std::cerr << "TIDE: controller #" << controllerSeq
+		          << " startup default is " << startupDefaultChunk.size()
+		          << " bytes (syncState will not publish this document)" << std::endl;
 
 		// Publish the seApp pointer via parameter 0 so editor instances can
 		// pick it up later through gmpi_controller_holder::initUi.
@@ -241,6 +287,81 @@ public:
 		if (xml.empty())
 			return ReturnCode::Ok;
 
+		// E59 -- THE FIX, AND IT IS A REFUSAL RATHER THAN A CORRECTION.
+		//
+		// MEASURED 2026-08-28 on Windows, REAPER 7.78, rendering
+		// tests/hosts/v1-rack.rpp. The host asks the controller for state
+		// BEFORE it restores any (Controller_VST3::getState, whose own comment
+		// says "The host is saving" -- true of a save, and NOT true of the call
+		// a host makes while instantiating). At that moment TideApp holds
+		// nothing but the starter rack InitInstance loaded, so this function
+		// published it:
+		//
+		//   TIDE: controller #1 syncState exporting 17959 byte document
+		//   TIDE: controller #1 restore of a 14136 byte document -> imported
+		//   TIDE: instance #3 building rack from 14136 byte document (Legacy...)
+		//   TIDE: instance #5 building rack from 17959 byte document (Sync...)
+		//
+		// The two 17,959s are the same document, and that is the whole bug: the
+		// bytes this function writes to the chunk parameter are RETAINED by the
+		// processor holder and re-seeded into every processor it starts later
+		// (gmpi_processor::start_processor, processor_holder.cpp:215). So a
+		// pre-restore refresh does not merely go stale -- it becomes the
+		// document the NEXT processor instance is born running, while the
+		// editor goes on showing the restored one. The rack is on screen and
+		// the DSP is playing something else; v1-rack.rpp renders digital
+		// silence on a rack whose two patch cables are intact.
+		//
+		// It also refutes the assumption importChunkXml states in as many
+		// words -- "the wrapper re-seeds the chunk parameter into the processor
+		// when it starts, so the processor builds this same document on its
+		// own". It does re-seed; the bytes were just not this document's.
+		//
+		// THE REFUSAL. Before any restore, the only thing this controller can
+		// possibly hold is the starter rack, so "the export equals the startup
+		// default" is exactly "I have nothing to say yet". Refusing to publish
+		// it leaves the chunk parameter holding whatever the host restored,
+		// which is the correct document, and costs nothing when there was
+		// nothing to restore: a fresh instance the user never touched reloads
+		// its starter rack from the bundle either way.
+		//
+		// A byte comparison, and the direction it fails in is the design. If the
+		// two ever differ spuriously this publishes -- today's behaviour -- so a
+		// false negative costs a bug that already exists, while a false positive
+		// (suppressing a real save) is what would lose a user's work. Two
+		// exports within one process are stable; E56's handle churn is per-LOAD,
+		// not per-export.
+		//
+		// A knob tweak is NOT suppressed, which is what this function was added
+		// for: it changes the exported bytes even though it changes no
+		// structure, so the comparison fails and the refresh goes out.
+		if (xml == startupDefaultChunk)
+		{
+			std::cerr << "TIDE: controller #" << controllerSeq
+			          << " syncState declined to publish the startup default ("
+			          << xml.size() << " bytes) - nothing has been restored or"
+			             " edited yet (E59)" << std::endl;
+			return ReturnCode::Ok;
+		}
+
+		// E59: THE line this whole trace exists for.
+		//
+		// This runs when the HOST asks for state (Controller_VST3::getState).
+		// A host that asks BEFORE it restores -- to snapshot the "before" for
+		// its own undo, which is ordinary host behaviour -- gets whatever
+		// TideApp holds at that moment, and on a fresh controller that is the
+		// DEFAULT rack. Those bytes then go to the chunk parameter, are
+		// retained by the processor holder, and are re-seeded into the next
+		// processor instance it starts. The editor is never wrong; the DSP is.
+		//
+		// So the size printed here, compared against the restore below and
+		// against the instance lines from the processor, is what separates
+		// "the editor pushed over the restore" from "a save-time refresh of a
+		// not-yet-restored document poisoned the retained bytes".
+		std::cerr << "TIDE: controller #" << controllerSeq
+		          << " syncState exporting " << xml.size()
+		          << " byte document (host asked for state)" << std::endl;
+
 		std::vector<uint8_t> tagged(tideChunk::tagSize + xml.size());
 		memcpy(tagged.data(), tideChunk::tagSync, tideChunk::tagSize);
 		memcpy(tagged.data() + tideChunk::tagSize, xml.data(), xml.size());
@@ -283,6 +404,12 @@ public:
 		// project load.
 		const bool imported = tideApp->importChunkXml(
 			std::string_view(reinterpret_cast<const char*>(doc), docSize));
+
+		// E59: the restore, with its size and its verdict. Paired with the
+		// syncState line above, the ORDER of the two is the finding.
+		std::cerr << "TIDE: controller #" << controllerSeq
+		          << " restore of a " << docSize << " byte document -> "
+		          << (imported ? "imported" : "REJECTED") << std::endl;
 
 		return imported ? ReturnCode::Ok : ReturnCode::Fail;
 	}
