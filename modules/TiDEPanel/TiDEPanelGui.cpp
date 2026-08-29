@@ -28,10 +28,12 @@
 // Trying to tell a stretched full render from a flat-lit preview by looking at
 // screenshots wasted a lot of time and produced two confident wrong answers;
 // the panel saying what it drew settles it in one line. Writes to
-// %TEMP%\TiDEPanel.log, truncated when the host process first draws a panel, so
-// one run is one file.
+// $TIDE_PANEL_LOG_PATH if set, else %TEMP%\TiDEPanel.log on Windows and
+// $TMPDIR/TiDEPanel.log elsewhere, truncated when the host process first draws
+// a panel, so one run is one file.
 //
-// Typical use: arm it, rebuild, load a patch, then read the log. Every line is
+// Typical use: configure with -DTIDE_PANEL_TRACE_LOG=ON, rebuild, load a patch,
+// then read the log. Every line is
 // timestamped from the first event, so the gaps between REQUEST, PREVIEW, FULL
 // and each DRAW are the latencies you are looking for.
 #ifndef TIDE_PANEL_TRACE_LOG
@@ -71,9 +73,24 @@ inline void write(const char* fmt, ...)
 	if (!opened)
 	{
 		opened = true;
+		// E65: the path was `%TEMP%` + a BACKSLASH on every platform. POSIX
+		// sets TMPDIR, not TEMP, so a mac or linux run fell through to "." and
+		// wrote a file literally named `.\TiDEPanel.log` in the process's
+		// working directory -- created, so nothing failed and nothing said so,
+		// but not where the comment above says to look. TIDE_PANEL_LOG_PATH
+		// overrides both, which is what lets a harness collect the file from a
+		// directory it chose rather than guessing the app's cwd.
+		const char* explicitPath = std::getenv("TIDE_PANEL_LOG_PATH");
+#ifdef _WIN32
 		const char* tmp = std::getenv("TEMP");
-		const std::string path =
-			(tmp ? std::string(tmp) : std::string(".")) + "\\TiDEPanel.log";
+		const char sep = '\\';
+#else
+		const char* tmp = std::getenv("TMPDIR");
+		const char sep = '/';
+#endif
+		const std::string path = explicitPath
+			? std::string(explicitPath)
+			: (tmp ? std::string(tmp) : std::string(".")) + sep + "TiDEPanel.log";
 		file = std::fopen(path.c_str(), "w");
 	}
 	if (!file)
@@ -2149,7 +2166,9 @@ public:
 		return result;
 	}
 
-	Result request(const Key& key, const PanelSpec& spec)
+	// `owner` identifies the CALLING PANEL (its `this`). See `wanted`: a panel
+	// replaces its own want and nobody else's.
+	Result request(const Key& key, const PanelSpec& spec, const void* owner)
 	{
 		std::unique_lock<std::mutex> lock(mutex);
 
@@ -2179,8 +2198,8 @@ public:
 				: (fbStage >= 2 ? result.fallback->fullWidth : result.fallback->previewWidth);
 			[[maybe_unused]] const uint32_t fbH = !result.fallback ? 0u
 				: (fbStage >= 2 ? result.fallback->fullHeight : result.fallback->previewHeight);
-			TIDE_LOG("REQUEST  %ux%u  cached-stage=%d  stand-in=%s %ux%u  stretch=%.2fx",
-				key.width, key.height, targetStage,
+			TIDE_LOG("REQUEST  %ux%u cfg=%08x  cached-stage=%d  stand-in=%s %ux%u  stretch=%.2fx",
+				key.width, key.height, (unsigned)key.config, targetStage,
 				!result.fallback ? "none" : (fbStage >= 2 ? "full" : "preview"),
 				fbW, fbH, result.fallbackStretch);
 		}
@@ -2189,13 +2208,27 @@ public:
 		// have been abandoned half-done when the size changed away and back.
 		if (result.target->stage.load(std::memory_order_acquire) < 2)
 		{
-			wantedKey = key;
-			wantedSpec = spec;
-			haveWanted = true;
+			wanted[owner] = Want{ key, spec, ++wantSeq };
 			lock.unlock();
 			cv.notify_one();
 		}
+		else
+		{
+			// Finished: this panel wants nothing. Dropping the entry keeps the
+			// map the size of the rack rather than the size of the session.
+			wanted.erase(owner);
+		}
 		return result;
+	}
+
+	// A panel that is going away stops wanting anything. Without this the map
+	// would hand the worker a spec belonging to a destroyed editor -- harmless
+	// today, because Want holds the spec BY VALUE and the trace is shared, but
+	// only by accident, and an editor is rebuilt on every host resize.
+	void forget(const void* owner)
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		wanted.erase(owner);
 	}
 
 	~FaceRenderer()
@@ -2333,25 +2366,46 @@ private:
 		{
 			Key key;
 			PanelSpec spec;
+			const void* owner = nullptr;
+			bool wantPreview = false;
 			std::shared_ptr<FaceTrace> trace;
 			{
 				std::unique_lock<std::mutex> lock(mutex);
-				cv.wait(lock, [this] { return haveWanted || quit; });
+				cv.wait(lock, [this] { return pickableLocked() || quit; });
 				if (quit)
 					return;
 
-				key = wantedKey;
-				spec = wantedSpec;
-				haveWanted = false;
+				// PREVIEWS FIRST, ACROSS EVERY PANEL, and this ordering is the
+				// other half of E65's fix. A preview costs ~70 ms and a full
+				// costs SECONDS and cannot be interrupted once begun, so a
+				// worker that finishes one panel completely before starting
+				// the next leaves the rest of the rack grey for however long
+				// the queue ahead of them takes. Draining the cheap stage
+				// first puts a correct image on every panel within a few
+				// hundred milliseconds, which is what the settle-timer comment
+				// above says the preview exists to do.
+				const auto pick = pickLocked();
+				if (pick == wanted.end())
+					continue;
+				owner = pick->first;
+				key = pick->second.key;
+				spec = pick->second.spec;
 
 				const auto it = cache.find(key);
 				if (it == cache.end())
-					continue; // evicted while we waited; nothing to fill
+				{
+					wanted.erase(pick); // evicted while we waited; nothing to fill
+					continue;
+				}
 				trace = it->second;
+				wantPreview = trace->stage.load(std::memory_order_relaxed) < 1;
 			}
 
 			if (trace->stage.load(std::memory_order_relaxed) >= 2)
+			{
+				forgetIfUnchanged(owner, key);
 				continue;
+			}
 
 			// PREVIEW first: same pixels, a fraction of the physics. Fast mode
 			// lands in tens of milliseconds and gives the panel its exact
@@ -2368,8 +2422,8 @@ private:
 				trace->preview = traceFaceplate(trace->previewWidth, trace->previewHeight,
 					spec, tide::render::Quality::Draft);
 				trace->stage.store(1, std::memory_order_release);
-				TIDE_LOG("PREVIEW  ready %ux%u  traced in %.0f ms",
-					trace->previewWidth, trace->previewHeight,
+				TIDE_LOG("PREVIEW  ready %ux%u cfg=%08x  traced in %.0f ms",
+					trace->previewWidth, trace->previewHeight, (unsigned)key.config,
 					TIDE_LOG_NOW - previewT0);
 
 				// Available as a stand-in immediately. Only claim the slot if
@@ -2389,11 +2443,17 @@ private:
 				}
 			}
 
+			// Straight back round after a preview. The entry stays in `wanted`
+			// -- this panel still needs its full trace -- but any panel with no
+			// image at all now outranks it, so it is served first.
+			if (wantPreview)
+				continue;
+
 			// A cancellation point, and the one that matters: if the panel has
 			// been resized again while the preview was rendering, the seconds
 			// the full trace would cost are seconds spent on a size nobody is
 			// looking at. Drop it and go round for the newer one.
-			if (wantedElsewhere(key))
+			if (supersededOrPreviewPending(key))
 				continue;
 
 			// THE WAIT, and it belongs here rather than at the request: the
@@ -2407,15 +2467,16 @@ private:
 				cv.wait_for(lock,
 					std::chrono::milliseconds((int)kSettleMs),
 					[this, &key] {
-						return quit || (haveWanted && !(wantedKey == key));
+						return quit || supersededOrPreviewPendingLocked(key);
 					});
 				if (quit)
 					return;
 			}
-			if (wantedElsewhere(key))
+			if (supersededOrPreviewPending(key))
 			{
-				TIDE_LOG("ABANDON  %ux%u full trace; a newer size is wanted",
-					key.width, key.height);
+				TIDE_LOG("ABANDON  %ux%u cfg=%08x full trace; a newer size or an "
+					"un-previewed panel is wanted",
+					key.width, key.height, (unsigned)key.config);
 				continue;
 			}
 
@@ -2424,8 +2485,8 @@ private:
 			[[maybe_unused]] const double fullT0 = TIDE_LOG_NOW;
 			trace->full = traceFaceplate(key.width, key.height, spec);
 			trace->stage.store(2, std::memory_order_release);
-			TIDE_LOG("FULL     ready %ux%u  traced in %.0f ms at %d spp",
-				key.width, key.height, TIDE_LOG_NOW - fullT0,
+			TIDE_LOG("FULL     ready %ux%u cfg=%08x  traced in %.0f ms at %d spp",
+				key.width, key.height, (unsigned)key.config, TIDE_LOG_NOW - fullT0,
 				tide::render::samplesFor((int)key.width, (int)key.height));
 
 			// Becomes the stand-in every later size of this same panel gets to
@@ -2434,6 +2495,11 @@ private:
 				std::lock_guard<std::mutex> lock(mutex);
 				lastUsable = trace;
 				lastUsableConfig = key.config;
+
+				// Satisfied: stage 2 is the end of the road for this key.
+				const auto w = wanted.find(owner);
+				if (w != wanted.end() && w->second.key == key)
+					wanted.erase(w);
 
 				// The trace that just finished is the one that made the cache
 				// bigger, so this is the moment to check the budget -- waiting
@@ -2444,18 +2510,106 @@ private:
 		}
 	}
 
-	bool wantedElsewhere(const Key& key)
+	struct Want
+	{
+		Key key;
+		PanelSpec spec;
+		uint64_t seq = 0;   // newest wins; see pickLocked
+	};
+
+	// Is there anything the worker could usefully do? A want whose trace has
+	// already reached stage 2 is stale bookkeeping, not work.
+	bool pickableLocked() const
+	{
+		return pickLocked() != wanted.end();
+	}
+
+	// The next thing to render: the NEWEST want that still needs a preview,
+	// and only if there is none, the newest that still needs a full trace.
+	std::map<const void*, Want>::const_iterator pickLocked() const
+	{
+		auto best = wanted.end();
+		int bestPhase = 2;          // 0 = needs preview, 1 = needs full
+		uint64_t bestSeq = 0;
+
+		for (auto it = wanted.begin(); it != wanted.end(); ++it)
+		{
+			const auto c = cache.find(it->second.key);
+			if (c == cache.end())
+				continue;
+			const int stage = c->second->stage.load(std::memory_order_acquire);
+			if (stage >= 2)
+				continue;
+			const int phase = (stage < 1) ? 0 : 1;
+			if (phase < bestPhase || (phase == bestPhase && it->second.seq > bestSeq))
+			{
+				best = it;
+				bestPhase = phase;
+				bestSeq = it->second.seq;
+			}
+		}
+		return best;
+	}
+
+	// Two reasons to give up on a full trace before starting it, and they cost
+	// the same thing -- seconds of an uninterruptible worker:
+	//   * nobody wants this size any more (the panel resized under us), or
+	//   * some panel has no image at all yet, and 70 ms of preview for it beats
+	//     8 seconds of lighting for one that is already showing something.
+	bool supersededOrPreviewPendingLocked(const Key& key) const
+	{
+		if (quit)
+			return true;
+		bool stillWanted = false;
+		for (const auto& w : wanted)
+		{
+			if (w.second.key == key)
+				stillWanted = true;
+			const auto c = cache.find(w.second.key);
+			if (c != cache.end()
+				&& c->second->stage.load(std::memory_order_acquire) < 1)
+				return true;    // a panel with nothing on it outranks this
+		}
+		return !stillWanted;
+	}
+
+	bool supersededOrPreviewPending(const Key& key)
 	{
 		std::lock_guard<std::mutex> lock(mutex);
-		return (haveWanted && !(wantedKey == key)) || quit;
+		return supersededOrPreviewPendingLocked(key);
+	}
+
+	void forgetIfUnchanged(const void* owner, const Key& key)
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		const auto w = wanted.find(owner);
+		if (w != wanted.end() && w->second.key == key)
+			wanted.erase(w);
 	}
 
 	std::mutex mutex;
 	std::condition_variable cv;
 	std::map<Key, std::shared_ptr<FaceTrace>> cache;
 	std::vector<Key> order;
-	Key wantedKey{};
-	PanelSpec wantedSpec;
+
+	// E65. WHAT EACH PANEL WANTS, ONE ENTRY PER PANEL.
+	//
+	// This was a single `wantedKey` + `haveWanted` pair, and that is the whole
+	// of E65: every panel on the rack shares this one renderer, they all call
+	// request() within the same millisecond of a load, and each one OVERWROTE
+	// the last. The worker only ever learned about the final asker, so every
+	// panel but that one sat on flat grey indefinitely -- no preview, no full,
+	// and nothing to re-declare it, because request() is only reached when a
+	// panel's SIZE changes. Measured on a seven-panel rack: 7 requests inside
+	// 1.2 ms, 5 of them dropped, 2 panels ever rendered, five still grey after
+	// 60 seconds.
+	//
+	// Keyed by the panel rather than by the key on purpose. A panel wants
+	// exactly one size at a time, so re-requesting must replace ITS OWN want
+	// and nobody else's -- which is also what stops a zoom drag piling up
+	// obsolete sizes for the worker to render after the user has stopped.
+	std::map<const void*, Want> wanted;
+	uint64_t wantSeq = 0;
 	// The best image rendered so far for `lastUsableConfig`, offered as a
 	// stand-in while a new size renders. Deliberately NOT "the last COMPLETE
 	// trace", which was the bug: zooming in before the first full trace landed
@@ -2464,7 +2618,6 @@ private:
 	// beats no image.
 	std::shared_ptr<FaceTrace> lastUsable;
 	uint64_t lastUsableConfig = 0;
-	bool haveWanted = false;
 	bool quit = false;
 	bool started = false;
 	std::thread worker; // joined in the destructor: a detached thread still
@@ -2948,7 +3101,7 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 			// whatever the cache already holds -- see kMinDetailScale.
 			const bool detailWorthTracing = deviceScale >= kMinDetailScale;
 			const auto result = detailWorthTracing
-				? faceRenderer().request(wanted, buildSpec())
+				? faceRenderer().request(wanted, buildSpec(), this)
 				: faceRenderer().peek(wanted);
 			faceTrace = result.target;
 			faceFallback = result.fallback;
@@ -3074,6 +3227,11 @@ public:
 	~TiDEPanelGui()
 	{
 		stopTimer();
+		// E65: the renderer holds one want per PANEL, keyed by this pointer.
+		// The editor is rebuilt whenever the host resizes, so leaving the entry
+		// behind would both leak a slot per rebuild and let the worker spend a
+		// full trace on a panel nobody is looking at any more.
+		faceRenderer().forget(this);
 	}
 
 	// IGNORES availableSize, deliberately -- see kRackHeightDips. Returning

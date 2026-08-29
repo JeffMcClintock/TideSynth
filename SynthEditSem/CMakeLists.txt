@@ -760,6 +760,16 @@ endforeach()
 # there. Whoever builds those first should confirm the panel still renders.
 tide_render_strict_fp_sources(${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEPanel/TiDEPanelGui.cpp)
 
+# E65 -- arm the panel's progression log, same one file, same reasoning.
+# APPEND rather than set: the strict-fp call above writes COMPILE_OPTIONS on
+# this source, and COMPILE_DEFINITIONS is a separate property, but a second
+# plain set() here would still be a trap for whoever adds the next one.
+if(TIDE_PANEL_TRACE_LOG)
+  set_property(SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEPanel/TiDEPanelGui.cpp
+    APPEND PROPERTY COMPILE_DEFINITIONS TIDE_PANEL_TRACE_LOG=1)
+  message(STATUS "TIDE_PANEL_TRACE_LOG is ON: the panel writes its progression log")
+endif()
+
 # Bundle data, staged into EVERY format target.
 #
 # This block used to be `if(APPLE)` around a single add_custom_command naming

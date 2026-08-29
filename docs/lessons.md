@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **377 KB** across **307** entries, so copying them
+Learned sections are **386 KB** across **314** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **115 KB / 1248 lessons — 3.3x smaller**, and represents
+A8. This is **119 KB / 1288 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -37,235 +37,72 @@ by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
+## 2026-08-30
+
+**macos — E65: seven panels asked for a draft render and five were thrown away by the request path (scheduled run)**
+
+- A bug that needs two of something will not reproduce on a fixture that ships one.
+- When every instance of a thing logs the same identifier, the log cannot answer a question about which one.
+- Log the DISCARD, not just the work.
+- A shared worker with a single-slot request queue is a starvation bug wearing a caching bug's clothes.
+- `git log -S` on the member, not the file, dates a structural defect in one command
+- A control that passes one check is better calibrated than one that fails them all.
+- A debug instrument that only works on one platform is a defect in the instrument, and you find it by being on the other platform.
+
+## 2026-08-29
+
+**windows — E67: ctrl+wheel translated the document under the cursor — E42's defect, one function from where E42 fixed it (interactive, Jeff directing)**
+
+- "The zoom works but it translates" is a complete triage in one sentence.
+- When a bug is fixed in one function, grep for the same expression in its callers.
+- An inexpressible gesture is a class of unverifiable rows.
+- Self-calibrate the measurement against the artifact, not the spec.
+
+**windows — E66 fixed both halves: reload releases the visuals first, and State's death is now loud at the cause (interactive, Jeff directing)**
+
+- A settings pane that auto-opens on failure is a free reproduction rig.
+- When a class's destructor documents a teardown order, grep for every other place the same members die.
+- Put the tripwire at the destruction site, not the use site.
+- `0xdddddddd` in a Debug AV is a diagnosis in itself
+- A resident `cdb -p <pid> -c "g; ~#k; qd"` costs nothing and catches what a post-mortem cannot
+
+**windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)**
+
+- "Register it so everyone knows" beats every clever alternative when a namespace already has an authority.
+- Find out whose literal it is before deciding whose fix it is.
+- A reservation is only a reservation if it is registered before the first allocation
+- The heredoc backslash trap got me again
+
+**windows — E64 diagnosed to the byte: E56's own fix aimed a parameter at the DSP's root container, and the queue now survives it loudly (interactive, Jeff directing)**
+
+- A fix can be correct by its own Accept and still be load-bearing for a bug it cannot see.
+- "Handled" and "consumed" are different claims, and the queue only ever checked the first.
+- Containment and alarm are separate requirements — do not trade one for the other.
+- Print the numbers before the modal.
+- A four-char code is not a string.
+- `map::insert` on a duplicate key is a silent policy decision.
+
+**macos — E19's mac AU3 cell: the host CAN be isolated here, the locked screen is the real wall, and a second AUv3 will not register (scheduled run)**
+
+- Run the harness's own no-plug-in control BEFORE theorising about the plug-in.
+- "We cannot isolate the host" can be true on one platform and false on another, and the fleet will generalise it.
+- A locked screen is not "no GUI" — it is a line through the middle of the tooling.
+- A black screenshot is a reading about the DISPLAY, not about the window.
+- A `strings` miss is only evidence once you know how the string is built.
+- Two wrong readings that agree are not corroboration when they share a cause.
+- When the safe version of an experiment does not exist, stop rather than doing the unsafe one carefully.
+
 ## 2026-08-28
 
-**windows — E59 answered and fixed: the sender is our own syncState, and the host asks for state before it gives us any (scheduled run)**
+**windows — E64 filed: the ui->dsp queue desyncs in a HOST but not in the standalone, and three negatives are the finding (interactive, Jeff directing)**
 
-- An absent log line has a twin: a transition nothing logs at all.
-- A size that falls inside a measured range and a size that is byte-identical to a named producer are different claims.
-- When a comment states the condition a function runs under, test the condition rather than the function.
-- Log a sequence number, not `this`, when the thing you are counting is destroyed and recreated.
-- Design a comparison so that its failure direction is the bug you already have.
-- `re.sub` is not the only Python escape trap in this repo's docs.
-- Export the identity in EVERY shell that commits — `git rebase --continue` is a commit.
-- A check in the same unconditional command block as the action it gates is decoration.
-- Verify a restore, do not just perform one.
-
-**macos — E59's fix confirmed on mac, and E7 re-measured: the root MIDI-CV path already works (interactive, Jeff directing)**
-
-- Measure what the Accept says, not what the harness reports.
-- A failing fixture beside a passing sibling localises better than either alone.
-- Re-run a blocked measurement the moment the blocker lands.
-
-**macos — the mac render E59's row asked for: it is a REGRESSION, bracketed to three days (interactive, Jeff directing)**
-
-- When every fixture fails, the measurement is about the harness's substrate, not the fixture.
-- Keep superseded binaries; they are free bisect endpoints.
-- Read the owning agent's row before writing the handoff.
-
-**macos — E38: the verb the row said to design, and V7 verified on the real menus at last (interactive, Jeff directing)**
-
-- When a row has measured two instruments dead, the spec is nearly written: the design is whatever the remaining instrument is.
-- A menu model readout beats a pixel readout even where pixels are possible.
-- Verify a routing surprise against the GUI's own behaviour before calling it a bug.
-- An invoke path should be the native path's tail, not a parallel one.
-
-**macos — remote sweep: one branch is live work, the rest are ruled out of the fleet's scope (interactive, Jeff directing)**
-
-- `git cherry` before judging an old branch.
-- A branch minutes old with no PR is a claim, not a leak.
-
-**macos — S1b built: the loader compiled out with zero deletions, and the row's homework made it a half-day instead of a week (interactive, Jeff directing)**
-
-- A row that has been annotated by five runs is a plan, not a backlog item.
-- Prefer guards to deletions when a library has two masters.
-- A vtable is a linker obligation, not a call graph.
-- When a member function seems declared nowhere, read the preprocessor before the headers.
-- A "required export" makes a symbol probe self-controlling.
-
-**macos — E51 closed: the chain guarded, the trap was platform-divergent, and the richest fixture turned out to be extinct (interactive, Jeff directing)**
-
-- A constant's value depends on which header won, and a shim that renumbers a Win32 constant makes the same line mean different things per platform.
-- When a fixture refuses to reproduce, ask what shipped since it was last seen.
-- Answer a NEEDS-SPEC by stating the Accept that was met, not by building more.
-- Give a probe a control that simulates the historical regression, not a synthetic one.
-
-**windows — E56 reevaluated: the sort was innocent, the allocator assumed a sorted map, and the document never round-tripped at all (interactive, Jeff directing)**
-
-- An allocator that iterates an unordered container expecting sorted order fails silently and per-call.
-- "Oscillates between two forms" from three samples of a random process is the pattern, not the mechanism.
-- A platform that cannot reproduce a bug may simply lack the collision, not the defect.
-- Evidence in a session scratchpad is one tidy-up from gone.
-- The fix a row proposes can be the one thing already implemented.
-
-**macos — E56 does not reproduce on macOS: four cycles, byte-identical, instrument validated (interactive, Jeff directing)**
-
-- "Add a sort" was already done — read the export before proposing it.
-- A negative result is only worth recording with the instrument proven live.
-- When the domain owner corrects a premise mid-analysis, re-derive, do not patch.
-- A platform-specific repro belongs to the platform that showed it.
-
-**macos — E47 closed on Jeff's ruling: the guard is unreachable because SELECTION binds the pane, and that is what I kept getting wrong (interactive, Jeff directing)**
-
-- When an argument survives the fact that seemed to kill it, re-read the argument rather than the fact.
-- Name the load-bearing premise in the row, not an example of it.
-- Two rows that seem to contradict each other may differ in what they are ABOUT.
-- When the user says "we already did this", stop and ask what it showed.
-- Closing a row is not the same as asserting its code is unnecessary.
-
-**macos — E61 reproduced, fixed, and then asked the better question (interactive, Jeff driving)**
-
-- A user's "why is it like that at all?" is usually aimed at the cause you routed around.
-- A comment declining to do something records a concern, not a measurement.
-- Keep the pre-fix binary the moment you have one.
-- Match the reproduced stack against the reported one frame by frame.
-- A guard and a cause-removal are not duplicates when they fail differently.
-
-**macos — E61: the fix the row called a coin-toss is decided by one line in MacTextEdit.h (interactive, Jeff directing)**
-
-- When a row calls a design choice a coin-toss, look for the constraint that settles it before weighing the options.
-- A stack trace tells you which half was WORKING.
-- You may compare a freed pointer; you may not dereference it.
-- Fix every sibling that shares the defect, not the one in the bug report.
-- A fix that compiles and does not regress is still not a verified fix.
-
-**macos — E62: the delete key driven end-to-end, and the control was already sitting on disk (interactive, Jeff directing)**
-
-- Before blaming the code under test, drive a NEIGHBOURING path through the same function.
-- Check the binary's timestamp against the merge you are testing.
-- A stale build is a free control.
-- A harness must distinguish its own failure from the app's.
-- The evidence an Accept asks for is often already on stderr.
-- Two probes for one row is not duplication when they fail differently.
-
-**windows — E19's windows VST3 cell: it FAILS, and the mechanism this fleet wrote down for the cause is wrong (scheduled run)**
-
-- An absent log line is evidence only after you prove the binary could print it.
-- A local build does not shadow an installed plug-in, and the host picks silently.
-- A bare `.vst3` DLL is not the plug-in.
-- Two silences are not the same finding.
-- `re.sub`'s replacement is a template, not a literal
-- A resource list maintained by hand in one platform's packaging script will drift, and the local install hides it.
-- Isolation proved for one process is not isolation proved for another.
-
-**macos — E57 closed, and the guard that replaces the human who pressed the key (interactive, Jeff directing)**
-
-- A source check that does not strip comments is a check on documentation, not on code.
-- Guard the compiled-out case explicitly, because it is invisible to text search.
-- State a proxy as a proxy in the artefact itself.
-- Write the controls before believing the guard.
-- When shipping less than the Accept asked for, file the remainder as a row rather than noting it.
-
-**macos — E58 fixed: my own E39 clamped a rectangle that was doing two jobs, and left a hole nothing painted (interactive, Jeff directing)**
-
-- A screenshot proves what WAS drawn, never what OWNS the drawing.
-- When you clamp a rectangle, ask what paints the part you clamped away.
-- A grep for a colour constant in a binary is inconclusive, not a pass or a fail
-- `git status` clean means no local edits, not up to date.
-- Run the repo's own lints before believing your bookkeeping
-- A Learned section must use the bold form, not a markdown heading, or the extractor silently ignores it.
-
-**macos — E57 fixed on real hardware, and fixing it exposed a use-after-free (interactive, Jeff driving)**
-
-- A file compiling is not your code compiling.
-- A partial fix to a code-mapping bug looks like a total one when some codes collide by luck.
-- Enabling an input path can make latent memory bugs reachable.
-- "It beeps" is not evidence the handler declined.
-
-**linux — STEP 4 bookkeeping: E39 and E53 flipped DONE, E55 deliberately not**
-
-- The mechanical flip test and the honest one differ, and the row usually says which applies.
-- Archiving a row whose fix caused an open regression is fine; archiving it silently is not.
-
-**linux — E19's linux cell: the VST3 fails, and the reason is that the DSP is running a different rack from the one on screen (scheduled run)**
-
-- "The feedback is frozen" and "the DSP is running a different patch" produce the same trace, and only an audio measurement separates them.
-- A control that proves the HOST is alive is not optional when the plug-in looks dead.
-- A crash in a plug-in's editor is worth blaming on the environment first when the environment was assembled by the run.
-- "No `platform: linux` rows" is not "no linux work".
-
-**macos — E47 driven twice with Jeff at the keyboard: the guard was never reached, and the hole looks unreachable by construction**
-
-- "No reproduction was driven" and "the reproduction cannot be driven" are different row states, and only the second is a finding.
-- A guard whose condition is set by the same action that triggers it may be unsatisfiable.
-- The Accept's demand was to read the field, not to use a debugger.
-
-**macos — E53 fixed: the fourth assert-only lookup, and the guard is observed firing (interactive, Jeff directing)**
-
-- Guarding a deref is not fixing the cause, and the second time it happens is a signal.
-- A guard should be observed firing, not just correlated with a crash disappearing.
-- Text-mode writes silently rewrite line endings.
-
-**macos — E55 built: one config-root override, and the build that silently didn't contain it**
-
-- A row parked on a transient condition should be re-tested, not inherited.
-- Verify the binary contains your change before you test its behaviour.
-- An additive override wants a same-paths control, not just a works control.
-
-**windows — E48 built: the three prefab modules join the compiled-in set, and the round trip surfaces a serialization oscillation (interactive, Jeff directing)**
-
-- A module set curated by conditional compilation has invisible seams.
-- An Accept can fail on a defect older than the row.
-- When the product becomes the instrument, retire the scaffolding honestly.
-
-**macos — E53 reproduced 3/3 with a faulting address, and the cause is a guard #64 missed**
-
-- A row blocked by a platform's tooling is not blocked everywhere.
-- A guard that turns a crash into a degraded state has moved the failure, not removed it.
-- Fixing three of a kind invites checking for a fourth.
-
-**macos — E39 built: the rack is a whole number of rows, and the two measurements this row called contradictory are both right (interactive, Jeff directing)**
-
-- A refutation and its implication are separate claims, and a row can carry the first correctly while the second is wrong.
-- Reproducing an earlier report's exact number is worth chasing.
-- A verb that returns `ok` can still do nothing.
-
-**macos — the queue is blocked and this run did nothing to it, deliberately**
-
-- A blocked queue is when invented work is most likely, so the bar for "is this actually my job?" should go up, not down.
-- "Every run" is ambiguous in a fleet that has both agent runs and workflow runs.
-
-**macos — the queue is blocked, so I answered the one question a ruling said was open: which call site consumes a dialog answer**
-
-- `awk -F'|'` cannot read this backlog.
-- "Linked" is not "reachable", and `nm` alone would have said the wrong thing.
-- A safe default reached by accident is still worth naming.
-
-**macos — the queue is blocked for a run, so this was STEP 4: three rows flipped, one deliberately not, and a false claim corrected at its source**
-
-- A merged PR does not mean a row is done — read what the PR changed.
-- The auto-merge allowlist makes docs-only halves land silently, which is exactly what makes this trap likely.
-- Verify a NEXT-block claim before repeating it, because that cell is the fleet's most-copied text.
-
-**windows — E53: the box was already taken, so the fixture got committed and the lead got measured instead (scheduled run)**
-
-- A reproduction that lives in `_scratch/` is not a reproduction.
-- Two sessions on one Windows box cannot both test the standalone, and nothing tells you until you look.
-- The rule that made E48 ineligible is not in the status column.
-- "That module has no parameters" is only a finding once you count the others.
-- Declining to contend has to apply to source as well as to state.
-
-**macos — #514 broke because I fixed #513, and a stacked pair will keep doing that**
-
-- Resolving a base branch's conflict breaks every PR stacked on it.
-- "Ours or theirs" is never the rule for the journal — the dates are.
-- An auto-merged file is a changed file.
-
-**macos — STEP 1.5 was the whole run: #513 had gone CONFLICTING, and my first resolution of it was wrong**
-
-- A conflict is not on STEP 1.5's list of three, and should be.
-- A deletion outside a conflict hunk merges silently, so "I only touched the conflicts" is not a description of what you changed.
-- Do not half-apply another run's deliberate bookkeeping.
-- The lints are load-bearing, not ceremony.
-
-**macos — E52: a shipping build option that did not compile, and the control that proves the fix is not a deletion (scheduled run)**
-
-- An absent control makes a passing round-trip worthless.
-- A "pure move" is the strongest argument available for editing code you cannot build.
-- Guarding the call site is the fix that passes and deletes the feature.
-- Quoting a lint's trigger re-arms it.
-- Check a lint by its exit code, not by the tail of its output.
-- A NEXT cell three days old is history, not a queue.
+- When a modal is on screen, the process is a live specimen — attach before anyone dismisses it.
+- Thread numbers are per-attach; thread IDs are not.
+- A negative in one host is evidence about the TRANSPORT when the content path is shared.
+- Measure the capacity before believing an overflow story.
+- A probe that writes only to stderr is useless in a GUI host.
+- `--set-param` on a plug-in's GMPI parameters is not a rack edit.
+- This tool's heredocs collapse backslashes
 
 ## 2026-08-18
 
@@ -2255,3 +2092,233 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Attach to a hung process; do not launch it under the debugger.
 - A checker that validates a file against itself is not validating the product.
 - `session.xml` is written on quit only.
+
+## 2026-08-28
+
+**windows — E56 reevaluated: the sort was innocent, the allocator assumed a sorted map, and the document never round-tripped at all (interactive, Jeff directing)**
+
+- An allocator that iterates an unordered container expecting sorted order fails silently and per-call.
+- "Oscillates between two forms" from three samples of a random process is the pattern, not the mechanism.
+- A platform that cannot reproduce a bug may simply lack the collision, not the defect.
+- Evidence in a session scratchpad is one tidy-up from gone.
+- The fix a row proposes can be the one thing already implemented.
+
+**macos — E56 does not reproduce on macOS: four cycles, byte-identical, instrument validated (interactive, Jeff directing)**
+
+- "Add a sort" was already done — read the export before proposing it.
+- A negative result is only worth recording with the instrument proven live.
+- When the domain owner corrects a premise mid-analysis, re-derive, do not patch.
+- A platform-specific repro belongs to the platform that showed it.
+
+**macos — E47 closed on Jeff's ruling: the guard is unreachable because SELECTION binds the pane, and that is what I kept getting wrong (interactive, Jeff directing)**
+
+- When an argument survives the fact that seemed to kill it, re-read the argument rather than the fact.
+- Name the load-bearing premise in the row, not an example of it.
+- Two rows that seem to contradict each other may differ in what they are ABOUT.
+- When the user says "we already did this", stop and ask what it showed.
+- Closing a row is not the same as asserting its code is unnecessary.
+
+**macos — E61 reproduced, fixed, and then asked the better question (interactive, Jeff driving)**
+
+- A user's "why is it like that at all?" is usually aimed at the cause you routed around.
+- A comment declining to do something records a concern, not a measurement.
+- Keep the pre-fix binary the moment you have one.
+- Match the reproduced stack against the reported one frame by frame.
+- A guard and a cause-removal are not duplicates when they fail differently.
+
+**macos — E61: the fix the row called a coin-toss is decided by one line in MacTextEdit.h (interactive, Jeff directing)**
+
+- When a row calls a design choice a coin-toss, look for the constraint that settles it before weighing the options.
+- A stack trace tells you which half was WORKING.
+- You may compare a freed pointer; you may not dereference it.
+- Fix every sibling that shares the defect, not the one in the bug report.
+- A fix that compiles and does not regress is still not a verified fix.
+
+**macos — E62: the delete key driven end-to-end, and the control was already sitting on disk (interactive, Jeff directing)**
+
+- Before blaming the code under test, drive a NEIGHBOURING path through the same function.
+- Check the binary's timestamp against the merge you are testing.
+- A stale build is a free control.
+- A harness must distinguish its own failure from the app's.
+- The evidence an Accept asks for is often already on stderr.
+- Two probes for one row is not duplication when they fail differently.
+
+**windows — E19's windows VST3 cell: it FAILS, and the mechanism this fleet wrote down for the cause is wrong (scheduled run)**
+
+- An absent log line is evidence only after you prove the binary could print it.
+- A local build does not shadow an installed plug-in, and the host picks silently.
+- A bare `.vst3` DLL is not the plug-in.
+- Two silences are not the same finding.
+- `re.sub`'s replacement is a template, not a literal
+- A resource list maintained by hand in one platform's packaging script will drift, and the local install hides it.
+- Isolation proved for one process is not isolation proved for another.
+
+**macos — E57 closed, and the guard that replaces the human who pressed the key (interactive, Jeff directing)**
+
+- A source check that does not strip comments is a check on documentation, not on code.
+- Guard the compiled-out case explicitly, because it is invisible to text search.
+- State a proxy as a proxy in the artefact itself.
+- Write the controls before believing the guard.
+- When shipping less than the Accept asked for, file the remainder as a row rather than noting it.
+
+**macos — E58 fixed: my own E39 clamped a rectangle that was doing two jobs, and left a hole nothing painted (interactive, Jeff directing)**
+
+- A screenshot proves what WAS drawn, never what OWNS the drawing.
+- When you clamp a rectangle, ask what paints the part you clamped away.
+- A grep for a colour constant in a binary is inconclusive, not a pass or a fail
+- `git status` clean means no local edits, not up to date.
+- Run the repo's own lints before believing your bookkeeping
+- A Learned section must use the bold form, not a markdown heading, or the extractor silently ignores it.
+
+**macos — E57 fixed on real hardware, and fixing it exposed a use-after-free (interactive, Jeff driving)**
+
+- A file compiling is not your code compiling.
+- A partial fix to a code-mapping bug looks like a total one when some codes collide by luck.
+- Enabling an input path can make latent memory bugs reachable.
+- "It beeps" is not evidence the handler declined.
+
+**linux — STEP 4 bookkeeping: E39 and E53 flipped DONE, E55 deliberately not**
+
+- The mechanical flip test and the honest one differ, and the row usually says which applies.
+- Archiving a row whose fix caused an open regression is fine; archiving it silently is not.
+
+**linux — E19's linux cell: the VST3 fails, and the reason is that the DSP is running a different rack from the one on screen (scheduled run)**
+
+- "The feedback is frozen" and "the DSP is running a different patch" produce the same trace, and only an audio measurement separates them.
+- A control that proves the HOST is alive is not optional when the plug-in looks dead.
+- A crash in a plug-in's editor is worth blaming on the environment first when the environment was assembled by the run.
+- "No `platform: linux` rows" is not "no linux work".
+
+**macos — E47 driven twice with Jeff at the keyboard: the guard was never reached, and the hole looks unreachable by construction**
+
+- "No reproduction was driven" and "the reproduction cannot be driven" are different row states, and only the second is a finding.
+- A guard whose condition is set by the same action that triggers it may be unsatisfiable.
+- The Accept's demand was to read the field, not to use a debugger.
+
+**macos — E53 fixed: the fourth assert-only lookup, and the guard is observed firing (interactive, Jeff directing)**
+
+- Guarding a deref is not fixing the cause, and the second time it happens is a signal.
+- A guard should be observed firing, not just correlated with a crash disappearing.
+- Text-mode writes silently rewrite line endings.
+
+**macos — E55 built: one config-root override, and the build that silently didn't contain it**
+
+- A row parked on a transient condition should be re-tested, not inherited.
+- Verify the binary contains your change before you test its behaviour.
+- An additive override wants a same-paths control, not just a works control.
+
+**windows — E48 built: the three prefab modules join the compiled-in set, and the round trip surfaces a serialization oscillation (interactive, Jeff directing)**
+
+- A module set curated by conditional compilation has invisible seams.
+- An Accept can fail on a defect older than the row.
+- When the product becomes the instrument, retire the scaffolding honestly.
+
+**macos — E53 reproduced 3/3 with a faulting address, and the cause is a guard #64 missed**
+
+- A row blocked by a platform's tooling is not blocked everywhere.
+- A guard that turns a crash into a degraded state has moved the failure, not removed it.
+- Fixing three of a kind invites checking for a fourth.
+
+**macos — E39 built: the rack is a whole number of rows, and the two measurements this row called contradictory are both right (interactive, Jeff directing)**
+
+- A refutation and its implication are separate claims, and a row can carry the first correctly while the second is wrong.
+- Reproducing an earlier report's exact number is worth chasing.
+- A verb that returns `ok` can still do nothing.
+
+**macos — the queue is blocked and this run did nothing to it, deliberately**
+
+- A blocked queue is when invented work is most likely, so the bar for "is this actually my job?" should go up, not down.
+- "Every run" is ambiguous in a fleet that has both agent runs and workflow runs.
+
+**macos — the queue is blocked, so I answered the one question a ruling said was open: which call site consumes a dialog answer**
+
+- `awk -F'|'` cannot read this backlog.
+- "Linked" is not "reachable", and `nm` alone would have said the wrong thing.
+- A safe default reached by accident is still worth naming.
+
+**macos — the queue is blocked for a run, so this was STEP 4: three rows flipped, one deliberately not, and a false claim corrected at its source**
+
+- A merged PR does not mean a row is done — read what the PR changed.
+- The auto-merge allowlist makes docs-only halves land silently, which is exactly what makes this trap likely.
+- Verify a NEXT-block claim before repeating it, because that cell is the fleet's most-copied text.
+
+**windows — E53: the box was already taken, so the fixture got committed and the lead got measured instead (scheduled run)**
+
+- A reproduction that lives in `_scratch/` is not a reproduction.
+- Two sessions on one Windows box cannot both test the standalone, and nothing tells you until you look.
+- The rule that made E48 ineligible is not in the status column.
+- "That module has no parameters" is only a finding once you count the others.
+- Declining to contend has to apply to source as well as to state.
+
+**macos — #514 broke because I fixed #513, and a stacked pair will keep doing that**
+
+- Resolving a base branch's conflict breaks every PR stacked on it.
+- "Ours or theirs" is never the rule for the journal — the dates are.
+- An auto-merged file is a changed file.
+
+**macos — STEP 1.5 was the whole run: #513 had gone CONFLICTING, and my first resolution of it was wrong**
+
+- A conflict is not on STEP 1.5's list of three, and should be.
+- A deletion outside a conflict hunk merges silently, so "I only touched the conflicts" is not a description of what you changed.
+- Do not half-apply another run's deliberate bookkeeping.
+- The lints are load-bearing, not ceremony.
+
+**macos — E52: a shipping build option that did not compile, and the control that proves the fix is not a deletion (scheduled run)**
+
+- An absent control makes a passing round-trip worthless.
+- A "pure move" is the strongest argument available for editing code you cannot build.
+- Guarding the call site is the fix that passes and deletes the feature.
+- Quoting a lint's trigger re-arms it.
+- Check a lint by its exit code, not by the tail of its output.
+- A NEXT cell three days old is history, not a queue.
+
+**windows — E59 answered and fixed: the sender is our own syncState, and the host asks for state before it gives us any (scheduled run)**
+
+- An absent log line has a twin: a transition nothing logs at all.
+- A size that falls inside a measured range and a size that is byte-identical to a named producer are different claims.
+- When a comment states the condition a function runs under, test the condition rather than the function.
+- Log a sequence number, not `this`, when the thing you are counting is destroyed and recreated.
+- Design a comparison so that its failure direction is the bug you already have.
+- `re.sub` is not the only Python escape trap in this repo's docs.
+- Export the identity in EVERY shell that commits — `git rebase --continue` is a commit.
+- A check in the same unconditional command block as the action it gates is decoration.
+- Verify a restore, do not just perform one.
+
+**macos — E59's fix confirmed on mac, and E7 re-measured: the root MIDI-CV path already works (interactive, Jeff directing)**
+
+- Measure what the Accept says, not what the harness reports.
+- A failing fixture beside a passing sibling localises better than either alone.
+- Re-run a blocked measurement the moment the blocker lands.
+
+**macos — the mac render E59's row asked for: it is a REGRESSION, bracketed to three days (interactive, Jeff directing)**
+
+- When every fixture fails, the measurement is about the harness's substrate, not the fixture.
+- Keep superseded binaries; they are free bisect endpoints.
+- Read the owning agent's row before writing the handoff.
+
+**macos — E38: the verb the row said to design, and V7 verified on the real menus at last (interactive, Jeff directing)**
+
+- When a row has measured two instruments dead, the spec is nearly written: the design is whatever the remaining instrument is.
+- A menu model readout beats a pixel readout even where pixels are possible.
+- Verify a routing surprise against the GUI's own behaviour before calling it a bug.
+- An invoke path should be the native path's tail, not a parallel one.
+
+**macos — remote sweep: one branch is live work, the rest are ruled out of the fleet's scope (interactive, Jeff directing)**
+
+- `git cherry` before judging an old branch.
+- A branch minutes old with no PR is a claim, not a leak.
+
+**macos — S1b built: the loader compiled out with zero deletions, and the row's homework made it a half-day instead of a week (interactive, Jeff directing)**
+
+- A row that has been annotated by five runs is a plan, not a backlog item.
+- Prefer guards to deletions when a library has two masters.
+- A vtable is a linker obligation, not a call graph.
+- When a member function seems declared nowhere, read the preprocessor before the headers.
+- A "required export" makes a symbol probe self-controlling.
+
+**macos — E51 closed: the chain guarded, the trap was platform-divergent, and the richest fixture turned out to be extinct (interactive, Jeff directing)**
+
+- A constant's value depends on which header won, and a shim that renumbers a Win32 constant makes the same line mean different things per platform.
+- When a fixture refuses to reproduce, ask what shipped since it was last seen.
+- Answer a NEEDS-SPEC by stating the Accept that was met, not by building more.
+- Give a probe a control that simulates the historical regression, not a synthetic one.

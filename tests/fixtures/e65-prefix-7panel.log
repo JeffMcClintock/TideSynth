@@ -1,0 +1,32 @@
+      0.0 ms  SCALE    raster=2.0000  transform=0.7500  -> device=1.5000
+      0.1 ms  REQUEST  72x576 cfg=70cb665c  cached-stage=0  stand-in=none 0x0  stretch=1.00x
+      0.1 ms  DRAW     flat grey            bitmap 0x0 -> panel 48x384 DIP at 1.50x  (stand-in stretch 1.00x)
+      0.4 ms  SCALE    raster=2.0000  transform=0.7500  -> device=1.5000
+      0.4 ms  REQUEST  72x576 cfg=79e95eb2  cached-stage=0  stand-in=none 0x0  stretch=1.00x
+      0.4 ms  DRAW     flat grey            bitmap 0x0 -> panel 48x384 DIP at 1.50x  (stand-in stretch 1.00x)
+      0.6 ms  SCALE    raster=2.0000  transform=0.7500  -> device=1.5000
+      0.6 ms  REQUEST  72x576 cfg=15578c0d  cached-stage=0  stand-in=none 0x0  stretch=1.00x
+      0.6 ms  DROPPED  72x576 cfg=79e95eb2 was wanted and never started; replaced by cfg=15578c0d
+      0.6 ms  DRAW     flat grey            bitmap 0x0 -> panel 48x384 DIP at 1.50x  (stand-in stretch 1.00x)
+      0.7 ms  SCALE    raster=2.0000  transform=0.7500  -> device=1.5000
+      0.7 ms  REQUEST  72x576 cfg=8e9c6e60  cached-stage=0  stand-in=none 0x0  stretch=1.00x
+      0.7 ms  DROPPED  72x576 cfg=15578c0d was wanted and never started; replaced by cfg=8e9c6e60
+      0.7 ms  DRAW     flat grey            bitmap 0x0 -> panel 48x384 DIP at 1.50x  (stand-in stretch 1.00x)
+      0.9 ms  SCALE    raster=2.0000  transform=0.7500  -> device=1.5000
+      0.9 ms  REQUEST  72x576 cfg=811cceb1  cached-stage=0  stand-in=none 0x0  stretch=1.00x
+      0.9 ms  DROPPED  72x576 cfg=8e9c6e60 was wanted and never started; replaced by cfg=811cceb1
+      0.9 ms  DRAW     flat grey            bitmap 0x0 -> panel 48x384 DIP at 1.50x  (stand-in stretch 1.00x)
+      1.0 ms  SCALE    raster=2.0000  transform=0.7500  -> device=1.5000
+      1.0 ms  REQUEST  72x576 cfg=9a27320d  cached-stage=0  stand-in=none 0x0  stretch=1.00x
+      1.0 ms  DROPPED  72x576 cfg=811cceb1 was wanted and never started; replaced by cfg=9a27320d
+      1.0 ms  DRAW     flat grey            bitmap 0x0 -> panel 48x384 DIP at 1.50x  (stand-in stretch 1.00x)
+      1.2 ms  SCALE    raster=2.0000  transform=0.7500  -> device=1.5000
+      1.2 ms  REQUEST  72x576 cfg=be8e4a98  cached-stage=0  stand-in=none 0x0  stretch=1.00x
+      1.2 ms  DROPPED  72x576 cfg=9a27320d was wanted and never started; replaced by cfg=be8e4a98
+      1.2 ms  DRAW     flat grey            bitmap 0x0 -> panel 48x384 DIP at 1.50x  (stand-in stretch 1.00x)
+     69.9 ms  PREVIEW  ready 72x576 cfg=70cb665c  traced in 70 ms
+    104.0 ms  DRAW     PREVIEW              bitmap 72x576 -> panel 48x384 DIP at 1.50x  (stand-in stretch 1.00x)
+    132.2 ms  PREVIEW  ready 72x576 cfg=be8e4a98  traced in 62 ms
+    205.1 ms  DRAW     PREVIEW              bitmap 72x576 -> panel 48x384 DIP at 1.50x  (stand-in stretch 1.00x)
+   8800.7 ms  FULL     ready 72x576 cfg=be8e4a98  traced in 8415 ms at 128 spp
+   8805.8 ms  DRAW     FULL (this size)     bitmap 72x576 -> panel 48x384 DIP at 1.50x  (stand-in stretch 1.00x)

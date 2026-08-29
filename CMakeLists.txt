@@ -355,6 +355,17 @@ if(SE_SOFTWARE_RENDERER)
     add_compile_definitions(SE_SOFTWARE_RENDERER_OPTION=1)
 endif()
 
+# E65. The panel's progression log (REQUEST / PREVIEW / FULL / DRAW with
+# timings) used to be armed by editing `#define TIDE_PANEL_TRACE_LOG 0` to 1 in
+# TiDEPanelGui.cpp. That is the one instrument E65's row tells a taker to use,
+# and a source edit is both a step to forget and a thing to commit by accident.
+# The define is unchanged and still defaults to 0; this only gives it a switch.
+#
+# Applied to the ONE file, in SynthEditSem/CMakeLists.txt beside the strict-fp
+# opt-out, for the same reason that one is per-source: nothing else in the
+# plugin reads it.
+option(TIDE_PANEL_TRACE_LOG "Arm TiDEPanel's REQUEST/PREVIEW/FULL/DRAW progression log" OFF)
+
 # HarfBuzz, vendored as one amalgamation source. SynthEditLib links it, so it
 # must be defined BEFORE add_subdirectory(SynthEditLib).
 CPMAddPackage(
