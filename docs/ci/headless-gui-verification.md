@@ -260,3 +260,56 @@ tests/hosts/v1-rack-uncabled.rpp   peak -inf       rms -inf         SILENCE
 The first reproduces the 2026-08-18 macOS reference to the decimal and confirms
 **E59's fix holds on macOS `main`**; the second is the negative control, and the
 pair is what makes either number mean anything.
+
+## Which build answered? Take the plug-in away and re-render
+
+**Added 2026-08-31 (macos, scheduled run).** The section above isolates the
+*host*. It does not, on its own, tell you which *plug-in* the host loaded, and
+E19's windows leg already paid for that distinction: a local build does not
+shadow an installed one, and REAPER will silently pick either — it alternated
+between them across runs on that box.
+
+Narrowing the scan path is the arrangement:
+
+```bash
+# stage ONLY the bundle under test
+mkdir -p "$PORTABLE/plugins"
+cp -R build-<tree>/SynthEditSem/TIDE-Rack.vst3 "$PORTABLE/plugins/"
+
+# point the portable config at that folder alone, then force a rescan
+sed -i '' "s|^vstpath_arm64=.*|vstpath_arm64=$PORTABLE/plugins|" "$PORTABLE/reaper.ini"
+rm -f "$PORTABLE"/reaper-vstplugins*.ini
+```
+
+**The measurement is removing it.** Move the staged bundle aside, clear the
+cache again and re-render the same fixture. REAPER hangs on an unresolvable
+plug-in modal and writes **no TIDE entry** to `reaper-vstplugins_arm64.ini`;
+restore the bundle and the fixture's numbers come back. That round trip is what
+makes "this number came from the build I just made" a fact rather than a hope,
+and it costs one 300-second timeout.
+
+Two things it settles that are otherwise easy to hand-wave:
+
+- **REAPER sanitises `-` to `_` in the ini key.** The cache reads
+  `TIDE_Rack.vst3=...` while the staged bundle is `TIDE-Rack.vst3`. No
+  underscore-named bundle exists on the box; the key is not evidence that some
+  other artifact was scanned. Check with `find` before believing either reading.
+- The developer's installed plug-ins stay untouched throughout — verify rather
+  than assume, with `shasum -a 256` on the installed binary and a
+  `find … -exec stat` snapshot of `~/Library/Application Support/REAPER`
+  compared before and after. Measured identical across 2052 files, mtimes
+  included, on 2026-08-31.
+
+## Measured through this harness, 2026-08-31
+
+macOS `main` at `4994c32`, with E64, E66 and E67 merged — a fresh Release/arm64
+tree, all six repos clean and equal to `origin/main`:
+
+```
+--control (no plug-in at all)      peak -6.0 dBFS  rms  -9.0 dBFS   chain detects audio
+tests/hosts/v1-rack.rpp            peak -6.3 dBFS  rms -17.0 dBFS   AUDIO PRESENT
+tests/hosts/v1-rack-uncabled.rpp   peak -inf       rms  -inf        SILENCE
+```
+
+Unchanged from 2026-08-29, which is the point: the three merges that landed in
+between did not move it.
