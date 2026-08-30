@@ -8,6 +8,51 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-31 — windows — E68: the save was an echo of the wrong store, and Jeff's three questions redesigned it into a pull (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"use the computer to figure out why no sound"*, *"what is serviceDocumentSync about?"*, *"we have doubled-up… skip the complex document comparison yeah?"*, *"won't the parameter path handle the patch cables already?"*, *"we should be able to save the state without races?"*, *"why not save/load the Controller's state instead?"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** diagnosed Jeff's silent-patch report down to the byte, then built the design his questions converged on: **delete the document-shape machinery** (this repo) and **make the VST3 save pull fresh state from the controller** ([GMPI_Wrappers#35](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/35)). Proven by a scripted save round-trip. **E68 filed and IN-REVIEW.**
+
+### The diagnosis: the .als itself was the witness
+
+Driving Ableton from a shell with his MRU project: restore healthy (29,475 bytes imported, rack built, feedback flowing), MIDI reaching the rack, silence. Decoding TIDE's chunk out of the saved `.als`: **every module present, `HC_PATCH_CABLES` an empty patch-list** — a rack with no wiring. When Jeff re-cabled live, instant sound. The saved state, not the engine, was the defect.
+
+Two mechanisms stacked, both already confessed in comments:
+
+1. `serviceDocumentSync` pushed only on document-**shape** change, and `documentShape()` strips every `<patch-list>` — cables live inside HC49's patch-list, i.e. inside the one thing the comparison was built to ignore. The 2026-08-25 ruling's premise — *"the DSP rebuilds from the document it ALREADY HAS"* — is true of the running rack and **false of the store a save reads**.
+2. The save serialised the **processor's** store, fresh only up to the last async IMessage the audio thread applied — and `Controller_VST3::getState`'s own "HONEST CAVEAT" documents the race, including the case no flush can fix: a host reading the component's state before ever calling the controller's `getState`.
+
+### Jeff's questions did the design work, in order
+
+- *"We have doubled-up — skip the comparison?"* → Almost: the flag (`dspDirty`) is already structural-only (SuspendDSP's sites; knobs never touch it), and the compare's one surviving job was suppressing exactly the push that would have saved his patch. **Deleted** — `documentShape()` + `lastPushedShape`, −37 lines. Verified in the standalone: 1 push at startup, **0 in idle** (the "holy fuck" economics intact), 1 per module insert, 0 per layout nudge.
+- *"Won't the parameter path handle cables?"* → For the running DSP, yes — but the wrapper serialises only its four parameters, and cables live *inside* parameter 1's document; a `ppc` updates the live rack and touches nothing a save reads.
+- *"We should be able to save without races?"* / *"Why not save the Controller's state — are we expecting the Processor to know the state when it simply does not?"* → Exactly, and the API's frame allows it: the component stream is canonical (hosts hand it back to *both* sides on load — restore was always controller-authoritative via `setComponentState`), so the fix is that **the processor stops answering from its own knowledge**: `getState` pulls from the paired controller, which mints the preset synchronously from its live store (`syncState()` + the shared `getPresetXml()` — the drift-unified `writePresetXml` meant no new serialiser). No hop, no ordering, nothing to race. Pairing is a one-time pointer over the connection-point **message** channel ("GmpiCtlPtr") — a message, not a cast of the peer, because hosts interpose connection proxies; cleared on `disconnect` so a dead controller cannot be pulled through (E66 one layer up, avoided).
+
+### Proven
+
+Scripted REAPER load→save→quit of `v1-rack-win.rpp` (a temporary `__startup.lua`, backed up and restored):
+
+| | chunk in the project file |
+|---|---|
+| before | 14,136 bytes — the seeded store copy |
+| after the save | **14,494 bytes — the freshly minted document**, `syncState exporting … (host asked for state)` in the log, **both cables present** in HC49 |
+
+The size mismatch *is* the discriminator: an echo of the store would have written 14,136 back.
+
+**Learned:**
+
+- **The user's design questions were the diagnosis.** Four questions in sequence — each one eliminated a layer I would have patched — and the end state deletes code net. "Are we expecting the Processor to know the state when it simply does not?" is the whole fix in one sentence.
+- **A save path that echoes a store is only as correct as the store's freshest writer** — and every writer between editor and store was asynchronous. Mint at the moment of asking, from the side that cannot be stale.
+- **A comment's premise can be measured.** *"The DSP rebuilds from the document it already has"* was written about the running rack and silently extended to the saved one; one decoded `.als` separated the two claims.
+- **Send pointers as messages, not casts, across a host-owned connection** — proxies forward the one and defeat the other.
+- **The fixture's saved chunk size is a free discriminator** between "echoed the store" and "minted fresh" — no instrumentation needed, the number differs by construction.
+
+**Not verified:** mac/linux builds; Ableton itself (REAPER proved the mechanism — Jeff's own `TIDE Test.als` re-cable→save→reload is the live Accept once merged); CLAP/AU3 still echo their processor store (named in the row); `AddPatchCable` still sets no dirty flag (harmless for saves now; named in the row for the live-restore path).
+
+**Machine state.** The E68 stderr probe in `SynthEdit.cpp` reverted — diagnosis complete, the permanent E59-era lines suffice. `modules/TiDEPanel/TiDEPanelGui.cpp` briefly carried a foreign `TIDE_PANEL_TRACE_LOG 1` edit (Jeff's E65 diagnosis, marked REVERT) — left alone and since reverted by its owner. TideSynth on `tide/win/E68-push-on-dirty`, GMPI_Wrappers on `tide/win/E68-pull-state-at-save`, both with PRs. REAPER's `__startup.lua` restored. Jeff's Ableton closed by him; the installed VST3 carries both halves.
+
+**Branch/PR:** `tide/win/E68-push-on-dirty` (this repo: the shape deletion, this row and entry) + [GMPI_Wrappers#35](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/35) (the pull). Either lands alone; together a patch can no longer be saved incompletely from either direction.
 ## 2026-08-31 — macos — the queue is blocked, so this run closed three "not verified: mac builds" lines and flipped the rows they sat on (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** (no `claude` CLI on this box's PATH; the app's `CFBundleShortVersionString`, which A13 records as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`)

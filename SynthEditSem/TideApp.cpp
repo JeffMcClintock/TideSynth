@@ -544,47 +544,15 @@ bool TideApp::importChunkXml(std::string_view xml)
 		assert(false && "DSP wrapper handle reservation lost");
 	}
 
-	// Baseline the sync against what was JUST IMPORTED rather than forcing a
-	// push: the wrapper re-seeds the chunk parameter into the processor when
-	// it starts (SynthEdit.cpp:70's comment walks the mechanism), so the
-	// processor builds this same document on its own and a GUI push here was
-	// a guaranteed duplicate rebuild. If the round-trip ever produces a
-	// different document, the next 500ms tick pushes the difference anyway.
-	lastPushedShape = documentShape(exportChunkXml());
+	// No sync baseline to reset: since E68 the push is gated on dspDirty
+	// alone, and an import arrives with the flag clear. The wrapper re-seeds
+	// the chunk parameter into the processor when it starts (SynthEdit.cpp's
+	// preparedSampleRate comment walks the mechanism), so the processor
+	// builds this same document on its own and no push is owed here.
 
 	return true;
 }
 
-// The document reduced to its SHAPE: modules and wiring, with every
-// <patch-list> removed. That is where parameter VALUES live -- knobs,
-// buttons, and the patch-cable list host control alike -- and none of them
-// may cost the processor a restart. See serviceDocumentSync.
-std::string TideApp::documentShape(const std::string& doc)
-{
-	std::string out;
-	out.reserve(doc.size());
-
-	size_t at = 0;
-	for (;;)
-	{
-		const auto open = doc.find("<patch-list>", at);
-		if (open == std::string::npos)
-		{
-			out.append(doc, at, std::string::npos);
-			break;
-		}
-
-		out.append(doc, at, open - at);
-
-		const auto close = doc.find("</patch-list>", open);
-		if (close == std::string::npos)
-			break; // malformed; the prefix is enough to compare on
-
-		at = close + 13; // strlen("</patch-list>")
-	}
-
-	return out;
-}
 
 void TideApp::serviceDocumentSync()
 {
@@ -619,48 +587,30 @@ void TideApp::serviceDocumentSync()
 
 	dspDirty = false;
 
+	// THE FLAG ALONE DECIDES. Jeff's ruling, 2026-08-31, superseding his own
+	// 2026-08-25 one, and E68 is why: the old rule pushed only when the
+	// document's SHAPE changed (a comparison with every <patch-list>
+	// stripped), on the premise that a moved patch cable needs no push
+	// because "the DSP rebuilds from the document it ALREADY HAS". True of
+	// the RUNNING rack -- and false of the STORE a host save reads. Cables
+	// live inside HC_PATCH_CABLES' patch-list, i.e. inside the one thing the
+	// comparison was built to ignore, so a patch whose last edits were cables
+	// -- the normal way to finish a patch -- saved WITHOUT them whenever the
+	// host read the processor's state before syncState's async refresh
+	// landed. Measured 2026-08-29 in Ableton: a saved .als whose
+	// HC_PATCH_CABLES patch-list was empty, a restored rack with modules and
+	// no wiring, and silence with MIDI arriving (TIDE BACKLOG E68).
+	//
+	// dspDirty already fires on exactly the right set: SuspendDSP's RAII
+	// sites -- module add/delete, re-cabling, container surgery -- and never
+	// on a knob turn, so values still travel as messages and an idle rack
+	// still costs nothing. A cable edit now pays one document push (~30 KB,
+	// debounced to this 500 ms tick) on top of the rebuild it already
+	// triggered through the message path; that shipment is what makes the
+	// save correct, which E68 measured is not waste.
 	auto xml = exportChunkXml();
 
-	// THE DOCUMENT GOES TO THE PROCESSOR ONLY WHEN ITS SHAPE CHANGES.
-	//
-	// Jeff's ruling, 2026-08-25, and the three cases it separates:
-	//
-	//   a module or prefab is added or deleted  the graph is genuinely
-	//                                           different: send the document,
-	//                                           the processor restarts, and
-	//                                           that cost is unavoidable.
-	//   a patch cable is moved                  send NOTHING here. The cable
-	//                                           list is the HC_PATCH_CABLES
-	//                                           host control, its value rides
-	//                                           the message queue like any
-	//                                           other parameter, and the DSP
-	//                                           side turns it into a graph
-	//                                           rebuild from the document it
-	//                                           ALREADY HAS (requiresAsyncRestart
-	//                                           -> DoAsyncRestart). Shipping a
-	//                                           second copy of the document to
-	//                                           say "a wire moved" is waste.
-	//   a knob or button moves                  send NOTHING here either; the
-	//                                           value is a message.
-	//
-	// So the comparison ignores every <patch-list>: that is where parameter
-	// VALUES live, the cable list included. What remains is modules and their
-	// wiring - the shape.
-	//
-	// This decision belongs HERE, on the GUI thread at 500ms, and emphatically
-	// not in the processor. It was briefly done there and that was a mistake:
-	// onSetPins runs on the AUDIO THREAD, where building and comparing a 12KB
-	// string per arriving chunk is exactly the sort of work that has no
-	// business next to a real-time deadline.
-
-	auto shape = documentShape(xml);
-	if (shape == lastPushedShape)
-		return;
-
-	lastPushedShape = std::move(shape);
-	// Rare by construction now - only a structural edit gets here - and worth
-	// saying out loud, because it is the expensive one.
-	std::fprintf(stderr, "TIDE: DSP structure changed, pushing %zu byte document\n", xml.size());
+	std::fprintf(stderr, "TIDE: document changed, pushing %zu byte document\n", xml.size());
 	onPushChunk(xml.data(), xml.size());
 }
 
