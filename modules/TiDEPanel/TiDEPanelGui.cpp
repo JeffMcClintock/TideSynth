@@ -28,12 +28,16 @@
 // Trying to tell a stretched full render from a flat-lit preview by looking at
 // screenshots wasted a lot of time and produced two confident wrong answers;
 // the panel saying what it drew settles it in one line. Writes to
-// %TEMP%\TiDEPanel.log, truncated when the host process first draws a panel, so
-// one run is one file.
+// $TIDE_PANEL_LOG_PATH if set, else %TEMP%\TiDEPanel.log on Windows and
+// $TMPDIR/TiDEPanel.log elsewhere, truncated when the host process first draws
+// a panel, so one run is one file.
 //
-// Typical use: arm it, rebuild, load a patch, then read the log. Every line is
+// Typical use: configure with -DTIDE_PANEL_TRACE_LOG=ON, rebuild, load a patch,
+// then read the log. Every line is
 // timestamped from the first event, so the gaps between REQUEST, PREVIEW, FULL
 // and each DRAW are the latencies you are looking for.
+// tests/e65_panel_preview_probe.py reads this dialect -- REQUEST/PREVIEW lines
+// carry cfg= so it can tell WHICH panels rendered, not just how many times.
 #ifndef TIDE_PANEL_TRACE_LOG
 #define TIDE_PANEL_TRACE_LOG 0
 #endif
@@ -71,9 +75,24 @@ inline void write(const char* fmt, ...)
 	if (!opened)
 	{
 		opened = true;
+		// E65: the path was `%TEMP%` + a BACKSLASH on every platform. POSIX
+		// sets TMPDIR, not TEMP, so a mac or linux run fell through to "." and
+		// wrote a file literally named `.\TiDEPanel.log` in the process's
+		// working directory -- created, so nothing failed and nothing said so,
+		// but not where the comment above says to look. TIDE_PANEL_LOG_PATH
+		// overrides both, which is what lets a harness collect the file from a
+		// directory it chose rather than guessing the app's cwd.
+		const char* explicitPath = std::getenv("TIDE_PANEL_LOG_PATH");
+#ifdef _WIN32
 		const char* tmp = std::getenv("TEMP");
-		const std::string path =
-			(tmp ? std::string(tmp) : std::string(".")) + "\\TiDEPanel.log";
+		const char sep = '\\';
+#else
+		const char* tmp = std::getenv("TMPDIR");
+		const char sep = '/';
+#endif
+		const std::string path = explicitPath
+			? std::string(explicitPath)
+			: (tmp ? std::string(tmp) : std::string(".")) + sep + "TiDEPanel.log";
 		file = std::fopen(path.c_str(), "w");
 	}
 	if (!file)
@@ -2195,8 +2214,8 @@ public:
 				: (fbStage >= 2 ? result.fallback->fullWidth : result.fallback->previewWidth);
 			[[maybe_unused]] const uint32_t fbH = !result.fallback ? 0u
 				: (fbStage >= 2 ? result.fallback->fullHeight : result.fallback->previewHeight);
-			TIDE_LOG("REQUEST  %ux%u  cached-stage=%d  stand-in=%s %ux%u  stretch=%.2fx  wants=%zu",
-				key.width, key.height, targetStage,
+			TIDE_LOG("REQUEST  %ux%u cfg=%08x  cached-stage=%d  stand-in=%s %ux%u  stretch=%.2fx  wants=%zu",
+				key.width, key.height, (unsigned)key.config, targetStage,
 				!result.fallback ? "none" : (fbStage >= 2 ? "full" : "preview"),
 				fbW, fbH, result.fallbackStretch, wants.size());
 		}
@@ -2425,8 +2444,8 @@ private:
 				trace->preview = traceFaceplate(trace->previewWidth, trace->previewHeight,
 					spec, tide::render::Quality::Draft);
 				trace->stage.store(1, std::memory_order_release);
-				TIDE_LOG("PREVIEW  ready %ux%u  traced in %.0f ms",
-					trace->previewWidth, trace->previewHeight,
+				TIDE_LOG("PREVIEW  ready %ux%u cfg=%08x  traced in %.0f ms",
+					trace->previewWidth, trace->previewHeight, (unsigned)key.config,
 					TIDE_LOG_NOW - previewT0);
 
 				// Available as a stand-in immediately. Only claim the slot if
@@ -2470,8 +2489,8 @@ private:
 					return;
 				if (moved)
 				{
-					TIDE_LOG("DEFER    %ux%u full trace; the wants moved during the settle",
-						key.width, key.height);
+					TIDE_LOG("DEFER    %ux%u cfg=%08x full trace; the wants moved during the settle",
+						key.width, key.height, (unsigned)key.config);
 					continue;
 				}
 			}
@@ -2481,8 +2500,8 @@ private:
 			[[maybe_unused]] const double fullT0 = TIDE_LOG_NOW;
 			trace->full = traceFaceplate(key.width, key.height, spec);
 			trace->stage.store(2, std::memory_order_release);
-			TIDE_LOG("FULL     ready %ux%u  traced in %.0f ms at %d spp",
-				key.width, key.height, TIDE_LOG_NOW - fullT0,
+			TIDE_LOG("FULL     ready %ux%u cfg=%08x  traced in %.0f ms at %d spp",
+				key.width, key.height, (unsigned)key.config, TIDE_LOG_NOW - fullT0,
 				tide::render::samplesFor((int)key.width, (int)key.height));
 
 			// Becomes the stand-in every later size of this same panel gets to
