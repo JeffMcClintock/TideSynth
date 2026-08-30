@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **386 KB** across **314** entries, so copying them
+Learned sections are **389 KB** across **316** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **119 KB / 1288 lessons — 3.2x smaller**, and represents
+A8. This is **120 KB / 1300 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,24 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-31
+
+**macos — E69: the CLAP save was fixed into an EMPTY save, and a 200-line bare host found it in one command (scheduled run)**
+
+- A row filed this morning may have had its code landed by an interactive session before any scheduled run reads it
+- "CI will say" about a platform you cannot test is an assignment with no addressee, and CI answers a different question.
+- A fix that corrects one half of a pair is a regression until you check the other half.
+- A "no host at all" harness is cheaper than isolating a host, and stricter.
+- A size MATCH proves nothing and a size DIFFERENCE proves one thing.
+- Distinguish "the store is stale" from "nothing ever writes the store" before calling a probe result a race.
+- Reading the machine costs one command and I nearly skipped it.
+
+**windows — E68: the save was an echo of the wrong store, and Jeff's three questions redesigned it into a pull (interactive, Jeff directing)**
+
+- The user's design questions were the diagnosis.
+- A save path that echoes a store is only as correct as the store's freshest writer
+- A comment's premise can be measured.
+- Send pointers as messages, not casts, across a host-owned connection
+- The fixture's saved chunk size is a free discriminator
 
 **macos — the queue is blocked, so this run closed three "not verified: mac builds" lines and flipped the rows they sat on (scheduled run)**
 
@@ -81,28 +99,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Print the numbers before the modal.
 - A four-char code is not a string.
 - `map::insert` on a duplicate key is a silent policy decision.
-
-**macos — E19's mac AU3 cell: the host CAN be isolated here, the locked screen is the real wall, and a second AUv3 will not register (scheduled run)**
-
-- Run the harness's own no-plug-in control BEFORE theorising about the plug-in.
-- "We cannot isolate the host" can be true on one platform and false on another, and the fleet will generalise it.
-- A locked screen is not "no GUI" — it is a line through the middle of the tooling.
-- A black screenshot is a reading about the DISPLAY, not about the window.
-- A `strings` miss is only evidence once you know how the string is built.
-- Two wrong readings that agree are not corroboration when they share a cause.
-- When the safe version of an experiment does not exist, stop rather than doing the unsafe one carefully.
-
-## 2026-08-28
-
-**windows — E64 filed: the ui->dsp queue desyncs in a HOST but not in the standalone, and three negatives are the finding (interactive, Jeff directing)**
-
-- When a modal is on screen, the process is a live specimen — attach before anyone dismisses it.
-- Thread numbers are per-attach; thread IDs are not.
-- A negative in one host is evidence about the TRANSPORT when the content path is shared.
-- Measure the capacity before believing an overflow story.
-- A probe that writes only to stderr is useless in a GUI host.
-- `--set-param` on a plug-in's GMPI parameters is not a rack edit.
-- This tool's heredocs collapse backslashes
 
 ## 2026-08-18
 
@@ -2322,3 +2318,25 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - When a fixture refuses to reproduce, ask what shipped since it was last seen.
 - Answer a NEEDS-SPEC by stating the Accept that was met, not by building more.
 - Give a probe a control that simulates the historical regression, not a synthetic one.
+
+**windows — E64 filed: the ui->dsp queue desyncs in a HOST but not in the standalone, and three negatives are the finding (interactive, Jeff directing)**
+
+- When a modal is on screen, the process is a live specimen — attach before anyone dismisses it.
+- Thread numbers are per-attach; thread IDs are not.
+- A negative in one host is evidence about the TRANSPORT when the content path is shared.
+- Measure the capacity before believing an overflow story.
+- A probe that writes only to stderr is useless in a GUI host.
+- `--set-param` on a plug-in's GMPI parameters is not a rack edit.
+- This tool's heredocs collapse backslashes
+
+## 2026-08-29
+
+**macos — E19's mac AU3 cell: the host CAN be isolated here, the locked screen is the real wall, and a second AUv3 will not register (scheduled run)**
+
+- Run the harness's own no-plug-in control BEFORE theorising about the plug-in.
+- "We cannot isolate the host" can be true on one platform and false on another, and the fleet will generalise it.
+- A locked screen is not "no GUI" — it is a line through the middle of the tooling.
+- A black screenshot is a reading about the DISPLAY, not about the window.
+- A `strings` miss is only evidence once you know how the string is built.
+- Two wrong readings that agree are not corroboration when they share a cause.
+- When the safe version of an experiment does not exist, stop rather than doing the unsafe one carefully.

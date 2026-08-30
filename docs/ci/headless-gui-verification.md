@@ -313,3 +313,66 @@ tests/hosts/v1-rack-uncabled.rpp   peak -inf       rms  -inf        SILENCE
 
 Unchanged from 2026-08-29, which is the point: the three merges that landed in
 between did not move it.
+
+---
+
+# No host at all — drive the plug-in's own state contract over the C ABI
+
+**Added 2026-08-31 (macos, scheduled run) for BACKLOG E69.** Everything above
+this line is about isolating a *host*. This section is about not needing one.
+
+A save/restore defect is a question about **bytes**, not about audio, and every
+route this document had for reading those bytes went through a DAW: REAPER's
+GUI, a `__startup.lua`, a project file to decode afterwards. On macOS that route
+is closed to a scheduled run whenever the screen is locked, and for CLAP it is
+closed anyway — REAPER's CLAP state path does not restore (**E60**).
+
+The CLAP C ABI needs none of it. `tests/e69_clap_state_probe.c` is about 200
+lines and links nothing but `dlfcn` and the CLAP headers:
+
+```bash
+cc -std=c11 -I <build>/_deps/clap-src/include tests/e69_clap_state_probe.c -o probe
+./probe <build>/SynthEditSem/TIDE-Rack.clap /tmp/out tests/…/preset.xml
+```
+
+It calls `dlopen` → `clap_entry` → `get_factory` → `create_plugin` →
+`plugin->init` → `get_extension(CLAP_EXT_STATE)`, then `save`, `load`, `save`,
+writing each save to a file. The whole run takes about a second.
+
+**Why this is a real test and not a stub of one.** `Processor_CLAP`'s
+constructor creates and `initialize()`s the plug-in's own `<Controller/>`
+unconditionally — `Processor_CLAP.cpp:88`, added for S43(ii) — and it asks the
+host for no extension to do it. So a bare host with `get_extension` returning
+`NULL` for everything still exercises the same controller/processor pair a DAW
+would, which is precisely where save/restore bugs live.
+
+**What it found on its first run.** GMPI_Wrappers#36 moved the CLAP save to the
+controller's store; this wrapper's `stateLoad` writes only the processor's. The
+probe measured the consequence in one command, and the A/B is one commit wide:
+
+| CLAP built at | save after loading an 18,893-byte 4-cable rack |
+|---|---|
+| `bb155b1` (#35) | 18,933 bytes, **4 cables** |
+| `379d5c1` (#36) | **85 bytes, 0 cables** — `<Param id="1" val=""/>` |
+| GMPI_Wrappers#37 | 18,661 bytes, **4 cables** |
+
+## Three habits this makes cheap, and each one cost a session elsewhere
+
+- **Build the two ends of a bisect as separate trees, not by moving a shared
+  one.** `-DFETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS=<clone>` points a build at a
+  private clone of a dependency at whatever commit you like, so the A/B never
+  touches the developer's working tree and cannot be spoiled by his next
+  rebuild. Two clones and two build dirs; nothing to restore afterwards.
+- **Round-trip twice.** Feeding a minted document back in and getting
+  **byte-identical** output is what separates "the save re-serialises" from "the
+  save rewrites the patch a little more every time". Without it, the one-time
+  14,136 → 13,930 shrink reads as loss.
+- **Count the thing, not the bytes.** `scripts/dump_preset.py`-style cable and
+  module censuses (22 modules, 8 types, 4 `<Cable>` endpoints) survive a
+  re-serialisation that any size comparison fails. **A size DIFFERENCE proves a
+  save did not echo; a size MATCH proves nothing** — the mint is a fixed point,
+  so a re-saved document matches exactly.
+
+**What it deliberately does not answer:** what the patch sounds like, and
+anything needing the editor. Those are the sections above, and this one does not
+replace them — it removes the host from the questions that never needed one.

@@ -36755,3 +36755,165 @@ Two arms: with `-quiet` (argv parsed → banner on stderr → kept → drained w
 
 **Next:** Jeff pushes the `build.yml` step for the probe (workflow scope, patch supplied). E56 is with the windows agent. Remaining gated: S1b, S8, E7, E38.
 
+## 2026-08-28 — windows — E64 filed: the ui->dsp queue desyncs in a HOST but not in the standalone, and three negatives are the finding (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"hmm"* with a screenshot, then *"take it"*, then *"you can instrument it"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** took the assertion Jeff hit in Ableton, established which queue it is by attaching to the live process, built an instrumented Debug build that names the offending message, failed to reproduce it three different ways, and filed **E64** with the negatives as its content. **No fix. The row is the deliverable**, and the instrument is left in place for the one reproduction only a human can currently drive.
+
+### First: it is not E59, and one command settled that
+
+The binary that faulted was built at 17:39 and contains **zero** of E59's new strings (`syncState exporting` ×0, `declined to publish the startup default` ×0). E59 merged as [#547](https://github.com/JeffMcClintock/TideSynth/pull/547) after that, so the fault predates it. Worth doing before any analysis: the alternative is a session spent auditing your own change.
+
+### The stack, from attaching to the live process rather than reasoning
+
+Ableton was still up with the modal open — `MainWindowTitle` was literally *"Microsoft Visual C++ Runtime Library"*, which is how the PID was found without asking. `cdb -p <pid> -c "~*k; qd"` (**`qd`, not `q`** — `q` would have killed his DAW):
+
+```
+ucrtbased!wassert
+TIDE_Rack!gmpi::hosting::interThreadQue::pollMessage+0x218
+TIDE_Rack!SynthRuntime::ServiceDspRingBuffers+0x75
+TIDE_Rack!SeAudioMaster::ServiceGuiQue+0x3f
+TIDE_Rack!ug_patch_automator::HandleEvent+0x9d
+TIDE_Rack!SynthEdit::subProcess+0x329
+TIDE_Rack!wrapper::Processor_VST3::process+0x15a8
+```
+
+So it is **TIDE's own `queUiToDsp`** (parameter 3), on an Ableton `AudioCalc` thread — not the wrapper's queue and not the DSP->GUI direction #410 fixed. There were two candidate queues before this and no way to choose between them; the stack costs one command and removes the guess.
+
+I went back for the locals and **lost that race** — the process was gone. Thread NUMBERS also change between attaches, so the second attempt selected a dialog-pump thread; select by thread ID (`~~[0x258c]s`), not by index.
+
+### Three negatives, and they are the actual finding
+
+An instrumented Debug build replaces the bare assert with a line naming `handle`, `msgId`, `declaredLen`, `actuallyRead`, `readyBytes`, `partial`. With it:
+
+| attempt | result |
+|---|---|
+| hosted state-restore + `-renderproject` of `v1-rack.rpp` | **no desync** |
+| STANDALONE, insert an Oscillator over the command channel — document really rebuilt, `18307 -> 23397 bytes` | **no desync** |
+| 160 `--set-param` writes | no desync — but see below, this arm proves little |
+
+**The `--set-param` arm is weak and I am labelling it rather than counting it:** `--info` reports `parameterCount: 4`, which is the plug-in's four GMPI parameters, not rack knobs. Rack edits never travel that way, so that burst never touched the path under test.
+
+The other two are real. **`queUiToDsp`'s bytes come from `SynthRuntime_editor::takeUiToDspMessages`, which the standalone shares** — and the standalone, doing the same insert, is clean. What differs is how a changed blob parameter reaches the processor: the standalone calls `onParameterChanged` **directly** (`StandaloneHost.cpp:162`), while VST3 goes `sendNonNativeParameterToProcessor` -> `IMessage` -> `Processor_VST3::notify` -> `m_message_que_ui_to_dsp` -> pin, **asynchronously, through a last-writer-wins parameter**. That is what is left.
+
+### What I ruled OUT, including my own first answer
+
+**Overflow is not it.** My first hypothesis was `SynthEdit::onSetPins`' drop-on-full arm — it discards the whole blob when it will not fit, and a drop while the receiver is mid-partial-message would desync it permanently. Then I measured the capacities: **both queues are `AUDIO_MESSAGE_QUE_SIZE` = 5 MB**. An insert-plus-cable burst overflowing that is not plausible, so the story was wrong and I said so before building anything on it.
+
+Two candidates survive, both unconfirmed and both written on the row: a blob overwritten before the processor consumed it, or `ServiceWaitersIncremental`'s **multi-part mode** (`startMultiPartSend`) splitting an oversize message across calls, where a lost part cannot be reassembled. Note `takeUiToDspMessages`' own comment asserts *"ServiceWaitersIncremental only ever Sends complete messages"* — that is **not unconditionally true**, and it is load-bearing.
+
+### The instrument left behind, and the one thing that must be undone
+
+The probe now appends to a **file** (`C:\SE\_scratch\e64\tide-e64.log`) as well as stderr, because a GUI host swallows stderr — the first version was stderr-only and would have told Jeff nothing in Ableton. The **assert is left intact**, so his experience is unchanged. His build tree is `SE_LOCAL_BUILD=ON`, so his next rebuild installs it where Ableton loads it; one reproduction then names the message.
+
+**That probe is UNCOMMITTED in the `GMPI` working tree and must be reverted** — `git -C C:\SE\GMPI checkout -- Hosting/message_queues.cpp`. GMPI is PR-GATED; this is the E47 precedent (temporary probes, reverted, nothing shipped), not a change.
+
+**Learned:**
+
+- **When a modal is on screen, the process is a live specimen — attach before anyone dismisses it.** The window title of an assert dialog is the app's own title, so the PID is greppable without asking. `qd` detaches; `q` would have killed the DAW.
+- **Thread numbers are per-attach; thread IDs are not.** My second attach selected a completely different thread under the same number and reported a dialog pump as the fault site.
+- **A negative in one host is evidence about the TRANSPORT when the content path is shared.** The standalone and the plug-in build the same bytes from the same function; only the delivery differs, so "reproduces in one and not the other" points at delivery rather than at the message.
+- **Measure the capacity before believing an overflow story.** Two queues at 5 MB killed my first hypothesis in one grep, after I had already written it down as the likely cause.
+- **A probe that writes only to stderr is useless in a GUI host.** Ableton shows none of it; the file is what makes the next reproduction worth anything.
+- **`--set-param` on a plug-in's GMPI parameters is not a rack edit.** `parameterCount: 4` should have told me before I sent 160 of them.
+- **This tool's heredocs collapse backslashes**, so escape-heavy Python must go through a file, not `<<'PY'`. It cost three malformed edits today, one of which silently ate characters out of a documented path.
+
+**Not verified:** the mechanism, entirely — two candidates are named and neither is confirmed; whether it reproduces in REAPER as well as Ableton (which would make it scriptable here); and whether Release silently mis-parses rather than merely skipping the check, which is the part that matters for a shipped build.
+
+**Machine state.** `%APPDATA%\REAPER` was backed up, narrowed to the probe bundle, restored and verified **identical including mtimes**. Jeff's installed VST3 is untouched by me (he rebuilds it himself). Build tree `build-e59/` is gitignored and multi-config; the Debug bundle, fixtures and logs are under `C:\SE\_scratch\e64\`. No TIDE or REAPER process left running by me. **`C:\SE\GMPI` is deliberately DIRTY with the probe described above.**
+
+**Next:** **Jeff rebuilds and repeats the gesture in Ableton**; the log file then names the message and the two candidate mechanisms collapse to one. After that the fix is likely in `Processor_VST3`'s blob transport rather than in TIDE.
+
+**Branch/PR:** `tide/win/E64-uidsp-que-desync` — the E64 row and this entry. No product code; the probe is not committed.
+
+## 2026-08-29 — macos — E19's mac AU3 cell: the host CAN be isolated here, the locked screen is the real wall, and a second AUv3 will not register (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.37937.3** (no `claude` CLI on this box's PATH; the app's `CFBundleShortVersionString`, which A13 records as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`)
+
+**Did:** took **E19**'s **mac AU3 cell** — the one cell only this box can measure, and the last of E19's three format legs never attempted. **Could not measure it, and the three reasons are each measured rather than asserted.** Row back to **TODO** with a human-sized next step written on it. **E59 → DONE and archived**, flipped on its Accept re-measured here, not on its merges. Branch `tide/mac/E19-au3-mac-leg`. TideSynth only; no product code changed, no sibling repo committed to.
+
+**Why E19 and not another row.** The `mac` NEXT cell is 2026-08-28 and predates a dozen rows closing (S1b, E38, E51, E47, E61, E62, E57, E58, E55, E56, E39, E53), so I re-walked in file order rather than trusting it: **S8** GATED (`SynthEditLib/CMakeLists.txt`), **E7** turns on Jeff's unruled *"where do the jacks live"* — STEP 2 forbids work that differs under an open answer — **E2** not takeable by its own row, **E60** taken by linux ([#550](https://github.com/JeffMcClintock/TideSynth/pull/550) + GMPI_Wrappers#32), **E63**/**E64** `win`, **X2** `linux`. E19 was the topmost eligible row and its stated blocker, E59, had merged.
+
+### The good half: this box can isolate REAPER, and Windows cannot
+
+Copy `REAPER.app` into a directory, `touch reaper.ini` beside it, and REAPER keeps its **entire** resource tree there. Verified in both directions afterwards, because performing a restore is not the same as checking one: the developer's `~/Library/Application Support/REAPER` compares **identical, mtimes and sizes included**, and `~/Library/Audio/Plug-Ins` plus `~/Applications` compare identical across **1,019 files**.
+
+**That is the opposite of the Windows result and the contrast is the useful part.** Windows was measured twice as un-isolatable — `reaper.ini` beside `reaper.exe` does not engage portable mode, removing `reaper-install-rev.txt` does not either, and `SHGetKnownFolderPath` ignores the environment. So *"we cannot isolate the host"* is a **Windows** fact that had begun to read as a fleet one, and a mac run has no excuse for rendering against the developer's configuration the way the 2026-08-28 windows run had to.
+
+### The trap that cost the most, and the control that named it in one command
+
+A **fresh** portable config **hangs on a first-run modal**, and every symptom accuses the plug-in: `-renderproject` never returns, no output appears, the timeout looks exactly like TIDE wedging a render. I spent three attempts on the wrong suspects — REAPER's licence file, then E29's token byte-order, then the screen lock.
+
+The repo's own control settles it, and it loads no plug-in at all:
+
+```
+python3 scripts/render-and-measure.py --control
+```
+
+Fresh config: **times out at 280 s**. Seed the portable directory with the developer's configured `reaper.ini` (plus the plug-in caches and `reaper-reginfo2.ini` to save a rescan): **rc=0 in 14 s, peak −6.0 / rms −9.0 dBFS**. One command separated "the host cannot start" from "the plug-in is broken", and I should have run it before the other three guesses rather than after.
+
+### The wall: the screen is LOCKED, and the boundary is narrower than "no GUI"
+
+A scheduled run on this box finds the login window up — `screencapture` showed it. The two paths behave differently, measured minutes apart in one session so neither result is about the machine being busy:
+
+| path | locked session |
+|---|---|
+| `REAPER -renderproject <project>` | **works** — 3–4 s a fixture |
+| full GUI launch driven by `Scripts/__startup.lua` | **hangs**, no script output at all |
+
+So E19's **audio** clauses are reachable unattended on this box and its **animation, pixel-diff and int/bool/enum** clauses are not, because all three need the plug-in's editor on screen. That is a permanent property of a scheduled mac run, not a harness gap to close.
+
+**One trap worth naming:** `screencapture` on a locked session returns an **all-black PNG of the full screen size**, not an error. A black frame reads as *"the window drew nothing"* when it means *"the display is off"* — which is E58's lesson (an unpainted region and a deliberately dark one are pixel-identical) turning up somewhere new. The tell was the byte size being **identical** to an earlier capture.
+
+### Why the cell needs a human rather than a better harness
+
+The registered AUv3 is Jeff's `~/Applications/TIDE-Rack-AUv3.app`, dated **2026-08-25** — pre-E59, and built without `TIDE_VCV_FUNDAMENTAL` or `RACK_ADAPTOR_TRACE`, so it carries neither the VCV LFO/Scope this cell needs as producers nor the counters that are its instrument. It cannot answer E19.
+
+**A current build cannot be registered beside it.** Five ways, all failing, all with `pluginkit -m -i <id> -v` answering `(no matches)` while Jeff's stayed registered:
+
+| attempt | result |
+|---|---|
+| launch the built `TIDE-Rack-AUv3.app` from the build tree | not registered |
+| `pluginkit -a` on its appex | rc=0, still not registered |
+| clone with distinct `CFBundleIdentifier` **and** distinct AU subtype `Dr19` | not registered |
+| inside-out ad-hoc re-sign (`codesign -vvv --strict` passes on appex *and* app) | not registered |
+| `lsregister -f` on the clone in `~/Applications` | not registered |
+
+So measuring a current build's AU3 in a real host means **displacing the developer's registration**, and an unattended run must not: if the run died in between, his AUv3 would be left pointing at a build tree that gets deleted. I stopped there rather than doing it and hoping to restore.
+
+**What a human needs to do is small**, and it is on the row: on an unlocked session, build `TIDE_Rack_AU3_assemble` with `-DTIDE_VCV_FUNDAMENTAL=ON -DCMAKE_CXX_FLAGS=-DRACK_ADAPTOR_TRACE=1`, copy the app over the one in `~/Applications`, and **launch it once** — launch is what registers an AUv3; the CMake comment's measurement that a copy alone does not register still holds.
+
+### The build side is proven, so nobody re-does it
+
+`TIDE_Rack_AU3_assemble` is **green on macOS main**, 0 errors. The appex links VCV Fundamental (**76** references in its link edge, **38** module objects built) and carries `RACK_ADAPTOR_TRACE`'s strings and E59's `declined to publish the startup default`.
+
+**One check that will mislead the next run, so it is written down:** `strings` for `VCV: Scope` returns **0** on a correctly-linked binary. Ids are composed at runtime as `"VCV: " + slug` (`RackAutoRegister.h:40`), so the literal never appears. I read that zero as "VCV did not link", and a second wrong reading agreed with it — I searched the appex's link edge for `VCV` in a **4,000-character** window when the edge is **12,201** characters. Both were my error; the linker had done its job the whole time.
+
+### E59 confirmed on macOS main, through a real host
+
+| fixture | measured |
+|---|---|
+| `tests/hosts/v1-rack.rpp` | **peak −6.3 dBFS, rms −17.0 dBFS — AUDIO PRESENT** |
+| `tests/hosts/v1-rack-uncabled.rpp` | **−inf — SILENCE** (negative control) |
+
+The first is the 2026-08-18 macOS reference *to the decimal* and the same figure the windows box measured after its fix, now reproduced from an isolated REAPER on a locked session. That is what E59 was flipped **DONE** on — the Accept re-measured, not the three merges.
+
+**Learned:**
+
+- **Run the harness's own no-plug-in control BEFORE theorising about the plug-in.** A fresh REAPER config and a broken plug-in produce an identical timeout; `--control` separates them in 14 seconds, and I reached for it fourth instead of first.
+- **"We cannot isolate the host" can be true on one platform and false on another, and the fleet will generalise it.** Windows measured it twice as impossible; macOS does it with `touch reaper.ini`. A negative result about a machine deserves re-testing on each machine, not inheriting.
+- **A locked screen is not "no GUI" — it is a line through the middle of the tooling.** Offline rendering works and editor-driving does not, so which clauses of an Accept are reachable depends on which side of that line they fall.
+- **A black screenshot is a reading about the DISPLAY, not about the window.** Identical byte sizes across two captures were the tell; the image alone would have kept blaming the app.
+- **A `strings` miss is only evidence once you know how the string is built.** Runtime-composed ids never appear as literals, so the absence of `VCV: Scope` proves nothing — and searching a truncated window of a 12 KB link line manufactured a second wrong answer that agreed with the first.
+- **Two wrong readings that agree are not corroboration when they share a cause.** Both of mine came from asking a binary a question its build never promised to answer.
+- **When the safe version of an experiment does not exist, stop rather than doing the unsafe one carefully.** Displacing a developer's AUv3 registration is recoverable right up until the run dies holding it.
+
+**Not verified:** the AU3 leg itself — instantiation, the 60-second animation window, the int/bool/enum toggle and the pixel diff are all untouched, and `string` still has no producer; whether REAPER on macOS would even list the AUv3 once a current build is registered (its AU cache has never held a TIDE entry); and whether the first-run modal is the licence prompt or the audio-device prompt, which I did not isolate because seeding `reaper.ini` fixed both at once.
+
+**Machine state.** All six repos were clean and on their default branches at the start; TideSynth is on this run's branch until STEP 5 returns it. **Jeff's `~/Library/Application Support/REAPER` is byte-identical to its pre-run snapshot** (mtimes and sizes), and his plug-in folders plus `~/Applications` are identical across 1,019 files. The test clone `~/Applications/TIDE-Rack-E19.app` was removed, deregistered with `pluginkit -r` and `lsregister -u`, and `pluginkit -mv` now lists only his own extension, unchanged. One `TIDE-Rack.appex` process my `auval -a` spawned was killed. Build tree `build-e19mac/` is gitignored (`SE_LOCAL_BUILD=OFF`, so its POST_BUILD could not replace his installed plug-ins — checked in `build.ninja` before building, and confirmed after). The portable REAPER copy, its seeded config and all renders are under the session scratchpad, outside every repo. No REAPER or TIDE process left running.
+
+**Next:** **E19's mac AU3 cell wants one unlocked interactive session** — build, copy the app into `~/Applications`, launch once, then the linux box's instruments apply unchanged. **The audio half of E19 is already reachable unattended here** now the portable recipe exists, so a scheduled mac run can re-measure any fixture cheaply. **E60** is with linux on [#550](https://github.com/JeffMcClintock/TideSynth/pull/550).
+
+**Branch/PR:** `tide/mac/E19-au3-mac-leg` — the E19 row, E59's flip and archive, the macOS section of [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md), and this entry.
+
