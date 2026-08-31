@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **404 KB** across **324** entries, so copying them
+Learned sections are **406 KB** across **325** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **125 KB / 1347 lessons — 3.2x smaller**, and represents
+A8. This is **126 KB / 1355 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,17 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-01
+
+**linux — E74: the editor was never bound to ANY processor, and nothing pumps GMPI's timers in a hosted Linux plug-in (scheduled run)**
+
+- A filed row is one run's reading, and STEP 1's "re-verify before acting" deserves to apply to BACKLOG rows too.
+- Instrument both ends of a channel before believing either end.
+- "Both sides are correct and the middle is missing" looks exactly like "the wrong side is attached".
+- A platform with no native timer is a whole class of dead code, not one dead feature.
+- A process-wide singleton pumped from a per-window callback is a bug waiting for a second window.
+- `scripts/kill-named.sh` exists; `pkill -f 'REAPER/reaper'` killed this shell with exit 144.
+- Writing a source file back with Python's text mode strips CRLF and produces an 800-line diff of nothing.
+- A NEXT cell is a table row, so replacing its opening text and keeping the tail silently makes a four-column row in a three-column table.
 
 **macos — E73 DONE, and the fleet has no open PRs and no agent branches for the first time (state update, interactive)**
 
