@@ -161,9 +161,19 @@ carried across. Its `session.xml` **is** a `<Preset>` element, the same one
   bytes. Read the parm back from a default instance first; that is where the
   framing came from and it is a one-line check that it has not changed.
 - **CLAP** — `vst_chunk` returns nothing, and the state lives in a `<STATE>`
-  base64 sub-block of the track chunk with no framing at all. **Neither route
-  actually restores** as of REAPER 7.43 — see **BACKLOG E60**, which records
-  what was measured and what is still unknown.
+  base64 sub-block of the track chunk with no framing at all. **WRAP THE BASE64
+  AT 128 CHARACTERS PER LINE**, which is what REAPER itself writes; a single long
+  line is truncated at **4,096 characters** and the plug-in is handed the first
+  3,071 bytes of a document that begins with a `<?xml` declaration, so it parses,
+  reports success, and restores nothing.
+
+  **The sentence that used to stand here — *"neither route actually restores"* —
+  was wrong, and it was this harness detail rather than either plug-in.**
+  Corrected 2026-08-28 (linux) with the arithmetic measured both ways: the same
+  18,893-byte preset on one line reaches `stateLoad` as **3,071 bytes** and on
+  128-char lines as **18,893**. A REAPER project saved from the wrapped form
+  reopens carrying it. See **BACKLOG E60** for what the plug-in then does with
+  it, which is a separate question and still open.
 
 **Screenshots.** `xwininfo -root -tree` finds the floating FX window by title
 (`VST3i: …` / `CLAPi: …`), and `XGetImage` on that window id works; a *root*

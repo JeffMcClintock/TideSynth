@@ -8,6 +8,52 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-31 — linux — the merges, and E60's fix measured after it had already landed (interactive continuation, Jeff directing)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"resolve conflicts and merge"*)
+
+**Did:** merged this box's three open PRs, resolved the one conflict the entry below predicted, and **flipped E60 to DONE**. Scope was deliberately my own PRs: [#565](https://github.com/JeffMcClintock/TideSynth/pull/565) is the mac box's E73 work and was left alone.
+
+### Both E60 PRs had already auto-merged, within a minute of becoming eligible
+
+[#550](https://github.com/JeffMcClintock/TideSynth/pull/550) merged at **04:42:02Z** and [GMPI_Wrappers#32](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/32) at **04:41:43Z** — both while I was still building #32 to check it. #550 had been CONFLICTING for three days; resolving it made it eligible and the docs-only allowlist took it, and #32 went with it.
+
+**So nothing gated #32 on a build, and that is worth saying rather than presenting what follows as if it were a gate.** It is a product-code change in a repo with no CI. The measurement is post-hoc, and it passes.
+
+`tests/e60_clap_state_probe.cpp` — which #550 itself had just landed — against two CLAP binaries differing by exactly #32, same commit of everything else:
+
+| build | 51,690-byte `e53-vcv-rack-segv.xml` | 18,893-byte preset |
+|---|---|---|
+| `main` without #32 | **FAIL** — `load` false, **32,512 of 51,690** consumed, save falls back to the 86-byte default | PASS, 18,662 back |
+| with #32 | **PASS** — 51,690 of 51,690, saves **51,630** | — |
+
+**32,512 is the old `maxSize - chunkSize - 1` cliff to the byte.** The small preset passing on the *same pre-fix binary* is the positive control that stops the FAIL reading as a broken probe. The BEFORE binary was free: it was the copy installed into the scratch `HOME` an hour earlier, before the rebuild.
+
+**Consumers:** TIDE **553/553** then **36/36**, 0 errors on linux. SynthEdit consumes only `se_gmpi/vst3` from GMPI_Wrappers and this change is confined to `wrapper/CLAP/`, so the SynthEditCL rule is discharged by scope, not by a build.
+
+### The predicted conflict, and a near-miss resolving it
+
+#566 went CONFLICTING the moment #550 landed, on exactly the one line the entry below said it would — the `linux` NEXT cell — plus `docs/lessons.md`, which is generated and was regenerated rather than merged.
+
+**The near-miss is the part worth writing down.** My first archive attempt put a markdown TABLE inside E60's row, i.e. newlines inside a table cell, and `check-backlog-diff.py` correctly refused: a row that is no longer one line cannot be matched verbatim against its source. Reaching for `git checkout ORIG_HEAD -- BACKLOG.md` to start over then **silently reverted #550's own E60 row**, because ORIG_HEAD is the pre-merge branch tip and that row only exists on main. Caught by grepping for the row rather than by any lint. `git checkout --merge -- <file>` re-creates the conflict markers and is the right way back — and note it writes `<<<<<<< ours` / `>>>>>>> theirs`, not `HEAD` / `origin/main`, so a resolver script that pattern-matches the marker text silently matches nothing.
+
+**Learned:**
+
+- **A PR you resolved may merge before you finish checking it.** Auto-merge fires on eligibility, not on your intent, and a docs-only allowlist can pull a sibling repo's code PR along in the same minute. If a build is meant to gate a merge, it has to happen before the resolution, not after.
+- **Say "post-hoc" out loud when verification arrives after the merge.** The numbers are just as true and mean something different; a row that presents them as a gate is lying about its own process.
+- **Keep the superseded binary — it is the A/B for free.** The pre-fix CLAP was sitting in a scratch install directory from an earlier step, so the control cost one command instead of a second build tree.
+- **A markdown table cannot go inside a table cell, and the archive lint is what catches it.** The row stops being one line and no longer matches its source verbatim, which is exactly the property the lint exists to protect.
+- **`git checkout <ref> -- <file>` during a merge is not "undo".** It resolves the path to that ref's content, discarding the *other* side's changes outside the conflict hunk — here, another PR's row. `git checkout --merge -- <file>` is the undo.
+- **Conflict marker text depends on how the conflict was produced.** `--merge` writes `ours`/`theirs` where the original merge wrote `HEAD`/`origin/main`; my resolver script matched neither and raised `NoneType has no attribute 'group'` rather than doing something wrong quietly, which is the only reason this is a footnote.
+
+**Not verified:** #32 in a real CLAP host — the probe is deliberately the C ABI with no DAW, and the linux CLAP cell of E19 is now measurable and unmeasured; whether #32's larger loads behave on Windows or macOS.
+
+**Machine state.** `GMPI_Wrappers` was briefly on a `verify-32` branch for the A/B build and is back on `main`, fast-forwarded, clean; the branch is deleted. All six repos on their default branches, clean. Nothing running. `build-e19/` is gitignored and now carries #32.
+
+**Next:** **E74** is still the top of the linux lane. **The linux CLAP cell of E19 is newly measurable** now that the cliff is gone, and the harness in [tests/e19-host-feedback/](tests/e19-host-feedback/) mints its own project. **X1 still wants Jeff** — its `BLOCKED` mark has been stale since 2026-08-27 and no run may start it.
+
+**Branch/PR:** `tide/linux/E19-vst3-linux-cell`, [#566](https://github.com/JeffMcClintock/TideSynth/pull/566) — the merge commit, E60's flip to DONE, the refreshed `linux` NEXT cell, and this entry.
+
 ## 2026-08-31 — linux — STEP 1.5 unblocked #550, then E19's linux VST3 cell: the DSP now runs the right rack, and the editor is bound to the wrong processor (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required

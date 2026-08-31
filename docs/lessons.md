@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **394 KB** across **318** entries, so copying them
+Learned sections are **398 KB** across **320** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **122 KB / 1316 lessons — 3.2x smaller**, and represents
+A8. This is **123 KB / 1328 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,15 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-31
+
+**linux — the merges, and E60's fix measured after it had already landed (interactive continuation, Jeff directing)**
+
+- A PR you resolved may merge before you finish checking it.
+- Say "post-hoc" out loud when verification arrives after the merge.
+- Keep the superseded binary — it is the A/B for free.
+- A markdown table cannot go inside a table cell, and the archive lint is what catches it.
+- `git checkout <ref> -- <file>` during a merge is not "undo".
+- Conflict marker text depends on how the conflict was produced.
 
 **linux — STEP 1.5 unblocked #550, then E19's linux VST3 cell: the DSP now runs the right rack, and the editor is bound to the wrong processor (scheduled run)**
 
@@ -2307,6 +2316,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - When a fixture refuses to reproduce, ask what shipped since it was last seen.
 - Answer a NEEDS-SPEC by stating the Accept that was met, not by building more.
 - Give a probe a control that simulates the historical regression, not a synthetic one.
+
+**linux — E60: the CLAP state path works, the blocker was our own harness, and a 32 KB cap was hiding under it (scheduled run)**
+
+- A harness defect and a product defect can hide behind one symptom, and the harness one goes first.
+- A truncated document that still parses is the worst possible failure.
+- Split a two-sided question with an instrument that only has one side.
+- Check the format's own file for its conventions before inventing them.
+- A negative control belongs on a screenshot too.
+- A comment that reasons from the code's origin ages badly.
 
 **windows — E64 filed: the ui->dsp queue desyncs in a HOST but not in the standalone, and three negatives are the finding (interactive, Jeff directing)**
 
