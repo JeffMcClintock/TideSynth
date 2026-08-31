@@ -8,6 +8,72 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-31 — macos — E73: a hosted plug-in gets its trace back, and one freopen beats sixteen edits it was not allowed to make (interactive, Jeff directing)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** · as **tide-rack-bot** (both paths) · interactive, Jeff directing (*"do E73. i allowed the dialog."*)
+
+**Did:** fixed **E73**, the blocker E19's mac AU3 cell hit hours earlier — **and not the way E73's own row proposed**. Branch `tide/mac/E73-trace-to-file`. The first log it produced found **E74**.
+
+### The row said sixteen edits; the rules said none of them were mine
+
+E73 proposed converting each `fprintf(stderr, …)` into a file write, the way E65 did for the panel. Following that would have stopped immediately: **sixteen of the sites are in `SynthEdit_Rack_Adaptor`, which is on NEITHER of STEP 5's lists and is therefore GATED by default**, and more are in `SynthEditLib`, GATED outright. The allowed-side part would have been a fraction of the instrument.
+
+**One `freopen` on the process's stderr, from TIDE's own ALLOWED code, is both legal and better.** It captures every writer in the process — the rack adaptor's, SynthEditLib's, TIDE's, and sites nobody has written yet — and it edits no gated repo.
+
+The deeper reason it is better: **the defect was never in those calls.** They are correct. The process they run in has no stderr worth writing to. Fixing the stream fixes the class; fixing the calls fixes a list.
+
+### Where the file goes, which is the part that took thinking
+
+`$TIDE_TRACE_LOG_PATH` if set, else `$TMPDIR/TideTrace.log`.
+
+The default is the one that matters. **An AUv3 appex is sandboxed, so its `TMPDIR` is its own container** — `~/Library/Containers/<extension-bundle-id>/Data/tmp` — **writable from inside and readable from outside.** That is what makes the log collectable at all: a host launches an extension *through the system*, so environment variables set for the host never reach it, and no harness can point the extension anywhere. The env var is still honoured because it works for the standalone and the VST3, where it does propagate.
+
+Armed at compile time (`-DTIDE_TRACE_LOG=ON`, OFF by default), for E65's reason plus one more: an environment variable cannot arm it in the one configuration that needs it most.
+
+### Measured, in two halves because one would not have been enough
+
+**The hosted half.** REAPER 7.45 hosting the AUv3 wrote a **19-line `TideTrace.log`** into the container, while `grep -icE 'TIDE:|RackProcessor'` on **REAPER's own stderr stayed at 0**. The pair is the proof — the same lines that reached nobody this morning are now in a file, and they are still not on the host's stderr.
+
+**The cross-repo half**, which is the one that justifies the whole design choice. A standalone run with an explicit path captured:
+
+```
+Logging dialogs to stderr, and keeping them for --dialogs.
+```
+
+That line is written by **`SynthEditLib/EditorLib/SynthEditAppBase.h`** — a GATED repo this change does not touch. So the capture is demonstrably stream-level rather than TideSynth-specific, which is exactly the property that made `freopen` the right call. Also measured: **0** lines escaped to the process's own stdout or stderr.
+
+**Not observed, and worth saying plainly rather than implying:** a literal `RackProcessor: … display-state capture #N` line. Neither run instantiated a VCV module — the standalone's command channel has **no add-module verb** (its verbs are pointer, menu, midi, param, screenshot; placement is a mouse drag through the browser), and the hosted AUv3 had the default rack. The adaptor writes with the same `fprintf(stderr, …)` as the SynthEditLib line that *was* captured, so it rides the same mechanism — but nobody has watched one yet, and that is E19's prepared-rack problem, not this row's.
+
+### The first log it produced found a defect — filed as E74
+
+Two adjacent lines from the container, a fresh hosted instance:
+
+```
+TIDE: controller #1 startup default is 17959 bytes (syncState will not publish this document)
+TIDE: controller #1 syncState exporting  17959 byte document (host asked for state)
+```
+
+**Same size, and it published anyway.** E59's guard is byte equality against the recorded startup default, so the bytes differ by something the length does not show. E59's own comment predicts this direction — *"if the two ever differ spuriously this publishes"* — and calls it the cheap way to be wrong.
+
+It was harmless **here**, and the reason is worth stating so nobody over-reads it: nothing was restored, and a fresh instance *should* build the default rack. But the published bytes are retained by the processor holder and re-seeded into the next processor it starts, which is the whole of E59, and the log shows that step happening (`instance #2 building rack from 17959 byte document (Sync chunk, rack not yet prepared)`). **With a restore in the picture, that is E59's failure** — and a restore into a hosted AUv3 is precisely what nobody has run on this platform.
+
+**Learned:**
+
+- **When a row prescribes an edit you are not allowed to make, the constraint is a design hint, not an obstacle.** Being unable to touch the rack adaptor forced the question *"whose stderr is this?"*, and the answer was a better fix than the one the row asked for — one file, no gated repos, and it covers writers that do not exist yet.
+- **Fix the stream, not the call sites, when the call sites are all correct.** Sixteen `fprintf`s were not the defect; the process's stderr going nowhere was.
+- **A sandbox container is a FEATURE for a harness, once you notice it is readable from outside.** The appex cannot be handed an environment, so a configurable path is useless there — but its own `TMPDIR` is a fixed, discoverable location, and defaulting to it is what makes the log collectable.
+- **`freopen` that fails CLOSES the stream.** A bad path would not merely fail to help, it would destroy the stderr the standalone still depends on. Probe with `fopen` first and only redirect when that succeeds — one extra call, and the failure mode it removes is silent.
+- **Prove a stream-level capture with a line you do not own.** "It must catch everything, because it is the same stream" is an argument; a line written by a GATED repo appearing in the file is a measurement, and it was free.
+- **Take the diagnostic build back off the machine.** A build with the redirect armed writes a file on every instantiation — PLAN constraint 4 — so the installed AUv3 was returned to a normal build and checked with `strings`.
+
+**Not verified:** a `RackProcessor:` line specifically, per above; whether the log survives a host that sandboxes the extension more tightly than REAPER does (Logic and Live untried); Windows and Linux, where the code compiles by inspection only — the `_WIN32` branch of the path logic is untested on this box.
+
+**Machine state.** `~/Applications/TIDE-Rack-AUv3.app` is a **normal** build again — the trace one was installed only for the measurement and removed; `strings … 'trace log opened'` on the installed appex is **0**, and the container tmp was emptied. The AUv3 remains registered (UUID `2F335B9F…`). The developer's REAPER config, installed VST3 and installed CLAP are untouched as before; every build ran `SE_LOCAL_BUILD=OFF`. Build trees `build-e73/` and `build-e19au3/` are gitignored; the evidence log is copied into the session scratchpad. No REAPER, appex or standalone process left running. **Two containers exist for TIDE extensions**, `…au3app.extension` and a leftover `…e19test.extension` from the 2026-08-29 clone experiment; the second is inert and was left alone.
+
+**Next:** **E74** is a diff of two equal-length documents and E73's log is the instrument. **E19's remaining clauses** now need only the prepared-rack half, since the trace half is solved. **E72** still wants a ruling.
+
+**Branch/PR:** `tide/mac/E73-trace-to-file` — `SynthEditSem/TraceLog.h`, the two call sites, the `TIDE_TRACE_LOG` option, the E73/E74 rows, the doc section, and this entry.
+
 ## 2026-08-31 — macos — E19's mac AU3 cell: a DAW has now hosted TIDE's AUv3, and the half that is still unmeasured has a structural cause (interactive, Jeff directing)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** · as **tide-rack-bot** (both paths) · interactive continuation of the same session, Jeff directing (*"merge your PRs. sync all tide related repos"*, then *"then take the next task"*)
@@ -331,84 +397,6 @@ The BEFORE build was produced by checking SynthEditLib back to `main` in the sec
 **Machine state.** `SynthEditLib` on `tide/win/E67-zoom-anchor-drift` (PR #75), `GMPI_Wrappers` on `tide/win/E67-scroll-ctrl-flag` (PR #34), TideSynth on `tide/win/E67-filed` — all with open PRs. gmpi_ui still parked on its #16 branch awaiting Jeff's review click. Measurement artifacts under `C:\SE\_scratch\e64\zoom-*\`, script at `measure_zoom.py`.
 
 **Branch/PR:** [SynthEditLib#75](https://github.com/JeffMcClintock/SynthEditLib/pull/75) + [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) + `tide/win/E67-filed` (row and entry). The lib PR is the substance; #34 lands alone harmlessly.
-
-## 2026-08-29 — windows — E66 fixed both halves: reload releases the visuals first, and State's death is now loud at the cause (interactive, Jeff directing)
-
-**Prompt:** interactive, Jeff directing (*"drive the computer... should crash"*, then *"yes, fix E66"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
-
-**Did:** reproduced Jeff's settings-pane crash under a resident debugger, diagnosed it to a named invariant, and fixed both halves: [GMPI_Wrappers#33](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/33) (the root cause) + [gmpi_ui#16](https://github.com/JeffMcClintock/gmpi_ui/pull/16) (the tripwire). **E66 → IN-REVIEW.** Also filed **E65** earlier in the session ([#555](https://github.com/JeffMcClintock/TideSynth/pull/555), the panel's missing draft render — report only, deliberately undiagnosed).
-
-### The reproduction, driven blind over the command channel
-
-The pane was **already open at launch** — the audio device is held exclusively (Jeff's Ableton), and the pane auto-opens on that failure, which made the repro cheap. Clicking Close survived; **re-opening via `--menu Audio/MIDI Settings...` crashed 2/2**, AV reading `0xdddddddd` — MSVC's freed-heap fill. A resident `cdb -p <pid> -c "g; ~#k; qd"` caught the full stack on the second run:
-
-```
-State<bool>::release            <- walking the subscriber vector of a FREED State
-~StateRef<bool> <- ~ToggleSwitch <- unique_ptr<View> dtor <- ViewParent::clear
-Form::renderVisuals <- SettingsPane::render <- AppLayout <- paintLoop
-```
-
-### The invariant was already written down, twice
-
-`ViewParent::clear()`'s own comment: *"release anything pointing to states before releasing states (else crash)"* — and `SettingsPane`'s destructor obeys it, with a comment saying why. **`reload()` is the same teardown happening mid-life and it skipped the first half:** `midiInputs_.clear()` destroys the MIDI tick-boxes' `State<bool>` objects while the old widget tree — only torn down at the *next* `renderVisuals` — still holds `StateRef`s into them. The other `State` members survive reload (they are assigned, not destroyed), which is why only the tick boxes could kill it.
-
-### The fixes, and the E64 ruling applied one layer down
-
-**Root cause** (GMPI_Wrappers#33): `reload()` begins with `clear()` and marks the form dirty. All three call sites (menu action, startup failure, device-death notification) verified to run outside the form's own widget dispatch, so clearing there cannot destroy a widget that is currently on the stack.
-
-**Tripwire** (gmpi_ui#16): `~State()` now **asserts** no watcher remains — Debug stays loud **at the destruction site**, which is the cause, instead of a UAF two frames later in STL iterator machinery — and then **detaches** every survivor by nulling its back-pointer, so a Release build loses a notification instead of corrupting the heap. Drain-and-assert, the exact shape Jeff ruled for E64's queue. `StateRef` grants `State<T>` friendship for the detach.
-
-### Verified
-
-- Scripted repro: **5/5 close/reopen cycles alive** (was 2/2 crash on the first reopen), the pane fully rendered afterwards (screenshot — device combo, rate, buffer, tick boxes, status line all present), zero asserts on stderr.
-- TIDE standalone + VST3 Debug rebuilt; the binary contains the new assert string (checked before running, installed-copy as negative control).
-- **SynthEditCL 130/130** against the gmpi_ui branch — `observable.h` is shared with SynthEdit, per G3.
-- The VST3 POST_BUILD install step failed once mid-session: **Ableton holds the installed bundle's DLL** — benign, left alone, and worth knowing: `SE_LOCAL_BUILD=ON` cannot replace the installed plugin while any host has it loaded.
-
-**Learned:**
-
-- **A settings pane that auto-opens on failure is a free reproduction rig.** The audio device being held exclusively looked like an obstacle and was the enabler: the pane was on screen at launch, every launch.
-- **When a class's destructor documents a teardown order, grep for every other place the same members die.** `reload()` was the destructor's own sequence run mid-life, minus the half that made it safe — the invariant was stated in two places and enforced in neither.
-- **Put the tripwire at the destruction site, not the use site.** The UAF surfaced in `_Adopt_unlocked` two frames after the cause; `~State()`'s assert fires at the exact line that breaks the contract, which is the difference between a session and a glance.
-- **`0xdddddddd` in a Debug AV is a diagnosis in itself** — MSVC's freed-heap fill means use-after-free before any stack is read.
-- **A resident `cdb -p <pid> -c "g; ~#k; qd"` costs nothing and catches what a post-mortem cannot** — the first attach without `g` lost the process; the second run's stack was the whole diagnosis.
-
-**Not verified:** mac/linux builds of both changes (no platform code; CI will say); whether any *other* `gmpi_forms` consumer relies on destroying a watched `State` (the new assert will now say so loudly, which is the point).
-
-**Machine state.** `gmpi_ui` on `tide/win/E66-state-outlives-ref-guard` (PR #16), `GMPI_Wrappers` on `tide/win/E66-settingspane-reload-order` (PR #33), TideSynth on `tide/win/E66-fixed` — all with open PRs, returned to defaults once merged. Jeff's Ableton untouched. Repro artifacts under `C:\SE\_scratch\e64\s3\` and `s4\`.
-
-**Branch/PR:** [GMPI_Wrappers#33](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/33) + [gmpi_ui#16](https://github.com/JeffMcClintock/gmpi_ui/pull/16) (the fixes, either lands alone) + `tide/win/E66-fixed` (this row and entry).
-
-## 2026-08-29 — windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)
-
-**Prompt:** interactive, Jeff directing (*"how about the obvious. register the root containers handle so everyone knows about it?"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
-
-**Did:** implemented Jeff's design for E64's root cause, and it turned out to be **TIDE-side only** — the `Id="1"` wrapper is minted by `TideApp::exportChunkXml` (`SynthEditSem/TideApp.cpp`), not by SynthEditLib, and SynthEdit's own exporter writes no such literal, so the collision never touched the commercial product. Branch `tide/win/E64-reserve-wrapper-handle`. GMPI#20 (the queue containment) stands unchanged as defence in depth.
-
-### The design, and why it beats all four options I had listed
-
-The wrapper's handle becomes `TideApp::kDspWrapperContainerHandle` (= 1, so every existing saved session and host chunk restores unchanged), and a `UniqueSnowflake dspWrapperReservation` member is **registered in the document's `uniqueIdDatabase`** at the top of `InitInstance` — before anything else in the document allocates. From there the namespace defends itself by mechanisms that already exist: the sequential parameter allocator's `while(find(key)) ++key` skips 1 like any other taken handle, and a latecomer claiming 1 (a hand-edited document) is renumbered by `Register`'s existing collision path. No reserved-base magic, no export-shape change, no new rule for anyone to remember — the reservation is a fact in the same map every allocator already consults.
-
-Two loud checks, per Jeff's plastering-over ruling: `InitInstance` asserts if the reservation itself was beaten to the handle, and `importChunkXml` asserts if it did not survive a document rebuild (`DeleteContents` only unregisters objects in the document tree, so it does — verified, not assumed: the map has no bulk-clear on that path and `swap()` has no callers).
-
-### Measured
-
-- **Ordering verified in the artifact:** the standalone's pushed DSP doc now shows the wrapper still at `Id="1"` and the first host-control parameter at **`Handle="0"`, with nothing allocated 1** — the allocator skipped the reservation exactly as designed. No reservation-failure lines, no asserts.
-- **The trigger path, end to end:** a hosted Debug render of `tests/hosts/v1-rack.rpp` — REAPER, `setActive` processor recreation, hc59's `ppc` and all — produced **no assert, no drain diagnostic**, a correct restore (both instances build 14,136), and **peak −6.3 dBFS / rms −17.0**, the reference figures. Before this fix the same path desynced the queue on the first parameter update.
-- The E56 property survives: handles are still deterministic per load, just numbered around the reservation.
-
-**Learned:**
-
-- **"Register it so everyone knows" beats every clever alternative when a namespace already has an authority.** I had offered a reserved base, an export change, and a send-side filter; Jeff's version needs no new knowledge anywhere because the map IS the knowledge, and both existing allocators already consult it.
-- **Find out whose literal it is before deciding whose fix it is.** Three sessions discussed this as a SynthEditLib/GMPI question; one grep found the `Id="1"` in TIDE's own ALLOWED file, which collapsed the gating question entirely.
-- **A reservation is only a reservation if it is registered before the first allocation** — and the verification of that ordering is in the exported artifact (parameter handles 0, 2, …), not in the code review.
-- **The heredoc backslash trap got me again**, one session after writing it into lessons: `\\n` collapsed and put a real newline inside a C string literal. The rule that sticks: escape-bearing code goes through a Write-tool file, never a heredoc — no exceptions for "just two lines".
-
-**Not verified:** mac/linux builds (no platform code; CI will say); Ableton itself — REAPER exercises the same wrapper lifecycle, but the original reproduction machine is one insert-and-cable session away from closing this for good.
-
-**Machine state.** TideSynth on `tide/win/E64-reserve-wrapper-handle` until this lands; `GMPI` parked on `tide/win/E64-que-selfheal` (open PR #20); all other repos clean on defaults. The installed Debug VST3 carries both fixes.
-
-**Branch/PR:** `tide/win/E64-reserve-wrapper-handle` — TideApp.h/.cpp, this row and entry. Pairs with [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20); either lands without the other, but together the collision is impossible AND any future misreader is contained loudly.
 
 ## Rotation — do this as part of STEP 4, every run
 

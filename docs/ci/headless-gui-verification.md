@@ -450,9 +450,35 @@ host's stderr**. Verified: the strings are in the appex binary, the plug-in
 loads and runs, and `grep -i "TIDE:|RackProcessor" reaper-stderr.log` returns
 nothing.
 
-That is the same problem E65 already solved one layer up, and the same shape of
-answer applies: a file-path log switch (`TIDE_PANEL_LOG_PATH` +
-`-DTIDE_PANEL_TRACE_LOG`). Filed as **E73**.
+**FIXED the same day, as E73 — and not by converting the trace sites.** One
+`freopen` on the process's stderr, from TIDE's own ALLOWED code, catches every
+writer including the sixteen rack-adaptor sites and SynthEditLib's, neither of
+which a run may edit:
+
+```bash
+cmake -B <dir> -DTIDE_TRACE_LOG=ON ...        # OFF by default, and must stay so
+```
+
+The file lands at `$TIDE_TRACE_LOG_PATH`, else `$TMPDIR/TideTrace.log`. **For a
+sandboxed appex `TMPDIR` IS its own container** —
+`~/Library/Containers/<extension-bundle-id>/Data/tmp` — writable from inside and
+**readable from outside**, which is the whole trick: a host launches an
+extension through the system, so the host's environment never reaches it and no
+harness can set a path there. The default is the one that works.
+
+```bash
+cat ~/Library/Containers/com.tidesynth.tiderack.au3app.extension/Data/tmp/TideTrace.log
+```
+
+Measured 2026-08-31: REAPER hosting the AUv3 produced a 19-line log in the
+container while REAPER's own stderr stayed at **0** matches — the pair is the
+proof. A standalone run separately captured a line owned by
+`SynthEditLib/EditorLib/SynthEditAppBase.h`, showing the capture is
+stream-level rather than TideSynth-specific.
+
+**Put the plug-in back afterwards.** A build with the redirect armed writes a
+file on every instantiation, which PLAN constraint 4 forbids shipping; reinstall
+a normal build and check `strings … 'trace log opened'` is 0.
 
 So on macOS AU3 the reachable evidence is: registration, `auval`, host
 instantiation, parameter count, and **screenshots**. The counter-based clauses

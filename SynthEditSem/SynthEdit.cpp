@@ -21,6 +21,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "IProcessorMessageQues.h"
 #include "tinyxml/tinyxml.h"       // TideSynth E10 - validating the chunk before the engine parses it
 #include "ChunkPrefix.h"           // why did this chunk arrive - Build, Sync, or Legacy
+#include "TraceLog.h"             // TideSynth E73 - a hosted plug-in has no stderr
 
 using namespace gmpi;
 
@@ -156,6 +157,14 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 public:
 	SynthEdit()
 	{
+		// E73 -- FIRST, before anything here can trace. An AUv3 appex runs out
+		// of process and its stderr reaches nobody, so every diagnostic in this
+		// process (TIDE's, the rack adaptor's, SynthEditLib's) is lost unless
+		// the stream itself is redirected. No-op unless built -DTIDE_TRACE_LOG=ON.
+		// Both this and the controller call it; std::call_once settles the race,
+		// and whichever the host constructs first opens the file.
+		tide::trace::redirectStderrOnce();
+
 		rack.connectPeer(this);
 
 		// The host drives every block here; a TriggerRestart fade can never

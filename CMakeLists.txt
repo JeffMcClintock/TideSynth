@@ -366,6 +366,21 @@ endif()
 # plugin reads it.
 option(TIDE_PANEL_TRACE_LOG "Arm TiDEPanel's REQUEST/PREVIEW/FULL/DRAW progression log" OFF)
 
+# E73. Redirect the PROCESS's stderr to a file, so a hosted plug-in's trace
+# lands somewhere readable. An AUv3 appex runs out of process and its stderr
+# reaches nobody -- measured 2026-08-31 while taking E19's mac AU3 cell, with
+# REAPER hosting the extension and every `TIDE:` and `RackProcessor:` line
+# going nowhere.
+#
+# Deliberately NOT per-source like the option above. One freopen catches every
+# writer in the process, including the rack adaptor's sixteen sites and
+# SynthEditLib's -- repos this project's own rules do not let a run edit -- so
+# it is applied to the SynthEditSem target as a whole.
+#
+# OFF by default, and it must stay that way: a shipped plug-in writing files
+# nobody asked for is exactly what constraint 4 forbids.
+option(TIDE_TRACE_LOG "Redirect the plug-in's stderr to a file (needed to trace a hosted AUv3)" OFF)
+
 # HarfBuzz, vendored as one amalgamation source. SynthEditLib links it, so it
 # must be defined BEFORE add_subdirectory(SynthEditLib).
 CPMAddPackage(

@@ -36964,3 +36964,81 @@ Options, all his call: **(i) revert #72** — restores E56's nondeterminism to k
 
 **Branch/PR:** [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20) (the fix) + `tide/win/E64-diagnosed` (this row and entry). Merging the TideSynth side alone changes no behaviour; GMPI#20 is the substance.
 
+## 2026-08-29 — windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"how about the obvious. register the root containers handle so everyone knows about it?"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** implemented Jeff's design for E64's root cause, and it turned out to be **TIDE-side only** — the `Id="1"` wrapper is minted by `TideApp::exportChunkXml` (`SynthEditSem/TideApp.cpp`), not by SynthEditLib, and SynthEdit's own exporter writes no such literal, so the collision never touched the commercial product. Branch `tide/win/E64-reserve-wrapper-handle`. GMPI#20 (the queue containment) stands unchanged as defence in depth.
+
+### The design, and why it beats all four options I had listed
+
+The wrapper's handle becomes `TideApp::kDspWrapperContainerHandle` (= 1, so every existing saved session and host chunk restores unchanged), and a `UniqueSnowflake dspWrapperReservation` member is **registered in the document's `uniqueIdDatabase`** at the top of `InitInstance` — before anything else in the document allocates. From there the namespace defends itself by mechanisms that already exist: the sequential parameter allocator's `while(find(key)) ++key` skips 1 like any other taken handle, and a latecomer claiming 1 (a hand-edited document) is renumbered by `Register`'s existing collision path. No reserved-base magic, no export-shape change, no new rule for anyone to remember — the reservation is a fact in the same map every allocator already consults.
+
+Two loud checks, per Jeff's plastering-over ruling: `InitInstance` asserts if the reservation itself was beaten to the handle, and `importChunkXml` asserts if it did not survive a document rebuild (`DeleteContents` only unregisters objects in the document tree, so it does — verified, not assumed: the map has no bulk-clear on that path and `swap()` has no callers).
+
+### Measured
+
+- **Ordering verified in the artifact:** the standalone's pushed DSP doc now shows the wrapper still at `Id="1"` and the first host-control parameter at **`Handle="0"`, with nothing allocated 1** — the allocator skipped the reservation exactly as designed. No reservation-failure lines, no asserts.
+- **The trigger path, end to end:** a hosted Debug render of `tests/hosts/v1-rack.rpp` — REAPER, `setActive` processor recreation, hc59's `ppc` and all — produced **no assert, no drain diagnostic**, a correct restore (both instances build 14,136), and **peak −6.3 dBFS / rms −17.0**, the reference figures. Before this fix the same path desynced the queue on the first parameter update.
+- The E56 property survives: handles are still deterministic per load, just numbered around the reservation.
+
+**Learned:**
+
+- **"Register it so everyone knows" beats every clever alternative when a namespace already has an authority.** I had offered a reserved base, an export change, and a send-side filter; Jeff's version needs no new knowledge anywhere because the map IS the knowledge, and both existing allocators already consult it.
+- **Find out whose literal it is before deciding whose fix it is.** Three sessions discussed this as a SynthEditLib/GMPI question; one grep found the `Id="1"` in TIDE's own ALLOWED file, which collapsed the gating question entirely.
+- **A reservation is only a reservation if it is registered before the first allocation** — and the verification of that ordering is in the exported artifact (parameter handles 0, 2, …), not in the code review.
+- **The heredoc backslash trap got me again**, one session after writing it into lessons: `\\n` collapsed and put a real newline inside a C string literal. The rule that sticks: escape-bearing code goes through a Write-tool file, never a heredoc — no exceptions for "just two lines".
+
+**Not verified:** mac/linux builds (no platform code; CI will say); Ableton itself — REAPER exercises the same wrapper lifecycle, but the original reproduction machine is one insert-and-cable session away from closing this for good.
+
+**Machine state.** TideSynth on `tide/win/E64-reserve-wrapper-handle` until this lands; `GMPI` parked on `tide/win/E64-que-selfheal` (open PR #20); all other repos clean on defaults. The installed Debug VST3 carries both fixes.
+
+**Branch/PR:** `tide/win/E64-reserve-wrapper-handle` — TideApp.h/.cpp, this row and entry. Pairs with [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20); either lands without the other, but together the collision is impossible AND any future misreader is contained loudly.
+
+## 2026-08-29 — windows — E66 fixed both halves: reload releases the visuals first, and State's death is now loud at the cause (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"drive the computer... should crash"*, then *"yes, fix E66"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** reproduced Jeff's settings-pane crash under a resident debugger, diagnosed it to a named invariant, and fixed both halves: [GMPI_Wrappers#33](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/33) (the root cause) + [gmpi_ui#16](https://github.com/JeffMcClintock/gmpi_ui/pull/16) (the tripwire). **E66 → IN-REVIEW.** Also filed **E65** earlier in the session ([#555](https://github.com/JeffMcClintock/TideSynth/pull/555), the panel's missing draft render — report only, deliberately undiagnosed).
+
+### The reproduction, driven blind over the command channel
+
+The pane was **already open at launch** — the audio device is held exclusively (Jeff's Ableton), and the pane auto-opens on that failure, which made the repro cheap. Clicking Close survived; **re-opening via `--menu Audio/MIDI Settings...` crashed 2/2**, AV reading `0xdddddddd` — MSVC's freed-heap fill. A resident `cdb -p <pid> -c "g; ~#k; qd"` caught the full stack on the second run:
+
+```
+State<bool>::release            <- walking the subscriber vector of a FREED State
+~StateRef<bool> <- ~ToggleSwitch <- unique_ptr<View> dtor <- ViewParent::clear
+Form::renderVisuals <- SettingsPane::render <- AppLayout <- paintLoop
+```
+
+### The invariant was already written down, twice
+
+`ViewParent::clear()`'s own comment: *"release anything pointing to states before releasing states (else crash)"* — and `SettingsPane`'s destructor obeys it, with a comment saying why. **`reload()` is the same teardown happening mid-life and it skipped the first half:** `midiInputs_.clear()` destroys the MIDI tick-boxes' `State<bool>` objects while the old widget tree — only torn down at the *next* `renderVisuals` — still holds `StateRef`s into them. The other `State` members survive reload (they are assigned, not destroyed), which is why only the tick boxes could kill it.
+
+### The fixes, and the E64 ruling applied one layer down
+
+**Root cause** (GMPI_Wrappers#33): `reload()` begins with `clear()` and marks the form dirty. All three call sites (menu action, startup failure, device-death notification) verified to run outside the form's own widget dispatch, so clearing there cannot destroy a widget that is currently on the stack.
+
+**Tripwire** (gmpi_ui#16): `~State()` now **asserts** no watcher remains — Debug stays loud **at the destruction site**, which is the cause, instead of a UAF two frames later in STL iterator machinery — and then **detaches** every survivor by nulling its back-pointer, so a Release build loses a notification instead of corrupting the heap. Drain-and-assert, the exact shape Jeff ruled for E64's queue. `StateRef` grants `State<T>` friendship for the detach.
+
+### Verified
+
+- Scripted repro: **5/5 close/reopen cycles alive** (was 2/2 crash on the first reopen), the pane fully rendered afterwards (screenshot — device combo, rate, buffer, tick boxes, status line all present), zero asserts on stderr.
+- TIDE standalone + VST3 Debug rebuilt; the binary contains the new assert string (checked before running, installed-copy as negative control).
+- **SynthEditCL 130/130** against the gmpi_ui branch — `observable.h` is shared with SynthEdit, per G3.
+- The VST3 POST_BUILD install step failed once mid-session: **Ableton holds the installed bundle's DLL** — benign, left alone, and worth knowing: `SE_LOCAL_BUILD=ON` cannot replace the installed plugin while any host has it loaded.
+
+**Learned:**
+
+- **A settings pane that auto-opens on failure is a free reproduction rig.** The audio device being held exclusively looked like an obstacle and was the enabler: the pane was on screen at launch, every launch.
+- **When a class's destructor documents a teardown order, grep for every other place the same members die.** `reload()` was the destructor's own sequence run mid-life, minus the half that made it safe — the invariant was stated in two places and enforced in neither.
+- **Put the tripwire at the destruction site, not the use site.** The UAF surfaced in `_Adopt_unlocked` two frames after the cause; `~State()`'s assert fires at the exact line that breaks the contract, which is the difference between a session and a glance.
+- **`0xdddddddd` in a Debug AV is a diagnosis in itself** — MSVC's freed-heap fill means use-after-free before any stack is read.
+- **A resident `cdb -p <pid> -c "g; ~#k; qd"` costs nothing and catches what a post-mortem cannot** — the first attach without `g` lost the process; the second run's stack was the whole diagnosis.
+
+**Not verified:** mac/linux builds of both changes (no platform code; CI will say); whether any *other* `gmpi_forms` consumer relies on destroying a watched `State` (the new assert will now say so loudly, which is the point).
+
+**Machine state.** `gmpi_ui` on `tide/win/E66-state-outlives-ref-guard` (PR #16), `GMPI_Wrappers` on `tide/win/E66-settingspane-reload-order` (PR #33), TideSynth on `tide/win/E66-fixed` — all with open PRs, returned to defaults once merged. Jeff's Ableton untouched. Repro artifacts under `C:\SE\_scratch\e64\s3\` and `s4\`.
+
+**Branch/PR:** [GMPI_Wrappers#33](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/33) + [gmpi_ui#16](https://github.com/JeffMcClintock/gmpi_ui/pull/16) (the fixes, either lands alone) + `tide/win/E66-fixed` (this row and entry).
+
