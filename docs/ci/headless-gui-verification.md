@@ -185,6 +185,49 @@ go by window id.
 REAPER's ordinary controls, but a click on an item in an open SWELL dropdown
 selects nothing. Open the dropdown with a click, then `Down`/`Up` and `Return`.
 
+## `render-and-measure.py` needs the same two environment fixes, and does not know it
+
+**Measured 2026-08-31 (linux, scheduled run).** Run straight from a scheduled
+run's shell, `scripts/render-and-measure.py` **segfaults REAPER** — rc `-11`,
+preceded by the same `gdk_screen_get_root_window` / `gdk_x11_window_get_xid`
+assertions the section above blames on an inherited `WAYLAND_DISPLAY`. The
+symptom downstream is an `EOFError` out of Python's `wave` module on a
+zero-length render, which reads as a corrupt fixture and is not one.
+
+The script calls `subprocess.call([REAPER, "-renderproject", …])` with the
+process's own environment, so it cannot apply the fix itself. Wrap it:
+
+```bash
+env -u WAYLAND_DISPLAY DISPLAY=:2 GDK_BACKEND=x11 \
+    XDG_RUNTIME_DIR=/run/user/$(id -u) HOME=<scratch> \
+    REAPER=<scratch>/reaper_linux_x86_64/REAPER/reaper \
+    python3 scripts/render-and-measure.py tests/hosts/v1-rack.rpp
+```
+
+With that wrapper every committed fixture renders on Linux at the macOS
+reference figures — see `tests/hosts/README.md` for the table. **Note what this
+also settles: the committed fixtures carry the macOS 7.45 plug-in token and
+REAPER 7.43/Linux loads them anyway** (`restore of a 14136 byte document ->
+imported`). E29's byte-order divergence is real for what a host WRITES; it did
+not stop a fixture being read here.
+
+## Getting a prepared rack in without touching the token at all
+
+`TrackFX_SetNamedConfigParm(tr, fx, "vst_chunk", b64)` takes the state and
+nothing else — no 44-byte header, no `AAAQAAAA` trailer, both of which belong to
+a `.rpp`'s `<VST>` block rather than to this parm. Measured off a DEFAULT
+instance, which is the check worth repeating before trusting it: 140 base64
+chars, 105 bytes, `int32 len+4 | int32 1 | int32 len | XML | 8 zero bytes`.
+
+Adding the plug-in **by name** and then setting that parm makes REAPER mint its
+own token, so a fixture cannot carry the wrong platform's. It wrote
+`1013510754{506C7567696E474D50492050A2A07287}` here unprompted — the Linux token
+the 2026-08-28 run recorded. Drivers: `tests/e19-host-feedback/`.
+
+Two smaller things a fresh portable `HOME` does, neither documented anywhere and
+each worth one launch: it raises a **"REAPER New Version Notification"** modal,
+and it rewrites `loadlastproj` to `19` whatever you seeded.
+
 ---
 
 # macOS — a portable REAPER isolates completely, and the lock is the real boundary
