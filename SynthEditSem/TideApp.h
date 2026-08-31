@@ -1,4 +1,5 @@
 #include "SynthEditAppBase.h"
+#include "UniqueSnowflake.h"          // E64 - the DSP wrapper handle reservation
 #include "ModuleDragAndDropManager.h"
 #include "TideAppWrapper.h"
 
@@ -11,13 +12,27 @@
 class TideApp : public CSynthEditAppBase, public ISeApp
 {
 	SE2::TopView* view{};
-	// The same document with every <patch-list> stripped: modules and wiring,
-	// no values. What serviceDocumentSync actually compares, so only a change
-	// of SHAPE costs the processor a restart.
-	std::string lastPushedShape;
 
 
-	static std::string documentShape(const std::string& doc); // see the .cpp
+
+	// E64 -- the handle of the synthetic outer container exportChunkXml wraps
+	// the DSP graph in, RESERVED in the document's handle namespace so nothing
+	// else can ever be allocated it. Ruled by Jeff 2026-08-29: *"register the
+	// root container's handle so everyone knows about it"*.
+	//
+	// Why this matters: the wrapper used to be a bare literal in the exported
+	// XML that no allocator knew about. Editor-side host-control parameters
+	// take sequential handles from the same namespace (E56), reached 1, and
+	// their 'ppc' updates then resolved -- on the DSP side -- to the wrapper
+	// container instead of a parameter, which read none of the payload and
+	// desynchronised the ui->dsp queue (E64, GMPI#20 is the containment).
+	// Registering the reservation FIRST makes the sequential allocator skip
+	// the value by the same mechanism it skips every other taken handle.
+	//
+	// The VALUE stays 1 so the exported DSP shape -- and every existing saved
+	// session and host chunk -- is unchanged.
+	static constexpr int kDspWrapperContainerHandle = 1;
+	UniqueSnowflake dspWrapperReservation;
 
 public:
 	// `moduleDragAndDrop` mirrors SynthEditApp's setup so that ModuleBrowser

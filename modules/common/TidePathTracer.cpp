@@ -5,6 +5,25 @@
 #include <atomic>
 #include <thread>
 
+// For lowerPoolThreadPriority() -- the render pool must not outrank the UI
+// thread it is drawing for. Lean-and-mean plus NOMINMAX because this is a
+// maths TU full of std::min/max and clamp; windows.h's near/far macros were
+// checked against this file and touch nothing here.
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <pthread.h>
+#include <sys/qos.h>
+#else
+#include <sys/resource.h>
+#endif
+
 // The integrator, the BSDFs and the sampler. See TidePathTracer.h for what this
 // is and why it exists.
 //
@@ -2856,6 +2875,43 @@ void addStudio(Scene& scene, const Studio& studio)
 	}
 }
 
+// Every thread the pool spawns demotes ITSELF below the UI before taking its
+// first tile.
+//
+// Why: the pool is hardware_concurrency wide -- 28 on the windows box -- and
+// at default priority those threads tie the UI thread for every core, so from
+// launch until the last full faceplate trace lands (~10 s on a three-panel
+// rack) the whole app answers sluggishly. Below the UI's priority the
+// scheduler always serves the message pump first, while an otherwise idle
+// machine still gives the render every core, so trace times barely move.
+//
+// Per platform, because "lower this thread" is spelled three ways:
+//   windows  THREAD_PRIORITY_BELOW_NORMAL on the current thread.
+//   apple    QOS_CLASS_UTILITY -- Apple's class for exactly this shape of
+//            work (user-visible progress, seconds long). NOT BACKGROUND,
+//            which is throttled hard and can sit on E-cores indefinitely;
+//            if mac full-trace times ever regress measurably, suspect this
+//            line first, and Settings::threads is the lever.
+//   linux    nice +10 via setpriority(PRIO_PROCESS, 0, ...): on Linux that
+//            "0" means the calling THREAD (tasks are the unit), the
+//            documented idiom for per-thread nice. On macOS the same call
+//            would lower the whole PROCESS, hence the QoS branch instead.
+//
+// Self-applied inside the spawned thread rather than by the spawner through
+// native_handle(), so the demotion cannot race the first tile. And only on
+// threads this library creates: the threadCount==1 path runs on the CALLER's
+// thread, whose priority is not ours to change.
+static void lowerPoolThreadPriority()
+{
+#if defined(_WIN32)
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+#elif defined(__APPLE__)
+	pthread_set_qos_class_self_np(QOS_CLASS_UTILITY, 0);
+#else
+	setpriority(PRIO_PROCESS, 0, 10);
+#endif
+}
+
 void renderProgressive(const Scene& scene, const Camera& camera, const Settings& settings,
 	Image& image, int sampleBegin, int sampleEnd)
 {
@@ -3114,7 +3170,11 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 		std::vector<std::thread> threads;
 		threads.reserve((size_t)threadCount);
 		for (int i = 0; i < threadCount; ++i)
-			threads.emplace_back(worker);
+			threads.emplace_back([&worker]
+			{
+				lowerPoolThreadPriority();
+				worker();
+			});
 		for (std::thread& t : threads)
 			t.join();
 	}
