@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **401 KB** across **322** entries, so copying them
+Learned sections are **404 KB** across **324** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **124 KB / 1337 lessons — 3.2x smaller**, and represents
+A8. This is **125 KB / 1347 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,24 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-01
+
+**macos — E73 DONE, and the fleet has no open PRs and no agent branches for the first time (state update, interactive)**
+
+- Verify a merge by asking about the PR, not by reading your own push.
+- `git cherry` says what is unmerged, not what is lost.
+- Establish the recovery ref before the destructive command, not after.
+- A local default branch can be silently stale on a box that has been doing work all along.
+
+**macos — STEP 1.5: #565 had gone CONFLICTING, and BACKLOG.md merged cleanly into two different E74s (scheduled run)**
+
+- `mergeStateStatus` belongs in STEP 1.5's list and still is not in it.
+- A clean merge is not evidence of a clean result, and id collisions are exactly where that bites.
+- Two boxes can file the same id four hours apart and no per-run check can prevent it.
+- When two rows collide, renumber by reference count, not by filing time.
+- Read the exit code of the thing you ran, not of the pipeline that reported on it.
+- A locked screen is a queue fact, not a footnote.
 
 ## 2026-08-31
 
@@ -84,34 +102,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A no-output startup script is more often a modal than a bug.
 - When a symbol check is ambiguous and the thing is on screen, screenshot it.
 - Out-of-process changes what an instrument IS, not just where it prints.
-
-**macos — E69: the CLAP save was fixed into an EMPTY save, and a 200-line bare host found it in one command (scheduled run)**
-
-- A row filed this morning may have had its code landed by an interactive session before any scheduled run reads it
-- "CI will say" about a platform you cannot test is an assignment with no addressee, and CI answers a different question.
-- A fix that corrects one half of a pair is a regression until you check the other half.
-- A "no host at all" harness is cheaper than isolating a host, and stricter.
-- A size MATCH proves nothing and a size DIFFERENCE proves one thing.
-- Distinguish "the store is stale" from "nothing ever writes the store" before calling a probe result a race.
-- Reading the machine costs one command and I nearly skipped it.
-
-**windows — E68: the save was an echo of the wrong store, and Jeff's three questions redesigned it into a pull (interactive, Jeff directing)**
-
-- The user's design questions were the diagnosis.
-- A save path that echoes a store is only as correct as the store's freshest writer
-- A comment's premise can be measured.
-- Send pointers as messages, not casts, across a host-owned connection
-- The fixture's saved chunk size is a free discriminator
-
-**macos — the queue is blocked, so this run closed three "not verified: mac builds" lines and flipped the rows they sat on (scheduled run)**
-
-- A "not verified on your platform" line is an assignment with no addressee, and "CI will say" can be false at the moment it is written.
-- Prove which binary answered, by taking it away.
-- A `strings` hit is worth what its miss is worth.
-- Check how a symbol is declared before reading its absence from `nm`.
-- "Which consumers did you build" is a different question from "does it compile".
-- Do not flip a row on `main` when another platform's open PR already flips it.
-- A blocked queue is not the same as an idle run.
 
 ## 2026-08-18
 
@@ -2393,3 +2383,33 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Find out whose literal it is before deciding whose fix it is.
 - A reservation is only a reservation if it is registered before the first allocation
 - The heredoc backslash trap got me again
+
+## 2026-08-31
+
+**macos — E69: the CLAP save was fixed into an EMPTY save, and a 200-line bare host found it in one command (scheduled run)**
+
+- A row filed this morning may have had its code landed by an interactive session before any scheduled run reads it
+- "CI will say" about a platform you cannot test is an assignment with no addressee, and CI answers a different question.
+- A fix that corrects one half of a pair is a regression until you check the other half.
+- A "no host at all" harness is cheaper than isolating a host, and stricter.
+- A size MATCH proves nothing and a size DIFFERENCE proves one thing.
+- Distinguish "the store is stale" from "nothing ever writes the store" before calling a probe result a race.
+- Reading the machine costs one command and I nearly skipped it.
+
+**windows — E68: the save was an echo of the wrong store, and Jeff's three questions redesigned it into a pull (interactive, Jeff directing)**
+
+- The user's design questions were the diagnosis.
+- A save path that echoes a store is only as correct as the store's freshest writer
+- A comment's premise can be measured.
+- Send pointers as messages, not casts, across a host-owned connection
+- The fixture's saved chunk size is a free discriminator
+
+**macos — the queue is blocked, so this run closed three "not verified: mac builds" lines and flipped the rows they sat on (scheduled run)**
+
+- A "not verified on your platform" line is an assignment with no addressee, and "CI will say" can be false at the moment it is written.
+- Prove which binary answered, by taking it away.
+- A `strings` hit is worth what its miss is worth.
+- Check how a symbol is declared before reading its absence from `nm`.
+- "Which consumers did you build" is a different question from "does it compile".
+- Do not flip a row on `main` when another platform's open PR already flips it.
+- A blocked queue is not the same as an idle run.

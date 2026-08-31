@@ -8,6 +8,41 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-01 — macos — E73 DONE, and the fleet has no open PRs and no agent branches for the first time (state update, interactive)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"sync all tide related repos, any PRs outstanding?"*, *"merge 565"*, *"delete 559"*, *"flip E73 to DONE"*)
+
+**Did:** bookkeeping and cleanup, no code and no measurement this entry claims credit for. **E73 → DONE and archived** after [#565](https://github.com/JeffMcClintock/TideSynth/pull/565) merged; the stale `tide/mac/E65-panel-draft-render` branch deleted; all six repos synced.
+
+### What landed
+
+[#565](https://github.com/JeffMcClintock/TideSynth/pull/565) squash-merged as [`b824422`](https://github.com/JeffMcClintock/TideSynth/commit/b824422) at 21:59Z, 6 checks green, branch auto-deleted. Verified by `gh pr view 565 --json state` rather than inferred from the push — the 2026-08-18 A4/#120 trap is exactly this shape read the other way round.
+
+It had been open a day and a half, and **the only thing holding it was the CONFLICTING state the scheduled run cleared that morning.** Nothing was ever wrong with the work.
+
+### The sync and the sweep
+
+Five of six repos were already current; **TideSynth's own `main` was 9 commits behind** (`ab251e0` → `14c3aaa`), which is worth noting because this box had been sitting on the merge-base all along and nothing said so. Fast-forward only; nothing stashed, nothing discarded.
+
+**Open PRs across TideSynth, SynthEditLib, SynthEdit, GMPI, GMPI_Wrappers and gmpi_ui: zero.** Open issues: one, `#44`, the CI watchdog digest, which is not work. **This is the first time the fleet has had no open PR and no `tide/*` branch at all.**
+
+`tide/mac/E65-panel-draft-render` (PR [#559](https://github.com/JeffMcClintock/TideSynth/pull/559), CLOSED not merged) was deleted at Jeff's instruction. **Checked rather than assumed before deleting**, which is the 2026-08-28 lesson about this exact branch: `git cherry` showed all three commits unmerged, but the two things anyone would want are accounted for — the probe and its fixture (`tests/e65_panel_preview_probe.py`, `tests/fixtures/e65-prefix-7panel.log`) are **on `main`**, salvaged as Jeff asked on 2026-08-31, and the remaining `TiDEPanelGui.cpp` scheduler fix is the one `b4bd4f49f` superseded and which must not be merged over it. **The commits survive at `refs/pull/559/head`** — verified to point at the same `fc9bbcd` *before* the delete, so this is reversible.
+
+**Learned:**
+
+- **Verify a merge by asking about the PR, not by reading your own push.** One `gh pr view --json state` separates "I pushed" from "it landed", and this project has a precedent in each direction — #120 merged out from under a follow-up, and rows have claimed DONE on unmerged PRs.
+- **`git cherry` says what is unmerged, not what is lost.** All three E65 commits were unmerged and the branch was still safe to delete, because the parts worth keeping had arrived on `main` by a different route. The two questions are different and only the second one matters.
+- **Establish the recovery ref before the destructive command, not after.** `refs/pull/559/head` survives branch deletion and pins the same tip — checking that first turned "delete this" from irreversible into reversible, and cost one `ls-remote`.
+- **A local default branch can be silently stale on a box that has been doing work all along.** This one was 9 commits behind while the run pushed and merged perfectly happily, because every operation that mattered used `origin/main` explicitly. Worth a `git status -sb` at the end of a run rather than trusting "I was on main".
+
+**Not verified:** nothing new — this entry measures nothing. E73's evidence is the 2026-08-31 interactive entry's, and the 599/599 build it carries is the 2026-09-01 scheduled entry's.
+
+**Machine state.** All six repos on their default branches and clean; TideSynth on this flip's branch until its PR merges. No sibling repo was committed to. The developer's installed plug-ins are untouched (VST3 still sha256 `f3b09c3c…`, Aug 28 17:45:54; CLAP still Aug 22). Nothing running. `build-e73merge/` from the earlier run remains as a gitignored scratch tree — it is a warm 599-target Release/arm64 build, so any further mac measurement is minutes rather than an hour.
+
+**Next:** **the queue's shape is now four rows on one blocker and three on rulings.** **E71, E77, E19's mac AU3 cell and E75 all want a single unlocked interactive session with a GUI host.** **E72, E76 and S8 want rulings, not sessions.** **E2 wants a product decision — which modules the first curated set contains — and it is what blocks E3 and E4.** Takeable without any of that: **E63** (win) is a real shipping defect, a Windows release package missing `DefaultRack.synthedit` and two pin XMLs; **E74** (linux) is the whole of E19's remaining linux FAIL with its harness already in the tree; **X2** (linux) is bookkeeping.
+
+**Branch/PR:** `tide/mac/E73-done` — E73's flip and archive row, the refreshed `mac` NEXT cell, and this entry.
+
 ## 2026-09-01 — macos — STEP 1.5: #565 had gone CONFLICTING, and BACKLOG.md merged cleanly into two different E74s (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
