@@ -36964,3 +36964,127 @@ Options, all his call: **(i) revert #72** — restores E56's nondeterminism to k
 
 **Branch/PR:** [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20) (the fix) + `tide/win/E64-diagnosed` (this row and entry). Merging the TideSynth side alone changes no behaviour; GMPI#20 is the substance.
 
+## 2026-08-29 — windows — E67: ctrl+wheel translated the document under the cursor — E42's defect, one function from where E42 fixed it (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"new bug: ctrl mouse wheel is meant to zoom in/out while keeping same point of document under the mouse"*, then *"the zoom works, but the document moves under the mouse"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** diagnosed by reading, fixed, made the gesture drivable, and measured the A/B. [SynthEditLib#75](https://github.com/JeffMcClintock/SynthEditLib/pull/75) (GATED — proposed for review, never merged by a run) + [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) (`--scroll --ctrl`). **E67 → IN-REVIEW.**
+
+### Jeff's clarification did the triage
+
+The first report read as "broken"; I was half-way into the delivery path (E39's old note that `--scroll` "reports ok and moves nothing" pointed that way) when the clarification landed: **the zoom works, the document translates**. That eliminated delivery entirely — a zoom that works proves the event arrives with the ctrl flag intact — and reduced the search to the anchor arithmetic in one function.
+
+### The defect, and where the answer was already written
+
+`TopView::onMouseWheel` keeps the doc point under the cursor by recomputing the view centre — against `viewWidth * 0.5f`, the pane's half-SIZE. `calcViewTransform`, thirty lines below, anchors the actual transform on the pane's MIDPOINT, `(left+right)/2`, under a long E42 comment explaining **precisely this distinction**, measured to +240 DIP of browser strips. `(left+right)/2 − (right−left)/2 = left`, so every zoom step translated the view by `left/zoom` (and `top/zoom`) while the zoom factor itself was right. Origin-rooted panes hide it — midpoint equals half-size there — which is every other view in the repo, and why only TIDE showed it.
+
+The fix is the same substitution E42 made, term for term against `calcViewTransform`.
+
+### Making the gesture drivable was half the work, and it pays forever
+
+The command channel could not express ctrl+wheel — `--scroll` built its flags from `kHoverFlags` only. [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) adds `--ctrl`, the `--double`/`--right` precedent for the third time: each was one flag, and each turned a verification that "needs a human at the window" into a script. Also resolves E39's dangling note — the verb was never broken; the *gesture* was inexpressible.
+
+### Measured — one variable, self-calibrating
+
+`measure_zoom.py`: anchor one ctrl+wheel notch on the Out module's edge, find the module's two panel edges along the anchor row before and after, derive the ACTUAL zoom ratio from the edge spread (no assumption about snap), and compare each edge's landing spot with the doc-anchored prediction `anchor + (edge − anchor) × ratio`.
+
+| build | result |
+|---|---|
+| origin/main | module **clean out of the viewport** after one notch; rails jumped rows |
+| SynthEditLib#75 | left edge drift **+0.3 px**, right edge drift **+0.3 px**, ratio 1.302 |
+
+The BEFORE build was produced by checking SynthEditLib back to `main` in the second build tree, so both binaries share the `--ctrl` flag and differ by exactly one commit's worth of view math.
+
+**Consumers built:** TIDE standalone Debug and **SynthEditCL 90/90** — `ViewBase.cpp` is shared, so SynthEdit's own ctrl+wheel gets the same correction; origin-rooted panes are unchanged by construction.
+
+**Learned:**
+
+- **"The zoom works but it translates" is a complete triage in one sentence.** It rules out delivery, flags, and the zoom path, and leaves only the anchor arithmetic — the user's second sentence saved the session the delivery investigation the first sentence had started.
+- **When a bug is fixed in one function, grep for the same expression in its callers.** E42 fixed midpoint-vs-half-size in `calcViewTransform` and documented it loudly; the identical expression sat in `onMouseWheel` computing the input to that very function. A fix that renames or wraps the corrected quantity (a `canvasCenter()` helper) would have fixed both sites at once.
+- **An inexpressible gesture is a class of unverifiable rows.** Third time one flag on the command channel converted "needs a human" into a script — `--double` (E36), `--right` (E38), now `--ctrl`.
+- **Self-calibrate the measurement against the artifact, not the spec.** Deriving the zoom ratio from the edge spread made the drift number independent of the snap formula — the measurement cannot be fooled by the very quantity under test.
+
+**Not verified:** mac/linux builds (no platform code; CI on #75 will say); SynthEdit's interactive feel beyond compiling — the correction is mathematically the E42 fix, but nobody has wheel-zoomed the full editor against this branch.
+
+**Machine state.** `SynthEditLib` on `tide/win/E67-zoom-anchor-drift` (PR #75), `GMPI_Wrappers` on `tide/win/E67-scroll-ctrl-flag` (PR #34), TideSynth on `tide/win/E67-filed` — all with open PRs. gmpi_ui still parked on its #16 branch awaiting Jeff's review click. Measurement artifacts under `C:\SE\_scratch\e64\zoom-*\`, script at `measure_zoom.py`.
+
+**Branch/PR:** [SynthEditLib#75](https://github.com/JeffMcClintock/SynthEditLib/pull/75) + [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) + `tide/win/E67-filed` (row and entry). The lib PR is the substance; #34 lands alone harmlessly.
+
+## 2026-08-29 — windows — E66 fixed both halves: reload releases the visuals first, and State's death is now loud at the cause (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"drive the computer... should crash"*, then *"yes, fix E66"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** reproduced Jeff's settings-pane crash under a resident debugger, diagnosed it to a named invariant, and fixed both halves: [GMPI_Wrappers#33](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/33) (the root cause) + [gmpi_ui#16](https://github.com/JeffMcClintock/gmpi_ui/pull/16) (the tripwire). **E66 → IN-REVIEW.** Also filed **E65** earlier in the session ([#555](https://github.com/JeffMcClintock/TideSynth/pull/555), the panel's missing draft render — report only, deliberately undiagnosed).
+
+### The reproduction, driven blind over the command channel
+
+The pane was **already open at launch** — the audio device is held exclusively (Jeff's Ableton), and the pane auto-opens on that failure, which made the repro cheap. Clicking Close survived; **re-opening via `--menu Audio/MIDI Settings...` crashed 2/2**, AV reading `0xdddddddd` — MSVC's freed-heap fill. A resident `cdb -p <pid> -c "g; ~#k; qd"` caught the full stack on the second run:
+
+```
+State<bool>::release            <- walking the subscriber vector of a FREED State
+~StateRef<bool> <- ~ToggleSwitch <- unique_ptr<View> dtor <- ViewParent::clear
+Form::renderVisuals <- SettingsPane::render <- AppLayout <- paintLoop
+```
+
+### The invariant was already written down, twice
+
+`ViewParent::clear()`'s own comment: *"release anything pointing to states before releasing states (else crash)"* — and `SettingsPane`'s destructor obeys it, with a comment saying why. **`reload()` is the same teardown happening mid-life and it skipped the first half:** `midiInputs_.clear()` destroys the MIDI tick-boxes' `State<bool>` objects while the old widget tree — only torn down at the *next* `renderVisuals` — still holds `StateRef`s into them. The other `State` members survive reload (they are assigned, not destroyed), which is why only the tick boxes could kill it.
+
+### The fixes, and the E64 ruling applied one layer down
+
+**Root cause** (GMPI_Wrappers#33): `reload()` begins with `clear()` and marks the form dirty. All three call sites (menu action, startup failure, device-death notification) verified to run outside the form's own widget dispatch, so clearing there cannot destroy a widget that is currently on the stack.
+
+**Tripwire** (gmpi_ui#16): `~State()` now **asserts** no watcher remains — Debug stays loud **at the destruction site**, which is the cause, instead of a UAF two frames later in STL iterator machinery — and then **detaches** every survivor by nulling its back-pointer, so a Release build loses a notification instead of corrupting the heap. Drain-and-assert, the exact shape Jeff ruled for E64's queue. `StateRef` grants `State<T>` friendship for the detach.
+
+### Verified
+
+- Scripted repro: **5/5 close/reopen cycles alive** (was 2/2 crash on the first reopen), the pane fully rendered afterwards (screenshot — device combo, rate, buffer, tick boxes, status line all present), zero asserts on stderr.
+- TIDE standalone + VST3 Debug rebuilt; the binary contains the new assert string (checked before running, installed-copy as negative control).
+- **SynthEditCL 130/130** against the gmpi_ui branch — `observable.h` is shared with SynthEdit, per G3.
+- The VST3 POST_BUILD install step failed once mid-session: **Ableton holds the installed bundle's DLL** — benign, left alone, and worth knowing: `SE_LOCAL_BUILD=ON` cannot replace the installed plugin while any host has it loaded.
+
+**Learned:**
+
+- **A settings pane that auto-opens on failure is a free reproduction rig.** The audio device being held exclusively looked like an obstacle and was the enabler: the pane was on screen at launch, every launch.
+- **When a class's destructor documents a teardown order, grep for every other place the same members die.** `reload()` was the destructor's own sequence run mid-life, minus the half that made it safe — the invariant was stated in two places and enforced in neither.
+- **Put the tripwire at the destruction site, not the use site.** The UAF surfaced in `_Adopt_unlocked` two frames after the cause; `~State()`'s assert fires at the exact line that breaks the contract, which is the difference between a session and a glance.
+- **`0xdddddddd` in a Debug AV is a diagnosis in itself** — MSVC's freed-heap fill means use-after-free before any stack is read.
+- **A resident `cdb -p <pid> -c "g; ~#k; qd"` costs nothing and catches what a post-mortem cannot** — the first attach without `g` lost the process; the second run's stack was the whole diagnosis.
+
+**Not verified:** mac/linux builds of both changes (no platform code; CI will say); whether any *other* `gmpi_forms` consumer relies on destroying a watched `State` (the new assert will now say so loudly, which is the point).
+
+**Machine state.** `gmpi_ui` on `tide/win/E66-state-outlives-ref-guard` (PR #16), `GMPI_Wrappers` on `tide/win/E66-settingspane-reload-order` (PR #33), TideSynth on `tide/win/E66-fixed` — all with open PRs, returned to defaults once merged. Jeff's Ableton untouched. Repro artifacts under `C:\SE\_scratch\e64\s3\` and `s4\`.
+
+**Branch/PR:** [GMPI_Wrappers#33](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/33) + [gmpi_ui#16](https://github.com/JeffMcClintock/gmpi_ui/pull/16) (the fixes, either lands alone) + `tide/win/E66-fixed` (this row and entry).
+
+## 2026-08-29 — windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"how about the obvious. register the root containers handle so everyone knows about it?"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** implemented Jeff's design for E64's root cause, and it turned out to be **TIDE-side only** — the `Id="1"` wrapper is minted by `TideApp::exportChunkXml` (`SynthEditSem/TideApp.cpp`), not by SynthEditLib, and SynthEdit's own exporter writes no such literal, so the collision never touched the commercial product. Branch `tide/win/E64-reserve-wrapper-handle`. GMPI#20 (the queue containment) stands unchanged as defence in depth.
+
+### The design, and why it beats all four options I had listed
+
+The wrapper's handle becomes `TideApp::kDspWrapperContainerHandle` (= 1, so every existing saved session and host chunk restores unchanged), and a `UniqueSnowflake dspWrapperReservation` member is **registered in the document's `uniqueIdDatabase`** at the top of `InitInstance` — before anything else in the document allocates. From there the namespace defends itself by mechanisms that already exist: the sequential parameter allocator's `while(find(key)) ++key` skips 1 like any other taken handle, and a latecomer claiming 1 (a hand-edited document) is renumbered by `Register`'s existing collision path. No reserved-base magic, no export-shape change, no new rule for anyone to remember — the reservation is a fact in the same map every allocator already consults.
+
+Two loud checks, per Jeff's plastering-over ruling: `InitInstance` asserts if the reservation itself was beaten to the handle, and `importChunkXml` asserts if it did not survive a document rebuild (`DeleteContents` only unregisters objects in the document tree, so it does — verified, not assumed: the map has no bulk-clear on that path and `swap()` has no callers).
+
+### Measured
+
+- **Ordering verified in the artifact:** the standalone's pushed DSP doc now shows the wrapper still at `Id="1"` and the first host-control parameter at **`Handle="0"`, with nothing allocated 1** — the allocator skipped the reservation exactly as designed. No reservation-failure lines, no asserts.
+- **The trigger path, end to end:** a hosted Debug render of `tests/hosts/v1-rack.rpp` — REAPER, `setActive` processor recreation, hc59's `ppc` and all — produced **no assert, no drain diagnostic**, a correct restore (both instances build 14,136), and **peak −6.3 dBFS / rms −17.0**, the reference figures. Before this fix the same path desynced the queue on the first parameter update.
+- The E56 property survives: handles are still deterministic per load, just numbered around the reservation.
+
+**Learned:**
+
+- **"Register it so everyone knows" beats every clever alternative when a namespace already has an authority.** I had offered a reserved base, an export change, and a send-side filter; Jeff's version needs no new knowledge anywhere because the map IS the knowledge, and both existing allocators already consult it.
+- **Find out whose literal it is before deciding whose fix it is.** Three sessions discussed this as a SynthEditLib/GMPI question; one grep found the `Id="1"` in TIDE's own ALLOWED file, which collapsed the gating question entirely.
+- **A reservation is only a reservation if it is registered before the first allocation** — and the verification of that ordering is in the exported artifact (parameter handles 0, 2, …), not in the code review.
+- **The heredoc backslash trap got me again**, one session after writing it into lessons: `\\n` collapsed and put a real newline inside a C string literal. The rule that sticks: escape-bearing code goes through a Write-tool file, never a heredoc — no exceptions for "just two lines".
+
+**Not verified:** mac/linux builds (no platform code; CI will say); Ableton itself — REAPER exercises the same wrapper lifecycle, but the original reproduction machine is one insert-and-cable session away from closing this for good.
+
+**Machine state.** TideSynth on `tide/win/E64-reserve-wrapper-handle` until this lands; `GMPI` parked on `tide/win/E64-que-selfheal` (open PR #20); all other repos clean on defaults. The installed Debug VST3 carries both fixes.
+
+**Branch/PR:** `tide/win/E64-reserve-wrapper-handle` — TideApp.h/.cpp, this row and entry. Pairs with [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20); either lands without the other, but together the collision is impossible AND any future misreader is contained loudly.
+

@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **391 KB** across **317** entries, so copying them
+Learned sections are **393 KB** across **318** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **121 KB / 1306 lessons — 3.2x smaller**, and represents
+A8. This is **122 KB / 1315 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,18 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-31
+
+**linux — STEP 1.5 unblocked #550, then E19's linux VST3 cell: the DSP now runs the right rack, and the editor is bound to the wrong processor (scheduled run)**
+
+- A CONFLICTING PR is not "green and waiting for merge", and STEP 1.5's list of three does not name it.
+- Resolve a rotated `JOURNAL.md` by taking main whole and re-placing your own entry in the archive.
+- A generated file is not merged, it is regenerated.
+- A frozen readout and an unattached listener look identical, and only the ORDER of the log separates them.
+- When a control gives the same "failing" number as the experiment, the number is not about the experiment.
+- A crash can present as a corrupt output file two layers away.
+- Read a verb's usage before reporting that it ignores its arguments.
+- A folder name that differs by one letter's case fails silently and looks like a broken fixture.
+- Do not edit a line another platform's open PR already edits.
 
 **macos — E19's mac AU3 cell: a DAW has now hosted TIDE's AUv3, and the half that is still unmeasured has a structural cause (interactive, Jeff directing)**
 
@@ -75,30 +87,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "Which consumers did you build" is a different question from "does it compile".
 - Do not flip a row on `main` when another platform's open PR already flips it.
 - A blocked queue is not the same as an idle run.
-
-## 2026-08-29
-
-**windows — E67: ctrl+wheel translated the document under the cursor — E42's defect, one function from where E42 fixed it (interactive, Jeff directing)**
-
-- "The zoom works but it translates" is a complete triage in one sentence.
-- When a bug is fixed in one function, grep for the same expression in its callers.
-- An inexpressible gesture is a class of unverifiable rows.
-- Self-calibrate the measurement against the artifact, not the spec.
-
-**windows — E66 fixed both halves: reload releases the visuals first, and State's death is now loud at the cause (interactive, Jeff directing)**
-
-- A settings pane that auto-opens on failure is a free reproduction rig.
-- When a class's destructor documents a teardown order, grep for every other place the same members die.
-- Put the tripwire at the destruction site, not the use site.
-- `0xdddddddd` in a Debug AV is a diagnosis in itself
-- A resident `cdb -p <pid> -c "g; ~#k; qd"` costs nothing and catches what a post-mortem cannot
-
-**windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)**
-
-- "Register it so everyone knows" beats every clever alternative when a namespace already has an authority.
-- Find out whose literal it is before deciding whose fix it is.
-- A reservation is only a reservation if it is registered before the first allocation
-- The heredoc backslash trap got me again
 
 ## 2026-08-18
 
@@ -2349,3 +2337,25 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Print the numbers before the modal.
 - A four-char code is not a string.
 - `map::insert` on a duplicate key is a silent policy decision.
+
+**windows — E67: ctrl+wheel translated the document under the cursor — E42's defect, one function from where E42 fixed it (interactive, Jeff directing)**
+
+- "The zoom works but it translates" is a complete triage in one sentence.
+- When a bug is fixed in one function, grep for the same expression in its callers.
+- An inexpressible gesture is a class of unverifiable rows.
+- Self-calibrate the measurement against the artifact, not the spec.
+
+**windows — E66 fixed both halves: reload releases the visuals first, and State's death is now loud at the cause (interactive, Jeff directing)**
+
+- A settings pane that auto-opens on failure is a free reproduction rig.
+- When a class's destructor documents a teardown order, grep for every other place the same members die.
+- Put the tripwire at the destruction site, not the use site.
+- `0xdddddddd` in a Debug AV is a diagnosis in itself
+- A resident `cdb -p <pid> -c "g; ~#k; qd"` costs nothing and catches what a post-mortem cannot
+
+**windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)**
+
+- "Register it so everyone knows" beats every clever alternative when a namespace already has an authority.
+- Find out whose literal it is before deciding whose fix it is.
+- A reservation is only a reservation if it is registered before the first allocation
+- The heredoc backslash trap got me again

@@ -24,6 +24,29 @@ about the script.
 | `v3-midi-gate.rpp` | the same rack but gated from the MONOPHONIC `SE MIDItoGate2`, plus the note | **silent · 440.0 Hz for the note · silent** — V3's Accept, met |
 | `v3-midi-pitch.rpp` | the auto-seeded **root** MIDI-CV → Oscillator/Envelope/Output, plus the note | **silent · 261.6257 Hz for the note · silent** — middle C to +0.001 cents. Gate, pitch and tuning all correct |
 
+## Measured on Linux for the first time, 2026-08-31
+
+Every figure is the macOS 2026-08-18 reference to the decimal, on REAPER
+7.43/Linux against a `TIDE_VCV_FUNDAMENTAL=ON` build — and `v1-rack.rpp` was
+**digital silence** on this box on 2026-08-28, before **E59** merged.
+
+| fixture | linux |
+|---|---|
+| `--control` (no plug-in at all) | peak −6.0 / rms −9.0 dBFS |
+| `v1-rack.rpp` | **peak −6.3 / rms −17.0 dBFS** — 2 patch cables |
+| `v1-rack-uncabled.rpp` | **−inf** — 0 patch cables, the negative control |
+| `v3-midi-pitch.rpp` | −6.2 / −21.1 dBFS |
+| `v3-midi-gate.rpp` | −6.3 / −21.2 dBFS |
+
+**Two things this settles.** The committed fixtures carry the macOS 7.45
+plug-in token and REAPER 7.43/Linux **loads them anyway**, so E29's divergence
+did not make them unreadable here. And the reason nobody had these numbers is
+not the fixtures: run from a scheduled run's own shell the script segfaults
+REAPER, because it inherits `WAYLAND_DISPLAY` from the developer's session. The
+one-line wrapper is in
+[docs/ci/headless-gui-verification.md](../../docs/ci/headless-gui-verification.md).
+
+
 The pair matters more than either one alone. `v1-rack-uncabled.rpp` is what a
 saved rack looks like when nothing joins one module to another, and it reports
 **eight `<Line>` elements** — the cables *inside* the three prefab containers.

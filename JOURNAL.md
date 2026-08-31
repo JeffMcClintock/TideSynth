@@ -8,6 +8,100 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-31 — linux — STEP 1.5 unblocked #550, then E19's linux VST3 cell: the DSP now runs the right rack, and the editor is bound to the wrong processor (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** two things, in the order the prompt puts them. **STEP 1.5:** this platform's only open PR, [#550](https://github.com/JeffMcClintock/TideSynth/pull/550), had gone **CONFLICTING** while it sat for three days; resolved and pushed, it is `MERGEABLE` again. **STEP 2:** took **E19**'s linux VST3 cell, whose own text said *"do not re-take this cell until E59 closes"* and E59 closed on 2026-08-29. Branch `tide/linux/E19-vst3-linux-cell`. **Cell back to TODO; E74, E75 and E76 filed.** No product code changed on either branch.
+
+### STEP 1.5 first, because a conflicted PR is not "waiting for merge"
+
+STEP 1.5 lists failing checks, requested changes and unresolved comments. #550 had none of those — all 13 checks green, no reviews — and could not merge anyway. The 2026-08-28 macos entry already recorded that *"a conflict is not on STEP 1.5's list of three, and should be"*; this is the second time it has been the whole first half of a run.
+
+All three conflicts were in the fleet's bookkeeping files, and the resolution is by date and ownership rather than by side:
+
+- **`JOURNAL.md` — main's copy verbatim.** Main rotated every 2026-08-28 entry into the archive while #550 sat open, so the branch's own E60 entry was the only thing missing. It moved into `JOURNAL-2026-08.md` between the two 08-28 windows entries it sat between on the branch. Checked rather than assumed: of the branch's 35 entries, **exactly one** was absent from both main's `JOURNAL.md` and the archive.
+- **`docs/lessons.md` — regenerated**, not hand-merged. `scripts/extract-lessons.py` reads both journal files, so the correct content is a function of the other two resolutions.
+- **`BACKLOG.md`** — mac NEXT cell from main (2026-08-31, three days newer), linux NEXT cell from the branch (same day, "later"); E59 stays archived as main has it; E60 takes the branch's IN-REVIEW row.
+
+`GMPI_Wrappers`[#32](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/32), E60's other half, is `MERGEABLE`/`CLEAN` with nothing unresolved, so STEP 1.5 says leave it — **and it still matters**: `Processor_CLAP::stateLoad` on `main` still has the `maxSize = 4096 * 8` cliff, unchanged by #36 and #37, which touched the same function.
+
+### Then E19, and the first half of the result is that two of this row's claims are now false
+
+**The DSP runs the PREPARED rack.** `TIDE: instance #3 building rack from 43191 byte document`, twice, and the 17,957-byte default never appears after the restore. On 2026-08-28 the same path gave `29101` then `17957`, which is the observation E59 was filed for.
+
+**And `tests/hosts/v1-rack.rpp` makes sound on Linux for the first time.** PLAN cites that fixture for *the patch plays after reload*; it was **peak −inf, digital silence** on this box on 2026-08-28.
+
+| fixture | linux, 2026-08-31 |
+|---|---|
+| `--control` (no plug-in at all) | −6.0 / −9.0 dBFS — the chain detects audio |
+| `v1-rack.rpp` | **−6.3 / −17.0 dBFS**, 2 patch cables — the macOS reference to the decimal |
+| `v1-rack-uncabled.rpp` | **−inf**, 0 patch cables — the negative control |
+| `v3-midi-pitch.rpp` | −6.2 / −21.1 dBFS |
+| `v3-midi-gate.rpp` | −6.3 / −21.2 dBFS |
+
+### The FAIL that is left, and its mechanism is ordering rather than any single line
+
+75 s, transport rolling the whole time (`playstate=1`, position 0 → 74.919 — the control that separates "the plug-in is frozen" from "nothing is being processed").
+
+| | hosted VST3, REAPER 7.43 | STANDALONE (control) |
+|---|---|---|
+| `Scope display-state capture` | **#2100**, 65,548 bytes, still climbing | #1800 |
+| `display-state update … arrived` | **frozen at #1, 0 bytes** | **#1820, 65,548 bytes** |
+| `light … update` | **frozen at #2, value 0.000** | **#18100**, values varying |
+
+Same build, same document, same box, same compositor. The log order says why:
+
+```
+TIDE: instance #3 building rack from 43191 byte document
+RackProcessor: 'Scope' display-state capture #0 (65548 bytes)
+RackEditor: light 0 update #0 value 0.000          <- the editors' initial defaults
+RackEditor: display-state update #1 arrived (0 bytes)
+TIDE: instance #4 building rack from 43191 byte document    <- a SECOND processor
+RackProcessor: 'Scope' display-state capture #0 … #2100      <- and it runs alone
+                                                   (no RackEditor line ever again)
+```
+
+**The standalone builds twice as well** — `Legacy chunk`, then `Build chunk, rack already prepared` — **but as `instance #1` both times.** So a double build is not the defect; the changing instance is, and the editor's feedback pins are left attached to a processor the host has retired. Filed as **E74**. It is not E59 (the document is right, both times) and not the ui→dsp direction E64 fixed.
+
+### The number I will not let anyone quote, and the control that disarmed it
+
+The hosted pixel diff is **0 of 690,800**, which is exactly what this row's Accept calls a FAIL. **It is not evidence, because the standalone control over the same interval gives byte-identical screenshots** — while its counters are at #18100.
+
+The reason is the fixture. All five VCV editors construct with panel art in **both** arms (`RackEditor: 'Scope' model=yes art=yes(res/Scope.svg) art-size=195x380`), and none of them is on the visible rack page; vertical and horizontal scrolling did not reach them. The negative control that makes this the fixture's layout rather than a rendering fault: the **DEFAULT** rack in the same build draws its `Out` panel on the rails. So E19's pixel-diff and int/bool/enum clauses are unmeasured and want a fixture with a visible Scope — **E75**.
+
+### Two traps that each cost a wrong provisional conclusion
+
+**`render-and-measure.py` segfaults REAPER on Linux from a scheduled run's shell** — rc **−11**, the documented inherited-`WAYLAND_DISPLAY` crash — and the downstream symptom is an `EOFError` in Python's `wave` module on a zero-length render. I read that as the committed fixture's macOS token being rejected, wrote it down, and it was wrong: with `env -u WAYLAND_DISPLAY … GDK_BACKEND=x11` the same file renders −6.3/−17.0. **E29's divergence is real for what a host WRITES and did not stop a fixture being READ here.** Filed as **E76**.
+
+**The standalone's config folder is `TiDE Rack`, lower-case `i`**, and `tests/fixtures/e53-vcv-rack-segv.README.md` said `TIDE Rack`. Following it loads the DEFAULT rack and says nothing — measured as `building rack from 17961 byte document` against `38658` once the file moved one directory. Corrected at its source.
+
+### The harness is in the tree this time
+
+[tests/e19-host-feedback/](tests/e19-host-feedback/) — the 2026-08-28 run built the REAPER-on-weston recipe and left its drivers in a session scratch that did not survive, which is this repo's own lesson arriving for the second time. The piece worth having beyond E19 is `frame_chunk.py`: the `vst_chunk` framing **measured off a default instance** (140 base64 chars, 105 bytes, `int32 len+4 | int32 1 | int32 len | XML | 8 zero bytes` — no 44-byte header, no trailer), and a mint route that adds the plug-in **by name** and then sets the parm, so REAPER writes its own token. It wrote `1013510754{506C7567696E474D50492050A2A07287}` unprompted, and **E29 cannot be got wrong by construction** that way.
+
+**Build:** `TIDE_VCV_FUNDAMENTAL=ON`, `-DRACK_ADAPTOR_TRACE=1`, Release, `SE_LOCAL_BUILD=OFF` — **553/553, 0 errors**, all four artifacts, against `main` in all five sibling repos. Verified to contain what this run needed before believing any of it: `display-state update #` and E59's `declined to publish the startup default` are each present once in the standalone, the VST3 `.so` and the CLAP.
+
+**Learned:**
+
+- **A CONFLICTING PR is not "green and waiting for merge", and STEP 1.5's list of three does not name it.** Second run in four days where that was the entire first half. `mergeStateStatus` costs one field on a `gh pr view` that STEP 1.5 already makes you run.
+- **Resolve a rotated `JOURNAL.md` by taking main whole and re-placing your own entry in the archive.** The merge conflict looks like a text problem and is a bookkeeping one; the check that makes it safe is set arithmetic — which of the branch's entries are in neither of main's two files — and it printed exactly one.
+- **A generated file is not merged, it is regenerated.** `docs/lessons.md` conflicted in two places and `extract-lessons.py --write` settled both, because its content is a function of the files the other resolutions produced.
+- **A frozen readout and an unattached listener look identical, and only the ORDER of the log separates them.** Every counter in this run was correct about what it could see. The finding is in which line comes after which, and no single line carries it.
+- **When a control gives the same "failing" number as the experiment, the number is not about the experiment.** A 0-pixel diff was E19's own FAIL condition; the standalone's byte-identical screenshots turned it into a statement about the fixture. Run the control even when — especially when — the result already looks like the answer you expected.
+- **A crash can present as a corrupt output file two layers away.** REAPER's rc −11 reached me as `EOFError` inside `wave.py`, and I had already written down "the token is rejected on linux" before reading the render log. The log was two lines from the exception.
+- **Read a verb's usage before reporting that it ignores its arguments.** `--scroll 500,300 0,-5` reported `delta 120, horiz false` three times and I was one sentence from filing a harness gap; the real syntax is `--scroll <x,y> [--notches N] [--delta N] [--horiz]` and it works.
+- **A folder name that differs by one letter's case fails silently and looks like a broken fixture.** `TIDE Rack` vs `TiDE Rack`: the app loads its default, logs nothing unusual, and the fixture sits one directory away. The document's own `standalonePlugin` attribute is still the OTHER spelling, and both are correct in their own place.
+- **Do not edit a line another platform's open PR already edits.** The `linux` NEXT cell belongs to #550's diff; updating it here would have handed that PR a fourth conflict in the file this fleet conflicts in most, so it was updated on that branch instead.
+
+**Not verified:** the linux **CLAP** cell — E60 owns it and its fix is [GMPI_Wrappers#32](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/32), unmerged, so `main` still carries the 32 KB `stateLoad` cliff; whether **E74** reproduces on Windows or macOS (nothing about a processor recreation is platform-specific, but neither box has read these counters in a host); the E74 **fix**, entirely — the row names where to look and does not guess; E19's **int/bool/enum**, **pixel-diff** and **string** clauses, all three for reasons recorded above; whether the e53 fixture's modules are reachable by any view gesture at all, which is half of E75.
+
+**Machine state.** All six repos were clean and on their default branches at the start; the five siblings were fast-forwarded to `origin/main` (GMPI 1 commit, gmpi_ui 1, GMPI_Wrappers 6, SynthEditLib 9, SE16 2) and **none was committed to**. TideSynth is on this run's branch until STEP 5 returns it. **REAPER 7.43 was downloaded fresh** — the 2026-08-28 copy lived in that session's scratch and is gone — and ran only against a scratch `HOME`, so `~/.vst3`, `~/.clap` and `~/.config/REAPER` were never written; `~/.config/REAPER` still does not exist, and `~/.vst3` and `~/.clap` compare identical to the pre-run listing, TIDE absent from both. The standalone ran under a scratch `XDG_CONFIG_HOME`; `~/.config/TiDE Rack/` is untouched. `build-e19/` is a scratch build tree and is gitignored; Jeff's `build/` was not touched. `decode_rpp.py` wrote `tests/hosts/v1-rack.rpp.block0.param1.xml` and `v1-rack-uncabled.rpp.block0.param1.xml` as side effects; both removed. Headless weston, REAPER and the standalone all stopped via `scripts/kill-named.sh` — 0 of each left running.
+
+**Next:** **E74 is the whole of E19's linux VST3 cell now**, and its harness needs no authoring — it mints its own project. **E75 is cheap and unblocks two more of E19's clauses.** **#550 and GMPI_Wrappers#32 want Jeff's merge**; until #32 lands the linux CLAP cell cannot be measured at all. And **the same 553-target build is sitting in `build-e19/`**, so any further linux measurement is minutes rather than an hour.
+
+**Branch/PR:** `tide/linux/E19-vst3-linux-cell` — the harness in [tests/e19-host-feedback/](tests/e19-host-feedback/), the E19 row, E74/E75/E76, the linux sections of [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md), the audio table in [tests/hosts/README.md](tests/hosts/README.md), the folder-name correction in [tests/fixtures/e53-vcv-rack-segv.README.md](tests/fixtures/e53-vcv-rack-segv.README.md), and this entry. Plus the merge commit on `tide/linux/E60-clap-state-trace` ([#550](https://github.com/JeffMcClintock/TideSynth/pull/550)), which is the STEP 1.5 half.
+
 ## 2026-08-31 — macos — E19's mac AU3 cell: a DAW has now hosted TIDE's AUv3, and the half that is still unmeasured has a structural cause (interactive, Jeff directing)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** · as **tide-rack-bot** (both paths) · interactive continuation of the same session, Jeff directing (*"merge your PRs. sync all tide related repos"*, then *"then take the next task"*)
@@ -285,130 +379,6 @@ It also settled a discrepancy I would otherwise have hand-waved: the rescanned c
 **Next:** **the same three rows want a linux build**, which is the one leg nobody has run and is a single command on that box. **E65 wants Jeff's merge** — [#559](https://github.com/JeffMcClintock/TideSynth/pull/559) is green and has been since 2026-08-29. **E19's mac AU3 cell still wants one unlocked interactive session**, unchanged: build `TIDE_Rack_AU3_assemble` with `-DTIDE_VCV_FUNDAMENTAL=ON -DCMAKE_CXX_FLAGS=-DRACK_ADAPTOR_TRACE=1`, copy the app over `~/Applications`, launch it once.
 
 **Branch/PR:** `tide/mac/step4-e64-e66-e67-mac-verified` — the E64/E66/E67 flips and their archive rows, the mac NEXT cell, the macOS plug-in-provenance recipe in [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md), and this entry.
-
-## 2026-08-29 — windows — E67: ctrl+wheel translated the document under the cursor — E42's defect, one function from where E42 fixed it (interactive, Jeff directing)
-
-**Prompt:** interactive, Jeff directing (*"new bug: ctrl mouse wheel is meant to zoom in/out while keeping same point of document under the mouse"*, then *"the zoom works, but the document moves under the mouse"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
-
-**Did:** diagnosed by reading, fixed, made the gesture drivable, and measured the A/B. [SynthEditLib#75](https://github.com/JeffMcClintock/SynthEditLib/pull/75) (GATED — proposed for review, never merged by a run) + [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) (`--scroll --ctrl`). **E67 → IN-REVIEW.**
-
-### Jeff's clarification did the triage
-
-The first report read as "broken"; I was half-way into the delivery path (E39's old note that `--scroll` "reports ok and moves nothing" pointed that way) when the clarification landed: **the zoom works, the document translates**. That eliminated delivery entirely — a zoom that works proves the event arrives with the ctrl flag intact — and reduced the search to the anchor arithmetic in one function.
-
-### The defect, and where the answer was already written
-
-`TopView::onMouseWheel` keeps the doc point under the cursor by recomputing the view centre — against `viewWidth * 0.5f`, the pane's half-SIZE. `calcViewTransform`, thirty lines below, anchors the actual transform on the pane's MIDPOINT, `(left+right)/2`, under a long E42 comment explaining **precisely this distinction**, measured to +240 DIP of browser strips. `(left+right)/2 − (right−left)/2 = left`, so every zoom step translated the view by `left/zoom` (and `top/zoom`) while the zoom factor itself was right. Origin-rooted panes hide it — midpoint equals half-size there — which is every other view in the repo, and why only TIDE showed it.
-
-The fix is the same substitution E42 made, term for term against `calcViewTransform`.
-
-### Making the gesture drivable was half the work, and it pays forever
-
-The command channel could not express ctrl+wheel — `--scroll` built its flags from `kHoverFlags` only. [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) adds `--ctrl`, the `--double`/`--right` precedent for the third time: each was one flag, and each turned a verification that "needs a human at the window" into a script. Also resolves E39's dangling note — the verb was never broken; the *gesture* was inexpressible.
-
-### Measured — one variable, self-calibrating
-
-`measure_zoom.py`: anchor one ctrl+wheel notch on the Out module's edge, find the module's two panel edges along the anchor row before and after, derive the ACTUAL zoom ratio from the edge spread (no assumption about snap), and compare each edge's landing spot with the doc-anchored prediction `anchor + (edge − anchor) × ratio`.
-
-| build | result |
-|---|---|
-| origin/main | module **clean out of the viewport** after one notch; rails jumped rows |
-| SynthEditLib#75 | left edge drift **+0.3 px**, right edge drift **+0.3 px**, ratio 1.302 |
-
-The BEFORE build was produced by checking SynthEditLib back to `main` in the second build tree, so both binaries share the `--ctrl` flag and differ by exactly one commit's worth of view math.
-
-**Consumers built:** TIDE standalone Debug and **SynthEditCL 90/90** — `ViewBase.cpp` is shared, so SynthEdit's own ctrl+wheel gets the same correction; origin-rooted panes are unchanged by construction.
-
-**Learned:**
-
-- **"The zoom works but it translates" is a complete triage in one sentence.** It rules out delivery, flags, and the zoom path, and leaves only the anchor arithmetic — the user's second sentence saved the session the delivery investigation the first sentence had started.
-- **When a bug is fixed in one function, grep for the same expression in its callers.** E42 fixed midpoint-vs-half-size in `calcViewTransform` and documented it loudly; the identical expression sat in `onMouseWheel` computing the input to that very function. A fix that renames or wraps the corrected quantity (a `canvasCenter()` helper) would have fixed both sites at once.
-- **An inexpressible gesture is a class of unverifiable rows.** Third time one flag on the command channel converted "needs a human" into a script — `--double` (E36), `--right` (E38), now `--ctrl`.
-- **Self-calibrate the measurement against the artifact, not the spec.** Deriving the zoom ratio from the edge spread made the drift number independent of the snap formula — the measurement cannot be fooled by the very quantity under test.
-
-**Not verified:** mac/linux builds (no platform code; CI on #75 will say); SynthEdit's interactive feel beyond compiling — the correction is mathematically the E42 fix, but nobody has wheel-zoomed the full editor against this branch.
-
-**Machine state.** `SynthEditLib` on `tide/win/E67-zoom-anchor-drift` (PR #75), `GMPI_Wrappers` on `tide/win/E67-scroll-ctrl-flag` (PR #34), TideSynth on `tide/win/E67-filed` — all with open PRs. gmpi_ui still parked on its #16 branch awaiting Jeff's review click. Measurement artifacts under `C:\SE\_scratch\e64\zoom-*\`, script at `measure_zoom.py`.
-
-**Branch/PR:** [SynthEditLib#75](https://github.com/JeffMcClintock/SynthEditLib/pull/75) + [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) + `tide/win/E67-filed` (row and entry). The lib PR is the substance; #34 lands alone harmlessly.
-
-## 2026-08-29 — windows — E66 fixed both halves: reload releases the visuals first, and State's death is now loud at the cause (interactive, Jeff directing)
-
-**Prompt:** interactive, Jeff directing (*"drive the computer... should crash"*, then *"yes, fix E66"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
-
-**Did:** reproduced Jeff's settings-pane crash under a resident debugger, diagnosed it to a named invariant, and fixed both halves: [GMPI_Wrappers#33](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/33) (the root cause) + [gmpi_ui#16](https://github.com/JeffMcClintock/gmpi_ui/pull/16) (the tripwire). **E66 → IN-REVIEW.** Also filed **E65** earlier in the session ([#555](https://github.com/JeffMcClintock/TideSynth/pull/555), the panel's missing draft render — report only, deliberately undiagnosed).
-
-### The reproduction, driven blind over the command channel
-
-The pane was **already open at launch** — the audio device is held exclusively (Jeff's Ableton), and the pane auto-opens on that failure, which made the repro cheap. Clicking Close survived; **re-opening via `--menu Audio/MIDI Settings...` crashed 2/2**, AV reading `0xdddddddd` — MSVC's freed-heap fill. A resident `cdb -p <pid> -c "g; ~#k; qd"` caught the full stack on the second run:
-
-```
-State<bool>::release            <- walking the subscriber vector of a FREED State
-~StateRef<bool> <- ~ToggleSwitch <- unique_ptr<View> dtor <- ViewParent::clear
-Form::renderVisuals <- SettingsPane::render <- AppLayout <- paintLoop
-```
-
-### The invariant was already written down, twice
-
-`ViewParent::clear()`'s own comment: *"release anything pointing to states before releasing states (else crash)"* — and `SettingsPane`'s destructor obeys it, with a comment saying why. **`reload()` is the same teardown happening mid-life and it skipped the first half:** `midiInputs_.clear()` destroys the MIDI tick-boxes' `State<bool>` objects while the old widget tree — only torn down at the *next* `renderVisuals` — still holds `StateRef`s into them. The other `State` members survive reload (they are assigned, not destroyed), which is why only the tick boxes could kill it.
-
-### The fixes, and the E64 ruling applied one layer down
-
-**Root cause** (GMPI_Wrappers#33): `reload()` begins with `clear()` and marks the form dirty. All three call sites (menu action, startup failure, device-death notification) verified to run outside the form's own widget dispatch, so clearing there cannot destroy a widget that is currently on the stack.
-
-**Tripwire** (gmpi_ui#16): `~State()` now **asserts** no watcher remains — Debug stays loud **at the destruction site**, which is the cause, instead of a UAF two frames later in STL iterator machinery — and then **detaches** every survivor by nulling its back-pointer, so a Release build loses a notification instead of corrupting the heap. Drain-and-assert, the exact shape Jeff ruled for E64's queue. `StateRef` grants `State<T>` friendship for the detach.
-
-### Verified
-
-- Scripted repro: **5/5 close/reopen cycles alive** (was 2/2 crash on the first reopen), the pane fully rendered afterwards (screenshot — device combo, rate, buffer, tick boxes, status line all present), zero asserts on stderr.
-- TIDE standalone + VST3 Debug rebuilt; the binary contains the new assert string (checked before running, installed-copy as negative control).
-- **SynthEditCL 130/130** against the gmpi_ui branch — `observable.h` is shared with SynthEdit, per G3.
-- The VST3 POST_BUILD install step failed once mid-session: **Ableton holds the installed bundle's DLL** — benign, left alone, and worth knowing: `SE_LOCAL_BUILD=ON` cannot replace the installed plugin while any host has it loaded.
-
-**Learned:**
-
-- **A settings pane that auto-opens on failure is a free reproduction rig.** The audio device being held exclusively looked like an obstacle and was the enabler: the pane was on screen at launch, every launch.
-- **When a class's destructor documents a teardown order, grep for every other place the same members die.** `reload()` was the destructor's own sequence run mid-life, minus the half that made it safe — the invariant was stated in two places and enforced in neither.
-- **Put the tripwire at the destruction site, not the use site.** The UAF surfaced in `_Adopt_unlocked` two frames after the cause; `~State()`'s assert fires at the exact line that breaks the contract, which is the difference between a session and a glance.
-- **`0xdddddddd` in a Debug AV is a diagnosis in itself** — MSVC's freed-heap fill means use-after-free before any stack is read.
-- **A resident `cdb -p <pid> -c "g; ~#k; qd"` costs nothing and catches what a post-mortem cannot** — the first attach without `g` lost the process; the second run's stack was the whole diagnosis.
-
-**Not verified:** mac/linux builds of both changes (no platform code; CI will say); whether any *other* `gmpi_forms` consumer relies on destroying a watched `State` (the new assert will now say so loudly, which is the point).
-
-**Machine state.** `gmpi_ui` on `tide/win/E66-state-outlives-ref-guard` (PR #16), `GMPI_Wrappers` on `tide/win/E66-settingspane-reload-order` (PR #33), TideSynth on `tide/win/E66-fixed` — all with open PRs, returned to defaults once merged. Jeff's Ableton untouched. Repro artifacts under `C:\SE\_scratch\e64\s3\` and `s4\`.
-
-**Branch/PR:** [GMPI_Wrappers#33](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/33) + [gmpi_ui#16](https://github.com/JeffMcClintock/gmpi_ui/pull/16) (the fixes, either lands alone) + `tide/win/E66-fixed` (this row and entry).
-
-## 2026-08-29 — windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)
-
-**Prompt:** interactive, Jeff directing (*"how about the obvious. register the root containers handle so everyone knows about it?"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
-
-**Did:** implemented Jeff's design for E64's root cause, and it turned out to be **TIDE-side only** — the `Id="1"` wrapper is minted by `TideApp::exportChunkXml` (`SynthEditSem/TideApp.cpp`), not by SynthEditLib, and SynthEdit's own exporter writes no such literal, so the collision never touched the commercial product. Branch `tide/win/E64-reserve-wrapper-handle`. GMPI#20 (the queue containment) stands unchanged as defence in depth.
-
-### The design, and why it beats all four options I had listed
-
-The wrapper's handle becomes `TideApp::kDspWrapperContainerHandle` (= 1, so every existing saved session and host chunk restores unchanged), and a `UniqueSnowflake dspWrapperReservation` member is **registered in the document's `uniqueIdDatabase`** at the top of `InitInstance` — before anything else in the document allocates. From there the namespace defends itself by mechanisms that already exist: the sequential parameter allocator's `while(find(key)) ++key` skips 1 like any other taken handle, and a latecomer claiming 1 (a hand-edited document) is renumbered by `Register`'s existing collision path. No reserved-base magic, no export-shape change, no new rule for anyone to remember — the reservation is a fact in the same map every allocator already consults.
-
-Two loud checks, per Jeff's plastering-over ruling: `InitInstance` asserts if the reservation itself was beaten to the handle, and `importChunkXml` asserts if it did not survive a document rebuild (`DeleteContents` only unregisters objects in the document tree, so it does — verified, not assumed: the map has no bulk-clear on that path and `swap()` has no callers).
-
-### Measured
-
-- **Ordering verified in the artifact:** the standalone's pushed DSP doc now shows the wrapper still at `Id="1"` and the first host-control parameter at **`Handle="0"`, with nothing allocated 1** — the allocator skipped the reservation exactly as designed. No reservation-failure lines, no asserts.
-- **The trigger path, end to end:** a hosted Debug render of `tests/hosts/v1-rack.rpp` — REAPER, `setActive` processor recreation, hc59's `ppc` and all — produced **no assert, no drain diagnostic**, a correct restore (both instances build 14,136), and **peak −6.3 dBFS / rms −17.0**, the reference figures. Before this fix the same path desynced the queue on the first parameter update.
-- The E56 property survives: handles are still deterministic per load, just numbered around the reservation.
-
-**Learned:**
-
-- **"Register it so everyone knows" beats every clever alternative when a namespace already has an authority.** I had offered a reserved base, an export change, and a send-side filter; Jeff's version needs no new knowledge anywhere because the map IS the knowledge, and both existing allocators already consult it.
-- **Find out whose literal it is before deciding whose fix it is.** Three sessions discussed this as a SynthEditLib/GMPI question; one grep found the `Id="1"` in TIDE's own ALLOWED file, which collapsed the gating question entirely.
-- **A reservation is only a reservation if it is registered before the first allocation** — and the verification of that ordering is in the exported artifact (parameter handles 0, 2, …), not in the code review.
-- **The heredoc backslash trap got me again**, one session after writing it into lessons: `\\n` collapsed and put a real newline inside a C string literal. The rule that sticks: escape-bearing code goes through a Write-tool file, never a heredoc — no exceptions for "just two lines".
-
-**Not verified:** mac/linux builds (no platform code; CI will say); Ableton itself — REAPER exercises the same wrapper lifecycle, but the original reproduction machine is one insert-and-cable session away from closing this for good.
-
-**Machine state.** TideSynth on `tide/win/E64-reserve-wrapper-handle` until this lands; `GMPI` parked on `tide/win/E64-que-selfheal` (open PR #20); all other repos clean on defaults. The installed Debug VST3 carries both fixes.
-
-**Branch/PR:** `tide/win/E64-reserve-wrapper-handle` — TideApp.h/.cpp, this row and entry. Pairs with [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20); either lands without the other, but together the collision is impossible AND any future misreader is contained loudly.
 
 ## Rotation — do this as part of STEP 4, every run
 

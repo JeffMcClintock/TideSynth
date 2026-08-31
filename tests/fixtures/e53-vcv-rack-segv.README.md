@@ -43,8 +43,18 @@ reached" list names it and that name is an error; E50 carries the measurement.
 Copy it over the standalone's `session.xml` and launch:
 
 ```bash
-cp tests/fixtures/e53-vcv-rack-segv.xml "$APPDATA/TIDE Rack/session.xml"
+cp tests/fixtures/e53-vcv-rack-segv.xml "$APPDATA/TiDE Rack/session.xml"
 ```
+
+**The folder is `TiDE Rack`, with a lower-case `i` — this line said `TIDE
+Rack` until 2026-08-31 and the difference is silent.** A run that follows the
+old spelling gets a folder the app never reads: it loads the DEFAULT rack and
+says nothing, with the fixture sitting one directory away. Measured on linux
+that day — `building rack from 17961 byte document` for the default, against
+`38658` once the file was moved. The `standalonePlugin` ATTRIBUTE inside the
+file is still `TIDE Rack`, as the table above says; the two are different
+strings and both spellings are correct in their own place, which is exactly
+why this was easy to get wrong.
 
 **Delete any `session.loading` sitting beside it first** — `SessionState` treats that
 sentinel as "the last load died here" and quarantines the file instead of restoring it
