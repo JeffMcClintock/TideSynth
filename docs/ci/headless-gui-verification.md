@@ -376,3 +376,93 @@ probe measured the consequence in one command, and the A/B is one commit wide:
 **What it deliberately does not answer:** what the patch sounds like, and
 anything needing the editor. Those are the sections above, and this one does not
 replace them — it removes the host from the questions that never needed one.
+
+---
+
+# macOS AUv3 — registering one, hosting it, and the instrument that does not survive
+
+**Measured 2026-08-31 (macos, interactive, Jeff present) for BACKLOG E19's mac
+AU3 cell.** The 2026-08-29 run measured *five* ways to register a current AUv3
+beside the developer's and all five failed, concluding the cell needs a human.
+It does, and this is what the human unlocks — plus one wall that a human does
+not remove.
+
+## Registering: displace, having first taken a copy
+
+There is no second slot. `pluginkit -a`, a distinct `CFBundleIdentifier`, a
+distinct AU subtype, an inside-out ad-hoc re-sign and `lsregister -f` were all
+measured to leave `pluginkit -m -i <id> -v` answering `(no matches)`. The only
+thing that works is replacing the installed app — which is why it needs
+somebody who can say yes:
+
+```bash
+ditto ~/Applications/TIDE-Rack-AUv3.app <scratch>/backup/   # FIRST. it is 5 MB
+rm -rf ~/Applications/TIDE-Rack-AUv3.app
+ditto build-<tree>/SynthEditSem/TIDE-Rack-AUv3.app ~/Applications/
+open -g ~/Applications/TIDE-Rack-AUv3.app                   # LAUNCH registers it
+pluginkit -mv | grep -i tide                                # UUID and date must CHANGE
+```
+
+**The backup is what makes this safe to do at all**, and it answers the
+2026-08-29 objection directly: the risk was a run dying mid-way and leaving the
+registration pointing at a build tree that later gets deleted. A copy taken
+first makes that recoverable in one command.
+
+Read the result by the **UUID and timestamp**, not by presence — the old
+registration is present too, and looks identical apart from those two fields.
+
+## Then `auval`, before any DAW
+
+```bash
+auval -a | grep -i tide          # aumu Drck Dsyh  -  TiDE Synth:TiDE Rack
+auval -v aumu Drck Dsyh
+```
+
+Apple's own validator is stricter than our probes and cheaper than a DAW.
+2026-08-31: **AU VALIDATION SUCCEEDED**, rc=0.
+
+## REAPER hosts it, and two traps cost a launch each
+
+REAPER 7.45 scans the registered extension into `reaper-auplugins_arm64.ini` as
+`TiDE Synth:TiDE Rack` and loads it under the name **`AUi: TiDE Rack (TiDE
+Synth)`** — the `AUi: <name> (<manufacturer>)` form. Get that spelling from
+REAPER itself rather than guessing; it is printed in any "Project Load Warning"
+about a missing plug-in.
+
+- **A seeded portable config reloads the developer's last project**, which
+  raises a modal naming plug-ins it cannot find, and the modal blocks
+  `Scripts/__startup.lua` from ever running. Set `loadlastproj=0` in the
+  portable `reaper.ini` and pass an explicit empty `.rpp`. The symptom is a
+  startup script that produces *no log at all*, which reads as "the script is
+  wrong".
+- **Delete `reaper-auplugins_arm64*.ini` from the PORTABLE copy** to force an AU
+  rescan. A cache seeded from the developer's has no TIDE entry — his has never
+  held one — so without this REAPER never looks.
+
+## The wall a human does NOT remove: an appex has no stderr
+
+**`RACK_ADAPTOR_TRACE` is unusable for a hosted AUv3 on macOS.** The counters
+this project relies on — `RackProcessor: '<slug>' display-state capture #N`,
+`first nonzero light`, the `apply expect=/sum=` pair, and TIDE's own
+`syncState`/`building rack from` lines — all go to **stderr**, and an audio-unit
+extension runs out-of-process under the system, so **none of them reach the
+host's stderr**. Verified: the strings are in the appex binary, the plug-in
+loads and runs, and `grep -i "TIDE:|RackProcessor" reaper-stderr.log` returns
+nothing.
+
+That is the same problem E65 already solved one layer up, and the same shape of
+answer applies: a file-path log switch (`TIDE_PANEL_LOG_PATH` +
+`-DTIDE_PANEL_TRACE_LOG`). Filed as **E73**.
+
+So on macOS AU3 the reachable evidence is: registration, `auval`, host
+instantiation, parameter count, and **screenshots**. The counter-based clauses
+of E19 are not reachable until the trace can write to a file.
+
+## What a screenshot settles that a symbol check cannot
+
+The floated editor drew, and its module browser listed `LFO`, `LFO2`, `Scope`,
+`SEQ3`, `SHASR`, `Quantizer` and the rest under a **"Rack-VCV Fundamental"**
+heading. That is a picture of VCV Fundamental linked and *enumerated inside the
+hosted extension* — the question the 2026-08-29 run got wrong twice by reading
+`strings` for `VCV: Scope`, which never appears because ids are composed at
+runtime. **When a symbol check is ambiguous and the thing is on screen, screenshot it.**

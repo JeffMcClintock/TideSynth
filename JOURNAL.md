@@ -8,6 +8,76 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-31 — macos — E19's mac AU3 cell: a DAW has now hosted TIDE's AUv3, and the half that is still unmeasured has a structural cause (interactive, Jeff directing)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** · as **tide-rack-bot** (both paths) · interactive continuation of the same session, Jeff directing (*"merge your PRs. sync all tide related repos"*, then *"then take the next task"*)
+
+**Did:** took **E19**'s mac AU3 cell — the topmost eligible row, and the one this box alone can measure — after both of its blockers lifted in the same minute: the screen was unlocked, and Jeff was present to authorise the one step an unattended run must not take. **A DAW has now hosted TIDE's AUv3, the first time on any box.** Branch `tide/mac/E19-au3-registered`. No product code changed.
+
+### The registration wall came down exactly where 2026-08-29 said it would
+
+That run measured five ways to register a current build **beside** the developer's — launching the built app, `pluginkit -a`, a clone with a distinct `CFBundleIdentifier` *and* subtype, an inside-out ad-hoc re-sign, `lsregister -f` — and all five left `pluginkit -m -i <id> -v` answering `(no matches)`. It was right, and it was right to stop: displacement was the only route and an unattended run must not take it.
+
+**A `ditto` backup taken first is what makes it safe**, and it answers that run's stated objection directly — the risk was dying mid-way and leaving his registration pointing at a build tree that later gets deleted; a 5 MB copy makes that one command to undo.
+
+| | before | after |
+|---|---|---|
+| `pluginkit -mv` UUID | `DBE224FD…` | **`793D00A0…`** |
+| its date | 2026-08-25 | **2026-08-31** |
+
+Read it by UUID and date, not by presence: the stale registration is present too and differs in nothing else.
+
+### Then Apple's validator, before any DAW
+
+```
+auval -a          ->  aumu Drck Dsyh  -  TiDE Synth:TiDE Rack
+auval -v aumu Drck Dsyh   ->  AU VALIDATION SUCCEEDED   rc=0
+```
+
+**The first Apple-validated AU result this project has.** M2 and E9 both record that TIDE's AU evidence was *our own probe, never a DAW*; `auval` is neither ours nor a DAW, and it is stricter than the first and cheaper than the second.
+
+### REAPER hosts it — and two traps cost a launch each
+
+REAPER 7.45 scanned the registered extension into its AU cache as `TiDE Synth:TiDE Rack` (his own cache had **never** held a TIDE entry — 0 matches, checked before starting), instantiated it as **`AUi: TiDE Rack (TiDE Synth)`**, floated the editor, and rolled the transport **43 s at `playstate=1`** with the position advancing to 43.14 — so `process()` ran and nothing wedged.
+
+- **A seeded portable config reloads the developer's last project**, whose missing plug-ins raise a modal, and the modal blocks `Scripts/__startup.lua` from ever running. The symptom is a startup script that writes **no log at all**, which reads as "my script is wrong" — I spent a launch there. `loadlastproj=0` plus an explicit empty `.rpp`.
+- **The AU cache must be deleted from the PORTABLE copy** to force a rescan; seeded from his, it has no TIDE entry, so REAPER never looks.
+
+Useful by-product: the blocking modal is where REAPER's own naming convention is printed — `AUi: <name> (<manufacturer>)`. Take the spelling from REAPER rather than guessing it.
+
+### The screenshot settles what a symbol check could not
+
+The floated editor **drew**, and its module browser lists `LFO`, `LFO2`, `Scope`, `SEQ3`, `SHASR`, `Quantizer`, `RandomValues` and the rest under a **`Rack-VCV Fundamental`** heading, with the five prefabs above them.
+
+That is a picture of VCV Fundamental linked and **enumerated inside the hosted extension**. The 2026-08-29 run reached for `strings … "VCV: Scope"`, got 0, read it as "VCV did not link", and then confirmed its own error with a second bad reading — the ids are composed at runtime so the literal never appears. No symbol check could have answered this; one screenshot did.
+
+### The wall a human does NOT remove, and it is the reason the rest is unmeasured
+
+**An audio-unit extension runs out-of-process, so everything this project traces to `stderr` is invisible when the plug-in is hosted.** `RACK_ADAPTOR_TRACE`'s counters and TIDE's own `syncState`/`building rack from` lines are all `fprintf(stderr, …)`. Measured, not assumed: the strings are in the appex binary, the plug-in loads and runs under the host, and grepping REAPER's stderr for `TIDE:` or `RackProcessor` returns **nothing**.
+
+So the linux box's whole instrument set is unavailable here, and E19's animation, int/bool/enum and pixel-diff clauses cannot be read on macOS AU3 however long anybody watches. **Filed as E73**, whose fix already exists one layer up: E65's `TIDE_PANEL_LOG_PATH` + `-DTIDE_PANEL_TRACE_LOG`, which routes a trace to a file and defaults into `TMPDIR` so it survives the sandbox.
+
+### One measurement that belongs to V2, recorded in passing
+
+REAPER sees **3** parameters on the instance: `Bypass`, `Wet`, `Delta` — all REAPER's own AU wrapper params. **None of TIDE's parameters are visible to the host**, so there is nothing for a DAW to automate today. That is V2's problem and this is a datum for it, not a new row.
+
+**Learned:**
+
+- **"Needs a human" is a claim with an expiry, and it expired the minute one showed up.** Two of E19's blockers were properties of an *unattended* run — a locked screen and a registration nobody may displace — not of the platform. The row had said so since 2026-08-29; what changed was availability, and a run should check that before re-inheriting a blocker.
+- **Take the backup and the objection disappears with it.** The 2026-08-29 refusal was reasoned from irreversibility ("if the run died in between"). A `ditto` first converts the whole argument into a one-command undo — the blocker was recoverability, not permission.
+- **`auval` before any DAW.** It is Apple's, stricter than our probes, needs no host config, and had never been run against this plug-in. A DAW failure after `auval` passes means something about the DAW; before it, you do not know what it means.
+- **A no-output startup script is more often a modal than a bug.** REAPER wrote nothing at all, and the cause was a dialog about a *different* project's missing plug-ins. Screenshot before debugging the script.
+- **When a symbol check is ambiguous and the thing is on screen, screenshot it.** Third time this project has been misled by `strings` on runtime-composed ids; the picture cost one command and is unarguable.
+- **Out-of-process changes what an instrument IS, not just where it prints.** Every counter this fleet added for the linux box is a `stderr` write, and that design choice silently excludes the AUv3 target entirely. Worth knowing before adding the next one.
+
+**Not verified:** E19's animation window, int/bool/enum toggle and pixel diff — blocked on E73 and on getting a PREPARED rack into a hosted AUv3, which is the same shape as E60's CLAP blocker; audio out of the hosted AU (the default rack with no MIDI is silence, so the test would have proved nothing); whether the same holds in Logic or Live, neither of which was opened.
+
+**Machine state.** **One deliberate change to the developer's machine, and it is the point of the exercise:** `~/Applications/TIDE-Rack-AUv3.app` is now the current build (Release/arm64, `TIDE_VCV_FUNDAMENTAL=ON`, `RACK_ADAPTOR_TRACE=1`, 395/395 0 errors) and is the registered AUv3. **The 2026-08-26 app it replaced is backed up** in the session scratchpad; restoring it is `rm -rf` + `ditto` + one `open -g`. Everything else was isolated and verified afterwards: his `~/Library/Application Support/REAPER` has **0 files** modified in the last two hours across 2052, and his installed `VST3/TIDE-Rack.vst3` (Aug 28) and `CLAP/TIDE-Rack.clap` (Aug 22) are untouched — every build ran `SE_LOCAL_BUILD=OFF`. The portable REAPER, its config and all captures are in the scratchpad. No REAPER, appex or TIDE process left running by this run; a `e38_context_menu_probe.py` and a standalone TIDE belonging to Jeff's own live session were running throughout and were left alone. **A macOS permission dialog is on his screen** — *"Claude is requesting to bypass the system private window picker"*, raised by `screencapture`; I did not answer it, because system security settings are his, and screen capture worked without it.
+
+**Next:** **E73 unblocks three of E19's clauses** and is one session. **E19's remaining mac clauses also want a prepared rack in a hosted AUv3** — worth solving once, since E60 needs the same thing for CLAP. **E72** wants a ruling, not a session. And the AUv3 is registered *now*, so any further AU3 measurement is cheap until somebody rebuilds over it.
+
+**Branch/PR:** `tide/mac/E19-au3-registered` — the E19 row, E73, the macOS AUv3 section of [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md), and this entry.
+
 ## 2026-08-31 — macos — E69: the CLAP save was fixed into an EMPTY save, and a 200-line bare host found it in one command (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** (no `claude` CLI on this box's PATH; the app's version, which A13 records as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`)
@@ -339,53 +409,6 @@ Two loud checks, per Jeff's plastering-over ruling: `InitInstance` asserts if th
 **Machine state.** TideSynth on `tide/win/E64-reserve-wrapper-handle` until this lands; `GMPI` parked on `tide/win/E64-que-selfheal` (open PR #20); all other repos clean on defaults. The installed Debug VST3 carries both fixes.
 
 **Branch/PR:** `tide/win/E64-reserve-wrapper-handle` — TideApp.h/.cpp, this row and entry. Pairs with [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20); either lands without the other, but together the collision is impossible AND any future misreader is contained loudly.
-
-## 2026-08-29 — windows — E64 diagnosed to the byte: E56's own fix aimed a parameter at the DSP's root container, and the queue now survives it loudly (interactive, Jeff directing)
-
-**Prompt:** interactive, Jeff directing (*"rebuilt, reproduced it, check the log"* ×3, *"do (b) for sure. Then explain why you changed the handles"*, *"ensure it fires an assertion when this happens"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
-
-**Did:** closed E64's open question with three measured links, built fix (b) as [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20) (PR-GATED — proposed, not merged), and deliberately did NOT touch the handle allocation — that is Jeff's ruling to make, and the options are laid out below. Row **IN-REVIEW** on the queue half.
-
-### The chain, each link measured rather than argued
-
-1. **The desync line, from the live Ableton reproduction** (a file-logging probe, because a GUI host swallows stderr): `declaredLen=1 actuallyRead=0 readyBytes=1 partial=0 handle=1 fourcc=ppc.` — a 1-byte patch-parameter change whose target consumed nothing.
-2. **Who owns handle 1**, from a registration probe on a plain launch: `handle 1 registered to class ug_container`. The DSP export has always wrapped the graph in a root `<Module Id="1" Type="Container">` — decoded from the pushed chunk itself, after the on-disk document showed no low handles at all. `ug_container` inherits `dsp_msg_target::OnUiMsg`, a silent no-op, so it "handles" the message and reads none of it.
-3. **Who sends a ppc for handle 1**: the host-control parameter that [SynthEditLib#72](https://github.com/JeffMcClintock/SynthEditLib/pull/72) (E56) now deterministically hands handle **1** — that PR's own measurement is `hc6=0 hc59=1`, and `HC_PROCESSOR_OFFLINE` is a bool: the 1 byte. It changes only in a HOSTED lifecycle (processor recreate under `setActive`), which is why three standalone reproductions were clean and Ableton failed every time.
-
-`ProcessMessage` drained an unconsumed payload only when the client returned false; a target that EXISTS but reads short left its bytes to be parsed as the next header — misaligned forever, assert in Debug, silent garbage in Release. Also measured in passing: `ppc for handle 0 -> target (none)` — hc6's updates are silently discarded on every launch, the same disease with a benign face, and `RegisterDspMsgHandle` keeps the FIRST owner on a duplicate (`map::insert`, collision assert commented out), so none of this was visible.
-
-### The fix, and Jeff's correction to it
-
-[GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20): `ProcessMessage` snapshots the FIFO read index around the client call (new wrap-safe `readIndex()`/`consumedSince()`, deliberately not `_DEBUG`-only) and drains any remainder to the declared length — a misbehaving client damages its own message and nothing after it.
-
-**My first cut demoted the Debug assert to a bounded log, and Jeff rejected that in as many words:** *"ensure it fires an assertion when this happens. because plastering over the root cause and silently swallowing the bug is only going to cause pain later."* He is right, and the shipped shape is: **drain AND assert.** Release gets containment (one lost message, aligned stream); Debug stays loud, with the diagnostic numbers on stderr before the modal. Only the ordinary no-target discard is quiet, as it always was. Consequence stated plainly: **the Debug dialog keeps appearing until the handle collision itself is resolved — by design.**
-
-### Verified
-
-- **Unit A/B** (`C:\SE\_scratch\e64\quetest`, Release = the shipped behaviour): origin/main FAILS the E64 shape — the message behind the short read is lost and the queue never drains; the branch passes 9/9, including the no-target discard control and twenty exact reads across a buffer wrap. The fix's own diagnostic line reproduces the Ableton signature verbatim (`handle 1 msg ppc. consumed 0 of 1`).
-- **TIDE VST3 + standalone** (Debug, Jeff's tree) rebuilt and smoke-clean; the fixed plugin is installed locally, so his next insert-and-cable session is the live confirmation (Release-shape: no corruption; Debug: assert until the collision is ruled on).
-- **SynthEditCL 113/113** in the scratch Ninja tree with `GMPI_SDK_FOLDER_OVERRIDE` at the branch — GMPI is the bottom layer and SynthEdit is a consumer.
-
-### The handle question, laid out for the ruling rather than decided
-
-Jeff: *"explain why you changed the handles, we can't just mess with how they work."* The honest answer: **#72 did not change the design — it made a broken implementation do what its own comment always promised.** The sequential-ID intent predates it (*"Generate nice sequential IDs… Using the same ID every time ensures resulting DSP XML is consistant and comparable each run"*); the old loop iterated an `unordered_map` expecting sorted order, so in practice the FIRST host-control parameter got 0 and every later one collided and fell back to a **random** handle per load — which is exactly E56's document-never-round-trips bug. What nobody knew: the brokenness was also load-bearing. Random handles almost never landed on the export's root container Id 1; deterministic ones do, every time. And handle **0** was already colliding-and-lost before #72 — measured — so the namespace overlap is old; #72 widened it from a silent data loss into a stream corruption.
-
-Options, all his call: **(i) revert #72** — restores E56's nondeterminism to keep the accidental safety; **(ii) start the sequential IDs at a reserved base** — keeps E56's byte-identical property, one line, but hard-codes knowledge of the export's Id 1; **(iii) stop exporting the root wrapper as Id 1** — cleanest namespace, riskiest change; **(iv) stop the editor queueing ppc for parameters with no DSP-side registration** — fixes the handle-0 loss too. None taken; #20 makes every one of them safe to take slowly.
-
-**Learned:**
-
-- **A fix can be correct by its own Accept and still be load-bearing for a bug it cannot see.** #72's determinism was the right fix for E56 and is what armed E64; the randomness it removed was accidentally keeping a parameter's messages away from a container that would eat them.
-- **"Handled" and "consumed" are different claims, and the queue only ever checked the first.** The discard path keyed on the client's return value; nothing anywhere compared bytes consumed against bytes declared outside a `_DEBUG` block.
-- **Containment and alarm are separate requirements — do not trade one for the other.** I shipped the drain and demoted the assert in the same edit; Jeff caught it immediately. The drain protects users, the assert protects the codebase, and the fix needed both.
-- **Print the numbers before the modal.** The assert dialog ends the session; the fprintf above it is why the next reproduction costs a glance instead of an attach.
-- **A four-char code is not a string.** `'ppc'` is three chars + NUL; printing its bytes as `%c` before the lengths truncated the one line the whole reproduction existed to produce.
-- **`map::insert` on a duplicate key is a silent policy decision.** First-wins, no error — and the assert that would have said so was commented out. The registration probe found in one launch what three sessions of queue-side analysis could not.
-
-**Not verified:** mac/linux builds of the changed TU (no platform code; CI on the PR will say); the live Ableton confirmation against the fixed binary (installed, awaiting Jeff's next session); which of options (i)–(iv) Jeff rules — nothing is built on any of them.
-
-**Machine state.** `SynthEditLib` probe reverted, clean on `main`. `GMPI` parked on `tide/win/E64-que-selfheal` (open PR #20) — returned to `main` at session end per STEP 5 once Jeff has seen the diff, but left checked out for now since his local rebuild consumes it. TideSynth on `tide/win/E64-diagnosed` until this lands. The installed Debug VST3 carries the fix; Jeff's REAPER config untouched this session. Unit test kept at `C:\SE\_scratch\e64\quetest` with the round-1/round-2 probe logs.
-
-**Branch/PR:** [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20) (the fix) + `tide/win/E64-diagnosed` (this row and entry). Merging the TideSynth side alone changes no behaviour; GMPI#20 is the substance.
 
 ## Rotation — do this as part of STEP 4, every run
 

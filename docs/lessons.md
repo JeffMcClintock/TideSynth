@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **389 KB** across **316** entries, so copying them
+Learned sections are **391 KB** across **317** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **120 KB / 1300 lessons — 3.2x smaller**, and represents
+A8. This is **121 KB / 1306 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,15 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-31
+
+**macos — E19's mac AU3 cell: a DAW has now hosted TIDE's AUv3, and the half that is still unmeasured has a structural cause (interactive, Jeff directing)**
+
+- "Needs a human" is a claim with an expiry, and it expired the minute one showed up.
+- Take the backup and the objection disappears with it.
+- `auval` before any DAW.
+- A no-output startup script is more often a modal than a bug.
+- When a symbol check is ambiguous and the thing is on screen, screenshot it.
+- Out-of-process changes what an instrument IS, not just where it prints.
 
 **macos — E69: the CLAP save was fixed into an EMPTY save, and a 200-line bare host found it in one command (scheduled run)**
 
@@ -90,15 +99,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Find out whose literal it is before deciding whose fix it is.
 - A reservation is only a reservation if it is registered before the first allocation
 - The heredoc backslash trap got me again
-
-**windows — E64 diagnosed to the byte: E56's own fix aimed a parameter at the DSP's root container, and the queue now survives it loudly (interactive, Jeff directing)**
-
-- A fix can be correct by its own Accept and still be load-bearing for a bug it cannot see.
-- "Handled" and "consumed" are different claims, and the queue only ever checked the first.
-- Containment and alarm are separate requirements — do not trade one for the other.
-- Print the numbers before the modal.
-- A four-char code is not a string.
-- `map::insert` on a duplicate key is a silent policy decision.
 
 ## 2026-08-18
 
@@ -2340,3 +2340,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A `strings` miss is only evidence once you know how the string is built.
 - Two wrong readings that agree are not corroboration when they share a cause.
 - When the safe version of an experiment does not exist, stop rather than doing the unsafe one carefully.
+
+**windows — E64 diagnosed to the byte: E56's own fix aimed a parameter at the DSP's root container, and the queue now survives it loudly (interactive, Jeff directing)**
+
+- A fix can be correct by its own Accept and still be load-bearing for a bug it cannot see.
+- "Handled" and "consumed" are different claims, and the queue only ever checked the first.
+- Containment and alarm are separate requirements — do not trade one for the other.
+- Print the numbers before the modal.
+- A four-char code is not a string.
+- `map::insert` on a duplicate key is a silent policy decision.
