@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **391 KB** across **317** entries, so copying them
+Learned sections are **394 KB** across **318** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **121 KB / 1306 lessons — 3.2x smaller**, and represents
+A8. This is **121 KB / 1312 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -2318,6 +2318,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - When a fixture refuses to reproduce, ask what shipped since it was last seen.
 - Answer a NEEDS-SPEC by stating the Accept that was met, not by building more.
 - Give a probe a control that simulates the historical regression, not a synthetic one.
+
+**linux — E60: the CLAP state path works, the blocker was our own harness, and a 32 KB cap was hiding under it (scheduled run)**
+
+- A harness defect and a product defect can hide behind one symptom, and the harness one goes first.
+- A truncated document that still parses is the worst possible failure.
+- Split a two-sided question with an instrument that only has one side.
+- Check the format's own file for its conventions before inventing them.
+- A negative control belongs on a screenshot too.
+- A comment that reasons from the code's origin ages badly.
 
 **windows — E64 filed: the ui->dsp queue desyncs in a HOST but not in the standalone, and three negatives are the finding (interactive, Jeff directing)**
 
