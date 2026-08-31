@@ -36755,6 +36755,103 @@ Two arms: with `-quiet` (argv parsed → banner on stderr → kept → drained w
 
 **Next:** Jeff pushes the `build.yml` step for the probe (workflow scope, patch supplied). E56 is with the windows agent. Remaining gated: S1b, S8, E7, E38.
 
+## 2026-08-28 — linux — E60: the CLAP state path works, the blocker was our own harness, and a 32 KB cap was hiding under it (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`)
+
+**Did:** the `linux` NEXT cell said take **E59**; E59 was claimed by the windows box minutes earlier (`tide/win/E59-controller-chunk-seeding`, [#547](https://github.com/JeffMcClintock/TideSynth/pull/547)), so per STEP 2 I took the cell's next name, **E60**. **Its headline is refuted** — a prepared rack does reach a hosted CLAP — and a real product defect was found underneath and fixed. Row **IN-REVIEW**. Branches `tide/linux/E60-clap-state-trace` in both repos; the fix is [GMPI_Wrappers#32](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/32).
+
+### The open question was "REAPER or us", and the answer is neither
+
+E60 ended: *"whether the state is dropped by REAPER 7.43's CLAP implementation or by TIDE's own `clap_plugin_state.save/load` — nobody has looked at the wrapper side"*. Both were innocent. **REAPER truncates a single `<STATE>` base64 line at 4,096 characters**, and every attempt so far wrote the block as one long line.
+
+| the same 18,893-byte preset | bytes reaching `stateLoad` | result |
+|---|---|---|
+| one 25,192-char line | **3,071** | `load` returns **true**, rack unchanged |
+| wrapped at 128 chars (198 lines) | **18,893** | `load` true, `save` returns **18,933** |
+
+4,096 base64 chars decode to 3,072 bytes, and the trailing partial quantum makes 3,071 — the arithmetic closes exactly, which is what turned "REAPER is dropping it" into "we are handing it 16% of a document".
+
+**The silent-success part is why nobody caught it.** A truncated TIDE preset still *begins* `<?xml version="1.0"?><Preset>`, so `setPresetUnsafe` parses it, finds nothing it can use, and returns — `stateLoad` reports success. There is no error anywhere in the chain. 128 chars per line is not a guess either: REAPER's own saved project writes 198 lines of exactly 128 payload chars.
+
+### The two numbers E60 recorded are now explained rather than quoted
+
+- ***"the default 116 chars"*** is `stateSave` on a fresh instance. It writes `<?xml…?><Preset><Param id="1" val=""/></Preset>` — **85 bytes plus the NUL = 86**, and `ceil(86/3)*4` is **exactly 116**. Not a truncation; the default state genuinely is one empty parameter.
+- ***"698 chars"*** is the whole default **TRACK** chunk, measured here at 698 too. It was never the state block.
+
+### The defect underneath, which is the part that ships
+
+`Processor_CLAP::stateLoad` read into `char buffer[4096 * 8]` and `return false`d once the total passed **32,511 bytes**, with a comment reasoning about *"a 700 byte string"* — true of the clap-saw-demo this wrapper grew from, false of a plug-in whose state is a document. The VST3 `setState` has never had a limit: it reads a length-prefixed chunk into a `std::string`.
+
+**This was live, not theoretical.** The repo's own host fixtures are 18,893 / 29,117 / **32,025** bytes — the last of them **486 bytes** from the cliff — and `tests/fixtures/e53-vcv-rack-segv.xml` is **51,690** and was refused outright. Now a growing `std::string`, the same shape as the VST3 path.
+
+**A/B — one probe, four fixtures, the commit the only variable:**
+
+```
+                bytes    BEFORE                        AFTER
+v1-rack        18,893    PASS  18,934 saved back       PASS  18,934
+v1-rack-midi   29,117    PASS  29,158                  PASS  29,158
+v3-midi-pitch  32,025    PASS  32,066                  PASS  32,066
+e53-vcv-rack   51,690    FAIL  REFUSED at totalRd=32512  PASS  51,630
+```
+
+The three unchanged rows are the point as much as the fourth: they are byte-identical either side, so the fix is not a rewrite of behaviour that worked.
+
+### The Accept is NOT met, and the reason is worth more than the fix
+
+The state reaches the **processor** — its own `stateSave` hands back the 18,933-byte rack after a project reopen — but the **editor still draws the default**. Screenshotted, against a no-state control taken the same way, and against the VST3 opening a prepared rack in the same REAPER minutes apart: the VST3 editor shows patch cables, the CLAP editor shows the default `Out` module and no cables.
+
+**That is E59 with the sign reversed**, and stating it that way is the useful part:
+
+| | editor | processor |
+|---|---|---|
+| VST3 (E59) | **prepared** | default |
+| CLAP (E60) | default | **prepared** |
+
+So these are not two bugs, they are one seam — editor and processor are seeded from different sources — seen from opposite ends. I did **not** chase the editor half: E59 is windows' live work and this would have raced their fix.
+
+### Three traps, each of which cost something
+
+- **`nohup ninja &` inside a tool call dies with the call.** The first build reported `rc=0` at 47 of 471 targets, which looks exactly like a successful short build. Check the artifact, not the exit code.
+- **A `.clap` is not a `.vst3` when it comes to instruments.** REAPER exposes no `vst_chunk` for a CLAP (`ok=false, len=0`), so the track chunk's `<STATE>` block is the only route, and that is what makes its line-length rule load-bearing.
+- **PIL cannot read `xwd`.** Twenty lines of `struct.unpack` against the 100-byte header can; the format is trivial and the alternative was installing ImageMagick into a scratch run.
+
+### The instrument is shipped, not described
+
+`tests/e60_clap_state_probe.cpp` dlopens the `.clap`, drives `clap_plugin_state` against a minimal host, and reports the byte counts and both return values **with no DAW present**. It is what separated wrapper from host in a question that had been open on that exact ambiguity, it runs in about a second, and its input stream deliberately returns short counts (≤4,096) so a wrapper that only works when the first read delivers everything cannot pass it. Exit codes distinguish setup failure (2) from plug-in refusal (1), per the E62 lesson. **It needs a `build.yml` step and the agent token has no `workflow` scope**, so that is Jeff's push.
+
+**Learned:**
+
+- **A harness defect and a product defect can hide behind one symptom, and the harness one goes first.** E60 spent a session concluding "no prepared rack can be got in" about a path that works; the real product bug was 486 bytes away from the fixture that was being used to look for it.
+- **A truncated document that still parses is the worst possible failure.** `<?xml…<Preset>` at the head means every layer reports success on 16% of a file. An error at any level would have named this in minutes.
+- **Split a two-sided question with an instrument that only has one side.** "REAPER or us" had been open for a day; a 200-line host harness with no DAW in it answered it before any DAW was started.
+- **Check the format's own file for its conventions before inventing them.** REAPER writes 128 base64 chars per line in the project it saves; nobody had opened one and counted.
+- **A negative control belongs on a screenshot too.** "The editor shows one module" means nothing until an instance with no state at all is shot the same way — and here it showed the same module, which is what made the reading honest.
+- **A comment that reasons from the code's origin ages badly.** *"a 700 byte string"* was accurate for the demo synth this wrapper was copied from and had been false since TIDE's first rack.
+
+### E59's fix landed mid-run, so I re-measured rather than shipped a stale reading
+
+`origin/main` moved while this branch was measuring: **E59 is fixed and merged** ([#547](https://github.com/JeffMcClintock/TideSynth/pull/547)), confirmed on mac ([#549](https://github.com/JeffMcClintock/TideSynth/pull/549)). Its fix is in `SynthEditSem/` and is **not format-specific**, so every CLAP reading above was taken against a tree that predates it — the E62 trap exactly, and I nearly pushed through it because my own PR going `CONFLICTING` is what made me look.
+
+Rebuilt, and **verified the binary contains #547 before trusting the re-run** — its own new strings, `syncState` ×5 and `startup default` ×2. Every finding survives, and the re-run is *better*, because #547's new trace says out loud what I had inferred from a screenshot:
+
+```
+TIDE: controller #2 startup default is 17961 bytes (syncState will not publish this document)
+TIDE: controller #2 restore of a 17963 byte document -> imported
+TIDE: building rack from 17963 byte document (Sync chunk, rack not yet prepared)
+```
+
+**17,963 is the default.** In the same run, `stateLoad` received the 18,893-byte prepared preset. So the CLAP's controller-side restore and its processor-side `stateLoad` are fed from **different documents** — which is what the screenshot showed and now has a named mechanism. The editor shot post-#547 is unchanged from the no-state control.
+
+**One datum for whoever owns E59's remainder, because it bears on that fix's own stated trade-off.** The document arriving here is **17,963** bytes against a captured startup default of **17,961** — **2 bytes apart, so the byte-identical refusal does not fire.** #547 says in as many words that the comparison *"fails towards publishing on purpose"*; this is that false negative, observed rather than predicted. I did not chase it: it is E59's row, not this one.
+
+**Not verified:** why the CLAP editor is not seeded (deliberately left to E59); whether the fix behaves on win/mac (no platform code in the changed function — it is `std::string` and the CLAP stream API — but neither box compiled it, and CI will say); module insertion inside a hosted editor, E60's observation (c), which I did not re-test; and whether any rack above 32 KB has ever been attempted in a CLAP host other than REAPER.
+
+**Machine state.** All six repos were clean and on their default branches at the start — verified, not assumed. `TideSynth` and `GMPI_Wrappers` are on the branches above until STEP 5 returns them; no other sibling was modified. REAPER 7.43 was downloaded into the session scratchpad and run only against a scratch `HOME`, so **`~/.vst3`, `~/.clap` and `~/.config/REAPER` were never written** — checked after. `~/.config/TIDE Rack/` untouched. Headless weston stopped, no REAPER or TIDE process left running. `build-e60/` is a scratch tree (gitignored); Jeff's `build/` was not touched, and a full configure+build of all three formats from cold took ~25 minutes and finished **rc=0**, which is also this run's evidence that `main` builds on linux.
+
+**Next:** **E59 is the blocker for both rows now**, and it has a new datum: whatever seeds the editor and whatever seeds the processor disagree in *both* formats, in opposite directions. **X1's stale `BLOCKED` mark wants flipping** — three linux runs have noticed it and none has done it. **E19's linux CLAP cell is newly measurable** and was only ever blocked by the harness bug this run removed.
+
+**Branch/PR:** `tide/linux/E60-clap-state-trace` in TideSynth (the probe, the corrected recipe, the E60 row, the `linux` NEXT cell, this entry) and in GMPI_Wrappers ([#32](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/32), the `stateLoad` fix). **Merging TideSynth's side alone leaves the 32 KB cap in place; merging the wrapper's alone leaves the backlog saying the work is open.**
 ## 2026-08-28 — windows — E64 filed: the ui->dsp queue desyncs in a HOST but not in the standalone, and three negatives are the finding (interactive, Jeff directing)
 
 **Prompt:** interactive, Jeff directing (*"hmm"* with a screenshot, then *"take it"*, then *"you can instrument it"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
@@ -36964,36 +37061,51 @@ Options, all his call: **(i) revert #72** — restores E56's nondeterminism to k
 
 **Branch/PR:** [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20) (the fix) + `tide/win/E64-diagnosed` (this row and entry). Merging the TideSynth side alone changes no behaviour; GMPI#20 is the substance.
 
-## 2026-08-29 — windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)
+## 2026-08-29 — windows — E67: ctrl+wheel translated the document under the cursor — E42's defect, one function from where E42 fixed it (interactive, Jeff directing)
 
-**Prompt:** interactive, Jeff directing (*"how about the obvious. register the root containers handle so everyone knows about it?"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+**Prompt:** interactive, Jeff directing (*"new bug: ctrl mouse wheel is meant to zoom in/out while keeping same point of document under the mouse"*, then *"the zoom works, but the document moves under the mouse"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
 
-**Did:** implemented Jeff's design for E64's root cause, and it turned out to be **TIDE-side only** — the `Id="1"` wrapper is minted by `TideApp::exportChunkXml` (`SynthEditSem/TideApp.cpp`), not by SynthEditLib, and SynthEdit's own exporter writes no such literal, so the collision never touched the commercial product. Branch `tide/win/E64-reserve-wrapper-handle`. GMPI#20 (the queue containment) stands unchanged as defence in depth.
+**Did:** diagnosed by reading, fixed, made the gesture drivable, and measured the A/B. [SynthEditLib#75](https://github.com/JeffMcClintock/SynthEditLib/pull/75) (GATED — proposed for review, never merged by a run) + [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) (`--scroll --ctrl`). **E67 → IN-REVIEW.**
 
-### The design, and why it beats all four options I had listed
+### Jeff's clarification did the triage
 
-The wrapper's handle becomes `TideApp::kDspWrapperContainerHandle` (= 1, so every existing saved session and host chunk restores unchanged), and a `UniqueSnowflake dspWrapperReservation` member is **registered in the document's `uniqueIdDatabase`** at the top of `InitInstance` — before anything else in the document allocates. From there the namespace defends itself by mechanisms that already exist: the sequential parameter allocator's `while(find(key)) ++key` skips 1 like any other taken handle, and a latecomer claiming 1 (a hand-edited document) is renumbered by `Register`'s existing collision path. No reserved-base magic, no export-shape change, no new rule for anyone to remember — the reservation is a fact in the same map every allocator already consults.
+The first report read as "broken"; I was half-way into the delivery path (E39's old note that `--scroll` "reports ok and moves nothing" pointed that way) when the clarification landed: **the zoom works, the document translates**. That eliminated delivery entirely — a zoom that works proves the event arrives with the ctrl flag intact — and reduced the search to the anchor arithmetic in one function.
 
-Two loud checks, per Jeff's plastering-over ruling: `InitInstance` asserts if the reservation itself was beaten to the handle, and `importChunkXml` asserts if it did not survive a document rebuild (`DeleteContents` only unregisters objects in the document tree, so it does — verified, not assumed: the map has no bulk-clear on that path and `swap()` has no callers).
+### The defect, and where the answer was already written
 
-### Measured
+`TopView::onMouseWheel` keeps the doc point under the cursor by recomputing the view centre — against `viewWidth * 0.5f`, the pane's half-SIZE. `calcViewTransform`, thirty lines below, anchors the actual transform on the pane's MIDPOINT, `(left+right)/2`, under a long E42 comment explaining **precisely this distinction**, measured to +240 DIP of browser strips. `(left+right)/2 − (right−left)/2 = left`, so every zoom step translated the view by `left/zoom` (and `top/zoom`) while the zoom factor itself was right. Origin-rooted panes hide it — midpoint equals half-size there — which is every other view in the repo, and why only TIDE showed it.
 
-- **Ordering verified in the artifact:** the standalone's pushed DSP doc now shows the wrapper still at `Id="1"` and the first host-control parameter at **`Handle="0"`, with nothing allocated 1** — the allocator skipped the reservation exactly as designed. No reservation-failure lines, no asserts.
-- **The trigger path, end to end:** a hosted Debug render of `tests/hosts/v1-rack.rpp` — REAPER, `setActive` processor recreation, hc59's `ppc` and all — produced **no assert, no drain diagnostic**, a correct restore (both instances build 14,136), and **peak −6.3 dBFS / rms −17.0**, the reference figures. Before this fix the same path desynced the queue on the first parameter update.
-- The E56 property survives: handles are still deterministic per load, just numbered around the reservation.
+The fix is the same substitution E42 made, term for term against `calcViewTransform`.
+
+### Making the gesture drivable was half the work, and it pays forever
+
+The command channel could not express ctrl+wheel — `--scroll` built its flags from `kHoverFlags` only. [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) adds `--ctrl`, the `--double`/`--right` precedent for the third time: each was one flag, and each turned a verification that "needs a human at the window" into a script. Also resolves E39's dangling note — the verb was never broken; the *gesture* was inexpressible.
+
+### Measured — one variable, self-calibrating
+
+`measure_zoom.py`: anchor one ctrl+wheel notch on the Out module's edge, find the module's two panel edges along the anchor row before and after, derive the ACTUAL zoom ratio from the edge spread (no assumption about snap), and compare each edge's landing spot with the doc-anchored prediction `anchor + (edge − anchor) × ratio`.
+
+| build | result |
+|---|---|
+| origin/main | module **clean out of the viewport** after one notch; rails jumped rows |
+| SynthEditLib#75 | left edge drift **+0.3 px**, right edge drift **+0.3 px**, ratio 1.302 |
+
+The BEFORE build was produced by checking SynthEditLib back to `main` in the second build tree, so both binaries share the `--ctrl` flag and differ by exactly one commit's worth of view math.
+
+**Consumers built:** TIDE standalone Debug and **SynthEditCL 90/90** — `ViewBase.cpp` is shared, so SynthEdit's own ctrl+wheel gets the same correction; origin-rooted panes are unchanged by construction.
 
 **Learned:**
 
-- **"Register it so everyone knows" beats every clever alternative when a namespace already has an authority.** I had offered a reserved base, an export change, and a send-side filter; Jeff's version needs no new knowledge anywhere because the map IS the knowledge, and both existing allocators already consult it.
-- **Find out whose literal it is before deciding whose fix it is.** Three sessions discussed this as a SynthEditLib/GMPI question; one grep found the `Id="1"` in TIDE's own ALLOWED file, which collapsed the gating question entirely.
-- **A reservation is only a reservation if it is registered before the first allocation** — and the verification of that ordering is in the exported artifact (parameter handles 0, 2, …), not in the code review.
-- **The heredoc backslash trap got me again**, one session after writing it into lessons: `\\n` collapsed and put a real newline inside a C string literal. The rule that sticks: escape-bearing code goes through a Write-tool file, never a heredoc — no exceptions for "just two lines".
+- **"The zoom works but it translates" is a complete triage in one sentence.** It rules out delivery, flags, and the zoom path, and leaves only the anchor arithmetic — the user's second sentence saved the session the delivery investigation the first sentence had started.
+- **When a bug is fixed in one function, grep for the same expression in its callers.** E42 fixed midpoint-vs-half-size in `calcViewTransform` and documented it loudly; the identical expression sat in `onMouseWheel` computing the input to that very function. A fix that renames or wraps the corrected quantity (a `canvasCenter()` helper) would have fixed both sites at once.
+- **An inexpressible gesture is a class of unverifiable rows.** Third time one flag on the command channel converted "needs a human" into a script — `--double` (E36), `--right` (E38), now `--ctrl`.
+- **Self-calibrate the measurement against the artifact, not the spec.** Deriving the zoom ratio from the edge spread made the drift number independent of the snap formula — the measurement cannot be fooled by the very quantity under test.
 
-**Not verified:** mac/linux builds (no platform code; CI will say); Ableton itself — REAPER exercises the same wrapper lifecycle, but the original reproduction machine is one insert-and-cable session away from closing this for good.
+**Not verified:** mac/linux builds (no platform code; CI on #75 will say); SynthEdit's interactive feel beyond compiling — the correction is mathematically the E42 fix, but nobody has wheel-zoomed the full editor against this branch.
 
-**Machine state.** TideSynth on `tide/win/E64-reserve-wrapper-handle` until this lands; `GMPI` parked on `tide/win/E64-que-selfheal` (open PR #20); all other repos clean on defaults. The installed Debug VST3 carries both fixes.
+**Machine state.** `SynthEditLib` on `tide/win/E67-zoom-anchor-drift` (PR #75), `GMPI_Wrappers` on `tide/win/E67-scroll-ctrl-flag` (PR #34), TideSynth on `tide/win/E67-filed` — all with open PRs. gmpi_ui still parked on its #16 branch awaiting Jeff's review click. Measurement artifacts under `C:\SE\_scratch\e64\zoom-*\`, script at `measure_zoom.py`.
 
-**Branch/PR:** `tide/win/E64-reserve-wrapper-handle` — TideApp.h/.cpp, this row and entry. Pairs with [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20); either lands without the other, but together the collision is impossible AND any future misreader is contained loudly.
+**Branch/PR:** [SynthEditLib#75](https://github.com/JeffMcClintock/SynthEditLib/pull/75) + [GMPI_Wrappers#34](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/34) + `tide/win/E67-filed` (row and entry). The lib PR is the substance; #34 lands alone harmlessly.
 
 ## 2026-08-29 — windows — E66 fixed both halves: reload releases the visuals first, and State's death is now loud at the cause (interactive, Jeff directing)
 
@@ -37041,4 +37153,35 @@ Form::renderVisuals <- SettingsPane::render <- AppLayout <- paintLoop
 **Machine state.** `gmpi_ui` on `tide/win/E66-state-outlives-ref-guard` (PR #16), `GMPI_Wrappers` on `tide/win/E66-settingspane-reload-order` (PR #33), TideSynth on `tide/win/E66-fixed` — all with open PRs, returned to defaults once merged. Jeff's Ableton untouched. Repro artifacts under `C:\SE\_scratch\e64\s3\` and `s4\`.
 
 **Branch/PR:** [GMPI_Wrappers#33](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/33) + [gmpi_ui#16](https://github.com/JeffMcClintock/gmpi_ui/pull/16) (the fixes, either lands alone) + `tide/win/E66-fixed` (this row and entry).
+
+## 2026-08-29 — windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)
+
+**Prompt:** interactive, Jeff directing (*"how about the obvious. register the root containers handle so everyone knows about it?"*). As **tide-rack-bot** (both paths). Prompt sha b97bc00a5.
+
+**Did:** implemented Jeff's design for E64's root cause, and it turned out to be **TIDE-side only** — the `Id="1"` wrapper is minted by `TideApp::exportChunkXml` (`SynthEditSem/TideApp.cpp`), not by SynthEditLib, and SynthEdit's own exporter writes no such literal, so the collision never touched the commercial product. Branch `tide/win/E64-reserve-wrapper-handle`. GMPI#20 (the queue containment) stands unchanged as defence in depth.
+
+### The design, and why it beats all four options I had listed
+
+The wrapper's handle becomes `TideApp::kDspWrapperContainerHandle` (= 1, so every existing saved session and host chunk restores unchanged), and a `UniqueSnowflake dspWrapperReservation` member is **registered in the document's `uniqueIdDatabase`** at the top of `InitInstance` — before anything else in the document allocates. From there the namespace defends itself by mechanisms that already exist: the sequential parameter allocator's `while(find(key)) ++key` skips 1 like any other taken handle, and a latecomer claiming 1 (a hand-edited document) is renumbered by `Register`'s existing collision path. No reserved-base magic, no export-shape change, no new rule for anyone to remember — the reservation is a fact in the same map every allocator already consults.
+
+Two loud checks, per Jeff's plastering-over ruling: `InitInstance` asserts if the reservation itself was beaten to the handle, and `importChunkXml` asserts if it did not survive a document rebuild (`DeleteContents` only unregisters objects in the document tree, so it does — verified, not assumed: the map has no bulk-clear on that path and `swap()` has no callers).
+
+### Measured
+
+- **Ordering verified in the artifact:** the standalone's pushed DSP doc now shows the wrapper still at `Id="1"` and the first host-control parameter at **`Handle="0"`, with nothing allocated 1** — the allocator skipped the reservation exactly as designed. No reservation-failure lines, no asserts.
+- **The trigger path, end to end:** a hosted Debug render of `tests/hosts/v1-rack.rpp` — REAPER, `setActive` processor recreation, hc59's `ppc` and all — produced **no assert, no drain diagnostic**, a correct restore (both instances build 14,136), and **peak −6.3 dBFS / rms −17.0**, the reference figures. Before this fix the same path desynced the queue on the first parameter update.
+- The E56 property survives: handles are still deterministic per load, just numbered around the reservation.
+
+**Learned:**
+
+- **"Register it so everyone knows" beats every clever alternative when a namespace already has an authority.** I had offered a reserved base, an export change, and a send-side filter; Jeff's version needs no new knowledge anywhere because the map IS the knowledge, and both existing allocators already consult it.
+- **Find out whose literal it is before deciding whose fix it is.** Three sessions discussed this as a SynthEditLib/GMPI question; one grep found the `Id="1"` in TIDE's own ALLOWED file, which collapsed the gating question entirely.
+- **A reservation is only a reservation if it is registered before the first allocation** — and the verification of that ordering is in the exported artifact (parameter handles 0, 2, …), not in the code review.
+- **The heredoc backslash trap got me again**, one session after writing it into lessons: `\\n` collapsed and put a real newline inside a C string literal. The rule that sticks: escape-bearing code goes through a Write-tool file, never a heredoc — no exceptions for "just two lines".
+
+**Not verified:** mac/linux builds (no platform code; CI will say); Ableton itself — REAPER exercises the same wrapper lifecycle, but the original reproduction machine is one insert-and-cable session away from closing this for good.
+
+**Machine state.** TideSynth on `tide/win/E64-reserve-wrapper-handle` until this lands; `GMPI` parked on `tide/win/E64-que-selfheal` (open PR #20); all other repos clean on defaults. The installed Debug VST3 carries both fixes.
+
+**Branch/PR:** `tide/win/E64-reserve-wrapper-handle` — TideApp.h/.cpp, this row and entry. Pairs with [GMPI#20](https://github.com/JeffMcClintock/GMPI/pull/20); either lands without the other, but together the collision is impossible AND any future misreader is contained loudly.
 

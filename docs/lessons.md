@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **392 KB** across **318** entries, so copying them
+Learned sections are **401 KB** across **322** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **121 KB / 1312 lessons — 3.2x smaller**, and represents
+A8. This is **124 KB / 1337 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,34 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-08-31
+
+**linux — X1 closed by Jeff's ruling: the blocker was never written down (state update, interactive)**
+
+- A bare `BLOCKED` is unfalsifiable by construction, and the queue has no way to notice.
+- Two individually correct rules can compose into a deadlock that neither one describes.
+- Ask what the row is FOR before proposing a status.
+
+**linux — the merges, and E60's fix measured after it had already landed (interactive continuation, Jeff directing)**
+
+- A PR you resolved may merge before you finish checking it.
+- Say "post-hoc" out loud when verification arrives after the merge.
+- Keep the superseded binary — it is the A/B for free.
+- A markdown table cannot go inside a table cell, and the archive lint is what catches it.
+- `git checkout <ref> -- <file>` during a merge is not "undo".
+- Conflict marker text depends on how the conflict was produced.
+
+**linux — STEP 1.5 unblocked #550, then E19's linux VST3 cell: the DSP now runs the right rack, and the editor is bound to the wrong processor (scheduled run)**
+
+- A CONFLICTING PR is not "green and waiting for merge", and STEP 1.5's list of three does not name it.
+- Resolve a rotated `JOURNAL.md` by taking main whole and re-placing your own entry in the archive.
+- A generated file is not merged, it is regenerated.
+- A frozen readout and an unattached listener look identical, and only the ORDER of the log separates them.
+- When a control gives the same "failing" number as the experiment, the number is not about the experiment.
+- A crash can present as a corrupt output file two layers away.
+- Read a verb's usage before reporting that it ignores its arguments.
+- A folder name that differs by one letter's case fails silently and looks like a broken fixture.
+- A NEXT cell has to live on the branch its targets live on, and two lints enforce that.
+- Two of these lints passed on a NEXT table I had just destroyed.
 
 **macos — E73: a hosted plug-in gets its trace back, and one freopen beats sixteen edits it was not allowed to make (interactive, Jeff directing)**
 
@@ -84,15 +112,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "Which consumers did you build" is a different question from "does it compile".
 - Do not flip a row on `main` when another platform's open PR already flips it.
 - A blocked queue is not the same as an idle run.
-
-## 2026-08-29
-
-**windows — E67: ctrl+wheel translated the document under the cursor — E42's defect, one function from where E42 fixed it (interactive, Jeff directing)**
-
-- "The zoom works but it translates" is a complete triage in one sentence.
-- When a bug is fixed in one function, grep for the same expression in its callers.
-- An inexpressible gesture is a class of unverifiable rows.
-- Self-calibrate the measurement against the artifact, not the spec.
 
 ## 2026-08-18
 
@@ -2313,6 +2332,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Answer a NEEDS-SPEC by stating the Accept that was met, not by building more.
 - Give a probe a control that simulates the historical regression, not a synthetic one.
 
+**linux — E60: the CLAP state path works, the blocker was our own harness, and a 32 KB cap was hiding under it (scheduled run)**
+
+- A harness defect and a product defect can hide behind one symptom, and the harness one goes first.
+- A truncated document that still parses is the worst possible failure.
+- Split a two-sided question with an instrument that only has one side.
+- Check the format's own file for its conventions before inventing them.
+- A negative control belongs on a screenshot too.
+- A comment that reasons from the code's origin ages badly.
+
 **windows — E64 filed: the ui->dsp queue desyncs in a HOST but not in the standalone, and three negatives are the finding (interactive, Jeff directing)**
 
 - When a modal is on screen, the process is a live specimen — attach before anyone dismisses it.
@@ -2344,12 +2372,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A four-char code is not a string.
 - `map::insert` on a duplicate key is a silent policy decision.
 
-**windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)**
+**windows — E67: ctrl+wheel translated the document under the cursor — E42's defect, one function from where E42 fixed it (interactive, Jeff directing)**
 
-- "Register it so everyone knows" beats every clever alternative when a namespace already has an authority.
-- Find out whose literal it is before deciding whose fix it is.
-- A reservation is only a reservation if it is registered before the first allocation
-- The heredoc backslash trap got me again
+- "The zoom works but it translates" is a complete triage in one sentence.
+- When a bug is fixed in one function, grep for the same expression in its callers.
+- An inexpressible gesture is a class of unverifiable rows.
+- Self-calibrate the measurement against the artifact, not the spec.
 
 **windows — E66 fixed both halves: reload releases the visuals first, and State's death is now loud at the cause (interactive, Jeff directing)**
 
@@ -2358,3 +2386,10 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Put the tripwire at the destruction site, not the use site.
 - `0xdddddddd` in a Debug AV is a diagnosis in itself
 - A resident `cdb -p <pid> -c "g; ~#k; qd"` costs nothing and catches what a post-mortem cannot
+
+**windows — E64 root cause fixed Jeff's way: the wrapper's handle is registered, so the namespace defends itself (interactive, Jeff directing)**
+
+- "Register it so everyone knows" beats every clever alternative when a namespace already has an authority.
+- Find out whose literal it is before deciding whose fix it is.
+- A reservation is only a reservation if it is registered before the first allocation
+- The heredoc backslash trap got me again
