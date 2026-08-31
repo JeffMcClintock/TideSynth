@@ -8,6 +8,40 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-08-31 — linux — X1 closed by Jeff's ruling: the blocker was never written down (state update, interactive)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths) · interactive continuation, Jeff directing (*"what is x1 about?"*, then *"mark it DONE"*)
+
+**Did:** **X1 → DONE and archived.** Bookkeeping only; no code, no measurement this entry is claiming credit for.
+
+### The row, in full, from the repo's first commit
+
+```
+| X1 | BLOCKED | linux | VST3 + CLAP on Linux, GCC 13+. See the Linux toolchain memory for WSL specifics. |
+```
+
+That is `b2b1466`, *"Scaffold TIDE Synth coordination repo"*, and it is the entire original specification. It carried a **bare `BLOCKED` with no `(id)`**, under **After the carve-out** — so the implicit blocker was **C7**, C7 went DONE, and nothing anywhere said so.
+
+### Why it took a human, and both refusals were correct
+
+Its Accept has been met since at least 2026-08-27, measured rather than assumed on both occasions: GCC 13.3.0, 492/492 rc=0 then; **553/553, 0 errors** today on a fresh `TIDE_VCV_FUNDAMENTAL=ON` tree, producing both artifacts — **and both were driven, not merely linked.** The VST3 was hosted in REAPER 7.43 under headless weston with the transport rolling 75 s ([#566](https://github.com/JeffMcClintock/TideSynth/pull/566)); the CLAP went through `clap_plugin_state` load/save via `tests/e60_clap_state_probe.cpp` ([#550](https://github.com/JeffMcClintock/TideSynth/pull/550)).
+
+Three linux runs in a row noticed and none flipped it. STEP 2: *"NEVER start a BLOCKED item, even if you think the blocker is stale... say so in the journal and stop."* The 2026-08-27 run added a second reason of its own — it was claiming X2, and *"a status change on a row it did not take is exactly the kind of drive-by edit that makes a queue untrustworthy."* Both are the rules working, and together they made the deadlock structural: **the only actor permitted to break it was Jeff.**
+
+**Learned:**
+
+- **A bare `BLOCKED` is unfalsifiable by construction, and the queue has no way to notice.** `BLOCKED(<id>)` can be re-checked by any run in one command; `BLOCKED` can only be re-checked by the person who wrote it, and after a while not even by them. Prefer the parameterised form, and a row whose blocker cannot be named probably wants `NEEDS-JEFF` — which at least says *who* is owed.
+- **Two individually correct rules can compose into a deadlock that neither one describes.** "Never start a BLOCKED row" and "never edit a row you did not take" are both right and both worth keeping; their intersection is a row no agent may ever touch. Worth knowing that the fleet can manufacture these, because nothing in the process detects one.
+- **Ask what the row is FOR before proposing a status.** The answer here was one line from the repo's first commit, and reading it is what turned "the blocker looks stale" into "the blocker was never written down" — a different claim, and the one that got a ruling.
+
+**Not verified:** nothing new — this entry measures nothing. The build and host evidence it cites belongs to the two entries below it.
+
+**Machine state.** All six repos on their default branches, clean; nothing running.
+
+**Next:** **E74** remains the top of the linux lane, and **the linux CLAP cell of E19 is newly measurable** now the 32 KB cliff is off `main`.
+
+**Branch/PR:** `tide/linux/X1-done` — the flip, its archive row, the `linux` NEXT cell, and this entry.
+
 ## 2026-08-31 — linux — the merges, and E60's fix measured after it had already landed (interactive continuation, Jeff directing)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"resolve conflicts and merge"*)
