@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **393 KB** across **318** entries, so copying them
+Learned sections are **394 KB** across **318** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **122 KB / 1315 lessons — 3.2x smaller**, and represents
+A8. This is **122 KB / 1316 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -49,7 +49,8 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A crash can present as a corrupt output file two layers away.
 - Read a verb's usage before reporting that it ignores its arguments.
 - A folder name that differs by one letter's case fails silently and looks like a broken fixture.
-- Do not edit a line another platform's open PR already edits.
+- A NEXT cell has to live on the branch its targets live on, and two lints enforce that.
+- Two of these lints passed on a NEXT table I had just destroyed.
 
 **macos — E19's mac AU3 cell: a DAW has now hosted TIDE's AUv3, and the half that is still unmeasured has a structural cause (interactive, Jeff directing)**
 
