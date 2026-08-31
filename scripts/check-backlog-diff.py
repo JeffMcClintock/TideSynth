@@ -7,7 +7,7 @@ In practice, checked against real history (A8's rotation, and every status
 flip a run has made), "verbatim" means the ORIGINAL text is never lost, not
 that the cell is byte-frozen: a row is routinely flipped and elaborated in
 the same edit ("Original item, kept for the record: <the exact old text>").
-Three edits are legitimate:
+Four edits are legitimate:
 
   1. Status change: an existing row's Status/date cell changes (TODO -> DOING,
      DOING -> IN-REVIEW, IN-REVIEW -> a done-date). Plat must not change.
@@ -19,6 +19,16 @@ Three edits are legitimate:
      version, but a row with the same ID and Plat, whose Item text contains
      the base version's Item text verbatim, exists in another file this PR
      touched (BACKLOG-DONE.md, or a docs/<id>*.md distillation).
+  4. Renumber: a row present in the base version is gone from the head
+     version, but its Item text reappears verbatim at the same Plat under a
+     DIFFERENT, previously-unused ID in the same file. This is what A23's
+     duplicate-ID error tells you to do, and until 2026-08-31 this check
+     rejected it -- a renumber removes one ID and adds another, which read as
+     a silent drop, so the sanctioned remedy could not be landed without
+     turning `lint` red. Found on the E70 collision; the A17 -> A19 and
+     duplicate-E34 renumbers had the same trap. Renumbers are PRINTED, never
+     silent: they are how a reference goes stale, which check-id-refs.py
+     catches separately.
 
 Anything else fails: Plat changing, Item text on a still-present row no
 longer containing the original wording (a genuine rewrite, not a flip —
@@ -93,12 +103,35 @@ def main():
             pass
 
     status_changes, new_rows, archived, rewrites, dropped = [], [], [], [], []
+    renumbered = []
 
     for rid, (line, status, plat, item) in base_rows.items():
         if rid not in head_rows:
             candidates = archive_rows.get(rid, [])
             if any(plat == c_plat and item in c_item for _, _, c_plat, c_item in candidates):
                 archived.append(rid)
+                continue
+            # RENUMBER -- the fourth legitimate edit, added 2026-08-31 after this
+            # check rejected the very remedy A23's duplicate-ID error tells you to
+            # apply. A duplicate ID is fixed by renumbering one row, which by
+            # construction removes an ID from BACKLOG.md and adds a different one;
+            # to the rules above that is indistinguishable from a silent drop, so
+            # a renumber could not be landed without turning `lint` red. Measured
+            # on the E70 collision (macos/windows, 33 minutes apart), and the same
+            # trap was live for the A17 -> A19 and duplicate-E34 renumbers before
+            # it.
+            #
+            # The evidence a renumber leaves is specific and hard to fake: the
+            # base row's ENTIRE Item text reappears verbatim under a DIFFERENT ID,
+            # at the same Plat, in the SAME file. That is exactly the containment
+            # test the status-flip and archive rules already use -- so a renumber
+            # may still annotate ("RENUMBERED FROM E70 ...") without failing,
+            # while a genuine drop, a rewrite, or a shrink is untouched by this
+            # branch and still fails.
+            moved_to = [h_rid for h_rid, (_, _, h_plat, h_item) in head_rows.items()
+                        if h_rid not in base_rows and plat == h_plat and item in h_item]
+            if moved_to:
+                renumbered.append((rid, moved_to[0]))
             else:
                 dropped.append(rid)
             continue
@@ -112,8 +145,9 @@ def main():
         elif status != h_status:
             status_changes.append((rid, status, h_status))
 
+    renumber_targets = {new for _, new in renumbered}
     for rid in head_rows:
-        if rid not in base_rows:
+        if rid not in base_rows and rid not in renumber_targets:
             new_rows.append(rid)
 
     if status_changes:
@@ -125,6 +159,12 @@ def main():
     if archived:
         print('%d row(s) archived, verified verbatim elsewhere in the diff: %s' %
               (len(archived), ', '.join(sorted(archived))))
+    if renumbered:
+        # Printed, never silent: a renumber is legitimate but it is also how a
+        # reference goes stale, and check-id-refs.py is the one that says so.
+        print('%d row(s) renumbered, Item text verbatim under the new ID:' % len(renumbered))
+        for old, new in sorted(renumbered):
+            print('  %s -> %s' % (old, new))
 
     ok = True
     if rewrites:
