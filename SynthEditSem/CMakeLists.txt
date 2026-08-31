@@ -770,6 +770,21 @@ if(TIDE_PANEL_TRACE_LOG)
   message(STATUS "TIDE_PANEL_TRACE_LOG is ON: the panel writes its progression log")
 endif()
 
+# E73 -- arm the stderr redirect. TARGET-wide, not per-source, because the
+# point is to catch writers this repo does not own: SynthEdit.cpp and
+# SynthEditController.cpp are only where the call is MADE, and the lines it
+# rescues come mostly from the rack adaptor and SynthEditLib.
+#
+# Applied to every format target below via TIDE_TRACE_LOG_DEFS, which the
+# format loop already spreads across VST3/AU/AU3/CLAP/standalone -- an AUv3 is
+# the one target that needs it, and it is the one most easily missed.
+if(TIDE_TRACE_LOG)
+  set(TIDE_TRACE_LOG_DEFS TIDE_TRACE_LOG=1)
+  message(STATUS "TIDE_TRACE_LOG is ON: the plug-in redirects stderr to $TIDE_TRACE_LOG_PATH, else $TMPDIR/TideTrace.log")
+else()
+  set(TIDE_TRACE_LOG_DEFS "")
+endif()
+
 # Bundle data, staged into EVERY format target.
 #
 # This block used to be `if(APPLE)` around a single add_custom_command naming
@@ -1352,6 +1367,11 @@ foreach(kind IN LISTS FORMATS_LIST)
 		${SUB_PROJECT_NAME} PRIVATE
 		IS_SYNTHEDIT_SEM=1
 		GMPI_DISABLE_FACTORY=1
+		# E73 -- empty unless -DTIDE_TRACE_LOG=ON. Set here, inside the format
+		# loop, so it reaches EVERY format rather than whichever one somebody
+		# remembered; the AUv3 is the target that needs it and the one a
+		# per-target edit would most easily miss.
+		${TIDE_TRACE_LOG_DEFS}
 	)
 
 	# TIDE_VCV_FUNDAMENTAL (root CMakeLists) -- the GPL VCV Fundamental ports,

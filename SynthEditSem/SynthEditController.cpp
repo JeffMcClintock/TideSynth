@@ -20,6 +20,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <string>
 #include <string_view>
 #include <iostream>   // the command-line trace in applyCommandLineConfig
+#include "TraceLog.h"   // TideSynth E73 - a hosted plug-in has no stderr
 #include "RefCountMacros.h"
 #include "EditorLib/ApplySynthEditConfig.h"
 #if defined(GMPI_STANDALONE) && GMPI_STANDALONE
@@ -194,6 +195,11 @@ public:
 	// IController
 	ReturnCode initialize(gmpi::api::IUnknown* phost, int32_t phandle) override
 	{
+		// E73 -- before the first trace line below. See SynthEdit.cpp's copy;
+		// whichever of the two the host constructs first opens the file, and
+		// in an AUv3 both live in the same out-of-process appex.
+		tide::trace::redirectStderrOnce();
+
 		handle = phandle;
 		phost->queryInterface(&gmpi::api::IControllerHost::guid, host.put_void());
 

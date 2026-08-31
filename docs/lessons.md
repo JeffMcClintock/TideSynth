@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **399 KB** across **321** entries, so copying them
+Learned sections are **401 KB** across **322** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **123 KB / 1331 lessons — 3.2x smaller**, and represents
+A8. This is **124 KB / 1337 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -66,6 +66,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A folder name that differs by one letter's case fails silently and looks like a broken fixture.
 - A NEXT cell has to live on the branch its targets live on, and two lints enforce that.
 - Two of these lints passed on a NEXT table I had just destroyed.
+
+**macos — E73: a hosted plug-in gets its trace back, and one freopen beats sixteen edits it was not allowed to make (interactive, Jeff directing)**
+
+- When a row prescribes an edit you are not allowed to make, the constraint is a design hint, not an obstacle.
+- Fix the stream, not the call sites, when the call sites are all correct.
+- A sandbox container is a FEATURE for a harness, once you notice it is readable from outside.
+- `freopen` that fails CLOSES the stream.
+- Prove a stream-level capture with a line you do not own.
+- Take the diagnostic build back off the machine.
 
 **macos — E19's mac AU3 cell: a DAW has now hosted TIDE's AUv3, and the half that is still unmeasured has a structural cause (interactive, Jeff directing)**
 
