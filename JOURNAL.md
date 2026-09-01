@@ -8,6 +8,81 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-02 — windows — E19's windows VST3 cell PASSES its animation clause, and both traps that nearly stopped it were mine
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.1** (the Appx package version, which A13 records as the discoverable one on Windows) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** took **E19**'s windows VST3 cell, the `win` NEXT pick, whose own text said *"do not re-take this cell until E59 closes"* — E59 closed 2026-08-31. **Measured, and the animation clause PASSES**: the first hosted-Windows feedback numbers this row has ever had. Cell back to **TODO**, because two clauses remain and both are **E75**. Also **E74 and E78 → DONE and archived**, all three of their PRs having merged. Branch `tide/win/E19-vst3-windows-cell`. No product code changed.
+
+### The result, with the transport rolling
+
+REAPER 7.78, the five-VCV `e53-vcv-rack-segv.xml` rack minted into a project, 75 s at `playstate=1` with the position advancing 0 → **74.671**.
+
+| | hosted VST3, REAPER 7.78 | STANDALONE (control) |
+|---|---|---|
+| rack the DSP built | **43,187 bytes — the prepared one** | 43,391 |
+| `feedback send` / `editor received` | **3,200 / 3,200** — one-for-one, `0 held back` | 4,700 / 4,700 |
+| `display-state update … arrived` | **#2180, 65,548 bytes** | #2260, 65,548 bytes |
+| `light … update` | **#6800, value 0.824**, 106 distinct values | #9300, value 0.305 |
+
+**Still advancing at the end of the window, measured by line position rather than inferred:** the last `building rack` line is 145 of 620, and **216 `display-state update`, 146 `light update` and 32 `editor received feedback` lines follow it**. That is E19's Accept in its own words.
+
+**E59's fix is confirmed on Windows in a host** — `syncState declined to publish the startup default (17955 bytes)` fires, and the 17,955-byte default never appears after the restore. That is precisely what the 2026-08-28 FAIL was waiting on.
+
+**And E74's fix is inert here, which is worth stating as a measurement rather than an argument.** Windows has `SetTimer`, so `gmpi::TimerManager` was never unpumped on this platform; the one-for-one 3,200/3,200 is what linux reached only *after* #38, and Windows reaches with the same code doing nothing.
+
+### The two clauses that are not met belong to the fixture, and three controls say so
+
+The rack-canvas pixel diff over 55 s is **0 of 760,950** — this clause's own FAIL condition. It is not a result:
+
+- REAPER's own transport area, **in the same screenshot pair**, changed **9,333 of 232,200** — so the capture is live and time passed.
+- The **standalone**, same build and same document, changed **0 of 921,600** while its counters ran to `light #9300`.
+- The screenshot shows the rack drawn as **bare rails with no VCV panel on it**, and the module browser listing the whole `Rack-VCV Fundamental` set.
+
+So **E75 is confirmed on a second platform**, and `int/bool/enum` (a right-click on a panel that is not on screen) is unmeasurable for the same reason. `string` still has no producer.
+
+**The region diff is the point, not the frame diff.** A whole-screen number would have hidden both the zero and its control in one figure.
+
+### Both things that nearly stopped this run were mine, and one of them I reported wrongly before checking
+
+**`read -r -t N < /dev/zero` does not sleep in Git Bash.** `/dev/zero` always has a byte, so the read returns immediately and my runner's 180-iteration wait finished in milliseconds — killing REAPER about a second after launch. The symptom is a **zero-byte stderr and no log**, which reads exactly like "the host will not start on this box". It is a *working* sleep on linux, which is why it was copied from `run-host.sh`.
+
+**I blamed REAPER's evaluation nag for it, in writing, before testing the claim.** The nag is real and appeared once; I then saw three zero-byte launches, concluded it blocked every launch, and reported that a REAPER licence might be needed. Jeff watched the next launch and said *"no nag"* — and that launch, run directly rather than through the runner, worked. **The positive control I already had disproved my own claim and I did not consult it:** launches 1–4 wrote 1,314 bytes of TIDE stderr through the same command. A wall that appears immediately after you change the harness is the harness.
+
+**`fx_ident` is the answer to "which binary did I measure?", and it caught the 2026-08-28 trap on the first try.** REAPER silently loaded the developer's installed `C:\Program Files\Common Files\VST3\TIDE-Rack.vst3` rather than my staged build — the same shadowing that voided a measurement that day. `TrackFX_GetNamedConfigParm(tr, fx, "fx_ident")` names the file actually loaded, in one line, before the measurement starts. **This supersedes that run's remedy** of compiling a distinguishing string into the build and reading it back: that works, and it answers the question one whole build later.
+
+### Two REAPER modals that are indistinguishable from a wedged plug-in
+
+**File:Quit on a dirty project** raises *"Save project … before closing?"*, and adding an FX dirties it. `Main_SaveProjectEx` does **not** clear the flag — after a successful save-as the prompt still named the *original* project. Both drivers now write a `done` sentinel and quit only off-Windows; the runner kills the process, which also means REAPER never rewrites the developer's ini on the way out.
+
+**An empty project has length 0**, so REAPER stops the transport the instant it starts: `playstate` 1 → 0 inside one second, `pos` never leaving 0.000. That is the *first* measurement I took, and without the harness's transport log it would have been indistinguishable from a frozen plug-in. `measure.lua` now gives the project a silent MIDI item, and re-issues play — saying so on the line — if the transport ever drops.
+
+### The harness is cross-platform now, and one framing fact came free
+
+[tests/e19-host-feedback/run-host-win.sh](tests/e19-host-feedback/run-host-win.sh) drives REAPER on Windows **with no `__startup.lua` install at all** — REAPER runs a `.lua` named on the command line, and an explicit empty `.rpp` stops it reopening the developer's last project. The two `.lua` drivers are shared: they gain `fx_ident` logging, the length item, the re-issue, and a platform-conditional quit. **Linux and macOS keep their existing behaviour exactly**, gated on `reaper.GetOS()`; neither was re-tested here and neither should have changed.
+
+**REAPER's `vst_chunk` framing on Windows 7.78 is 140 base64 chars — byte-for-byte the shape `frame_chunk.py` measured on Linux 7.43.** So that script is cross-platform, and the E29 token question cannot be got wrong on either platform by construction.
+
+**Build:** `TIDE_VCV_FUNDAMENTAL=ON`, `-DRACK_ADAPTOR_TRACE=1`, Release, `SE_LOCAL_BUILD=OFF`, VS 18 Community (the MFC-bearing instance) — **0 `error C`/`error LNK` lines, `BUILD_RC=0`**, all four artifacts. Verified to contain what this run depended on before believing any of it: `RackEditor:` ×8, `RackProcessor:` ×8, `display-state capture`, `feedback send` and `editor received feedback` are each present in the built `TIDE-Rack.vst3` and **absent from the installed one** — which is what made the discriminator a discriminator. `grep` on the PE, not `strings`, per this box's standing note.
+
+**Learned:**
+
+- **A wall that appears right after you change the harness is the harness.** Three zero-byte launches, and I reached for the host's licensing nag — a real thing I had seen once — instead of the tool I had just edited. The disproof was already in my own logs.
+- **Do not report a blocker before testing it.** I told Jeff a REAPER licence might be needed. The cost of being wrong there is not embarrassment, it is somebody spending money on a `sleep`.
+- **`read -t N < /dev/zero` is a sleep on linux and a no-op in Git Bash.** Any borrowed shell idiom deserves one timing check on the platform you moved it to; this one is silent, and it fails by making the harness *faster*.
+- **`fx_ident` beats a distinguishing string, and the difference is when you learn the answer.** One is a parm read before the run; the other is a rebuild after it. Two bundles sharing a VST3 UID collapse to one REAPER cache entry, so nothing else on the host side can tell them apart.
+- **Put the control inside the screenshot pair.** A 0-pixel diff on the region under test means nothing until some other region of the *same two frames* is shown to have changed. That control cost nothing and it is what turns a FAIL condition into a fixture statement.
+- **Log the transport, or a stopped engine reads as a frozen plug-in.** The harness's own note said this; my first Windows window measured `playstate=0` throughout and the counters still advanced, so the trap was live in both directions at once.
+- **A quit that prompts is a hang.** Killing the host from outside is not a workaround here, it is better: nothing gets written back to a config directory this platform will not let you isolate.
+
+**Not verified:** E19's **pixel-diff** and **int/bool/enum** clauses, blocked on **E75** as on linux; **string**, which has no producer; the **windows CLAP and GMPI** cells, neither of which was driven; whether the E74/E78 timer pair changes anything on **macOS**, where nothing was built or run this session; **E80** and **E79**, untouched and linux-owned; and whether the 55 s screenshot interval would have shown motion had a VCV panel been on the visible page — that is E75's question, not something this run can answer.
+
+**Machine state.** All six repos were clean and on their default branches at the start except **`SynthEditLib`, whose `README.md` carries the developer's uncommitted edits** — real content, not CRLF churn (`git diff --ignore-all-space` is non-empty), so it was left strictly alone and nothing in this run needed that repo. `gmpi_ui` (1 commit) and `GMPI_Wrappers` (3) were fast-forwarded to `origin/main` so the build measured current `main`; **neither was committed to**, and no sibling repo was. TideSynth is on this run's branch until STEP 5 returns it. **The developer's REAPER was backed up before the first launch and restored after the last**: `REAPER.ini` and `reaper-vstplugins64.ini` are **md5-identical** to the pre-run copy, the temporarily-narrowed `vstpath64` is back to its four original entries, and the bundle staged briefly in `%LOCALAPPDATA%\Programs\Common\VST3\` was removed. His installed `C:\Program Files\Common Files\VST3\TIDE-Rack.vst3` is **untouched** (still Aug 31 15:57, 13,538,304 bytes) — every build ran `SE_LOCAL_BUILD=OFF`. `%APPDATA%\TiDE Rack\` is **md5-identical**; the standalone ran under `GMPI_STANDALONE_CONFIG_DIR` pointed at the scratchpad, which took the 58,022-byte write instead. `build-e19win/` is gitignored; Jeff's own `build/` and `build-e59/` were not touched. **No REAPER or TIDE process left running** — checked, 0 of each. **Seven REAPER launches went on the developer's evaluation run-count**, which is the one thing here that cannot be restored.
+
+**Next:** **E75 now blocks clauses on two platforms** and is the cheapest thing on this queue — a fixture whose Scope is actually on the visible rack page unlocks the pixel-diff and int/bool/enum clauses for windows *and* linux at once. **E63** is this box's own shipping defect and needs no host at all. And **the windows CLAP cell is newly reachable**: the harness now drives a hosted Windows plug-in end to end, `prepare-clap.lua`/`measure-clap.lua` already exist for linux, and E80's blob finding is the thing to expect there rather than to rediscover.
+
+**Branch/PR:** `tide/win/E19-vst3-windows-cell`, [#571](https://github.com/JeffMcClintock/TideSynth/pull/571) — [tests/e19-host-feedback/run-host-win.sh](tests/e19-host-feedback/run-host-win.sh), the `fx_ident`/length-item/sentinel changes to the two shared `.lua` drivers, the Windows sections of [tests/e19-host-feedback/README.md](tests/e19-host-feedback/README.md) and [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md), the E19 row, E74 and E78 flipped DONE and archived, the refreshed `win` NEXT cell, and this entry.
+
 ## 2026-09-01 — linux — E78: CLAP had E74's defect, and fixing it uncovered two more (interactive continuation, Jeff directing)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"fix E78 too while you have the harness up"*)
@@ -349,235 +424,4 @@ Three linux runs in a row noticed and none flipped it. STEP 2: *"NEVER start a B
 **Next:** **E74** is still the top of the linux lane. **The linux CLAP cell of E19 is newly measurable** now that the cliff is gone, and the harness in [tests/e19-host-feedback/](tests/e19-host-feedback/) mints its own project. **X1 still wants Jeff** — its `BLOCKED` mark has been stale since 2026-08-27 and no run may start it.
 
 **Branch/PR:** `tide/linux/E19-vst3-linux-cell`, [#566](https://github.com/JeffMcClintock/TideSynth/pull/566) — the merge commit, E60's flip to DONE, the refreshed `linux` NEXT cell, and this entry.
-
-## 2026-08-31 — linux — STEP 1.5 unblocked #550, then E19's linux VST3 cell: the DSP now runs the right rack, and the editor is bound to the wrong processor (scheduled run)
-
-**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
-
-**Did:** two things, in the order the prompt puts them. **STEP 1.5:** this platform's only open PR, [#550](https://github.com/JeffMcClintock/TideSynth/pull/550), had gone **CONFLICTING** while it sat for three days; resolved and pushed, it is `MERGEABLE` again. **STEP 2:** took **E19**'s linux VST3 cell, whose own text said *"do not re-take this cell until E59 closes"* and E59 closed on 2026-08-29. Branch `tide/linux/E19-vst3-linux-cell`. **Cell back to TODO; E74, E75 and E76 filed.** No product code changed on either branch.
-
-### STEP 1.5 first, because a conflicted PR is not "waiting for merge"
-
-STEP 1.5 lists failing checks, requested changes and unresolved comments. #550 had none of those — all 13 checks green, no reviews — and could not merge anyway. The 2026-08-28 macos entry already recorded that *"a conflict is not on STEP 1.5's list of three, and should be"*; this is the second time it has been the whole first half of a run.
-
-All three conflicts were in the fleet's bookkeeping files, and the resolution is by date and ownership rather than by side:
-
-- **`JOURNAL.md` — main's copy verbatim.** Main rotated every 2026-08-28 entry into the archive while #550 sat open, so the branch's own E60 entry was the only thing missing. It moved into `JOURNAL-2026-08.md` between the two 08-28 windows entries it sat between on the branch. Checked rather than assumed: of the branch's 35 entries, **exactly one** was absent from both main's `JOURNAL.md` and the archive.
-- **`docs/lessons.md` — regenerated**, not hand-merged. `scripts/extract-lessons.py` reads both journal files, so the correct content is a function of the other two resolutions.
-- **`BACKLOG.md`** — mac NEXT cell from main (2026-08-31, three days newer), linux NEXT cell from the branch (same day, "later"); E59 stays archived as main has it; E60 takes the branch's IN-REVIEW row.
-
-`GMPI_Wrappers`[#32](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/32), E60's other half, is `MERGEABLE`/`CLEAN` with nothing unresolved, so STEP 1.5 says leave it — **and it still matters**: `Processor_CLAP::stateLoad` on `main` still has the `maxSize = 4096 * 8` cliff, unchanged by #36 and #37, which touched the same function.
-
-### Then E19, and the first half of the result is that two of this row's claims are now false
-
-**The DSP runs the PREPARED rack.** `TIDE: instance #3 building rack from 43191 byte document`, twice, and the 17,957-byte default never appears after the restore. On 2026-08-28 the same path gave `29101` then `17957`, which is the observation E59 was filed for.
-
-**And `tests/hosts/v1-rack.rpp` makes sound on Linux for the first time.** PLAN cites that fixture for *the patch plays after reload*; it was **peak −inf, digital silence** on this box on 2026-08-28.
-
-| fixture | linux, 2026-08-31 |
-|---|---|
-| `--control` (no plug-in at all) | −6.0 / −9.0 dBFS — the chain detects audio |
-| `v1-rack.rpp` | **−6.3 / −17.0 dBFS**, 2 patch cables — the macOS reference to the decimal |
-| `v1-rack-uncabled.rpp` | **−inf**, 0 patch cables — the negative control |
-| `v3-midi-pitch.rpp` | −6.2 / −21.1 dBFS |
-| `v3-midi-gate.rpp` | −6.3 / −21.2 dBFS |
-
-### The FAIL that is left, and its mechanism is ordering rather than any single line
-
-75 s, transport rolling the whole time (`playstate=1`, position 0 → 74.919 — the control that separates "the plug-in is frozen" from "nothing is being processed").
-
-| | hosted VST3, REAPER 7.43 | STANDALONE (control) |
-|---|---|---|
-| `Scope display-state capture` | **#2100**, 65,548 bytes, still climbing | #1800 |
-| `display-state update … arrived` | **frozen at #1, 0 bytes** | **#1820, 65,548 bytes** |
-| `light … update` | **frozen at #2, value 0.000** | **#18100**, values varying |
-
-Same build, same document, same box, same compositor. The log order says why:
-
-```
-TIDE: instance #3 building rack from 43191 byte document
-RackProcessor: 'Scope' display-state capture #0 (65548 bytes)
-RackEditor: light 0 update #0 value 0.000          <- the editors' initial defaults
-RackEditor: display-state update #1 arrived (0 bytes)
-TIDE: instance #4 building rack from 43191 byte document    <- a SECOND processor
-RackProcessor: 'Scope' display-state capture #0 … #2100      <- and it runs alone
-                                                   (no RackEditor line ever again)
-```
-
-**The standalone builds twice as well** — `Legacy chunk`, then `Build chunk, rack already prepared` — **but as `instance #1` both times.** So a double build is not the defect; the changing instance is, and the editor's feedback pins are left attached to a processor the host has retired. Filed as **E74**. It is not E59 (the document is right, both times) and not the ui→dsp direction E64 fixed.
-
-### The number I will not let anyone quote, and the control that disarmed it
-
-The hosted pixel diff is **0 of 690,800**, which is exactly what this row's Accept calls a FAIL. **It is not evidence, because the standalone control over the same interval gives byte-identical screenshots** — while its counters are at #18100.
-
-The reason is the fixture. All five VCV editors construct with panel art in **both** arms (`RackEditor: 'Scope' model=yes art=yes(res/Scope.svg) art-size=195x380`), and none of them is on the visible rack page; vertical and horizontal scrolling did not reach them. The negative control that makes this the fixture's layout rather than a rendering fault: the **DEFAULT** rack in the same build draws its `Out` panel on the rails. So E19's pixel-diff and int/bool/enum clauses are unmeasured and want a fixture with a visible Scope — **E75**.
-
-### Two traps that each cost a wrong provisional conclusion
-
-**`render-and-measure.py` segfaults REAPER on Linux from a scheduled run's shell** — rc **−11**, the documented inherited-`WAYLAND_DISPLAY` crash — and the downstream symptom is an `EOFError` in Python's `wave` module on a zero-length render. I read that as the committed fixture's macOS token being rejected, wrote it down, and it was wrong: with `env -u WAYLAND_DISPLAY … GDK_BACKEND=x11` the same file renders −6.3/−17.0. **E29's divergence is real for what a host WRITES and did not stop a fixture being READ here.** Filed as **E76**.
-
-**The standalone's config folder is `TiDE Rack`, lower-case `i`**, and `tests/fixtures/e53-vcv-rack-segv.README.md` said `TIDE Rack`. Following it loads the DEFAULT rack and says nothing — measured as `building rack from 17961 byte document` against `38658` once the file moved one directory. Corrected at its source.
-
-### The harness is in the tree this time
-
-[tests/e19-host-feedback/](tests/e19-host-feedback/) — the 2026-08-28 run built the REAPER-on-weston recipe and left its drivers in a session scratch that did not survive, which is this repo's own lesson arriving for the second time. The piece worth having beyond E19 is `frame_chunk.py`: the `vst_chunk` framing **measured off a default instance** (140 base64 chars, 105 bytes, `int32 len+4 | int32 1 | int32 len | XML | 8 zero bytes` — no 44-byte header, no trailer), and a mint route that adds the plug-in **by name** and then sets the parm, so REAPER writes its own token. It wrote `1013510754{506C7567696E474D50492050A2A07287}` unprompted, and **E29 cannot be got wrong by construction** that way.
-
-**Build:** `TIDE_VCV_FUNDAMENTAL=ON`, `-DRACK_ADAPTOR_TRACE=1`, Release, `SE_LOCAL_BUILD=OFF` — **553/553, 0 errors**, all four artifacts, against `main` in all five sibling repos. Verified to contain what this run needed before believing any of it: `display-state update #` and E59's `declined to publish the startup default` are each present once in the standalone, the VST3 `.so` and the CLAP.
-
-**Learned:**
-
-- **A CONFLICTING PR is not "green and waiting for merge", and STEP 1.5's list of three does not name it.** Second run in four days where that was the entire first half. `mergeStateStatus` costs one field on a `gh pr view` that STEP 1.5 already makes you run.
-- **Resolve a rotated `JOURNAL.md` by taking main whole and re-placing your own entry in the archive.** The merge conflict looks like a text problem and is a bookkeeping one; the check that makes it safe is set arithmetic — which of the branch's entries are in neither of main's two files — and it printed exactly one.
-- **A generated file is not merged, it is regenerated.** `docs/lessons.md` conflicted in two places and `extract-lessons.py --write` settled both, because its content is a function of the files the other resolutions produced.
-- **A frozen readout and an unattached listener look identical, and only the ORDER of the log separates them.** Every counter in this run was correct about what it could see. The finding is in which line comes after which, and no single line carries it.
-- **When a control gives the same "failing" number as the experiment, the number is not about the experiment.** A 0-pixel diff was E19's own FAIL condition; the standalone's byte-identical screenshots turned it into a statement about the fixture. Run the control even when — especially when — the result already looks like the answer you expected.
-- **A crash can present as a corrupt output file two layers away.** REAPER's rc −11 reached me as `EOFError` inside `wave.py`, and I had already written down "the token is rejected on linux" before reading the render log. The log was two lines from the exception.
-- **Read a verb's usage before reporting that it ignores its arguments.** `--scroll 500,300 0,-5` reported `delta 120, horiz false` three times and I was one sentence from filing a harness gap; the real syntax is `--scroll <x,y> [--notches N] [--delta N] [--horiz]` and it works.
-- **A folder name that differs by one letter's case fails silently and looks like a broken fixture.** `TIDE Rack` vs `TiDE Rack`: the app loads its default, logs nothing unusual, and the fixture sits one directory away. The document's own `standalonePlugin` attribute is still the OTHER spelling, and both are correct in their own place.
-- **A NEXT cell has to live on the branch its targets live on, and two lints enforce that.** The `linux` cell also belongs to #550's diff, so I tried to update it there — and `check-next-block.py` and `check-id-refs.py` both refused, because E74/E75/E76 and `tests/e19-host-feedback/` exist only on #566. They were right, and it settles the question the 2026-08-31 macos entry raised as a judgement call: the cell goes where its targets are, the conflict is one line, and the cell says in its own text which side to take.
-- **Two of these lints passed on a NEXT table I had just destroyed.** My first edit ate the `linux` row's Take column entirely; `check-next-block.py` and `check-backlog-diff.py` both said OK, and the only tell was the row COUNT dropping from 4 to 3 in the lint's own summary line. Read the count, not the verdict.
-
-**Not verified:** the linux **CLAP** cell — E60 owns it and its fix is [GMPI_Wrappers#32](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/32), unmerged, so `main` still carries the 32 KB `stateLoad` cliff; whether **E74** reproduces on Windows or macOS (nothing about a processor recreation is platform-specific, but neither box has read these counters in a host); the E74 **fix**, entirely — the row names where to look and does not guess; E19's **int/bool/enum**, **pixel-diff** and **string** clauses, all three for reasons recorded above; whether the e53 fixture's modules are reachable by any view gesture at all, which is half of E75.
-
-**Machine state.** All six repos were clean and on their default branches at the start; the five siblings were fast-forwarded to `origin/main` (GMPI 1 commit, gmpi_ui 1, GMPI_Wrappers 6, SynthEditLib 9, SE16 2) and **none was committed to**. TideSynth is on this run's branch until STEP 5 returns it. **REAPER 7.43 was downloaded fresh** — the 2026-08-28 copy lived in that session's scratch and is gone — and ran only against a scratch `HOME`, so `~/.vst3`, `~/.clap` and `~/.config/REAPER` were never written; `~/.config/REAPER` still does not exist, and `~/.vst3` and `~/.clap` compare identical to the pre-run listing, TIDE absent from both. The standalone ran under a scratch `XDG_CONFIG_HOME`; `~/.config/TiDE Rack/` is untouched. `build-e19/` is a scratch build tree and is gitignored; Jeff's `build/` was not touched. `decode_rpp.py` wrote `tests/hosts/v1-rack.rpp.block0.param1.xml` and `v1-rack-uncabled.rpp.block0.param1.xml` as side effects; both removed. Headless weston, REAPER and the standalone all stopped via `scripts/kill-named.sh` — 0 of each left running.
-
-**Next:** **E74 is the whole of E19's linux VST3 cell now**, and its harness needs no authoring — it mints its own project. **E75 is cheap and unblocks two more of E19's clauses.** **#550 and GMPI_Wrappers#32 want Jeff's merge**; until #32 lands the linux CLAP cell cannot be measured at all. And **the same 553-target build is sitting in `build-e19/`**, so any further linux measurement is minutes rather than an hour.
-
-**Branch/PR:** `tide/linux/E19-vst3-linux-cell`, [#566](https://github.com/JeffMcClintock/TideSynth/pull/566) — the harness in [tests/e19-host-feedback/](tests/e19-host-feedback/), the E19 row, E74/E75/E76, the linux sections of [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md), the audio table in [tests/hosts/README.md](tests/hosts/README.md), the folder-name correction in [tests/fixtures/e53-vcv-rack-segv.README.md](tests/fixtures/e53-vcv-rack-segv.README.md), and this entry. Plus the merge commit on `tide/linux/E60-clap-state-trace` ([#550](https://github.com/JeffMcClintock/TideSynth/pull/550)), which is the STEP 1.5 half.
-
-## 2026-08-31 — macos — E73: a hosted plug-in gets its trace back, and one freopen beats sixteen edits it was not allowed to make (interactive, Jeff directing)
-
-**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** · as **tide-rack-bot** (both paths) · interactive, Jeff directing (*"do E73. i allowed the dialog."*)
-
-**Did:** fixed **E73**, the blocker E19's mac AU3 cell hit hours earlier — **and not the way E73's own row proposed**. Branch `tide/mac/E73-trace-to-file`. The first log it produced found **E74**.
-
-### The row said sixteen edits; the rules said none of them were mine
-
-E73 proposed converting each `fprintf(stderr, …)` into a file write, the way E65 did for the panel. Following that would have stopped immediately: **sixteen of the sites are in `SynthEdit_Rack_Adaptor`, which is on NEITHER of STEP 5's lists and is therefore GATED by default**, and more are in `SynthEditLib`, GATED outright. The allowed-side part would have been a fraction of the instrument.
-
-**One `freopen` on the process's stderr, from TIDE's own ALLOWED code, is both legal and better.** It captures every writer in the process — the rack adaptor's, SynthEditLib's, TIDE's, and sites nobody has written yet — and it edits no gated repo.
-
-The deeper reason it is better: **the defect was never in those calls.** They are correct. The process they run in has no stderr worth writing to. Fixing the stream fixes the class; fixing the calls fixes a list.
-
-### Where the file goes, which is the part that took thinking
-
-`$TIDE_TRACE_LOG_PATH` if set, else `$TMPDIR/TideTrace.log`.
-
-The default is the one that matters. **An AUv3 appex is sandboxed, so its `TMPDIR` is its own container** — `~/Library/Containers/<extension-bundle-id>/Data/tmp` — **writable from inside and readable from outside.** That is what makes the log collectable at all: a host launches an extension *through the system*, so environment variables set for the host never reach it, and no harness can point the extension anywhere. The env var is still honoured because it works for the standalone and the VST3, where it does propagate.
-
-Armed at compile time (`-DTIDE_TRACE_LOG=ON`, OFF by default), for E65's reason plus one more: an environment variable cannot arm it in the one configuration that needs it most.
-
-### Measured, in two halves because one would not have been enough
-
-**The hosted half.** REAPER 7.45 hosting the AUv3 wrote a **19-line `TideTrace.log`** into the container, while `grep -icE 'TIDE:|RackProcessor'` on **REAPER's own stderr stayed at 0**. The pair is the proof — the same lines that reached nobody this morning are now in a file, and they are still not on the host's stderr.
-
-**The cross-repo half**, which is the one that justifies the whole design choice. A standalone run with an explicit path captured:
-
-```
-Logging dialogs to stderr, and keeping them for --dialogs.
-```
-
-That line is written by **`SynthEditLib/EditorLib/SynthEditAppBase.h`** — a GATED repo this change does not touch. So the capture is demonstrably stream-level rather than TideSynth-specific, which is exactly the property that made `freopen` the right call. Also measured: **0** lines escaped to the process's own stdout or stderr.
-
-**Not observed, and worth saying plainly rather than implying:** a literal `RackProcessor: … display-state capture #N` line. Neither run instantiated a VCV module — the standalone's command channel has **no add-module verb** (its verbs are pointer, menu, midi, param, screenshot; placement is a mouse drag through the browser), and the hosted AUv3 had the default rack. The adaptor writes with the same `fprintf(stderr, …)` as the SynthEditLib line that *was* captured, so it rides the same mechanism — but nobody has watched one yet, and that is E19's prepared-rack problem, not this row's.
-
-### The first log it produced found a defect — filed as E74
-
-Two adjacent lines from the container, a fresh hosted instance:
-
-```
-TIDE: controller #1 startup default is 17959 bytes (syncState will not publish this document)
-TIDE: controller #1 syncState exporting  17959 byte document (host asked for state)
-```
-
-**Same size, and it published anyway.** E59's guard is byte equality against the recorded startup default, so the bytes differ by something the length does not show. E59's own comment predicts this direction — *"if the two ever differ spuriously this publishes"* — and calls it the cheap way to be wrong.
-
-It was harmless **here**, and the reason is worth stating so nobody over-reads it: nothing was restored, and a fresh instance *should* build the default rack. But the published bytes are retained by the processor holder and re-seeded into the next processor it starts, which is the whole of E59, and the log shows that step happening (`instance #2 building rack from 17959 byte document (Sync chunk, rack not yet prepared)`). **With a restore in the picture, that is E59's failure** — and a restore into a hosted AUv3 is precisely what nobody has run on this platform.
-
-**Learned:**
-
-- **When a row prescribes an edit you are not allowed to make, the constraint is a design hint, not an obstacle.** Being unable to touch the rack adaptor forced the question *"whose stderr is this?"*, and the answer was a better fix than the one the row asked for — one file, no gated repos, and it covers writers that do not exist yet.
-- **Fix the stream, not the call sites, when the call sites are all correct.** Sixteen `fprintf`s were not the defect; the process's stderr going nowhere was.
-- **A sandbox container is a FEATURE for a harness, once you notice it is readable from outside.** The appex cannot be handed an environment, so a configurable path is useless there — but its own `TMPDIR` is a fixed, discoverable location, and defaulting to it is what makes the log collectable.
-- **`freopen` that fails CLOSES the stream.** A bad path would not merely fail to help, it would destroy the stderr the standalone still depends on. Probe with `fopen` first and only redirect when that succeeds — one extra call, and the failure mode it removes is silent.
-- **Prove a stream-level capture with a line you do not own.** "It must catch everything, because it is the same stream" is an argument; a line written by a GATED repo appearing in the file is a measurement, and it was free.
-- **Take the diagnostic build back off the machine.** A build with the redirect armed writes a file on every instantiation — PLAN constraint 4 — so the installed AUv3 was returned to a normal build and checked with `strings`.
-
-**Not verified:** a `RackProcessor:` line specifically, per above; whether the log survives a host that sandboxes the extension more tightly than REAPER does (Logic and Live untried); Windows and Linux, where the code compiles by inspection only — the `_WIN32` branch of the path logic is untested on this box.
-
-**Machine state.** `~/Applications/TIDE-Rack-AUv3.app` is a **normal** build again — the trace one was installed only for the measurement and removed; `strings … 'trace log opened'` on the installed appex is **0**, and the container tmp was emptied. The AUv3 remains registered (UUID `2F335B9F…`). The developer's REAPER config, installed VST3 and installed CLAP are untouched as before; every build ran `SE_LOCAL_BUILD=OFF`. Build trees `build-e73/` and `build-e19au3/` are gitignored; the evidence log is copied into the session scratchpad. No REAPER, appex or standalone process left running. **Two containers exist for TIDE extensions**, `…au3app.extension` and a leftover `…e19test.extension` from the 2026-08-29 clone experiment; the second is inert and was left alone.
-
-**Next:** **E74** is a diff of two equal-length documents and E73's log is the instrument. **E19's remaining clauses** now need only the prepared-rack half, since the trace half is solved. **E72** still wants a ruling.
-
-**Branch/PR:** `tide/mac/E73-trace-to-file` — `SynthEditSem/TraceLog.h`, the two call sites, the `TIDE_TRACE_LOG` option, the E73/E74 rows, the doc section, and this entry.
-
-## 2026-08-31 — macos — E19's mac AU3 cell: a DAW has now hosted TIDE's AUv3, and the half that is still unmeasured has a structural cause (interactive, Jeff directing)
-
-**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** · as **tide-rack-bot** (both paths) · interactive continuation of the same session, Jeff directing (*"merge your PRs. sync all tide related repos"*, then *"then take the next task"*)
-
-**Did:** took **E19**'s mac AU3 cell — the topmost eligible row, and the one this box alone can measure — after both of its blockers lifted in the same minute: the screen was unlocked, and Jeff was present to authorise the one step an unattended run must not take. **A DAW has now hosted TIDE's AUv3, the first time on any box.** Branch `tide/mac/E19-au3-registered`. No product code changed.
-
-### The registration wall came down exactly where 2026-08-29 said it would
-
-That run measured five ways to register a current build **beside** the developer's — launching the built app, `pluginkit -a`, a clone with a distinct `CFBundleIdentifier` *and* subtype, an inside-out ad-hoc re-sign, `lsregister -f` — and all five left `pluginkit -m -i <id> -v` answering `(no matches)`. It was right, and it was right to stop: displacement was the only route and an unattended run must not take it.
-
-**A `ditto` backup taken first is what makes it safe**, and it answers that run's stated objection directly — the risk was dying mid-way and leaving his registration pointing at a build tree that later gets deleted; a 5 MB copy makes that one command to undo.
-
-| | before | after |
-|---|---|---|
-| `pluginkit -mv` UUID | `DBE224FD…` | **`793D00A0…`** |
-| its date | 2026-08-25 | **2026-08-31** |
-
-Read it by UUID and date, not by presence: the stale registration is present too and differs in nothing else.
-
-### Then Apple's validator, before any DAW
-
-```
-auval -a          ->  aumu Drck Dsyh  -  TiDE Synth:TiDE Rack
-auval -v aumu Drck Dsyh   ->  AU VALIDATION SUCCEEDED   rc=0
-```
-
-**The first Apple-validated AU result this project has.** M2 and E9 both record that TIDE's AU evidence was *our own probe, never a DAW*; `auval` is neither ours nor a DAW, and it is stricter than the first and cheaper than the second.
-
-### REAPER hosts it — and two traps cost a launch each
-
-REAPER 7.45 scanned the registered extension into its AU cache as `TiDE Synth:TiDE Rack` (his own cache had **never** held a TIDE entry — 0 matches, checked before starting), instantiated it as **`AUi: TiDE Rack (TiDE Synth)`**, floated the editor, and rolled the transport **43 s at `playstate=1`** with the position advancing to 43.14 — so `process()` ran and nothing wedged.
-
-- **A seeded portable config reloads the developer's last project**, whose missing plug-ins raise a modal, and the modal blocks `Scripts/__startup.lua` from ever running. The symptom is a startup script that writes **no log at all**, which reads as "my script is wrong" — I spent a launch there. `loadlastproj=0` plus an explicit empty `.rpp`.
-- **The AU cache must be deleted from the PORTABLE copy** to force a rescan; seeded from his, it has no TIDE entry, so REAPER never looks.
-
-Useful by-product: the blocking modal is where REAPER's own naming convention is printed — `AUi: <name> (<manufacturer>)`. Take the spelling from REAPER rather than guessing it.
-
-### The screenshot settles what a symbol check could not
-
-The floated editor **drew**, and its module browser lists `LFO`, `LFO2`, `Scope`, `SEQ3`, `SHASR`, `Quantizer`, `RandomValues` and the rest under a **`Rack-VCV Fundamental`** heading, with the five prefabs above them.
-
-That is a picture of VCV Fundamental linked and **enumerated inside the hosted extension**. The 2026-08-29 run reached for `strings … "VCV: Scope"`, got 0, read it as "VCV did not link", and then confirmed its own error with a second bad reading — the ids are composed at runtime so the literal never appears. No symbol check could have answered this; one screenshot did.
-
-### The wall a human does NOT remove, and it is the reason the rest is unmeasured
-
-**An audio-unit extension runs out-of-process, so everything this project traces to `stderr` is invisible when the plug-in is hosted.** `RACK_ADAPTOR_TRACE`'s counters and TIDE's own `syncState`/`building rack from` lines are all `fprintf(stderr, …)`. Measured, not assumed: the strings are in the appex binary, the plug-in loads and runs under the host, and grepping REAPER's stderr for `TIDE:` or `RackProcessor` returns **nothing**.
-
-So the linux box's whole instrument set is unavailable here, and E19's animation, int/bool/enum and pixel-diff clauses cannot be read on macOS AU3 however long anybody watches. **Filed as E73**, whose fix already exists one layer up: E65's `TIDE_PANEL_LOG_PATH` + `-DTIDE_PANEL_TRACE_LOG`, which routes a trace to a file and defaults into `TMPDIR` so it survives the sandbox.
-
-### One measurement that belongs to V2, recorded in passing
-
-REAPER sees **3** parameters on the instance: `Bypass`, `Wet`, `Delta` — all REAPER's own AU wrapper params. **None of TIDE's parameters are visible to the host**, so there is nothing for a DAW to automate today. That is V2's problem and this is a datum for it, not a new row.
-
-**Learned:**
-
-- **"Needs a human" is a claim with an expiry, and it expired the minute one showed up.** Two of E19's blockers were properties of an *unattended* run — a locked screen and a registration nobody may displace — not of the platform. The row had said so since 2026-08-29; what changed was availability, and a run should check that before re-inheriting a blocker.
-- **Take the backup and the objection disappears with it.** The 2026-08-29 refusal was reasoned from irreversibility ("if the run died in between"). A `ditto` first converts the whole argument into a one-command undo — the blocker was recoverability, not permission.
-- **`auval` before any DAW.** It is Apple's, stricter than our probes, needs no host config, and had never been run against this plug-in. A DAW failure after `auval` passes means something about the DAW; before it, you do not know what it means.
-- **A no-output startup script is more often a modal than a bug.** REAPER wrote nothing at all, and the cause was a dialog about a *different* project's missing plug-ins. Screenshot before debugging the script.
-- **When a symbol check is ambiguous and the thing is on screen, screenshot it.** Third time this project has been misled by `strings` on runtime-composed ids; the picture cost one command and is unarguable.
-- **Out-of-process changes what an instrument IS, not just where it prints.** Every counter this fleet added for the linux box is a `stderr` write, and that design choice silently excludes the AUv3 target entirely. Worth knowing before adding the next one.
-
-**Not verified:** E19's animation window, int/bool/enum toggle and pixel diff — blocked on E73 and on getting a PREPARED rack into a hosted AUv3, which is the same shape as E60's CLAP blocker; audio out of the hosted AU (the default rack with no MIDI is silence, so the test would have proved nothing); whether the same holds in Logic or Live, neither of which was opened.
-
-**Machine state.** **One deliberate change to the developer's machine, and it is the point of the exercise:** `~/Applications/TIDE-Rack-AUv3.app` is now the current build (Release/arm64, `TIDE_VCV_FUNDAMENTAL=ON`, `RACK_ADAPTOR_TRACE=1`, 395/395 0 errors) and is the registered AUv3. **The 2026-08-26 app it replaced is backed up** in the session scratchpad; restoring it is `rm -rf` + `ditto` + one `open -g`. Everything else was isolated and verified afterwards: his `~/Library/Application Support/REAPER` has **0 files** modified in the last two hours across 2052, and his installed `VST3/TIDE-Rack.vst3` (Aug 28) and `CLAP/TIDE-Rack.clap` (Aug 22) are untouched — every build ran `SE_LOCAL_BUILD=OFF`. The portable REAPER, its config and all captures are in the scratchpad. No REAPER, appex or TIDE process left running by this run; a `e38_context_menu_probe.py` and a standalone TIDE belonging to Jeff's own live session were running throughout and were left alone. **A macOS permission dialog is on his screen** — *"Claude is requesting to bypass the system private window picker"*, raised by `screencapture`; I did not answer it, because system security settings are his, and screen capture worked without it.
-
-**Next:** **E73 unblocks three of E19's clauses** and is one session. **E19's remaining mac clauses also want a prepared rack in a hosted AUv3** — worth solving once, since E60 needs the same thing for CLAP. **E72** wants a ruling, not a session. And the AUv3 is registered *now*, so any further AU3 measurement is cheap until somebody rebuilds over it.
-
-**Branch/PR:** `tide/mac/E19-au3-registered` — the E19 row, E73, the macOS AUv3 section of [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md), and this entry.
 

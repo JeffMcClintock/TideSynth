@@ -118,3 +118,101 @@ standalone control, whose counters are at #18100, gives **byte-identical
 screenshots** over the same interval. The negative control that makes this a
 statement about the fixture is that the **DEFAULT** rack, in the same build,
 draws its `Out` panel on the rails perfectly well.
+
+## Windows — same drivers, a different runner, and it needs no `__startup.lua`
+
+Added 2026-09-02, when E19's **windows** VST3 cell was measured through this
+harness. The two `.lua` files are shared; only the runner differs, and it is
+[run-host-win.sh](run-host-win.sh) rather than [run-host.sh](run-host.sh).
+
+```bash
+export E19_SCRATCH='C:\path\to\scratch'          # WINDOWS path form: the lua and REAPER get this
+mkdir -p "$(cygpath -u "$E19_SCRATCH")"/{proj,stage}
+
+# 1. a trace-armed build. Windows produces FLAT FILES -- assemble the bundle,
+#    or the plug-in starts with an empty rack and every content measurement is void.
+cmake -S . -B build-e19win -G "Visual Studio 18 2026" \
+  -DCMAKE_GENERATOR_INSTANCE="C:/Program Files/Microsoft Visual Studio/18/Community" \
+  -DTIDE_VCV_FUNDAMENTAL=ON -DSE_LOCAL_BUILD=OFF -DCMAKE_CXX_FLAGS="-DRACK_ADAPTOR_TRACE=1"
+cmake --build build-e19win --config Release
+#    bundle: <stage>/TIDE-Rack.vst3/Contents/{x86_64-win/TIDE-Rack.vst3,Resources/*}
+
+# 2. BACK UP %APPDATA%\REAPER FIRST -- see below -- then point vstpath64 at
+#    <stage> alone and move reaper-vstplugins64.ini aside to force a rescan.
+
+# 3. mint, then measure
+python3 tests/e19-host-feedback/frame_chunk.py tests/fixtures/e53-vcv-rack-segv.xml \
+        "$(cygpath -u "$E19_SCRATCH")/prepared_chunk.b64"
+bash tests/e19-host-feedback/run-host-win.sh tests/e19-host-feedback/prepare.lua mint \
+     "$(cygpath -u "$E19_SCRATCH")/prepare.log" 150
+bash tests/e19-host-feedback/run-host-win.sh tests/e19-host-feedback/measure.lua vst3 \
+     "$(cygpath -u "$E19_SCRATCH")/measure.log" 170 75
+
+# 4. RESTORE %APPDATA%\REAPER from the backup, and check the md5s match.
+```
+
+**`fx_ident` is the answer to "which binary did I just measure?", and it is not
+optional here.** A staged build and the developer's installed one carry the same
+VST3 UID; REAPER keeps ONE cache entry for the pair and `TrackFX_AddByName`
+picks whichever it likes. On the first run of this harness it picked
+`C:\Program Files\Common Files\VST3\TIDE-Rack.vst3` — the installed one — and
+said nothing. Both drivers now log the parm. This **supersedes** the 2026-08-28
+remedy of compiling a distinguishing string into the build and reading it back:
+that works, but it answers the question a whole build later.
+
+**The host cannot be isolated on Windows.** REAPER resolves its resource path
+with `SHGetKnownFolderPath`, which ignores `%APPDATA%`, and a `reaper.ini` beside
+`reaper.exe` does not engage portable mode. So there is no scratch `HOME` trick
+here as there is on linux: back up `%APPDATA%\REAPER` **before the first launch**
+and restore it afterwards. The 2026-09-02 run did, and both `REAPER.ini` and
+`reaper-vstplugins64.ini` came back md5-identical. The STANDALONE *is* isolatable
+— `GMPI_STANDALONE_CONFIG_DIR=<root>` (E55), with the fixture at
+`<root>/TiDE Rack/session.xml`; `%APPDATA%\TiDE Rack\` was md5-identical after.
+
+**Two Windows-only traps, each of which cost a measurement.**
+
+**REAPER's File:Quit raises "Save project … before closing?" on a dirty project,
+and adding an FX dirties it.** An unattended run parks on it forever.
+`Main_SaveProjectEx` does **not** clear the flag — after a successful save-as the
+prompt still named the *original* project. So `bail()` writes a `done` sentinel
+and quits only off-Windows; the runner waits for the sentinel and kills the
+process. That is strictly better here anyway: a killed REAPER never rewrites the
+developer's ini on the way out.
+
+**An EMPTY project has length 0 and REAPER stops the transport the instant it
+reaches the end** — `playstate` 1 → 0 inside one second, `pos` never leaving
+0.000, which reads exactly like a wedged plug-in. `measure.lua` now creates a
+silent MIDI item to give the project a length, and re-issues play (saying so on
+the line) if the transport ever drops.
+
+**And one that is not REAPER's at all:** `read -r -t N < /dev/zero` is a working
+sleep on linux and returns **instantly** in Git Bash, because `/dev/zero` always
+has a byte to read. A 180-iteration wait finished in milliseconds and killed
+REAPER about a second after launch — three runs read as "the host will not start
+on this box", one of them wrongly blamed on REAPER's evaluation nag, before the
+harness was suspected. Use `sleep`.
+
+## What Windows measured, 2026-09-02
+
+Same fixture, same drivers, REAPER 7.78. The transport rolled the whole window.
+
+| | hosted VST3, REAPER 7.78 | STANDALONE (control) |
+|---|---|---|
+| rack the DSP built | **43,187 bytes — the prepared one** | 43,391 |
+| `feedback send` / `editor received` | **3,200 / 3,200** — one-for-one | 4,700 / 4,700 |
+| `display-state update … arrived` | **#2180, 65,548 bytes** | #2260, 65,548 bytes |
+| `light … update` | **#6800, value 0.824**, 106 distinct values | #9300, value 0.305 |
+| transport | `playstate=1`, pos 0 → **74.671** | — |
+
+**Still advancing at the end of the window, by line position rather than by
+inference:** the last `building rack` line is 145 of 620, and **216
+`display-state update`, 146 `light update` and 32 `editor received feedback`
+lines follow it**.
+
+**The pixel-diff clause is unmeasurable from this fixture on Windows too**, for
+the reason the section above gives — 0 of 760,950 on the rack canvas. The
+controls that make that a statement about the fixture: REAPER's own transport
+area in the **same screenshot pair** changed **9,333 of 232,200**, so the capture
+is live; the standalone changed **0 of 921,600** while its counters ran; and the
+rack is drawn as **bare rails with no VCV panel on it**. **E75**, on a second
+platform.

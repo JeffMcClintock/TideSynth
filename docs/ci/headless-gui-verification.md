@@ -545,3 +545,89 @@ heading. That is a picture of VCV Fundamental linked and *enumerated inside the
 hosted extension* — the question the 2026-08-29 run got wrong twice by reading
 `strings` for `VCV: Scope`, which never appears because ids are composed at
 runtime. **When a symbol check is ambiguous and the thing is on screen, screenshot it.**
+
+# Windows — REAPER 7.78 hosting the VST3, and the one question a screenshot cannot answer
+
+Added 2026-09-02, from E19's windows VST3 cell. The full recipe lives beside the
+harness in [tests/e19-host-feedback/README.md](../../tests/e19-host-feedback/README.md);
+what follows is the part that generalises beyond that row.
+
+## REAPER runs a `.lua` named on the command line
+
+```bash
+reaper.exe -nosplash "<scratch>\empty.rpp" "<scratch>\driver.lua"
+```
+
+Both arguments earn their place. The **script** argument means nothing has to be
+installed as `Scripts/__startup.lua` — which matters more here than on linux,
+because the resource path is `%APPDATA%\REAPER` and **cannot be redirected**, so
+every file the harness does not write is one it cannot get wrong. The **explicit
+empty project** stops REAPER reopening the developer's last one, whose missing
+plug-ins raise a modal that blocks the script before it runs — the same trap the
+macOS AU3 leg met through `loadlastproj`.
+
+## `fx_ident` — which binary answered
+
+```lua
+local _, ident = reaper.TrackFX_GetNamedConfigParm(tr, fx, "fx_ident")
+-- C:\...\stage\TIDE-Rack.vst3\Contents\x86_64-win\TIDE-Rack.vst3<1558955188{6775...}
+```
+
+**A staged build and an installed one can carry the same VST3 UID, and REAPER
+keeps ONE cache entry for the pair** — so the cache cannot answer this, the
+plug-in's own name cannot, and `TrackFX_AddByName` picks whichever it likes. It
+picked the developer's installed bundle on this harness's first run and said
+nothing.
+
+This **supersedes** the remedy the 2026-08-28 windows entry landed — compile a
+distinguishing string into the build and read it back off the log. That works,
+and it answers the question one whole build later; this answers it before the
+measurement starts, and it works for a build that has no distinguishing string.
+The narrowing that makes the answer come out right is `vstpath64` pointed at a
+folder holding only the bundle under test, with `reaper-vstplugins64.ini` moved
+aside to force a rescan.
+
+## The host cannot be isolated here, so back it up instead
+
+`SHGetKnownFolderPath` ignores `%APPDATA%`, and a `reaper.ini` beside
+`reaper.exe` does not engage portable mode — both measured twice, and this is a
+**Windows** fact rather than a fleet one; macOS isolates completely. So the rule
+on this box is: copy `%APPDATA%\REAPER` aside **before the first launch**,
+restore it after, and check the md5s. Done 2026-09-02 across seven launches;
+`REAPER.ini` and `reaper-vstplugins64.ini` both came back identical.
+
+The **standalone** is a different story and does isolate:
+`GMPI_STANDALONE_CONFIG_DIR=<root>` (BACKLOG E55) with the session at
+`<root>/TiDE Rack/session.xml`, after which `%APPDATA%\TiDE Rack\` is
+md5-identical. **Isolation proved for one process is not isolation proved for
+another** — that is the 2026-08-28 lesson, and it still holds in both directions.
+
+## Two modals and a fake sleep, all of which look like a broken plug-in
+
+- **File:Quit on a dirty project** raises *"Save project … before closing?"*, and
+  adding an FX dirties it. `Main_SaveProjectEx` does **not** clear the flag: after
+  a successful save-as the prompt still named the *original* project. Write a
+  sentinel and kill the process from outside instead — which also means REAPER
+  never rewrites the developer's ini on the way out.
+- **An empty project has length 0**, so the transport stops the instant it starts:
+  `playstate` 1 → 0 within a second, `pos` stuck at 0.000. Indistinguishable from
+  a wedged plug-in unless you log the transport, which is why the harness does.
+  Give the project a silent item.
+- **`read -r -t N < /dev/zero` does not sleep in Git Bash.** `/dev/zero` always
+  has a byte, so the read returns immediately and a 180-iteration wait finishes in
+  milliseconds. It is a *working* sleep on linux, which is why it was copied. Mine
+  killed REAPER a second after launch three times, and the symptom — a zero-byte
+  stderr and no log — reads as "the host will not start on this box". One of those
+  runs was wrongly blamed on REAPER's evaluation nag before the harness was
+  suspected. Use `sleep`.
+
+## A screenshot pair needs a control inside the same pair
+
+E19's pixel-diff clause came back **0 of 760,950** on the rack canvas, which is
+that clause's own FAIL condition. It is not a result, and what shows that is a
+control **within the same two screenshots**: REAPER's own transport area changed
+**9,333 of 232,200** across the pair, so the capture is live and time passed. A
+whole-screen diff would have hidden both facts in one number.
+
+Take the region diff, not the frame diff, and always include a region that is
+*expected* to change.

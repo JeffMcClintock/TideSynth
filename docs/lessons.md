@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **408 KB** across **326** entries, so copying them
+Learned sections are **409 KB** across **327** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **126 KB / 1362 lessons — 3.2x smaller**, and represents
+A8. This is **127 KB / 1369 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,18 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-02
+
+**windows — E19's windows VST3 cell PASSES its animation clause, and both traps that nearly stopped it were mine**
+
+- A wall that appears right after you change the harness is the harness.
+- Do not report a blocker before testing it.
+- `read -t N < /dev/zero` is a sleep on linux and a no-op in Git Bash.
+- `fx_ident` beats a distinguishing string, and the difference is when you learn the answer.
+- Put the control inside the screenshot pair.
+- Log the transport, or a stopped engine reads as a frozen plug-in.
+- A quit that prompts is a hang.
 
 ## 2026-09-01
 
@@ -92,37 +104,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A markdown table cannot go inside a table cell, and the archive lint is what catches it.
 - `git checkout <ref> -- <file>` during a merge is not "undo".
 - Conflict marker text depends on how the conflict was produced.
-
-**linux — STEP 1.5 unblocked #550, then E19's linux VST3 cell: the DSP now runs the right rack, and the editor is bound to the wrong processor (scheduled run)**
-
-- A CONFLICTING PR is not "green and waiting for merge", and STEP 1.5's list of three does not name it.
-- Resolve a rotated `JOURNAL.md` by taking main whole and re-placing your own entry in the archive.
-- A generated file is not merged, it is regenerated.
-- A frozen readout and an unattached listener look identical, and only the ORDER of the log separates them.
-- When a control gives the same "failing" number as the experiment, the number is not about the experiment.
-- A crash can present as a corrupt output file two layers away.
-- Read a verb's usage before reporting that it ignores its arguments.
-- A folder name that differs by one letter's case fails silently and looks like a broken fixture.
-- A NEXT cell has to live on the branch its targets live on, and two lints enforce that.
-- Two of these lints passed on a NEXT table I had just destroyed.
-
-**macos — E73: a hosted plug-in gets its trace back, and one freopen beats sixteen edits it was not allowed to make (interactive, Jeff directing)**
-
-- When a row prescribes an edit you are not allowed to make, the constraint is a design hint, not an obstacle.
-- Fix the stream, not the call sites, when the call sites are all correct.
-- A sandbox container is a FEATURE for a harness, once you notice it is readable from outside.
-- `freopen` that fails CLOSES the stream.
-- Prove a stream-level capture with a line you do not own.
-- Take the diagnostic build back off the machine.
-
-**macos — E19's mac AU3 cell: a DAW has now hosted TIDE's AUv3, and the half that is still unmeasured has a structural cause (interactive, Jeff directing)**
-
-- "Needs a human" is a claim with an expiry, and it expired the minute one showed up.
-- Take the backup and the objection disappears with it.
-- `auval` before any DAW.
-- A no-output startup script is more often a modal than a bug.
-- When a symbol check is ambiguous and the thing is on screen, screenshot it.
-- Out-of-process changes what an instrument IS, not just where it prints.
 
 ## 2026-08-18
 
@@ -2434,3 +2415,34 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "Which consumers did you build" is a different question from "does it compile".
 - Do not flip a row on `main` when another platform's open PR already flips it.
 - A blocked queue is not the same as an idle run.
+
+**linux — STEP 1.5 unblocked #550, then E19's linux VST3 cell: the DSP now runs the right rack, and the editor is bound to the wrong processor (scheduled run)**
+
+- A CONFLICTING PR is not "green and waiting for merge", and STEP 1.5's list of three does not name it.
+- Resolve a rotated `JOURNAL.md` by taking main whole and re-placing your own entry in the archive.
+- A generated file is not merged, it is regenerated.
+- A frozen readout and an unattached listener look identical, and only the ORDER of the log separates them.
+- When a control gives the same "failing" number as the experiment, the number is not about the experiment.
+- A crash can present as a corrupt output file two layers away.
+- Read a verb's usage before reporting that it ignores its arguments.
+- A folder name that differs by one letter's case fails silently and looks like a broken fixture.
+- A NEXT cell has to live on the branch its targets live on, and two lints enforce that.
+- Two of these lints passed on a NEXT table I had just destroyed.
+
+**macos — E73: a hosted plug-in gets its trace back, and one freopen beats sixteen edits it was not allowed to make (interactive, Jeff directing)**
+
+- When a row prescribes an edit you are not allowed to make, the constraint is a design hint, not an obstacle.
+- Fix the stream, not the call sites, when the call sites are all correct.
+- A sandbox container is a FEATURE for a harness, once you notice it is readable from outside.
+- `freopen` that fails CLOSES the stream.
+- Prove a stream-level capture with a line you do not own.
+- Take the diagnostic build back off the machine.
+
+**macos — E19's mac AU3 cell: a DAW has now hosted TIDE's AUv3, and the half that is still unmeasured has a structural cause (interactive, Jeff directing)**
+
+- "Needs a human" is a claim with an expiry, and it expired the minute one showed up.
+- Take the backup and the objection disappears with it.
+- `auval` before any DAW.
+- A no-output startup script is more often a modal than a bug.
+- When a symbol check is ambiguous and the thing is on screen, screenshot it.
+- Out-of-process changes what an instrument IS, not just where it prints.
