@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **406 KB** across **325** entries, so copying them
+Learned sections are **408 KB** across **326** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **126 KB / 1355 lessons — 3.2x smaller**, and represents
+A8. This is **126 KB / 1362 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,16 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-01
+
+**linux — E78: CLAP had E74's defect, and fixing it uncovered two more (interactive continuation, Jeff directing)**
+
+- "While you have the harness up" is an assumption to test, not a saving.
+- A probe that supplies the host extensions is not optional, it IS the measurement.
+- Count what the host did, not only what the plug-in did.
+- Returning every repo to its default branch is STEP 5 working, and it will silently un-build your next measurement.
+- A byte-identical rebuild is the cheapest possible proof that an A/B is clean.
+- When one datatype crosses and another does not, stop looking at the transport.
+- `gdk_*: assertion failed` from a DAW is the DAW's, and chasing it is chasing someone else's bug.
 
 **linux — E74: the editor was never bound to ANY processor, and nothing pumps GMPI's timers in a hosted Linux plug-in (scheduled run)**
 
