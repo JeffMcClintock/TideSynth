@@ -8,6 +8,62 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-02 — macos — E79 does not reproduce on macOS, and the run loop that was supposed to explain it made no difference (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** took **E79**, built the instrument it needed, and got a **negative** result that is worth more than the negative: **E79 does not reproduce on macOS**, and the mechanism its row blames is not the mechanism that carries the document here. E79 is narrowed to `linux` and handed back annotated. New file: [tests/e79_clap_headless_probe.c](tests/e79_clap_headless_probe.c). No product code changed, in this repo or any sibling.
+
+### Why this row, on a box whose queue is mostly blocked
+
+STEP 1 and STEP 1.5 were both genuinely empty — no open `platform:mac` issue, no `tide/mac/**` PR, and the fleet's only open PR anywhere is linux's [GMPI_Wrappers#38](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/38), which is green and `CLEAN`. I checked `mergeStateStatus` explicitly rather than reading the three conditions STEP 1.5 actually lists; that is the trap the last three runs across two boxes each lost half a session to, and one extra `--json` field is the whole fix.
+
+The screen was **locked** (`CGSSessionScreenIsLocked true`), which removes **E71, E77, E19's mac AU3 cell and E75** at a stroke. Of what remained, **E79 was the only row this box could both reach and answer**, because it is the one row in the queue whose entire subject is *what happens when no editor exists* — so a locked screen is not an obstacle to it, it is the condition being tested.
+
+**E79 is `any`, TODO, and no branch or PR anywhere claimed it** (checked across all five repos before claiming). The `linux` NEXT cell points linux at it, so I pushed the DOING mark before doing any work — that is exactly what STEP 2's claim-first rule is for, and it is what stops the C15/C16 shape. I have **not** taken linux's fix: the row goes back to `TODO`/`linux`, because the defect is not observable here and a fix I cannot measure is not mine to write.
+
+### The instrument, and the arm that makes it a measurement
+
+`tests/e79_clap_headless_probe.c` is a bare CLAP C-ABI host — `dlopen`, `clap_entry`, `create_plugin`, `clap.state`, `activate`, `process` — modelled on the existing `e69_clap_state_probe.c` and using its host stub verbatim, deliberately (if TIDE's CLAP ever starts hard-requiring a host extension, both probes notice). It **never calls `guiCreate` or `guiSetParent` and never queries `clap.gui`**, so `Processor_CLAP::editor` stays `nullptr` for the whole run. It sends one note-on at block 2 so the rack's ADSR opens.
+
+Three arms, one build, the same 18,893-byte preset extracted from `tests/hosts/v1-rack.rpp` with `scripts/decode_rpp.py --preset-out`:
+
+| arm | trace | peak | rms |
+|---|---|---|---|
+| `--runloop` (a host main thread runs) | `instance #1 building rack from 14136 byte document` | **-6.3 dBFS** (0.482431) | -17.1 dBFS |
+| `--no-runloop` (the controller's timer is starved) | same line | **-6.3 dBFS (0.482431, byte-identical)** | -17.1 dBFS |
+| `--no-preset` (**negative control**, nothing restored) | `TIDE: unprepared - writing silence to the host's output buffers` | **-inf** | -inf |
+
+**The third arm is the one that matters and it was not in my first draft.** I originally shipped only the two run-loop arms, and they would have proved nothing: "-6.3 dBFS with no editor" is equally consistent with *the restore worked* and with *the restore did nothing and the default rack happens to make a sound*. The `--no-preset` arm settles it — the same binary, restoring nothing, emits **E79's exact symptom line** and digital silence. So the probe demonstrably detects the failure E79 describes, and the other two arms are therefore evidence rather than hope.
+
+**-6.3 dBFS is `v1-rack.rpp`'s own documented reference figure**, reached here through the CLAP with no window in existence. Cross-format agreement to the tenth of a dB, on the peak exactly.
+
+### The finding that outlives the negative result
+
+**The run loop made no difference at all — byte-identical peaks.** That was not the predicted outcome. I expected `--no-runloop` to be a *positive* control that reproduced E79's symptom by starving the same `gmpi::TimerClient` Linux has no source for, since `Controller_CLAP` starts that timer in its constructor (`Controller_CLAP.cpp:19`) and macOS backs it with a `CFRunLoopTimer` on `CFRunLoopGetCurrent()` (`gmpi_ui helpers/Timer.cpp:136-138`). It did not, because **`Controller_CLAP::onTimer` is not on the path at all.**
+
+The ordering says so plainly: both `restore of a 14136 byte document -> imported` and `instance #1 building rack` print **inside `state->load`**, before `activate`, in the arm that never spins a run loop. The delivery is the third of `Processor_CLAP::stateLoad`'s three calls — `plugin.setPresetUnsafe(dat)` (`GMPI_Wrappers/wrapper/CLAP/Processor_CLAP.cpp:928`) — and that call carries **no `#ifdef`. It is the same source line on Linux.**
+
+So E79's stated cause does not explain E79's symptom. *"The host timer is the only UI-thread tick, so nothing carries the document"* is true about the timer and does not account for a synchronous call that should have delivered the document before any tick was needed. Two candidates for the box that can actually see it, both on the row: `setPresetUnsafe` throwing into `stateLoad`'s `catch (...)`, which makes `state->load` return **false** — my probe asserts that return, a REAPER session does not — or the instance that received the document not being the instance that processes, which is **E74/E80's shape, not a timer's**.
+
+**Learned:**
+
+- **A control that does not move is telling you the mechanism is wrong, not that the control is broken.** I built `--no-runloop` to fail and it passed byte-identically. The temptation is to call it a redundant arm and delete it; it was the single most informative measurement of the run, because it eliminated the timer as the carrier and sent the whole diagnosis somewhere else.
+- **Predict the control's result out loud before running it.** I wrote "this arm should show E79's symptom" into the probe's own header comment, so when it did not, the discrepancy was impossible to skim past. A control with no stated expectation is just a second run of the experiment.
+- **A negative result needs a positive control or it is not a result.** Two arms would have let me report "macOS is fine, -6.3 dBFS" without ever establishing the probe could tell a restored rack from a default one. The `--no-preset` arm cost about ten lines.
+- **`#ifdef`-free code cannot be the platform-specific half of a platform-specific bug.** Reading `stateLoad` before measuring is what turned "does it reproduce here" into "the stated cause cannot be the whole story anywhere", and that reading cost one file.
+- **A locked screen is a filter on the queue, not only a blocker.** Four rows died on it, but the row whose entire subject is the *absence* of a GUI was reachable precisely because of it. Worth asking which row the constraint suits before recording the lane as blocked.
+- **`scripts/decode_rpp.py` writes a `<rpp>.block0.param1.xml` next to the project as a side effect**, so a run that uses it from the repo tree leaves an untracked file behind. Deleted here; worth knowing before `git status` surprises someone.
+- **Claim-first is what makes taking another platform's pointed-at row safe.** The `linux` NEXT cell says TAKE E79; nothing had claimed it, and pushing the DOING mark before any work is the mechanism the process already provides for exactly this collision.
+
+**Not verified:** anything at all on Linux — I did not reproduce, refute or re-measure E79's own REAPER finding, and this entry makes no claim about it. That the two candidate causes named above are the right ones; they are readings, offered to narrow a search, not a diagnosis. The VST3's -6.3/-17.0 is **quoted from the existing fixture, not re-rendered this run** — I deliberately did not launch REAPER, both because the screen was locked and because the installed VST3 is the developer's rather than my build. Whether E79 reproduces on Windows. Whether a real macOS DAW behaves as the bare probe does; the probe emulates a host main thread but is not one.
+
+**Machine state.** All five repos were clean and on their default branches at the start (`SE16` is not on this box); `TideSynth`'s `main` was 1 commit behind and was fast-forwarded. **No sibling repo was committed to or modified** — `GMPI_Wrappers`, `gmpi_ui`, `GMPI` and `SynthEditLib` are untouched, and the CLAP wrapper was read, never edited. TideSynth is on `tide/mac/E79-clap-headless-document` until STEP 5 returns it to `main`. **The developer's installed plug-ins were never touched**: every build ran `SE_LOCAL_BUILD=OFF`, and nothing was copied into `~/Library/Audio/Plug-Ins`. No AUv3 was registered, no REAPER, standalone or appex was launched, and nothing is running. `build-e79/` is a gitignored scratch tree — a warm Release/arm64 CLAP build, 307/307. The screen was locked throughout and no GUI was attempted.
+
+**Next:** **the mac lane's blocker is now five rows deep on one constraint.** E71, E77, E19's mac AU3 cell and E75 want a single unlocked interactive session with a GUI host — and **E80 now wants the same session for a reason no other box can supply**: it needs a CLAP host with a GUI to arbitrate its 200-byte cap, and REAPER on Linux dies in its own GTK before `guiSetParent`, so macOS is the only box in the fleet that can answer it. That is the strongest form the standing argument has taken. **E72, E76 and S8 want rulings, not sessions.** **E74 and E78 are IN-REVIEW and not flippable** — GMPI_Wrappers#38 is still open, so their work has not all landed; whoever runs next should re-check it rather than assume.
+
+**Branch/PR:** `tide/mac/E79-clap-headless-document` — the probe, E79's narrowing and annotation, the refreshed `mac` NEXT cell, and this entry.
+
 ## 2026-09-01 — linux — E78: CLAP had E74's defect, and fixing it uncovered two more (interactive continuation, Jeff directing)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"fix E78 too while you have the harness up"*)

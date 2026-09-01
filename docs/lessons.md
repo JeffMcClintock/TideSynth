@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **408 KB** across **326** entries, so copying them
+Learned sections are **410 KB** across **327** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **126 KB / 1362 lessons — 3.2x smaller**, and represents
+A8. This is **127 KB / 1369 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,18 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-02
+
+**macos — E79 does not reproduce on macOS, and the run loop that was supposed to explain it made no difference (scheduled run)**
+
+- A control that does not move is telling you the mechanism is wrong, not that the control is broken.
+- Predict the control's result out loud before running it.
+- A negative result needs a positive control or it is not a result.
+- `#ifdef`-free code cannot be the platform-specific half of a platform-specific bug.
+- A locked screen is a filter on the queue, not only a blocker.
+- `scripts/decode_rpp.py` writes a `<rpp>.block0.param1.xml` next to the project as a side effect
+- Claim-first is what makes taking another platform's pointed-at row safe.
 
 ## 2026-09-01
 
