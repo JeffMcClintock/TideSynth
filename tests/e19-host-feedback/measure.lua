@@ -15,7 +15,12 @@ local log = assert(io.open(SCRATCH .. "/measure.log", "w"))
 local function say(s) log:write(s .. "\n"); log:flush() end
 
 say("measure: start, window " .. WINDOW .. " s")
-reaper.Main_openProject("noprompt:" .. SCRATCH .. "/proj/e19.rpp")
+-- E19_PROJ so the same driver serves the CLAP run (E78) as well as the VST3
+-- one; prepare.lua already honoured it and this did not, which is how the
+-- two halves of one harness drift apart.
+local PROJ = os.getenv("E19_PROJ") or (SCRATCH .. "/proj/e19.rpp")
+say("opening " .. PROJ)
+reaper.Main_openProject("noprompt:" .. PROJ)
 
 local tr = reaper.GetTrack(0, 0)
 if not tr then say("FAIL: no track after open"); log:close(); reaper.Main_OnCommand(40004, 0); return end

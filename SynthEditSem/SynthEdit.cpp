@@ -148,6 +148,12 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	bool loggedFeedback = false;
 	bool loggedDspMessageOverflow = false;
 
+	// E74 diagnostic: how many pin updates this instance has SHIPPED, and how
+	// many bytes are still stuck in the scratch. One line per 100 sends, on the
+	// same first-few-then-every-Nth cadence the rack adaptor's own counters use,
+	// so the two sides of the path can be read off one log.
+	int tracedFeedbackSends = 0;
+
 
 	// drainRackFeedback's whole-message reassembly. Holds at most a partial
 	// message tail between blocks; see the function for why partial bytes
@@ -587,6 +593,12 @@ public:
 			loggedFeedback = true;
 			fprintf(stderr, "TIDE: rack feedback reaching the editor - first %zu byte(s)\n", whole);
 		}
+#if defined(RACK_ADAPTOR_TRACE) && RACK_ADAPTOR_TRACE
+		if (tracedFeedbackSends < 3 || 0 == (tracedFeedbackSends % 100))
+			fprintf(stderr, "TIDE: instance #%d feedback send #%d (%zu bytes, %zu held back)\n",
+				instanceSeq, tracedFeedbackSends, whole, feedbackScratch.size());
+		++tracedFeedbackSends;
+#endif
 	}
 
 	// IShellServices. Empty bodies are honest: no controller-side reader

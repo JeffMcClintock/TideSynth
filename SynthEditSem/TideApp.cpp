@@ -627,6 +627,16 @@ void TideApp::serviceDocumentSync()
 // measured 2026-08-25).
 void TideApp::receiveRackFeedback(const unsigned char* data, int size)
 {
+#if defined(RACK_ADAPTOR_TRACE) && RACK_ADAPTOR_TRACE
+	// E74 diagnostic, and it is the pair to SynthEdit.cpp's send counter: the
+	// two numbers together say whether a stalled editor lost its updates on the
+	// DSP side of the blob parameter or on the GUI side of it.
+	static int tracedFeedbackArrivals = 0;
+	if (tracedFeedbackArrivals < 3 || 0 == (tracedFeedbackArrivals % 100))
+		std::fprintf(stderr, "TIDE: editor received feedback #%d (%d bytes)\n",
+			tracedFeedbackArrivals, size);
+	++tracedFeedbackArrivals;
+#endif
 	synthRuntime.receiveDspMessages(data, size);
 }
 

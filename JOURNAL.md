@@ -8,6 +8,154 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-01 — linux — E78: CLAP had E74's defect, and fixing it uncovered two more (interactive continuation, Jeff directing)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"fix E78 too while you have the harness up"*)
+
+**Did:** fixed **E78** — one line, the CLAP twin of E74 — and measured it against a probe I had to write, because the harness that was up could not host a CLAP GUI at all. **The fix works and one clause of E78's own Accept is still unmet.** Two new rows: **E79** (a shipping defect) and **E80** (E78's unmet half). Branches unchanged: the fix rides `tide/linux/E74-linux-timer-pump` ([GMPI_Wrappers#38](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/38)) because it needs [gmpi_ui#17](https://github.com/JeffMcClintock/gmpi_ui/pull/17)'s `pump()` exactly as E74 does; the probe rides [#569](https://github.com/JeffMcClintock/TideSynth/pull/569).
+
+### "While you have the harness up" turned out not to hold, and that is most of this entry
+
+REAPER 7.43 **cannot host TIDE's CLAP GUI on this box.** `TrackFX_Show` — float (3) and FX-chain (1), both tried — kills REAPER from inside its own GTK:
+
+```
+Gdk-CRITICAL: gdk_screen_get_root_window: assertion 'GDK_IS_SCREEN (screen)' failed
+Gdk-CRITICAL: gdk_window_get_display:     assertion 'GDK_IS_WINDOW (window)' failed
+Gdk-CRITICAL: gdk_x11_display_get_xdisplay: assertion 'GDK_IS_DISPLAY (display)' failed
+Gdk-CRITICAL: gdk_x11_window_get_xid:     assertion 'GDK_IS_X11_WINDOW (window)' failed
+```
+
+Those are REAPER's own GDK failing to produce a window, so it never reaches `guiSetParent` and the plug-in is never asked for anything. **The VST3 editor floats fine in the same REAPER, same weston, same session**, which is what makes this the host and not us. The staged driver is what established it — `measure-clap.lua` logs *"about to TrackFX_Show mode N — if the log stops here, that call killed the host"*, and it does.
+
+### So the instrument is a CLAP host of our own, and it is the reusable part
+
+[tests/e78_clap_gui_probe.c](tests/e78_clap_gui_probe.c): dlopen, `clap_entry`, `state->load`, then the full GUI dance — `is_api_supported` / `create` / `set_parent` / `show` against a **real X11 window** — with `process()` on a **real second thread** and the main thread servicing the two host extensions the Linux editor requires and refuses to work without: `clap_host_timer_support` and `clap_host_posix_fd_support`.
+
+That extension pair is the whole point. `guiIsApiSupported` returns false unless the host offers both, so a probe without them measures nothing, and `Editor_CLAP.cpp:269` registers the 16 ms timer in `guiSetParent` — which is where every question in this entry ends up.
+
+### The A/B, one change apart
+
+The first attempt was contaminated and worth recording: I had returned every repo to its default branch in the previous run's STEP 5, so the AFTER binary got built with TideSynth on `main` and **silently lacked the two counters** the whole measurement depends on. The tell was `feedback send` lines present in BEFORE and absent in AFTER — not a plausible outcome of a timer fix. Rebuilt both arms from the same trees; the BEFORE binary came back **byte-identical** (`419821d7…`), which is what says the second pair is a clean pair.
+
+30 s, five-module prepared rack, `state->load` 51,690 of 51,690 both arms:
+
+| | BEFORE | AFTER |
+|---|---|---|
+| processor shipped | 1,600 | 1,600 |
+| editor received | **0** | **1,600** — send #N against received #N |
+| `RackEditor: light` | **frozen #2, value 0.000** | **#3300, value 0.754**, varying |
+| host timer ticks | 1,782 | 1,604 |
+
+**The tick count is the control and it is the line to read first.** The host timer was firing ~1,700 times in *both* arms. So this was never a missing tick; it was the plug-in not using a tick it was already being handed. Without that number the result would read as "the probe started working", which is a different claim.
+
+### What is still broken, and it is two separate things
+
+**E79 — a hosted Linux CLAP with NO editor open never receives its document.** The timer is registered in `guiSetParent` and unregistered in `guiDestroy`, so with no window there is no UI-thread tick at all, and `Controller_CLAP::onTimer` is the only thing that carries the controller's document to the processor. Measured in REAPER, transport rolling 8 s with the editor deliberately never shown: `controller #1 restore of a 43199 byte document -> imported`, then `unprepared - writing silence`, and **no `building rack` line ever**. **A user who loads a project and presses play without opening the window gets silence.** E78's fix cannot reach it — it is a lifetime question, not a pump question.
+
+**E80 — floats now traverse the CLAP channel and a 65,548-byte blob does not.** Lights run to #3300; `display-state update` stays frozen at `#1 arrived (0 bytes)`, where VST3 reaches #2160 and the standalone #1400 on the same tree. Located by TIDE's own send counter, which is *inside* the plug-in and upstream of any wrapper: the largest payload it ever packs on CLAP is **200 bytes**, against **65,673** repeatedly on VST3. Identical at block sizes 128, 512 and 2048, and `display-state capture #700` says the DSP captured it every time — so the blob never enters `queDspToUi`, and it is not pacing.
+
+**The honest confound, which is why E80 is TODO and not a diagnosis:** the only host that has ever driven a TIDE CLAP GUI is our own probe, and no DAW has arbitrated because REAPER cannot. Step one there is a second opinion, not a fix.
+
+**Learned:**
+
+- **"While you have the harness up" is an assumption to test, not a saving.** The VST3 harness could not host a CLAP GUI at all, and finding that out cost more than the fix did. The staged driver — log the intent, then make the risky call — is what turned a silent host death into one line of evidence.
+- **A probe that supplies the host extensions is not optional, it IS the measurement.** `guiIsApiSupported` refuses X11 unless the host offers timer *and* posix-fd support, so a simpler probe would have been told "no" and proved nothing. The thing the plug-in demands from a host is the thing worth implementing.
+- **Count what the host did, not only what the plug-in did.** 1,782 timer ticks in the failing arm is the single number that makes this a plug-in defect rather than a harness improvement, and it cost one counter.
+- **Returning every repo to its default branch is STEP 5 working, and it will silently un-build your next measurement.** The AFTER binary lost its instrumentation because TideSynth was back on `main`; nothing failed, the log was just quieter. Check the branch of *every* repo the artifact is built from before an A/B, not just the one you are editing.
+- **A byte-identical rebuild is the cheapest possible proof that an A/B is clean.** The BEFORE binary re-linked to the same sha256, so the only difference in the second pair is the one line.
+- **When one datatype crosses and another does not, stop looking at the transport.** Lights and display state ride the same pins, the same queue and the same wrapper; floats arriving and blobs not is a statement about the blob path, and it turned a vague "CLAP is still broken" into E80's one sentence.
+- **`gdk_*: assertion failed` from a DAW is the DAW's, and chasing it is chasing someone else's bug.** Worth ten minutes to establish and no more; the way out was to stop using that host, not to fix it.
+
+**Not verified:** **E80's cause**, entirely — the probe is our own host and nothing has arbitrated it; **E79**, which is filed from a measurement of the defect and carries no fix; whether the REAPER CLAP-GUI crash affects other CLAPs or only ours (no second CLAP was tried); the **Wayland** VST3 editor's copy of E74's fix, unchanged from the previous entry; **Windows and macOS**, where none of this was built or run and where the native timers mean the pump is inert by construction.
+
+**Machine state.** TideSynth, gmpi_ui and GMPI_Wrappers are on their E74/E78 branches until STEP 5 returns them; `SE16`, `SynthEditLib` and `GMPI` were not touched at all this continuation. REAPER still ran only against the scratch `HOME`; `~/.vst3`, `~/.clap` and `~/.config/REAPER` are untouched and `~/.config/REAPER` still does not exist. The CLAP was installed as the documented semi-bundle **inside the scratch home** (`$SCRATCH/home/.clap/TIDE-Rack/`), never the developer's. `build-e19/` is gitignored and now carries the CLAP fix. Weston, REAPER and every probe were stopped with `scripts/kill-named.sh`.
+
+**Next:** **E79 is the biggest thing on this lane** — a shipping defect a user meets by pressing play. **E80 wants a second opinion before a fix**, and the cheapest one is a second CLAP host with a GUI. Then **E75** and **E76**. And **E79's question is worth asking of VST3 too**: it restored fine here, but by a different route, so "who carries the document when no window is open" has only been answered for one wrapper.
+
+**Branch/PR:** `tide/linux/E74-linux-timer-pump` ([GMPI_Wrappers#38](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/38)) — the CLAP one-liner, alongside E74's; `tide/linux/E74-editor-processor-rebind` ([#569](https://github.com/JeffMcClintock/TideSynth/pull/569)) — the probe, `frame_clap_chunk.py`, `prepare-clap.lua`, `measure-clap.lua`, `measure.lua`'s `E19_PROJ` fix, E78/E79/E80 and this entry.
+
+## 2026-09-01 — linux — E74: the editor was never bound to ANY processor, and nothing pumps GMPI's timers in a hosted Linux plug-in (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** took **E74**, the `linux` NEXT cell's pick and the whole of E19's remaining linux VST3 FAIL. **Fixed and measured.** Branches `tide/linux/E74-editor-processor-rebind` (TideSynth), `tide/linux/E74-linux-timer-pump` (gmpi_ui and GMPI_Wrappers, which must merge together). STEP 1 and STEP 1.5 were both genuinely empty: no `platform:linux` issue, and **no open PR and no `tide/*` branch in any of the six repos** — the state the 2026-09-01 macos entry recorded, still true at the start of this run.
+
+### The row's own diagnosis was wrong, and how it was wrong is the useful part
+
+E74 said *"a hosted VST3 recreates the DSP instance and the editor's rack feedback pins stay bound to the retired one."* **The editor was never bound to any instance.** The recreation is real, still happens after the fix, and has nothing to do with it.
+
+What separated the two was instrumenting **both ends of the blob parameter**, which nothing had done — every counter in the row belongs to the *inner* rack, on one side or the other of a channel nobody had measured. Two counters, both behind `RACK_ADAPTOR_TRACE`, on the same first-few-then-every-hundredth cadence the adaptor already uses:
+
+| where | line |
+|---|---|
+| `SynthEditSem/SynthEdit.cpp`, `drainRackFeedback()` | `TIDE: instance #N feedback send #M (B bytes, H held back)` |
+| `SynthEditSem/TideApp.cpp`, `receiveRackFeedback()` | `TIDE: editor received feedback #M (B bytes)` |
+
+One 45 s run answered it:
+
+| | hosted VST3 | STANDALONE (control) |
+|---|---|---|
+| processor shipped | **2,700** updates, `0 held back` | 2,900 |
+| editor received | **0** | **2,900** — one-for-one, send #N ↔ received #N |
+
+**Zero, not "some" — and zero from instance #3 as well as #4**, which is what kills the row's story. It also disposes of the previous run's reading of the ordering: `no RackEditor line ever again` after instance #4 is true and means only that the editor never got a line from #3 either.
+
+### The cause, and it is bigger than E74
+
+**`gmpi::TimerManager` has no native timer source on Linux, and nothing in a hosted plug-in pumps it.**
+
+`gmpi_ui/helpers/Timer.cpp`, `Timer::start()`: `SetTimer` under `_WIN32`, `CFRunLoopTimerCreate` under `__APPLE__`, and under `#if !defined(_WIN32) && !defined(__APPLE__)` it merely marks itself running and relies on somebody calling `TimerManager::pump(elapsedMs)`. The header says so in as many words — *"the host application must call this periodically on the UI thread"*. The only caller in any repo is `GMPI_Wrappers/wrapper/Standalone/StandaloneApp.cpp:468`. **A plug-in has no application loop of its own.**
+
+So **no `gmpi::TimerClient` in a hosted Linux plug-in has ever run.** `Controller_VST3` is one (`Controller_VST3.h:95`, `startTimer(timerPeriodMs)` at `Controller_VST3.cpp:383`), and `Controller_VST3::onTimer` (`:788`) is **the only caller** of `gmpiController.message_que_dsp_to_ui.pollMessage()`. That is the entire DSP→GUI channel. It also flushes `queueToDsp_`, so the **GUI→DSP direction was going nowhere either**.
+
+Everything upstream was working perfectly and said so: `gmpi_processor::setPin` stored the blob and queued the waiter, `Processor_VST3::process` serviced it into `m_message_que_dsp_to_ui` (`:1017`), and `CommunicationProc` shipped it to the controller as a `BinaryMessage`. The controller received it and pushed it into a queue **that nothing ever polled**.
+
+### The fix
+
+`TimerManager::pump()` — a no-argument overload that measures its own elapsed time from `steady_clock` — called from `SEVSTGUIEditorLinux::onTimer()` and its Wayland twin, which are the host `IRunLoop` ticks registered at `kTimerIntervalMs = 16` and are the only UI-thread tick a hosted plug-in gets here.
+
+**Self-timed rather than `pump(16)`, and the reason is not tidiness.** There is one run-loop tick **per open editor** and this manager is a process-wide singleton, so two instances of the same plug-in would each pump 16 ms every 16 ms and run **every** timer client in the process at twice its period — a defect that would only show up with two windows open. Self-timed, the second caller observes that no time has passed. The first call only starts the clock, so nobody is handed the process's whole uptime.
+
+### Verification — E74's Accept, literally
+
+Same harness, same tree, one change apart. REAPER 7.43 on headless weston, prepared 43,195-byte five-module rack, transport rolling the whole 75 s (`playstate=1`, position 0 → 74.931).
+
+| | before | after |
+|---|---|---|
+| feedback shipped / received | 2,700 / **0** | 4,600 / **4,600** |
+| `Scope display-state capture` | #2100 | #2100 |
+| `display-state update … arrived` | **frozen at #1, 0 bytes** | **#2160, 65,548 bytes** |
+| `light … update` | **frozen at #2, value 0.000** | **#9100, value 0.516, varying** |
+
+The row's Accept asks for both counters *still advancing 60 s after the last `building rack` line*. Measured by line position, not inferred: that line is 117 of 662, and **214 `RackEditor: display-state update` lines follow it**, running `#30 → #2160`, with `light 1 update #200` → `light 0 update #9100`.
+
+**Standalone control across the same A/B, byte for byte the same numbers before and after** — capture #1300, `display-state update` #1400/#1370, `light 1 update #5800 value 0.137` — which is what says the change did nothing to the path that already worked.
+
+**Builds:** TIDE `build-e19` (Release, `TIDE_VCV_FUNDAMENTAL=ON`, `-DRACK_ADAPTOR_TRACE=1`, `SE_LOCAL_BUILD=OFF`) rc=0 on every step. **`SynthEditCL` builds `314/314`, 0 errors** against the changed `gmpi_ui` and `GMPI_Wrappers` — the shared-repo rule discharged by a build rather than by scope, from a scratch tree (`-DFETCHCONTENT_SOURCE_DIR_GMPI_UI=` / `_GMPI_WRAPPERS=` pointing at the working copies), so the developer's own `SE16/build/` was not touched.
+
+### E78: CLAP has the identical hole, filed rather than fixed
+
+`Controller_CLAP` is the same shape — a `gmpi::TimerClient` (`Controller_CLAP.h:9`) started at 15 ms (`Controller_CLAP.cpp:20`) whose `onTimer()` (`:28`) is the only caller of `pollMessage()` **and** of `pendingQueueClients.ServiceWaitersIncremental(&message_que_ui_to_dsp, …)`. The CLAP host tick that exists and does not pump is `Processor_CLAP::onTimer(clap_id)` at `Editor_CLAP.cpp:1062`. **One line, and it is not fixed here because no CLAP GUI host was driven this run** — and `tests/e60_clap_state_probe.cpp` cannot do it, because it drives the C ABI with no editor and therefore has no run-loop tick to pump.
+
+**Learned:**
+
+- **A filed row is one run's reading, and STEP 1's "re-verify before acting" deserves to apply to BACKLOG rows too.** E74 named a mechanism, a place to look and a scope, and all three were wrong. What made it worth taking anyway was its *Accept*, which was right and which the fix satisfies.
+- **Instrument both ends of a channel before believing either end.** Every counter this project had was inside the inner rack; the outer blob parameter that carries them between processes had none, and it was the whole defect. Two `fprintf`s and one run.
+- **"Both sides are correct and the middle is missing" looks exactly like "the wrong side is attached".** The DSP was shipping, the wrapper was serialising, the controller was receiving, the GUI was listening — and nothing polled the one queue in between. Reading either side alone confirms the other side is at fault.
+- **A platform with no native timer is a whole class of dead code, not one dead feature.** Nothing `gmpi::TimerClient` does has ever run in a hosted Linux plug-in. Before blaming a Linux plug-in symptom on the plug-in, ask whether the thing that should have ticked is a `TimerClient`.
+- **A process-wide singleton pumped from a per-window callback is a bug waiting for a second window.** `pump(16)` from the editor would have passed every test here and run every timer at 2× with two instances open. Measuring elapsed time inside the singleton costs eight lines and removes the question.
+- **`scripts/kill-named.sh` exists; `pkill -f 'REAPER/reaper'` killed this shell with exit 144.** Fourth time in the fleet, and the script was written after the third — the lesson is not "remember the trap", it is "the tool is in `scripts/`".
+- **Writing a source file back with Python's text mode strips CRLF and produces an 800-line diff of nothing.** `git diff --ignore-all-space --stat` against `git diff --stat` is the one-command tell; patch in binary mode with `\r\n` in the search strings.
+- **A NEXT cell is a table row, so replacing its opening text and keeping the tail silently makes a four-column row in a three-column table.** `check-next-block.py` still said OK. Count the pipes.
+
+**Not verified:** the **Wayland** VST3 editor's copy of the fix — it compiles in this configuration (`SEVSTGUIEditorWayland.cpp.o` is in the build) but the measurement ran on Xwayland, so `SEVSTGUIEditorLinux` is the one that was exercised; **E78**, entirely, which is inspection plus E74's A/B and no CLAP measurement; **Windows and macOS**, where this changes nothing by construction (both have a native timer and neither Linux editor is compiled) but where nothing was built or run; whether the restored GUI→DSP direction changes anything a user would notice, which was not this row's question; E19's **pixel-diff** and **int/bool/enum** clauses, still blocked on E75's fixture as the 2026-08-31 entry recorded.
+
+**Machine state.** All six repos were clean and on their default branches at the start; TideSynth (2 commits) and SE16 (2) were fast-forwarded to their remotes and the other four were already current. **`SE16` was NOT committed to** — it was used read-only for the SynthEditCL build, out of a scratch tree. TideSynth, gmpi_ui and GMPI_Wrappers are each on this run's branch until STEP 5 returns them. REAPER 7.43 was downloaded fresh into the session scratchpad and ran only against a scratch `HOME`; `~/.vst3`, `~/.clap` and `~/.config/REAPER` were never written and `~/.config/REAPER` still does not exist. The standalone ran under a scratch `XDG_CONFIG_HOME`, so `~/.config/TiDE Rack/` is untouched. `build-e19/` is a gitignored scratch tree; Jeff's `build/` trees in `SE16` and `SE` were not touched. Headless weston, REAPER and the standalone were all stopped with `scripts/kill-named.sh` — 0 of each left running.
+
+**Next:** **E75** is cheap and unblocks two more of E19's clauses; **E76** is one wrapper but its Accept turns on a ruling. **E78 before E19's linux CLAP cell, not after** — the cell cannot be measured through a channel that is dead for the same reason E74 was. And **the timer finding is worth a look on the other two boxes**: nothing here is Linux-specific except the absence of a native timer, so the question *"which `gmpi::TimerClient` never ran"* is only closed on Windows and macOS because `SetTimer` and `CFRunLoopTimer` happen to exist.
+
+**Branch/PR:** `tide/linux/E74-editor-processor-rebind` (TideSynth) — the two trace counters, E74's row, E78, the refreshed `linux` NEXT cell, and this entry; `tide/linux/E74-linux-timer-pump` (gmpi_ui, GMPI_Wrappers) — the fix itself, in two repos that must merge together.
+
 ## 2026-09-01 — macos — E73 DONE, and the fleet has no open PRs and no agent branches for the first time (state update, interactive)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"sync all tide related repos, any PRs outstanding?"*, *"merge 565"*, *"delete 559"*, *"flip E73 to DONE"*)
