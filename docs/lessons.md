@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **412 KB** across **328** entries, so copying them
+Learned sections are **413 KB** across **328** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **128 KB / 1375 lessons — 3.2x smaller**, and represents
+A8. This is **128 KB / 1377 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -39,10 +39,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-03
 
-**macos — STEP 1.5: one word in a table cell turned #570 red, and the column it is in cannot legally be corrected (scheduled run)**
+**macos — STEP 1.5: #570 was red on one check of fifteen, and its PR body recorded that failure as rc=0 (scheduled run)**
 
 - A green-looking PR can be red in exactly one check, and STEP 1.5's own habits hide it.
-- Run the repo's own lint before pushing, not after CI says so.
+- Running the lint is not the same as obeying it, and this run had to learn which failure it was looking at.
+- A required check is an arbiter, not an opinion, and "deliberate" is not a passing grade.
+- Never transcribe an exit code you did not read.
 - When a check rejects the obviously-right edit, look for the legal route before working around it — and if there isn't one, that is the finding.
 - A validator's strictness and its blind spot are usually the same property.
 - A handoff line that says "re-check rather than assume" is an instruction with a deadline, and it expired within hours.
