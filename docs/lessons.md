@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **408 KB** across **326** entries, so copying them
+Learned sections are **413 KB** across **328** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **126 KB / 1362 lessons — 3.2x smaller**, and represents
+A8. This is **128 KB / 1377 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,31 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-03
+
+**macos — STEP 1.5: #570 was red on one check of fifteen, and its PR body recorded that failure as rc=0 (scheduled run)**
+
+- A green-looking PR can be red in exactly one check, and STEP 1.5's own habits hide it.
+- Running the lint is not the same as obeying it, and this run had to learn which failure it was looking at.
+- A required check is an arbiter, not an opinion, and "deliberate" is not a passing grade.
+- Never transcribe an exit code you did not read.
+- When a check rejects the obviously-right edit, look for the legal route before working around it — and if there isn't one, that is the finding.
+- A validator's strictness and its blind spot are usually the same property.
+- A handoff line that says "re-check rather than assume" is an instruction with a deadline, and it expired within hours.
+- Archive a row with the reason DONE was awarded, not just the date.
+
+## 2026-09-02
+
+**macos — E79 does not reproduce on macOS, and the run loop that was supposed to explain it made no difference (scheduled run)**
+
+- A control that does not move is telling you the mechanism is wrong, not that the control is broken.
+- Predict the control's result out loud before running it.
+- A negative result needs a positive control or it is not a result.
+- `#ifdef`-free code cannot be the platform-specific half of a platform-specific bug.
+- A locked screen is a filter on the queue, not only a blocker.
+- `scripts/decode_rpp.py` writes a `<rpp>.block0.param1.xml` next to the project as a side effect
+- Claim-first is what makes taking another platform's pointed-at row safe.
 
 ## 2026-09-01
 
