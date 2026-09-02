@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **410 KB** across **327** entries, so copying them
+Learned sections are **412 KB** across **328** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **127 KB / 1369 lessons — 3.2x smaller**, and represents
+A8. This is **128 KB / 1375 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,17 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-03
+
+**macos — STEP 1.5: one word in a table cell turned #570 red, and the column it is in cannot legally be corrected (scheduled run)**
+
+- A green-looking PR can be red in exactly one check, and STEP 1.5's own habits hide it.
+- Run the repo's own lint before pushing, not after CI says so.
+- When a check rejects the obviously-right edit, look for the legal route before working around it — and if there isn't one, that is the finding.
+- A validator's strictness and its blind spot are usually the same property.
+- A handoff line that says "re-check rather than assume" is an instruction with a deadline, and it expired within hours.
+- Archive a row with the reason DONE was awarded, not just the date.
 
 ## 2026-09-02
 

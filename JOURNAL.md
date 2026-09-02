@@ -8,6 +8,91 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-03 — macos — STEP 1.5: one word in a table cell turned #570 red, and the column it is in cannot legally be corrected (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.1** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** **STEP 1.5, and it was the whole run.** This platform's only open PR, [#570](https://github.com/JeffMcClintock/TideSynth/pull/570) (E79), had a **FAILING `lint`** from the moment it opened — noticed by nobody for a day, because the other 14 checks are green and the PR reads as finished. Fixed on the same branch. The cause is one word in one table cell, and chasing it turned up a **structural gap: a BACKLOG row's `Plat` column is frozen at filing time and no legal edit can correct it** — filed as **A35**. Also discharged the previous run's explicit handoff: **E74 and E78 flipped DONE and archived**. No product code changed, in this repo or any sibling.
+
+### The failure, and why it is worth more than one line
+
+`check-backlog-diff.py` said exactly this and nothing else:
+
+```
+1 row(s) with Plat or Item CHANGED in place (only Status may change on an existing row):
+  E79: Plat column differs
+```
+
+The 2026-09-02 run measured E79 as not reproducing on macOS and narrowed its `Plat` cell from `any` to `linux`. That is the correct conclusion and an **illegal edit**, and the run had no way to know: it ran no lint locally, and the failure surfaced only in CI on a check nothing was watching.
+
+**Read the diff the check reports, not the check's summary.** `E79: Plat column differs` names the row and the column, so the whole diagnosis is one `git show <base>:BACKLOG.md | grep '^| E79'` against the branch's copy — `any` versus `linux`, everything else identical. It took longer to describe than to find.
+
+### The part that outlives this PR: the column cannot be corrected at all
+
+I went looking for the legal way to do what the previous run wanted, and there isn't one. `check-backlog-diff.py` recognises four legitimate edits and **all four pin `Plat`**:
+
+| edit | where `Plat` is pinned |
+|---|---|
+| status flip | `if plat != h_plat ... rewrites.append(...)` — `check-backlog-diff.py:141` |
+| archive move | `any(plat == c_plat and item in c_item ...)` |
+| renumber | `plat == h_plat` in the `moved_to` comprehension |
+| new row | n/a — but a fresh id is a *new finding*, not a correction |
+
+So there is no route, **not even filing a fresh id**, that moves a finding from `any` to a platform or back. And the platform of a row is a **hypothesis at filing time**: E79 was filed `any` by linux on 09-01, measured not-reproducible here on 09-02, and the correcting edit is illegal. The row goes on advertising itself to boxes that have already shown it is not theirs — and **STEP 2 selects on that column.**
+
+**The check is not wrong to be strict, and that is why this is A35 rather than a patch.** Its whole purpose (A3) is that a run cannot quietly rewrite a row it dislikes, and `Plat` is precisely the field a run would be tempted to edit to make a blocked item takeable. What is missing is a *narrow* exception — narrowing only, `any` → a named platform, printed as loudly as a renumber — and whether the column may move at all is a process ruling rather than a run's call, so A35 asks for a `PROPOSED:` entry instead of shipping it.
+
+### The fix, and what it costs
+
+E79's `Plat` is back to `any`, and the narrowing now lives in the row's prose, opening with the fact a reader needs first: **the cell says `any` and that is not an error; read the row as `linux`-only.** A mac or windows run that reaches it is told plainly it is not theirs.
+
+**This is strictly worse than the column and I am not pretending otherwise.** Prose is not machine-readable, and STEP 2's platform test reads the column. Until A35 is ruled on, E79 is a row whose own text contradicts its own eligibility field — which is exactly the situation STEP 2's *"eligibility lives in the Status column ALONE"* warns about, one column over.
+
+### STEP 4 bookkeeping — the previous run's handoff, discharged
+
+The 2026-09-02 entry said: *"E74 and E78 are IN-REVIEW and not flippable — GMPI_Wrappers#38 is still open, so their work has not all landed; whoever runs next should re-check it rather than assume."* Re-checked, and it had changed: **#38 merged 21:16Z on 09-01**, hours after that run's snapshot.
+
+Every linked PR, by `gh pr view --json state` rather than inference: E74 wants [gmpi_ui#17](https://github.com/JeffMcClintock/gmpi_ui/pull/17) (merged 03:20Z), [#569](https://github.com/JeffMcClintock/TideSynth/pull/569) (03:21Z) and [GMPI_Wrappers#38](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/38) (21:16Z); E78 wants the latter two. All merged, so both flip to `DONE 2026-09-01` — the merge date, not today — and move to [BACKLOG-DONE.md](BACKLOG-DONE.md) verbatim.
+
+**E78's archive row carries a warning I would rather over-state than lose:** DONE here means *its PRs landed*, not that its Accept is met. Its own text records an unmet clause, and that half is **E80**, TODO and untouched by the flip. A reader who takes DONE to mean "subject finished" loses E80.
+
+**This box re-measured nothing about E74 or E78.** Their evidence is the linux entries' and stays theirs; this is bookkeeping, and a flip is not a second opinion.
+
+### Verification
+
+| check | result |
+|---|---|
+| `check-backlog-diff` | **rc=0** — `1 new row(s): A35`, "status/date cells and new rows only, OK". E79 no longer reported at all |
+| `check-journal-prepend` | rc=0 — `1 new entry prepended`, prepend-only OK |
+| `check-links` | rc=0 — 612 relative links, no broken links |
+| `check-prompt-provenance` | rc=0 — all new scheduled-run entries carry `**Prompt:**` |
+| `check-id-refs` | rc=0 — 1820 refs / 281 rows, no stale refs, no duplicate ids |
+| `check-next-block` | rc=0 — every NEXT take-target is a live row |
+| `check-backlog-archived` | rc=0 |
+| `check-commit-authorship --repo .` | rc=0, every unpushed commit `tide-rack-bot` |
+| PR state after push | see the row; `mergeStateStatus` checked explicitly, not the three conditions STEP 1.5 lists |
+
+**All six lint checks were run locally, in the same order and with the same arguments as [.github/workflows/lint.yml](.github/workflows/lint.yml)** — base extracted with `git show origin/main:BACKLOG.md`, `--changed-file` built from `git diff --name-only origin/main...HEAD -- '*.md'`. That reproduction is the actual verification artifact here: the failing check now passes on the same inputs CI feeds it, and the recipe is four lines of shell.
+
+**No build.** Nothing outside `BACKLOG.md`, `BACKLOG-DONE.md`, `JOURNAL.md` and `docs/lessons.md` changed, so there is no compiled artifact this run could claim, and a 599/599 would have been a number about the tree rather than about the change. The 2026-09-02 run's `build-e79/` is still warm if the next run wants one.
+
+**Learned:**
+
+- **A green-looking PR can be red in exactly one check, and STEP 1.5's own habits hide it.** #570 had 14 passing checks, no reviews, no comments and `MERGEABLE` — it reads as "waiting on Jeff" at a glance, and the one failing check was a day old. The `mergeStateStatus` lesson from three previous runs says a conflict hides behind green; this is its sibling. `UNSTABLE` is the tell, and it is the same one `gh pr view` already prints.
+- **Run the repo's own lint before pushing, not after CI says so.** All six checks are standalone `scripts/*.py` with no workflow dependency — that is deliberate, and it means a local run costs four lines of shell. The previous run wrote a genuinely good entry and lost a day to a check it could have run in ten seconds.
+- **When a check rejects the obviously-right edit, look for the legal route before working around it — and if there isn't one, that is the finding.** The temptation was to revert the cell and move on in one line. Reading all four branches of the check is what turned a one-word fix into A35, and the reading cost one file.
+- **A validator's strictness and its blind spot are usually the same property.** `Plat` is frozen because freezing it stops a run making a blocked row takeable — and that is precisely why an honest narrowing cannot land either. Do not argue the rule is wrong; find the direction that is safe (narrowing) and leave the dangerous direction failing.
+- **A handoff line that says "re-check rather than assume" is an instruction with a deadline, and it expired within hours.** #38 merged the same evening the previous run wrote that E74/E78 were not flippable. Costs one `gh pr view` per link; skipping it leaves rows lying about their own state indefinitely.
+- **Archive a row with the reason DONE was awarded, not just the date.** E78 is DONE because its PRs merged while one clause of its Accept is openly unmet — writing that into the archive row is the only thing standing between the flip and a future reader concluding the subject is closed.
+
+**Not verified:** anything about E79's actual behaviour, on any platform — this run measured no audio, launched no host and built nothing; E79's macOS result is the 2026-09-02 entry's and its Linux claim remains the 09-01 linux entry's. That E74's and E78's fixes work; I confirmed their PRs merged, which is a statement about GitHub, not about the code. That A35's proposed narrowing-only exception is safe — it is a shape offered for a ruling, with no implementation and no test written. Whether E79 reproduces on Windows. That `lint` passes on this branch in CI — locally green on identical inputs is strong evidence and is not the same statement.
+
+**Machine state.** All five repos clean and on their default branches at the start (`SE16` is not on this box); nothing was fast-forwarded and no sibling repo was read into, committed to or modified — `GMPI_Wrappers`, `gmpi_ui`, `GMPI` and `SynthEditLib` are untouched. TideSynth is on `tide/mac/E79-clap-headless-document` until STEP 5 returns it to `main`. **No build ran, so `SE_LOCAL_BUILD` never came into it and the developer's installed plug-ins were never a risk**; nothing was copied into `~/Library/Audio/Plug-Ins`, no AUv3 was registered, and no REAPER, standalone or appex was launched. Nothing is running. The screen was **locked** throughout (`CGSSessionScreenIsLocked true`) and no GUI was attempted.
+
+**Next:** **the mac lane is unchanged and still five rows deep on one constraint** — E71, E77, E19's mac AU3 cell, E75 and E80 all want a single unlocked interactive session with a GUI host, and E80 is the one only this box can answer (REAPER on Linux dies in its own GTK before `guiSetParent`). **E72, E76, S8 and now A35 want rulings, not sessions.** **A35 is the cheapest of them and it is process, not product:** one paragraph from Jeff about whether a `Plat` cell may narrow, and a ten-line change to a script that is TIDE's own. Until then E79's column and E79's prose disagree, and every mac and windows run will keep re-deriving that it is not theirs.
+
+**Branch/PR:** `tide/mac/E79-clap-headless-document`, [#570](https://github.com/JeffMcClintock/TideSynth/pull/570) — E79's `Plat` restored and annotated, A35 filed, E74/E78 flipped and archived, the refreshed `mac` NEXT cell, and this entry.
+
 ## 2026-09-02 — macos — E79 does not reproduce on macOS, and the run loop that was supposed to explain it made no difference (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.0** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
