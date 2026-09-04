@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **408 KB** across **326** entries, so copying them
+Learned sections are **410 KB** across **327** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **126 KB / 1362 lessons — 3.2x smaller**, and represents
+A8. This is **127 KB / 1369 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,18 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-05
+
+**macos — E77: the row was not GUI-blocked, and what differs at equal length is a random handle (scheduled run)**
+
+- A row's Accept and a row's question can want different instruments, and the NEXT cell will only remember the Accept.
+- A negative result needs the variable to have actually varied.
+- A size histogram costs nothing and points at the cases a size comparison cannot see.
+- When two documents differ in 1,754 bytes and five numbers, normalise before reading.
+- Uncommitted work in a shared tree is not automatically the developer's.
+- STEP 2's 24-hour DOING window does not decide an own-platform branch, and it is close enough to look like it does.
+- A pushed branch with no PR is invisible from outside, and this one had been for a day.
 
 ## 2026-09-01
 
