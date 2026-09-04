@@ -545,3 +545,91 @@ heading. That is a picture of VCV Fundamental linked and *enumerated inside the
 hosted extension* — the question the 2026-08-29 run got wrong twice by reading
 `strings` for `VCV: Scope`, which never appears because ids are composed at
 runtime. **When a symbol check is ambiguous and the thing is on screen, screenshot it.**
+
+---
+
+# Export stability — proving what varies in a document, with no host at all
+
+**Measured 2026-09-05 (macos, scheduled run) for BACKLOG E77.** The CLAP-C-ABI
+section above removed the host from a question about *bytes*. This one removes
+it from a question about *which bytes*, and the two together are what let a
+locked-screen box answer a row filed against a hosted AUv3.
+
+## The question, and why the obvious instrument is the wrong one
+
+E59's guard refuses to publish a document byte-equal to the one the controller
+was born holding. E73's first hosted-AUv3 log showed it failing on two documents
+of **identical size** — `startup default is 17959 bytes` immediately followed by
+`syncState exporting 17959 byte document`. E77 asks what differs, and its Accept
+asks for a prepared rack restored into a hosted AUv3.
+
+**The Accept needs a GUI host and the question does not.** "Do two exports of the
+same document differ, and where?" is a property of `exportChunkXmlForSave()`, and
+`Processor_CLAP`'s constructor builds the plug-in's own controller
+unconditionally — so the bare probe exercises the identical code.
+
+## The recipe
+
+Build with the trace armed, because the documents are dumped beside the log:
+
+```bash
+cmake -S . -B build-e77 -DTIDE_TRACE_LOG=ON -DCMAKE_BUILD_TYPE=Release
+ninja -C build-e77 TIDE_Rack_CLAP
+
+cc -std=c11 -I build-e77/_deps/clap-src/include \
+   tests/e77_export_stability_probe.c -o /tmp/probe
+```
+
+Then take one document per process, **each in its own second**:
+
+```bash
+for i in $(seq -w 1 10); do
+  mkdir -p /tmp/e77/$i
+  TIDE_TRACE_LOG_PATH=/tmp/e77/$i/t.log \
+    /tmp/probe build-e77/SynthEditSem/TIDE-Rack.clap /tmp/e77/$i/s --saves 1
+  sleep 1.3
+done
+```
+
+**The `sleep` is the experiment, not politeness.** `UniqueSnowflakeOwner`'s
+generator is seeded `time(nullptr)` — whole seconds — so forty runs fired
+back-to-back give **two** distinct documents and read as "stable". Ten runs a
+second apart give ten.
+
+Compare them with handles masked and order ignored, which is the whole diagnosis
+in one function:
+
+```bash
+norm () { sed -E 's/[Hh]andle="[0-9]+"/handle=X/g' "$1" \
+          | tr '>' '>\n' | sed 's/^[ \t]*//' | grep -v '^$' | sort; }
+diff <(norm /tmp/e77/05/tide-e77-startup-default.xml) \
+     <(norm /tmp/e77/06/tide-e77-startup-default.xml)
+```
+
+## What it measured
+
+| pair | sizes | raw | handles masked, order ignored |
+|---|---|---|---|
+| 05 / 06 | 17957 / **17957** | 1,754 bytes differ | **identical** |
+| 05 / 07 | 17957 / 17957 | differ | identical |
+| 08 / 10 | 17959 / 17959 | differ | identical |
+| 01 / 03 | 17961 / 17961 | differ | identical |
+| 02 / 04 | 17963 / 17963 | differ | identical |
+
+Five equal-length pairs, each differing **only** in the randomly-minted `Handle`
+of the host-control parameters and in the block ORDER those handles induce —
+`ParametergreaterHandle`, *"Sort for export consistancy"*, sorts `<Parameter>`
+ascending by handle, so changing one handle moves its whole block. No value
+changes anywhere.
+
+## Two habits this makes cheap
+
+- **A negative result needs the variable actually varying.** Three exports inside
+  one process, 90 s apart, are byte-equal — that excludes time-carrying content
+  from the document and is worth stating. It is *not* evidence the document is
+  stable, and the 40-run batch that looked stable is why: the seed had not moved.
+  Vary the thing you are claiming does not matter.
+- **A size histogram is a cheaper first look than a diff.** Ten sizes spanning
+  17,955–17,963 said "a handful of variable-width fields" before anything was
+  diffed, and equal-length pairs are what a diff is *for* — they are the ones a
+  size comparison silently passes.

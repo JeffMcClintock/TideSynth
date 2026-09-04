@@ -8,6 +8,120 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-05 — macos — E77: the row was not GUI-blocked, and what differs at equal length is a random handle (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.1** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** continued **E77** on the branch the previous run left, and **answered it**. What differs between two equal-length exports of the same document is a **randomly-minted `Handle` on the host-control parameters**, plus the `<Parameter>` reordering that sorting by handle induces. Measured with **no host, no editor and no unlocked screen** — which is the part worth carrying, because five consecutive `mac` NEXT cells had listed this row as one of four waiting on a GUI session. New file [tests/e77_export_stability_probe.c](tests/e77_export_stability_probe.c), a diagnostic in `SynthEditSem/`, one new row (**E81**), and a section in [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md). No sibling repo was committed to.
+
+### What this run inherited, and it was the state STEP 5 forbids
+
+`tide/mac/E77-syncstate-equal-length-diff` existed on the remote with **no PR of any kind** — `gh pr list --head <branch> --state all` returned `[]`, which is the check the 2026-08-28 entry landed after two runs asserted the same thing about two other branches without running it.
+
+The branch carried exactly one commit, E77's DOING mark, authored **2026-09-04 02:19**. The working tree carried an **uncommitted** `SynthEditSem/TraceLog.h` helper written at **02:25**. So the previous run claimed the row, wrote the first useful thing, and stopped six minutes later with no journal entry.
+
+**That uncommitted file is the one worth stopping on.** STEP 5's third kind of dirt — *"anything else that PREDATES your run is the developer's work in progress"* — is the rule a fast reader applies here, and applying it would have thrown away a correct piece of this row's own work. What settles it is the file itself: its first line is `// BACKLOG E77`, its mtime is six minutes after the claim commit on the branch that claim created, and STEP 2 says a branch from your own platform is yours to CONTINUE. It is committed here, as the first half of the instrument.
+
+**A DOING mark is 23 h 45 m old at the moment this box's daily run fires the next day** — just inside STEP 2's 24-hour "presumed live" window, which would have said skip. The own-platform CONTINUE rule is what makes that a non-question, and it is worth knowing it does not decide by the clock.
+
+### The reading that unblocked it, and it is one sentence
+
+**The row's Accept needed a hosted AUv3. Its question did not.**
+
+E77 asks what differs between two `exportChunkXmlForSave()` results. That is a property of that function, and `Processor_CLAP`'s constructor builds the plug-in's own controller unconditionally (`Processor_CLAP.cpp:88`), so the bare CLAP C ABI exercises the identical controller in about a second — the instrument E69 built and this box has had since 2026-08-31.
+
+The Accept — *"a prepared rack restored into a hosted AUv3"* — is a different and stricter claim, and it is still unmet. Both facts are on the row.
+
+### The measurement
+
+`tests/e77_export_stability_probe.c` takes N saves from one bare-CLAP instance, separated by a delay. **The refusal's decision is visible in the saved bytes with no log to read**: `Processor_CLAP::stateSave` calls the controller's `syncState()` and then serialises its parameters, so a refusal leaves chunk parameter 1 empty and the save is ~86 bytes, while publishing the startup default puts ~18 KB into it.
+
+**Within one process, nothing drifts.** Three exports **90 seconds apart**: byte-equal every time, the E59 refusal firing all three times, 85-byte saves. That excludes the row's "timestamp" candidate — there is no time-carrying content in the document.
+
+**Across processes, everything drifts.** Ten runs, one per wall-clock second, ten distinct documents spanning **17,955–17,963 bytes** — and five pairs at *identical* length:
+
+| pair | sizes | raw diff | handles masked, order ignored |
+|---|---|---|---|
+| 05 / 06 | 17957 / **17957** | **1,754 bytes differ** | **identical** |
+| 05 / 07 | 17957 / 17957 | differ | identical |
+| 06 / 07 | 17957 / 17957 | differ | identical |
+| 08 / 10 | 17959 / 17959 | differ | identical |
+| 01 / 03 | 17961 / 17961 | differ | identical |
+| 02 / 04 | 17963 / 17963 | differ | identical |
+
+**That is E77's exact shape reproduced** — same length, different bytes — and the normalisation says what the difference is: mask `Handle="..."`, ignore order, and every pair is byte-identical. No value changes anywhere.
+
+### The mechanism, named at a line number
+
+`UniqueSnowflakeOwner::GenerateUniqueHandleValue`, non-temporary branch:
+
+```cpp
+key = random_generator() & 0x7fffffff;   // SynthEditLib/UniqueSnowflake.cpp:176
+random_generator.seed((unsigned int)time(nullptr));   // :133, Release only
+```
+
+The host-control parameters created during load take that branch, so their handles are a function of **the second the document was loaded**. A 31-bit draw is 9 or 10 digits about 97% of the time, so two draws very often serialise at the same width — **equal length is the common case, not a coincidence**. `ParametergreaterHandle` (*"Sort for export consistancy"*) then sorts `<Parameter>` ascending by handle, so one changed handle moves its whole block: 1,754 raw bytes of diff carrying five changed numbers.
+
+The parameters involved are `HostControl="14"` (`VoiceAllocationMode`), `"21"`, `"22"` (`ReserveVoices`), `"40"` and `"49"`.
+
+### The trap that almost buried the result, and it is worth more than the answer
+
+**Forty runs fired back-to-back gave TWO distinct documents.** Read alone, that is "the export is stable, so time and randomness are both excluded" — which is wrong, and it is the conclusion I was one command away from writing down. `time(nullptr)` is whole seconds, and forty one-second runs re-seed identically.
+
+Ten runs with `sleep 1.3` between them gave ten distinct documents. **The `sleep` is the experiment, not politeness.** A negative result is only worth something if the variable you are claiming does not matter was actually varying — and here the variable is the seed, which is not the thing being slept for.
+
+The size histogram was the cheap first look that made this visible: ten sizes spanning nine bytes says "a handful of variable-width fields" before anything is diffed, and it is exactly the equal-length pairs — the ones a size comparison silently passes — that a diff is for.
+
+### The decision the row asked for: do NOT patch the comparison
+
+E77's Scope ends *"then decide whether the comparison should ignore it"*. **No.**
+
+Masking handles inside E59's guard makes it **more** willing to call two documents equal, and E59's own comment names that as the expensive direction: *"a false positive (suppressing a real save) is what would lose a user's work"*. It would also hide the defect rather than fix it. **A document whose handles are re-drawn on every load does not round-trip**, and that is E56's subject with its other half still open — E56 fixed the *temporary* (sequential) branch, and these parameters are not taking it at all. Filed as **E81**: GATED (`SynthEditLib/UniqueSnowflake.cpp`), not a build break, so STEP 5's exception does not reach it, and it wants a ruling before a patch — the comment at `:143` warns that reusing sequential ids across delete/add lets a new parameter assume an old one's identity when loading old Banks, which is a hazard for user parameters and may not apply to host controls.
+
+### The instrument, for the half that still needs a human
+
+`SynthEditSem/SynthEditController.cpp` now reports, when the guard fails on two documents of the **same length**, the first and last differing offset, how many bytes differ, and a context window from each side — and writes both documents out whole via `TraceLog.h`'s new `writeTraceSibling()`. In an AUv3 that lands in the extension's own container tmp: **writable from inside and readable from outside**, which is the property that made E73's log collectable at all. The startup default is written at capture time too, because until now there was no way to see one byte of the guard's left-hand side without hitting the failure.
+
+So the residual question — *which event mints a fresh handle between `initialize()` and `syncState()` in a hosted AUv3* — costs one log line the next time anyone has an unlocked screen, instead of a session.
+
+### Verification
+
+| check | result |
+|---|---|
+| build, `TIDE_TRACE_LOG=ON`, every target | `ninja` default target rc=**0**, `[293/293]`, **0** `error:` |
+| build, `TIDE_TRACE_LOG=OFF` (shipped config) | rc=**0**, `[228/228]`, **0** `error:` |
+| shipped build writes nothing | probe run with `TIDE_TRACE_LOG_PATH` set: **no log and no dump created**; `strings … 'trace log opened'` = **0** |
+| the finding | 5 equal-length pairs, each identical once handles are masked and order ignored |
+| the control | 3 exports 90 s apart in one process, byte-equal, refusal fired 3/3 |
+| `check-backlog-diff` | rc=0 — `E77: TODO -> IN-REVIEW`, `1 new row(s): E81`, status/date cells and new rows only |
+| `check-id-refs` | rc=0 — 1813 refs / 281 rows, no stale refs, no duplicate ids |
+| `check-next-block` | rc=0 |
+| `check-links` | rc=0 — 609 relative links, none broken |
+| `check-commit-authorship --repo .` | rc=0, every unpushed commit `tide-rack-bot` |
+| `check-commit-completeness --record/--verify` | 3 staged, 3 in HEAD, all present |
+
+**Both build arms matter and only one of them is the usual claim.** The ON arm is what the measurement ran on; the OFF arm is the configuration that ships, and it exercises the `#else` half of `TraceLog.h` that nothing else compiles. Neither says anything about the other.
+
+**`BUILD_OFF_RC=0` came back from a task reported as *failed, exit code 1*** — the trailing `grep -c 'error:'` found zero matches and exited 1. That is the 2026-09-01 lesson on this box, hit again in the same shape: read the exit code of the thing you ran, not of the pipeline that reported on it.
+
+**Learned:**
+
+- **A row's Accept and a row's question can want different instruments, and the NEXT cell will only remember the Accept.** Five consecutive cells carried "E71, E77, E19's mac AU3 cell and E75 all want one unlocked interactive session". For E77 that was true of the Accept and false of the question, and nothing in five days re-read the row to notice. Worth doing to E71 and E75 before inheriting the blocker again.
+- **A negative result needs the variable to have actually varied.** Forty runs said "stable"; the seed had not moved. The lesson is not "sleep between runs" — it is that "I could not make it differ" is a claim about your experiment until you can show the input changing.
+- **A size histogram costs nothing and points at the cases a size comparison cannot see.** Ten sizes spanning nine bytes said "variable-width fields" immediately, and equal-length pairs are precisely what a diff is for.
+- **When two documents differ in 1,754 bytes and five numbers, normalise before reading.** Sorting by handle turns one changed handle into a whole-block move. Masking the field and re-sorting took the diff from unreadable to one sentence, and it is three lines of shell.
+- **Uncommitted work in a shared tree is not automatically the developer's.** STEP 5's rule says anything predating your run is his; the file said `// BACKLOG E77` in its first line, on the branch that row's claim created, six minutes after the claim commit. Read the content before applying the rule — and commit as soon as a coherent change exists, which is the rule the previous run lost this to.
+- **STEP 2's 24-hour DOING window does not decide an own-platform branch, and it is close enough to look like it does.** This claim was 23 h 45 m old. CONTINUE is the rule that applies, and a box whose run fires daily will keep landing just inside the window.
+- **A pushed branch with no PR is invisible from outside, and this one had been for a day.** It was found by listing remote `tide/*` branches, which STEP 1.5 does not ask for — STEP 1.5 lists open PRs, and the failure state STEP 5 names is precisely the one that produces no PR to list.
+
+**Not verified:** **E77's own Accept**, entirely — no prepared rack has been restored into a hosted AUv3, so *which* event mints the handle in that session is unmeasured and "an editor creating host controls" is a hypothesis, not a finding. **Whether the equal-length case can be provoked within one process at all** — every within-process pair measured here was byte-equal, and the cross-process pairs are the reproduction. **E81's fix**, which is filed and not attempted, and whose safety turns on the old-Bank hazard the source comment names. **Windows and Linux**, where nothing was built or run; the handle generator is shared, so the drift should be identical there, and "should be" is not a measurement. **That the diagnostic ever prints** — its branch is only reached when the guard fails at equal length, which did not happen in any run here, so the code path is compiled and unexercised. **Whether the parameter reordering has any consequence beyond diff noise**; nothing here says a reordered `<Parameter>` block loads differently.
+
+**Machine state.** All six repos were clean at the start except TideSynth, which was **parked on `tide/mac/E77-syncstate-equal-length-diff` with an uncommitted `TraceLog.h`** — the previous run's STEP 5 never ran. `SE16` is not on this box. **No sibling repo was committed to, modified or fast-forwarded**: `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers` and `GMPI` were read only, and `SynthEditLib/UniqueSnowflake.cpp` was read and not touched. TideSynth is on this run's branch until STEP 5 returns it to `main`. **The developer's installed plug-ins were never at risk** — every build ran `SE_LOCAL_BUILD=OFF`, nothing was copied into `~/Library/Audio/Plug-Ins`, no AUv3 was registered and no REAPER, standalone or appex was launched. `build-e79/` is the previous run's gitignored scratch tree, reused warm and left configured `TIDE_TRACE_LOG=OFF`, which is how it was found. Every probe artifact is in the session scratchpad, outside every repo. Nothing is running. The screen was **locked** throughout (`CGSSessionScreenIsLocked true`) and no GUI was attempted.
+
+**Next:** **E81 wants a ruling**, and it is cheap to ask: may a host-control parameter have a deterministic handle, given the old-Bank hazard at `UniqueSnowflake.cpp:143` is about user parameters? **Re-read E71 and E75 the way E77 turned out to want**, separating what the row asks from what its Accept asks — that is the only thing that has moved the mac lane in a week, and it moved it for free. **E80 is still the row only this box can answer** (a CLAP host with a GUI to arbitrate its 200-byte cap; REAPER on Linux dies in its own GTK before `guiSetParent`) and it does need the session. **#570 is green and waiting on Jeff.**
+
+**Branch/PR:** `tide/mac/E77-syncstate-equal-length-diff`, [#572](https://github.com/JeffMcClintock/TideSynth/pull/572) — the previous run's `TraceLog.h` helper, the equal-length diff diagnostic, the probe, E77 → IN-REVIEW with its answer, E81, the refreshed `mac` NEXT cell, the `docs/ci` section, and this entry.
+
 ## 2026-09-01 — linux — E78: CLAP had E74's defect, and fixing it uncovered two more (interactive continuation, Jeff directing)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"fix E78 too while you have the harness up"*)
