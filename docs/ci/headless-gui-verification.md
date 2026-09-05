@@ -430,6 +430,67 @@ probe measured the consequence in one command, and the A/B is one commit wide:
 anything needing the editor. Those are the sections above, and this one does not
 replace them — it removes the host from the questions that never needed one.
 
+## Proving a MISSING call matters: delete it from a wrapper you *can* drive
+
+**Measured 2026-09-06 (macos, scheduled run) for BACKLOG E71.** The question was
+whether `AU3_Wrapper.mm`'s `setFullState` omitting
+`notifyControllerOfPreset` actually costs anything. AU3 is the one wrapper a
+bare host cannot drive — the appex needs registering, which needs an unlocked
+screen and the developer's desktop.
+
+**So measure the omission somewhere else.** VST3, CLAP and the standalone all
+make the call AU3 omits, and CLAP is drivable with no host at all. Two private
+clones of `GMPI_Wrappers`, differing by exactly that one line, and two TIDE
+trees pointed at them:
+
+```bash
+git clone --no-hardlinks ~/…/GMPI_Wrappers  $S/wrap/withcall
+cp -R $S/wrap/withcall $S/wrap/nocall
+# delete ONLY Processor_CLAP.cpp's notifyControllerOfPreset line in nocall
+diff -rq $S/wrap/withcall $S/wrap/nocall --exclude=.git   # one file, one line
+
+for arm in withcall nocall; do
+  cmake -S . -B build-e71-$arm -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DSE_LOCAL_BUILD=OFF -DTIDE_VCV_FUNDAMENTAL=OFF \
+    -DFETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS=$S/wrap/$arm
+  ninja -C build-e71-$arm TIDE_Rack_CLAP        # 307 targets, not the full 446
+done
+```
+
+Then the **unchanged** `tests/e69_clap_state_probe.c` against each. Round-tripping
+a 45,453-byte 14-module 4-cable document:
+
+| | with the call | without it (AU3's shape) |
+|---|---|---|
+| `TIDE: controller #1 restore of a 34021 byte document -> imported` | **present** | **absent** |
+| the controller at save time | `syncState exporting 34021 byte document` | `syncState declined … nothing has been restored or edited yet (E59)` |
+| bytes saved | 45,453 | 45,453 |
+| census | 14 modules / 6 types / 4 cables | 14 modules / 6 types / 4 cables |
+| sha256 of the saved document | `51176668…` | **`51176668…` — identical** |
+
+**The last row is the finding, and it is a warning about this whole document's
+favourite instrument.** `setPresetXmlFromDaw` writes the *holder's* parameter
+store and `stateSave` reads that store back, so the save round-trips perfectly
+while the plug-in's own `<Controller/>` — the object that builds the rack the
+user sees — was never told anything happened. **A save-based probe cannot see a
+controller-delivery defect**, and `tests/e69_clap_state_probe.c` is a save-based
+probe. Read its stderr, not only its bytes.
+
+Two controls worth copying:
+
+- **Pick a document the build can hold whole.** The first attempt used
+  `tests/fixtures/e53-vcv-rack-segv.xml` against a `TIDE_VCV_FUNDAMENTAL=OFF`
+  build, and the arm that *worked* came back with 14 modules against the input's
+  19 — five VCV modules dropped on import because they were not compiled in.
+  That reads as the fix losing modules. Round-tripping the working arm's own
+  output removes the confound and gives a **fixed point** (input sha256 == output
+  sha256) as a bonus.
+- **`nm -u` the object file, both ways.** The fixed
+  `AU3_Wrapper.mm.o` carries an undefined reference to
+  `gmpi::hosting::gmpi_controller_holder::notifyControllerOfPreset(gmpi::api::IParameterObserver*) const`;
+  the same object in a pre-fix build tree does not. A stale build tree from an
+  earlier run is a free negative control — do not delete them all.
+
 ---
 
 # macOS AUv3 — registering one, hosting it, and the instrument that does not survive
