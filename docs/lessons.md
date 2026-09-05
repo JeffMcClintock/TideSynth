@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **408 KB** across **326** entries, so copying them
+Learned sections are **410 KB** across **327** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **126 KB / 1362 lessons — 3.2x smaller**, and represents
+A8. This is **127 KB / 1369 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,18 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-06
+
+**macos — E71: AU3 was the only wrapper that never told the plug-in its state had been restored, and the save cannot see it (scheduled run)**
+
+- A row's Accept and its question want different instruments — and that is now two for two on this lane.
+- To prove a MISSING call is load-bearing, delete it from a sibling that has it.
+- A save-based probe cannot see a controller-delivery defect, and ours is one.
+- Both arms should carry the change you are NOT testing.
+- Choose a fixture the build configuration can hold whole.
+- A stale build tree from an earlier run is a free negative control.
+- `grep -c` finding zero exits 1 and will be reported as a failed task.
 
 ## 2026-09-01
 
