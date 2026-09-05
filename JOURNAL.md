@@ -8,6 +8,51 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-06 — macos — the E71 follow-up hit the #120 trap, and the guard failed because it ran in the same command as the thing it guards (scheduled run, continuation)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4** · as **tide-rack-bot** (both paths) · same scheduled run as the entry below, continuing after its PR merged
+
+**Did:** nothing to the product. This entry exists because the entry below had already merged and **`check-journal-prepend.py` correctly forbids editing a landed entry** — which is the #121 precedent, hit for the same reason. It carries E71's two PR citations and one process lesson worth more than they are.
+
+### What happened
+
+STEP 4 says to check a PR is still open before pushing the citation follow-up, and to DROP the follow-up if it has merged. I ran the check. It printed `573 state: MERGED`. **The follow-up pushed anyway**, because the check and the `git push` were in the same shell command:
+
+```
+echo "573 state: $(gh pr view 573 --json state --jq .state)"   # printed MERGED
+… edit BACKLOG.md …
+git add BACKLOG.md && git commit && git push                    # ran regardless
+```
+
+[#573](https://github.com/JeffMcClintock/TideSynth/pull/573) auto-merged **97 seconds** after it opened. The push then **re-created the branch** GitHub had just auto-deleted, producing a pushed branch whose only PR was merged — **the one end state STEP 5 forbids**, reached by the run that had just quoted the rule against it in a PR body.
+
+### Why this is not simply "I forgot"
+
+**I did not forget. I ran the guard and read its output.** The failure is that a guard which does not *gate* anything is a log line, and STEP 4's wording — *"Check the PR is still open before you push"* — describes a temporal order that a single `&&` chain satisfies while defeating. The 2026-08-18 A4/#120 occurrence was the same trap approached from the other side, and the prompt already tells the story; what it does not say is the mechanical part:
+
+> **Put the check and the guarded action in separate commands, or make the check `exit`.** `[ "$(gh pr view N --json state --jq .state)" = OPEN ] || exit 0` costs the same keystrokes as `echo` and cannot be read past.
+
+### The state, and why it is now correct
+
+`git diff origin/main <branch>` was **one line** — the PR citation; everything else had landed in the squash merge. STEP 4's remedy for a merged-out-from-under follow-up is to drop it, and dropping it was safe precisely because **the row already named the branch**, which is what makes the citation optional. So the citation is not what justified this branch; **this entry is**, and the citation rides along rather than the reverse.
+
+`refs/pull/573/head` pins `f4b1f43`, so nothing from the merged work depended on the branch surviving.
+
+**Learned:**
+
+- **A guard in the same command as the action it guards is a log line, not a guard.** Read the output, ran the push anyway. Separate the commands, or make the check exit non-zero — this is the third fleet occurrence of the #120 shape and the first to name the mechanism rather than the rule.
+- **Auto-merge can land a PR inside two minutes, so "still open when I opened it" is worth nothing.** #573: 97 seconds. Any follow-up plan that assumes a review window is wrong on this repo.
+- **When a landed entry needs a correction, the correction is a NEW entry.** `check-journal-prepend.py` enforces it, and #121 paid for the discovery. Do not reach for `--amend`, and do not edit the entry above.
+- **A one-line orphan branch is not automatically deletable — ask what the branch is FOR.** Deleting it was right for the citation and wrong for the lesson, and the lesson had nowhere else to live.
+
+**Not verified:** nothing new — this entry measures nothing. E71's evidence is the entry below it, and **[GMPI_Wrappers#39](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/39) is still OPEN**, so `main` currently carries a row describing a fix that is not yet in any tree. That is the cross-repo split working as designed, not a defect — but it is the thing to check first.
+
+**Machine state.** Unchanged from the entry below, except that TideSynth is on `tide/mac/E71-au3-notify-controller` (re-created, now with an open PR) until STEP 5 returns it. No build ran, nothing was launched, no sibling repo was touched by this continuation.
+
+**Next:** unchanged from the entry below. **Merge [GMPI_Wrappers#39](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/39) with this branch**, not separately.
+
+**Branch/PR:** `tide/mac/E71-au3-notify-controller` — the merge of `main`, E71's PR citations, and this entry.
+
 ## 2026-09-06 — macos — E71: AU3 was the only wrapper that never told the plug-in its state had been restored, and the save cannot see it (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required

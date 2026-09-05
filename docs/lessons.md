@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **410 KB** across **327** entries, so copying them
+Learned sections are **410 KB** across **328** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **127 KB / 1369 lessons — 3.2x smaller**, and represents
+A8. This is **128 KB / 1373 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-06
+
+**macos — the E71 follow-up hit the #120 trap, and the guard failed because it ran in the same command as the thing it guards (scheduled run, continuation)**
+
+- A guard in the same command as the action it guards is a log line, not a guard.
+- Auto-merge can land a PR inside two minutes, so "still open when I opened it" is worth nothing.
+- When a landed entry needs a correction, the correction is a NEW entry.
+- A one-line orphan branch is not automatically deletable — ask what the branch is FOR.
 
 **macos — E71: AU3 was the only wrapper that never told the plug-in its state had been restored, and the save cannot see it (scheduled run)**
 
