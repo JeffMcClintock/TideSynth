@@ -130,12 +130,73 @@ inline const std::string& redirectStderrOnce()
 	return opened;
 }
 
+// BACKLOG E77 -- a file BESIDE the trace log, for evidence that is too big to
+// be a log line.
+//
+// Same directory redirectStderrOnce() chose, and for the same reason it chose
+// it: in an AUv3 appex that directory is the extension's own container tmp,
+// writable from inside and READABLE FROM OUTSIDE. A harness that cannot hand
+// the appex an environment can still collect what lands there -- which is the
+// whole property that made E73's log collectable, and the only reason a
+// document dump is worth writing at all.
+//
+// Derived from the opened path rather than recomputing TMPDIR, so a caller
+// cannot end up writing beside a different file than the trace: one decision,
+// made once, in redirectStderrOnce().
+//
+// Returns an EMPTY string when the trace is not armed, or when the redirect
+// failed. Callers treat "no path" as "do nothing", so this needs no second #if
+// at the call site.
+inline std::string traceSiblingPath(const char* filename)
+{
+	const std::string& log = redirectStderrOnce();
+	if (log.empty() || !filename)
+		return {};
+
+	const auto slash = log.find_last_of("/\\");
+	if (std::string::npos == slash)
+		return std::string(filename);
+
+	return log.substr(0, slash + 1) + filename;
+}
+
+// Writes `content` to traceSiblingPath(filename). Returns the path written, or
+// an empty string if nothing was written -- either because the trace is not
+// armed or because the file could not be opened. A diagnostic must never be
+// able to take the process down, so every failure here is silent and total.
+inline std::string writeTraceSibling(const char* filename, const std::string& content)
+{
+	const std::string path = traceSiblingPath(filename);
+	if (path.empty())
+		return {};
+
+	std::FILE* f = std::fopen(path.c_str(), "wb");
+	if (!f)
+		return {};
+
+	const bool ok = content.empty()
+		|| (1 == std::fwrite(content.data(), content.size(), 1, f));
+	std::fclose(f);
+
+	return ok ? path : std::string{};
+}
+
 #else
 
 inline const std::string& redirectStderrOnce()
 {
 	static const std::string none;
 	return none;
+}
+
+inline std::string traceSiblingPath(const char*)
+{
+	return {};
+}
+
+inline std::string writeTraceSibling(const char*, const std::string&)
+{
+	return {};
 }
 
 #endif // TIDE_TRACE_LOG

@@ -13,6 +13,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
+#include <algorithm>  // TideSynth E77 - std::min, in equalLengthDiffSummary
 #include <atomic>     // TideSynth E59 - the controller sequence number
 #include <cstring>
 #include <vector>
@@ -38,6 +39,95 @@ using namespace gmpi;
 
 namespace
 {
+
+// E77 -- report what differs between two documents of the SAME LENGTH.
+//
+// WHY THIS IS A FUNCTION AND NOT A LOG LINE. E59's guard is a byte comparison,
+// and every number the surrounding trace prints is a SIZE. So when the guard
+// fails on two equal-length documents -- which is exactly what E73's first
+// hosted-AUv3 log showed, `startup default is 17959 bytes` immediately followed
+// by `syncState exporting 17959 byte document` -- the trace records the failure
+// and nothing whatever about its cause. The reader is left with two identical
+// integers and a contradiction.
+//
+// The candidates E77's row names are a timestamp, a handle, and a pointer-valued
+// parameter, and all three have the same shape: a short run of characters, in
+// one place, whose LENGTH happens not to change. So the first differing offset
+// plus a window of context on each side is very nearly the whole diagnosis, and
+// it fits in a log line.
+//
+// A COUNT of differing bytes as well as the first offset, because the two
+// readings are different findings: one run of a dozen bytes is a field, and
+// hundreds of scattered differences are a reordering. Distinguishing them costs
+// one loop over a document that is already in memory.
+//
+// The context is escaped, not raw: this is XML and a newline in the middle of a
+// log line makes the two sides impossible to compare by eye.
+std::string equalLengthDiffSummary(const std::string& a, const std::string& b)
+{
+	if (a.size() != b.size())
+		return "sizes differ";
+
+	size_t firstDiff = std::string::npos;
+	size_t lastDiff = 0;
+	size_t differingBytes = 0;
+
+	for (size_t i = 0; i < a.size(); ++i)
+	{
+		if (a[i] == b[i])
+			continue;
+
+		if (std::string::npos == firstDiff)
+			firstDiff = i;
+		lastDiff = i;
+		++differingBytes;
+	}
+
+	if (std::string::npos == firstDiff)
+		return "identical";
+
+	// A window either side of the first difference. 48 is enough to carry an
+	// XML attribute and the name of the element it sits on, which is what turns
+	// "byte 9,142 differs" into "the handle on <Patch-point>".
+	constexpr size_t contextBytes = 48;
+	const size_t from = firstDiff > contextBytes ? firstDiff - contextBytes : 0;
+	const size_t to = std::min(a.size(), lastDiff + contextBytes);
+
+	const auto escape = [](const std::string& s, size_t begin, size_t end)
+	{
+		std::string out;
+		out.reserve((end - begin) + 8);
+		for (size_t i = begin; i < end; ++i)
+		{
+			const char c = s[i];
+			if ('\n' == c)      out += "\\n";
+			else if ('\r' == c) out += "\\r";
+			else if ('\t' == c) out += "\\t";
+			else                out += c;
+		}
+		return out;
+	};
+
+	// Cap the reported window. A whole-document reordering would otherwise put
+	// two 18 KB documents into a single log line, and the count above has
+	// already said everything that window would.
+	constexpr size_t maxWindow = 400;
+	const size_t windowEnd = std::min(to, from + maxWindow);
+
+	std::string summary =
+		"first difference at byte " + std::to_string(firstDiff)
+		+ ", last at " + std::to_string(lastDiff)
+		+ ", " + std::to_string(differingBytes) + " byte(s) differ of "
+		+ std::to_string(a.size())
+		+ "\n  startup: " + escape(a, from, windowEnd)
+		+ "\n  export : " + escape(b, from, windowEnd);
+
+	if (windowEnd < to)
+		summary += "\n  (window truncated at " + std::to_string(maxWindow)
+		         + " bytes; the differences run to byte " + std::to_string(lastDiff) + ")";
+
+	return summary;
+}
 
 // -quiet and friends, but ONLY when this build is the standalone executable.
 //
@@ -226,6 +316,20 @@ public:
 		          << " startup default is " << startupDefaultChunk.size()
 		          << " bytes (syncState will not publish this document)" << std::endl;
 
+		// E77 -- keep the document itself, not only its size.
+		//
+		// This is the left-hand side of every comparison syncState makes, and
+		// until now the only way to see a single byte of it was to hit the
+		// failure. It is also the only way to compare it ACROSS PROCESSES:
+		// measured 2026-09-05 through the bare CLAP host, the size of this
+		// document drifts between runs of the identical binary (17,961 /
+		// 17,959 / 17,957 / 17,953 within one hour, stable within any minute),
+		// which is a question about content that no size can answer.
+		//
+		// Silently a no-op unless TIDE_TRACE_LOG armed the trace, so a shipped
+		// build writes nothing -- see TraceLog.h, and PLAN.md constraint 4.
+		tide::trace::writeTraceSibling("tide-e77-startup-default.xml", startupDefaultChunk);
+
 		// Publish the seApp pointer via parameter 0 so editor instances can
 		// pick it up later through gmpi_controller_holder::initUi.
 		constexpr int32_t controllerPtrParamId = 0;
@@ -348,6 +452,42 @@ public:
 			          << xml.size() << " bytes) - nothing has been restored or"
 			             " edited yet (E59)" << std::endl;
 			return ReturnCode::Ok;
+		}
+
+		// E77 -- the guard just decided these are two DIFFERENT documents. If
+		// they are the same LENGTH, say where they differ, because nothing else
+		// in this trace can.
+		//
+		// This is the case E73's first hosted-AUv3 log produced and the case
+		// E59's own comment predicts as its cheap failure direction -- "if the
+		// two ever differ spuriously this publishes". A spurious difference and
+		// a real edit are indistinguishable from the sizes alone, and the size
+		// is all the next line prints.
+		//
+		// Only at EQUAL length, deliberately. A user edit almost always changes
+		// the length, so gating on equality keeps this quiet for the case the
+		// guard is meant to let through, and loud for the case nobody can
+		// explain. It is not a proof of spuriousness -- an edit can be
+		// length-preserving -- it is the shape that has actually been observed.
+		//
+		// Both documents are also written out whole when the trace is armed:
+		// the summary is enough for a one-field difference and not enough for
+		// anything else, and in an AUv3 the sibling file is collectable from
+		// outside the appex while a rebuild to add one more log line is not.
+		if (xml.size() == startupDefaultChunk.size())
+		{
+			std::cerr << "TIDE: controller #" << controllerSeq
+			          << " E77 - export differs from the startup default at the"
+			             " SAME LENGTH: "
+			          << equalLengthDiffSummary(startupDefaultChunk, xml)
+			          << std::endl;
+
+			const auto a = tide::trace::writeTraceSibling("tide-e77-startup-default.xml", startupDefaultChunk);
+			const auto b = tide::trace::writeTraceSibling("tide-e77-syncstate-export.xml", xml);
+			if (!a.empty() && !b.empty())
+				std::cerr << "TIDE: controller #" << controllerSeq
+				          << " E77 - both documents written to " << a
+				          << " and " << b << std::endl;
 		}
 
 		// E59: THE line this whole trace exists for.
