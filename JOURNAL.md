@@ -8,6 +8,137 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-06 — macos — the E71 follow-up hit the #120 trap, and the lint then proved the follow-up was never allowed at all (scheduled run, continuation)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4** · as **tide-rack-bot** (both paths) · same scheduled run as the entry below, continuing after its PR merged
+
+**Did:** nothing to the product. This entry exists because the entry below had already merged and **`check-journal-prepend.py` correctly forbids editing a landed entry** — which is the #121 precedent, hit for the same reason. Two process findings, and the second one retired the first one's remedy.
+
+### What happened
+
+STEP 4 says to check a PR is still open before pushing the citation follow-up, and to DROP the follow-up if it has merged. I ran the check. It printed `573 state: MERGED`. **The follow-up pushed anyway**, because the check and the `git push` were in the same shell command:
+
+```
+echo "573 state: $(gh pr view 573 --json state --jq .state)"   # printed MERGED
+… edit BACKLOG.md …
+git add BACKLOG.md && git commit && git push                    # ran regardless
+```
+
+[#573](https://github.com/JeffMcClintock/TideSynth/pull/573) auto-merged **97 seconds** after it opened. The push then **re-created the branch** GitHub had just auto-deleted, producing a pushed branch whose only PR was merged — **the one end state STEP 5 forbids**, reached by the run that had just quoted the rule against it in a PR body.
+
+### Why this is not simply "I forgot"
+
+**I did not forget. I ran the guard and read its output.** The failure is that a guard which does not *gate* anything is a log line, and STEP 4's wording — *"Check the PR is still open before you push"* — describes a temporal order that a single `&&` chain satisfies while defeating. The 2026-08-18 A4/#120 occurrence was the same trap approached from the other side, and the prompt already tells the story; what it does not say is the mechanical part:
+
+> **Put the check and the guarded action in separate commands, or make the check `exit`.** `[ "$(gh pr view N --json state --jq .state)" = OPEN ] || exit 0` costs the same keystrokes as `echo` and cannot be read past.
+
+### Then the lint said the follow-up was never permitted, which is the bigger finding
+
+`git diff origin/main <branch>` was **one line** — the PR citation; everything else had landed in the squash merge. I kept it, on STEP 4's own instruction to *"push one more commit to the SAME branch adding the number"*. **`check-backlog-diff.py` refused it:**
+
+```
+1 row(s) with Plat or Item CHANGED in place (only Status may change on an existing row):
+  E71: Item column differs
+```
+
+**STEP 4's citation follow-up and `check-backlog-diff.py` are in direct conflict the moment the row lands before the follow-up does.** The lint permits an Item rewrite only alongside a Status change — which is why the *first* push passed, carrying `TODO -> IN-REVIEW` and a wholly rewritten cell. Once the row is on `main` at IN-REVIEW, its Item cell is frozen, and the PR number STEP 4 asks for cannot be added by any route the lint allows.
+
+So the citation is **dropped**, and this is not a judgement call — it is the only legal outcome. STEP 4 already provides for it: *"Pushing nothing is always safe here"*, and **the row already names the branch**, which is exactly what STEP 4 says makes the citation optional rather than load-bearing. The rule and the lint agree on the outcome while disagreeing about the action, and the branch name is what absorbs the difference.
+
+**`refs/pull/573/head` pins `f4b1f43`**, so nothing from the merged work ever depended on this branch surviving. What justifies the branch is **this entry**, not the citation it set out to carry.
+
+**Learned:**
+
+- **A guard in the same command as the action it guards is a log line, not a guard.** Read the output, ran the push anyway. Separate the commands, or make the check exit non-zero — this is the third fleet occurrence of the #120 shape and the first to name the mechanism rather than the rule.
+- **Auto-merge can land a PR inside two minutes, so "still open when I opened it" is worth nothing.** #573: 97 seconds. Any follow-up plan that assumes a review window is wrong on this repo.
+- **When a landed entry needs a correction, the correction is a NEW entry.** `check-journal-prepend.py` enforces it, and #121 paid for the discovery. Do not reach for `--amend`, and do not edit the entry above.
+- **A one-line orphan branch is not automatically deletable — ask what the branch is FOR.** Deleting it was right for the citation and wrong for the lesson, and the lesson had nowhere else to live.
+- **STEP 4's PR-citation follow-up is unsatisfiable once the row has landed, and `check-backlog-diff.py` is what says so.** An Item cell may only change alongside a Status change. Anyone who reads STEP 4 literally on a fast-merging repo will write a commit the lint must reject; the branch name in the row is the intended fallback and is already sufficient. **Worth a prompt amendment rather than rediscovery.**
+
+**Not verified:** nothing new — this entry measures nothing. E71's evidence is the entry below it, and **[GMPI_Wrappers#39](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/39) is still OPEN**, so `main` currently carries a row describing a fix that is not yet in any tree. That is the cross-repo split working as designed, not a defect — but it is the thing to check first.
+
+**Machine state.** Unchanged from the entry below, except that TideSynth is on `tide/mac/E71-au3-notify-controller` (re-created, now with an open PR) until STEP 5 returns it. No build ran, nothing was launched, no sibling repo was touched by this continuation.
+
+**Next:** unchanged from the entry below. **Merge [GMPI_Wrappers#39](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/39) with this branch**, not separately.
+
+**Branch/PR:** `tide/mac/E71-au3-notify-controller` — the merge of `main` and this entry. **`BACKLOG.md` is deliberately byte-identical to `main`'s**; the citation this branch was pushed for is dropped, because the lint forbids it.
+
+## 2026-09-06 — macos — E71: AU3 was the only wrapper that never told the plug-in its state had been restored, and the save cannot see it (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** took **E71**, the previous run's own recommendation, and **fixed and measured it with the screen locked and no host** — the second row in two days that five NEXT cells had written off as GUI-blocked. One call added to `GMPI_Wrappers/wrapper/AU3/AU3_Wrapper.mm`; the consequence of its absence measured as a **negative control on CLAP**, by deleting the same call from a wrapper that has it. Branches `tide/mac/E71-au3-notify-controller` in **both** TideSynth and GMPI_Wrappers, which must merge together. No new test file — the instrument is `tests/e69_clap_state_probe.c` unchanged.
+
+### The row's own caveat was the thing to settle, and the source settles it
+
+E71 said *"this is a code reading, not a measurement, and it may already be covered by the parameter loop below it."* **It is not covered, and the reason is structural rather than a judgement call.**
+
+TIDE declares four parameters (`SynthEditSem/SynthEdit.cpp:713-729`). Parameter 1 — `chunk`, the document — has an `<Audio>` pin and **no `<GUI>` pin at all**; `<GUI>` declares pins for parameters 0 and 2 only. `notifyGui` delivers by walking `info->guiPins` for a matching `parameterId` (`GMPI/Hosting/controller_holder.cpp:234`), so **it cannot carry parameter 1 to anyone, by construction.** The loop's other call, `sendParameterToProcessorQueue`, carries it to the DSP.
+
+The route that matters is `SynthEditController::setParameter` (`SynthEditSem/SynthEditController.cpp:389`) — the only caller of `tideApp->importChunkXml` — and its own comment already said why it exists: *"every controller->editor delivery iterates guiPins and lands on an IEditor, which exists only while the plug-in window is open. The document has to be restored whether or not the user ever opens the window."* `notifyControllerOfPreset` is the only thing that reaches it.
+
+**AU3 was the only one of four wrappers that did not call it** — `Controller_VST3.cpp:526`, `StandaloneHost.cpp:318` and `:383`, and `Processor_CLAP.cpp:926` all do.
+
+### The measurement: delete the call from a wrapper you *can* drive
+
+AU3 cannot be driven unattended — the appex needs registering, which the 2026-08-29 run measured five ways and which needs an unlocked screen. **So measure the omission in CLAP instead.** Two private `GMPI_Wrappers` clones one line apart (`-DFETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS=`, never the developer's tree), two TIDE trees, `diff -rq` confirming the arms differ in exactly one file. Both arms carry the AU3 fix, so the AU3 change is provably not what moved.
+
+Round-tripping a 45,453-byte 14-module 4-cable document:
+
+| | with the call | without it (AU3's shape) |
+|---|---|---|
+| `TIDE: controller #1 restore of a 34021 byte document -> imported` | **present** | **absent** |
+| controller at save time | `syncState exporting 34021 byte document` | `syncState declined … nothing has been restored or edited yet (E59)` |
+| bytes saved | 45,453 | 45,453 |
+| census | 14 modules / 6 types / 4 cables | 14 modules / 6 types / 4 cables |
+| sha256 of the saved document | `51176668…` | **`51176668…` — identical** |
+
+The entire behavioural difference between the two binaries is **two lines of stderr**. `diff` of the two runs' full stderr returns exactly that.
+
+### The part that is bigger than the row: a save-based probe cannot see this
+
+**The saved bytes are sha256-identical in both arms**, because `setPresetXmlFromDaw` writes the *holder's* parameter store and `stateSave` reads that store back. The application object is never on that path. So the document round-trips perfectly while TideApp — which builds the rack the user actually sees — was never told anything happened, and the holder's own comment describes the result: *"started blank however good the preset was."*
+
+**`tests/e69_clap_state_probe.c` is a save-based probe, so E69 passing on AU3 was never evidence about this**, and E71 was filed from a code reading precisely because nothing measurable had contradicted it. Read the probe's stderr, not only its bytes.
+
+### A confound I walked into, and the control that removed it
+
+The first pair used `tests/fixtures/e53-vcv-rack-segv.xml` (51,690 bytes, 19 modules) against a `TIDE_VCV_FUNDAMENTAL=OFF` build. The arm that **worked** came back with 14 modules and 6 types against the input's 19 and 11 — the five VCV modules dropped on import because they are not compiled into that configuration, and 50 lines of `parameter names module handle N, which this document does not contain`. Read alone that says *the fix loses modules*.
+
+Round-tripping the working arm's own output removes it: every module in the document is one the build has, nothing is dropped, and the round trip is a **fixed point** — input sha256 == output sha256 — which is the "round-trip twice" habit this repo already documents, paying for itself as a side effect.
+
+### Verification
+
+| check | result |
+|---|---|
+| both A/B arms, `TIDE_Rack_CLAP` | rc=**0**, `[307/307]`, **0** `error:` each |
+| full build with the fix, every target | rc=**0**, `[446/446]`, **0** `error:` — standalone, VST3, AU, AUv3 appex, AU3 app, CLAP |
+| `AU3_Wrapper.mm` actually compiled | yes, `[411/446]` — the fix's own file |
+| symbol A/B on `AU3_Wrapper.mm.o` | fixed tree: undefined ref to `gmpi_controller_holder::notifyControllerOfPreset(IParameterObserver*) const`; pre-fix tree (`build-e79/`, `main`): **absent** |
+| arms differ by one line only | `diff -rq` → one file; both carry the AU3 fix |
+| `check-links` | rc=0 |
+| `check-next-block` | rc=0 |
+
+**SynthEditCL is discharged by SCOPE, and this is stated rather than glossed.** `AU3_Wrapper.mm` compiles only into the `AU3_Wrapper` static library (`wrapper/AU3/CMakeLists.txt:22`), macOS/iOS appex only, and the `SynthEdit` repo contains **zero** references to `AU3_Wrapper` or `wrapper/AU3`. **`SE16` is not checked out on this box at all**, so SynthEditCL could not have been built here regardless.
+
+**Learned:**
+
+- **A row's Accept and its question want different instruments — and that is now two for two on this lane.** The 2026-09-05 entry wrote it down for E77 and recommended applying it to E71 and E75. It worked on E71 the same day it was tried. **Try it on E75 and E19's mac cell before inheriting the blocker again.**
+- **To prove a MISSING call is load-bearing, delete it from a sibling that has it.** The wrapper you cannot drive is not the only place the call exists. Three of four wrappers made this call, one of them drives headlessly, and removing it there reproduces the untestable wrapper's exact behaviour.
+- **A save-based probe cannot see a controller-delivery defect, and ours is one.** Both arms saved byte-identical documents. Every instrument this fleet owns for state work reads the saved bytes; the store the save reads and the object the user sees are different things, and only the trace line separates them.
+- **Both arms should carry the change you are NOT testing.** Putting the AU3 fix in both clones makes "the AU3 change is not what moved" a fact about the experiment rather than an argument about it.
+- **Choose a fixture the build configuration can hold whole.** A `VCV_FUNDAMENTAL=OFF` build silently drops five modules from a VCV fixture, and the arm that works is the arm that looks lossy. The census, not the size, is what exposed it — and re-feeding the working arm's own output is the cheapest fix and yields a fixed point.
+- **A stale build tree from an earlier run is a free negative control.** `build-e79/` gave the pre-fix `AU3_Wrapper.mm.o` for the symbol A/B at no cost. There are fifteen such trees on this box; that is an asset, not only clutter.
+- **`grep -c` finding zero exits 1 and will be reported as a failed task.** Third time on this box, hit again here. Read the exit code of the thing you ran.
+
+**Not verified:** **E71's own Accept, entirely** — no saved rack has been restored in a real AUv3 host, because the screen was locked (`CGSSessionScreenIsLocked true`); what is measured is the *mechanism*, and the hosted confirmation is one launch for whoever next has an unlocked screen. **That the fix changes AU3's behaviour at runtime** — `AU3_Wrapper.mm` compiles and links and the symbol is referenced, and no AUv3 was instantiated. **Windows and Linux**, where nothing was built or run; AU3 does not exist on either, so the change is inert there by construction. **Whether anything else in a hosted AUv3 restore is also missing** — this row is one call, and E77's Accept still names the same unmeasured session. **SynthEditCL**, which was not built and could not be on this box.
+
+**Machine state.** All six repos were clean and on their default branches at the start; `SE16` is not on this box. `SynthEditLib` (`dcdfa6b`→`c0a9224`), `GMPI_Wrappers` (`017bb22`→`bcb0d3a`) and `GMPI` (`ff82875`→`99eeb85`) were fast-forwarded to `origin/main`; **only GMPI_Wrappers was committed to**, and `SynthEditLib`, `GMPI`, `gmpi_ui` and `SynthEdit` were not touched. TideSynth and GMPI_Wrappers are on `tide/mac/E71-au3-notify-controller` until STEP 5 returns them. **The developer's installed plug-ins were never touched** — every build ran `SE_LOCAL_BUILD=OFF`. No AUv3 was registered, installed or displaced; no DAW, standalone or appex was launched and none is running. The two A/B clones live in the session scratchpad, not in any repo. `build-e71-withcall/` and `build-e71-nocall/` are gitignored scratch trees. The screen was locked throughout and no GUI was attempted.
+
+**Next:** **apply the Accept/question split to E75 and to E19's mac AU3 cell** — it has now paid twice in two days, and E75's question (*can a rack hold a module the view cannot reach?*) may be a property of the document rather than of the renderer. **E71, E77 and E19's mac cell now share one unmet Accept between them**, which is a stronger case than four separate rows for scheduling a single unlocked interactive session. **E72 and E81 want rulings, not sessions.** And **the negative-control technique generalises to E79**, whose own PR reports it does not reproduce on macOS: the question *"which wrapper omits the call that carries the document when no window is open"* is the same question this row answered, one wrapper along.
+
+**Branch/PR:** `tide/mac/E71-au3-notify-controller` — TideSynth (E71's row, the refreshed `mac` NEXT cell, the harness-doc section and this entry) and GMPI_Wrappers (the fix). **They must merge together**: TideSynth's row claims a fix that lives in the wrapper repo.
+
 ## 2026-09-02 — windows — E19's windows VST3 cell PASSES its animation clause, and both traps that nearly stopped it were mine
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.1** (the Appx package version, which A13 records as the discoverable one on Windows) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
