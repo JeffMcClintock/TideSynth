@@ -8,6 +8,121 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-07 — windows — E63: the gap SHIPPED — v0.1.3's Windows zip has no default rack, and the fix is to stop restating the list (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.1** (the Appx package version, which A13 records as the discoverable one on Windows; there is no `claude` CLI on this box's PATH) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** two things, in the order the prompt puts them. **STEP 1.5:** this platform's only open PR, [#571](https://github.com/JeffMcClintock/TideSynth/pull/571), had gone **CONFLICTING** while it sat since 2026-09-01; resolved and pushed, it is `MERGEABLE` again. **STEP 2:** took **E63**, the `win` NEXT cell's own pick, on `tide/win/E63-package-windows-resources`. **Fixed, measured with a fired positive control, and its open question answered: the defect SHIPPED.**
+
+### The finding that outranks the fix: v0.1.3 went out without a default rack
+
+E63's row ended *"Unverified: whether any RELEASE was cut with this gap."* It was, and it is the only release this project has.
+
+```
+$ gh release download v0.1.3 --pattern 'TIDE-Rack-Windows.zip'
+$ python3 -c "import zipfile; print(zipfile.ZipFile('TIDE-Rack-Windows.zip').namelist())"
+TIDE-Rack.vst3/Contents/Resources/ControlsXp.xml
+TIDE-Rack.vst3/Contents/Resources/Converters.xml
+TIDE-Rack.vst3/Contents/Resources/MidiPlayer2.xml
+TIDE-Rack.vst3/Contents/Resources/Prefabs/...   (5 files)
+TIDE-Rack.vst3/Contents/Resources/VaFilters.xml
+```
+
+**No `DefaultRack.synthedit`.** A first-run Windows user of v0.1.3 gets `TIDE: no DefaultRack.synthedit in bundle resources - starting with an empty rack` and an empty rack.
+
+**The control that makes this a Windows defect rather than a project-wide one is in the same release:** `TIDE-Rack-Linux.tar.gz` carries `DefaultRack.synthedit` in *both* of its two `Resources` folders. Same tag, same CI run, one platform's script.
+
+**The pin half did NOT ship, and the dates are why.** `DefaultRack.synthedit` staging landed in `6d813b3dd` on 2026-08-26, before the 2026-08-27 release; E48 added `EnvelopeAdsr.xml` and `Oscillator.xml` to `_tide_xmls` in `7b42ef9a1` on 2026-08-28, a day *after* it. So one half reached users and the other was caught before the next release — which is the only luck in this row.
+
+### The fix: stop restating the list, because restating it is the defect
+
+`scripts/package-windows.ps1` kept a hand-written `$ResourceXmls` beside a comment demanding that it and `SynthEditSem/CMakeLists.txt`'s `_tide_xmls` *"MUST MOVE TOGETHER"*. A comment cannot enforce that. It now:
+
+1. **parses** `set(_tide_xmls ...)` out of `SynthEditSem/CMakeLists.txt` and keeps the basenames;
+2. adds `DefaultRack.synthedit`, which is in **no** list — CMake copies it by four separate explicit commands — with its own pre-flight refusal naming the empty-rack consequence;
+3. **asserts completeness against the build tree** after staging: every `*.xml`/`*.synthedit` in `Release\` must be in `Contents\Resources\`, and the prefab file counts must match.
+
+The row offered *"or at minimum add the three missing files"*. **Declined:** adding three names re-arms the same trap for the fourth. (3) is the part that is not a list at all — it asks the build tree what it produced, so it cannot agree with a stale copy of itself.
+
+### The A/B, one script apart on one build tree
+
+`build-e19win` (the 2026-09-02 run's Release tree, gitignored), packaged twice — `origin/main`'s script from a scratch repo root, then this branch's:
+
+| | BEFORE (`origin/main`) | AFTER |
+|---|---|---|
+| XMLs in `Contents\Resources\` | **4** | **6** |
+| `DefaultRack.synthedit` | **absent** | present |
+| prefab files | 5 | 5 |
+| script's own resource check | — | `7 file(s) + 5 prefab file(s), matching …\Release` |
+
+### The Accept's second clause, and the instrument needs no host
+
+E63 asks that *"a launch of the packaged plug-in prints neither `missing from bundle resources` nor `no DefaultRack.synthedit`"*. **The standalone can answer that with no DAW**: copy `TIDE-Rack.exe` into a directory holding **only** the packaged `Contents\Resources\` payload and launch it `-quiet`. It is a non-bundle, so `BundleInfo::getResourceFolder()` returns its own directory, and `TideApp::InitInstance` and `loadDefaultDocument` print exactly those two lines from exactly those files.
+
+Same binary, same command line, the two packages' payloads:
+
+| stderr | BEFORE package | AFTER package |
+|---|---|---|
+| `… enriched … class(es)` | **4** lines | **6** lines |
+| `EnvelopeAdsr.xml missing from bundle resources` | **present** | absent |
+| `Oscillator.xml missing from bundle resources` | **present** | absent |
+| `no DefaultRack.synthedit in bundle resources` | **present** | absent |
+| `default rack loaded, N byte document` | **absent** | `25110` |
+| `controller #1 startup default is` | **1,496 bytes** | **17,959 bytes** |
+| `rack prefab(s) seeded from the bundle` | 5 | 5 |
+
+**The BEFORE arm is the positive control and it fired on all three messages** — an absence in the AFTER arm is worth nothing until the instrument has been seen to print. The 1,496-vs-17,959-byte startup default is the same fact stated by a number the messages do not carry: with no default rack the document really is empty, not merely undecorated.
+
+**What this does NOT test, stated rather than implied: the bundle LAYOUT.** `pluginIsBundle` is set by finding `.vst3\Contents` in the loaded module's path, and this launch takes the non-bundle path. It tests that the package's payload is complete and that the plug-in is happy with it; it does not test that a host resolves `<bundle>\Contents\Resources\`. That half is discharged by construction — the layout is unchanged and was already reading the four XMLs it did carry.
+
+### All three new refusals were seen to fire
+
+A guard nobody has watched fail is a comment with syntax.
+
+| control | result |
+|---|---|
+| an extra `NotInTheList.xml` staged in `Release\` | `the build staged resources this package does not carry: NotInTheList.xml`, rc=1 |
+| `DefaultRack.synthedit` deleted from `Release\` | `missing from … : DefaultRack.synthedit`, rc=1 |
+| `set(_tide_xmls` renamed in a scratch copy of `CMakeLists.txt` | `no 'set(_tide_xmls ...)' block found in …`, rc=1 |
+
+The third matters most: the parser's failure mode is **refusing to package**, not silently yielding an empty list. A parser that quietly returns nothing would have shipped a bundle with no pin XMLs at all — strictly worse than the defect it replaces.
+
+### STEP 1.5, which was the first half of the run
+
+#571 had **13/13 green checks, zero reviews, zero comments** and `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY`. Under STEP 1.5's literal list of three it reads as Jeff's problem. **Fourth occurrence across all three boxes** (macos 2026-08-28 and 2026-09-01, linux 2026-08-31, here), and `mergeStateStatus` is still not in the rule text.
+
+Three files conflicted and the resolution is the fleet's recipe with **one inversion worth naming**:
+
+| file | resolution |
+|---|---|
+| `JOURNAL.md` | **the BRANCH was the side that had rotated**, so main's copy is NOT taken whole — main's two new 09-06 entries inserted above the branch's 09-02 entry, the branch's rotation of three 08-31 entries into `JOURNAL-2026-08.md` kept |
+| `docs/lessons.md` | **regenerated** (`extract-lessons.py --write`), never merged |
+| `BACKLOG.md` | by ownership: `win` cell from the branch (09-02), `mac` cell from main (09-06), main's E71 row (IN-REVIEW, landed), and main's **E74 row dropped** because the branch archives it |
+
+Set arithmetic before touching anything: of the branch's 7 entries, exactly **one** was absent from main's `JOURNAL.md`. E74's and E78's archiving was re-checked rather than trusted — `gh pr view` says TideSynth#569, gmpi_ui#17 and GMPI_Wrappers#38 are all MERGED, so both flips stand; **E71 stays IN-REVIEW because [GMPI_Wrappers#39](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/39) is still OPEN.**
+
+**This branch deliberately does NOT rotate `JOURNAL.md`**, and #571 does. Two open PRs from one platform must not both perform the same rotation, or whoever merges second resolves it twice for no gain.
+
+**Learned:**
+
+- **A row's "unverified: did this ever ship?" is one command, and the answer changes what the row IS.** `gh release download` plus `zipfile.namelist()` turned E63 from a packaging tidy-up into a user-visible defect in the only release that exists. Nobody had spent the command in ten days.
+- **The same release's OTHER platform asset is the control that localises a shipping defect.** Linux's tarball carrying `DefaultRack.synthedit` from the same tag is what makes this Windows's script rather than the project's staging.
+- **When a comment says two lists must move together, the fix is to delete one of them.** A restated list plus a comment is a defect with documentation. Parsing the source list costs fifteen lines and cannot drift; the row's own "or at minimum add the three missing files" would have re-armed the trap for the fourth file.
+- **A completeness check must interrogate the BUILD, not the script's own list.** Comparing a list against itself proves nothing — the whole defect was two lists each agreeing with its own copy.
+- **A parser's failure mode is the design decision, not its regex.** `_tide_xmls` renamed had to REFUSE, because silently yielding an empty list ships a bundle with no pin XMLs at all — worse than the bug being fixed. Tested by renaming it.
+- **The standalone tests a PACKAGE's payload with no host at all.** It is a non-bundle, so its resource folder is its own directory: drop the packaged `Resources` contents beside `TIDE-Rack.exe`, launch `-quiet`, read stderr. It tests contents, not bundle layout — which is a real limit and belongs in the write-up, not in a footnote.
+- **Keep the pre-fix script, not just the pre-fix binary.** `git show origin/main:scripts/package-windows.ps1` into a scratch repo root gave the BEFORE arm in one command, because the script resolves everything from `$PSScriptRoot`.
+- **A single backslash in a non-raw Python string wrote a literal backspace into a regex.** `_tide_xmls\b` became `_tide_xmls\x08`, the PowerShell match failed, and the script threw its own "block not found" — which looked exactly like a CMake-side problem. `cat -A` on the line found it; the `SyntaxWarning: invalid escape sequence` Python had already printed was the real tell and I read past it.
+- **`extract-lessons.py --write` is a CRLF trap on Windows.** It wrote 2,468 CRLFs into an LF file. `git diff --stat` still showed 22 lines because git normalises on commit, so the tell is reading the bytes, not the diff.
+
+**Not verified:** **the packaged bundle in a real VST3 host** — per above, the launch is the standalone on the non-bundle path; **nothing was built this run**, an existing Release tree (`build-e19win`, 2026-09-02) was packaged, so this says nothing new about whether `main` compiles here beyond CI's own green `084099b83` (2026-09-01, all three platforms); **macOS and Linux packaging**, untouched, and both copy whole directories so neither can drift this way; **the SIGNING path**, still unverified exactly as the script's own header says and not exercised (no credentials on this box); **the installer's `[Files]` behaviour beyond `{#PayloadDir}\*`**, which was read but not self-tested (`-SelfTest` was not passed); and **whether v0.1.3's macOS `.pkg` carries the default rack** — only the Linux tarball was opened as the control.
+
+**Machine state.** All six repos were clean and on their default branches at the start; TideSynth's `main` was 2 commits behind and was fast-forwarded. **No sibling repo was touched at all** — `SE16`, `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers` and `GMPI` were read for orientation only and none was committed to or checked out. TideSynth is on `tide/win/E63-package-windows-resources` until STEP 5 returns it; `tide/win/E19-vst3-windows-cell` carries the STEP 1.5 merge and is pushed. **Nothing was installed and the developer's plug-ins were not touched** — `C:\Program Files\Common Files\VST3\` was never written, and every package landed in the session scratchpad. Two `TIDE-Rack.exe` standalones were launched with `-quiet` and an isolated `GMPI_STANDALONE_CONFIG_DIR`, and both were stopped; **0 TIDE processes left running**, checked. No DAW was launched. `build-e19win/` is a gitignored scratch tree and was read, not written.
+
+**Next:** **E75** is the whole of the windows lane's remaining E19 work and is now blocking clauses on **two** platforms — read its own *"may be two questions"* caveat before authoring a fixture. **E71 wants [GMPI_Wrappers#39](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/39) merged**, at which point its row flips DONE. **Worth knowing rather than filing:** `docs/e9-sample-rate.md` and `docs/e2a-prefabs.md` both enumerate the resource set in prose, so the same drift is now impossible in the two *scripts* and still possible in the two *documents* — the packaging one was the one that shipped, and STEP 3 scope stops here.
+
+**Branch/PR:** `tide/win/E63-package-windows-resources` — `scripts/package-windows.ps1` (the parser, the `DefaultRack.synthedit` refusal and copy, the completeness assertion, and the header comment that used to promise the two lists would move together), the E63 row, the refreshed `win` NEXT cell, and this entry. Plus the merge commit on `tide/win/E19-vst3-windows-cell` ([#571](https://github.com/JeffMcClintock/TideSynth/pull/571)), which is the STEP 1.5 half.
+
 ## 2026-09-06 — macos — the E71 follow-up hit the #120 trap, and the lint then proved the follow-up was never allowed at all (scheduled run, continuation)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4** · as **tide-rack-bot** (both paths) · same scheduled run as the entry below, continuing after its PR merged

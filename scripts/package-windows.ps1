@@ -15,9 +15,9 @@
     (the `else()` arm at the end of its `FIND_VST3_INDEX` block) -- macOS gets a
     real bundle and Linux gets one assembled by a POST_BUILD copy, Windows gets
     neither. A bare DLL is a legal VST3 and hosts load it, but it has nowhere to
-    keep its own data, and TIDE has data it cannot work without: the four pin
-    XMLs and the rack prefabs that SynthEditSem/CMakeLists.txt stages into a
-    `Resources` folder. Shipping those loose into the shared Common Files\VST3
+    keep its own data, and TIDE has data it cannot work without: the pin XMLs,
+    the default rack and the rack prefabs that SynthEditSem/CMakeLists.txt
+    stages into a `Resources` folder. Shipping those loose into the shared Common Files\VST3
     folder is not an option -- they would sit beside every other vendor's
     plug-ins and collide by name.
 
@@ -37,14 +37,21 @@
     folder holding the binary, while a non-bundled Windows plug-in resolves its
     resources to the folder the binary is in (no `Resources` subfolder at all;
     `BundleInfo::getResourceFolder()` returns the bare directory verbatim for a
-    non-bundle). So in the DEV TREE the four XMLs and `Prefabs\` now sit LOOSE
-    in `Release\`, beside the binaries -- there is no `Resources` folder to
-    speak of until packaging makes one. This script picks those specific,
-    known items out of `Release\` (the same list `SynthEditSem/CMakeLists.txt`
-    stages -- see `$ResourceXmls` below, which must move with `_tide_xmls`
-    there) rather than copying the whole directory, which also holds every
-    target's binaries, PDBs, `.lib`s and `.exp`s and would ship all of it into
-    the bundle's `Resources\` otherwise.
+    non-bundle). So in the DEV TREE the pin XMLs,
+    `DefaultRack.synthedit` and `Prefabs\` now sit LOOSE in `Release\`, beside
+    the binaries -- there is no `Resources` folder to speak of until packaging
+    makes one. This script picks those specific, known items out of `Release\`
+    rather than copying the whole directory, which also holds every target's
+    binaries, PDBs, `.lib`s and `.exp`s and would ship all of it into the
+    bundle's `Resources\` otherwise.
+
+    BACKLOG E63: THE XML LIST IS READ OUT OF `SynthEditSem/CMakeLists.txt`'s
+    `_tide_xmls`, NOT RESTATED HERE, and a post-staging check asserts that every
+    resource the build produced reached the bundle. The previous version kept a
+    hand-written copy of that list with a comment saying the two must move
+    together; E48 added two XMLs, the copy did not move, and a packaged Windows
+    build shipped two modules with no pins and no default rack at all. That
+    comment is now a parser and an assertion.
 
     SIGNING IS NOT DONE WITHOUT CREDENTIALS, and that is deliberate rather than
     unfinished, the same shape scripts/package-macos.sh uses. Azure Trusted
@@ -114,17 +121,62 @@ if (-not (Test-Path -LiteralPath $binSrc -PathType Leaf)) {
     throw "no $BUNDLE in $BuildDir\SynthEditSem\Release -- build the Release config first (cmake --build $BuildDir --config Release)"
 }
 
-# Where SynthEditSem stages the pin XMLs and Prefabs\ on Windows: loose in the
-# Release\ folder, beside the binaries -- BACKLOG S36. This is written ONCE, by
-# the TIDE_Rack_stage_resources custom target, not by each format target's
-# POST_BUILD -- issue #314.
+# Where SynthEditSem stages the pin XMLs, DefaultRack.synthedit and Prefabs\ on
+# Windows: loose in the Release\ folder, beside the binaries -- BACKLOG S36.
+# This is written ONCE, by the TIDE_Rack_stage_resources custom target, not by
+# each format target's POST_BUILD -- issue #314.
 #
-# THIS LIST AND SynthEditSem/CMakeLists.txt's `_tide_xmls` MUST MOVE TOGETHER,
-# the same rule TideApp.cpp:496 states for its own read of the same set.
-# Picked out by name rather than copying Release\ wholesale, which also holds
-# every target's binaries, PDBs, .libs and .exps.
+# BACKLOG E63. This list is now DERIVED from SynthEditSem/CMakeLists.txt's
+# `_tide_xmls` rather than restated here, because restating it is what broke:
+# E48 added EnvelopeAdsr.xml and Oscillator.xml to `_tide_xmls` on 2026-08-28
+# and this script's hand-written copy did not move with them, so a packaged
+# Windows build shipped `SynthEdit ADSR` and `SE Oscillator` with no pins --
+# S21's failure, in the one script whose own comment demanded the two lists
+# move together. A comment cannot enforce that; reading the list can.
+#
+# Windows is the only packaging script that ever maintained a second list --
+# package-linux.sh copies the whole staged Resources directory and macOS copies
+# assembled bundles -- which is why only this platform could drift.
+#
+# Still picked out by name rather than copying Release\ wholesale, which also
+# holds every target's binaries, PDBs, .libs and .exps. The completeness
+# assertion after staging is what makes that safe: it fails if the build staged
+# a resource this script did not carry, in either direction.
 $resSrc = Join-Path $BuildDir 'SynthEditSem\Release'
-$ResourceXmls = 'ControlsXp.xml', 'MidiPlayer2.xml', 'Converters.xml', 'VaFilters.xml'
+
+# Parse `set(_tide_xmls <dir>/<name>.xml ...)` and keep the basenames -- the
+# staging commands there copy each entry to the flat destination, so the
+# basename is what lands in Release\ and in Contents\Resources\.
+$cmakeLists = Join-Path $repoRoot 'SynthEditSem\CMakeLists.txt'
+if (-not (Test-Path -LiteralPath $cmakeLists -PathType Leaf)) {
+    throw "cannot read $cmakeLists -- this script derives its resource list from that file's _tide_xmls (BACKLOG E63)"
+}
+$cmakeText = Get-Content -LiteralPath $cmakeLists -Raw
+$m = [regex]::Match($cmakeText, '(?ms)^\s*set\s*\(\s*_tide_xmls\b(.*?)^\s*\)\s*$')
+if (-not $m.Success) {
+    throw @"
+no 'set(_tide_xmls ...)' block found in $cmakeLists
+
+Refusing to package rather than shipping a guess. This script derives the pin
+XML list from that block (BACKLOG E63) so the two cannot drift; if the block
+was renamed or reshaped, fix this parser rather than restoring a second copy
+of the list here.
+"@
+}
+$ResourceXmls = @(
+    $m.Groups[1].Value -split "`n" |
+        ForEach-Object { ($_ -replace '#.*$', '').Trim() } |
+        Where-Object { $_ -match '\.xml$' } |
+        ForEach-Object { Split-Path -Leaf $_ }
+)
+if ($ResourceXmls.Count -eq 0) {
+    throw "parsed _tide_xmls out of $cmakeLists but it yielded no .xml entries -- refusing to package a bundle with no pin descriptions"
+}
+
+# NOT in `_tide_xmls`: CMake copies it by its own explicit command, and without
+# it a first-run user gets `TIDE: no DefaultRack.synthedit in bundle resources
+# - starting with an empty rack` (TideApp.cpp:1073) and an empty rack.
+$DEFAULT_RACK = 'DefaultRack.synthedit'
 
 $missingXmls = $ResourceXmls | Where-Object { -not (Test-Path -LiteralPath (Join-Path $resSrc $_) -PathType Leaf) }
 if ($missingXmls) {
@@ -135,6 +187,22 @@ Refusing to package: without them TIDE ships with classic controls that have no
 pins, and nothing in the plug-in fails loudly enough for a user to know why.
 That is BACKLOG S21's failure wearing a different platform. Build the
 TIDE_Rack_VST3 target (its POST_BUILD steps stage these) and try again.
+"@
+}
+
+# E63 -- the same refusal, for the file that decides whether a first-run user
+# sees a rack at all. Separate from $missingXmls above because the consequence
+# is different: a missing pin XML gives pinless controls, a missing default
+# rack gives an empty window.
+$defaultRackSrc = Join-Path $resSrc $DEFAULT_RACK
+if (-not (Test-Path -LiteralPath $defaultRackSrc -PathType Leaf)) {
+    throw @"
+missing from $resSrc : $DEFAULT_RACK
+
+Refusing to package: the plug-in would print 'TIDE: no $DEFAULT_RACK in bundle
+resources - starting with an empty rack' and a first-run user would get
+nothing. SynthEditSem/CMakeLists.txt copies it beside the pin XMLs; build the
+TIDE_Rack_VST3 target and try again.
 "@
 }
 
@@ -168,11 +236,50 @@ New-Item -ItemType Directory -Force -Path $resourcesOut | Out-Null
 foreach ($xml in $ResourceXmls) {
     Copy-Item -LiteralPath (Join-Path $resSrc $xml) -Destination (Join-Path $resourcesOut $xml) -Force
 }
+Copy-Item -LiteralPath $defaultRackSrc -Destination (Join-Path $resourcesOut $DEFAULT_RACK) -Force
 Copy-Item -LiteralPath $prefabs -Destination (Join-Path $resourcesOut 'Prefabs') -Recurse -Force
 
 Write-Host "==> staged bundle"
 Write-Host "    $BUNDLE\Contents\$ARCH_DIR\$BUNDLE"
 Write-Host "    $BUNDLE\Contents\Resources\  ($((Get-ChildItem -LiteralPath (Join-Path $contents 'Resources') -Recurse -File).Count) file(s))"
+
+# --- E63: everything the build staged is in the package --------------------
+#
+# THIS IS THE CHECK THAT WOULD HAVE CAUGHT E63, and it is deliberately not a
+# restatement of the list above -- it asks the BUILD TREE what it produced and
+# fails on anything the packaging step did not carry. A list compared against
+# itself proves nothing; the whole defect was two lists agreeing with their own
+# copies and not with each other.
+#
+# What counts as a resource in Release\: that folder holds this script's inputs
+# mixed with every target's build output, so the rule is by extension --
+# *.xml and *.synthedit are staged resources, and the binaries, .pdb/.lib/.exp
+# and the .vst3/.clap/.gmpi/.exe are not. Prefabs\ is checked as a directory
+# because it is copied whole.
+$stagedResources = @(Get-ChildItem -LiteralPath $resSrc -File |
+                     Where-Object { $_.Extension -in '.xml', '.synthedit' } |
+                     ForEach-Object { $_.Name })
+$packagedResources = @(Get-ChildItem -LiteralPath $resourcesOut -File |
+                       ForEach-Object { $_.Name })
+$notPackaged = @($stagedResources | Where-Object { $_ -notin $packagedResources })
+if ($notPackaged) {
+    throw @"
+the build staged resources this package does not carry: $($notPackaged -join ', ')
+
+Refusing to ship an incomplete bundle. This is BACKLOG E63's failure recurring:
+$resSrc holds a resource that Contents\Resources\ does not. Either add it to
+SynthEditSem/CMakeLists.txt's _tide_xmls (from which the XML list above is
+read), or -- if it is genuinely not a shipped resource -- teach this check to
+exclude it, in that order.
+"@
+}
+$prefabsOut = Join-Path $resourcesOut 'Prefabs'
+$stagedPrefabs = @(Get-ChildItem -LiteralPath $prefabs -Recurse -File).Count
+$packagedPrefabs = @(Get-ChildItem -LiteralPath $prefabsOut -Recurse -File).Count
+if ($packagedPrefabs -ne $stagedPrefabs) {
+    throw "Prefabs\ staged $stagedPrefabs file(s) and the package carries $packagedPrefabs -- refusing to ship a partial browser"
+}
+Write-Host "    resource check : $($packagedResources.Count) file(s) + $packagedPrefabs prefab file(s), matching $resSrc"
 
 # --- sign the payload, if we were given credentials ------------------------
 function Invoke-TrustedSigning {
