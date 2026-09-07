@@ -8,6 +8,70 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-08 — windows — the merge sweep: three PRs, and the fleet is empty again (interactive continuation, Jeff directing)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"merge any PRs"*)
+
+**Did:** merged every open PR in the fleet — **three, all in TideSynth** — resolving two conflicts on the way, then flipped **E75** DONE and archived it, **A35** back to TODO and **E7** to DONE-PENDING-ACCEPT. No product code was written by this entry; the code it landed belongs to the two entries below it and to the macOS box.
+
+### What landed, in order
+
+| PR | what | merged as |
+|---|---|---|
+| [#577](https://github.com/JeffMcClintock/TideSynth/pull/577) | **E75** — the visible-rack fixture; **E82** and **E83** filed | `7aebd640e` |
+| [#578](https://github.com/JeffMcClintock/TideSynth/pull/578) | **A35** — the `Plat` column measured, two `PROPOSED:` entries filed | `3f08ea66b` |
+| [#579](https://github.com/JeffMcClintock/TideSynth/pull/579) | **E7** — answered already; **P8** DONE and archived; the `extract-lessons.py` CRLF fix | `0ed6ca1db` |
+
+**Oldest first, and it cost the minimum.** Two conflict resolutions for three PRs, both in the bookkeeping files and neither in product code — against the 2026-09-07 sweep's four PRs and *five* resolutions. That is the O(N²) the previous entry described, seen from the cheap end: the fix really is not letting them accumulate.
+
+**Squash merges, which is this repo's convention** — every commit on `main`'s first-parent chain has one parent and a `(#N)` suffix. Worth stating because `check-no-direct-commits.py` passes on it: the squash commit's *committer* is `GitHub <noreply@github.com>`, not the bot, so an agent-authored commit still arrives as something a human merge button produced.
+
+### The two resolutions, and both were the predicted shape
+
+Set arithmetic over entry headings first, every time — which of the branch's headings appear in **neither** of `main`'s two journal files:
+
+| PR | which side had rotated | `JOURNAL.md` resolved by |
+|---|---|---|
+| #578 | **neither** (419 archived entries on both sides) | main whole; the branch's **one** unique entry (09-08 macos) inserted at the top |
+| #579 | **neither** (419 both) | main whole; the branch's **one** unique entry (09-08 windows) inserted at the top |
+
+**Two entries share the date 2026-09-08 and the tie was broken by commit time, not by guessing.** The macOS A35 run committed 02:07–02:14 NZ; the windows E7 run committed 10:16–10:34. So windows sits above macos, which is "newest at the top" meaning what it says.
+
+`docs/lessons.md` was **regenerated** on both, never merged. `BACKLOG.md` was resolved by ownership, and the NEXT block was the only hunk that conflicted in either:
+
+- **#578** — splice: the branch's 09-08 `mac` head onto main's 09-07 `mac` cell entire. Chain **7 → 8** generations, `09-08 → 09-07 → 09-06 → 09-05 → 09-01 → 08-31 → 08-31 → 08-28`. #578's own body had predicted this in writing and named the remedy; it was right.
+- **#579** — no splice needed: `win` from the branch, `mac` from main, because each side had re-pointed a different platform's cell. Verified by chain length rather than by eye — `re.findall(r'RE-POINTED (\d{4}-\d{2}-\d{2})')` on both cells before and after.
+
+**One thing was NOT a conflict and still had to be edited: a cell that had explained why it could not cite a row.** #579's `win` cell said E19's two open clauses *"are two rows filed on #577… their IDs are deliberately NOT written here, because `check-id-refs.py` draws its known-ID set from the two backlog files."* True when written, false after #577 merged — and no lint fires on a citation that is merely *missing*. Replaced with **E82** and **E83** by name, plus what each says. **A merge can make a correct sentence wrong without making any file conflict**, and nothing looks for that.
+
+### The `extract-lessons.py` CRLF fix, seen from both sides in one session
+
+#579 carries `newline=""` on the one `write_text` call. The evidence that it was the right fix is in this sweep rather than in that PR: resolving **#578**, whose branch predates the change, `--write` produced **2,550 CRLFs** and had to be normalised by hand; resolving **#579**, which carries it, the same command produced **0**. Same repo, same machine, twenty minutes apart.
+
+### The three flips, and only one of them is DONE
+
+| row | to | why not something else |
+|---|---|---|
+| **E75** | **DONE**, archived | its Accept is met as written — the fixture is on `main` and opens on its VCV modules |
+| **A35** | **TODO** | its PR merged, so `IN-REVIEW` is false; its Accept (a working narrowing exception plus tests) was **deliberately not shipped**, so `DONE` is false too. The **X2 shape**, and it now parks itself on its own two open `PROPOSED:` entries |
+| **E7** | **DONE-PENDING-ACCEPT** | its Accept was **retired, not met** — the fixture records a ruled-out construction. Whether that closes a row is Jeff's call, not a run's, and it is the same status E44 and E49 carry for the same reason |
+
+**Learned:**
+
+- **A merge can falsify a sentence without touching a line of it.** #579's `win` cell explained why it could not name two rows; #577 landed them ten minutes later and the explanation became wrong in a file that merged cleanly. Conflicts are found by git; **claims about what does not exist yet are not**, and a cross-PR sweep is exactly when they rot. Grep your own outgoing prose for "not on `main` yet" and "does not exist" before merging past it.
+- **Same-date journal entries need a clock, and the commits carry one.** Two 2026-09-08 entries from two boxes; `git log --format=%ad` on each branch settles the order in one command, and eyeballing the dates cannot.
+- **A fix's evidence can come from the merge that follows it.** The CRLF change produced 2,550 → 0 across two branches in one session, one with the fix and one without, on the same machine — a better control than the PR that made it could construct for itself.
+- **Three PRs cost two resolutions; four cost five.** The previous sweep's O(N²) claim now has a second data point at the small end, and it points the same way: merge sooner rather than order better.
+- **`IN-REVIEW` has two exits, not one.** A merged PR does not mean a met Accept. A35 went back to TODO and E7 to DONE-PENDING-ACCEPT, and both would have been a lie as `DONE` — which is a status the backlog cannot walk back once the row is archived.
+
+**Not verified:** **anything about the merged code's behaviour** — this entry ran no build, no probe and no host, and every measurement it cites belongs to the entry that made it. **`main`'s own `build` run** for `0ed6ca1db`, not read. **That E82 and E83 reproduce on Windows** — they are macOS measurements taken on #577 and are quoted, not re-run here. **A35's `PROPOSED:` entries** — filed, unread by Jeff, and unanswered.
+
+**Machine state.** All six repos on their default branches, clean, and `TideSynth` fast-forwarded to `0ed6ca1db` before this branch was cut. **No `tide/*` branch remains in any of the six repos and there are no open PRs in any of them** — the third time the fleet has been in that state. `SE16` keeps the two dirty entries it had at the start of the scheduled run; nothing was built, launched or installed by this continuation, and no REAPER or TIDE process was started.
+
+**Next:** **E19's win VST3 cell is the obvious next windows pick and it is no longer fixture-blocked** — `tests/fixtures/e75-vcv-visible-rack.xml` is on `main`, and the two clauses now sit on **E82** (no context-menu producer on any platform) and **E83** (the display-state payload never changes, so the pixel diff is 0). Read both before re-taking it: neither is obviously a win-lane job. **`JOURNAL.md` is 159 KB against A24's 60 KB ceiling and NOTHING IS OPEN, so the rotation this lane deferred twice is now free** — that is the single cheapest thing the next run can do. **A35, E72, E81 and S8 all want a ruling rather than a session**, which is four of the eleven remaining `TODO` rows.
+
+**Branch/PR:** `tide/win/post-merge-sweep` — E75 flipped DONE and archived, A35 back to TODO, E7 to DONE-PENDING-ACCEPT, and this entry.
+
 ## 2026-09-08 — windows — E7: the answer was already shipped, and the row's own Accept is void rather than unmet (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** (the Appx package version, which A13 records as the discoverable one on Windows; **it was 1.40609.1 yesterday**, so this box updated between runs) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
