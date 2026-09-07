@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **424 KB** across **334** entries, so copying them
+Learned sections are **426 KB** across **335** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **132 KB / 1419 lessons — 3.2x smaller**, and represents
+A8. This is **133 KB / 1426 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,18 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-08
+
+**macos — A35: the `Plat` column really is frozen, and the one legal route to a correct one is the route the process forbids (scheduled run)**
+
+- A row whose Accept and whose closing instruction disagree is takeable, and STEP 2 says which half.
+- Turn a code reading into a truth table before asking for a ruling on it.
+- "There is no legal route" and "there is no GOOD legal route" are different claims, and the second is the stronger request.
+- A validator that refuses in the wrong words costs more than one that refuses.
+- A probe that asserts today's behaviour is neutral between the options, and that is what makes it publishable under an open question.
+- Filing a `PROPOSED:` entry has a blast radius, so say what it does not park.
+- Check the previous run's headline before repeating it.
 
 ## 2026-09-07
 

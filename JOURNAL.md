@@ -8,6 +8,110 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-08 — macos — A35: the `Plat` column really is frozen, and the one legal route to a correct one is the route the process forbids (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** took **A35**, the topmost eligible row in file order, and did the two things it asks for and neither of the things it does not: **its code reading is now a measurement** ([tests/a35_plat_edit_probe.py](tests/a35_plat_edit_probe.py), eleven cases against the real check) and **both `PROPOSED:` entries are filed** in [docs/decisions.md](docs/decisions.md). **The exception itself is deliberately unimplemented.** No product code changed, in this repo or any sibling. Branch `tide/mac/A35-plat-narrowing`.
+
+### Why this row, on a locked screen
+
+The screen was **LOCKED** (`CGSSessionScreenIsLocked` present), which removes **E80** — the row the 09-07 entry called the one that genuinely wants the unlocked session — and **E19**'s mac AU3 cell. A35 is `any`, TODO, unblocked, and its Scope is `scripts/check-backlog-diff.py`, which is TIDE's own and ALLOWED. It needs no build, no host and no window, which is the whole reason it was reachable today.
+
+**STEP 1 and STEP 1.5 were clean, and `mergeStateStatus` was checked rather than assumed.** No open `platform:mac` issue (the only open issue anywhere is #44, the CI watchdog digest, which is not work). This platform's only open PR, [#577](https://github.com/JeffMcClintock/TideSynth/pull/577) (E75), is **13/13 green, `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN`**, zero reviews, zero comments — waiting on Jeff, left alone per STEP 1.5's own words. No open PR in any of the five sibling repos.
+
+### The row's own instruction is narrower than its Accept, and that is what made it takeable
+
+A35's **Accept** asks for a working narrowing exception plus tests plus E79's cell corrected. Its closing line asks for something else: *"file a `PROPOSED:` entry in [docs/decisions.md] rather than shipping the exception on a run's own judgement."*
+
+Those cannot both be done in one run. STEP 2 is what settles it — *"you may only do work that is identical under every open answer"* — and an implemented narrowing is not identical under an answer of "no". So the exception is not on this branch, there is no test of a narrowing, and `check-backlog-diff.py` is byte-unchanged. **The probe describes today's behaviour, which IS identical under every answer**, and exits 1 if the check ever moves — so it is a regression guard for whichever option is chosen rather than an argument for one.
+
+### The measurement, and it confirms the reading
+
+The fleet's own lesson is that a filed row is one run's reading (2026-09-01, linux, E74: all three of that row's claims were wrong). A35 was filed as a code reading on 2026-09-03. `tests/a35_plat_edit_probe.py` builds synthetic base/head `BACKLOG.md` pairs one edit apart, runs the real `scripts/check-backlog-diff.py` as a subprocess, and prints a truth table:
+
+| edit | `Plat` | rc | what the check says |
+|---|---|---|---|
+| status flip | unchanged | 0 | `status change` |
+| status flip | `any` -> `linux` | **1** | `E79: Plat column differs` |
+| status flip | `linux` -> `any` | **1** | `E79: Plat column differs` |
+| status flip | `linux` -> `mac` | **1** | `E79: Plat column differs` |
+| nothing else | `any` -> `linux` | **1** | `E79: Plat column differs` |
+| new row | any value | 0 | `1 new row(s)` |
+| archive move | unchanged | 0 | `archived, verified verbatim` |
+| archive move | narrowed in the archive copy | **1** | `MISSING from head` |
+| renumber | unchanged | 0 | `renumbered, Item text verbatim` |
+| renumber | `any` -> `linux` | **1** | `MISSING from head` **+ `1 new row(s)`** |
+| **duplicate at the new `Plat` + flip the original to `WONTFIX`** | n/a | **0** | `status/date cells and new rows only, OK` |
+
+**The first row is the control and it has to be there:** without a passing case the other ten are a statement about the harness, not about `Plat`.
+
+### Finding 1: there IS a legal route, and it is the one the process exists to prevent
+
+A35 says *"there is no route, **not even filing a fresh id**, that moves a finding from `any` to a platform"*. **That is true only of routes that keep one row.** File the finding a second time under a fresh id at the correct platform, and status-flip the original to `WONTFIX`: **rc=0**, and the check prints its most reassuring line — `status/date cells and new rows only, OK`.
+
+So the queue's answer to "this row's platform is wrong" is *duplicate it*, which is exactly the two-ids-for-one-job defect **C15/C16** and **A31** exist to prevent, and which A23's duplicate-id check is blind to by construction because the ids differ.
+
+**This is the argument for ruling rather than living with it, and A35 did not have it.** Its case was "the correct edit is impossible"; the stronger case is "the correct edit is impossible and the incorrect one is blessed."
+
+### Finding 2: the sanctioned escape hatch misreports itself
+
+A `Plat`-changing **renumber** does not report a rejected renumber. `moved_to` requires `plat == h_plat`, so the renumber branch is never entered, the base row falls through to `dropped`, and the new id is never recognised as a renumber target — so the operator is told **both** `1 row(s) MISSING from head` **and** `1 new row(s): E84`. Two wrong statements instead of one right one, on the escape hatch A23's duplicate-id error tells you to use.
+
+That matters because the renumber branch was added on 2026-08-31 *precisely* so the sanctioned remedy could be landed without turning `lint` red. It works, and it works only at a fixed `Plat`.
+
+### One correction to A35's own citation
+
+A35 cites the status-flip `Plat` pin at `check-backlog-diff.py:141`. It is at **`:143`** — `:141` is the comment above it. The other three citations (`plat == c_plat` in the archive branch, `plat == h_plat` in `moved_to`) carry no line number and are correct. Small, and worth fixing: a citation that lands two lines off is a citation the next reader re-derives.
+
+### Both halves are filed, and neither parks any work
+
+A35 says *"both halves need answering, and they are separate"*, and left the second in the same row rather than risk a third id collision in a week. **So it stays one row and becomes two `PROPOSED:` entries** — the split A35 wanted, at no id cost.
+
+The second half is *what should happen when a run judges a required check to be wrong about its own work*, from [#570](https://github.com/JeffMcClintock/TideSynth/pull/570) recording a failing `check-backlog-diff` as **`rc=0`** in its verification table. **Its recommended option is (b), a prompt rule rather than a mechanism, and the reasoning is that the gate held**: #570 could not merge while it was red. What failed was the *record*, so the fix belongs where the record is written — and a CI parser over PR prose (option c) is satisfiable while still misleading a reader.
+
+**`docs/decisions.md`'s Open section was empty and is not any more, which has a cost this project has already paid**: an open `PROPOSED:` entry makes every item it would affect ineligible under STEP 2, and V4's stale entry parked work for two days after it shipped. So **both entries carry an explicit `May proceed meanwhile` saying they park nothing** — the first because it is about how a row is *corrected* rather than what any row builds, the second because it is about what a run *records*. **Do not read either as blocking E79 or anything else.**
+
+### Verification
+
+| check | result |
+|---|---|
+| `tests/a35_plat_edit_probe.py` | rc=**0**, 11/11 cases as recorded, 5 accepted by the check |
+| the probe's own control (`status flip, Plat unchanged`) | rc=0 — the harness can produce a pass |
+| `check-backlog-diff` | rc=0 — `A35: TODO -> IN-REVIEW`, status/date cells and new rows only |
+| `check-journal-prepend` | rc=0 |
+| `check-prompt-provenance` | rc=0 |
+| `check-id-refs` | rc=0 |
+| `check-next-block` | rc=0 |
+| `check-backlog-archived` | rc=0 |
+| `check-links` | rc=0 |
+| `check-commit-authorship --repo .` | rc=0, every unpushed commit `tide-rack-bot` |
+| `check-commit-completeness --record/--verify` | 3 staged, 3 in HEAD, all present |
+| `check-no-direct-commits --repo .` | rc=0 |
+| NEXT-cell chain before/after | 6 -> **7** generations, `2026-09-08` spliced on 09-06 |
+
+**No build, and none is owed.** Nothing outside `tests/`, `docs/decisions.md`, `BACKLOG.md` and `JOURNAL.md` changed; `scripts/check-backlog-diff.py` is byte-identical to `origin/main`. A 293/293 would have been a number about the tree rather than about the change. **SynthEditCL is discharged by SCOPE** — no sibling repo was touched, and `SE16` is not on this box.
+
+**Two standing worries from the 09-07 entries are retired, watched rather than assumed.** The windows merge-sweep entry called the self-hosted macOS runner *"the thing to act on"* and *"a one-machine fix nobody but Jeff can make"*; the 09-07 mac entry disputed that and called it one runner with a queue. **The mac entry was right:** #577's `macos` job is green in 3m18s on `tidesynth-m1`, and `main`'s `build` for `9a3c3fda5` — left `pending` with zero jobs dispatched — completed **success** with 7 jobs ([run 34068214242](https://github.com/JeffMcClintock/TideSynth/actions/runs/34068214242)). **What is NOT retired: `c92a5d5` still has no workflow run of any kind**, so merged `main`'s newest sha has never been compiled anywhere.
+
+**Learned:**
+
+- **A row whose Accept and whose closing instruction disagree is takeable, and STEP 2 says which half.** A35's Accept wants the exception shipped; its last line wants a question filed. *"Only work that is identical under every open answer"* picks the second without needing a judgement call, and the first would have been a plausible-looking wrong PR — the outcome STEP 2 calls the worst one.
+- **Turn a code reading into a truth table before asking for a ruling on it.** A35 was filed from reading four branches of a script. Eleven subprocess calls confirmed the reading and found the thing that actually makes the case — the legal-but-wrong route — which no amount of further reading would have surfaced, because it is a composition of two branches rather than a property of either.
+- **"There is no legal route" and "there is no GOOD legal route" are different claims, and the second is the stronger request.** The duplicate-and-WONTFIX route passes with the check's most reassuring output. A gap whose workaround is forbidden elsewhere in the same process is a better argument than a gap with no workaround at all.
+- **A validator that refuses in the wrong words costs more than one that refuses.** The `Plat`-changing renumber reports a dropped row and a spurious new one. Anyone following A23's own advice is told their row vanished, and will go looking for a merge accident.
+- **A probe that asserts today's behaviour is neutral between the options, and that is what makes it publishable under an open question.** It exits 1 if the check moves, so it guards whichever way Jeff rules, and nothing in it advocates.
+- **Filing a `PROPOSED:` entry has a blast radius, so say what it does not park.** An open question makes every item it affects ineligible; V4's stale one parked work for two days. Two explicit `May proceed meanwhile: everything` lines cost two sentences and stop the next run reading a process question as a work stoppage.
+- **Check the previous run's headline before repeating it.** Two 09-07 entries disagreed about whether the macOS runner was dead; the later one said queue, not corpse. One `gh pr checks` settled it, and repeating the louder claim would have sent Jeff to a machine that is fine.
+
+**Not verified:** **whether the narrowing exception is safe or correct** — it is not implemented, not tested and not designed beyond the shape A35 offered, and this run deliberately did not decide it. **That the workaround route has ever been used** — it is measured as *permitted*, not as *practised*; no run in the journal has taken it. **That the probe's synthetic rows exercise the same code path as a real 240 KB `BACKLOG.md`** — the check parses line by line with one regex and is size-independent by construction, and "by construction" is not a measurement. **`check-id-refs.py`'s behaviour on the duplicate produced by the workaround route** — the ids differ, so A23's duplicate check cannot fire, and that is a reading, not a run. **Anything about E79** — its platform is untouched, still `any`, still annotated in prose; correcting it is exactly what waits on this ruling. **Windows and Linux**, where nothing was built or run; the check is pure Python and platform-independent. **`c92a5d5`'s compilability**, still uncompiled anywhere.
+
+**Machine state.** All six local repos were clean and on their default branches at the start; **`SE16` is not on this box** (six = TideSynth, SynthEditLib, gmpi_ui, GMPI_Wrappers, GMPI, SynthEdit). **No sibling repo was read into, committed to, modified or fast-forwarded** — none was touched at all this run. TideSynth's `main` was already current at `c92a5d5` and was not moved; TideSynth is on `tide/mac/A35-plat-narrowing` until STEP 5 returns it. **Nothing was built, launched, installed or registered**: no compiler ran, `SE_LOCAL_BUILD` never came into it, the developer's `~/Library/Audio/Plug-Ins` was not touched, no AUv3 was registered, and no DAW, standalone or appex was launched. **0 TIDE processes running**, checked. The screen was **locked** throughout and no GUI was attempted. Every scratch file this run made is in the session scratchpad, outside every repo.
+
+**Next:** **A35 is now a question for Jeff and not a task for a run** — both `PROPOSED:` entries are one merge from being decisions, and the first of them is what E79's column has been waiting on since 2026-09-02. **[#577](https://github.com/JeffMcClintock/TideSynth/pull/577) is green and waiting on Jeff**, and it carries the 09-07 `mac` cell this branch does not; **whoever merges second must keep BOTH cells**. **E80 is still the row only this box can answer and it still wants an unlocked screen** — that is now the sixth day it has been the mac lane's binding constraint, and the previous entry's E82 (does a locked rack module get a context menu at all?) is a product ruling that would re-state one of E19's clauses. **E72 and E81 want rulings.** **And the housekeeping nobody owns is one day older:** `JOURNAL.md` is ~143 KB against A24's 60 KB target, unrotated, and deliberately not done here for the same reason the 09-07 run gave — a rotation riding an unrelated PR is the *"while I was in there"* STEP 3 warns about. It wants a run of its own, or a line in the prompt saying whose job it is.
+
+**Branch/PR:** `tide/mac/A35-plat-narrowing` — [tests/a35_plat_edit_probe.py](tests/a35_plat_edit_probe.py), the two `PROPOSED:` entries and the truth table in [docs/decisions.md](docs/decisions.md), A35 -> IN-REVIEW with both findings and its citation corrected, the refreshed `mac` NEXT cell, and this entry. **`scripts/check-backlog-diff.py` is deliberately unchanged.**
+
 ## 2026-09-07 — windows — the merge sweep: five PRs across two repos, and the macOS runner is the thing to look at (interactive continuation, Jeff directing)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.1** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"then merge all TIDE PRs"*)
