@@ -8,6 +8,93 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-07 — macos — E75: nothing was ever unreachable; the fixture opens 3,500 DIPs from its own rack (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** took **E75**, the row two consecutive `mac` cells pointed at, and **answered its question with the opposite answer to the one it assumed**. New fixture [tests/fixtures/e75-vcv-visible-rack.xml](tests/fixtures/e75-vcv-visible-rack.xml) and its README, new [scripts/set-view-center.py](scripts/set-view-center.py), two new rows (**E82**, **E83**). Branch `tide/mac/E75-visible-rack-fixture`. **No product code changed, in this repo or any sibling.**
+
+### The row asked the wrong question, and the right one has a one-field answer
+
+E75 asks *"whether a rack can hold a module the view cannot reach"*. **It cannot, and none of `e53-vcv-rack-segv.xml`'s five VCV modules ever was.**
+
+What that fixture holds is modules the view does not **open** onto. Its master container carries `PanelLocationCenter=(3984, 3984)` — which is not a position anybody chose. It is `CContainer`'s constructor default (`SynthEditLib/EditorLib/CContainer.cpp:82`, `viewDimensions / 2`), so in a saved file it means **nobody ever panned this view**, and it is indistinguishable from a considered value. The modules sit at **x 480..1380, y 276..660**. The view therefore opens about 3,000 DIPs right and 3,500 DIPs below them, on bare rails.
+
+**TiDE's restore is not the fault and is the reason the default is visible at all.** BACKLOG **E33** made `TideApp` honour the stored centre (`SynthEditSem/TideApp.cpp`, `setPanZoom(targetContainer->GetViewCenter(view_flag), ...)`), and its own comment already names the numbers this row rediscovered — *"the canvas is 7968 across and CContainer's own default centre is (3984, 3984)"*. The restore works; what it faithfully restores is a value that was never set.
+
+### Reachability, measured rather than argued
+
+One wheel detent is **30 document DIPs** — `ViewBase.cpp`, `constexpr float pixelsPerDetent = 0.25f`, 120 delta per detent. So the gap is **118 vertical notches and 100 horizontal ones**. Driven through the standalone's command channel on the UNCHANGED fixture, all five VCV panels and both patch cables come into view.
+
+That is why three separate E19 runs reported *"vertical and horizontal scroll did not reach them"*: **a true observation about the harness and a false one about the rack.** A few notches cannot cross 3,500 DIPs, and nothing in the report distinguished "could not reach" from "did not travel far enough".
+
+### The control, which cost one command and settles it as a document fact
+
+`DefaultRack.synthedit` — the rack that E19 kept reporting DOES draw on the rails — puts its modules in the **same band**:
+
+| | `PanelLocationCenter` | module panel bounds | opens on them? |
+|---|---|---|---|
+| `DefaultRack.synthedit` | **(1261.157, 584.740)** | l=36 t=276 r=1377 b=660 | **yes** |
+| `e53-vcv-rack-segv.xml` | **(3984, 3984)** — never panned | l=120 t=144 r=1380 b=808 | **no** |
+| `e75-vcv-visible-rack.xml` | (988.5, 468) | *identical to e53* | **yes** |
+
+Same coordinate space, same band, opposite outcomes, one field. Without that row this is a plausible story about a renderer; with it, it is a fact about two documents.
+
+### The A/B, and what "one field apart" cost
+
+**BEFORE** (`e53`, verbatim): bare rails, no panel, exactly the screenshot three E19 runs published — while the module browser lists the whole `Rack-VCV Fundamental` set and stderr says `restore of a 38658 byte document -> imported` with all five `RackEditor: 'Scope' model=yes art=yes(res/Scope.svg)` lines present. **AFTER**: `LFO`, `PULSES`, `S&H ASR`, `WT LFO` and `SCOPE` seated on the rails at the default view, with the orange patch cable running from the LFO to the Scope's `IN 1`.
+
+The decoded documents are **798 lines each and differ on two**, printed by `difflib` rather than asserted.
+
+**A centre alone is NOT enough, and the first attempt at this fixture is the evidence.** With `(988.5, 468)` at zoom 1 both ends clipped — LFO cut off left, Scope cut off right. The rack canvas is **567.5 x 587.5 DIPs** at the standalone's default 1100x626 window, *measured off the screenshot* by finding the near-black rack interior, not inferred from `windowWidth`: the module browser takes the rest. LFO x597 to Scope x1380 is **783 DIPs**, so no centre fits it at zoom 1. `PanelLocationZoom=0.65` puts 873 x 904 DIPs on screen and clears both ends by ~45 DIPs. **`DefaultRack.synthedit` reaches for 0.745 for the same reason**, which is the sanity check on the number.
+
+### Both of E19's blocked clauses now fail LEGIBLY, and neither is the fixture's doing
+
+This is the part worth more than the fixture. Until now the zero was uninterpretable — E19's own row says so: *"do not read the next number as a result"*.
+
+- **Pixel diff over the Scope display: 0 of 52,577 over 15 s** — and the control is inside the same frame pair, as this project's rule requires: **619 pixels DID change**, all of them inside the WT LFO's phase indicator (x 1130..1157, y 764..792). So the capture is live and the frame is not frozen. Meanwhile the channel is healthy end to end — `feedback send #2800 (65673 bytes, 0 held back)` against `editor received feedback #2800` one-for-one, `display-state capture #1300 (65548 bytes)`, `display-state update #1300 arrived (65548 bytes)`, `apply ... codec=yes pin=65548 expect=65548` — and **324 of 327 applies carry ONE checksum, `sum=19140`**. The payload never changes. Filed as **E83**.
+- **Right-click on a VCV panel returns the RACK's menu, not the module's.** Five points across the Scope — title, display, TIME knob, body — each give the same 7 items (*Goto Rack* greyed, *About TIDE...*, separator, *Cut*, *Copy*, *Paste*, *Delete*). **The control is what makes it a finding: empty rack canvas returns the identical 7 items**, so the click is not reaching the module at all rather than reaching one with nothing to offer. Selecting the module first changes nothing. E19 defines `int/bool/enum` as *"toggling a VCV context-menu option"*; there is no such option. Filed as **E82**.
+
+Both were unaskable while the panels were off screen. Neither is fixed by any fixture.
+
+### Verification
+
+| check | result |
+|---|---|
+| build, `TIDE_Rack_STANDALONE`, Release/arm64 | rc=**0**, `[359/359]`, **0** `error:` |
+| bundle assembled | 7 resources + `Prefabs/` present — not the empty-bundle trap |
+| decoded-document diff, e53 vs e75 | **2 hunks, 2 changed lines** of 798 |
+| BEFORE arm | bare rails, `restore of a 38658 byte document -> imported`, 5 `RackEditor: … art=yes` |
+| BEFORE arm + 118/100 notches | every VCV panel and both cables on screen |
+| AFTER arm, default view, no scrolling | LFO + cabled Scope both fully visible |
+| region diff, 15 s | Scope **0 of 52,577**; WT LFO indicator **619** changed (the control) |
+| context menu, 5 points on the Scope | 7 items, identical to empty canvas |
+| `check-backlog-diff` | rc=0 — `E75: TODO -> IN-REVIEW`, `2 new row(s): E82, E83` |
+| `check-next-block` / `check-id-refs` / `check-links` / `check-journal-prepend` / `check-prompt-provenance` | rc=0 |
+| `check-commit-authorship --repo .` | rc=0 |
+| NEXT-cell chain before/after | 6 → **7** generations, `2026-09-07` spliced on 09-06 |
+
+**Build configuration:** fresh `build-e75`, Ninja, Release, arm64, `SE_LOCAL_BUILD=OFF`, `TIDE_VCV_FUNDAMENTAL=ON`, `-DCMAKE_CXX_FLAGS=-DRACK_ADAPTOR_TRACE=1`, all four siblings via `*_FOLDER_OVERRIDE` on the local clean checkouts (each at `origin/main`). **`SynthEditCL` is discharged by SCOPE, stated rather than glossed:** nothing outside TideSynth was edited, `SE16` is not on this box, and this branch touches `tests/`, `scripts/` and the three bookkeeping files only.
+
+**Learned:**
+
+- **A constructor default in a saved file is indistinguishable from a decision, and that is the whole bug.** `(3984, 3984)` looks like somebody centred the view. It means nobody touched it. Any field whose "unset" value is a legal value will eventually be read as intent — and here it cost three runs a screenshot each and one row a wrong hypothesis.
+- **"I could not reach it" is a claim about your instrument until you compute the distance.** Three runs reported scrolling did not reach the modules. One `grep pixelsPerDetent` turns that into 118 notches, and 118 notches reaches them. The number was always one command away.
+- **Read the source comment where the feature landed before diagnosing the feature.** E33's comment in `TideApp.cpp` already contained the canvas midpoint, the panel-rect origin and the 3,400-DIP figure this row spent a session rediscovering. It was written by the run that FIXED the restore, and it describes the failure mode of the thing it fixed.
+- **The control for "why is this document invisible" is another document that is visible.** `DefaultRack.synthedit` puts its modules in the same band and works. That comparison is what makes this a two-field fact rather than an argument about rendering, and it cost one `--show`.
+- **Measure the drawable region, do not read it off `--info`.** `windowWidth: 1100` is the window; the rack canvas is 567.5 DIPs because the module browser takes the rest. Sizing the fixture against 1100 is what clipped the first attempt, and the fix was to find the near-black interior in the screenshot I already had.
+- **A zero is only a result once you have shown the thing could have been non-zero.** E19's 0-pixel diffs were correct numbers about an off-screen module. Same number today, module on screen, control firing in the same frame pair — and now it says something, which is E83.
+- **When one clause of a blocked row unblocks, check the OTHER clause separately.** The fixture made the pixel diff askable and the right-click askable, and they failed for two unrelated reasons. Bundling them as "E19 still fails" would have lost both.
+- **A one-field edit inside a base64 blob needs a script, not a hand edit.** The committed diff is a full rewrite either way, so the only checkable form of "one field apart" is a command someone can re-run plus a diff of the decoded documents.
+
+**Not verified:** **anything in a host** — every measurement here is the standalone, and E19's clauses are per-format; the fixture has not been put through a VST3, AU3 or CLAP. **Whether 0.65 suits a hosted window** — it was chosen against the standalone's 1100x626, and a host is not obliged to match; the README says so. **E83's cause**, entirely — that the Scope's display-state is constant is measured, that its INPUT is not constant is NOT: the LFO's own lights vary (`light 1 update #5500 value 0.965`), but nothing here traces the value on the cable, and a square wave far below the Scope's sweep would legitimately look flat. **E82's scope** — that the module gets no menu is measured; whether that is deliberate for a LOCKED rack module is unknown and may be a product ruling. **Windows and Linux**, where nothing was built or run; the view fields are platform-independent by construction and "by construction" is not a measurement. **That `main` compiles on macOS beyond the standalone target** — only `TIDE_Rack_STANDALONE` was built, not the VST3, AU, AUv3 appex or CLAP. **E19's own row was not edited** — its clauses are annotated here and on E75, and flipping E19 is not this row's job.
+
+**Machine state.** All six repos were clean and on their default branches at the start; `SE16` is not on this box. **No sibling repo was committed to, modified or fast-forwarded** — `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers`, `GMPI` and `SynthEdit` were read for orientation and used as build overrides, never written. TideSynth is on `tide/mac/E75-visible-rack-fixture` until STEP 5 returns it. **The developer's installed plug-ins were never touched** — the build ran `SE_LOCAL_BUILD=OFF`, nothing was copied into `~/Library/Audio/Plug-Ins`, no AUv3 was registered and no DAW was launched. **Three standalone launches, all under `GMPI_STANDALONE_CONFIG_DIR` pointed at the session scratchpad**, so `~/Library/Application Support/TiDE Rack/` was never written; all three were stopped and **0 TIDE processes are left running**, checked. `build-e75/` is a gitignored scratch tree. **The screen was UNLOCKED** (`CGSSessionScreenIsLocked` absent) and three app windows appeared on the developer's display for about a minute each — this run needed a drawing window and says so rather than implying it worked headless.
+
+**Next:** **E80 is the row only this box can answer** and it is the one that genuinely wants the unlocked session — a CLAP host with a GUI to arbitrate its 200-byte cap, since REAPER on Linux dies in its own GTK before `guiSetParent`. **Read E82 before taking it:** if a locked rack module is *meant* to have no menu, E19's `int/bool/enum` clause needs re-stating and there is nothing to fix. **E83 wants one measurement, not a fix** — trace the value on the LFO→Scope cable before calling a constant capture a defect. **E72, E81 and A35 want rulings.** **Two housekeeping facts nobody owns:** `JOURNAL.md` is **143 KB against A24's 60 KB target** with 14 entries and a floor of 4, and has not been rotated by anyone — deliberately not done here, because a rotation on top of a fixture PR is exactly the "while I was in there" the process warns about, but it is now 2.4x and every run pays it. And **`main` has no macOS compile:** the `build` run for `9a3c3fda5` was `pending` with **zero jobs dispatched** an hour after the merge sweep, its `macos` job on run 34068576991 was still `queued`, and the merge commit **`c92a5d5` has no workflow run of any kind**. The previous entry blamed the self-hosted runner; **that part is retired** — `tidesynth-m1` is this box, its launchd job `actions.runner.JeffMcClintock-TideSynth.tidesynth-m1` was up and a `Runner.Worker` was executing a `cmake --build` during this run. What remains is a dispatch question for Jeff, not a dead machine.
+
+**Branch/PR:** `tide/mac/E75-visible-rack-fixture` — [tests/fixtures/e75-vcv-visible-rack.xml](tests/fixtures/e75-vcv-visible-rack.xml) and [its README](tests/fixtures/e75-vcv-visible-rack.README.md), [scripts/set-view-center.py](scripts/set-view-center.py), E75 → IN-REVIEW with its answer, E82 and E83 filed, the refreshed `mac` NEXT cell, and this entry.
+
 ## 2026-09-07 — windows — the merge sweep: five PRs across two repos, and the macOS runner is the thing to look at (interactive continuation, Jeff directing)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.1** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"then merge all TIDE PRs"*)
