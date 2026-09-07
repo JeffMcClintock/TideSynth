@@ -8,6 +8,79 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-07 — windows — the merge sweep: five PRs across two repos, and the macOS runner is the thing to look at (interactive continuation, Jeff directing)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.1** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"then merge all TIDE PRs"*)
+
+**Did:** merged every open PR in the fleet — **five, across two repos** — resolving three conflicts on the way, then flipped **E63**, **E71** and **E77** to DONE and archived them. No product code was written by this entry; the code it landed belongs to the four entries below it and to the mac and linux boxes.
+
+### What landed, in order, and why the order mattered
+
+| PR | repo | what | merged as |
+|---|---|---|---|
+| [#39](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/39) | GMPI_Wrappers | E71's actual fix — the `notifyControllerOfPreset` call AU3 omitted | `4c11d6ddd` |
+| [#571](https://github.com/JeffMcClintock/TideSynth/pull/571) | TideSynth | E19's windows VST3 cell; E74/E78 archived | `5c9b39fa7` |
+| [#575](https://github.com/JeffMcClintock/TideSynth/pull/575) | TideSynth | E63 — the packaging fix, and the shipped-gap finding | `f7f830605` |
+| [#572](https://github.com/JeffMcClintock/TideSynth/pull/572) | TideSynth | E77 — the randomly-minted handle, and E81 filed | `6e449a3a9` |
+| [#570](https://github.com/JeffMcClintock/TideSynth/pull/570) | TideSynth | E79 does not reproduce on macOS; A35 filed | `9a3c3fda5` |
+
+**#39 went first and it was the only one whose order was forced.** E71's row said the two repos *"must merge together"*, and TideSynth's half had landed on 2026-09-06 while the wrapper's sat open — so `main` carried a row describing a fix that was **in no tree at all** for a day. That is the cross-repo split failing, not working: "must merge together" is a claim the queue cannot enforce, and nothing flagged it. The row is DONE now because #39 landed, not because #573 did.
+
+**Every other merge made the remaining PRs conflict, exactly as expected**, so each was re-checked with `gh pr view --json mergeable,mergeStateStatus` after the one before it. #570 was resolved **twice** — once against the main that had #571, again after #572 landed. That is the cost of a four-deep queue of bookkeeping-heavy PRs and it is not avoidable by ordering; only by merging sooner.
+
+### The conflicts, and the one general rule that came out of them
+
+Three resolutions, all in the fleet's own bookkeeping files, none in product code. The recipe held every time, but **which side has rotated is a per-merge fact, not a constant** — and getting it backwards silently duplicates or drops entries:
+
+| PR | which side had rotated | so `JOURNAL.md` was resolved by |
+|---|---|---|
+| #575 | **neither** (this branch deliberately did not) | main whole; my entry re-inserted at the top |
+| #572 | **main** (426 archived vs the branch's 423) | main whole; the branch's one unique entry (09-05) inserted in run order |
+| #570 | **main** | main whole; the branch's **two** unique entries (09-03, 09-02) each inserted in date order |
+
+**The check that makes it safe is set arithmetic, and it is worth running even when you are confident:** which of the branch's entry headings appear in *neither* of main's two journal files. It printed 1, 1 and 2 — and the "2" is the one that would have been missed by eye, because the two entries were four positions apart in the file.
+
+`docs/lessons.md` was **regenerated** on all three, never merged. `BACKLOG.md` was resolved by ownership, and twice that meant **dropping a row from the incoming side because it had been archived on the other** — E74 and E78 on #575, E71 and E74 on #570.
+
+**#570 tried to archive E78 and E74 in its own wording, and main already had mine.** Main's had landed, so main's won outright — *archiving never rewrites a row*, and a duplicate archive row is the same defect as a duplicate live row wearing a different hat.
+
+### The NEXT-cell chain is a linked list and a merge can silently truncate it
+
+`BACKLOG.md`'s per-platform cells carry their own history: each new cell ends `**Previous cell follows.**` and then the cell it replaced. **Two of the three merges would have dropped a generation.**
+
+- On **#575**, my 09-07 `win` cell was written on a branch cut from a `main` whose newest `win` cell was **08-28**, so it carried 08-28 as its previous — and by merge time the newest was **09-02** (from #571). Resolved by splicing: my head, then main's 09-02 cell entire (which carries 08-28 as *its* previous). Chain now reads 09-07 → 09-02 → 08-28.
+- On **#572**, the `mac` cell had the same shape in the other direction, and **the 09-06 cell had predicted it in writing**: *"this branch was cut off main… Whoever merges second must keep BOTH cells, in run order."* Spliced 09-06's head onto the branch's 09-05 chain. Now 09-06 → 09-05 → 09-01 → 08-31 → 08-31 → 08-28.
+
+**Neither would have failed a lint.** `check-next-block.py` is rc=0 on a truncated chain, because a chain with a generation missing is still a well-formed cell. The tell is a one-line `re.findall(r'RE-POINTED (\d{4}-\d{2}-\d{2})', cell)` — run it before and after and compare.
+
+### The macOS runner, which is the thing to act on
+
+**Every `macos` compile job in the fleet was `QUEUED` and unpicked for the whole sweep.** `build.yml` routes macOS to the **self-hosted `tidesynth-m1`** for same-repo branches (`build.yml:186-190`); linux and windows take GitHub-hosted images and were green throughout. So this is one machine, not CI.
+
+**#571 and #575 were merged with it queued and that is defensible; #572 and #570 needed an argument.** #571 and #575 touch no product code at all — markdown plus the Windows harness scripts and `scripts/package-windows.ps1`. #572 changes `SynthEditSem/SynthEditController.cpp`, and what discharged it is **its own entry's evidence at its own code commit**: CI run [33883559887](https://github.com/JeffMcClintock/TideSynth/actions/runs/33883559887) green on all three platforms including `macos`, plus local macOS builds of `[293/293]` and `[228/228]` with 0 errors. Nothing between that commit and the merge touched its code — only the bookkeeping merge. #570 adds one test `.c` file and its last push was docs-only, so `guard` skipped the build matrix entirely.
+
+**Said plainly rather than implied: no macOS compile ran on any of these four merge commits.** The claim is that each one's macOS risk was discharged elsewhere, not that CI was green.
+
+**And `main`'s own `build` run for `9a3c3fda5` was still `pending` with zero jobs dispatched** eight minutes after the last merge, while `verify` on the same sha was green. Two earlier main builds (`f7f830605`, `6e449a3a9`) show `cancelled` — the concurrency group superseding them, which is correct. **The next run on any box should check `main`'s build before trusting it.**
+
+**Learned:**
+
+- **"These two must merge together" is a claim no tool enforces, and it failed for a day.** E71's TideSynth half landed 2026-09-06 and its wrapper half sat open until today, so `main` described a fix that existed in no tree. When a row spans repos, the sibling repo's PR list is part of STEP 1.5, not a footnote in the row.
+- **Which side of a journal merge has rotated is a per-merge fact.** "Take main whole" is right when main rotated and wrong when the branch did; three merges today, two of one kind and one of the other. Count the archives (`grep -c '^## '`) before choosing.
+- **Set arithmetic over entry headings, every time.** It printed 1, 1 and 2. The 2 was two non-adjacent entries and is exactly the case eyeballing loses.
+- **A NEXT cell is a linked list, and a merge truncates it silently.** Two of three merges would have dropped a generation, and `check-next-block.py` is rc=0 either way. `re.findall(r'RE-POINTED (\d{4}-\d{2}-\d{2})')` before and after costs one line.
+- **A queued job and a failed job look the same in `mergeStateStatus` (`UNSTABLE`) and mean opposite things.** Read the job list, not the rollup state — `macos=QUEUED` on a self-hosted runner is a machine being off, and no amount of waiting or re-running fixes it.
+- **When you merge past a missing check, name what discharged it instead.** #572's macOS risk was discharged by a green macOS CI job at its own code commit plus two local builds — that is a real argument; "it is probably fine" is not, and the difference belongs in the record.
+- **Merging N bookkeeping-heavy PRs costs O(N²) conflict resolutions, not O(N).** #570 was resolved twice. The fix is not a better order; it is not letting four accumulate.
+
+**Not verified:** **any macOS compile of the merged `main`** — per above, and the self-hosted runner was down for the whole sweep; **`main`'s `build` run**, still `pending` when this was written; **anything about the merged code's behaviour** — this entry ran no probe, no build and no host, and every measurement it cites belongs to the entry that made it; **that E63's fix produces a correct RELEASE**, since no release has been cut since it landed and v0.1.3's published asset is immutable and still missing its default rack.
+
+**Machine state.** All six repos on their default branches, clean, and `TideSynth` fast-forwarded to `9a3c3fda5`. **No `tide/*` branch remains in any of the six repos and there are no open PRs in any of them** — the second time the fleet has been in that state, the first being 2026-09-01. `check-no-direct-commits --repo .` is clean: every `tide-rack-bot` commit on `main`'s first-parent chain arrived as a merge. Nothing was built, launched or installed by this continuation; the scratchpad packages and launch directories from the entry below were left where they were and are outside every repo.
+
+**Next:** **`main`'s `build` for `9a3c3fda5` had not dispatched** — check it first. **The self-hosted macOS runner `tidesynth-m1` is not picking up jobs**, which blocks the `macos` compile on every future PR and is a one-machine fix nobody but Jeff can make. Then **E75** for windows, **E79/E80** for linux, and **E72/E81/S8** all want rulings rather than sessions.
+
+**Branch/PR:** `tide/win/E63-E77-done` — E63, E71 and E77 flipped DONE and archived, and this entry. (E71 was archived on `tide/win/E63-package-windows-resources` and landed with #575.)
+
 ## 2026-09-07 — windows — E63: the gap SHIPPED — v0.1.3's Windows zip has no default rack, and the fix is to stop restating the list (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.40609.1** (the Appx package version, which A13 records as the discoverable one on Windows; there is no `claude` CLI on this box's PATH) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required

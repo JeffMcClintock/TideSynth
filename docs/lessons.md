@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **422 KB** across **333** entries, so copying them
+Learned sections are **424 KB** across **334** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **131 KB / 1412 lessons — 3.2x smaller**, and represents
+A8. This is **132 KB / 1419 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,16 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-07
+
+**windows — the merge sweep: five PRs across two repos, and the macOS runner is the thing to look at (interactive continuation, Jeff directing)**
+
+- "These two must merge together" is a claim no tool enforces, and it failed for a day.
+- Which side of a journal merge has rotated is a per-merge fact.
+- Set arithmetic over entry headings, every time.
+- A NEXT cell is a linked list, and a merge truncates it silently.
+- A queued job and a failed job look the same in `mergeStateStatus` (`UNSTABLE`) and mean opposite things.
+- When you merge past a missing check, name what discharged it instead.
+- Merging N bookkeeping-heavy PRs costs O(N²) conflict resolutions, not O(N).
 
 **windows — E63: the gap SHIPPED — v0.1.3's Windows zip has no default rack, and the fix is to stop restating the list (scheduled run)**
 
