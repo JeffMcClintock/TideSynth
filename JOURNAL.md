@@ -8,6 +8,107 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-08 — windows — E7: the answer was already shipped, and the row's own Accept is void rather than unmet (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** (the Appx package version, which A13 records as the discoverable one on Windows; **it was 1.40609.1 yesterday**, so this box updated between runs) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** took **E7** and found it answered — by **V6**, by Jeff's own commit, and by a fixture that has been passing since 2026-08-18 — with nothing left to build. No product code changed. Also flipped **P8** DONE and archived it, marked **S8** `NEEDS-SPEC`, and re-pointed the `win` NEXT cell.
+
+**STEP 1 and STEP 1.5 were both empty, and one of them for a reason.** No `platform:win` issue; no `tide/win/**` PR — every one this platform has ever opened is merged, the newest being #576 on 2026-09-07. The two open PRs in the fleet are macOS's ([#577](https://github.com/JeffMcClintock/TideSynth/pull/577), [#578](https://github.com/JeffMcClintock/TideSynth/pull/578)), both `MERGEABLE`/`CLEAN` with no reviews — waiting on Jeff, and not this lane's to touch. **The `win` cell's standing warning about STEP 1 is right and its line number is wrong:** the exclusion is `build.yml:523` (`if: failure() && matrix.platform != 'win' && ...`), not `:409`, which three generations of the cell have cited. Corrected in the new cell.
+
+### How this run reached E7 at all
+
+The `win` NEXT cell says take E75. E75 is TAKEN — [#577](https://github.com/JeffMcClintock/TideSynth/pull/577), open, from macOS — so STEP 2's collision rule sends you to the topmost eligible row instead. That walk is worth writing down, because the queue is nearly empty for this platform and the next run will do it again:
+
+| row | why not |
+|---|---|
+| A35 | taken — [#578](https://github.com/JeffMcClintock/TideSynth/pull/578), macOS |
+| **S8** | topmost eligible, and **under-specified** — marked `NEEDS-SPEC`, see below |
+| E19 | its win VST3 cell's two open clauses are two rows filed on #577; neither they nor the fixture they need is on `main` |
+| **E7** | **taken** |
+
+**S8 is marked `NEEDS-SPEC` and the missing thing is named:** the row has no Accept clause at all, and its three work items have each been overtaken — (a) the TIDE-facing rename of the three I/O modules is in `SynthEditLib` (GATED, and not a build break, so STEP 5's exception does not reach it); (b) *"the TIDE module list keeps all three registered"* is a docs edit with no stated observable; (c) the `OscillatorNaive` gap the row was really about is **moot** since Jeff ruled TIDE ships `SE Oscillator4`. What is left is its 2026-08-24 finding — that the real gate is `IF(SE2JUCE)` at `SynthEditLib/CMakeLists.txt:582`, wrapping **79** `.cpp` files — and changing that gating *"needs a ruling this row does not ask for"*, in the row's own words. The 2026-09-07 entry reached the same verdict from outside (*"E72/E81/S8 all want rulings rather than sessions"*).
+
+### E7: three independent answers, none of them from this run
+
+The row's last live question was **"where do the jacks live"**. It has been answered since **V6**.
+
+**(1) The shipped document.** `DefaultRack.synthedit`'s root, read with `ElementTree`:
+
+```
+ROOT modules:  MIDI In NL (258587584) · SE MIDI to CV 2 (70768971)
+               Container "TiDE Output"  rack_module
+               Container "TiDE MIDI-CV" rack_module   <- 5x TiDE Patch Point Out
+ROOT <line>s:  258587584 -> 70768971                     (MIDI In NL -> MIDI-CV)
+               70768971 pin 2 -> 1709088982 pin 7          \
+               70768971 pin 3 -> 1709088982 pin 8           |  five wires
+               70768971 pin 4 -> 1709088982 pin 9           |  feeding the
+               70768971 pin 5 -> 1709088982 pin 10          |  facade INWARD
+               70768971 pin 6 -> 1709088982 pin 11         /
+```
+
+**Pins 7–11 are not a coincidence:** they are the `facadePin = 7 + jack index` contract the deleted `seedRootMidiCv()` hard-coded, now living in data. The comment above `TideApp::loadDefaultDocument()` (`SynthEditSem/TideApp.cpp:1043-1050`) states the rule and cites this row by name: *"`SE MIDI to CV 2` is polyphonicSource/cloned, so whatever container holds it becomes a voice container, and polyphony cannot escape a container (E7). It must sit at the ROOT, with the rack module the user cables from being a FACADE of jacks fed inward."*
+
+**(2) Jeff deleted the alternative.** `14a8fd376` *"remove redundant rack modules"*, 2026-08-26, deletes `RackModules/MidiCv.synthedit` — 228 lines. That is his 2026-08-18 ruling (b) carried out: *"add ONE automatically to every new project and remove the option to add more — project furniture rather than something the user places."* With that file gone there is no browsable MIDI rack module, so a user cannot build the nested arrangement `v1-rack-midi.rpp` records.
+
+**(3) The measurement, on Windows for the first time.** The two fixtures differ in exactly one thing, read out of their decoded documents rather than assumed:
+
+| | `MIDI In` + `SE MIDI to CV 2` | the jacks |
+|---|---|---|
+| `v1-rack-midi.rpp` | **inside** `Container "TIDE MIDI"` | 3 patch points, same container |
+| `v3-midi-pitch.rpp` | at the **ROOT** | `Container "TIDE MIDI-CV"` — 4 patch points, fed inward |
+
+REAPER 7.78, offline `-renderproject`, `--control` run first and reporting its required **−6.0 / −9.0 dBFS**:
+
+| fixture | peak / rms | sounding (10 ms windows, 5 % of peak) | pitch, autocorrelation over 0.70–1.10 s |
+|---|---|---|---|
+| `v1-rack.rpp` — no MIDI at all | −6.3 / −17.0 | 0.000–1.990 s | **440.033 Hz** |
+| `v1-rack-uncabled.rpp` | **−inf** | silent | — |
+| `v3-midi-pitch.rpp` | −6.1 / −21.1 | **0.510–1.320 s** | **261.614 Hz — −0.1 cents from middle C** |
+| `v1-rack-midi.rpp` | −6.3 / −17.0 | 0.000–1.990 s | 440.033 Hz |
+
+Peak and rms are the macOS 2026-08-18 and Linux 2026-08-31 references to the decimal. The note ON is at 0.500 s and OFF at 1.200 s, so `v3-midi-pitch`'s 0.510–1.320 s is the note plus its release tail.
+
+**The sharpest statement is not in the table.** `v1-rack-midi.rpp` — four cables and a middle-C note — renders **bit-identically to `v1-rack.rpp`, which contains no MIDI at all: 0 of 176,400 samples differ, max |difference| 0 LSB.** The two `.wav` hashes differ; the audio does not. "The note contributes nothing" is usually an inference from two equal dB figures, and here it is not an inference.
+
+**So E7's Accept is VOID rather than UNMET.** It asks that `v1-rack-midi.rpp` render a note 0.500–1.200 s. Satisfying it means re-authoring that fixture into `v3-midi-pitch.rpp`, which already exists and already passes. The fixture's value now is as the **negative control for MIDI-CV placement** — nested is silent, root is not — and `tests/hosts/README.md` is re-headed to say so, because it was headed *"a fixture for a failure"* and read as an open defect.
+
+### The traps, and what settled each
+
+**E29's token swap is MANDATORY on this box and its failure mode is a hang with an empty log.** The first render attempt sat for the full 300 s `render-and-measure.py` timeout on a modal `Project Load Warning`, wrote **zero bytes** of REAPER log, and left `reaper.exe` alive at 3.8 s of CPU. `tests/hosts/README.md` has the `sed` one-liner; the diagnosis that costs fifteen seconds is `--control`, which loads no plug-in at all and so passes while a token-mismatched fixture hangs.
+
+**The 2026-09-02 "REAPER silently loaded the developer's installed bundle" trap is settled by COUNTING here, and `fx_ident` is not available anyway** — `-renderproject` is offline, so there is no `.lua` to log from. `%COMMONPROGRAMFILES%\VST3` holds exactly **one** `TIDE-Rack.vst3` (2026-09-03, sha256 `f6dc2249…`) and no other folder on `vstpath64` holds one, so there is a single candidate. **That is fine for this measurement and would not be for a different one:** the subject here is two DOCUMENTS through one plug-in, so which plug-in it is does not change the contrast. A measurement whose subject is a *build* still needs the bundle isolated.
+
+**`%APPDATA%\REAPER` came back md5-identical across all 2,360 files.** REAPER rewrote exactly four — `REAPER.ini`, `reaper-fxtags.ini`, `reaper-reginfo2.ini`, `reaper-vstplugins64.ini` — and restoring those four from the pre-run copy made the whole tree compare identical, file count included. The count is the part worth stating: it says nothing was created or removed either.
+
+### Bookkeeping done as STEP 4
+
+**P8 → DONE, archived.** Its row said *"the local Release link is proof the error is gone, but the CI job goes on to sign and upload, and nobody has watched a green run yet. Whoever sees one first should flip this to DONE."* Run [33594321581](https://github.com/JeffMcClintock/SynthEdit/actions/runs/33594321581) (`SynthEdit Store Win`, `master`, `a29737a7f`, 2026-09-02) is green, and the evidence is the step list rather than the conclusion: **17 Build SynthEditStore (Release x64)** — the exact step that used to die, skipping everything after it — plus **18 Generate Changelog**, **23 Sign inner MSIX (Azure Trusted Signing)**, **27 Sign setup bootstrapper**, **28 FTP Upload**. The 2026-08-27 run of the same workflow is green too, so it is not one lucky pass. The struck-through `~~P8~~` record row moved with it, so the archived row's *"Original finding below"* still points at something.
+
+**Two items from the 2026-09-07 sweep's "Next" are resolved, and neither needed doing.** `main`'s `build` for `9a3c3fda5` **did** dispatch and is green on all three platforms (run [34068214242](https://github.com/JeffMcClintock/TideSynth/actions/runs/34068214242)) — its `macos` job completed, so **the self-hosted `tidesynth-m1` runner is picking up jobs again**. `main` at `c92a5d574` has no `build` run at all because that commit is docs-only and `guard` skipped the matrix; `verify` and `watchdog` are green on it.
+
+**JOURNAL.md was NOT rotated, deliberately.** It is 143 KB against A24's 60 KB ceiling and rotation is overdue, but #577 and #578 are both open, both `CLEAN`, and a rotation from this lane would make both conflict on the file that is hardest to resolve correctly. Left for whoever merges last; the 2026-09-07 sweep entry carries the recipe and the set-arithmetic check.
+
+**Learned:**
+
+- **A row can be DONE for a fortnight because its Accept outlived its architecture.** E7's remaining question was answered by V6 (the default document) and by Jeff deleting `RackModules/MidiCv.synthedit` — both in the tree, both weeks old, neither reflected in the row. The tell was cheap and nobody spent it: `git log -- RackModules/` is one command, and *"remove redundant rack modules"* is the whole answer.
+- **When a row names a fixture as its Accept, read the fixture's DOCUMENT before believing the row.** Decoding both `.rpp`s took one command and showed they differ in exactly one structural fact — where the MIDI-CV sits — which is the finding. The row had been re-measured three times without that comparison being made.
+- **"The note contributes nothing" can be proved instead of inferred.** Two equal dB figures are consistent with a quiet contribution; **0 of 176,400 samples differing** is not. Sample-differencing two renders is fifteen lines and turns a plausible reading into a fact.
+- **A code comment can be the ruling.** `TideApp.cpp:1043-1050` states E7's answer, cites E7 by ID, and has done since V6 landed. Grepping the source for the row's own ID would have found it — and no process step tells you to.
+- **A modal in an offline render looks exactly like a hung machine.** Empty log, no error, a live `reaper.exe` at ~4 s CPU, and a 300 s wait. Run `--control` first every time: it passes with no plug-in loaded, so it separates "the chain is broken" from "this fixture will not load" before you have spent five minutes.
+- **Counting the candidates is a valid substitute for identifying the loaded one** — but only when the subject of the measurement is the document rather than the build. Worth saying out loud, because the 2026-09-02 rule (use `fx_ident`) has no offline equivalent and reads as if it always applies.
+- **`extract-lessons.py --write` was writing CRLF into an LF file, and it is FIXED here rather than noted again.** The 2026-09-07 entry recorded it as a lesson (2,468 CRLFs); this run hit the identical thing (2,540) and the fix is `newline=""` on the one `write_text` call. **Two things let it survive a whole run's write-up.** `git diff --stat` reports about twenty changed lines either way, because git normalises on commit — so the diff never shows the churn. And **`grep -c` for a carriage return reports 0 in Git Bash**, which reads as proof of the opposite; only reading the file as bytes and counting CRLF pairs sees it. `--check` could not see it either, for the same reason: it reads back through the same translation.
+- **The `/tmp` mismatch on this box bites Python and not bash.** A heredoc wrote `/tmp/win_cell.txt` happily and `pathlib` then raised `FileNotFoundError: '\tmp\win_cell.txt'`. Use the session scratchpad for anything both halves touch.
+- **`\V` in a non-raw Python string is a `SyntaxWarning` and NOT an error**, so `%COMMONPROGRAMFILES%\VST3` survived into the file correctly — but the 2026-09-07 entry's `_tide_xmls\b` becoming a literal backspace is the same warning meaning the opposite thing. Read the bytes with `cat -A`; the warning alone does not tell you which case you are in.
+
+**Not verified:** **the shipped `DefaultRack.synthedit` behaviourally** — its facade is established structurally, from the five root wires and their pin numbers, and no fixture renders that document with a note, because it has no oscillator cabled to its jacks and cabling one is an editor operation; `v3-midi-pitch.rpp` proves the ARCHITECTURE, not that DOCUMENT. **Nothing was built this run** — no compiler was invoked in any repo, so this says nothing new about whether `main` compiles here beyond CI's own green `9a3c3fda5`. **The plug-in under test is the developer's 2026-09-03 installed bundle**, not a build of current `main`. **macOS and Linux** — the fixture-structure facts are platform-independent by construction and the render numbers are this box's only. **E7 in a host other than REAPER**, and **E7's AU3/CLAP behaviour**, untouched. **Whether `SE MIDI to CV 2` at the root is the only supported arrangement** — measured for the two arrangements the fixtures record, and nothing else was tried.
+
+**Machine state.** All six repos were on their default branches at the start. `TideSynth` was clean and is on `tide/win/E7-midi-cv-facade` until STEP 5 returns it. **`SE16` was already dirty when this run started and was not touched** — `UnitTest/Manual Tests/project_specific_resources.synthedit` modified plus an untracked `project_specific_resources.resources/samples/` folder, which is the developer's work in progress and is left exactly as found; no sibling repo was checked out or committed to. **Nothing was installed and the developer's plug-ins were not touched** — `C:\Program Files\Common Files\VST3\` was read only. REAPER was launched five times (`--control` plus four fixtures) plus one aborted attempt that was killed with `Stop-Process`; **0 `reaper.exe` processes left running**, checked, and `%APPDATA%\REAPER` restored md5-identical as above. Two decoder side-effect files (`tests/hosts/*.rpp.block0.param1.xml`, written by `decode_rpp.py` beside their inputs) were moved to the session scratchpad rather than committed or left; every render, wav and analysis script lives in the scratchpad, outside all repos.
+
+**Next:** **The windows queue is nearly empty and the next run should expect to fall through STEP 2** — the walk is in the new `win` cell. The one thing that changes it is **#577 landing**, which unblocks E19's last two win clauses and files their causes. **Rotate `JOURNAL.md` once #577 and #578 are merged** — 143 KB against a 60 KB ceiling, and doing it while they are open costs two hard conflicts. **`build.yml`'s `matrix.platform != 'win'` exclusion (`:523`) still means STEP 1 cannot fire on this platform**; it is a workflow edit, which the bot's token deliberately cannot make, so it is Jeff's or nobody's — and the `win` cell has now restated it four times. **E72, E81 and S8 all want a ruling rather than a session**, which is three of the eleven remaining `TODO` rows.
+
+**Branch/PR:** `tide/win/E7-midi-cv-facade`, [#579](https://github.com/JeffMcClintock/TideSynth/pull/579) — E7 to IN-REVIEW with the finding, P8 to DONE and archived (with its `~~P8~~` record row), S8 to `NEEDS-SPEC`, the refreshed `win` NEXT cell, `tests/hosts/README.md` (the Windows table and the re-framed negative-control section), regenerated `docs/lessons.md` (now a 15-line diff rather than a whole-file CRLF rewrite), the one-line `newline=""` fix in `scripts/extract-lessons.py` that makes that true, and this entry.
+
 ## 2026-09-08 — macos — A35: the `Plat` column really is frozen, and the one legal route to a correct one is the route the process forbids (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required

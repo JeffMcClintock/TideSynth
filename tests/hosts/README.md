@@ -20,7 +20,7 @@ about the script.
 |---|---|---|
 | `v1-rack.rpp` | Oscillator → Envelope → Output, cabled jack-to-jack | **peak −6.3 dBFS, rms −17.0 dBFS** — 440.0 Hz, left channel only |
 | `v1-rack-uncabled.rpp` | the same three prefabs, **no patch cables** | **−inf, silent** — the negative control |
-| `v1-rack-midi.rpp` | MIDI → Oscillator → Envelope → Output, four cables, **plus a middle-C note** | **−6.3 dBFS, 440.0 Hz, unchanged by the note** — a FAILING fixture, on purpose (BACKLOG **E7**) |
+| `v1-rack-midi.rpp` | the same, but with the MIDI-CV **inside** the rack Container | **−6.3 dBFS, 440.0 Hz, unchanged by the note** — the negative control for MIDI-CV placement, on purpose (BACKLOG **E7**) |
 | `v3-midi-gate.rpp` | the same rack but gated from the MONOPHONIC `SE MIDItoGate2`, plus the note | **silent · 440.0 Hz for the note · silent** — V3's Accept, met |
 | `v3-midi-pitch.rpp` | the auto-seeded **root** MIDI-CV → Oscillator/Envelope/Output, plus the note | **silent · 261.6257 Hz for the note · silent** — middle C to +0.001 cents. Gate, pitch and tuning all correct |
 
@@ -55,6 +55,32 @@ uncabled fixture is what keeps that from being re-learned the hard way. The
 count that decides it is the patch-cable list in `HC_PATCH_CABLES`; see the
 docstring of `render-and-measure.py`.
 
+## Measured on Windows for the first time, 2026-09-08
+
+REAPER 7.78, offline `-renderproject`, against the bundle that is actually on
+this box's `vstpath64` — `%COMMONPROGRAMFILES%\VST3\TIDE-Rack.vst3`, the
+developer's 2026-09-03 build, and the **only** `TIDE-Rack.vst3` any folder on
+that path holds, which is what makes an offline render attributable without
+`fx_ident`. **Every fixture needed E29's token swap first** (below); without it
+`-renderproject` sits on a modal for the full 300 s timeout and writes an empty
+log, which looks nothing like an error.
+
+| fixture | peak / rms | sounding (10 ms windows, 5 % of peak) | pitch |
+|---|---|---|---|
+| `--control` (no plug-in at all) | −6.0 / −9.0 dBFS | — | — |
+| `v1-rack.rpp` | **−6.3 / −17.0 dBFS** | 0.000–1.990 s (the whole render) | **440.033 Hz** |
+| `v1-rack-uncabled.rpp` | **−inf** | silent | — |
+| `v3-midi-pitch.rpp` | **−6.1 / −21.1 dBFS** | **0.510–1.320 s** | **261.614 Hz — −0.1 cents from middle C** |
+| `v1-rack-midi.rpp` | −6.3 / −17.0 dBFS | 0.000–1.990 s | 440.033 Hz |
+
+Peak and rms are the macOS 2026-08-18 and Linux 2026-08-31 references to the
+decimal. Pitch is parabolic-interpolated autocorrelation over 0.70–1.10 s.
+
+**The last two rows are the point, and the sharpest statement of it is not in
+the table:** `v1-rack-midi.rpp` — four cables and a middle-C note — renders
+**bit-identically to `v1-rack.rpp`, which contains no MIDI at all. 0 of 176,400
+samples differ.** The `.wav` files' hashes do differ, in the header only.
+
 ## Regenerating one
 
 These are GUI artifacts — there is no script that writes them, because placing
@@ -82,10 +108,31 @@ has no undo (PLAN excludes it from v0.1). Cable in an order that grabs each jack
 **before** any cable is drawn near it, or a later drag picks up the cable rather
 than the jack.
 
-## `v1-rack-midi.rpp` is a fixture for a failure
+## `v1-rack-midi.rpp` is the negative control for WHERE THE MIDI-CV SITS
 
-It is checked in **because** it fails, and because the numbers say precisely
-where. A MIDI item is plain text inside a `.rpp` — `E <delta-ticks> <status>
+**Re-framed 2026-09-08 (BACKLOG E7).** This was headed *"a fixture for a
+failure"* and read as an open defect. It is not one: it is the ruled-**out**
+half of a matched pair, and its partner passes.
+
+The two fixtures differ in exactly one thing, read out of their decoded
+documents rather than assumed:
+
+| | `MIDI In` + `SE MIDI to CV 2` | the jacks | renders |
+|---|---|---|---|
+| `v1-rack-midi.rpp` | **inside** `Container "TIDE MIDI"` | 3 patch points in that container | 440.0 Hz, the note contributes nothing |
+| `v3-midi-pitch.rpp` | at the **ROOT** | `Container "TIDE MIDI-CV"`, a facade of 4 patch points fed inward | **261.6 Hz for the note's duration** |
+
+Root placement plus a Container facade is the **architecture Jeff ruled**
+(2026-08-21), not a workaround for the first fixture's failure, and the shipped
+`DefaultRack.synthedit` is built that way: five root `<line>`s carry
+`SE MIDI to CV 2` pins 2–6 into a `rack_module="true"` container's pins 7–11.
+`SynthEditSem/TideApp.cpp` says why, in the comment above `loadDefaultDocument()`.
+
+**So do not "fix" this fixture.** Making it pass means re-authoring it into
+`v3-midi-pitch.rpp`, which already exists. Keep it as the control that shows a
+nested MIDI-CV is silent — which is the whole reason the pair means anything.
+
+The numbers say precisely where. A MIDI item is plain text inside a `.rpp` — `E <delta-ticks> <status>
 <d1> <d2>`, hex, 960 ticks per quarter note, so at TEMPO 120 one quarter note is
 0.5 s — which is why this one was hand-written rather than drawn in the MIDI
 editor.
@@ -100,6 +147,12 @@ prints `TIDE: host MIDI reaching the rack` when launched from a shell, and
 MIDI-CV 2's gate tracks the note exactly when read from inside its own container.
 See **E7**, and `build-prefabs.py --diagnostics` for the two probes that
 established it.
+
+**And that last clause is the mechanism**: *"when read from inside its own
+container"*. `SE MIDI to CV 2` is `polyphonicSource`/`cloned`, so whatever
+container holds it becomes a voice container, and a voice container's outputs do
+not cross out. Nothing here is a bug in MIDI delivery, in the cables, or in the
+prefabs.
 
 ## The VST3 UID token, and why a fixture may refuse to load — BACKLOG E29
 
