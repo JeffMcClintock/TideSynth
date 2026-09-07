@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **424 KB** across **334** entries, so copying them
+Learned sections are **427 KB** across **335** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **132 KB / 1419 lessons — 3.2x smaller**, and represents
+A8. This is **133 KB / 1428 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,20 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-08
+
+**windows — E7: the answer was already shipped, and the row's own Accept is void rather than unmet (scheduled run)**
+
+- A row can be DONE for a fortnight because its Accept outlived its architecture.
+- When a row names a fixture as its Accept, read the fixture's DOCUMENT before believing the row.
+- "The note contributes nothing" can be proved instead of inferred.
+- A code comment can be the ruling.
+- A modal in an offline render looks exactly like a hung machine.
+- Counting the candidates is a valid substitute for identifying the loaded one
+- `extract-lessons.py --write` was writing CRLF into an LF file, and it is FIXED here rather than noted again.
+- The `/tmp` mismatch on this box bites Python and not bash.
+- `\V` in a non-raw Python string is a `SyntaxWarning` and NOT an error
 
 ## 2026-09-07
 

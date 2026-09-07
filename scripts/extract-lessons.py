@@ -292,7 +292,16 @@ def main():
         return 0
 
     if args.write:
-        OUT.write_text(text, encoding="utf-8")
+        # newline="" -- WRITE LF, NOT CRLF. Without it Python's text mode
+        # translates every newline in the digest to os.linesep, so a --write on
+        # Windows rewrote all 2,500-odd lines of an LF file with CRLF while
+        # changing about twenty of them. `git diff --stat` still reported ~20,
+        # because git normalises on commit, so the churn is invisible in the
+        # diff and shows up only as a whole-file rewrite in whatever lands.
+        # It bit the 2026-09-07 and 2026-09-08 windows runs, one lesson each,
+        # before anyone changed the line. `--check` above reads back through
+        # the same translation, so it could never see it either.
+        OUT.write_text(text, encoding="utf-8", newline="")
         print(f"wrote {OUT.relative_to(REPO)} -- {n} lessons from {len(data)} entries, {len(text):,} bytes")
         return 0
 
