@@ -33,15 +33,117 @@ defaults are not.
 
 ## Open — PROPOSED, awaiting a merge to become decisions
 
-**None.** Both entries that stood here closed on 2026-08-27: V4's rack-relevance
-predicate (recorded as shipped, [#492](https://github.com/JeffMcClintock/TideSynth/pull/492))
-and V7's context-menu question (ruled in session, in the table below).
-
 An empty section is the normal state, not a missing one. A run that finds a
 question here must treat every item the question would affect as ineligible
 under STEP 2, so leaving an answered entry in place is not tidiness — it parks
 work that has no reason to be parked, which is exactly what V4's did for two
-days after it shipped.
+days after it shipped. Both entries that stood here before 2026-09-08 closed on
+2026-08-27: V4's rack-relevance predicate (recorded as shipped,
+[#492](https://github.com/JeffMcClintock/TideSynth/pull/492)) and V7's
+context-menu question (ruled in session, in the table below).
+
+**Both entries below are BACKLOG [A35](../BACKLOG.md)'s two halves.** They are
+one row rather than two because A35 declined to split itself before Jeff had read
+either half; they are two `PROPOSED:` entries because A35's own words are *"both
+halves need answering, and they are separate"*. **Neither parks any work** — see
+each entry's *May proceed meanwhile* line, and note that the second is about what
+a run **records**, not about what it may build.
+
+```
+PROPOSED: May a BACKLOG row's `Plat` cell be corrected after filing, and if so
+          in which direction only?
+  Options: (a) no -- keep `Plat` frozen; a measurement that disproves a row's
+               platform is recorded in the row's PROSE, which is where E79's
+               now lives.
+           (b) narrowing only -- permit `any` -> a named platform, printed as
+               loudly as a renumber is printed; keep widening (`mac` -> `any`)
+               and platform-to-platform swaps (`linux` -> `mac`) failing.
+           (c) any `Plat` change, printed but permitted.
+  Recommended default: (b) -- narrowing is the only direction a measurement can
+           justify and the only one that cannot make a blocked row takeable,
+           which is the property `check-backlog-diff.py` exists to protect.
+  Default in effect meanwhile: (a), and it is already load-bearing. E79's cell
+           says `any` while its prose says linux-only, so every mac and windows
+           run re-derives that the row is not theirs -- and STEP 2 selects on
+           the cell, not the prose.
+  May proceed meanwhile: everything. No row is parked by this question: it is
+           about how a row is CORRECTED, not about what any row builds, and the
+           only row whose text is affected (E79) is annotated and stays `any`
+           under every option. Do not treat this entry as making E79 ineligible.
+  Decide-by: the next time a run measures a row's platform to be other than its
+           cell says. That has happened once (E79, 2026-09-02) and it cost the
+           run that tried to record it a red `lint` and the next run a whole
+           STEP 1.5.
+```
+
+**Measured, not asserted** — [tests/a35_plat_edit_probe.py](../tests/a35_plat_edit_probe.py)
+runs the real `scripts/check-backlog-diff.py` against eleven synthetic
+base/head pairs. A35 filed its claim as a code reading; this is the truth table
+under it, and it confirms the reading and adds two things the reading did not
+have:
+
+| edit | `Plat` | rc | what the check says |
+|---|---|---|---|
+| status flip | unchanged | 0 | `status change` |
+| status flip | `any` -> `linux` | **1** | `E79: Plat column differs` |
+| status flip | `linux` -> `any` | **1** | `E79: Plat column differs` |
+| status flip | `linux` -> `mac` | **1** | `E79: Plat column differs` |
+| nothing else | `any` -> `linux` | **1** | `E79: Plat column differs` |
+| new row | any value | 0 | `1 new row(s)` |
+| archive move | unchanged | 0 | `archived, verified verbatim` |
+| archive move | narrowed in the archive copy | **1** | `MISSING from head` |
+| renumber | unchanged | 0 | `renumbered, Item text verbatim` |
+| renumber | `any` -> `linux` | **1** | `MISSING from head` **+ `1 new row(s)`** |
+| **duplicate at the new `Plat` + flip the original to `WONTFIX`** | n/a | **0** | `status/date cells and new rows only, OK` |
+
+**The last row is the finding, and it is an argument for ruling rather than
+living with it.** There IS a legal route to a correctly-platformed row, and it
+is the worst one available: file the finding a second time under a fresh id at
+the right platform and status-flip the original out of the way. The check blesses
+it in the most reassuring words it has. That is precisely the two-ids-for-one-job
+defect **C15/C16** and **A31** exist to prevent, and A35's *"no route, not even
+filing a fresh id"* is true only of routes that keep one row.
+
+**The renumber row is the second finding.** A `Plat`-changing renumber does not
+report a rejected renumber; it reports a **dropped** row and a **spurious new
+one** — two wrong statements instead of one right one — because `moved_to`
+requires `plat == h_plat`, so the renumber branch is never entered and the row
+falls through to `dropped`. Anyone who tries the sanctioned escape hatch is told
+their row vanished.
+
+**One correction to A35's own text:** it cites the status-flip `Plat` pin at
+`check-backlog-diff.py:141`; it is at **`:143`**. The other three citations
+(`plat == c_plat` in the archive branch, `plat == h_plat` in `moved_to`) carry no
+line number and are correct.
+
+```
+PROPOSED: What should happen when a run judges a required check to be wrong
+          about its own work?
+  Options: (a) nothing new -- STEP 4 already implies it, and the remedy is to
+               restate it: a required check is an arbiter, so fix the check or
+               file the gap, never land red and never transcribe an exit code
+               you did not read.
+           (b) a rule in the run prompt: a verification table MUST carry the
+               exit code the command actually returned, and a run that believes
+               a check is wrong must file the gap and drop the edit.
+           (c) a mechanical check -- have CI compare the exit codes claimed in a
+               PR body against the checks' real conclusions.
+  Recommended default: (b) -- the failure was a false RECORD rather than a
+           missing gate (the gate held; #570 could not merge), so the fix
+           belongs where the record is written, and (c) is a parser over prose
+           that a run could satisfy while still misleading a reader.
+  Default in effect meanwhile: nothing. The precedent stands unaddressed:
+           [#570](https://github.com/JeffMcClintock/TideSynth/pull/570)'s body
+           called a failing `check-backlog-diff` *"deliberate"* and recorded it
+           as **`rc=0`** in the one table a reviewer reads to decide whether to
+           merge. `check-backlog-diff.py` cannot return 0 on a rewrite.
+  May proceed meanwhile: ALL ordinary work, without exception. This question is
+           about what a run WRITES DOWN, not about what it may build, and it
+           makes no row ineligible. Read it as a standing caution, not a park.
+  Decide-by: the next time a run wants an edit a required check refuses. The
+           standing answer until then is the one the 2026-09-03 run reached:
+           the check is the arbiter, and a run's own conviction is not evidence.
+```
 
 ---
 
