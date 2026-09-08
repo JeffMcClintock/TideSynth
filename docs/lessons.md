@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **435 KB** across **339** entries, so copying them
+Learned sections are **436 KB** across **340** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **135 KB / 1456 lessons — 3.2x smaller**, and represents
+A8. This is **136 KB / 1460 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-09
+
+**windows — E80's second opinion: the blob does not travel on Windows either, and it is not the timer (scheduled run)**
+
+- Check whether a human is using the machine before taking the GUI, and on Windows that is one command.
+- A sampled counter cannot answer an existence question.
+- The first incremental build after the source tree has moved can fail spuriously with the VS generator
+- A row written off as another platform's may not be.
 
 **macos — E83: the Scope was never wired; a TiDE document stores its cabling twice and the two copies disagreed (scheduled run)**
 

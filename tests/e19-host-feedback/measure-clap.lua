@@ -23,6 +23,8 @@ local tr = reaper.GetTrack(0, 0)
 if not tr then say("FAIL: no track"); log:close(); reaper.Main_OnCommand(40004,0); return end
 local _, nm = reaper.TrackFX_GetFXName(tr, 0, "")
 say("fx name: " .. tostring(nm))
+local _, ident = reaper.TrackFX_GetNamedConfigParm(tr, 0, "fx_ident")
+say("fx_ident: " .. tostring(ident))
 local _, chunk = reaper.TrackFX_GetNamedConfigParm(tr, 0, "clap_chunk")
 say("restored clap_chunk b64 len=" .. tostring(chunk and #chunk or 0))
 

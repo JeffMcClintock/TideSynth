@@ -8,6 +8,97 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-09 — windows — E80's second opinion: the blob does not travel on Windows either, and it is not the timer (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** · as **tide-rack-bot** (both paths) · scheduled run
+
+**Did:** took **E80** and answered its step one — *"a second opinion, not a fix"* — with a **new bare CLAP host that builds on Windows**, [tests/e80_clap_feedback_probe.c](tests/e80_clap_feedback_probe.c). E80's symptom reproduces here with **no GUI, no DAW, no GTK and no compositor**. Row back to TODO; no product behaviour changed. **No host was driven, because the developer was working at the machine** — see below, which is the part of this entry worth more than the measurement.
+
+### The measurement
+
+`tests/fixtures/e75-vcv-visible-rack.xml`, `TIDE_VCV_FUNDAMENTAL=ON -DRACK_ADAPTOR_TRACE=1`, Release, 800 blocks of 512 at 44.1 kHz (9.288 s), editor **never created**:
+
+| arm | feedback sends | **largest send** | `display-state capture` | audio |
+|---|---|---|---|---|
+| `--pump` | 569 | **337 bytes** | `#200 (65548 bytes)` | −inf dBFS |
+| `--no-pump` | 569 | **337 bytes** | `#200 (65548 bytes)` | −inf dBFS |
+| `--no-preset` (negative control) | **0** | — | **none** | `TIDE: unprepared - writing silence` |
+| `--pump` on **`e83-vcv-scope-cabled.xml`** (added after #581 merged) | 569 | **337 bytes** | `#200 (65548 bytes)` | −inf dBFS |
+
+The DSP captured a 65,548-byte picture two hundred times and the queue carried at most 337 bytes. `0 held back` on every send, so nothing is stuck in `drainRackFeedback`'s reassembly scratch either — the blob is not entering `queDspToUi` at all, which is exactly what E80 says happens on linux.
+
+**Three things each arm settles, and none of them is the headline:**
+
+- **`--no-preset` is what makes the other two mean anything.** No `state->load` ⇒ no rack, no capture, no send. So every line in the other arms came from the document under test rather than from something the plug-in does anyway.
+- **`--pump` and `--no-pump` are identical to the byte.** A bare host's first suspect is that it starved the timer the plug-in's controller ticks on — that is the trap `e79`'s two arms were built for. It is not that.
+- **−inf dBFS is correct here and would be alarming elsewhere.** `e75-vcv-visible-rack.xml` is an LFO, a Scope and two CV utilities with no path to an audio output. The evidence the document arrived is `TIDE: instance #1 building rack from 38661 byte document`, not the peak.
+
+### The old number could not have been right, and the new one can
+
+**`TIDE: instance #N feedback send #M` prints sends #0, #1, #2 and every 100th.** Three runs across two platforms have quoted *"never more than 200 bytes"* off that cadence. A blob sent **once** among ~570 sends has about a **2% chance** of landing on a sample — so none of those runs could distinguish *"it never crossed"* from *"it crossed while the trace was looking away"*, and that is the whole question the row asks.
+
+`SynthEditSem/SynthEdit.cpp` now reads **`TIDE_FEEDBACK_TRACE_EVERY`**; `=1` prints every send. Unset, unparseable or `< 1` keeps the original cadence **exactly**, because the linux and macOS cells quote figures read off it. With it armed, all 569 sends are printed and the largest really is 337 bytes.
+
+**The general habit: before quoting a counter, check its print cadence.** A sampled trace answers *"is this healthy"* and cannot answer *"did this ever happen"*, and the two look identical in a log.
+
+### The confound, stated plainly, because it is why this is not a diagnosis
+
+**This probe creates no editor. E80's linux measurement had one** — its `RackEditor: light #3300 value 0.754` lines say so. So the symptom is shown under a **weaker** condition than the row was filed under, and **a Windows CLAP with an editor open is still unmeasured.**
+
+What makes the weaker condition worth having anyway is where the counter sits: `drainRackFeedback` reads TIDE's own inner `queDspToUi`, written by the inner rack's `SynthRuntime` and read by TIDE itself — **no editor on either end of it.** The editor only appears downstream, on `pinFeedback`. So the quantity E80 names is genuinely observable without one; what is not observable is the far end, `RackEditor: display-state update #N arrived`.
+
+**The obvious lead is refuted, and E83's own fixture is what refuted it.** `ControlPin::setValue` (GMPI `Core/Processor.h`) still dedups by value — `if(value != value_)` — and **E83 measured the Scope's display-state payload to be constant**, because in `e75-vcv-visible-rack.xml` the Scope's input is not connected in the DSP half of the document at all. A constant picture would ship once and never again, which would explain everything above without any defect in the channel.
+
+**It does not survive the control.** [#581](https://github.com/JeffMcClintock/TideSynth/pull/581) landed [`tests/fixtures/e83-vcv-scope-cabled.xml`](tests/fixtures/e83-vcv-scope-cabled.xml) — the same rack with the DSP cable list synced to the editor's — and re-running this probe against it while resolving this PR's merge conflict gives `RackProcessor: 'Scope' connections ins=100` and `'Scope' first NONZERO INPUT pin 0 (1.000000)`, so the payload genuinely varies. **569 sends, largest 337 bytes, capture `#200 (65548 bytes)` — identical to the uncabled arm in every figure.**
+
+So **the blob fails to cross whether or not its contents change**, and E83 is not this row's cause. That also disposes of the objection E83 would otherwise raise against the first three arms, which all used the stale `e75` fixture: the cabled control says the fixture was never the variable. GMPI [`09f0221`](https://github.com/JeffMcClintock/GMPI/commit/09f0221) removed the same dedup one layer up, in `gmpi_processor::setPin`'s blob arm — *"a blob output parameter is a STREAM, not a value"* — and the pin-level compare was not changed with it; that remains a real inconsistency and is simply not what bites here.
+
+**And E83's run is a second, independent measurement of the same cap.** It re-measured it on macOS through `tests/e79_clap_headless_probe.c` — *"identical feedback traffic in both arms, max send 200 bytes"* — so the CLAP cap now stands on **three platforms and two separate probes**, and the one thing none of them has is an editor.
+
+### The developer was at the machine, and nothing in the process looks
+
+This is the finding this lane should keep.
+
+`Get-Process | Where-Object { $_.MainWindowTitle }` returned **two Visual Studio instances open on `modules/TiDEknob/TiDEknobGui.cpp`**, `SynthEdit2` running a document, `cmake-gui` on `TideSynth/modules/build`, Chrome, Outlook and Slack. **That file changed underneath this run twice**, at 08:06 and 08:11 — and the first build failed with
+
+```
+C:\SE\GMPI\Core\Common.h(80,42): error C2259: 'TiDEknobGui': cannot instantiate abstract class
+```
+
+on a half-saved state where `: public gmpi::api::IDrawingLayer` had been typed and its `addRef`/`release` overrides had not. **The identical command succeeded eight minutes later with zero errors.** A run that had not looked would have filed a `platform:win` build break against `main` that does not exist — CI is green at `0ed6ca1db` on all three platforms.
+
+**So this run did not launch REAPER.** The `%APPDATA%\REAPER` backup was taken first, per the standing rule that the host is not isolatable on this platform, and then **restored unused and verified md5-identical across all 2,385 files**. `clappath` had been set and `reaper-clap-win64.ini` moved aside in preparation; both were undone before anything ran.
+
+**`Get-Process | Where-Object { $_.MainWindowTitle }` is this platform's answer to the mac lane's `CGSSessionScreenIsLocked`, and it is strictly more informative.** The mac check says whether a human *could* be there; this one says which applications they have open and on which file. **A locked screen is not the only reason for a scheduled run to stay off the GUI — an unlocked one with the developer mid-edit is a stronger one**, and this box had no check for it at all until now.
+
+**The corollary, and it is uncomfortable:** the binary these numbers came from was built from a tree carrying one uncommitted developer edit. It is a knob's drawing-layer override and cannot touch the rack-feedback channel, so the measurement stands — but the honest statement is *"stands despite it"*, not *"was unaffected"*, and a run that needs a pristine tree on this box should build from a clean export rather than from `C:\SE\TideSynth`.
+
+### What is in the tree now
+
+| file | what |
+|---|---|
+| [tests/e80_clap_feedback_probe.c](tests/e80_clap_feedback_probe.c) | **new** — the first bare CLAP host in this repo that builds on Windows. `e69`, `e78` and `e79`'s probes are all `#include <dlfcn.h>`; this one has `LoadLibrary`/`GetProcAddress` behind a two-line macro and builds on all three platforms. Three arms, ~20 s, no DAW and no window. |
+| `SynthEditSem/SynthEdit.cpp` | `TIDE_FEEDBACK_TRACE_EVERY`, default-preserving |
+| `tests/e19-host-feedback/{prepare,measure}-clap.lua` | log `fx_ident` — the 2026-09-02 wrong-bundle trap applies to `clappath` exactly as it does to `vstpath64`, and the CLAP drivers were the only ones without the line |
+| [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md) | the recipe, the three-arm table, and the staging note |
+
+**The CLAP REAPER harness that was already in the tree is ready and was not used.** `prepare-clap.lua`, `measure-clap.lua` and `frame_clap_chunk.py` were written on linux for E78, where `TrackFX_Show` killed REAPER inside its own GTK before `guiSetParent`. Nothing about them is linux-specific; whoever gets an idle Windows box can run them as they stand.
+
+**Learned:**
+
+- **Check whether a human is using the machine before taking the GUI, and on Windows that is one command.** `Get-Process | Where-Object { $_.MainWindowTitle }`. The mac lane has checked `CGSSessionScreenIsLocked` since 2026-08-29 and this box has never checked anything; it drove REAPER on 2026-09-02 and got away with it.
+- **A sampled counter cannot answer an existence question.** Every-100th is right for *"is the channel healthy"* and useless for *"did the blob ever cross"* — and the two questions read the same in a log. Make the cadence settable and default it to what the existing quotes were read off.
+- **The first incremental build after the source tree has moved can fail spuriously with the VS generator**, because `ZERO_CHECK` re-runs CMake while other projects are already compiling. Re-run the identical command before believing a compile error — but read the error first, because here it was a *real* error about a *transient* file state, and both facts mattered.
+- **A row written off as another platform's may not be.** E80 was filed from linux and three consecutive `win` cells classified it as *"linux in substance"*. Its `Plat` is `any`, its own text says the blocker is that REAPER 7.43 dies in GTK, and its step one is a second opinion — which is the one thing only another platform can give. This is the mac lane's Accept/question split, arriving on this lane for the first time.
+
+**Not verified:** **a Windows CLAP with an editor open** — the one arm that would make this a diagnosis rather than a reproduction, and the next thing to do on this row. **Anything at the far end of the channel** — no `RackEditor: display-state update` line exists in any arm here, because no editor exists; this entry's numbers are the DSP side only. **Whether the blob crosses on the Windows VST3 with no editor** — the 65,673-byte VST3 figure quoted anywhere in this repo was measured with an editor open, in REAPER, on 2026-09-02, so it differs from these arms in *two* variables and isolates nothing on its own. **macOS and Linux** — nothing here was re-measured there; the probe builds on both and was compiled only on Windows. **Which layer drops the blob** — four arms say it does not arrive and none of them says where. **`SynthEditCL` and SynthEdit proper** — not built; nothing this run changed is outside TideSynth, so neither should be affected, but neither was compiled to say so.
+
+**Machine state.** All six repos were on their default branches at the start; `TideSynth`, `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers`, `GMPI` and `SynthEdit_Rack_Adaptor` all clean, `SE16` already carrying the developer's untracked `UnitTest/Manual Tests/project_specific_resources.resources/samples/` folder, which was not touched. **`TideSynth` did NOT stay clean, and not because of this run:** `modules/TiDEknob/TiDEknobGui.cpp` was edited by the developer at 08:06 and again at 08:11 while this run was building. **It is left exactly as found and is deliberately not on the branch** — `git add` named four paths, never `-A`. Dependency shas the measurement was built against, recorded because the build uses the developer's local checkouts via `*_FOLDER_OVERRIDE`: `SynthEditLib` `72a4227`, `gmpi_ui` `73919ab`, `GMPI` `99eeb85`, `GMPI_Wrappers` `bcb0d3a` (one commit behind `origin/main`'s `4c11d6d`, which is AU3-only), `SynthEdit_Rack_Adaptor` `04d1296`, `VCV_Fundamental_gmpi` `93a27f9`. **No host was launched and no plug-in was installed.** `%APPDATA%\REAPER` was backed up, had `clappath` set and `reaper-clap-win64.ini` moved aside, and was then **restored and verified md5-identical across all 2,385 files** when the developer was found to be at the machine; `reaper.exe` never ran. The staged CLAP, its resources, the probe and every log live in the session scratchpad, outside all repos.
+
+**Next:** **E80 again, and it is one arm** — the same two counters with an editor present. The Windows standalone does it with no DAW and no host isolation, which makes it the cheapest arm anybody has; it decides whether E80 is about CLAP at all or is a rack-feedback question every format shares. **The `ControlPin::setValue` lead is closed** — E83's cabled fixture refutes it, as above. What still wants instrumenting is one trace line at `displayStatePin->setValue` in `SynthEdit_Rack_Adaptor`, to say whether `sendPinUpdate` is called at all or is called and then dropped; that repo is on neither of STEP 5's lists and so is GATED by default, making it a filing rather than an edit. **E82 is the only other row this box could take**, and its own text says to read it first because the answer may be a product ruling. **`JOURNAL.md` is 201 KB against A24's 60 KB ceiling and rotation is still deferred** — [#581](https://github.com/JeffMcClintock/TideSynth/pull/581) is open and macOS's, and rotating from this lane would make it conflict on the hardest file; whoever merges it should rotate. **`build.yml`'s `matrix.platform != 'win'` exclusion (`:523`) still means STEP 1 cannot fire on this platform** — a workflow edit, which the bot's token deliberately cannot make, so it is Jeff's or nobody's, and the `win` cell has now restated it five times.
+
+**Branch/PR:** `tide/win/E80-clap-gui-second-opinion`, [#582](https://github.com/JeffMcClintock/TideSynth/pull/582) — E80 back to TODO with the three-arm measurement, the refreshed `win` NEXT cell, the new `tests/e80_clap_feedback_probe.c`, `TIDE_FEEDBACK_TRACE_EVERY` in `SynthEditSem/SynthEdit.cpp`, `fx_ident` logging in the two CLAP `.lua` drivers, the recipe in `docs/ci/headless-gui-verification.md`, regenerated `docs/lessons.md`, and this entry.
+
 ## 2026-09-09 — macos — E83: the Scope was never wired; a TiDE document stores its cabling twice and the two copies disagreed (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
