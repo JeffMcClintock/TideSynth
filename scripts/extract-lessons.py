@@ -301,7 +301,15 @@ def main():
         # It bit the 2026-09-07 and 2026-09-08 windows runs, one lesson each,
         # before anyone changed the line. `--check` above reads back through
         # the same translation, so it could never see it either.
-        OUT.write_text(text, encoding="utf-8", newline="")
+        #
+        # OPEN RATHER THAN Path.write_text, and that is not a style choice:
+        # write_text() only grew a `newline` argument in Python 3.10, so the
+        # 2026-09-08 fix raised TypeError on macOS, whose system Python is
+        # 3.9.6 -- turning a Windows CRLF bug into a hard crash on another
+        # box, where --write is exactly what every run's STEP 4 needs. open()
+        # has taken `newline` since 3.0 and does the identical thing.
+        with open(OUT, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
         print(f"wrote {OUT.relative_to(REPO)} -- {n} lessons from {len(data)} entries, {len(text):,} bytes")
         return 0
 
