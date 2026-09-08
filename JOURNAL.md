@@ -8,6 +8,90 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-09 — macos — E83: the Scope was never wired; a TiDE document stores its cabling twice and the two copies disagreed (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** took **E83** and **answered it with no GUI at all**, on a locked screen, which is the fourth row running this lane has recovered by separating what a row ASKS from what its Accept asks. New [scripts/patch-cables.py](scripts/patch-cables.py), new fixture [tests/fixtures/e83-vcv-scope-cabled.xml](tests/fixtures/e83-vcv-scope-cabled.xml) and [its README](tests/fixtures/e83-vcv-scope-cabled.README.md), one new row (**E84**). **No product code changed, in this repo or any sibling.** Branch `tide/mac/E83-scope-input`.
+
+### The answer, and it is the clause the row thought less likely
+
+E83 asked *"whether the Scope's INPUT is constant or its capture is"*. **The input is not merely constant. It is not connected at all**, and the capture has been correct the entire time.
+
+**A TiDE document stores its rack cabling TWICE.** `HC_PATCH_CABLES` — host control **49**, counted in `SynthEditLib/HostControls.h` rather than guessed — appears once in the `<DSP>` half as `<Parameter HostControl="49">` and once in the `<Editor>` half as `<param hostControl="49">`, each holding its own base64'd `<Cables>` list. **The panel draws from the editor's copy; the audio graph is built from the DSP's.**
+
+| half | `e75-vcv-visible-rack.xml` |
+|---|---|
+| Editor | `Pulses->SHASR`, **`LFO->Scope`** |
+| DSP | `Pulses->SHASR` |
+
+So the orange cable that three E19 runs and E75 all saw on screen was **drawn and carried nothing**.
+
+### Measured twice, and the control is inside the same trace
+
+The document reading is one command ([scripts/patch-cables.py](scripts/patch-cables.py) `--show`). The one that settles it is the DSP's own trace, through `tests/e79_clap_headless_probe.c` against a `TIDE_VCV_FUNDAMENTAL=ON -DRACK_ADAPTOR_TRACE=1` CLAP — **one document line of 798 apart:**
+
+| | `e75-vcv-visible-rack` | `e83-vcv-scope-cabled` |
+|---|---|---|
+| `'LFO' connections` | `outs=0000` | **`outs=1000`** |
+| `'Scope' connections` | `ins=000` | **`ins=100`** |
+| `'Scope' first NONZERO INPUT` | *never printed* | **`pin 0 (1.000000)`** |
+| `'Pulses' outs` / `'SHASR' ins` (**the control**) | `…1000` / `…1…` | **identical** |
+
+**The last row is what makes the other three a fact about the cable rather than about the harness.** `Pulses` pin 16 → `SHASR` pin 4 is the cable that IS in both halves, and it connects in both arms. Without it, "I changed the document and the connections changed" is also consistent with a probe that connects whatever it is given.
+
+### Why the payload was a perfect constant — explained, not inferred
+
+From `vcv/Scope.cpp`, with `params: 0 0 0 0 0 0 0 0` read off the same trace:
+
+- `X_INPUT` unconnected → `getChannels()` is **0** → the per-channel loops never execute → `currentPoint` stays at its `{INFINITY, -INFINITY}` default, and all 8,192 `pointBuffer` entries are written with it.
+- `TRIG_PARAM = 0` means **trigger ENABLED**, and the trigger loop runs over `trigChannels = 0`, so nothing ever re-triggers and **`bufferIndex` freezes at `BUFFER_SIZE`**.
+
+All three captured members constant, so the 65,548-byte payload is constant — which is the previous run's **324 of 327 applies carrying one checksum, `sum=19140`**, arrived at from the other end.
+
+### The fixture is stale, the product is not, and that is measured too
+
+`e53-vcv-rack-segv.xml` — which `e75` is two view fields away from — is a **session file TiDE itself wrote on 2026-08-26**, before E68's 2026-08-31 ruling made a cable edit push the document. So this is not hand-authored damage.
+
+**Loading the disagreeing `e75` into a build of current `main` and saving produces halves that AGREE**, the LFO→Scope cable present in both (`tests/e69_clap_state_probe.c`, 51,694 in / 57,697 out). So no run can still provoke this through that path — **and every document committed before 2026-08-31 is suspect.** Surveyed: of twelve committed documents, exactly **two** disagree, and they are `e53` and its descendant `e75`. The other ten pass, including `DefaultRack.synthedit` and all five prefabs.
+
+### Verification
+
+| check | result |
+|---|---|
+| build, `TIDE_Rack_CLAP`, Release/arm64 | rc=**0**, `[61/61]`, **0** `error:` |
+| A/B, e75 vs e83, same binary | `Scope ins=000` → `ins=100`; `first NONZERO INPUT` absent → `pin 0 (1.000000)` |
+| the A/B's own control | `Pulses`/`SHASR` connection strings **identical** in both arms |
+| decoded-document diff, e75 vs e83 | **1 hunk, 1 line** of 798 |
+| fixture regenerates from the command | `--sync-dsp` output **byte-identical** to the committed file (md5 `80d7b858…`) |
+| `--show` over all 12 committed documents | 10× rc=0, 2× rc=1 (`e53`, `e75`), 0× rc=2 |
+| `--sync-dsp` refusals, both seen to fire | no DSP slot → rc=2 and **no file written**; no `-o` → argparse error |
+| E80's CLAP cap, re-measured | max feedback send **200 bytes**, identical in both arms |
+| `check-backlog-diff` / `check-journal-prepend` / `check-prompt-provenance` / `check-id-refs` / `check-next-block` / `check-backlog-archived` / `check-links` | see below |
+| `check-commit-authorship --repo .` | see below |
+| NEXT-cell chain before/after | 8 → **9** generations; pipe count 4 |
+
+**No product code was built into anything shipped** — this branch touches `scripts/`, `tests/` and the three bookkeeping files only. **`SynthEditCL` is discharged by SCOPE, stated rather than glossed:** no sibling repo was edited, and `SE16` is not on this box.
+
+**Learned:**
+
+- **When a picture never changes, ask whether the thing feeding it is connected before you ask whether the capture works.** E83 was filed as a display-state question and spent its whole life there; the input was the free variable and nobody had read it. One decode of the document answered it.
+- **A document that stores the same fact twice will eventually store it two ways, and nothing here was checking.** The editor half and the DSP half of `HC_PATCH_CABLES` are written by different code and read by different code; the panel and the audio graph are the two things a user compares, and they were the two things that disagreed.
+- **A constructor default in a saved file is indistinguishable from a decision — and so is a MISSING list entry.** E75 landed exactly this lesson about `PanelLocationCenter` two days ago. The same fixture was carrying a second instance of it, one field along, and the run that found the first did not think to look for the second.
+- **The Accept/question split has now paid four times running on this lane** (E77, E71, E75, E83). E83's Accept named a display measurement; its question was a property of a file. **It should be the first thing tried, not the last.**
+- **Put the invariant in the same trace as the variable.** The Pulses→SHASR cable was in both halves and connected in both arms, so it is a control that costs nothing and was already being printed. A 0→1 with no invariant beside it is a claim about the instrument.
+- **A probe that cannot see the thing you are measuring should be said so, not worked around.** CLAP caps the feedback payload at 200 bytes (E80), so no CLAP run can ever show a display-state blob changing. That is a limit of the instrument and belongs in the write-up, not in a hedge.
+- **`rc` from a pipeline is the last command's.** My first fixture survey printed `rc=0` for every file because `$?` was `tail`'s. The fleet already has this lesson twice from `grep -c`; it is the same mistake with a different last command, and it made a discriminating check look useless.
+- **A check that fails on the normal case is not a check.** `--show` first reported "no HC_PATCH_CABLES parameter" as an error, which is the state of `DefaultRack.synthedit` and all five prefabs — i.e. it failed on the shipped rack. A half with no cable parameter has no cables; fixing that is what made it usable as E84.
+
+**Not verified:** **that the Scope's picture ANIMATES with the new fixture** — the 65,548-byte payload reaches the editor on VST3 and the standalone but not on CLAP (**E80**, re-measured here), and the standalone wants a window this locked-screen run did not have. That is **E19**'s clause, and it is now GUI-blocked only, not fixture-blocked. **That the DSP half governs the graph in a build WITH an editor** — measured on a headless CLAP; the rack-building path is the same source, and "same source" is a reading. **Why the 2026-08-26 save produced disagreeing halves** — the round-trip shows current `main` does not, and the mechanism that did is not established. **Whether any document outside this repo is affected.** **Windows and Linux**, where nothing was built or run. **`e82`**, untouched.
+
+**Machine state.** All six local repos were clean and on their default branches at the start; **`SE16` is not on this box**. **No sibling repo was committed to, modified or fast-forwarded** — `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers`, `GMPI` and `SynthEdit` were read and used as build overrides, never written, and `SynthEdit_Rack_Adaptor` (GATED by default, on neither STEP 5 list) was **read only**. TideSynth's `main` was fast-forwarded to `9851b0d` before the branch was cut; TideSynth is on `tide/mac/E83-scope-input` until STEP 5 returns it. **Nothing was installed, registered or launched with a window**: every build ran `SE_LOCAL_BUILD=OFF`, `~/Library/Audio/Plug-Ins` was not touched, no AUv3 was registered, and **no DAW, standalone or appex was launched** — the two probes are bare C hosts that `dlopen` the CLAP out of a scratch build tree. **0 TIDE processes running**, checked. The screen was **locked throughout and no GUI was attempted**. `build-e75/` is the 2026-09-07 run's gitignored scratch tree, reused warm and left with `TIDE_Rack_CLAP` added; every probe binary and artefact is in the session scratchpad, outside every repo.
+
+**Next:** **`JOURNAL.md` is ~200 KB against A24's 60 KB target with 18 entries and a floor of 4, and NOTHING IS OPEN IN ANY REPO** — three previous cells deferred the rotation saying it would be cheap once the queue was clear, and it is clear now. **Do it before this branch's PR merges**, or it costs a hard conflict again. **E19's pixel-diff clause is no longer fixture-blocked** — `e83-vcv-scope-cabled.xml` is the fixture it wanted; it needs one standalone launch or one hosted VST3 session on an unlocked screen, which would also close E83's own unverified half. **E84 needs Jeff or an interactive session** — it is a `lint.yml` edit and the bot's token deliberately has no `workflow` scope. **Read `./scripts/patch-cables.py <fixture> --show` before trusting any committed fixture**, and note **E82** is the remaining E19 clause and may be a product ruling rather than a defect.
+
+**Branch/PR:** `tide/mac/E83-scope-input` — [scripts/patch-cables.py](scripts/patch-cables.py), [tests/fixtures/e83-vcv-scope-cabled.xml](tests/fixtures/e83-vcv-scope-cabled.xml) and [its README](tests/fixtures/e83-vcv-scope-cabled.README.md), E83 → IN-REVIEW with its answer, E84 filed, the refreshed `mac` NEXT cell, and this entry.
+
 ## 2026-09-08 — windows — the merge sweep: three PRs, and the fleet is empty again (interactive continuation, Jeff directing)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"merge any PRs"*)

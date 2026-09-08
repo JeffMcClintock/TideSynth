@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **432 KB** across **338** entries, so copying them
+Learned sections are **435 KB** across **339** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **135 KB / 1448 lessons — 3.2x smaller**, and represents
+A8. This is **135 KB / 1456 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,19 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-09
+
+**macos — E83: the Scope was never wired; a TiDE document stores its cabling twice and the two copies disagreed (scheduled run)**
+
+- When a picture never changes, ask whether the thing feeding it is connected before you ask whether the capture works.
+- A document that stores the same fact twice will eventually store it two ways, and nothing here was checking.
+- A constructor default in a saved file is indistinguishable from a decision — and so is a MISSING list entry.
+- The Accept/question split has now paid four times running on this lane
+- Put the invariant in the same trace as the variable.
+- A probe that cannot see the thing you are measuring should be said so, not worked around.
+- `rc` from a pipeline is the last command's.
+- A check that fails on the normal case is not a check.
 
 ## 2026-09-08
 
