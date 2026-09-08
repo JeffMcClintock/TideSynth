@@ -67,11 +67,14 @@ All three captured members constant, so the 65,548-byte payload is constant — 
 | `--show` over all 12 committed documents | 10× rc=0, 2× rc=1 (`e53`, `e75`), 0× rc=2 |
 | `--sync-dsp` refusals, both seen to fire | no DSP slot → rc=2 and **no file written**; no `-o` → argparse error |
 | E80's CLAP cap, re-measured | max feedback send **200 bytes**, identical in both arms |
-| `check-backlog-diff` / `check-journal-prepend` / `check-prompt-provenance` / `check-id-refs` / `check-next-block` / `check-backlog-archived` / `check-links` | see below |
-| `check-commit-authorship --repo .` | see below |
+| all seven lints | **rc=0 each**, reproduced locally with [lint.yml](.github/workflows/lint.yml)'s own arguments -- base from `git show origin/main:`, `--changed-file` from the diff. `check-backlog-diff`: `E83: TODO -> IN-REVIEW`, `1 new row(s): E84`, status/date cells and new rows only |
+| `check-commit-authorship --repo .` | rc=0 -- every unpushed commit `tide-rack-bot` |
+| `check-commit-completeness --record/--verify` | 7 staged, 7 in HEAD, all present |
+| `check-no-direct-commits --repo .` | rc=0 -- every `tide-rack-bot` commit on `main` arrived as a merge |
+| CI on the pushed head | **6 pass, 0 fail** -- `lint`, `linux`, `e57-delete-key`, `render-linux`, `render-macos`, `render-windows`; `guard`/`matrix.name` **skipped**, correctly, because this branch touches no compiled source. `mergeStateStatus: CLEAN` |
 | NEXT-cell chain before/after | 8 → **9** generations; pipe count 4 |
 
-**No product code was built into anything shipped** — this branch touches `scripts/`, `tests/` and the three bookkeeping files only. **`SynthEditCL` is discharged by SCOPE, stated rather than glossed:** no sibling repo was edited, and `SE16` is not on this box.
+**NO macOS COMPILE RAN IN CI, and that is correct rather than a gap:** `guard` skips the build matrix because this branch changes no compiled source at all. The build evidence is local -- `TIDE_Rack_CLAP`, `[61/61]`, rc=0. **No product code was built into anything shipped** — this branch touches `scripts/`, `tests/` and the three bookkeeping files only. **`SynthEditCL` is discharged by SCOPE, stated rather than glossed:** no sibling repo was edited, and `SE16` is not on this box.
 
 **Learned:**
 
