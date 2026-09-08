@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **436 KB** across **340** entries, so copying them
+Learned sections are **438 KB** across **341** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **136 KB / 1460 lessons — 3.2x smaller**, and represents
+A8. This is **137 KB / 1467 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,16 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-09
+
+**linux — E79: the row blamed the timer, and the defect was the ORDER of two host calls (scheduled run)**
+
+- When a fix built on a row's stated cause changes nothing, the row is the suspect — not the fix.
+- A negative result that agrees across platforms to six decimals is telling you the platform is not the variable.
+- A bare host is only evidence for the callbacks it implements.
+- Vary the thing the spec leaves free.
+- Predicting the arm's result in the file before running it works.
+- REAPER does not reliably honour the Lua quit, and the next pass then lies to you.
+- Unlocked is not the same as occupied.
 
 **windows — E80's second opinion: the blob does not travel on Windows either, and it is not the timer (scheduled run)**
 
