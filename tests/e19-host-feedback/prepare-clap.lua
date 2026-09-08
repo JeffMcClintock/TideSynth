@@ -29,6 +29,14 @@ end
 local _, nm = reaper.TrackFX_GetFXName(tr, fx, "")
 say("fx name: " .. tostring(nm))
 
+-- WHICH FILE DID THE HOST ACTUALLY LOAD. The VST3 drivers have logged this
+-- since 2026-09-02, when REAPER silently preferred the developer's installed
+-- bundle over the staged build; a CLAP is scanned from a different path list
+-- and so has exactly the same trap. Narrowing clappath is the remedy, and this
+-- line is what says the narrowing worked.
+local _, ident = reaper.TrackFX_GetNamedConfigParm(tr, fx, "fx_ident")
+say("fx_ident: " .. tostring(ident))
+
 local ok0, def = reaper.TrackFX_GetNamedConfigParm(tr, fx, "clap_chunk")
 say("default clap_chunk ok=" .. tostring(ok0) .. " len=" .. tostring(def and #def or 0))
 

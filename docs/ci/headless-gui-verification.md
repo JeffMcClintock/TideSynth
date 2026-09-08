@@ -780,3 +780,102 @@ changes anywhere.
   17,955–17,963 said "a handful of variable-width fields" before anything was
   diffed, and equal-length pairs are what a diff is *for* — they are the ones a
   size comparison silently passes.
+
+---
+
+# A bare CLAP host on WINDOWS, and reading the rack-feedback channel with it
+
+**Measured 2026-09-09 (windows, scheduled run) for BACKLOG E80.** The two
+CLAP-C-ABI sections above are `#include <dlfcn.h>` and so are mac/linux only —
+`tests/e69_clap_state_probe.c`, `tests/e78_clap_gui_probe.c` and
+`tests/e79_clap_headless_probe.c` all are. **The windows box had no bare-host
+instrument at all**, which is why every windows measurement in this project has
+gone through REAPER and a screen. `tests/e80_clap_feedback_probe.c` is the same
+shape with `LoadLibrary`/`GetProcAddress` behind a two-line macro, and it builds
+on all three platforms.
+
+## Why a row about a GUI channel needed no GUI
+
+E80 compares two counters, and **both are raised on the audio thread inside
+`process()`, with nothing gating either on an editor**:
+
+| line | raised in | says |
+|---|---|---|
+| `RackProcessor: '<slug>' display-state capture #N (B bytes)` | `RackAdaptor.h` `sendDisplayState()` | the DSP captured the picture |
+| `TIDE: instance #N feedback send #M (B bytes, H held back)` | `SynthEditSem/SynthEdit.cpp` `drainRackFeedback()` | what the inner DSP→UI queue actually carried |
+
+**The second one is the whole subject of E80, and it has no editor on either end
+of it.** `queDspToUi` is written by the inner rack's `SynthRuntime` and read by
+TIDE's own `drainRackFeedback`; the editor only appears downstream, on
+`pinFeedback`. So a probe that never creates a window measures exactly the
+quantity the row names. What it does *not* measure is the far end
+(`RackEditor: display-state update #N arrived`) — say which one you have.
+
+## Build and run
+
+```bash
+# Windows. cl is not on PATH, so a one-line .cmd that calls vcvars64 first is
+# the whole build; note `cmd //c` (doubled slash) in Git Bash, not `cmd /c`.
+#   call "C:\Program Files\Microsoft Visual Studio8\Community\VC\Auxiliary\Buildcvars64.bat"
+#   cl /std:c11 /O2 /I build-e19win\_deps\clap-src\include ^
+#      tests\e80_clap_feedback_probe.c /Fe:e80probe.exe /link user32.lib
+TIDE_FEEDBACK_TRACE_EVERY=1 \
+  ./e80probe <staged>/TIDE-Rack.clap tests/fixtures/e75-vcv-visible-rack.xml \
+             --pump --blocks 800 2> trace.err
+```
+
+```bash
+# macOS / Linux
+cc -std=c11 -I build/_deps/clap-src/include tests/e80_clap_feedback_probe.c \
+   -ldl -o e80probe          # + -framework CoreFoundation on macOS
+```
+
+**Stage the plug-in with its resources beside it.** A `.clap` on Windows is a
+plain DLL, so its "bundle resources" are its own directory: copy the build's
+`*.xml`, `DefaultRack.synthedit` and `Prefabs/` next to it, or the rack seeds
+nothing and the measurement is of a different plug-in than you think.
+
+## `TIDE_FEEDBACK_TRACE_EVERY` — and why a sampled counter could not answer this
+
+The `feedback send` line prints sends #0, #1, #2 and **every 100th**. That is
+right for watching a healthy channel and wrong for E80, whose question is
+whether a 65,548-byte blob *ever* crosses: a blob sent once among ~570 sends has
+about a **2%** chance of landing on a sample. Three runs across two platforms
+reported *"never more than 200 bytes"* off that sample, and none of them could
+have distinguished "it never crossed" from "it crossed while the trace was
+looking away".
+
+`TIDE_FEEDBACK_TRACE_EVERY=1` prints every send. Unset, unparseable or `< 1`
+keeps the original cadence exactly, because the linux and macOS cells quote
+figures read off it.
+
+## What it measured — three arms, one document, one build
+
+`tests/fixtures/e75-vcv-visible-rack.xml`, `TIDE_VCV_FUNDAMENTAL=ON`,
+`-DRACK_ADAPTOR_TRACE=1`, Release, 800 blocks of 512 at 44.1 kHz (9.3 s):
+
+| arm | feedback sends | **largest send** | `display-state capture` |
+|---|---|---|---|
+| `--pump` | 569 | **337 bytes** | `#200 (65548 bytes)` |
+| `--no-pump` | 569 | **337 bytes** | `#200 (65548 bytes)` |
+| `--no-preset` (negative control) | **0** | — | **none**; `TIDE: unprepared - writing silence` |
+
+**The negative control is what makes the other two mean anything**: with no
+`state->load` there is no rack, no capture and no send at all, so every line in
+the other arms came from the document under test rather than from something the
+plug-in does anyway.
+
+**`--pump` and `--no-pump` are identical to the byte.** Whatever this is, it is
+not the controller's timer being starved — which is the first thing a bare host
+should be suspected of, and the trap `e79`'s two arms exist for.
+
+## Two habits this makes cheap
+
+- **Before quoting a counter, check its print cadence.** A sampled trace answers
+  "is it healthy" and cannot answer "did it ever happen". Both questions look
+  the same in a log.
+- **A silent render is not automatically a failure — check what the fixture is
+  for.** `e75-vcv-visible-rack.xml` is an LFO, a Scope and two CV utilities with
+  no path to an audio output, so `-inf dBFS` is correct there and would be a
+  five-alarm result on `v1-rack.rpp`. The evidence the document arrived is
+  `TIDE: instance #1 building rack from 38661 byte document`, not the peak.
