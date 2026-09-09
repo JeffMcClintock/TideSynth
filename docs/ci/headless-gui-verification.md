@@ -813,15 +813,39 @@ quantity the row names. What it does *not* measure is the far end
 
 ## Build and run
 
+Windows: `cl` is not on `PATH`, so a two-line `.cmd` that calls `vcvars64`
+first is the whole build. Put this in the repo root as `build-e80probe.cmd`:
+
+```
+@echo off
+call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" >nul
+cl /std:c11 /nologo /O2 /I C:\SE\TideSynth\build-e19win\_deps\clap-src\include ^
+   tests\e80_clap_feedback_probe.c /Fe:e80probe.exe /link user32.lib
+```
+
+**Run it from the PowerShell tool, as `cmd /c ".\build-e80probe.cmd"`.** An earlier
+version of this page said to use `cmd //c` from Git Bash; measured 2026-09-10,
+that reports `is not recognized as an internal or external command` for a `.cmd`
+in the current directory, because the doubled-slash rewrite does not also supply
+the `.\` that `cmd` needs.
+
+**The same paragraph also carried RAW CONTROL BYTES**, not merely a typo: the
+VS path read `Microsoft Visual Studio<0x01>8\Community\...\Build<0x0b>cvars64.bat`,
+because `\2022\` and `\vcvars` had been through something that interpreted them
+as escape sequences. A renderer shows that as a plausible-looking path. Both are
+fixed above — a build recipe transcribed wrong is worse than no recipe, and this
+one is the first thing a run on a fresh box copies.
+
 ```bash
-# Windows. cl is not on PATH, so a one-line .cmd that calls vcvars64 first is
-# the whole build; note `cmd //c` (doubled slash) in Git Bash, not `cmd /c`.
-#   call "C:\Program Files\Microsoft Visual Studio8\Community\VC\Auxiliary\Buildcvars64.bat"
-#   cl /std:c11 /O2 /I build-e19win\_deps\clap-src\include ^
-#      tests\e80_clap_feedback_probe.c /Fe:e80probe.exe /link user32.lib
 TIDE_FEEDBACK_TRACE_EVERY=1 \
   ./e80probe <staged>/TIDE-Rack.clap tests/fixtures/e75-vcv-visible-rack.xml \
              --pump --blocks 800 2> trace.err
+
+# ...and the same thing with the editor up. Windows only, and NOTHING APPEARS ON
+# SCREEN -- see "the invisible parent" below.
+TIDE_FEEDBACK_TRACE_EVERY=1 \
+  ./e80probe <staged>/TIDE-Rack.clap tests/fixtures/e75-vcv-visible-rack.xml \
+             --pump --editor --blocks 800 2> trace-editor.err
 ```
 
 ```bash
@@ -868,6 +892,95 @@ plug-in does anyway.
 **`--pump` and `--no-pump` are identical to the byte.** Whatever this is, it is
 not the controller's timer being starved — which is the first thing a bare host
 should be suspected of, and the trap `e79`'s two arms exist for.
+
+## Measuring a GUI condition on a box someone is using — the invisible parent
+
+**Added 2026-09-10 (windows, scheduled run) for BACKLOG E80.** Every windows GUI
+measurement in this project until now needed REAPER and a screen, and therefore
+an *idle* box. That is a real constraint, not a stylistic one: this machine's
+scheduled runs fire whether or not Jeff is working at it, and on 2026-09-09 a run
+found two Visual Studio instances open on a file that then changed underneath it
+twice. The `--editor` arm of `tests/e80_clap_feedback_probe.c` removes the
+constraint for CLAP:
+
+```c
+CreateWindowExA(0, kProbeWndClass, "tide e80 probe (never shown)",
+                WS_POPUP | WS_CLIPCHILDREN,
+                -32000, -32000, (int)w, (int)h,
+                NULL, NULL, GetModuleHandleA(NULL), NULL);
+```
+
+Three properties, none of them cosmetic:
+
+- **No `WS_VISIBLE`, and never shown.** It cannot raise itself over anyone's
+  work, and it takes no focus.
+- **No owner, no `WS_EX_APPWINDOW`.** No taskbar button appears.
+- **Off-screen origin.** Belt and braces for anything that shows itself anyway.
+
+The plug-in's own window is created as a CHILD of it, and a child of a window
+that was never shown is not shown either.
+
+**The editor genuinely runs inside it.** `WM_TIMER` is delivered to an invisible
+window exactly as to a visible one, and gmpi's `TimerClient` is `SetTimer`-backed
+on Windows. Measured: `gui->create`, `gui->set_scale(1.0)`, `gui->get_size`
+(1100x600) and `gui->set_parent` all succeed, one child window appears,
+`IsWindowVisible(parent)` is `0`, the editor resolves model and art for all five
+modules in the fixture, and its light pins run to `#1100` with varying values.
+
+**What it CANNOT observe, and you must say so:** an invisible window gets no
+`WM_PAINT`, so nothing that depends on the editor having actually PAINTED is
+measurable this way. `RackEditor: render #N` stays at zero — check for that line
+to know which side of the boundary a figure is on. E80's counters are on the
+observable side: `RackEditor.h` raises `display-state update #N arrived` from the
+pin-set path, not from `render()`.
+
+**Verification that it took no GUI:** run
+`Get-Process | Where-Object { $_.MainWindowTitle }` before and after. It was
+unchanged across all four arms below, with the developer's own applications in
+front throughout.
+
+**One defect fell out of the arm immediately**, which is the argument for bare
+hosts in one line: `gui->show()` returns **false**. TIDE's CLAP overrides nine
+`gui*` methods and not `guiShow`/`guiHide`, so both take
+`clap::helpers::Plugin`'s `return false` default while the editor works perfectly
+well. Filed as BACKLOG **E85**. No DAW had ever reported it, because no DAW
+checks.
+
+## The editor arm's numbers — and what four arms rule out
+
+Same binary, same fixture, same 800 blocks as the three arms above, so the
+`--no-editor` row IS the 2026-09-09 measurement re-run, and it reproduces to the
+byte:
+
+| arm | feedback sends | **largest send** | `display-state capture` | `RackEditor:` lines |
+|---|---|---|---|---|
+| `--no-editor` (control) | 569 | **337 bytes** | `#200 (65548 bytes)` | **0** — no editor exists |
+| `--editor` | 569 | **337 bytes** | `#200 (65548 bytes)` | 38 light, **2 display-state, both `(0 bytes)`** |
+| `--editor --no-pump` | 569 | **337 bytes** | `#200 (65548 bytes)` | **15** light, 2 display-state |
+| `--editor` on `e83-vcv-scope-cabled.xml` | 569 | **337 bytes** | `#200 (65548 bytes)` | 38 light, 2 display-state |
+
+**Read the `--no-pump` row as a positive control, not as a repeat.** Starving the
+main thread visibly halves the editor-side light traffic (38 → 15) and does not
+move the DSP-side counters by one byte. That is what says "the bare host starved
+something" is not available as an explanation *here* — with the starvation
+demonstrably real and demonstrably visible where it should be.
+
+**Two hypotheses die on these numbers:**
+
+- **Dedup, by ordering.** `display-state capture #0 (65548 bytes)` is logged
+  BEFORE `feedback send #0 (137 bytes)`. A *first* send has nothing to be deduped
+  against, so `ControlPin::setValue`'s `if(value != value_)` cannot be what stops
+  it. This is stronger than the cabled-fixture argument that preceded it, which
+  rested on the payload really varying.
+- **Queue capacity.** `queDspToUi` is `AUDIO_MESSAGE_QUE_SIZE` = `0x500000`
+  (5 MB, `SynthEditLib/SeAudioMaster.h:341`) against a 65,548-byte payload, and
+  all 569 sends report `0 held back`. For scale: the queue's **entire** traffic
+  over 9.288 s is 59,903 bytes, mean 105 — less than one picture.
+
+**The positive control that makes this a location:** lights and the display-state
+blob are both `gmpi::editor::PinBase` GUI pins on the SAME module, set in the
+SAME block, through the SAME DSP→GUI pin mechanism. The floats arrive; the blob
+does not.
 
 ## Two habits this makes cheap
 

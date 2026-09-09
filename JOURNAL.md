@@ -8,6 +8,122 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-10 — windows — E80: the editor is not the variable, and the arm that says so took no screen (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** · as **tide-rack-bot** (both paths) · scheduled run
+
+**Did:** took **E80** — the win lane's own NEXT pick — and closed the confound the 2026-09-09 run left open, by giving `tests/e80_clap_feedback_probe.c` an `--editor` arm that creates the **real CLAP editor inside an invisible, off-screen parent window**. Row stays TODO; no fix, and none attempted. **The developer was at the machine again, and this run still measured a GUI condition** — which is the part of this entry worth more than the numbers. Filed **E85** out of it.
+
+### The one thing yesterday could not do
+
+The 2026-09-09 entry ends on this, in its own words: *"This probe creates no editor. E80's linux measurement had one … a Windows CLAP with an editor open is still unmeasured."* Its row said the next run should measure the same two counters with an editor present, *"because that single arm decides whether this is a CLAP question at all"*.
+
+That arm looked like it needed an idle box. It did not.
+
+```c
+CreateWindowExA(0, kProbeWndClass, "tide e80 probe (never shown)",
+                WS_POPUP | WS_CLIPCHILDREN,
+                -32000, -32000, (int)w, (int)h,
+                NULL, NULL, GetModuleHandleA(NULL), NULL);
+```
+
+No `WS_VISIBLE` and never shown, so it cannot take focus or raise itself over anyone's work; no owner and no `WS_EX_APPWINDOW`, so no taskbar button; off-screen origin as belt and braces. **The plug-in's window is created as a CHILD of it, and a child of a window that was never shown is not shown either.**
+
+**The editor genuinely runs in there.** `gui->create`, `gui->set_scale(1.0)`, `gui->get_size` → **1100x600** and `gui->set_parent` all return true, **one child window** appears under the parent, `IsWindowVisible(parent)` is **0**, and the editor resolves model and art for all five modules in the fixture — `RackEditor: 'Scope' model=yes art=yes(res/Scope.svg) art-size=195x380`. `Get-Process | Where-Object { $_.MainWindowTitle }` was **unchanged across all four arms**, with Jeff's own applications in front throughout.
+
+**What it cannot see, stated so nobody quotes it wrongly:** an invisible window gets no `WM_PAINT`, so `RackEditor: render #N` stays at **0** and nothing that depends on the editor having actually PAINTED is observable this way. E80's counters are on the observable side — `RackEditor.h:292` raises `display-state update #N arrived` from the pin-set path, not from `render()`.
+
+### The measurement
+
+Same plug-in binary (`build-e19win/SynthEditSem/Release/TIDE-Rack.clap`, built 2026-09-09), same fixture, same 800 blocks of 512 at 44.1 kHz, `TIDE_FEEDBACK_TRACE_EVERY=1`. **The `--no-editor` row IS yesterday's measurement re-run, and it reproduces to the byte** — which is what licenses reading the rest of the table as one variable moving:
+
+| arm | feedback sends | **largest send** | `display-state capture` | `RackEditor:` lines |
+|---|---|---|---|---|
+| `--no-editor` (control) | 569 | **337 bytes** | `#200 (65548 bytes)` | **0** — no editor exists |
+| `--editor` | 569 | **337 bytes** | `#200 (65548 bytes)` | 38 light, **2 display-state, both `(0 bytes)`** |
+| `--editor --no-pump` | 569 | **337 bytes** | `#200 (65548 bytes)` | **15** light, 2 display-state |
+| `--editor` on `e83-vcv-scope-cabled.xml` | 569 | **337 bytes** | `#200 (65548 bytes)` | 38 light, 2 display-state |
+
+**The editor is not the variable. Not one byte moves.**
+
+And **the far end is now observed on this platform for the first time**: `RackEditor: display-state update #0 arrived (0 bytes)`, `#1 arrived (0 bytes)`, **and nothing after**. Both land during editor construction, at log lines 23 and 33 — *before* the first `display-state capture` at line 63. So after the DSP starts capturing, the editor receives **zero** further arrivals. It is not "frozen at a stale value"; nothing ever arrives. That is E80's linux symptom, reproduced on Windows in a bare host with no DAW, no GTK and no compositor.
+
+**Read `--no-pump` as a positive control, not as a repeat.** Starving the main thread visibly halves editor-side light traffic — **38 → 15** — and moves the DSP-side counters not at all. So the starvation is real and is visible exactly where it should be, and "the bare host starved something" is not available as an explanation for the blob.
+
+### Two hypotheses die, both by measurement
+
+- **Dedup, refuted by ORDERING — which is stronger than the cabled-fixture argument that preceded it.** `RackProcessor: 'Scope' display-state capture #0 (65548 bytes)` is logged **before** `TIDE: instance #1 feedback send #0 (137 bytes, 0 held back)`. A *first* send has nothing to be deduped against, so `ControlPin::setValue`'s `if(value != value_)` (GMPI `Core/Processor.h:78`) cannot be what stops it. Yesterday's refutation rested on the cabled fixture making the payload genuinely vary; this one does not need that premise, which matters, because a Scope fed a constant `1.000000` may well draw a constant picture.
+- **Queue capacity.** `queDspToUi` is `SeAudioMaster::AUDIO_MESSAGE_QUE_SIZE` = **`0x500000`, 5 MB** (`SynthEditLib/SeAudioMaster.h:341`) against a 65,548-byte payload, and **all 569 sends report `0 held back`**. For scale: **the queue's entire lifetime traffic over 9.288 s is 59,903 bytes across 569 sends, mean 105.3 — less than one picture.**
+
+### The positive control is inside the same module, and it is what makes this a location
+
+Lights and the display-state blob are **both `gmpi::editor::PinBase` GUI pins on the same module** (`RackEditor.h:254` and `:285`), set in the same block by `RackProcessor::sendLights` and `sendDisplayState`, through the same DSP→GUI pin mechanism. **The floats arrive — `light 1 update #1100 value 0.281`, varying — and the blob does not.** So this is not a dead route, and it is not E74's unbound editor.
+
+**Where the path goes, read out rather than guessed:**
+
+| step | file |
+|---|---|
+| `displayStatePin->setValue(displayStateBytes, …)` | `SynthEdit_Rack_Adaptor/RackAdaptor.h:676` |
+| `ControlPin::setValue` → `sendPinUpdate` | `GMPI/Core/Processor.h:76-83` |
+| `PinBase::sendPinUpdate` → `plugin_->host->setPin(...)` | `GMPI/Core/Processor.cpp:188` |
+| `ug_plugin3Base::setPin` → `pin->Transmit(timestamp, size, data)` | `SynthEditLib/ug_plugin3.cpp:62` |
+| `UPlug::Transmit` | `SynthEditLib/UPlug.cpp:1036` |
+
+**`UPlug::Transmit` caches the value into `currentRawValue` and then forwards it only to `connections` — there is no GUI branch in it at all.** That is where the next run should look. **It is GATED** (`SynthEditLib/`), so the likely outcome is a filing, not a fix.
+
+### What this does to the row's own question
+
+**Every step in that table is upstream of every wrapper**, inside TIDE's inner rack. On this evidence E80 is **not** a CLAP question and the row is mis-framed as one.
+
+**The one measurement that would settle it is still missing, and it is now the next arm:** the same two counters, with `TIDE_FEEDBACK_TRACE_EVERY=1`, on the Windows **VST3 or standalone**. The *"65,673 bytes on VST3 and in the standalone"* figure this whole row rests on was read off the **old 1-in-100 cadence**, in REAPER, with an editor — and yesterday's entry has already shown once that a figure read off that cadence could not have been right. If it does not survive a full trace, then no format ever carried the blob.
+
+**It was not measured today, for a stated reason.** `Get-Process | Where-Object { $_.MainWindowTitle }` returned `devenv` debugging **SynthEditStore** on `LegacyTextEditAdapter.h`, `SynthEdit2` running a document, plus Chrome, Outlook and Slack. The standalone is the one instrument in reach that must own a real window, so it stays for an idle box — **or, better, for a bare VST3 host, which would do for VST3 what `e80probe` now does for CLAP** and would retire the constraint permanently rather than waiting it out.
+
+### E85, which fell out of the arm in its first thirty seconds
+
+**`clap_plugin_gui.show()` returns false on TIDE, on every platform.** `Processor_CLAP.h:237-249` overrides nine `gui*` methods and **neither `guiShow` nor `guiHide`**, so both take `clap::helpers::Plugin`'s defaults — literally `virtual bool guiShow() noexcept { return false; }` (`clap_helpers` `plugin.hh:304-305`). The probe prints `FAIL  gui->show succeeds` while everything around it succeeds and the editor demonstrably builds. **So the editor works and the API says it did not.** No DAW had reported it because no DAW checks the return; a bare host does, which is the argument for bare hosts in one sentence. Distinct from E79, which concerns the host timer `Editor_CLAP.cpp:269` registers in `guiSetParent`.
+
+### The developer was at the machine, and this run never touched his tree
+
+Second run in a row to find him working. What was done differently: **this run did not build in `C:\SE\TideSynth` at all.** It created a `git worktree` at `C:\SE\TideSynth-wt-e80` from `origin/main` and worked there, for a specific reason — **local `main` in his checkout is one commit AHEAD of `origin/main`** (`e2d344e1f TiDEknob: draw the editor-guide outline via IDrawingLayer layer 4`, unpushed), and `git checkout -b … origin/main` in that tree would have reverted `TiDEknobGui.cpp` under an open editor. His tree also carries two untracked files in `RackModules/`, untouched.
+
+The measurement then used the plug-in binary **already** in `build-e19win`, which is a virtue rather than a shortcut: it is the identical binary yesterday measured, so the control arm reproducing to the byte is a real check on the instrument rather than a coincidence, and the only variable between the rows is the editor.
+
+**The corollary is the same one yesterday recorded, and it still applies:** that binary was built from a tree carrying his uncommitted edit. It is a knob's drawing-layer override and cannot touch the rack-feedback channel, so the numbers stand — *despite* it, not *unaffected* by it.
+
+### A committed build recipe contained raw control bytes
+
+`docs/ci/headless-gui-verification.md`'s Windows build block read:
+
+```
+call "C:\Program Files\Microsoft Visual Studio<0x01>8\Community\VC\Auxiliary\Build<0x0b>cvars64.bat"
+```
+
+`\2022\` and `\vcvars` had been through something that interpreted them as escape sequences, leaving **actual `0x01` and `0x0B` bytes in the file**. A markdown renderer shows that as a plausible path. Fixed, along with the advice above it: `cmd //c` from Git Bash **does not work** for a `.cmd` in the current directory (`is not recognized as an internal or external command`) because the doubled-slash rewrite does not also supply the `.\`; `cmd /c ".\build-e80probe.cmd"` from the PowerShell tool does.
+
+Worth noticing that **I hit the same class of bug three times while writing this patch** — `\n` inside a heredoc arriving as a real newline and breaking C string literals. The habit that fixed it: build literal backslashes as `chr(92)` and assert the result, rather than counting escape levels across bash → python → C.
+
+### What is in the tree now
+
+| file | what |
+|---|---|
+| [tests/e80_clap_feedback_probe.c](tests/e80_clap_feedback_probe.c) | `--editor` / `--no-editor`; a `clap.gui` HOST extension wired in **only** in the editor arm, so `--no-editor` is byte-identical to the host yesterday's figures came from; the invisible parent; teardown ordering `hide` → `destroy` → `DestroyWindow` |
+| [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md) | the invisible-parent recipe, the four-arm table, what an unpainted editor cannot tell you, and the corrected build block |
+| `BACKLOG.md` | E80 cell; **E85** filed; win NEXT cell re-pointed |
+| `build-e80probe.cmd` | the two-line build, so the next run does not retype it |
+
+**Learned:**
+
+- **A GUI arm does not need a GUI.** An embedded editor only needs a parent HWND and a message pump, and neither has to be visible. This is the windows analogue of what a headless probe bought mac and linux, and it means a scheduled run on an occupied box is no longer restricted to non-GUI questions. Say what it cannot see (`WM_PAINT`, hence `render()`), and check `RackEditor: render #N` to know which side of that line a figure sits on.
+- **Prefer refuting a hypothesis by ORDERING over refuting it by fixture.** Dedup was argued away yesterday by making the payload vary; it is *shown* away today by the first capture preceding the first send, which needs no assumption about the payload at all. When a control requires a premise, look for the one that does not.
+- **Work in a `git worktree` when the developer's checkout is ahead of `origin`.** `git checkout -b … origin/<default>` silently reverts his committed-but-unpushed files in a tree he has open. A worktree costs one command and touches nothing.
+- **Reusing yesterday's binary is a feature, not a shortcut** — it turns the control arm into a check on the instrument. A rebuild would have made "identical to the byte" unremarkable rather than evidence.
+- **A bare host reads return values that no DAW checks.** E85 existed on every platform for as long as the CLAP wrapper has, and was found in the first thirty seconds of the first bare host that created an editor.
+
+**Not verified:** **the Windows VST3 or standalone with a full trace** — the arm that would say whether any format ever carried the blob, deliberately not run because the developer was at the machine. **Anything requiring the editor to have PAINTED** — no `WM_PAINT` reaches an invisible window, `RackEditor: render #N` is 0 in every arm. **Which layer drops the blob** — the path is now traced to `UPlug::Transmit`, and that is a location, not yet a cause. **macOS and Linux** — nothing here was re-measured there; the `--editor` arm is win32-only by construction and prints so on other platforms, where `tests/e78_clap_gui_probe.c` already exists. **E85's fix** — filed, not attempted. **`SynthEditCL` and SynthEdit proper** — not built; nothing this run changed is outside TideSynth, and no plug-in source was recompiled at all.
+
+**Machine state.** Worked entirely in a `git worktree` at `C:\SE\TideSynth-wt-e80`, removed at the end; `C:\SE\TideSynth` was never checked out, never built in, and is on `main` with the developer's unpushed `e2d344e1f` and his two untracked `RackModules/` files exactly as found. No other repo was modified. **No host was launched and no window was displayed** — verified by the process list being unchanged across the run, not assumed.
+
 ## 2026-09-09 — windows — E80's second opinion: the blob does not travel on Windows either, and it is not the timer (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** · as **tide-rack-bot** (both paths) · scheduled run

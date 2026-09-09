@@ -47,6 +47,32 @@
  *               `display-state capture` should not appear at all -- which is
  *               what says the lines in the other arms came from the document
  *               under test rather than from anything the plug-in does anyway.
+ *   --editor    CREATE THE PLUG-IN'S EDITOR through clap.gui and leave it open
+ *               for the whole render. This is the arm E80's row asks for by
+ *               name, and it is the ONE VARIABLE the 2026-09-09 windows run
+ *               could not move: every figure it published was measured with no
+ *               editor in existence, while E80's linux measurement had one.
+ *               With it, the FAR end of the channel becomes observable too --
+ *               `RackEditor: display-state update #N arrived (B bytes)`, which
+ *               is literally the row's Accept.
+ *
+ *               THE PARENT WINDOW IS DELIBERATELY INVISIBLE AND OFF-SCREEN.
+ *               It is a WS_POPUP that is never given WS_VISIBLE and is placed
+ *               at (-32000,-32000), so the editor is embedded, ticking and
+ *               rendering, and NOTHING APPEARS ON THE DESKTOP. That is not
+ *               tidiness: this box's scheduled runs fire whether or not the
+ *               developer is working at it (2026-09-09 found two Visual Studio
+ *               instances open mid-edit), and an editor arm that stole focus
+ *               would be unrunnable on exactly the days it is scheduled. An
+ *               unowned invisible parent cannot take focus and cannot raise
+ *               itself over anyone's work.
+ *
+ *               The host stub gains a clap.gui HOST extension in this arm and
+ *               ONLY in this arm, so that --no-editor is byte-identical to the
+ *               host the 2026-09-09 figures were read from. Say so when you
+ *               quote the two side by side: the arms differ in the editor AND
+ *               in that one host extension, and no real host offers the second
+ *               without the first.
  *
  * Build (Windows, from a VS x64 developer prompt or with cl on PATH):
  *   cl /std:c11 /nologo /I build-e19win\_deps\clap-src\include \
@@ -97,12 +123,46 @@ static void check(const char *what, int ok)
 /* The smallest host a plugin will accept -- deliberately offering no
  * extensions, so anything the wrapper hard-requires fails loudly here. Same
  * stub as tests/e79_clap_headless_probe.c, and deliberately so. */
+static const void *host_get_extension(const clap_host_t *h, const char *id);
+static void host_noop(const clap_host_t *h) { (void)h; }
+
+/* --editor only. A real host always offers clap.gui; a bare one that never
+ * creates an editor has no reason to, and the 2026-09-09 figures were read from
+ * a stub that returned NULL for everything. So this is wired in behind the flag
+ * rather than unconditionally -- the control arm must stay the SAME HOST those
+ * numbers came from, or the comparison this probe exists to make is confounded
+ * by the instrument. */
+static int wantEditor = 0;
+
+static void host_gui_resize_hints_changed(const clap_host_t *h) { (void)h; }
+static bool host_gui_request_resize(const clap_host_t *h, uint32_t w, uint32_t h_)
+{
+    /* Accepted, and nothing is done with it: the parent is invisible, so its
+     * size is not observable and resizing it would only hide a mismatch. */
+    (void)h; (void)w; (void)h_;
+    return true;
+}
+static bool host_gui_request_show(const clap_host_t *h) { (void)h; return false; }
+static bool host_gui_request_hide(const clap_host_t *h) { (void)h; return false; }
+static void host_gui_closed(const clap_host_t *h, bool was_destroyed)
+{
+    (void)h;
+    fprintf(stderr, "e80probe: host.gui.closed(was_destroyed=%d)\n", (int)was_destroyed);
+}
+static const clap_host_gui_t host_gui = {
+    host_gui_resize_hints_changed,
+    host_gui_request_resize,
+    host_gui_request_show,
+    host_gui_request_hide,
+    host_gui_closed,
+};
+
 static const void *host_get_extension(const clap_host_t *h, const char *id)
 {
-    (void)h; (void)id;
+    (void)h;
+    if (wantEditor && id && !strcmp(id, CLAP_EXT_GUI)) return &host_gui;
     return NULL;
 }
-static void host_noop(const clap_host_t *h) { (void)h; }
 
 static clap_host_t host = {
     CLAP_VERSION_INIT,
@@ -202,9 +262,67 @@ static bool out_try_push(const struct clap_output_events *list, const clap_event
     return true;
 }
 
+/* ---- the editor arm ------------------------------------------------------- *
+ *
+ * An embedded CLAP editor needs a parent window handle and a main thread that
+ * pumps messages. Both exist here; what deliberately does NOT exist is any way
+ * for the result to appear on screen. The parent is a WS_POPUP created WITHOUT
+ * WS_VISIBLE at (-32000,-32000) with no owner, so:
+ *
+ *   - it is never shown, so it cannot raise itself over the developer's work;
+ *   - it has no owner and no WS_EX_APPWINDOW, so it gets no taskbar button;
+ *   - the plug-in's own window is created as its CHILD, and a child of a window
+ *     that was never shown is not shown either, whatever the child does with
+ *     ShowWindow.
+ *
+ * That is not tidiness. This box's scheduled runs fire whether or not the
+ * developer is working at it -- 2026-09-09 found two Visual Studio instances
+ * open mid-edit -- so an editor arm that stole focus would be unrunnable on
+ * exactly the days it is scheduled.
+ *
+ * The editor still RUNS: WM_TIMER is delivered to an invisible window exactly
+ * as it is to a visible one, and gmpi's TimerClient is SetTimer-backed on
+ * Windows. What an invisible window does not get is WM_PAINT -- so a figure
+ * that depends on the editor having actually PAINTED is NOT observable here and
+ * must be reported as such. E80's far-end counter is not one of those:
+ * RackEditor.h raises `display-state update #N arrived` from the pin-set path,
+ * not from render(), and `RackEditor: render #N` is a separate line you can
+ * check for independently to see which of the two you are looking at.
+ */
+#if defined(_WIN32)
+static const char *kProbeWndClass = "TideE80ProbeParent";
+
+static LRESULT CALLBACK probe_wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
+{
+    return DefWindowProcA(h, m, w, l);
+}
+
+static HWND probe_make_hidden_parent(uint32_t w, uint32_t h)
+{
+    WNDCLASSA wc;
+    memset(&wc, 0, sizeof wc);
+    wc.lpfnWndProc   = probe_wndproc;
+    wc.hInstance     = GetModuleHandleA(NULL);
+    wc.lpszClassName = kProbeWndClass;
+    RegisterClassA(&wc);          /* a repeat registration fails harmlessly */
+
+    /* No WS_VISIBLE, no owner, off-screen origin. None of that is cosmetic. */
+    return CreateWindowExA(
+        0, kProbeWndClass, "tide e80 probe (never shown)",
+        WS_POPUP | WS_CLIPCHILDREN,
+        -32000, -32000, (int)w, (int)h,
+        NULL, NULL, GetModuleHandleA(NULL), NULL);
+}
+#endif
+
 int main(int argc, char **argv)
 {
     const char *bundle = NULL, *presetPath = NULL;
+    const clap_plugin_gui_t *gui = NULL;
+    int guiCreated = 0, guiParented = 0;
+#if defined(_WIN32)
+    HWND parentWnd = NULL;
+#endif
     int usePump = 1, blocks = 800, loadPreset = 1;
     const uint32_t blockSize = 512;
     const double sampleRate = 44100.0;
@@ -213,22 +331,27 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "--pump"))            usePump = 1;
         else if (!strcmp(argv[i], "--no-pump"))    usePump = 0;
         else if (!strcmp(argv[i], "--no-preset"))  loadPreset = 0;
+        else if (!strcmp(argv[i], "--editor"))     wantEditor = 1;
+        else if (!strcmp(argv[i], "--no-editor"))  wantEditor = 0;
         else if (!strcmp(argv[i], "--blocks") && i + 1 < argc) blocks = atoi(argv[++i]);
         else if (!bundle)     bundle = argv[i];
         else if (!presetPath) presetPath = argv[i];
     }
     if (!bundle || (!presetPath && loadPreset)) {
         fprintf(stderr,
-            "usage: %s <path-to.clap> <preset.xml> [--pump|--no-pump] [--no-preset] [--blocks N]\n",
+            "usage: %s <path-to.clap> <preset.xml> [--pump|--no-pump] [--no-preset]\n"
+            "       [--editor|--no-editor] [--blocks N]\n",
             argv[0]);
         return 2;
     }
 
-    printf("e80_clap_feedback_probe: arm = %s%s, %d blocks of %u at %.0f Hz, editor NEVER created\n\n",
+    printf("e80_clap_feedback_probe: arm = %s%s, %d blocks of %u at %.0f Hz, %s\n\n",
            usePump ? "--pump (a host main thread runs)"
                    : "--no-pump (starves the controller's timer)",
            loadPreset ? "" : " + --no-preset (NEGATIVE CONTROL: the bundled default rack)",
-           blocks, blockSize, sampleRate);
+           blocks, blockSize, sampleRate,
+           wantEditor ? "EDITOR CREATED (embedded in an invisible off-screen parent)"
+                      : "editor NEVER created");
 
     /* A .clap is a bundle DIRECTORY on macOS and a plain shared library
      * everywhere else -- on Windows it is a DLL whose extension happens to be
@@ -312,6 +435,77 @@ int main(int argc, char **argv)
         printf("      NOT pumping the main thread (control arm)\n");
     }
 
+    /* ---- --editor: bring the editor up BEFORE activate ---------------------
+     *
+     * Order matters and this is the host-like one: a DAW restores state, the
+     * user has the editor open, and then the transport rolls. Creating it after
+     * activate would also work, but it would make "the editor missed the first
+     * N blocks" a live explanation for any shortfall, and this arm exists to
+     * REMOVE explanations, not add them. */
+    if (wantEditor) {
+        gui = (const clap_plugin_gui_t *)plug->get_extension(plug, CLAP_EXT_GUI);
+        check("the plugin offers clap.gui", gui != NULL);
+    }
+#if defined(_WIN32)
+    if (gui) {
+        uint32_t w = 0, h = 0;
+
+        check("clap.gui supports the win32 api, embedded",
+              gui->is_api_supported(plug, CLAP_WINDOW_API_WIN32, false));
+
+        guiCreated = gui->create(plug, CLAP_WINDOW_API_WIN32, false);
+        check("gui->create succeeds", guiCreated);
+
+        if (guiCreated) {
+            /* set_scale is optional and a plug-in may decline it; a false here
+             * is not a failure, so it is reported rather than checked. */
+            const bool scaled = gui->set_scale ? gui->set_scale(plug, 1.0) : false;
+            printf("      gui->set_scale(1.0) -> %s\n", scaled ? "true" : "declined");
+
+            if (!gui->get_size(plug, &w, &h) || w == 0 || h == 0) {
+                w = 1024; h = 768;
+                printf("      gui->get_size declined; using %ux%u for the parent\n", w, h);
+            } else {
+                printf("      gui->get_size -> %ux%u\n", w, h);
+            }
+
+            parentWnd = probe_make_hidden_parent(w, h);
+            check("an invisible off-screen parent window was created", parentWnd != NULL);
+            printf("      parent HWND is %s (IsWindowVisible=%d) -- nothing appears on screen\n",
+                   parentWnd ? "valid" : "NULL",
+                   parentWnd ? (int)IsWindowVisible(parentWnd) : -1);
+
+            if (parentWnd) {
+                clap_window_t cw;
+                memset(&cw, 0, sizeof cw);
+                cw.api   = CLAP_WINDOW_API_WIN32;
+                cw.win32 = (clap_hwnd)parentWnd;
+                guiParented = gui->set_parent(plug, &cw);
+                check("gui->set_parent succeeds", guiParented);
+
+                if (guiParented) {
+                    check("gui->show succeeds", gui->show(plug));
+                    /* Give the editor a slice to build itself and bind to the
+                     * controller before the first process() call. */
+                    pump_main_thread(0.5);
+                    printf("      editor is up; parent IsWindowVisible=%d, child count follows\n",
+                           (int)IsWindowVisible(parentWnd));
+                    {
+                        HWND child = GetWindow(parentWnd, GW_CHILD);
+                        int n = 0;
+                        while (child) { ++n; child = GetWindow(child, GW_HWNDNEXT); }
+                        printf("      the plug-in created %d child window(s) under it\n", n);
+                    }
+                }
+            }
+        }
+    }
+#else
+    if (wantEditor)
+        printf("      --editor is win32-only in this probe; mac/linux have "
+               "tests/e78_clap_gui_probe.c\n");
+#endif
+
     check("activate succeeds", plug->activate(plug, sampleRate, 1, blockSize));
     check("start_processing succeeds", plug->start_processing(plug));
 
@@ -394,14 +588,28 @@ int main(int argc, char **argv)
 
     plug->stop_processing(plug);
     plug->deactivate(plug);
+
+    if (gui && guiCreated) {
+        if (guiParented) gui->hide(plug);
+        gui->destroy(plug);
+    }
+#if defined(_WIN32)
+    if (parentWnd) DestroyWindow(parentWnd);
+#endif
+
     plug->destroy(plug);
     entry->deinit();
     free(L); free(R); free(preset);
 
     printf("\n%s -- the numbers that matter are on STDERR, from the plug-in:\n"
            "  RackProcessor: '<slug>' display-state capture #N (B bytes)   <- the DSP captured it\n"
-           "  TIDE: instance #N feedback send #M (B bytes, H held back)    <- what the queue carried\n",
-           failures ? "SOME CHECKS FAILED" : "all probe checks passed");
+           "  TIDE: instance #N feedback send #M (B bytes, H held back)    <- what the queue carried\n"
+           "%s",
+           failures ? "SOME CHECKS FAILED" : "all probe checks passed",
+           wantEditor
+             ? "  RackEditor: display-state update #N arrived (B bytes)       <- E80's Accept, the FAR end\n"
+               "  RackEditor: light N update #M value V                       <- the small-payload control\n"
+             : "");
 
     return failures ? 1 : 0;
 }
