@@ -18,7 +18,7 @@ that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
 Learned sections are **438 KB** across **341** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **136 KB / 1465 lessons — 3.2x smaller**, and represents
+A8. This is **136 KB / 1466 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -46,6 +46,7 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Work in a `git worktree` when the developer's checkout is ahead of `origin`.
 - Reusing yesterday's binary is a feature, not a shortcut
 - A bare host reads return values that no DAW checks.
+- Read a lint's WHOLE output and its EXIT CODE, not its tail.
 
 ## 2026-09-09
 
