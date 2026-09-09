@@ -15,8 +15,8 @@ It used to sit *below* the oldest entry, and on 2026-09-01 a rotation swept it
 into the archive along with the entries it was standing behind — because a
 rotation removes the oldest entries and the oldest entries are at the bottom.
 **The instruction that says "do this every run" stopped being read every run,
-and the file grew from 53 KB to 229 KB across nine runs that could no longer
-see this rule.** Nothing caught it: `check-journal-prepend.py` deliberately does
+and the file grew from 53 KB to 229 KB across the fourteen entries that
+followed, written by runs that could no longer see this rule.** Nothing caught it: `check-journal-prepend.py` deliberately does
 not gate the header block, and the rotation was legal in every other respect.
 Above the first dated entry a rotation cannot reach this — which is also where
 the run prompt ("the template at the top of that file"), that script's own
@@ -109,7 +109,7 @@ Template:
 |---|---|---|---|---|
 | `14c3aaa` | 2026-08-31 | present | present | **67,105 B** |
 | `b824422` ([#565](https://github.com/JeffMcClintock/TideSynth/pull/565)) | 2026-09-01 | **gone** | **gone** | 52,942 B |
-| nine commits since | to 2026-09-09 | absent | absent | **228,834 B** |
+| 15 commits since, 14 entries | to 2026-09-09 | absent | absent | **228,834 B** |
 
 `b824422`'s diffstat is the mechanism, not an inference: `JOURNAL.md -453 lines`, `JOURNAL-2026-08.md +308`. The rotation was **legal in every respect** — every moved entry reappears verbatim in the archive, which is all A8 asks — and `check-journal-prepend.py` deliberately does not gate the header block, so nothing could have caught it.
 
@@ -145,7 +145,7 @@ The trailer had been in the one place all three exclude.
 | nothing lost in the rotation | `extract-lessons.py --check` → **1460 lessons from 340 entries**, identical to the pre-rotation baseline taken before any file was touched |
 | the 17 moved entries are verbatim | `check-journal-prepend.py` → *17 entries rotated out, verified verbatim elsewhere in the diff* · `prepend-only, OK` |
 | the 3 kept entries are untouched | entries 1 and 2 **byte-identical** to `origin/main`; entry 3 differs by its final newline alone, being newly last — the case `canonical()` was written for |
-| size | `JOURNAL.md` **228,834 → 49,015 B**, under A24's 60 KB with its floor (four most recent entries) intact |
+| size | `JOURNAL.md` **228,834 → 49,092 B**, under A24's 60 KB with its floor (four most recent entries) intact |
 | E83 archived verbatim | `check-backlog-diff.py` → *1 row(s) archived, verified verbatim* |
 | lint | all six `lint.yml` checks rc=0 locally, plus `check-backlog-archived.py` |
 
@@ -156,7 +156,7 @@ The trailer had been in the one place all three exclude.
 **Learned:**
 
 - **A remedy that MOVES data can carry off the rule that governs it, and every check can stay green while it does.** Rotation deleted the rotation rule; the lessons glob would have deleted the lessons. Both halves of this run are the same shape, and neither is visible from any single commit — only from the file's size curve across nine of them.
-- **When an instruction stops being followed, suspect that it stopped being READABLE before suspecting the readers.** Nine runs on three machines skipped this, and four of them wrote down a reason that was wrong. That many careful runs agreeing is evidence about the input, not about them.
+- **When an instruction stops being followed, suspect that it stopped being READABLE before suspecting the readers.** Fourteen entries went in across three machines without one rotation, and four cells wrote down a reason that was wrong. That many careful runs agreeing is evidence about the input, not about them.
 - **A rule's position is part of its content when a process moves things.** "Above the first entry" is not formatting; it is what makes the rule survive the operation it describes.
 - **Three descriptions can all say where something is while it is somewhere else.** The prompt, the check's docstring and A8's row all said "at the top". Nobody had compared them to the file, and comparing them cost one `grep`.
 - **Take the baseline BEFORE you touch anything, or your after-number proves nothing.** `extract-lessons.py --check` on the untouched tree is the only reason `1460/340` afterwards means "lost nothing" rather than "ran successfully".
