@@ -37624,103 +37624,86 @@ REAPER sees **3** parameters on the instance: `Bypass`, `Wet`, `Delta` — all R
 
 **Branch/PR:** `tide/mac/E19-au3-registered` — the E19 row, E73, the macOS AUv3 section of [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md), and this entry.
 
-## Rotation — do this as part of STEP 4, every run
+---
 
-Every run on three machines reads this file in full, so its size is a cost paid
-forever. It hit **192 KB across 37 entries in six days** before the first
-rotation (**A8**, 2026-08-12). Nothing is ever deleted or rewritten — old
-entries just move to a per-month archive.
+## 2026-08-31 — linux — X1 closed by Jeff's ruling: the blocker was never written down (state update, interactive)
 
-**The rule, applied after you append your own entry:**
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths) · interactive continuation, Jeff directing (*"what is x1 about?"*, then *"mark it DONE"*)
 
-1. Move the oldest entries out, in order, into `JOURNAL-<YYYY>-<MM>.md` for the
-   month each entry belongs to, appending **below** what is already there so the
-   archive stays newest-first. Copy the template from
-   [JOURNAL-2026-08.md](JOURNAL-2026-08.md) if that month has no file yet.
-2. Stop when this file is **under 60 KB**, or when the floor is reached —
-   whichever comes first. **The floor is the LATER of: the four most recent
-   entries, or every entry carrying the most recent date.** The floor always
-   wins; a busy day pushing this file over 60 KB is correct, not a rotation
-   failure.
-3. Never edit an entry while archiving it. The archive is the record.
+**Did:** **X1 → DONE and archived.** Bookkeeping only; no code, no measurement this entry is claiming credit for.
 
-**Why a date and not a duration (A24, 2026-08-20).** A24 asked for a time-based
-floor — *"retain everything from the last 7 days"* — and measuring what that
-costs is what killed it. Entries per day, counted across both files:
-
-| window | entries | bytes |
-|---|---|---|
-| last 1 date | 9 | 63 KB |
-| last 2 dates | 25 | 164 KB |
-| last 3 dates | 51 | 301 KB |
-| **last 7 dates** | **112** | **651 KB** |
-
-Every run on three machines reads all of it, so 7 days is **3.4× the 192 KB that
-triggered A8 in the first place** — the remedy would have been twenty times more
-expensive than the problem. Even two days is worse than the state A8 was created
-to fix.
-
-So the floor is **one date**, which bounds the cost at roughly a day's work while
-guaranteeing a run can always see everything that happened most recently — the
-failure A24 correctly identified, where a 4-entry floor at ten entries a day
-bought under half a day. On a quiet week the four-entry floor still binds and
-nothing changes.
-
-**What this does NOT fix, filed as A30:** the durable lessons still age out.
-Rotation moves an entry's *"Learned"* bullets into the archive with it, and no
-run reads the archive. The cheap answer is a standing digest that never rotates;
-the expensive one is reading 651 KB.
-
-A month splits across both files as it ages — recent entries here, older ones in
-the archive. That is why step 1 says "the month each entry belongs to".
-
-**Archives:** [JOURNAL-2026-08.md](JOURNAL-2026-08.md).
-
-Template:
+### The row, in full, from the repo's first commit
 
 ```
-## YYYY-MM-DD — <machine> — <BACKLOG id>
-
-**Did:** what actually changed.
-**Result:** built / tested / failed, with the real output.
-### Correction: Ardour IS a host here, and it settles the question
-
-**Jeff asked "don't we have Ardour host?" — yes, and that makes three separate
-claims of mine wrong.** I wrote in the row, both PR bodies and the issue that
-closing this needed REAPER on a win/mac box. **Ardour 8.4 is installed on this
-box**, `ardour-vst3-scanner` answers precisely this question, and **my own memory
-note from 2026-08-19 records using it**, including the
-`LD_LIBRARY_PATH=/usr/lib/ardour8` quirk it needs.
-
-```
-BROKEN (main):  VST3 not a valid bundle:
-                  '.../TIDE_Rack_VST3.vst3/Contents/x86_64-linux/TIDE_Rack_VST3.so'
-FIXED  (both):  [Info]: Found Plugin: TIDE Rack
-                  uid=506C7567696E474D504920501951ED43 category="Instrument|Synth"
-                  n_outputs=2 n_midi_inputs=1
+| X1 | BLOCKED | linux | VST3 + CLAP on Linux, GCC 13+. See the Linux toolchain memory for WSL specifics. |
 ```
 
-Ardour derives the payload name from the bundle name — exactly the rule GMPI's
-own comment states — so **the Linux VST3 is unloadable today, not merely oddly
-named**, and the fix is host-verified on the platform that has the bug. The
-scanned UID also matches the one in all five `.rpp` fixtures.
+That is `b2b1466`, *"Scaffold TIDE Synth coordination repo"*, and it is the entire original specification. It carried a **bare `BLOCKED` with no `(id)`**, under **After the carve-out** — so the implicit blocker was **C7**, C7 went DONE, and nothing anywhere said so.
 
-**The lesson is not "use Ardour".** It is that I asserted an environment limit
-three times without testing it, while holding a note that contradicted it.
-"Not verifiable here" is a claim about the machine, and it deserves one command
-before it goes into a row, two PR bodies and an issue.
+### Why it took a human, and both refusals were correct
 
-Ardour's cache entry from the scan pointed into a scratch tree and was removed;
-Jeff's other nine cached plugins were left alone.
+Its Accept has been met since at least 2026-08-27, measured rather than assumed on both occasions: GCC 13.3.0, 492/492 rc=0 then; **553/553, 0 errors** today on a fresh `TIDE_VCV_FUNDAMENTAL=ON` tree, producing both artifacts — **and both were driven, not merely linked.** The VST3 was hosted in REAPER 7.43 under headless weston with the transport rolling 75 s ([#566](https://github.com/JeffMcClintock/TideSynth/pull/566)); the CLAP went through `clap_plugin_state` load/save via `tests/e60_clap_state_probe.cpp` ([#550](https://github.com/JeffMcClintock/TideSynth/pull/550)).
 
+Three linux runs in a row noticed and none flipped it. STEP 2: *"NEVER start a BLOCKED item, even if you think the blocker is stale... say so in the journal and stop."* The 2026-08-27 run added a second reason of its own — it was claiming X2, and *"a status change on a row it did not take is exactly the kind of drive-by edit that makes a queue untrustworthy."* Both are the rules working, and together they made the deadlock structural: **the only actor permitted to break it was Jeff.**
 
-**Learned:** anything the next run would otherwise rediscover the hard way.
+**Learned:**
 
-0. **"Not verifiable on this box" is a measurable claim, and I shipped it three
-   times unmeasured.** Ardour was installed the whole time and my own memory note
-   named the command. Check the machine before writing a limit into a row.
-**Next:** what should happen next, and why.
-**Branch/PR:** link.
-```
+- **A bare `BLOCKED` is unfalsifiable by construction, and the queue has no way to notice.** `BLOCKED(<id>)` can be re-checked by any run in one command; `BLOCKED` can only be re-checked by the person who wrote it, and after a while not even by them. Prefer the parameterised form, and a row whose blocker cannot be named probably wants `NEEDS-JEFF` — which at least says *who* is owed.
+- **Two individually correct rules can compose into a deadlock that neither one describes.** "Never start a BLOCKED row" and "never edit a row you did not take" are both right and both worth keeping; their intersection is a row no agent may ever touch. Worth knowing that the fleet can manufacture these, because nothing in the process detects one.
+- **Ask what the row is FOR before proposing a status.** The answer here was one line from the repo's first commit, and reading it is what turned "the blocker looks stale" into "the blocker was never written down" — a different claim, and the one that got a ruling.
+
+**Not verified:** nothing new — this entry measures nothing. The build and host evidence it cites belongs to the two entries below it.
+
+**Machine state.** All six repos on their default branches, clean; nothing running.
+
+**Next:** **E74** remains the top of the linux lane, and **the linux CLAP cell of E19 is newly measurable** now the 32 KB cliff is off `main`.
+
+**Branch/PR:** `tide/linux/X1-done` — the flip, its archive row, the `linux` NEXT cell, and this entry.
 
 ---
+
+## 2026-08-31 — linux — the merges, and E60's fix measured after it had already landed (interactive continuation, Jeff directing)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** · as **tide-rack-bot** (both paths) · interactive continuation of the scheduled run below, Jeff directing (*"resolve conflicts and merge"*)
+
+**Did:** merged this box's three open PRs, resolved the one conflict the entry below predicted, and **flipped E60 to DONE**. Scope was deliberately my own PRs: [#565](https://github.com/JeffMcClintock/TideSynth/pull/565) is the mac box's E73 work and was left alone.
+
+### Both E60 PRs had already auto-merged, within a minute of becoming eligible
+
+[#550](https://github.com/JeffMcClintock/TideSynth/pull/550) merged at **04:42:02Z** and [GMPI_Wrappers#32](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/32) at **04:41:43Z** — both while I was still building #32 to check it. #550 had been CONFLICTING for three days; resolving it made it eligible and the docs-only allowlist took it, and #32 went with it.
+
+**So nothing gated #32 on a build, and that is worth saying rather than presenting what follows as if it were a gate.** It is a product-code change in a repo with no CI. The measurement is post-hoc, and it passes.
+
+`tests/e60_clap_state_probe.cpp` — which #550 itself had just landed — against two CLAP binaries differing by exactly #32, same commit of everything else:
+
+| build | 51,690-byte `e53-vcv-rack-segv.xml` | 18,893-byte preset |
+|---|---|---|
+| `main` without #32 | **FAIL** — `load` false, **32,512 of 51,690** consumed, save falls back to the 86-byte default | PASS, 18,662 back |
+| with #32 | **PASS** — 51,690 of 51,690, saves **51,630** | — |
+
+**32,512 is the old `maxSize - chunkSize - 1` cliff to the byte.** The small preset passing on the *same pre-fix binary* is the positive control that stops the FAIL reading as a broken probe. The BEFORE binary was free: it was the copy installed into the scratch `HOME` an hour earlier, before the rebuild.
+
+**Consumers:** TIDE **553/553** then **36/36**, 0 errors on linux. SynthEdit consumes only `se_gmpi/vst3` from GMPI_Wrappers and this change is confined to `wrapper/CLAP/`, so the SynthEditCL rule is discharged by scope, not by a build.
+
+### The predicted conflict, and a near-miss resolving it
+
+#566 went CONFLICTING the moment #550 landed, on exactly the one line the entry below said it would — the `linux` NEXT cell — plus `docs/lessons.md`, which is generated and was regenerated rather than merged.
+
+**The near-miss is the part worth writing down.** My first archive attempt put a markdown TABLE inside E60's row, i.e. newlines inside a table cell, and `check-backlog-diff.py` correctly refused: a row that is no longer one line cannot be matched verbatim against its source. Reaching for `git checkout ORIG_HEAD -- BACKLOG.md` to start over then **silently reverted #550's own E60 row**, because ORIG_HEAD is the pre-merge branch tip and that row only exists on main. Caught by grepping for the row rather than by any lint. `git checkout --merge -- <file>` re-creates the conflict markers and is the right way back — and note it writes `<<<<<<< ours` / `>>>>>>> theirs`, not `HEAD` / `origin/main`, so a resolver script that pattern-matches the marker text silently matches nothing.
+
+**Learned:**
+
+- **A PR you resolved may merge before you finish checking it.** Auto-merge fires on eligibility, not on your intent, and a docs-only allowlist can pull a sibling repo's code PR along in the same minute. If a build is meant to gate a merge, it has to happen before the resolution, not after.
+- **Say "post-hoc" out loud when verification arrives after the merge.** The numbers are just as true and mean something different; a row that presents them as a gate is lying about its own process.
+- **Keep the superseded binary — it is the A/B for free.** The pre-fix CLAP was sitting in a scratch install directory from an earlier step, so the control cost one command instead of a second build tree.
+- **A markdown table cannot go inside a table cell, and the archive lint is what catches it.** The row stops being one line and no longer matches its source verbatim, which is exactly the property the lint exists to protect.
+- **`git checkout <ref> -- <file>` during a merge is not "undo".** It resolves the path to that ref's content, discarding the *other* side's changes outside the conflict hunk — here, another PR's row. `git checkout --merge -- <file>` is the undo.
+- **Conflict marker text depends on how the conflict was produced.** `--merge` writes `ours`/`theirs` where the original merge wrote `HEAD`/`origin/main`; my resolver script matched neither and raised `NoneType has no attribute 'group'` rather than doing something wrong quietly, which is the only reason this is a footnote.
+
+**Not verified:** #32 in a real CLAP host — the probe is deliberately the C ABI with no DAW, and the linux CLAP cell of E19 is now measurable and unmeasured; whether #32's larger loads behave on Windows or macOS.
+
+**Machine state.** `GMPI_Wrappers` was briefly on a `verify-32` branch for the A/B build and is back on `main`, fast-forwarded, clean; the branch is deleted. All six repos on their default branches, clean. Nothing running. `build-e19/` is gitignored and now carries #32.
+
+**Next:** **E74** is still the top of the linux lane. **The linux CLAP cell of E19 is newly measurable** now that the cliff is gone, and the harness in [tests/e19-host-feedback/](tests/e19-host-feedback/) mints its own project. **X1 still wants Jeff** — its `BLOCKED` mark has been stale since 2026-08-27 and no run may start it.
+
+**Branch/PR:** `tide/linux/E19-vst3-linux-cell`, [#566](https://github.com/JeffMcClintock/TideSynth/pull/566) — the merge commit, E60's flip to DONE, the refreshed `linux` NEXT cell, and this entry.
