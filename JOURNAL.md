@@ -8,6 +8,111 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-11 — windows — E80: the VST3 does not carry the blob either, so the row is mis-titled (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.49585.0.0** (the Appx package version, which A13 records as the discoverable one on Windows; `%LOCALAPPDATA%\Claude\Logs\main.log` agrees at `1.49585.0`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**The app moved between runs and the provenance line is how anyone would know:** 2026-09-10 recorded **1.46388.4.0** on this box, and it is **1.49585.0.0** today. Checked rather than copied forward, which is the only reason it is right.
+
+**Did:** continued **E80** on this platform's own open branch and answered the arm the last two cells named by name — *"the same two counters on the Windows VST3, with `TIDE_FEEDBACK_TRACE_EVERY=1`"* — with a **new bare VST3 host**, [tests/e80_vst3_feedback_probe.cpp](tests/e80_vst3_feedback_probe.cpp). **The VST3 does not carry the blob either.** Row stays TODO; no fix, and none attempted. Filed **E86**. No product code changed, in this repo or any sibling.
+
+### The answer
+
+Both binaries built from **one configure**, so the format is the only variable. `TIDE_FEEDBACK_TRACE_EVERY=1`, 800 blocks of 512 at 44.1 kHz, `tests/fixtures/e75-vcv-visible-rack.xml`:
+
+| arm | sends | **largest send** | lifetime queue traffic | `display-state capture` | far end |
+|---|---|---|---|---|---|
+| VST3 `--no-editor` | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | — |
+| VST3 `--editor` | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | `#0/#1 arrived (0 bytes)`, nothing after |
+| VST3 `--editor --no-pump` | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | lights **38 → 15** |
+| VST3 `--editor`, cabled fixture | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | as above |
+| CLAP `--no-editor` | 569 | **337 B** | 59,903 B | `#200 (65548 B)` | — |
+| CLAP `--editor` | 569 | **337 B** | 59,903 B | `#200 (65548 B)` | `#0/#1 arrived (0 bytes)`, nothing after |
+| VST3 `--no-preset` (negative control) | **0** | — | 0 | **none** | — |
+
+**The two formats' entire 9.288 s of queue traffic differ by twenty-five bytes, and both are smaller than ONE 65,548-byte picture.** `0 held back` on all 1,138 sends.
+
+**So the number this row was filed on is gone.** *"65,673 repeatedly on VST3 and in the standalone"* was read in REAPER off the **old 1-in-100 cadence** — the cadence the 2026-09-09 run showed samples about 2% of sends and therefore cannot answer an existence question. It withdrew the CLAP quotes on exactly that ground; the VST3 quote had never been re-read, and it does not survive either.
+
+**E80 is not a CLAP question. The defect is real, and format-independent.** Everything on the path is upstream of every wrapper, which is what the 2026-09-10 entry predicted from source and this measures.
+
+**Four controls, all inside this run**, because a null result is worth nothing without them:
+
+- **`--no-preset`**: 0 sends, 0 captures, **0 modules constructed**. Every line in the other arms came from the document under test.
+- **`--no-pump`**: editor-side lights **38 → 15** while the DSP counters do not move a byte. Starvation is real and visible exactly where it should be, so "the bare host starved something" is not available.
+- **the cabled fixture** ([e83-vcv-scope-cabled.xml](tests/fixtures/e83-vcv-scope-cabled.xml)): identical in every figure. A varying payload changes nothing.
+- **CLAP re-measured from the same tree**: reproduces 2026-09-10 to the byte (569 / 337 / `#200`). That is a check on the instrument, not a repeat.
+
+### E86 — the probe's first version was wrong, and the plug-in did not say so
+
+Worth more than the table, because it is a silent failure and it is TIDE's, not the probe's.
+
+The first version created only the `IComponent`. That is legal VST3 and is what a CLAP-shaped mental model suggests, since a CLAP plug-in is one object. It produced: the right document (`building rack from 38661 byte document`), the right `TIDE: rack built for 44100 Hz, block 512`, and then **zero** `RackProcessor: '<slug>' constructed` lines, **zero** display-state captures, and 3 feedback sends. **No error, no warning, nothing in the log that named the problem.**
+
+TIDE's module factory — VCV Fundamental's 39 models, the four enrichment XMLs, the five bundled prefabs — is populated by **`TideApp::InitInstance()`** (`SynthEditSem/TideApp.cpp:813`), which is **controller-side**. On CLAP one object is both halves so it always runs. On VST3 it does not.
+
+| `--no-controller` | with a controller |
+|---|---|
+| **0** modules constructed | **29** |
+| **0** display-state captures | 200 |
+| 20 sends, max **37 B** | 569 sends, max 325 B |
+
+Kept in the probe as `--no-controller` — a **reproduction**, not a useful arm — because a claim about a silent failure is worth little if the next reader has to recreate the bug to see it.
+
+**I have deliberately not claimed this is reachable in a shipping host.** Every mainstream DAW creates both halves in one process. What makes it worth a row rather than a footnote is that VST3 separates the two *precisely* so they need not share one, the spec permits component-only instantiation, and the failure shape — loads, reports success, plays silence — is E27's and E63's shape, and both of those shipped.
+
+**It also fixed the probe's ordering**, which is the host's: create and initialise the controller, connect both `IConnectionPoint`s, `controller->setComponentState`, then `component->setState`. Restoring the component's state before the controller's `initialize()` builds the rack against an empty factory.
+
+### The other thing a bare VST3 host must supply, or it measures its own omission
+
+DSP→UI traffic in this wrapper is `IMessage`-based: `Processor_VST3.cpp`'s background thread calls `allocateMessage()` and `if (!message) break;`. `allocateMessage()` resolves through **`IHostApplication`** on the host context — so a host that does not offer one **has no DSP→UI channel at all**, and a probe without one would have "measured" a dead channel and blamed the plug-in. The probe implements a minimal one (`IMessage` + `IAttributeList`, only the `setInt`/`getInt` and `setBinary`/`getBinary` the wrapper actually uses) and offers it in **every** arm, so it is never a variable between them. It prints `host allocated N IMessage(s)` — **571** in the editor arm — so a zero would be visible rather than inferred.
+
+This is a deliberate difference from the CLAP probe, where the `clap.gui` host extension *is* gated behind `--editor`. There it had to be, to keep the control arm byte-identical to the host an earlier run's figures came from; here there was no earlier bare-host figure to stay comparable with.
+
+### THE BUILD TRAP THAT COST THIS RUN THE MOST, and it is the machine, not the code
+
+**`C:\SE\GMPI` and `C:\SE\gmpi_ui` moved to different commits WHILE THIS RUN WAS BUILDING.**
+
+My own survey read `GMPI` at `cf7504b` at the start. Twenty minutes later the same command read **`9461fa9`, seventy-seven commits behind its own `origin/main`**; `gmpi_ui` read **407 behind and 2 ahead**. The developer was working at the machine when the run started (`devenv` on `Simulator2 — ParticleMgr.cpp`, twice, plus Chrome), and had gone by the time the second build failed.
+
+The resulting set **does not compile together at all**:
+
+```
+ModuleView.h(345,31): error C2039: 'IPinsCallback': is not a member of 'synthedit'
+UG2.h(8,10): error C1083: Cannot open include file: 'Extensions/ParameterIterator.h'
+SerializationHelper_XML.h(49,10): error C1083: Cannot open include file: 'experimental/observable.h'
+Base64.h(22,10): error C1083: Cannot open include file: 'Core/base64.h'
+```
+
+**Every one of those headers exists on those repos' `origin/main`.** `SynthEditLib` was current and `GMPI` was not, so the failure reads as broken code in `EditorLib` and is nothing of the sort.
+
+**The fix is to stop using the overrides.** Configuring with **no** `*_FOLDER_OVERRIDE` at all (plus `CMAKE_GENERATOR_INSTANCE`, which this box still needs) makes CMake fetch all eight dependencies fresh; that configure and build were **rc=0, zero errors**. `docs/lessons.md` already carries *"a `*_FOLDER_OVERRIDE` build reads a live working tree, so another session's uncommitted work lands in your test results"* — that is the weaker case. This is the checkout's **commit** moving underneath you, and it does not need anyone to be careless: the developer switching branches in his own repo is enough.
+
+**Second trap, cheaper but confusing.** A brand-new build tree throws `error C1083: Cannot open compiler generated file: '...\X.obj': Permission denied` on freshly created object files. **16 files failed on the first pass and 0 on the second.** Defender real-time monitoring is on (`(Get-MpPreference).DisableRealtimeMonitoring` → `False`). It reads like a broken build and is a scanner holding a new file; re-run the identical command before believing it.
+
+### The developer, and what this run did about him
+
+`Get-Process | Where-Object { $_.MainWindowTitle }` at the start: **two Visual Studio instances on `Simulator2 — ParticleMgr.cpp`**, Chrome playing music. By mid-run they were gone. **Third run in a row to find him there**, and the first where the repos he was in were the ones this run depends on.
+
+What this run did: worked entirely in a `git worktree` at `C:\SE\TideSynth-wt-e80`, never checked out or built in `C:\SE\TideSynth`, launched no host and displayed no window (the `--editor` arm's parent is the same never-shown off-screen `WS_POPUP` the CLAP probe uses). **No REAPER, no `%APPDATA%` backup, no standalone.** The process list was unchanged across every arm.
+
+**Learned:**
+
+- **When the question is *which format*, build both formats from ONE configure.** Quoting a CLAP number from one build day against a VST3 number from another leaves the build as a second variable, and this row spent three runs resting on a cross-day comparison nobody had flagged. Rebuilding the CLAP arm cost about six minutes and turned "different formats differ" into "these two differ by 25 bytes".
+- **A `*_FOLDER_OVERRIDE` build reads a live checkout's COMMIT, not just its dirt.** Two sibling repos moved mid-run and produced a set that cannot compile. Drop the overrides when you need a build you can trust; the fetched configure is immune and costs one cold build.
+- **When a probe and a plug-in disagree about what "a plug-in instance" is, the probe is wrong and it will not say so.** CLAP's one-object model does not transfer to VST3's two. The tell was not an error — it was `RackProcessor: '<slug>' constructed` appearing 0 times where a sibling probe showed 29.
+- **A bare host must supply what the wrapper's channel is built on, or it measures its own omission.** Without `IHostApplication` there is no VST3 DSP→UI channel at all, and the probe would have blamed the plug-in for its own missing interface. Print the count so a zero is visible.
+- **The heredoc backslash trap is still live on this box, and cost three failed patches.** `\n` inside a `<<'PY'` heredoc arrives as a real newline, so a multi-line Python pattern matching C source containing `\n` silently finds nothing. The 2026-09-10 entry recorded this and I hit it anyway. The reliable fix is not to escape harder — it is to stop routing the patch through a shell.
+- **A negative control that produces zero of everything is the cheapest line in the table.** `--no-preset`: 0 sends, 0 captures, 0 modules. Without it, "569 small sends" is also consistent with a plug-in that always sends 569 small things.
+
+**Not verified:** **the standalone** — the quoted figure named it alongside VST3 and it is the one instrument here that must own a real window, so it is still unmeasured and needs an idle box. **Anything requiring the editor to have PAINTED** — an invisible window gets no `WM_PAINT`; `RackEditor: render #N` is **0** in every arm here, as it was on 2026-09-10. **Which layer drops the blob** — `UPlug::Transmit` is a location, not a cause, and nothing this run did narrowed it further. **macOS and Linux** — nothing was re-measured there; the VST3 probe is win32-only by construction (it `LoadLibrary`s a bare DLL; mac and linux load a .vst3 *bundle*) and says so rather than pretending. **E86's reachability in any real host** — argued both ways in its row, measured neither. **`SynthEditCL` and SynthEdit proper** — not built; nothing this run changed is outside TideSynth, and no plug-in source was edited at all. **The `build-e80fmt` tree's numbers** — that override build never linked and produced nothing; every figure above is from `build-e80iso`, the fetched-dependency tree.
+
+**Machine state.** Worked entirely in a `git worktree` at `C:\SE\TideSynth-wt-e80`; `C:\SE\TideSynth` was never checked out or built in and is on `main` at `13095a395`, clean, exactly as found. **`C:\SE\GMPI_Wrappers` carries one dirty file, `wrapper/AU3/AU3_Wrapper.mm`, which is PURE CRLF CHURN** — 820 insertions, 820 deletions, and `git diff --ignore-all-space` is empty. It is the developer's, it predates this run, it is macOS-only and irrelevant to everything here, and it was **left exactly as found**: not committed, not reverted, not stashed. `SE16`, `SynthEditLib` and `SynthEdit_Rack_Adaptor` clean and untouched. **`C:\SE\GMPI` and `C:\SE\gmpi_ui` were moved by the developer during the run, not by this run** — nothing here fetched into them beyond a read-only `git fetch`, and neither was checked out, reset or fast-forwarded. Dependency shas the measurement was actually built against are **whatever TideSynth's `main` pins**, not the local checkouts, because the build used no overrides — which is the whole point of that choice. **No host, DAW or standalone was launched, nothing was installed or registered, and no window was displayed**; both probes are bare hosts that load the plug-in binary out of a scratch build tree. Two gitignored build trees (`build-e80fmt`, the failed override one, and `build-e80iso`) and both probe executables are left in the worktree, which is removed at STEP 5; every log is in the session scratchpad, outside all repos.
+
+**Next:** **E85 is the obvious next windows pick** — small, ALLOWED, self-contained, and its Accept is already wired: `Processor_CLAP.h` overrides nine `gui*` methods and neither `guiShow` nor `guiHide`, and the CLAP probe's `--editor` arm prints `FAIL  gui->show succeeds` today. **Then E86**, whose own row says to read it first because the answer may be a written ruling rather than a code change. **E80 itself now wants a GATED filing, not another measurement** — three runs have measured this channel from both ends on two formats and the only lead left is `UPlug::Transmit` (`SynthEditLib/UPlug.cpp:1036`), which forwards only to `connections` and has no GUI branch. **Do not build with `*_FOLDER_OVERRIDE` on this box unless you have checked the sibling repos' shas against their origins first**, and prefer the no-override configure regardless. **`JOURNAL.md` rotation is still not this lane's to do** — [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) is macOS's and its whole subject is the rotation rule.
+
+**Branch/PR:** `tide/win/E80-clap-editor-arm`, [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) — the new [tests/e80_vst3_feedback_probe.cpp](tests/e80_vst3_feedback_probe.cpp) and `build-e80vst3probe.cmd`, E80's row with the seven-arm measurement, **E86** filed, the re-pointed `win` NEXT cell, the bare-VST3-host section in [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md), regenerated `docs/lessons.md`, and this entry.
+
 ## 2026-09-10 — windows — E80: the editor is not the variable, and the arm that says so took no screen (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** · as **tide-rack-bot** (both paths) · scheduled run

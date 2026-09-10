@@ -992,3 +992,103 @@ does not.
   no path to an audio output, so `-inf dBFS` is correct there and would be a
   five-alarm result on `v1-rack.rpp`. The evidence the document arrived is
   `TIDE: instance #1 building rack from 38661 byte document`, not the peak.
+
+# A bare VST3 host on WINDOWS — and the arm that retitled E80
+
+Written 2026-09-11 for **BACKLOG E80**, whose whole premise was that TIDE's
+rack-feedback channel behaves differently on CLAP than on VST3.
+
+[tests/e80_vst3_feedback_probe.cpp](../../tests/e80_vst3_feedback_probe.cpp) is
+the VST3 twin of `e80_clap_feedback_probe.c` — same four arms, same invisible
+off-screen parent, same counters. **Nothing from the VST3 SDK is compiled or
+linked**; only its headers are read, from `C:\SE\SDKs\VST3_SDK`. The interface
+IIDs come from the `IFoo_iid` constants `DECLARE_CLASS_IID` leaves at namespace
+scope, never `IFoo::iid`, which lives in `coreiids.cpp` and would drag the SDK's
+build in.
+
+## Build and run
+
+```
+cmd /c ".\build-e80vst3probe.cmd"
+
+set TIDE_FEEDBACK_TRACE_EVERY=1
+e80vst3probe.exe <build>\SynthEditSem\Release\TIDE-Rack.vst3 ^
+    tests\fixtures\e75-vcv-visible-rack.xml --blocks 800 2> trace.err
+```
+
+~20 s, no DAW, no `%APPDATA%\REAPER` backup, and with `--editor` no *visible*
+window either.
+
+## THE CONTROLLER IS NOT OPTIONAL, and skipping it fails silently
+
+The first version of this probe created only the `IComponent`, which is legal
+VST3 and is what a CLAP-shaped mental model suggests. Result:
+
+| | modules constructed | feedback sends | max send | captures |
+|---|---|---|---|---|
+| component only (`--no-controller`) | **0** | 20 | 37 B | **0** |
+| component + controller | 29 | 569 | 325 B | 65,548 B |
+
+Same document, same 38,661 bytes, same `TIDE: rack built for 44100 Hz` line, and
+**no error anywhere**. TIDE's module factory — VCV Fundamental's 39 models, the
+enrichment XMLs, the bundled prefabs — is populated by
+`TideApp::InitInstance()`, which is **controller-side**. On CLAP one plug-in
+object is both halves so it always runs; on VST3 it does not.
+
+`--no-controller` is kept in the probe as a **reproduction** of that, not as a
+useful arm. Do not quote its numbers as a VST3 measurement. Filed as **E86**.
+
+**The ordering follows from it:** create and initialise the controller, connect
+the two `IConnectionPoint`s, `controller->setComponentState`, and only then
+`component->setState`. Restoring the component's state before the controller's
+`initialize()` builds the rack against an empty factory.
+
+## The other thing a VST3 host must provide, or it measures its own omission
+
+DSP→UI traffic in this wrapper is `IMessage`-based: `Processor_VST3.cpp`'s
+background thread calls `allocateMessage()` and `if (!message) break;`.
+`allocateMessage()` resolves through `IHostApplication` on the host context, so
+a host that does not offer one **has no DSP→UI channel at all**. The probe
+implements a minimal one — `IMessage` + `IAttributeList`, only the
+`setInt`/`getInt` and `setBinary`/`getBinary` the wrapper actually uses — and
+offers it in *every* arm, so the host context is never a variable between them.
+It reports `host allocated N IMessage(s)` so a zero is visible rather than
+inferred.
+
+This is a deliberate difference from the CLAP probe, where the `clap.gui` host
+extension IS gated behind `--editor`; there it had to be, to keep the control
+arm byte-identical to the host an earlier run's figures came from.
+
+## What it measured — both formats, one build tree, one variable
+
+Both binaries built from the same configure, so **the format is the only thing
+that differs**. `TIDE_FEEDBACK_TRACE_EVERY=1`, 800 blocks of 512 at 44.1 kHz,
+`tests/fixtures/e75-vcv-visible-rack.xml`:
+
+| arm | sends | **max send** | total queue traffic | `display-state capture` | far end |
+|---|---|---|---|---|---|
+| VST3 `--no-editor` | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | — |
+| VST3 `--editor` | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | `#0/#1 arrived (0 bytes)`, then nothing |
+| VST3 `--editor --no-pump` | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | lights 38 → **15** |
+| VST3 `--editor`, cabled fixture | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | as above |
+| CLAP `--no-editor` | 569 | **337 B** | 59,903 B | `#200 (65548 B)` | — |
+| CLAP `--editor` | 569 | **337 B** | 59,903 B | `#200 (65548 B)` | `#0/#1 arrived (0 bytes)`, then nothing |
+| VST3 `--no-preset` (negative control) | **0** | — | 0 | **none** | — |
+
+**The two formats' entire lifetime queue traffic differs by 25 bytes**, and both
+are smaller than ONE 65,548-byte picture. The blob crosses on neither.
+
+So the figure E80 was filed on — *"65,673 repeatedly on VST3"*, read in REAPER
+off the old 1-in-100 cadence — does not survive a full trace, exactly as that
+cadence's ~2%-of-sends sampling predicted it might not. **E80 is not a CLAP
+question**, and the row is retitled rather than closed: the defect is real and
+format-independent.
+
+## One habit this makes cheap
+
+**When a probe and a plug-in disagree about what a "plug-in instance" is, the
+probe is usually wrong — and it will not say so.** CLAP's one-object model does
+not transfer to VST3's two, and the cost of assuming it did was a rack that
+built perfectly and ran nothing. The tell was not an error; it was
+`RackProcessor: '<slug>' constructed` appearing 0 times where a sibling probe
+showed 29.

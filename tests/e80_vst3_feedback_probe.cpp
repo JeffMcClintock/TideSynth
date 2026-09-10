@@ -54,12 +54,40 @@
  *               bundled default rack, which has no VCV Scope in it. If
  *               `display-state capture` still appears, the lines in the other
  *               arms did not come from the document under test.
- *   --editor    Create the plug-in's editor -- the CONTROLLER, connected to the
- *               component, plus an IPlugView attached to an INVISIBLE,
- *               OFF-SCREEN parent window. Same WS_POPUP trick as the CLAP
- *               probe's --editor arm: never given WS_VISIBLE, no owner, placed
- *               at (-32000,-32000), so nothing appears on the developer's
- *               desktop and nothing can take focus.
+ *   --editor    Create an IPlugView and attach it to an INVISIBLE, OFF-SCREEN
+ *               parent window. Same WS_POPUP trick as the CLAP probe's
+ *               --editor arm: never given WS_VISIBLE, no owner, placed at
+ *               (-32000,-32000), so nothing appears on the developer's desktop
+ *               and nothing can take focus.
+ *
+ * WHAT THIS FLAG DOES *NOT* GATE, AND WHY THAT IS THE WHOLE DIFFERENCE FROM
+ * THE CLAP PROBE. The CONTROLLER is created, initialised and connected in
+ * EVERY arm, because that is what a VST3 host does -- a DAW with the editor
+ * closed still has both halves alive. Measured here on 2026-09-11, and it is
+ * not a nicety:
+ *
+ *   a processor-only instantiation builds the rack from the right document
+ *   and then constructs NONE of its modules.
+ *
+ * TIDE's module factory -- VCV Fundamental's 39 models, the enrichment XMLs,
+ * the bundled prefabs -- is populated by TideApp::InitInstance(), which is
+ * CONTROLLER-side. On CLAP one plug-in object is both halves, so it always
+ * runs. On VST3 it does not, and the first version of this probe created only
+ * the component: the rack built from the same 38,661-byte document, no
+ * `RackProcessor: '<slug>' constructed` line appeared at all, and the run
+ * produced 3 feedback sends against CLAP's 569. Nothing errored.
+ *
+ * So --no-editor here means "a DAW with the window closed", NOT "no
+ * controller". Reading it the other way measures the probe's own omission.
+ *
+ *   --no-controller  Do it anyway, deliberately. Kept as a REPRODUCTION of the
+ *                    paragraph above rather than as a useful arm: it is the
+ *                    only way to re-run that finding from the committed probe,
+ *                    and a claim about a silent failure is worth little if the
+ *                    next reader has to recreate the bug to see it. Expect
+ *                    `RackProcessor: '<slug>' constructed` to be ABSENT and
+ *                    the feedback traffic to collapse. Do not quote its
+ *                    numbers as a VST3 measurement.
  *
  * A NOTE ON WHAT --editor NEEDS THAT --no-editor DOES NOT, because it is not
  * cosmetic on VST3. The wrapper moves DSP->UI traffic by allocating an
@@ -493,7 +521,7 @@ int main(int argc, char** argv)
 {
     const char* bundle = nullptr;
     const char* presetPath = nullptr;
-    bool usePump = true, loadPreset = true, wantEditor = false;
+    bool usePump = true, loadPreset = true, wantEditor = false, wantController = true;
     int  blocks = 800;
     const int32  blockSize = 512;
     const double sampleRate = 44100.0;
@@ -505,6 +533,7 @@ int main(int argc, char** argv)
         else if (!strcmp(argv[i], "--no-preset"))  loadPreset = false;
         else if (!strcmp(argv[i], "--editor"))     wantEditor = true;
         else if (!strcmp(argv[i], "--no-editor"))  wantEditor = false;
+        else if (!strcmp(argv[i], "--no-controller")) wantController = false;
         else if (!strcmp(argv[i], "--blocks") && i + 1 < argc) blocks = atoi(argv[++i]);
         else if (!bundle)     bundle = argv[i];
         else if (!presetPath) presetPath = argv[i];
@@ -513,7 +542,7 @@ int main(int argc, char** argv)
     {
         fprintf(stderr,
                 "usage: %s <path-to.vst3> <preset.xml> [--pump|--no-pump] [--no-preset]\n"
-                "       [--editor|--no-editor] [--blocks N]\n",
+                "       [--editor|--no-editor] [--no-controller] [--blocks N]\n",
                 argv[0]);
         return 2;
     }
@@ -611,41 +640,32 @@ int main(int argc, char** argv)
         std::string preset;
         check("the preset file reads", slurp(presetPath, preset) && !preset.empty());
         if (preset.empty()) return 1;
-        printf("      loading a %zu byte preset (int32-length-prefixed for VST3)\n",
+        printf("      a %zu byte preset is ready (int32-length-prefixed for VST3)\n",
                preset.size());
 
         const int32 chunkSize = (int32)preset.size();
         stateStream.buf.assign((const char*)&chunkSize, sizeof(chunkSize));
         stateStream.buf.append(preset);
         stateStream.pos = 0;
-
-        check("component->setState accepts the preset",
-              component->setState(&stateStream) == kResultTrue);
     }
     else
     {
-        printf("      NO setState at all (negative control: the DEFAULT rack)\n");
+        printf("      NO state restore at all (negative control: the DEFAULT rack)\n");
     }
 
-    /* THE HANDOVER WINDOW. A real host restores state and then goes back to
-     * its event loop before the first audio callback. The control arm skips it. */
-    if (usePump)
-    {
-        printf("      pumping the main thread for 0.5 s (the host's restore->play gap)\n");
-        pump_main_thread(0.5);
-    }
-    else
-    {
-        printf("      NOT pumping the main thread (control arm)\n");
-    }
-
-    /* ---- --editor: controller, connection, view -- BEFORE setActive -------
+    /* ---- the controller: ALWAYS, and the view only under --editor ---------
+     *
+     * A VST3 host creates both halves whether or not a window is open, and on
+     * this plug-in that is load-bearing rather than pedantic: the module
+     * factory is populated by TideApp::InitInstance(), which is controller
+     * side. Skip it and the rack builds with none of its modules -- silently.
+     * See the header comment; it was measured, not reasoned about.
      *
      * Order matters and this is the host-like one: a DAW restores state, the
-     * user has the editor open, and then the transport rolls. Creating it
-     * after setActive would also work, but it would make "the editor missed
-     * the first N blocks" a live explanation for any shortfall, and this arm
-     * exists to REMOVE explanations, not add them. */
+     * user has the editor open, and then the transport rolls. Creating the
+     * view after setActive would also work, but it would make "the editor
+     * missed the first N blocks" a live explanation for any shortfall, and
+     * this arm exists to REMOVE explanations, not add them. */
     IEditController* controller = nullptr;
     IPlugView*       view = nullptr;
     IConnectionPoint* cpComponent = nullptr;
@@ -655,12 +675,18 @@ int main(int argc, char** argv)
     HWND parentWnd = nullptr;
     bool viewAttached = false;
 
-    if (wantEditor)
     {
         TUID controllerCid;
         memset(controllerCid, 0, sizeof controllerCid);
-        const bool haveCtlCid = component->getControllerClassId(controllerCid) == kResultOk;
-        check("the component names a controller class", haveCtlCid);
+        const bool haveCtlCid =
+            wantController && component->getControllerClassId(controllerCid) == kResultOk;
+
+        if (!wantController)
+            printf("      --no-controller: deliberately NOT creating one. Expect NO\n"
+                   "      `RackProcessor: '<slug>' constructed` lines at all. This arm\n"
+                   "      REPRODUCES a silent failure; its numbers are not a VST3 measurement.\n");
+        else
+            check("the component names a controller class", haveCtlCid);
 
         if (haveCtlCid)
         {
@@ -696,16 +722,56 @@ int main(int argc, char** argv)
                       cpController->connect(cpComponent) == kResultOk);
             }
 
+            /* ---- the state, now that BOTH halves exist and are connected ---
+             *
+             * This ordering is the host's, and on this plug-in it is also the
+             * only one that works. TideApp::InitInstance() -- which registers
+             * every module the rack is about to ask for -- runs from the
+             * controller's initialize(), above. Restoring the component's
+             * state before that point builds the rack against an empty
+             * factory: right document, no modules, no error. The first
+             * version of this probe did exactly that; see the header.
+             *
+             * Controller first, then component, which is the order Steinberg's
+             * own plugprovider uses. */
             if (loadPreset)
             {
                 stateStream.pos = 0;
-                const auto r = controller->setComponentState(&stateStream);
+                const auto rc = controller->setComponentState(&stateStream);
                 printf("      controller->setComponentState -> %s\n",
-                       r == kResultTrue ? "kResultTrue" : "not kResultTrue");
+                       rc == kResultTrue ? "kResultTrue" : "not kResultTrue");
             }
 
-            view = controller->createView(ViewType::kEditor);
-            check("controller->createView(editor) returns a view", view != nullptr);
+            if (wantEditor)
+            {
+                view = controller->createView(ViewType::kEditor);
+                check("controller->createView(editor) returns a view", view != nullptr);
+            }
+        }
+
+        /* The component's own state, after the controller has had its copy --
+         * and, crucially, after the controller's initialize() has registered
+         * every module the rack is about to ask for. --no-controller still
+         * reaches this line, which is what makes that arm a REPRODUCTION of
+         * the empty-factory failure rather than a crash or a skipped restore. */
+        if (loadPreset)
+        {
+            stateStream.pos = 0;
+            check("component->setState accepts the preset",
+                  component->setState(&stateStream) == kResultTrue);
+        }
+
+        /* THE HANDOVER WINDOW. A real host restores state and then goes back
+         * to its event loop before the first audio callback. The control arm
+         * skips it. */
+        if (usePump)
+        {
+            printf("      pumping the main thread for 0.5 s (the host's restore->play gap)\n");
+            pump_main_thread(0.5);
+        }
+        else
+        {
+            printf("      NOT pumping the main thread (control arm)\n");
         }
 
         if (view)
@@ -773,7 +839,18 @@ int main(int argc, char** argv)
     check("setupProcessing succeeds", processor->setupProcessing(setup) == kResultOk);
 
     check("component->setActive(true) succeeds", component->setActive(true) == kResultOk);
-    check("setProcessing(true) succeeds", processor->setProcessing(true) == kResultOk);
+
+    /* setProcessing is OPTIONAL in VST3 and this wrapper does not override it,
+     * so AudioEffect's kNotImplemented comes back. Reported rather than
+     * checked: a host calls it, a plug-in need not answer, and failing the run
+     * over it would be the probe inventing a defect. */
+    {
+        const auto rc = processor->setProcessing(true);
+        printf("      setProcessing(true) -> %s\n",
+               rc == kResultOk ? "kResultOk"
+                               : (rc == kNotImplemented ? "kNotImplemented (optional; expected here)"
+                                                        : "an error"));
+    }
 
     /* Two channels per bus is what the wrapper's outputsAsStereoPairs builds,
      * and getBusInfo would only confirm it; allocate for the buses that exist. */
