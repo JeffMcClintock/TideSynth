@@ -14,6 +14,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 #include <atomic>                  // TideSynth E59 - the per-instance sequence number
 #include <cstdio>
+#include <cstdlib>                 // TideSynth E80 - TIDE_FEEDBACK_TRACE_EVERY
 #include <cstring>
 #include <vector>
 #include "Processor.h"
@@ -153,6 +154,34 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	// same first-few-then-every-Nth cadence the rack adaptor's own counters use,
 	// so the two sides of the path can be read off one log.
 	int tracedFeedbackSends = 0;
+
+	// HOW OFTEN THAT LINE IS PRINTED, and why it is settable rather than fixed
+	// at 100 (BACKLOG E80, 2026-09-09, windows).
+	//
+	// The every-100th cadence is right for watching a healthy channel and wrong
+	// for the question E80 asks, which is whether a 65,548-byte display-state
+	// blob EVER crosses. A blob whose payload does not change is sent once by
+	// ControlPin::setValue's change-compare (GMPI Core/Processor.h) -- so the
+	// event of interest is a SINGLE send among some hundreds, which the sampled
+	// cadence has a ~2% chance of showing. A run that saw only small sends could
+	// not tell "the blob never crossed" from "the blob crossed while the trace
+	// was looking the other way", and that is not a distinction to leave to
+	// chance in the one measurement the row exists for.
+	//
+	// TIDE_FEEDBACK_TRACE_EVERY=1 prints every send. Unset, or unparseable, or
+	// less than 1, keeps the original cadence exactly -- this must not change
+	// what an existing RACK_ADAPTOR_TRACE build prints unless somebody asks it
+	// to, because the linux and macOS cells quote figures read off that cadence.
+	static int feedbackTraceEvery()
+	{
+		static const int every = []
+		{
+			const char* s = std::getenv("TIDE_FEEDBACK_TRACE_EVERY");
+			const int n = s ? std::atoi(s) : 0;
+			return n >= 1 ? n : 100;
+		}();
+		return every;
+	}
 
 
 	// drainRackFeedback's whole-message reassembly. Holds at most a partial
@@ -594,7 +623,7 @@ public:
 			fprintf(stderr, "TIDE: rack feedback reaching the editor - first %zu byte(s)\n", whole);
 		}
 #if defined(RACK_ADAPTOR_TRACE) && RACK_ADAPTOR_TRACE
-		if (tracedFeedbackSends < 3 || 0 == (tracedFeedbackSends % 100))
+		if (tracedFeedbackSends < 3 || 0 == (tracedFeedbackSends % feedbackTraceEvery()))
 			fprintf(stderr, "TIDE: instance #%d feedback send #%d (%zu bytes, %zu held back)\n",
 				instanceSeq, tracedFeedbackSends, whole, feedbackScratch.size());
 		++tracedFeedbackSends;
