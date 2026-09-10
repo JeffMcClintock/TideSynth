@@ -813,15 +813,39 @@ quantity the row names. What it does *not* measure is the far end
 
 ## Build and run
 
+Windows: `cl` is not on `PATH`, so a two-line `.cmd` that calls `vcvars64`
+first is the whole build. Put this in the repo root as `build-e80probe.cmd`:
+
+```
+@echo off
+call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" >nul
+cl /std:c11 /nologo /O2 /I C:\SE\TideSynth\build-e19win\_deps\clap-src\include ^
+   tests\e80_clap_feedback_probe.c /Fe:e80probe.exe /link user32.lib
+```
+
+**Run it from the PowerShell tool, as `cmd /c ".\build-e80probe.cmd"`.** An earlier
+version of this page said to use `cmd //c` from Git Bash; measured 2026-09-10,
+that reports `is not recognized as an internal or external command` for a `.cmd`
+in the current directory, because the doubled-slash rewrite does not also supply
+the `.\` that `cmd` needs.
+
+**The same paragraph also carried RAW CONTROL BYTES**, not merely a typo: the
+VS path read `Microsoft Visual Studio<0x01>8\Community\...\Build<0x0b>cvars64.bat`,
+because `\2022\` and `\vcvars` had been through something that interpreted them
+as escape sequences. A renderer shows that as a plausible-looking path. Both are
+fixed above — a build recipe transcribed wrong is worse than no recipe, and this
+one is the first thing a run on a fresh box copies.
+
 ```bash
-# Windows. cl is not on PATH, so a one-line .cmd that calls vcvars64 first is
-# the whole build; note `cmd //c` (doubled slash) in Git Bash, not `cmd /c`.
-#   call "C:\Program Files\Microsoft Visual Studio8\Community\VC\Auxiliary\Buildcvars64.bat"
-#   cl /std:c11 /O2 /I build-e19win\_deps\clap-src\include ^
-#      tests\e80_clap_feedback_probe.c /Fe:e80probe.exe /link user32.lib
 TIDE_FEEDBACK_TRACE_EVERY=1 \
   ./e80probe <staged>/TIDE-Rack.clap tests/fixtures/e75-vcv-visible-rack.xml \
              --pump --blocks 800 2> trace.err
+
+# ...and the same thing with the editor up. Windows only, and NOTHING APPEARS ON
+# SCREEN -- see "the invisible parent" below.
+TIDE_FEEDBACK_TRACE_EVERY=1 \
+  ./e80probe <staged>/TIDE-Rack.clap tests/fixtures/e75-vcv-visible-rack.xml \
+             --pump --editor --blocks 800 2> trace-editor.err
 ```
 
 ```bash
@@ -869,6 +893,95 @@ plug-in does anyway.
 not the controller's timer being starved — which is the first thing a bare host
 should be suspected of, and the trap `e79`'s two arms exist for.
 
+## Measuring a GUI condition on a box someone is using — the invisible parent
+
+**Added 2026-09-10 (windows, scheduled run) for BACKLOG E80.** Every windows GUI
+measurement in this project until now needed REAPER and a screen, and therefore
+an *idle* box. That is a real constraint, not a stylistic one: this machine's
+scheduled runs fire whether or not Jeff is working at it, and on 2026-09-09 a run
+found two Visual Studio instances open on a file that then changed underneath it
+twice. The `--editor` arm of `tests/e80_clap_feedback_probe.c` removes the
+constraint for CLAP:
+
+```c
+CreateWindowExA(0, kProbeWndClass, "tide e80 probe (never shown)",
+                WS_POPUP | WS_CLIPCHILDREN,
+                -32000, -32000, (int)w, (int)h,
+                NULL, NULL, GetModuleHandleA(NULL), NULL);
+```
+
+Three properties, none of them cosmetic:
+
+- **No `WS_VISIBLE`, and never shown.** It cannot raise itself over anyone's
+  work, and it takes no focus.
+- **No owner, no `WS_EX_APPWINDOW`.** No taskbar button appears.
+- **Off-screen origin.** Belt and braces for anything that shows itself anyway.
+
+The plug-in's own window is created as a CHILD of it, and a child of a window
+that was never shown is not shown either.
+
+**The editor genuinely runs inside it.** `WM_TIMER` is delivered to an invisible
+window exactly as to a visible one, and gmpi's `TimerClient` is `SetTimer`-backed
+on Windows. Measured: `gui->create`, `gui->set_scale(1.0)`, `gui->get_size`
+(1100x600) and `gui->set_parent` all succeed, one child window appears,
+`IsWindowVisible(parent)` is `0`, the editor resolves model and art for all five
+modules in the fixture, and its light pins run to `#1100` with varying values.
+
+**What it CANNOT observe, and you must say so:** an invisible window gets no
+`WM_PAINT`, so nothing that depends on the editor having actually PAINTED is
+measurable this way. `RackEditor: render #N` stays at zero — check for that line
+to know which side of the boundary a figure is on. E80's counters are on the
+observable side: `RackEditor.h` raises `display-state update #N arrived` from the
+pin-set path, not from `render()`.
+
+**Verification that it took no GUI:** run
+`Get-Process | Where-Object { $_.MainWindowTitle }` before and after. It was
+unchanged across all four arms below, with the developer's own applications in
+front throughout.
+
+**One defect fell out of the arm immediately**, which is the argument for bare
+hosts in one line: `gui->show()` returns **false**. TIDE's CLAP overrides nine
+`gui*` methods and not `guiShow`/`guiHide`, so both take
+`clap::helpers::Plugin`'s `return false` default while the editor works perfectly
+well. Filed as BACKLOG **E85**. No DAW had ever reported it, because no DAW
+checks.
+
+## The editor arm's numbers — and what four arms rule out
+
+Same binary, same fixture, same 800 blocks as the three arms above, so the
+`--no-editor` row IS the 2026-09-09 measurement re-run, and it reproduces to the
+byte:
+
+| arm | feedback sends | **largest send** | `display-state capture` | `RackEditor:` lines |
+|---|---|---|---|---|
+| `--no-editor` (control) | 569 | **337 bytes** | `#200 (65548 bytes)` | **0** — no editor exists |
+| `--editor` | 569 | **337 bytes** | `#200 (65548 bytes)` | 38 light, **2 display-state, both `(0 bytes)`** |
+| `--editor --no-pump` | 569 | **337 bytes** | `#200 (65548 bytes)` | **15** light, 2 display-state |
+| `--editor` on `e83-vcv-scope-cabled.xml` | 569 | **337 bytes** | `#200 (65548 bytes)` | 38 light, 2 display-state |
+
+**Read the `--no-pump` row as a positive control, not as a repeat.** Starving the
+main thread visibly halves the editor-side light traffic (38 → 15) and does not
+move the DSP-side counters by one byte. That is what says "the bare host starved
+something" is not available as an explanation *here* — with the starvation
+demonstrably real and demonstrably visible where it should be.
+
+**Two hypotheses die on these numbers:**
+
+- **Dedup, by ordering.** `display-state capture #0 (65548 bytes)` is logged
+  BEFORE `feedback send #0 (137 bytes)`. A *first* send has nothing to be deduped
+  against, so `ControlPin::setValue`'s `if(value != value_)` cannot be what stops
+  it. This is stronger than the cabled-fixture argument that preceded it, which
+  rested on the payload really varying.
+- **Queue capacity.** `queDspToUi` is `AUDIO_MESSAGE_QUE_SIZE` = `0x500000`
+  (5 MB, `SynthEditLib/SeAudioMaster.h:341`) against a 65,548-byte payload, and
+  all 569 sends report `0 held back`. For scale: the queue's **entire** traffic
+  over 9.288 s is 59,903 bytes, mean 105 — less than one picture.
+
+**The positive control that makes this a location:** lights and the display-state
+blob are both `gmpi::editor::PinBase` GUI pins on the SAME module, set in the
+SAME block, through the SAME DSP→GUI pin mechanism. The floats arrive; the blob
+does not.
+
 ## Two habits this makes cheap
 
 - **Before quoting a counter, check its print cadence.** A sampled trace answers
@@ -879,3 +992,103 @@ should be suspected of, and the trap `e79`'s two arms exist for.
   no path to an audio output, so `-inf dBFS` is correct there and would be a
   five-alarm result on `v1-rack.rpp`. The evidence the document arrived is
   `TIDE: instance #1 building rack from 38661 byte document`, not the peak.
+
+# A bare VST3 host on WINDOWS — and the arm that retitled E80
+
+Written 2026-09-11 for **BACKLOG E80**, whose whole premise was that TIDE's
+rack-feedback channel behaves differently on CLAP than on VST3.
+
+[tests/e80_vst3_feedback_probe.cpp](../../tests/e80_vst3_feedback_probe.cpp) is
+the VST3 twin of `e80_clap_feedback_probe.c` — same four arms, same invisible
+off-screen parent, same counters. **Nothing from the VST3 SDK is compiled or
+linked**; only its headers are read, from `C:\SE\SDKs\VST3_SDK`. The interface
+IIDs come from the `IFoo_iid` constants `DECLARE_CLASS_IID` leaves at namespace
+scope, never `IFoo::iid`, which lives in `coreiids.cpp` and would drag the SDK's
+build in.
+
+## Build and run
+
+```
+cmd /c ".\build-e80vst3probe.cmd"
+
+set TIDE_FEEDBACK_TRACE_EVERY=1
+e80vst3probe.exe <build>\SynthEditSem\Release\TIDE-Rack.vst3 ^
+    tests\fixtures\e75-vcv-visible-rack.xml --blocks 800 2> trace.err
+```
+
+~20 s, no DAW, no `%APPDATA%\REAPER` backup, and with `--editor` no *visible*
+window either.
+
+## THE CONTROLLER IS NOT OPTIONAL, and skipping it fails silently
+
+The first version of this probe created only the `IComponent`, which is legal
+VST3 and is what a CLAP-shaped mental model suggests. Result:
+
+| | modules constructed | feedback sends | max send | captures |
+|---|---|---|---|---|
+| component only (`--no-controller`) | **0** | 20 | 37 B | **0** |
+| component + controller | 29 | 569 | 325 B | 65,548 B |
+
+Same document, same 38,661 bytes, same `TIDE: rack built for 44100 Hz` line, and
+**no error anywhere**. TIDE's module factory — VCV Fundamental's 39 models, the
+enrichment XMLs, the bundled prefabs — is populated by
+`TideApp::InitInstance()`, which is **controller-side**. On CLAP one plug-in
+object is both halves so it always runs; on VST3 it does not.
+
+`--no-controller` is kept in the probe as a **reproduction** of that, not as a
+useful arm. Do not quote its numbers as a VST3 measurement. Filed as **E86**.
+
+**The ordering follows from it:** create and initialise the controller, connect
+the two `IConnectionPoint`s, `controller->setComponentState`, and only then
+`component->setState`. Restoring the component's state before the controller's
+`initialize()` builds the rack against an empty factory.
+
+## The other thing a VST3 host must provide, or it measures its own omission
+
+DSP→UI traffic in this wrapper is `IMessage`-based: `Processor_VST3.cpp`'s
+background thread calls `allocateMessage()` and `if (!message) break;`.
+`allocateMessage()` resolves through `IHostApplication` on the host context, so
+a host that does not offer one **has no DSP→UI channel at all**. The probe
+implements a minimal one — `IMessage` + `IAttributeList`, only the
+`setInt`/`getInt` and `setBinary`/`getBinary` the wrapper actually uses — and
+offers it in *every* arm, so the host context is never a variable between them.
+It reports `host allocated N IMessage(s)` so a zero is visible rather than
+inferred.
+
+This is a deliberate difference from the CLAP probe, where the `clap.gui` host
+extension IS gated behind `--editor`; there it had to be, to keep the control
+arm byte-identical to the host an earlier run's figures came from.
+
+## What it measured — both formats, one build tree, one variable
+
+Both binaries built from the same configure, so **the format is the only thing
+that differs**. `TIDE_FEEDBACK_TRACE_EVERY=1`, 800 blocks of 512 at 44.1 kHz,
+`tests/fixtures/e75-vcv-visible-rack.xml`:
+
+| arm | sends | **max send** | total queue traffic | `display-state capture` | far end |
+|---|---|---|---|---|---|
+| VST3 `--no-editor` | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | — |
+| VST3 `--editor` | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | `#0/#1 arrived (0 bytes)`, then nothing |
+| VST3 `--editor --no-pump` | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | lights 38 → **15** |
+| VST3 `--editor`, cabled fixture | 569 | **325 B** | 59,878 B | `#200 (65548 B)` | as above |
+| CLAP `--no-editor` | 569 | **337 B** | 59,903 B | `#200 (65548 B)` | — |
+| CLAP `--editor` | 569 | **337 B** | 59,903 B | `#200 (65548 B)` | `#0/#1 arrived (0 bytes)`, then nothing |
+| VST3 `--no-preset` (negative control) | **0** | — | 0 | **none** | — |
+
+**The two formats' entire lifetime queue traffic differs by 25 bytes**, and both
+are smaller than ONE 65,548-byte picture. The blob crosses on neither.
+
+So the figure E80 was filed on — *"65,673 repeatedly on VST3"*, read in REAPER
+off the old 1-in-100 cadence — does not survive a full trace, exactly as that
+cadence's ~2%-of-sends sampling predicted it might not. **E80 is not a CLAP
+question**, and the row is retitled rather than closed: the defect is real and
+format-independent.
+
+## One habit this makes cheap
+
+**When a probe and a plug-in disagree about what a "plug-in instance" is, the
+probe is usually wrong — and it will not say so.** CLAP's one-object model does
+not transfer to VST3's two, and the cost of assuming it did was a rack that
+built perfectly and ran nothing. The tell was not an error; it was
+`RackProcessor: '<slug>' constructed` appearing 0 times where a sibling probe
+showed 29.

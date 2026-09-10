@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **436 KB** across **340** entries, so copying them
+Learned sections are **440 KB** across **342** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **136 KB / 1460 lessons — 3.2x smaller**, and represents
+A8. This is **137 KB / 1472 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,28 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-11
+
+**windows — E80: the VST3 does not carry the blob either, so the row is mis-titled (scheduled run)**
+
+- When the question is *which format*, build both formats from ONE configure.
+- A `*_FOLDER_OVERRIDE` build reads a live checkout's COMMIT, not just its dirt.
+- When a probe and a plug-in disagree about what "a plug-in instance" is, the probe is wrong and it will not say so.
+- A bare host must supply what the wrapper's channel is built on, or it measures its own omission.
+- The heredoc backslash trap is still live on this box, and cost three failed patches.
+- A negative control that produces zero of everything is the cheapest line in the table.
+
+## 2026-09-10
+
+**windows — E80: the editor is not the variable, and the arm that says so took no screen (scheduled run)**
+
+- A GUI arm does not need a GUI.
+- Prefer refuting a hypothesis by ORDERING over refuting it by fixture.
+- Work in a `git worktree` when the developer's checkout is ahead of `origin`.
+- Reusing yesterday's binary is a feature, not a shortcut
+- A bare host reads return values that no DAW checks.
+- Read a lint's WHOLE output and its EXIT CODE, not its tail.
 
 ## 2026-09-09
 
