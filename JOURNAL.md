@@ -8,6 +8,107 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-14 — windows — E82: the producer exists, and all five probe points were on the one module that has nothing to offer (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.52386.0** · as **tide-rack-bot** (both paths) · scheduled run
+
+**Did:** took **E82** and answered it. Its headline — *"A RIGHT-CLICK ON A RACK MODULE'S PANEL RETURNS THE RACK'S OWN CONTEXT MENU, NOT THE MODULE'S"* — is a correct observation with a wrong cause, and its reading of that observation (*"E19's `int/bool/enum` clause having no producer at all"*) is **false**. Row back to TODO; no product code changed. New instrument: [tests/e82_rack_menu_probe.cpp](tests/e82_rack_menu_probe.cpp) + [tests/e82_rack_menu_probe.sh](tests/e82_rack_menu_probe.sh). **No GUI was driven, because the developer was working at the machine** — second consecutive windows run.
+
+### The producer, named
+
+`SynthEdit_Rack_Adaptor/RackEditor.h:630` implements `populateContextMenu`. It builds a **ticked item** per `BoolPtr` option and a **labelled submenu** per `IndexPtr` option out of `layout.menu`, and picking one writes the index to that option's parameter pin — which is what carries it to the processor's own module instance. Its first line, `:633`, is:
+
+```cpp
+if (layout.menu.empty())
+    return gmpi::ReturnCode::Unhandled;
+```
+
+**So a module that declared nothing adds nothing, and the menu the user sees is the rack's own — byte-identical to the empty-canvas one, by design.** That is E82's observation exactly, and it is not a routing failure.
+
+`layout` comes from `readPanelLayout(*model)` at `RackEditor.h:128`, which is the same call the XML generator makes (`RackAdaptor.h:221`). It is the whole input to the menu.
+
+### The measurement: 12 of 39, and the fixture is why nobody saw one
+
+[tests/e82_rack_menu_probe.cpp](tests/e82_rack_menu_probe.cpp) calls `readPanelLayout()` for **all 39 models** of TIDE's compiled-in VCV set and prints every entry. `bash tests/e82_rack_menu_probe.sh`, rc=0, ~1 minute, 39 TUs, **0 models unlinked**:
+
+| module | options | what |
+|---|---|---|
+| `Fade` | 1 | INDEX *Pan law* [-6 dB (linear), -3 dB] |
+| `Merge` | 1 | INDEX *Channels* (18 labels) |
+| `Mixer` | 2 | BOOL *Invert output*, *Average voltages* |
+| `Rescale` | 3 | INDEX *Gain multiplier* [1x,10x,100x,1000x] + 2 BOOL |
+| `SEQ3` | 1 | BOOL *Clock passthrough* |
+| `SequentialSwitch1` / `2` | 1 each | BOOL *De-click* |
+| `Unity` | 1 | BOOL *Merge channels 1 & 2* |
+| `VCA-1` | 1 | BOOL *Exponential response* |
+| `VCMixer` | 2 | BOOL *Exponential channel VCAs*, *Exponential mix VCA* |
+| **`WTLFO`**, `WTVCO` | 1 each | **INDEX *Wave points*, 10 labels [32..16384], default index 5** |
+
+The other 27 measure `options=0`.
+
+**Now put the e75 fixture's rack beside that.** Its five modules are `LFO`, `Pulses`, `SHASR`, `WTLFO`, `Scope`:
+
+- `LFO`, `Pulses`, `Scope` — **`options=0`, `entries=0`**. `Scope` does not declare `appendContextMenu` at all.
+- `SHASR` — **`options=0`, `entries=1`**, and the one entry is a separator. Its only item is `createRangeItem`, which `SynthEdit_Rack_Adaptor/rack/rack.hpp:2968` is a **MOCK** and which `collectMenu` skips as *"a menu item shape this adaptor does not model yet"*.
+- **`WT LFO` — one INDEX option — and it was not one of the five points probed.** E82's five were *"title, display, TIME knob, body"* of the **Scope**.
+
+So *"There is no VCV context-menu option to toggle"* was true of the module under the pointer and false of the rack it was sitting on. **E19's `int/bool/enum` clause has a producer on every platform, for both datatypes, and the `int/enum` one is already on the committed fixture.**
+
+### The host-side routing is intact, and was traced rather than assumed
+
+The chain, on the path a real right-click takes:
+
+1. `gmpi_ui/backends/DrawingFrameWin.cpp:526` — `WM_RBUTTONDOWN` goes to `inputClient->onPointerDown(p, flags)` **first**, and `doContextMenu(p, flags)` is called **only if that returns `Unhandled`**.
+2. `SynthEditLib/modules/se_sdk3_hosting/ViewBase.cpp:240` — `onPointerDown` calls `calcMouseOverObject(flags)`, so `mouseOverObject` is current.
+3. `ModuleView::onPointerDown` returns `Unhandled` for the second button (the `ModuleView.cpp:1011` comment says so in as many words), so `ViewBase::onPointerDown` returns `Unhandled` at `:367` and step 1's fallback fires.
+4. `ViewBase::populateContextMenu` (`:515`) asks the presenter, then `:528` asks `mouseOverObject` — the module.
+5. `ModuleView::populateContextMenu` (`ModuleView.cpp:1518`) forwards to `pluginInput_GMPI`, which is the `RackEditor`.
+
+Nothing in that chain is conditional on the module being unlocked, and nothing skips it for a rack module.
+
+### The trap the `--context-menu` verb sits in, which is worth reading before the next arm
+
+**`ViewBase::populateContextMenu` is the one entry point that never calls `calcMouseOverObject`.** `onPointerDown` (`:240`) does, `onMouseWheel` (`:506`) does, `onPointerMove` (`:428`) does; `:515` reads whatever the last pointer event left behind. In the GUI that is harmless — step 1 above guarantees a fresh `onPointerDown` immediately before — but the **`--context-menu` verb calls `client->populateContextMenu(point, sink)` directly** (`GMPI_Wrappers/wrapper/Standalone/mcp/CommandDispatcher.cpp:829`) with no pointer event at all. That file already warns about the consequence in different words (`:754`, *"THE MENU IS BUILT FOR THE CURRENT SELECTION, NOT THE PROBE POINT"*); the mechanism is `mouseOverObject`, and the remedy is unchanged: `--pointer-down`/`--pointer-up` on the panel first.
+
+### What is still unmeasured, stated plainly
+
+**That a right-click on WT LFO's panel actually lists *Wave points*, and that picking a label changes DSP behaviour.** That is E82's Accept and E19's clause, it needs the editor, and this run could not have one. The probe proves the menu's *input* is non-empty for that module and that `RackEditor` emits it; it does not exercise the host-side routing and does not click anything. One session on an idle box closes it.
+
+### The instrument, which is the part that generalises
+
+**A measurement with no editor, no window, no host and no GMPI SDK.** `readPanelLayout()` lives in `RackPanelLayout.h`, whose only non-`<std>` include is the adaptor's `rack.hpp` mock. What normally drags the GMPI SDK in is *registration* — `rack::createModel` calls `rack_adaptor::autoRegisterModel`, defined in `RackAutoRegister.h`, which pulls `RackAdaptor.h`/`RackFactory.h`/`RackEditor.h`. **`RACK_NO_AUTO_REGISTER` is the adaptor's own documented opt-out** and turns exactly that off. What is left is 38 module sources compiled one per TU, plus `main()`, linked with `link` — about a minute with `cl` on PATH and nothing configured. The probe writes only to a temp dir; neither sibling checkout is touched.
+
+Two smaller things the build needed, recorded so the next person does not rediscover them: the module sources expect `<cassert>` (`WTLFO.cpp:285`) and `<map>` (`Gates.cpp:48`) to have been included already — the real build gets them via `RackModule.h` — and `osdialog.h` resolves from `SynthEdit_Rack_Adaptor/compat`, which is not on the two obvious include paths.
+
+### The developer was at the machine — again
+
+`Get-Process \| Where-Object { $_.MainWindowTitle }` at the start of the run: **three Visual Studio instances** (`SimulatorGmpi - ParticleMgr.cpp`, `SynthEditStore - SeAudioMaster.cpp`, `ExonicModules - EqParticleGraphGui.cpp`), plus Chrome, Slack, Outlook and GitHub Desktop. So no host was launched, no window was created, no `%APPDATA%` was touched. **The same command after the run returned an identical process set** — verified, not asserted, which is the rule the 2026-09-09 entry set for this arm.
+
+This is the second consecutive windows scheduled run to find him working. It should be read as the normal case on this box, not the exception.
+
+**Dirty trees:** `GMPI_Wrappers` had one modified file, `wrapper/AU3/AU3_Wrapper.mm`, predating this run and macOS-only. Left alone, per STEP 5's third kind. Every other repo (`TideSynth`, `SE16`, `SynthEditLib`, `gmpi_ui`, `GMPI`) was clean.
+
+**`JOURNAL.md` rotation NOT done, and the 2026-09-09 cell's *"genuinely unblocked"* is superseded.** [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) `tide/mac/A36-journal-rotation-rule` is open and **is the rotation rule itself**; rotating from this lane would make that PR conflict on the hardest file in the repo to resolve. ~229 KB against A24's 60 KB ceiling. Whoever merges #585 rotates.
+
+**STEP 1:** `gh issue list --label platform:win` is empty and **that still verifies nothing** — `build.yml:523` excludes `matrix.platform != 'win'` from filing platform issues. Read `main`'s latest `build` run instead: green on all three platforms at `13095a395`, run [34438892984](https://github.com/JeffMcClintock/TideSynth/actions/runs/34438892984). Issue [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) is `platform:linux` and is not this box's. **STEP 1.5:** this platform's only open PR is [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) `tide/win/E80-clap-editor-arm` — `mergeStateStatus` **CLEAN**, `mergeable` MERGEABLE, 15/15 checks green, no reviews and no comments. Green with nothing unresolved is not this run's to fix; left alone. `mergeStateStatus` was checked explicitly, per the four occurrences of the CONFLICTING trap.
+
+**Learned:**
+
+- **A menu that is byte-identical over a module and over empty canvas is not evidence the click missed the module.** It is equally the signature of a module that was asked and had nothing to say, and `RackEditor.h:633` is the line that makes those two indistinguishable from outside. The control that separates them is not a second point on the same module — it is a **different module**, one known to declare options.
+- **Before assuming a question needs a GUI, ask whether the data the GUI would display can be computed directly.** The right-click menu's entire input is one function call on a header whose only dependency is a mock. That is a third rung below the off-screen-HWND arm the 2026-09-09 run added, and it is cheaper than both: no build tree, no configure, no plug-in, no screen.
+- **A fixture that makes a clause *visible* is not yet a fixture that makes it *measurable*.** E75 put the Scope on screen, which is what let E82 be asked at all — and the Scope is the one module of that rack's five with nothing in its menu. Check that the module carries the thing under test, not just that it is on screen.
+- **`RACK_NO_AUTO_REGISTER` is what separates the adaptor's data model from its GMPI binding**, and the adaptor documents it as a per-module opt-out. It is also the switch that makes any layout-level question answerable in a single-TU build.
+- **The one entry point that does not refresh `mouseOverObject` is `ViewBase::populateContextMenu`.** Every other pointer-consuming method in `ViewBase` calls `calcMouseOverObject` first. That is invisible in the GUI, where `WM_RBUTTONDOWN` always sends `onPointerDown` first, and it is exactly what the `--context-menu` verb walks into.
+- **`Get-Process \| Where-Object { $_.MainWindowTitle }` before and after, not just before.** The before-check decides whether to stay off the GUI; the after-check is what proves the run actually did. Identical process sets is one line of evidence and costs nothing.
+
+**Not verified:** **that the menu actually appears** — nothing was clicked, no editor was created, no window existed. The probe reads `layout.menu`, which is `RackEditor::populateContextMenu`'s only input, and stops there. **That picking *Wave points* changes DSP behaviour** — E82's Accept in full, and the other half of E19's clause. **Anything about the `bool` arm in a running editor** — the seven bool-bearing modules are named from the probe, not from a menu anyone saw. **The other two platforms** — the probe builds on all three (`$CXX` path in the script) and was compiled only on Windows, with MSVC 14.44. **`SynthEditCL`, SynthEdit or TIDE** — none was built; this branch adds two test files and three markdown edits and touches no product code, so none should be affected, but none was compiled to say so.
+
+**Machine state.** `TideSynth`, `SE16`, `SynthEditLib`, `gmpi_ui` and `GMPI` were all clean and on their default branches; `GMPI_Wrappers` was on `main` with one pre-existing modified file, `wrapper/AU3/AU3_Wrapper.mm`, left untouched. Shas the measurement was taken against, since the probe compiles two sibling checkouts directly: `SynthEdit_Rack_Adaptor` `04d1296`, `VCV_Fundamental_gmpi` `93a27f9`. For the record, unused by this run: `SynthEditLib` `134aa07`, `gmpi_ui` `1baf360`, `GMPI` `cf7504b`, `GMPI_Wrappers` `4c11d6d`, `SE16` `afd44ea87`. Every object file went to a `mktemp -d` deleted on exit; neither sibling checkout was written to, and no build tree in any repo was configured or touched.
+
+**Next:** **E19's win VST3 cell, or E82's remaining arm — they are two ends of one measurement, and both want an idle box.** Load `tests/fixtures/e75-vcv-visible-rack.xml` in the standalone (`-DTIDE_VCV_FUNDAMENTAL=ON`), `--pointer-down`/`--pointer-up` on the **WT LFO** panel, then `--context-menu` at the same point: *Wave points* with ten labels should list, and picking one should move `waveLen`. **Do not probe the Scope for this** — that is what this entry is about. If the developer is at the machine again, the queue for this box is genuinely empty and stopping is the right outcome: every other `TODO` is taken, linux in substance, GATED, `NEEDS-SPEC`, or a `.github/workflows/**` edit the bot's token cannot make. **`JOURNAL.md` rotation waits on [#585](https://github.com/JeffMcClintock/TideSynth/pull/585)**, which *is* the rotation rule; whoever merges it rotates.
+
+**Branch/PR:** `tide/win/E82-rack-menu-producer` — E82 back to TODO with the finding, the refreshed `win` NEXT cell, the new `tests/e82_rack_menu_probe.cpp` and `tests/e82_rack_menu_probe.sh`, regenerated `docs/lessons.md`, and this entry.
+
 ## 2026-09-09 — windows — E80's second opinion: the blob does not travel on Windows either, and it is not the timer (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** · as **tide-rack-bot** (both paths) · scheduled run

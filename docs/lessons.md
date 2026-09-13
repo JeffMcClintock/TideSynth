@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **436 KB** across **340** entries, so copying them
+Learned sections are **438 KB** across **341** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **136 KB / 1460 lessons — 3.2x smaller**, and represents
+A8. This is **137 KB / 1466 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,17 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-14
+
+**windows — E82: the producer exists, and all five probe points were on the one module that has nothing to offer (scheduled run)**
+
+- A menu that is byte-identical over a module and over empty canvas is not evidence the click missed the module.
+- Before assuming a question needs a GUI, ask whether the data the GUI would display can be computed directly.
+- A fixture that makes a clause *visible* is not yet a fixture that makes it *measurable*.
+- `RACK_NO_AUTO_REGISTER` is what separates the adaptor's data model from its GMPI binding
+- The one entry point that does not refresh `mouseOverObject` is `ViewBase::populateContextMenu`.
+- `Get-Process \| Where-Object { $_.MainWindowTitle }` before and after, not just before.
 
 ## 2026-09-09
 
