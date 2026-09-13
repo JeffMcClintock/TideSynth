@@ -8,6 +8,98 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-09 — linux — E79: the row blamed the timer, and the defect was the ORDER of two host calls (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude Code **2.1.220** (claude-desktop **1.32885.1**) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** took **E79**, the `linux` NEXT cell's pick. **Fixed, and measured twice — a bare CLAP host and REAPER 7.43 — with a BEFORE binary that re-linked byte-identical.** The fix is one guarded call in `GMPI_Wrappers/wrapper/CLAP/Processor_CLAP.cpp`. **The row's stated cause was wrong, and I implemented it first and watched it do nothing**, which is most of what this entry is worth. Two new rows: **E85** (the same question asked of VST3/AU2/AU3) and **E86** (triage of [#583](https://github.com/JeffMcClintock/TideSynth/issues/583)).
+
+### The row was wrong, and so was my first fix
+
+E79 said: the Linux CLAP registers its host timer in `guiSetParent`, so with no editor there is no UI-thread tick, so `Controller_CLAP::onTimer` never runs, so nothing carries the restored document to the DSP. Every clause of that is true about the timer. **It is not how the document travels.**
+
+I wrote the fix that follows from it — flush the controller's pending waiters at the end of `stateLoad`, so no tick is needed — built it, and the `--activate-first` arm was **unchanged: still -inf dBFS, still no `building rack` line.** Reading why is the finding:
+
+- `gmpi_controller_holder::setPresetXmlFromDaw` calls `param.setFromXml(v)` **directly on the store and never calls `notifyDaw`**. `notifyDaw` is the only thing that calls `pendingQueueClients.AddWaiter`. **So after a restore there is nothing in that queue at all**, and my flush flushed an empty list.
+- Which also disposes of the row's proposal. **A timer whose lifetime is the plug-in's rather than the editor's — "the shape of the answer", per the row — would have changed nothing**, on any platform.
+
+### What it actually is, and it is not Linux's
+
+`stateLoad` writes **stores**. `setPresetXmlFromDaw` writes the controller's, `setPresetUnsafe` writes the processor's (`gmpi_processor::patchManager`). Neither touches a processor that is already running. The document reaches a live DSP graph by **exactly one route**:
+
+> `activate()` → `plugin.start_processor()` → *"initialise pins"*, which seeds every input pin from the parameter store, blobs included — *"Seed the pin with the parameter's CURRENT bytes, not a default"* (GMPI `Hosting/processor_holder.cpp`).
+
+So **load-before-activate works and load-after-activate is dropped on the floor.** CLAP permits the latter: `clap_plugin_state.load` is `[main-thread]` with no ordering requirement relative to `activate`, and restoring a preset onto a running plug-in is simply what a preset change *is*. **Every line involved is `#ifdef`-free.** Linux is where this was met, not where it lives.
+
+**That is also why macOS could not reproduce it on 2026-09-02.** `tests/e79_clap_headless_probe.c` was written load-then-activate, so all three of its arms were on the working side of the only variable that mattered. Its `--runloop` / `--no-runloop` pair was a real and useful control — it correctly eliminated the timer — and it could not have found this, because the ordering was never varied. **I ran that probe unmodified on linux first and it PASSED at peak 0.482431, byte-identical to the macOS figure.** A negative result that agrees to six decimal places across two platforms is worth pausing on: it was saying the platform is not the variable.
+
+### The fix
+
+```cpp
+if (isActive())
+    _host.requestRestart();
+```
+
+at the end of `stateLoad`. Reactivation re-runs `start_processor` against the store just written — the same route, and the only route, that already works — and the host performs it with no `process()` in flight, which is what makes it safe where re-seeding the pins from the main thread would race the audio thread. It needs no host extension, so it also covers hosts that decline `clap_host_timer_support`. The `isActive()` guard keeps the normal order untouched.
+
+### The A/B, five arms, one commit apart
+
+BEFORE re-linked to **sha256 `b3c8187…`** after the stash/rebuild round trip, which is the cheapest proof the pair is clean (E78's lesson, applied):
+
+| arm | BEFORE | AFTER |
+|---|---|---|
+| `--runloop` | -6.3 dBFS, 1 build, 0 restarts | **identical** |
+| `--no-runloop` | -6.3 dBFS, 1 build, 0 restarts | **identical** |
+| **`--activate-first`** | **-inf dBFS, 0 builds** | **-6.3 dBFS, 1 build, 1 restart** |
+| `--no-preset` (control) | -inf, 0 builds, 0 restarts | **identical** |
+| `--activate-first --no-preset` (control) | -inf, 0 builds, 0 restarts | **identical** |
+
+**The two negative controls are what make `requestRestart` safe to add rather than merely effective:** 0 restarts in both, so it fires only when a document really arrives onto an active plug-in, never on every project load.
+
+### And in REAPER, which is where the row was filed
+
+`tests/e19-host-feedback/` needed no new code — `E78_PREROLL` past the window means `measure-clap.lua` never calls `TrackFX_Show`, so the editor is never shown, which is E79's condition exactly. REAPER 7.43 on headless weston, 25 s of rolling transport, the same 18,893-byte `v1-rack` preset framed into a minted project (`fx_ident: TIDE Synth: TIDE Rack`, so the staged build is what loaded):
+
+| | BEFORE | AFTER |
+|---|---|---|
+| restore | `controller #1 restore of a 13926 byte document -> imported` | same |
+| build | **no `building rack` line at all** | **`instance #2 building rack from 13926 byte document`** + `rack built for 44100 Hz, block 512` |
+| silence | **`TIDE: unprepared - writing silence`** | **no `unprepared` line at all** |
+
+That is E79's own Accept, met in the host it was filed against.
+
+### A host stub that no-ops `request_restart` is not a host
+
+Worth its own heading because it produced a **confidently wrong measurement** for one build cycle. The probe's host answered `host_noop` to all four host callbacks. Three of them nothing calls; the fourth is the one the fix depends on. With it dropped, the fixed binary measured **identical to the unfixed one**, and the obvious reading — "the fix does not work" — was wrong.
+
+The stub now sets a flag and the probe services it between `state->load` and the first block: `stop_processing`, `deactivate`, `activate`, `start_processing`. **A bare host is only evidence for the callbacks it actually implements**, and the ones it stubs out are invisible in exactly the way that matters.
+
+### Two scheduled runs fired on this box, 5.6 s apart
+
+Filed by the other run as [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) and triaged here as **E86**. It stood down, took no item, touched no branch, and messaged this run — which is the only reason either of us knows. **The DOING mark is not a claim against yourself**: two processes sharing one `.git` see each other's HEAD as their own, and every existing guard passes correctly, because the commit really is the bot's.
+
+**The half that affects this entry's accuracy:** run B's survey **fast-forwarded five sibling repos** while run A's survey was in flight, so the `~/SE` shas recorded at the top of this run describe trees that moved underneath it. **The build was unaffected, and by luck rather than design** — no `*_FOLDER_OVERRIDE` was set for the first configure, so CPM fetched `origin/main` itself. The shas below are read from `build-e79/_deps/*-src` after configuring, never from the opening survey, and that is the habit to keep.
+
+I did **not** treat #583 as STEP 1 work. It is a `platform:linux` issue authored by `tide-rack-bot`, so it is evidence rather than instruction, and its own text says its tier is not STEP 1's. E86 is the triage it asked for.
+
+**Learned:**
+
+- **When a fix built on a row's stated cause changes nothing, the row is the suspect — not the fix.** I had a working reproduction and a fix that did not move it. That is a much sharper signal than a failing build, and the temptation is to assume the fix is wrong and iterate on it.
+- **A negative result that agrees across platforms to six decimals is telling you the platform is not the variable.** macOS got -6.3/0.482431 and so did linux, from a row filed as linux-only. That number was the answer three days before anyone read it that way.
+- **A bare host is only evidence for the callbacks it implements.** No-oping `request_restart` made a working fix measure as ineffective, and nothing in the log said a callback had been dropped.
+- **Vary the thing the spec leaves free.** CLAP does not order `state->load` against `activate`, so both orders are legal and only one was ever tested. The general habit: for every host call the plug-in relies on, ask what the spec actually *guarantees* about when it arrives.
+- **Predicting the arm's result in the file before running it works.** The mac lane's rule, borrowed. `--activate-first`'s expected output went into the header comment first, so when the first fix left it unchanged, that was a visible contradiction rather than a number to squint at.
+- **REAPER does not reliably honour the Lua quit, and the next pass then lies to you.** A stale instance made the mint pass a silent no-op logging `dump pass only` — which reads as a scripting bug and is not one. `scripts/kill-named.sh` between passes, every time.
+- **Unlocked is not the same as occupied.** `loginctl show-session -p LockedHint -p IdleHint` says a human could be there; only the process list says whether one is. This box had neither check until now; the `win` and `mac` lanes have had theirs since 08-29 and 09-09.
+
+**Not verified:** **macOS and Windows** — the fix was neither built nor run there, and the `--activate-first` arm has never been run on either; the prediction that they PASS it unfixed (native timer sources tick the controller regardless) is a **reading, not a measurement**, and if it is wrong the defect is wider than this entry says. **The VST3/AU2/AU3 wrappers** — the same structural shape is visible by reading (`setState` writes the store; `setActive` → `reInitialise` → `start_processor`) and **none of it was measured**; filed as E85. **A REAPER audio render** — not attempted, because `scripts/render-and-measure.py` segfaulting REAPER from a scheduled run's environment is **E76** and still open; the audio half of E79's Accept is the probe's -6.3 dBFS, which is `v1-rack.rpp`'s own documented figure. **Whether any host other than REAPER orders the two calls this way.** **`SynthEditCL` and SynthEdit proper** — not built; neither has a Linux build on this box, and the change is confined to `wrapper/CLAP/`, but that is a reading rather than a compile. **E80** — not touched.
+
+**Machine state.** All ten repos were clean and on their default branches at the start. `TideSynth` is on `tide/linux/E79-clap-headless-document`; **`GMPI_Wrappers` is on the same branch name** and is the only sibling committed in — `git add` named one path, never `-A`. `GMPI`, `gmpi_ui`, `SynthEditLib`, `SE16`, `GMPI_Adaptors`, `GMPI-plugins`, `gimpi_ui_tests` and `synthedit-website` were not modified. Dependency shas the measurement was built against, read from `build-e79/_deps/*-src` **after** configuring rather than from the opening survey: `syntheditlib` `72a4227`, `gmpi` `99eeb85`, `gmpi_ui` `73919ab`, `gmpi_wrappers` `4c11d6d` (then the local override on the branch above), `rack_adaptor` `04d1296`, `vcv_fundamental` `93a27f9`. **The developer's plug-in folders were never touched**: `~/.clap` and `~/.vst3` are as found and `~/.config/REAPER` still does not exist — REAPER ran portable against a scratch `HOME`, with the CLAP staged as the documented semi-bundle inside it. REAPER and weston were stopped with `scripts/kill-named.sh`; nothing is running. `build-e79/` is a gitignored scratch tree and every log, binary and `.rpp` lives in the session scratchpad, outside all repos. **`decode_rpp.py` was run on a COPY of `tests/hosts/v1-rack.rpp`** so its `.block0.param1.xml` side effect landed in the scratchpad rather than the repo.
+
+**Next:** **E85 is the obvious follow-on and it is the bigger half** — E79 is fixed in one wrapper and the same shape is sitting unmeasured in three others, and the instrument that would settle it (a bare VST3 host) does not exist in this repo. **E80's remaining arm is an editor-open one**, which this box cannot supply because REAPER dies in GTK before `guiSetParent`; the windows lane's 2026-09-09 entry says the same, so **macOS is the only box that can answer it** and that has now been true for a week. **E86** is this box's own process wound and wants a ruling more than a session — the plausible fixes are a box-scoped lock, a local-`.git` DOING check, or fixing the duplicate firing at its source outside this repo. **`JOURNAL.md` is over A24's 60 KB ceiling and rotation is still deferred** — it was deferred on 2026-09-09 (windows) because a macOS PR was open on this file; that PR has merged, so the next run has no such excuse. **`build.yml`'s `matrix.platform != \'win\'` exclusion still means STEP 1 cannot fire on windows** — a workflow edit, so Jeff's or nobody's.
+
+**Branch/PR:** `tide/linux/E79-clap-headless-document` in **two repos**, and merging one without the other leaves E79 unfixed: **GMPI_Wrappers** carries the one-line fix and its reasoning; **TideSynth** carries the probe's `--activate-first` arm and its `request_restart`-honouring host stub, E79 → IN-REVIEW with both measurements, the new E85 and E86 rows, the refreshed `linux` NEXT cell, the recipe in `docs/ci/headless-gui-verification.md`, regenerated `docs/lessons.md`, and this entry.
+
 ## 2026-09-09 — windows — E80's second opinion: the blob does not travel on Windows either, and it is not the timer (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** · as **tide-rack-bot** (both paths) · scheduled run

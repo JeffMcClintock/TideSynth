@@ -879,3 +879,99 @@ should be suspected of, and the trap `e79`'s two arms exist for.
   no path to an audio output, so `-inf dBFS` is correct there and would be a
   five-alarm result on `v1-rack.rpp`. The evidence the document arrived is
   `TIDE: instance #1 building rack from 38661 byte document`, not the peak.
+
+# Measuring a restore that arrives AFTER activate — E79, and the two arms it needs
+
+Added 2026-09-09 (linux) with **BACKLOG E79**. The defect was that a CLAP state
+restore landing after `activate()` never reached the DSP, so a hosted plug-in
+whose window was never opened played silence. It is fixed; what is worth keeping
+is how it was measured, because the first two instruments both said it was fine.
+
+## The ordering is the variable, and a probe has to control it
+
+`stateLoad` writes the parameter **stores**. The one route into a live DSP graph
+is `activate() -> start_processor() -> "initialise pins"`, which seeds every
+input pin from those stores. So:
+
+| order | result |
+|---|---|
+| `state->load` then `activate` | works, on every platform, no timer involved |
+| `activate` then `state->load` | **dropped on the floor** |
+
+`tests/e79_clap_headless_probe.c` was written in the first order and therefore
+could not see the defect on any platform. It now takes `--activate-first`:
+
+```bash
+cc -std=c11 -I build/_deps/clap-src/include tests/e79_clap_headless_probe.c \
+   -lm -ldl -o /tmp/e79probe
+python3 scripts/decode_rpp.py --preset-out /tmp/preset.xml <copy-of>/v1-rack.rpp
+/tmp/e79probe build/SynthEditSem/TIDE-Rack.clap /tmp/preset.xml --activate-first
+```
+
+**Copy the `.rpp` out of the repo first.** `decode_rpp.py` writes a
+`<rpp>.block0.param1.xml` next to its input as a side effect, so running it on
+`tests/hosts/` leaves an untracked file behind.
+
+## A host stub that no-ops `request_restart` cannot observe a fix built on it
+
+This one cost a wrong conclusion before it was found. The probe's host offered
+`host_noop` for all four host callbacks — fine for the three nothing calls, and
+silently wrong for `request_restart`, which CLAP defines as the plug-in's way of
+saying *"deactivate and reactivate me"*. With it dropped, the fix measured as
+**completely ineffective**, identical to the unfixed binary.
+
+The stub now sets a flag, and the probe services it between `state->load` and
+the first `process()` — `stop_processing`, `deactivate`, `activate`,
+`start_processing`, which is the sequence CLAP prescribes and the one the spec
+guarantees has no `process()` call in flight. **A bare host is only evidence for
+the callbacks it actually implements.**
+
+## The REAPER arm E79 needed, and it is the one REAPER *can* do
+
+`tests/e19-host-feedback/` drives it with no new code — set `E78_PREROLL` past
+the window so `measure-clap.lua` never calls `TrackFX_Show`:
+
+```bash
+export E19_SCRATCH=<scratch> E19_PROJ="$E19_SCRATCH/proj/e79.rpp"
+# stage the CLAP as the semi-bundle package-linux.sh builds, INSIDE the scratch HOME
+mkdir -p "$E19_SCRATCH/home/.clap/TIDE-Rack"
+cp -a build/SynthEditSem/TIDE-Rack.clap build/SynthEditSem/Resources \
+      "$E19_SCRATCH/home/.clap/TIDE-Rack/"
+printf '[REAPER]\nlinux_audio_mode=2\nloadlastproj=0\nautosaveint=0\nclappath=%s\n' \
+    "$E19_SCRATCH/home/.clap" > "$E19_SCRATCH/home/.config/REAPER/reaper.ini"
+
+bash run-host.sh prepare-clap.lua dump            # learn the clap_chunk framing
+python3 frame_clap_chunk.py /tmp/preset.xml "$E19_SCRATCH/prepared_clap_chunk.b64"
+bash run-host.sh prepare-clap.lua mint
+E78_PREROLL=99999 bash run-host.sh measure-clap.lua noeditor 25
+grep -E 'building rack|unprepared' "$E19_SCRATCH/reaper-noeditor.err"
+```
+
+This is the arm that works. REAPER 7.43 still **cannot** host TIDE's CLAP *GUI*
+on Linux — `TrackFX_Show` kills it inside its own GTK before `guiSetParent` —
+and that restriction is unchanged and is the host's, not ours.
+
+**REAPER does not reliably honour the Lua quit.** `Main_OnCommand(40004, 0)`
+left the instance alive here, and the *next* pass then started a second REAPER
+that exited immediately, leaving a log saying `no prepared_clap_chunk.b64 --
+dump pass only`. That reads exactly like a scripting bug and is not one: the
+stale instance is holding the config. `scripts/kill-named.sh 'REAPER/reaper'`
+between passes, every time — and never `pkill -f`, which is S31.
+
+## Is a human using the box? Linux's answer
+
+The `win` lane checks `Get-Process | Where-Object { $_.MainWindowTitle }` and the
+`mac` lane checks `CGSSessionScreenIsLocked`. The Linux equivalent is two
+commands and this box had never run either:
+
+```bash
+loginctl list-sessions
+loginctl show-session <id> -p LockedHint -p IdleHint -p Active -p Type
+ps -eo user,pid,etimes,comm --sort=-etimes | awk '$1=="<user>"'
+```
+
+`LockedHint=no` with `IdleHint=no` says a human *could* be there; the process
+list says whether one actually is. On 2026-09-09 the session was unlocked and
+not idle, and the process list showed no editor, no browser and no DAW — the box
+had booted ~3 minutes earlier to run the scheduled task. **Unlocked is not the
+same as occupied, and only the second command can tell the difference.**

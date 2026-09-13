@@ -38,6 +38,51 @@
  *                 symptom on a healthy build. A PASS in the first arm only
  *                 means something if this arm FAILS.
  *
+ * ARM THREE, added 2026-09-09 (linux), AND IT IS THE ONE THAT REPRODUCES E79.
+ *
+ * Every arm above calls `state->load` BEFORE `activate`, and that ordering --
+ * not the platform -- is what they were all measuring. Read the delivery path
+ * and it is obvious why they pass:
+ *
+ *   - `stateLoad` ends in `plugin.setPresetUnsafe(dat)`, which writes the
+ *     PARAMETER STORE (`gmpi_processor::patchManager`) and nothing else. It
+ *     does not touch a running processor.
+ *   - `activate` calls `start_processor`, which seeds every input pin from
+ *     that store -- including the blob arm that carries TIDE's whole document
+ *     ("Seed the pin with the parameter's CURRENT bytes, not a default",
+ *     GMPI Hosting/processor_holder.cpp).
+ *
+ * So load-then-activate delivers the document synchronously, on every
+ * platform, with no timer and no editor involved. That is why arms one and two
+ * are byte-identical on macOS AND on linux, and it is why they cannot see E79.
+ *
+ * Reverse the order and the only remaining route is the controller->processor
+ * queue, serviced by `Controller_CLAP::onTimer` -- a `gmpi::TimerClient`. On
+ * Windows and macOS `gmpi::TimerManager` has a native source (SetTimer,
+ * CFRunLoopTimer) so it ticks regardless. On Linux it has NONE and must be
+ * pumped, and the only pump in a hosted CLAP is `Processor_CLAP::onTimer`,
+ * whose host timer is registered in `guiSetParent` and unregistered in
+ * `guiDestroy`. No editor, no pump, no tick, no document.
+ *
+ *   --activate-first  activate() and start_processing() BEFORE state->load,
+ *                     which is what a host does when it restores a preset onto
+ *                     an already-running plug-in.
+ *
+ * PREDICTED, BEFORE RUNNING (the mac lane's rule -- a control with no stated
+ * expectation is just a second run of the experiment):
+ *
+ *   linux, this arm, no editor  -> E79's symptom. No `building rack` line from
+ *                                  the restored document, `TIDE: unprepared -
+ *                                  writing silence`, -inf dBFS.
+ *   macOS/Windows, this arm     -> PASSES anyway. The native timer source ticks
+ *                                  the controller with no window in existence,
+ *                                  so the queue drains and the document lands.
+ *
+ * If that is what happens, E79 is not "the Linux CLAP never receives its
+ * document" -- it is "the Linux CLAP cannot receive a document that arrives
+ * after activate, because nothing pumps its controller without an editor", and
+ * the ordering is the host's choice rather than the plug-in's.
+ *
  * The editor is never created: gui.create/gui.set_parent are not called and
  * clap.gui is never even queried. That is the whole point of the measurement.
  *
@@ -84,6 +129,22 @@ static const void *host_get_extension(const clap_host_t *h, const char *id)
 }
 static void host_noop(const clap_host_t *h) { (void)h; }
 
+/* A HOST THAT IGNORES request_restart IS NOT A HOST. Added 2026-09-09 (linux)
+ * with arm three. This stub used to answer every host callback with a no-op,
+ * which is fine for the three callbacks nothing calls -- and silently wrong for
+ * this one, which the CLAP spec defines as the plug-in's way of saying "my
+ * configuration changed; deactivate and reactivate me". A probe that drops it
+ * cannot observe any fix built on it, and would report the fix as ineffective.
+ *
+ * Deliberately just a flag: the restart itself has to happen on the main thread
+ * between process() calls, which is exactly where a real host does it. */
+static int restartRequested = 0;
+static void host_request_restart(const clap_host_t *h)
+{
+    (void)h;
+    restartRequested = 1;
+}
+
 static clap_host_t host = {
     .clap_version = CLAP_VERSION_INIT,
     .host_data = NULL,
@@ -92,7 +153,7 @@ static clap_host_t host = {
     .url = "",
     .version = "1.0",
     .get_extension = host_get_extension,
-    .request_restart = host_noop,
+    .request_restart = host_request_restart,
     .request_process = host_noop,
     .request_callback = host_noop,
 };
@@ -165,7 +226,7 @@ static bool out_try_push(const struct clap_output_events *list, const clap_event
 int main(int argc, char **argv)
 {
     const char *bundle = NULL, *presetPath = NULL;
-    int useRunloop = 1, blocks = 400, loadPreset = 1;
+    int useRunloop = 1, blocks = 400, loadPreset = 1, activateFirst = 0;
     const uint32_t blockSize = 512;
     const double sampleRate = 44100.0;
 
@@ -173,21 +234,24 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "--runloop"))         useRunloop = 1;
         else if (!strcmp(argv[i], "--no-runloop")) useRunloop = 0;
         else if (!strcmp(argv[i], "--no-preset"))  loadPreset = 0;
+        else if (!strcmp(argv[i], "--activate-first")) activateFirst = 1;
         else if (!strcmp(argv[i], "--blocks") && i + 1 < argc) blocks = atoi(argv[++i]);
         else if (!bundle)     bundle = argv[i];
         else if (!presetPath) presetPath = argv[i];
     }
     if (!bundle || !presetPath) {
         fprintf(stderr,
-            "usage: %s <path-to.clap> <preset.xml> [--runloop|--no-runloop] [--blocks N]\n",
+            "usage: %s <path-to.clap> <preset.xml> [--runloop|--no-runloop]\n"
+            "          [--no-preset] [--activate-first] [--blocks N]\n",
             argv[0]);
         return 2;
     }
 
-    printf("e79_clap_headless_probe: arm = %s%s, %d blocks of %u at %.0f Hz, editor NEVER created\n\n",
+    printf("e79_clap_headless_probe: arm = %s%s%s, %d blocks of %u at %.0f Hz, editor NEVER created\n\n",
            useRunloop ? "--runloop (a host main thread runs)"
                       : "--no-runloop (starves the controller's timer)",
            loadPreset ? "" : " + --no-preset (NEGATIVE CONTROL: no document is ever restored)",
+           activateFirst ? " + --activate-first (state->load onto an ALREADY-ACTIVE plug-in)" : "",
            blocks, blockSize, sampleRate);
 
     /* A .clap on macOS is a bundle directory; the binary is Contents/MacOS/<name>. */
@@ -231,8 +295,20 @@ int main(int argc, char **argv)
     check("the plugin offers clap.state", state != NULL);
     if (!state) return 1;
 
+    /* PHASE MARKERS GO TO stderr, WITH THE PLUG-IN'S OWN TRACE. The checks
+     * above print to stdout, and the plug-in prints to stderr; the two streams
+     * buffer differently, so their interleaving in a captured log is not
+     * evidence of what ran first. This arm's whole claim is about ordering, so
+     * the ordering has to be readable on ONE stream. */
+    if (activateFirst) {
+        fprintf(stderr, "\n---- probe phase: activate() + start_processing(), BEFORE any state->load ----\n");
+        check("activate succeeds (before load)", plug->activate(plug, sampleRate, 1, blockSize));
+        check("start_processing succeeds (before load)", plug->start_processing(plug));
+    }
+
     char *preset = NULL;
     if (loadPreset) {
+        fprintf(stderr, "\n---- probe phase: state->load ----\n");
         size_t presetLen = 0;
         preset = slurp(presetPath, &presetLen);
         check("the preset file reads", preset != NULL);
@@ -257,8 +333,28 @@ int main(int argc, char **argv)
         printf("      NOT spinning the run loop (control arm)\n");
     }
 
-    check("activate succeeds", plug->activate(plug, sampleRate, 1, blockSize));
-    check("start_processing succeeds", plug->start_processing(plug));
+    if (!activateFirst) {
+        fprintf(stderr, "\n---- probe phase: activate() + start_processing(), AFTER state->load ----\n");
+        check("activate succeeds", plug->activate(plug, sampleRate, 1, blockSize));
+        check("start_processing succeeds", plug->start_processing(plug));
+    }
+
+    /* SERVICE A PENDING RESTART BEFORE THE FIRST BLOCK, which is where a real
+     * host services one that arrived during state->load. The sequence is the
+     * one CLAP prescribes and the one the spec guarantees has no process() call
+     * in flight: stop_processing, deactivate, activate, start_processing. */
+    if (restartRequested) {
+        restartRequested = 0;
+        fprintf(stderr, "\n---- probe phase: host honours request_restart (deactivate/activate) ----\n");
+        plug->stop_processing(plug);
+        plug->deactivate(plug);
+        check("re-activate after request_restart succeeds",
+              plug->activate(plug, sampleRate, 1, blockSize));
+        check("re-start_processing after request_restart succeeds",
+              plug->start_processing(plug));
+    }
+
+    fprintf(stderr, "\n---- probe phase: %d process() blocks ----\n", blocks);
 
     /* --- buffers ---------------------------------------------------------- */
     float *L = calloc(blockSize, sizeof(float));
