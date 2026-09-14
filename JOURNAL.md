@@ -81,7 +81,7 @@ E72 has said for fifteen days that it *"wants a ruling rather than a session"*. 
 
 **Next:** **[#585](https://github.com/JeffMcClintock/TideSynth/pull/585) is 15/15 green and waiting on Jeff**, and it is A36 — the journal ROTATION RULE. `JOURNAL.md` is now **~229 KB against A24's 60 KB target**; the 09-09 cell said the window opens once #581 merges, and it has, **but rotating now would conflict against the one PR that changes how rotation works.** Merge #585, then rotate to its rule. **E81 wants a `PROPOSED:` entry and nothing else** — same shape as E72, and it is the cheapest thing on this board. **E19's mac AU3 cell and its pixel-diff clause still want one unlocked screen**, and `e83-vcv-scope-cabled.xml` is the fixture they wanted. **E79, E80 and E82 all have open PRs from other platforms** and are not this lane's.
 
-**Branch/PR:** `tide/mac/E72-cable-dsp-dirty` — [tests/e72_dsp_dirty_probe.py](tests/e72_dsp_dirty_probe.py), the `PROPOSED:` entry in [docs/decisions.md](docs/decisions.md), the `TideApp.cpp` comment correction, E72 → IN-REVIEW with its answer, E83 → DONE and archived, the refreshed `mac` NEXT cell, and this entry.
+**Branch/PR:** `tide/mac/E72-cable-dsp-dirty`, [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) — [tests/e72_dsp_dirty_probe.py](tests/e72_dsp_dirty_probe.py), the `PROPOSED:` entry in [docs/decisions.md](docs/decisions.md), the `TideApp.cpp` comment correction, E72 → IN-REVIEW with its answer, E83 → DONE and archived, the refreshed `mac` NEXT cell, and this entry.
 
 ## 2026-09-09 — windows — E80's second opinion: the blob does not travel on Windows either, and it is not the timer (scheduled run)
 
