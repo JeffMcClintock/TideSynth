@@ -62,10 +62,11 @@ E72 has said for fifteen days that it *"wants a ruling rather than a session"*. 
 | `check-commit-authorship --repo .` | rc=0 — every unpushed commit `tide-rack-bot` |
 | `check-commit-completeness --record/--verify` | recorded before the commit, verified after |
 | `check-next-block.py` | rc=0, *"every NEXT take-target is a live BACKLOG.md row"* |
+| CI on [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) | **6 pass, 0 fail** — `lint`, `linux`, `e57-delete-key`, `render-linux`, `render-macos`, `render-windows`; `guard`/`matrix.name` **skipped**. `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN` |
 
 **The build is a WARM-tree datum and says so:** `[6/6]` and `[3/3]`, not a from-scratch 61/61. It reuses the 2026-09-07 `build-e75/` tree, reconfigured against current `main`; the rebuild count is small because only `SynthEditLib` (now `134aa07`) and one comment moved.
 
-**No macOS CI compile is expected on this branch either** — it touches one comment in a compiled file, so `guard` may or may not arm the matrix; the build evidence above is local.
+**No macOS CI compile ran, and `guard` SKIPPED the build matrix** even though this branch touches a compiled file — the change is comment-only, and that is `guard` behaving correctly rather than a gap. The build evidence is therefore local, and it is the two rows above.
 
 **Learned:**
 
