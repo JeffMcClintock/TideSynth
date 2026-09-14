@@ -568,11 +568,24 @@ void TideApp::serviceDocumentSync()
 	// TIDE differs only in where the document goes afterwards, because its
 	// processor is a separate object rather than an in-process engine.
 	//
-	// dspDirty is the RIGHT signal and it is already maintained for us: an
-	// RAII SuspendDSP guard sets it at 23 sites - adding and deleting modules,
-	// re-cabling, container surgery - and TideApp inherits both the flag and
-	// invalidateDsp() from CSynthEditAppBase. Nothing about a knob turn
-	// touches it, which is the whole point: values are messages now.
+	// dspDirty is the RIGHT signal for what it covers, and it is already
+	// maintained for us: TideApp inherits both the flag and invalidateDsp()
+	// from CSynthEditAppBase, and 15 sites in EditorLib set it - 13 RAII
+	// SuspendDSP guards plus 2 direct invalidateDsp() calls - covering
+	// adding and deleting modules, structure-view wiring and container
+	// surgery. Nothing about a knob turn touches it, which is the whole
+	// point: values are messages now.
+	//
+	// CORRECTED 2026-09-15 (BACKLOG E72). This comment used to say the guard
+	// sits at "23 sites - adding and deleting modules, re-cabling, container
+	// surgery". Both halves were wrong, and the second one matters: the count
+	// is 15, and "re-cabling" is true only of STRUCTURE-VIEW wires
+	// (plug4.cpp's ConnectPlugs, which is guarded). A RACK PATCH CABLE - the
+	// cable a TIDE user actually drags, and the only kind the default view
+	// offers - goes through MfcDocPresenter::AddPatchCable/RemovePatchCable,
+	// which construct no guard and reach no invalidateDsp(), so THIS FUNCTION
+	// NEVER RUNS FOR A PATCH-CABLE EDIT. Measured, with the structure-view
+	// path as a control in the same table: tests/e72_dsp_dirty_probe.py.
 	//
 	// WHY NOT just export and compare, which is what this used to do: it
 	// serialised the WHOLE document twice a second forever to ask whether
@@ -601,13 +614,35 @@ void TideApp::serviceDocumentSync()
 	// HC_PATCH_CABLES patch-list was empty, a restored rack with modules and
 	// no wiring, and silence with MIDI arriving (TIDE BACKLOG E68).
 	//
-	// dspDirty already fires on exactly the right set: SuspendDSP's RAII
-	// sites -- module add/delete, re-cabling, container surgery -- and never
-	// on a knob turn, so values still travel as messages and an idle rack
-	// still costs nothing. A cable edit now pays one document push (~30 KB,
-	// debounced to this 500 ms tick) on top of the rebuild it already
-	// triggered through the message path; that shipment is what makes the
-	// save correct, which E68 measured is not waste.
+	// dspDirty fires on module add/delete, structure-view wiring and
+	// container surgery, and never on a knob turn, so values still travel as
+	// messages and an idle rack still costs nothing.
+	//
+	// WHAT THIS PARAGRAPH USED TO CLAIM, AND WHY IT IS NOT THE REASON E68'S
+	// SAVE IS CORRECT (BACKLOG E72, measured 2026-09-15). It said "a cable
+	// edit now pays one document push ... that shipment is what makes the
+	// save correct". It does not, because a rack patch-cable edit sets no
+	// flag (see the DEBOUNCE comment above) and so never reaches this line.
+	//
+	// The save is correct for a different and stronger reason, and it wants
+	// naming so nobody re-derives it: SynthEditController::syncState() calls
+	// tideApp->exportChunkXmlForSave() UNCONDITIONALLY when the host asks for
+	// state, minting the document from the editor at that moment. It is not
+	// gated on dspDirty and never was. So E68's Ableton measurement - a saved
+	// .als whose HC_PATCH_CABLES patch-list was empty - is fixed by the mint,
+	// not by this push.
+	//
+	// What is still owed the flag is the LIVE STORE between saves: the chunk
+	// parameter's retained bytes, which GMPI's processor_holder re-seeds into
+	// every processor it starts (Hosting/processor_holder.cpp, the Blob case:
+	// "a processor can be created at any time - after restartComponent, for
+	// offline rendering, or on state restore"). Draw a patch cable, then have
+	// the host recreate the processor with no state query in between, and the
+	// new processor is born running the document from BEFORE the cable. The
+	// running rack is right either way - the cable reaches the DSP through
+	// the message path - and any host state query refreshes the retained
+	// bytes, which is what keeps the window narrow. UNMEASURED: drawing the
+	// cable needs the editor, and E72's Accept is exactly that experiment.
 	auto xml = exportChunkXml();
 
 	std::fprintf(stderr, "TIDE: document changed, pushing %zu byte document\n", xml.size());

@@ -8,6 +8,81 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-15 — macos — E72: the cable path really is unguarded, and the save was never relying on it (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.52386.6** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
+
+**Did:** took **E72** and answered it on a locked screen, the fifth row running this lane has recovered by separating what a row ASKS from what its Accept asks. New [tests/e72_dsp_dirty_probe.py](tests/e72_dsp_dirty_probe.py), a `PROPOSED:` entry in [docs/decisions.md](docs/decisions.md), and a comment correction in [SynthEditSem/TideApp.cpp](SynthEditSem/TideApp.cpp). **No behaviour changed, in this repo or any sibling** — the only compiled file touched is a comment. Also flipped **E83** to DONE and archived it. Branch `tide/mac/E72-cable-dsp-dirty`.
+
+### The reading is confirmed — and the control is what makes that a measurement
+
+E72 filed its finding as, in its own words, *"the finding, read rather than measured"*. [tests/e72_dsp_dirty_probe.py](tests/e72_dsp_dirty_probe.py) enumerates every site in SynthEditLib that can set `dspDirty`, then asks of each editor entry point whether it is guarded:
+
+| entry point | role | guarded |
+|---|---|---|
+| `MfcDocPresenter::AddPatchCable` (`:280`) | subject — rack patch cable added | **no** |
+| `MfcDocPresenter::RemovePatchCable` (`:363`) | subject — rack patch cable removed | **no** |
+| `ConnectPlugs` (`plug4.cpp:541`) | **CONTROL** — structure-view wire drawn | **yes** |
+
+**The last row is the one that matters.** "AddPatchCable contains no guard" is also what a broken parser prints. Same parser, same file set, opposite answer — so the omission is specific to rack patch cables. Both failure directions were exercised rather than assumed: claiming the cable path is guarded gives rc=**1**, claiming the control is not gives rc=**1**, and an unreadable SynthEditLib gives rc=**2** and says *"this is a skip, not a pass"* rather than a green table nobody measured.
+
+**15 sites can set the flag** — 13 `SuspendDSP` constructions plus 2 direct `invalidateDsp()` calls — and not one is on the patch-cable path.
+
+### The part E72 had backwards, and it makes the defect SMALLER
+
+E72 says the save is safe *"because the save now mints from the controller rather than waiting for a push"*, and cites nothing. **It is safe, and the citation is `SynthEditController::syncState()`**, which calls `tideApp->exportChunkXmlForSave()` **unconditionally** when the host asks for state (`TideApp.cpp:643` — no `dspDirty` in it, and never was).
+
+**So E68's Ableton measurement is fixed by that mint, not by the mechanism E68's own comment credits.** That comment said *"a cable edit now pays one document push … that shipment is what makes the save correct"*. It cannot: a cable edit sets no flag, so `serviceDocumentSync` returns at its first line and the push never happens. The save has been correct for a different and stronger reason the whole time.
+
+**What is actually exposed**, narrowed from E72's wording: the chunk parameter's retained bytes, which GMPI's `Hosting/processor_holder.cpp` re-seeds into every processor it starts (its own comment: *"a processor can be created at any time - after restartComponent, for offline rendering, or on state restore"*). Draw a cable, then have the host recreate the processor **with no host state query in between**, and the new processor is born running the pre-cable document. Any state query refreshes those bytes — which is why the window is narrower than E72's *"with no save in between"*.
+
+### Three corrections, all to prose that was confidently specific
+
+1. **E72 cites `SuspendDSP.cpp:27` as "the RAII guard that does" set the flag.** Line 27 is `m_app->dspDirty = true;` and it sits inside an `#if 0` block — it has not compiled in as long as it has been there. The live line is `SuspendDSP.cpp:7`, `p_app->invalidateDsp()`. The probe strips dead code for exactly this reason, and prints the two lines side by side under `--verbose`.
+2. **`TideApp.cpp` said the guard sits at "23 sites".** Measured: **15**.
+3. **`TideApp.cpp` said `dspDirty` fires on "re-cabling".** True of structure-view wires, false of the rack patch cable a TIDE user actually drags — which is the only kind the default view offers. Corrected on this branch.
+
+### The ruling E72 has wanted since 2026-08-31 is now actually asked
+
+E72 has said for fifteen days that it *"wants a ruling rather than a session"*. **Nobody had filed the `PROPOSED:` entry**, which is the only thing that puts a question to Jeff — so the row sat naming a decision that had never been requested. Filed now in [docs/decisions.md](docs/decisions.md): three options, recommended default **(b) guard both entry points**, and it parks **only E72**.
+
+**E81 is in the identical state** — filed 2026-09-05, says it wants a ruling, has no `PROPOSED:` entry — and is the cheapest row on this lane's board.
+
+### Verification
+
+| check | result |
+|---|---|
+| `tests/e72_dsp_dirty_probe.py` | rc=**0**, 15 sites, control guarded, subjects not |
+| probe negative control — claim subject IS guarded | rc=**1**, `guarded=False, E72 records True` |
+| probe negative control — claim control is NOT guarded | rc=**1**, `guarded=True, E72 records False` |
+| probe skip path — unreadable SynthEditLib | rc=**2**, *"this is a skip, not a pass"* |
+| dead-code stripper, measured | `SuspendDSP.cpp:7` kept, `:27` blanked, line numbering intact |
+| build, `TIDE_Rack_CLAP`, Release/arm64, before the edit | rc=**0**, `[6/6]`, **0** `error:` |
+| build, after the `TideApp.cpp` comment edit | rc=**0**, `[3/3]`, **0** `error:` |
+| `check-commit-authorship --repo .` | rc=0 — every unpushed commit `tide-rack-bot` |
+| `check-commit-completeness --record/--verify` | recorded before the commit, verified after |
+| `check-next-block.py` | rc=0, *"every NEXT take-target is a live BACKLOG.md row"* |
+
+**The build is a WARM-tree datum and says so:** `[6/6]` and `[3/3]`, not a from-scratch 61/61. It reuses the 2026-09-07 `build-e75/` tree, reconfigured against current `main`; the rebuild count is small because only `SynthEditLib` (now `134aa07`) and one comment moved.
+
+**No macOS CI compile is expected on this branch either** — it touches one comment in a compiled file, so `guard` may or may not arm the matrix; the build evidence above is local.
+
+**Learned:**
+
+- **A row that says it "wants a ruling" has not asked for one.** E72 and E81 both name a decision and neither filed the `PROPOSED:` entry that requests it, so both have been waiting on a question nobody put. Filing it costs one edit. **Check for the entry, not for the sentence.**
+- **When a comment names a mechanism, the mechanism is a claim.** Three of this run's corrections were to prose that was specific enough to sound measured — a cited line inside `#if 0`, a count of 23 that is 15, and "re-cabling" meaning the other view. Specificity reads as evidence and is not.
+- **A fix can be correct for a reason its own comment gets wrong**, and that is worse than an uncommented fix: E68 works, so nothing fails, and the next person to reason about `dspDirty` inherits a false model with a merged PR behind it.
+- **Put the control in the same table as the subject** — E83 landed this lesson six days ago and it is what made today's zero a finding rather than a possible parser bug.
+- **`sed` with aligned whitespace is not a reliable way to flip one token.** My first attempt at the second negative control silently did not apply and printed a PASS; only checking that the flipped file DIFFERED caught it. A control that does not actually change anything is the most expensive kind of green.
+
+**Not verified:** **E72's own Accept** — recreate the processor after a cable edit and see whether the cables are present. Drawing a cable needs the editor and this run's screen was locked; **the mechanism is measured, the consequence is not.** **That any host actually recreates a processor without querying state first** — the window is real by construction but its frequency is unmeasured. **Anything on Windows or Linux**, where nothing was built or run. **SynthEdit proper**, which shares `MfcDocPresenter.cpp` and would receive option (b)'s two lines.
+
+**Machine state.** TideSynth was clean and on `main` at the start and is on `tide/mac/E72-cable-dsp-dirty` until STEP 5 returns it. **`SynthEditLib`'s tree carries Jeff's uncommitted work in progress** — `modules/se_sdk3_hosting/SynthEditCocoaView.mm`, 27 insertions / 3 deletions, **real content and not CRLF churn** (`git diff --ignore-all-space` is non-empty), mtime 2026-09-14 16:14. **Untouched: not committed, not reverted, not stashed**, per STEP 5's third kind of dirt, and every commit on this branch is TideSynth-only. `SE16` is not on this box. `GMPI`, `GMPI_Wrappers` and `gmpi_ui` were **read only**; the build ran `SE_LOCAL_BUILD=OFF`, so it fetched `SynthEditLib` from `origin/main` rather than using Jeff's dirty tree. **Nothing was installed, registered or launched**: no DAW, no standalone, no AUv3, `~/Library/Audio/Plug-Ins` untouched, **0 TIDE processes**. The screen was **locked throughout and no GUI was attempted**.
+
+**Next:** **[#585](https://github.com/JeffMcClintock/TideSynth/pull/585) is 15/15 green and waiting on Jeff**, and it is A36 — the journal ROTATION RULE. `JOURNAL.md` is now **~229 KB against A24's 60 KB target**; the 09-09 cell said the window opens once #581 merges, and it has, **but rotating now would conflict against the one PR that changes how rotation works.** Merge #585, then rotate to its rule. **E81 wants a `PROPOSED:` entry and nothing else** — same shape as E72, and it is the cheapest thing on this board. **E19's mac AU3 cell and its pixel-diff clause still want one unlocked screen**, and `e83-vcv-scope-cabled.xml` is the fixture they wanted. **E79, E80 and E82 all have open PRs from other platforms** and are not this lane's.
+
+**Branch/PR:** `tide/mac/E72-cable-dsp-dirty` — [tests/e72_dsp_dirty_probe.py](tests/e72_dsp_dirty_probe.py), the `PROPOSED:` entry in [docs/decisions.md](docs/decisions.md), the `TideApp.cpp` comment correction, E72 → IN-REVIEW with its answer, E83 → DONE and archived, the refreshed `mac` NEXT cell, and this entry.
+
 ## 2026-09-09 — windows — E80's second opinion: the blob does not travel on Windows either, and it is not the timer (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** · as **tide-rack-bot** (both paths) · scheduled run
