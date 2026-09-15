@@ -12,10 +12,13 @@ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
+#include <algorithm>               // TideSynth E80 - TIDE_FEEDBACK_CENSUS
 #include <atomic>                  // TideSynth E59 - the per-instance sequence number
 #include <cstdio>
 #include <cstdlib>                 // TideSynth E80 - TIDE_FEEDBACK_TRACE_EVERY
 #include <cstring>
+#include <map>                     // TideSynth E80 - TIDE_FEEDBACK_CENSUS
+#include <utility>                 // TideSynth E80 - TIDE_FEEDBACK_CENSUS
 #include <vector>
 #include "Processor.h"
 #include "SynthRuntime.h"          // TideSynth S12 - the rack's sound engine
@@ -184,6 +187,79 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	}
 
 
+	// WHAT THE QUEUE ACTUALLY CARRIES, BY SENDER (BACKLOG E80, 2026-09-16,
+	// windows).
+	//
+	// Every measurement this row has ever taken is an AGGREGATE: "569 sends,
+	// largest 325 bytes, 59,878 bytes of lifetime traffic". That says the
+	// 65,548-byte display-state blob is not in there and says nothing about
+	// what IS -- so it cannot distinguish the two remaining explanations,
+	// which want opposite fixes:
+	//
+	//   (a) the display-state parameter never reaches this queue at all, in
+	//       which case the drop is upstream of it -- RackAdaptor's pin, GMPI's
+	//       ControlPin, ug_gmpi::setPin, UPlug::Transmit or the patch-param
+	//       watcher -- and this queue is an innocent bystander;
+	//   (b) it reaches the queue and arrives truncated or in fragments, in
+	//       which case the drop is at the serialiser and the sizes say so.
+	//
+	// The queue's own framing already answers it. Every message
+	// my_msg_que_output_stream writes is (handle, 4-char id, length), which is
+	// exactly what the walk below already parses in order to find whole
+	// messages -- so tallying count / max / total per (handle, id) costs one
+	// map insert per message and no extra parsing. "ppc" is a patch-parameter
+	// change (SynthEditLib dsp_patch_parameter.cpp), which is the channel both
+	// the lights and the display-state blob are declared on
+	// (SynthEdit_Rack_Adaptor/RackAdaptor.h: both are private, non-persistent
+	// parameters with a direction="out" Audio pin), so a census that shows
+	// lights and no blob localises the difference to the datatype rather than
+	// to the channel.
+	//
+	// OFF UNLESS ASKED. Unset, unparseable or < 1 changes nothing that an
+	// existing RACK_ADAPTOR_TRACE build prints -- the same rule
+	// TIDE_FEEDBACK_TRACE_EVERY was added under, and for the same reason: the
+	// linux and macOS cells quote figures read off this build.
+	struct FeedbackCensusEntry
+	{
+		int count{};
+		int maxLength{};
+		long long totalBytes{};
+	};
+	std::map<std::pair<int32_t, int32_t>, FeedbackCensusEntry> feedbackCensus;
+	int censusDrains{};
+
+	static int feedbackCensusEvery()
+	{
+		static const int every = []
+		{
+			const char* s = std::getenv("TIDE_FEEDBACK_CENSUS");
+			const int n = s ? std::atoi(s) : 0;
+			return n >= 1 ? n : 0;   // 0 == disabled
+		}();
+		return every;
+	}
+
+	// One line per sender. The id is printed as its four characters AND as the
+	// raw int, because a message whose id is not one of SynthEditLib's
+	// four-char codes is itself the finding and would otherwise print as
+	// mojibake with no way to tell what it was.
+	void dumpFeedbackCensus(const char* why)
+	{
+		fprintf(stderr, "TIDE: feedback census (%s) -- %zu sender(s)\n", why, feedbackCensus.size());
+		for (const auto& [key, e] : feedbackCensus)
+		{
+			char id[5]{};
+			memcpy(id, &key.second, 4);
+			for (auto& c : id)
+			{
+				if (c && (c < 32 || c > 126))
+					c = '?';
+			}
+			fprintf(stderr, "TIDE:   handle %-10d id '%s' (0x%08x)  n=%-6d max=%-8d total=%lld\n",
+				key.first, id, (unsigned)key.second, e.count, e.maxLength, e.totalBytes);
+		}
+	}
+
 	// drainRackFeedback's whole-message reassembly. Holds at most a partial
 	// message tail between blocks; see the function for why partial bytes
 	// must never ride a pin update.
@@ -206,6 +282,17 @@ public:
 		// complete. Restart requests (a re-cabling, a polyphony change) are
 		// parked instead and consumed at the top of subProcess.
 		rack.setHostDrivenRestart(true);
+	}
+
+	// E80 census: the last word, since the periodic dump is on a cadence and
+	// the final drains may not land on one. Silent unless TIDE_FEEDBACK_CENSUS
+	// is set, and silent when nothing was ever drained -- an empty census on a
+	// --no-preset run is the negative control, and it should print exactly one
+	// line saying zero senders rather than nothing at all.
+	~SynthEdit()
+	{
+		if (feedbackCensusEvery() > 0)
+			dumpFeedbackCensus("final");
 	}
 
 	// TideSynth E10: is this blob a document the engine can actually build?
@@ -607,6 +694,22 @@ public:
 			if (feedbackScratch.size() - whole < total)
 				break; // partial tail: keep for next block
 
+			// E80 census -- tally the sender of every WHOLE message, here and
+			// nowhere else. Inside this branch by design: a partial tail's
+			// header has been read but its message has NOT arrived, and
+			// counting it would report traffic the queue has not carried.
+			if (feedbackCensusEvery() > 0)
+			{
+				int32_t handle{}, id{};
+				memcpy(&handle, feedbackScratch.data() + whole, sizeof(handle));
+				memcpy(&id, feedbackScratch.data() + whole + sizeof(int32_t), sizeof(id));
+
+				auto& e = feedbackCensus[{ handle, id }];
+				++e.count;
+				e.maxLength = (std::max)(e.maxLength, messageLength);
+				e.totalBytes += static_cast<long long>(total);
+			}
+
 			whole += total;
 		}
 
@@ -628,6 +731,15 @@ public:
 				instanceSeq, tracedFeedbackSends, whole, feedbackScratch.size());
 		++tracedFeedbackSends;
 #endif
+
+		// E80 census, printed on a cadence rather than only at teardown: a
+		// probe that is killed, or a host that never destroys the processor,
+		// would otherwise produce nothing at all.
+		if (const int every = feedbackCensusEvery(); every > 0)
+		{
+			if (0 == (++censusDrains % every))
+				dumpFeedbackCensus("periodic");
+		}
 	}
 
 	// IShellServices. Empty bodies are honest: no controller-side reader

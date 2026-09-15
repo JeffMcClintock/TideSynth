@@ -522,6 +522,7 @@ int main(int argc, char** argv)
     const char* bundle = nullptr;
     const char* presetPath = nullptr;
     bool usePump = true, loadPreset = true, wantEditor = false, wantController = true;
+    const char* savePath = nullptr;
     int  blocks = 800;
     const int32  blockSize = 512;
     const double sampleRate = 44100.0;
@@ -535,6 +536,7 @@ int main(int argc, char** argv)
         else if (!strcmp(argv[i], "--no-editor"))  wantEditor = false;
         else if (!strcmp(argv[i], "--no-controller")) wantController = false;
         else if (!strcmp(argv[i], "--blocks") && i + 1 < argc) blocks = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--save") && i + 1 < argc) savePath = argv[++i];
         else if (!bundle)     bundle = argv[i];
         else if (!presetPath) presetPath = argv[i];
     }
@@ -542,7 +544,8 @@ int main(int argc, char** argv)
     {
         fprintf(stderr,
                 "usage: %s <path-to.vst3> <preset.xml> [--pump|--no-pump] [--no-preset]\n"
-                "       [--editor|--no-editor] [--no-controller] [--blocks N]\n",
+                "       [--editor|--no-editor] [--no-controller] [--blocks N]\n"
+                "       [--save <out.xml>]\n",
                 argv[0]);
         return 2;
     }
@@ -944,6 +947,55 @@ int main(int argc, char** argv)
 
     processor->setProcessing(false);
     component->setActive(false);
+
+    /* ---- --save: what this plug-in WRITES, as opposed to what it was fed ---
+     *
+     * Added 2026-09-16 for BACKLOG E80. Every figure this row has ever
+     * produced was measured through one committed fixture, and that fixture's
+     * Scope turned out to carry NO patch parameters at all -- so "the blob
+     * never crosses" and "the fixture's Scope has nothing to cross ON" are
+     * both consistent with every measurement taken so far. The only way to
+     * separate them is to ask this build what IT writes for the same rack.
+     *
+     * Processor_VST3::getState is the exact inverse of the setState above:
+     * an int32 chunkSize then that many bytes, so the prefix is stripped here
+     * and the file left is a plain TiDE document -- the same thing a fixture's
+     * base64 <Param id="1"> decodes to, and readable by the same scripts.
+     *
+     * Deliberately AFTER setActive(false) and BEFORE any release: that is
+     * where a host saves a project, and the document a run wants to inspect is
+     * the one a host would have stored. */
+    if (savePath)
+    {
+        MemStream out;
+        const auto rc = component->getState(&out);
+        check("component->getState succeeds", rc == kResultTrue);
+
+        const char* body = out.buf.data();
+        size_t bodyLen = out.buf.size();
+        if (bodyLen >= sizeof(int32))
+        {
+            int32 chunkSize = 0;
+            memcpy(&chunkSize, body, sizeof(chunkSize));
+            if (chunkSize >= 0 && (size_t)chunkSize + sizeof(int32) <= bodyLen)
+            {
+                body    += sizeof(int32);
+                bodyLen  = (size_t)chunkSize;
+                printf("      getState wrote %zu bytes (int32 length prefix stripped)\n", bodyLen);
+            }
+            else
+                printf("      getState wrote %zu bytes (NO usable length prefix - saved whole)\n", bodyLen);
+        }
+
+        if (FILE* f = fopen(savePath, "wb"))
+        {
+            fwrite(body, 1, bodyLen, f);
+            fclose(f);
+            printf("      saved to %s\n", savePath);
+        }
+        else
+            check("the --save path is writable", false);
+    }
 
     if (view)
     {
