@@ -77,7 +77,13 @@ Filed in [docs/decisions.md](docs/decisions.md). (a) leave it; (b) give host con
 
 **A markup detail that cost a red check and is worth inheriting:** naming those ids in **bold** makes `check-id-refs.py` treat them as citations of rows that do not exist on this branch — 4 STALE, rc=1. Backticks are stripped as code spans, and are the honest markup anyway for an id *token* rather than a row citation. The script suggests `--allow-id`, which is **unreachable from CI**: `lint.yml` invokes it with no arguments.
 
-**Also observed, not filed:** `build.yml`'s header still says the matrix *"does not run yet"* and is *"EXPECTED TO FAIL until BACKLOG C7 is done"*. **C7 closed 2026-08-21 and B1 on 2026-08-25**, the guard now passes, and this run's push-event matrix went green on linux and macOS. Left as an observation rather than a row because it is a `.github/workflows/**` comment edit **the bot's token cannot make** — the same wall E84 sits behind.
+**Also observed, not filed — `build.yml`'s header is stale in TWO ways, and the second one has a live decision resting on it.**
+
+(1) It still says the matrix *"does not run yet"* and is *"EXPECTED TO FAIL until BACKLOG C7 is done"*. **C7 closed 2026-08-21 and B1 on 2026-08-25**; the guard now passes and this run's push-event build ([run 34979795007](https://github.com/JeffMcClintock/TideSynth/actions/runs/34979795007), head `2dd0eb4`) went **completed/success with all seven jobs green — `guard`, three `render-*`, `linux`, `macos` AND `windows`**. A clean-clone cross-platform matrix passing is the very thing that header calls the open-source litmus test, and the header says it cannot happen yet.
+
+(2) **The timing figures it reasons from are wrong by an order of magnitude, and BACKLOG S30 depends on them.** The header says *"macOS builds take ~60 minutes against linux 5 and windows 10"* and S30 set `cancel-in-progress: false` on the strength of it. Measured on that run: **`macos` 3m22s, `linux` 1m56s, `windows` 10m52s** — macOS is now the **fastest** of the three builds, not twelve times the slowest. **Whatever S30 concluded, it should be re-derived rather than re-quoted**; this run did not re-open it.
+
+Left as observations rather than rows because both are `.github/workflows/**` comment edits **the bot's token cannot make** — the same wall E84 sits behind. **Do not read either as a defect in the build**; the build is green.
 
 ### Process
 
