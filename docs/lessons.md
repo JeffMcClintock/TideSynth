@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **442 KB** across **343** entries, so copying them
+Learned sections are **443 KB** across **343** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **138 KB / 1480 lessons — 3.2x smaller**, and represents
+A8. This is **138 KB / 1482 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -49,6 +49,8 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A screen with a measured false-alarm rate is publishable; one with a growing allowlist is not.
 - Say "screen" and "proof" in the tool, not in the write-up.
 - `git status` before assuming a helper script is yours.
+- Survey the sibling repos at the END as well as the start, and say which way the dirt moved.
+- The 2026-09-11 "stop using the overrides" remedy is not a preference on this box, it is the difference between a build and a wrong diagnosis.
 
 ## 2026-09-11
 
