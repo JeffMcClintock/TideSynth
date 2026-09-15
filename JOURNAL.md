@@ -8,6 +8,131 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-16 — windows — E80: the blob had nowhere to go — the fixture's Scope carries no patch parameters (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.52386.0.0** (the Appx package version, which A13 records as the discoverable one on Windows; `%LOCALAPPDATA%\Claude\Logs\main.log` agrees at `1.52386.0`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** continued **E80** on this platform's own open branch and **answered it**. The 65,548-byte display-state blob never enters TIDE's DSP→UI queue, and the reason is the **document**, not the channel: the fixture's VCV Scope has **no patch parameters at all**, so its display-state pin is connected to nothing. Row → IN-REVIEW. **No product behaviour changed** — the only product-code edit is a default-off diagnostic. New [scripts/patch-parameters.py](scripts/patch-parameters.py), a `--save` arm on the VST3 probe, and [tests/fixtures/e80-vcv-scope-parameterised.xml](tests/fixtures/e80-vcv-scope-parameterised.xml). **No GUI was driven — the developer was at the machine, third windows run in a row.**
+
+### Why a total could not have found it, and a census could
+
+Every figure this row has produced across three platforms and four runs is an **aggregate**: *569 sends, largest 325 bytes, 59,878 bytes of lifetime traffic*. That establishes the blob is not in the queue. It cannot distinguish **the big thing is missing** from **this sender is missing entirely**, and those wanted opposite fixes.
+
+`TIDE_FEEDBACK_CENSUS=<N>` (`SynthEditSem/SynthEdit.cpp`) tallies every whole message `drainRackFeedback()` forwards by **(handle, 4-char id)**. It costs one `std::map` insert per message on a walk that was *already* parsing those headers to find whole messages, and it is off unless asked — the same default-preserving rule `TIDE_FEEDBACK_TRACE_EVERY` was added under, for the same reason.
+
+On `tests/fixtures/e75-vcv-visible-rack.xml`, VST3, `--editor`:
+
+```
+TIDE: feedback census (final) -- 25 sender(s)
+TIDE:   handle -4         id 'godw'  n=19   max=0    total=228
+TIDE:   handle 128979942  id 'ppc'   n=549  max=13   total=13725
+TIDE:   handle 178048573  id 'ppc'   n=10   max=13   total=250
+...  twenty-three more, every one max=13
+```
+
+**Twenty-four `ppc` senders, every one capped at 13 bytes, and not one message of any other size.** Thirteen bytes is a float patch parameter to the byte (`bool` + voice + value + the trailing −1). The queue was carrying **lights and nothing else**.
+
+### That changed the question, and the plug-in had been answering the new one for nine runs
+
+A rack module's lights **and** its display-state blob are both declared as private, non-persistent **parameters** with a `direction="out"` pin bound to them (`SynthEdit_Rack_Adaptor/RackAdaptor.h`). The lights were arriving. So the question stopped being *why does a blob behave differently from a float on the same module* and became *why is this module's parameter not a sender at all* — and the answer was in the same stderr every previous arm produced, above the counters everyone was reading:
+
+```
+SynthEdit: no patch parameter for module 987654321 parameter id 0
+           -- pin left unconnected rather than dereferenced.      (x8, ids 0-7)
+SynthEdit: patch parameter slot is null in ug_patch_param_watcher
+           -- output parameter update skipped rather than dereferenced.
+```
+
+`987654321` is the fixture's **VCV Scope** — read out of the decoded document, not guessed. With no parameter, `ug_patch_param_setter::ConnectParameter` leaves the pin unconnected, `UPlug::Transmit` iterates an **empty** `connections` list, and `setValue` succeeds into nothing. The module still constructs, still processes, still captures its picture and still reports success.
+
+### The A/B — same binary, one variable
+
+800 blocks of 512 at 44.1 kHz, `--editor`, `TIDE_FEEDBACK_TRACE_EVERY=1`:
+
+| | `e75-vcv-visible-rack.xml` | `e80-vcv-scope-parameterised.xml` |
+|---|---|---|
+| `no patch parameter for module` | **9** | **0** |
+| feedback sends | 569 | 573 |
+| **largest send** | **325 B** | **65,873 B** |
+| lifetime queue traffic | 59,878 B | **17,502,646 B** |
+| the blob's own sender, in the census | *absent* | `n=266  max=65,561  total=17,442,418` |
+| `RackProcessor: 'Scope' display-state capture` | `#200 (65548 B)` | `#200 (65548 B)` |
+| **the far end** | `update #1 arrived (0 bytes)` | **`update #260 arrived (65548 bytes)`** |
+
+**CLAP, same build tree: `#1 arrived (0 bytes)` → `#260 arrived (65548 bytes)`.** That is **E80's Accept verbatim** — *"`RackEditor: display-state update #N arrived (65548 bytes)` advancing in a hosted CLAP"* — met for the first time since the row was filed on 2026-09-01.
+
+**The capture row is the control and it is why this is a fact about delivery.** Identical in both arms: the DSP did the same work, captured the same 65,548 bytes the same 200 times, and only the fate of the picture changed. `max=65,561` is `13 + 65,548` exactly, which is the blob arriving whole rather than nearly.
+
+### The proof is not the screen, and the obvious check is blind to this
+
+[scripts/patch-parameters.py](scripts/patch-parameters.py) `--compare` diffs a document's per-module parameter counts against **the same rack as the product itself writes it** — obtained with the new `--save` arm on [tests/e80_vst3_feedback_probe.cpp](tests/e80_vst3_feedback_probe.cpp), which is `component->getState` with the int32 length prefix stripped:
+
+```
+tests/fixtures/e75-vcv-visible-rack.xml  vs  roundtrip.xml
+    VCV: Scope   987654321   0 -> 11   <-- MISSING 11
+```
+
+One line, no allowlist, no judgement. The script's **zero-parameter flag is a screen and says so in its own docstring**: 6 flags on `e75` of which 1 is the defect, because `IO Mod`, `VCA` and `SE MIDI to CV 2` are parameterless by design. The allowlist was deliberately not extended to cover them — a long allowlist is how a screen stops screening — and the false-alarm rate is recorded instead.
+
+**A TiDE document stores its PatchManager TWICE** — `<Parameter Module=…>` in `<DSP>`, `<param module=…>` in `<Editor>` — which is exactly the shape **E83** found the patch *cables* disagreeing in. **This defect defeats that check: both halves agree, and both are missing the same eleven parameters.** `--halves` prints the comparison anyway, because a disagreement is still worth catching; it is simply not what finds this.
+
+### How wide, and what was deliberately not touched
+
+Surveyed every committed fixture. **Three carry the crippled Scope and they are the only ones**: `e53-vcv-rack-segv.xml` and its two descendants `e75-vcv-visible-rack.xml` and `e83-vcv-scope-cabled.xml` — all the same handle `987654321`. Every E80, E19 and E83 display-state measurement was taken through one of them.
+
+**They are left exactly as they are.** Three rows name them as reproductions, and rewriting a fixture other rows cite loses the thing they reproduce — E83's precedent, which added a fixture beside `e75` rather than editing it. The repaired rack is a new file, and it inherits two earlier runs' work for free: `patch-cables.py --show` reports **AGREE** (E83's fix, applied by the product on save) and `PanelLocationZoom` survives at `0.64999998` with the same 17 `panelRect`s (E75's visible panels).
+
+**It does not regenerate byte-identically, and that is E77/E81 rather than a flaw.** Two saves a second apart differ in **592 of 892 decoded lines** and are **identical** once `Handle="…"` is masked and order ignored — E77's own normalisation, reproduced here as a by-product, on a document rather than on an export.
+
+### The two build scripts, which is the smallest thing here and cost the most time
+
+`build-e80probe.cmd` pointed its `-I` at `C:\SE\TideSynth\build-e19win\_deps\clap-src\include` — one box's 2026-09-02 scratch tree, which does not exist in a worktree. Both scripts now resolve either Visual Studio instance and take the build tree as an argument with a refusal when it has no CLAP headers (**seen to fire**, rc=1). `build-e80vst3probe.cmd` gains `ole32.lib`, which the probe's own header comment has named since it was written.
+
+**I clobbered both files with a heredoc before noticing they were tracked**, and restored them from `HEAD` before re-applying the changes deliberately. The tell was `git status`, not anything failing.
+
+### Verification
+
+| check | result |
+|---|---|
+| configure, **no `*_FOLDER_OVERRIDE`**, 10 deps fetched fresh | rc=**0** |
+| build `TIDE_Rack_VST3` | rc=**0**, 0 `error C`/`error LNK` |
+| build `TIDE_Rack_CLAP` | rc=**0**, 0 `error C`/`error LNK` |
+| both probes rebuilt **from the committed scripts** | rc=0 each, binaries produced |
+| the CLAP script's new refusal | `no CLAP headers under "no-such-tree\…"`, rc=**1** |
+| A/B, VST3, same binary | 9 misses/569/325 B → **0 misses/573/65,873 B** |
+| A/B, CLAP, same build tree | `#1 arrived (0 bytes)` → **`#260 arrived (65548 bytes)`** |
+| the A/B's own control | `display-state capture #200 (65548 bytes)` **identical in every arm** |
+| `--compare` on the committed fixture | `VCV: Scope 0 -> 11 MISSING 11`, rc=1 |
+| `--compare`'s control (a document against itself) | rc=**0**, "every module carries at least as many" |
+| round-trip reproducibility | raw **differs** (592/892 lines); handle-masked **identical**, md5 `42b496a43933` both |
+| corpus survey, all committed fixtures | 3 of them carry the crippled Scope; no other `VCV:` module anywhere lacks parameters |
+| `check-backlog-diff` | rc=0 — `E80: TODO -> IN-REVIEW`, status/date cells and new rows only |
+| `check-next-block` / `check-id-refs` / `check-backlog-archived` / `check-links` | rc=0 each |
+| `check-commit-authorship --repo .` | rc=0 — every unpushed commit `tide-rack-bot` |
+| `check-commit-completeness --record/--verify` | 7 staged, 7 in HEAD, all present |
+| NEXT-cell chain before/after | 7 → **8** generations; pipe count **5 before and 5 after** |
+
+**No SynthEditCL build, and it is discharged by SCOPE rather than glossed:** no sibling repo was edited at all, the one product file changed is `SynthEditSem/SynthEdit.cpp` (TIDE's own, ALLOWED), and the build used **no folder overrides**, so nothing local was consumed either.
+
+**Learned:**
+
+- **Before believing a channel is broken, ask what it IS carrying.** Four runs measured a total and a maximum. A total cannot separate *the big message is missing* from *that sender never spoke*, and the second was the answer. The census was one map insert on a walk already parsing the headers.
+- **Read the whole stderr, not the counters you came for.** `no patch parameter for module 987654321` printed nine times in every arm of every previous run, including mine before I looked. The counter lines were what everyone grepped for, so the diagnostic sat above them unread for nine runs.
+- **A module handle that looks hand-typed probably is.** `987654321` among `529566147`, `13300239`, `249916321` — the other four are random 31-bit snowflakes. That was the visible tell that the fixture had been touched, and it is the one I noticed last rather than first.
+- **When a fixture is the suspect, ask the product what IT writes.** `--save` plus a per-module diff turned "this document looks wrong" into `0 -> 11` with no allowlist and no domain knowledge. The product is the oracle for its own file format.
+- **The check that caught the last fixture defect is blind to this one, by construction.** E83's two-copy disagreement is a sound test and both halves agree here. A validator's coverage is a property of the defect, not of the file — say which defects a check cannot see, in the check.
+- **A screen with a measured false-alarm rate is publishable; one with a growing allowlist is not.** Six flags, one real, the three innocent types named in the docstring and deliberately not allowlisted.
+- **Say "screen" and "proof" in the tool, not in the write-up.** `--compare` is sound and the zero-flag is not; putting that distinction in `--help` is what stops the next run quoting the wrong one.
+- **`git status` before assuming a helper script is yours.** I overwrote two tracked build scripts with a heredoc. Nothing failed and nothing warned; restoring from `HEAD` and re-applying deliberately cost two minutes, and not noticing would have put an undiscussed rewrite in the diff.
+
+**Not verified:** **the STANDALONE**, which the row's original figure also named and which must own a real window — still unmeasured, still wants an idle box. **What produced the crippled fixture** — the round-trip shows a save REPAIRS it, and nothing here establishes how a document reached that state in the first place; the 2026-08-26 session file's provenance is a claim from E83's entry, not something this run re-derived. **Whether any document TiDE writes today can reach it.** **Anything requiring the editor to have PAINTED** — an invisible off-screen window gets no `WM_PAINT`, so `RackEditor: render #N` is 0 in every arm here, as in the two previous runs. **macOS and Linux** — nothing re-measured there; the census is platform-independent C++ and was compiled only on Windows. **E19's own clauses** — this run did not take them, and its row is untouched. **E85** (`gui->show` returns false) fired identically in both CLAP arms, so it is not a variable in this A/B and is otherwise untouched. **`SynthEditCL` and SynthEdit proper** — not built; nothing outside TideSynth changed.
+
+**Machine state.** **Worked entirely in a `git worktree` at `C:\SE\TideSynth-wt-e80b`; `C:\SE\TideSynth` was never checked out or built in** and is on `main` at `13095a395`, clean, exactly as found. All eight local repos were on their default branches at the start. **`C:\SE\GMPI_Wrappers` carries one dirty file, `wrapper/AU3/AU3_Wrapper.mm`, and it is PURE CRLF CHURN** (`git diff --ignore-all-space` empty) — the developer's, predating this run, recorded by the 09-11 and 09-14 entries too, and **left exactly as found**: not committed, not reverted, not stashed. Every other sibling (`SE16` `5e5433dad`, `SynthEditLib` `8f66c31`, `gmpi_ui` `1baf360`, `GMPI` `cf7504b`, `SynthEdit_Rack_Adaptor` `04d1296`, `VCV_Fundamental_gmpi` `93a27f9`) was clean and **read-only — none was built from, fast-forwarded or written to**, because the build used **no `*_FOLDER_OVERRIDE` at all**. Dependency shas the measurement was actually built against are the ones `main` pins and CMake fetched: `syntheditlib 8f66c31`, `gmpi cf7504b`, `gmpi_ui 1baf360`, `gmpi_wrappers 4c11d6d`, `rack_adaptor 04d1296`, `vcv_fundamental 93a27f9`, `clap a47f6ba`. **No host, DAW or standalone was launched, nothing was installed or registered, no `%APPDATA%` was touched and no window was displayed** — both probes are bare hosts, and the `--editor` arms parent the view to a never-shown off-screen `WS_POPUP`. **`Get-Process | Where-Object { $_.MainWindowTitle }` before and after returned the same three Visual Studio instances and the same applications**, and **0 TIDE and 0 REAPER processes** are running. The gitignored build tree (`build-e80cen`) and every log, probe binary and scratch document live in the worktree, which STEP 5 removes.
+
+**Next:** **E19's win VST3 cell, and it is no longer fixture-blocked in either clause.** Its pixel-diff clause now has a rack whose Scope genuinely animates — `tests/fixtures/e80-vcv-scope-parameterised.xml` — and that clause may not need a screen at all: the off-screen-HWND arm creates a real editor whose pins update, and the census shows the payload arriving. **What it cannot show is paint** (no `WM_PAINT` on an invisible window), so a pixel diff still wants a visible window and a right-click still wants an idle box. **E82's remaining arm is E19's other clause and the module is `WT LFO`, not the Scope** — see [#587](https://github.com/JeffMcClintock/TideSynth/pull/587). **Re-read E83 and E19's published zeros in the light of this row**: E83 concluded the Scope's *input* was unwired and its capture correct, which stands — but its companion claim that the payload reaches the editor on VST3 and the standalone was read off the same crippled fixture. **`scripts/patch-parameters.py <fixture> --compare <roundtrip>` before quoting any display-state number.** **`JOURNAL.md` rotation still waits on [#585](https://github.com/JeffMcClintock/TideSynth/pull/585)**, which *is* the rotation rule; ~229 KB against A24's 60 KB ceiling. **One thing seen and deliberately not fixed:** the `win` NEXT cell carries an **unescaped `|`** inside an older generation's `Get-Process | Where-Object`, so that table row renders with an extra column. It predates this run, `check-next-block` passes, and editing preserved text to fix it is the "while I was in there" STEP 3 warns about — but it is one character for whoever next rewrites that cell.
+
+**Branch/PR:** `tide/win/E80-clap-editor-arm`, [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) — `TIDE_FEEDBACK_CENSUS` in `SynthEditSem/SynthEdit.cpp`, the `--save` arm on [tests/e80_vst3_feedback_probe.cpp](tests/e80_vst3_feedback_probe.cpp), [scripts/patch-parameters.py](scripts/patch-parameters.py), [tests/fixtures/e80-vcv-scope-parameterised.xml](tests/fixtures/e80-vcv-scope-parameterised.xml) and [its README](tests/fixtures/e80-vcv-scope-parameterised.README.md), both `build-e80*probe.cmd` scripts, the census section of [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md), E80 → IN-REVIEW with its answer, the refreshed `win` NEXT cell, regenerated [docs/lessons.md](docs/lessons.md), and this entry.
+
 ## 2026-09-11 — windows — E80: the VST3 does not carry the blob either, so the row is mis-titled (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.49585.0.0** (the Appx package version, which A13 records as the discoverable one on Windows; `%LOCALAPPDATA%\Claude\Logs\main.log` agrees at `1.49585.0`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run

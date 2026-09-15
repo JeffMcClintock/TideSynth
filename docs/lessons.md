@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **440 KB** across **342** entries, so copying them
+Learned sections are **442 KB** across **343** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **137 KB / 1472 lessons — 3.2x smaller**, and represents
+A8. This is **138 KB / 1480 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,19 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-16
+
+**windows — E80: the blob had nowhere to go — the fixture's Scope carries no patch parameters (scheduled run)**
+
+- Before believing a channel is broken, ask what it IS carrying.
+- Read the whole stderr, not the counters you came for.
+- A module handle that looks hand-typed probably is.
+- When a fixture is the suspect, ask the product what IT writes.
+- The check that caught the last fixture defect is blind to this one, by construction.
+- A screen with a measured false-alarm rate is publishable; one with a growing allowlist is not.
+- Say "screen" and "proof" in the tool, not in the write-up.
+- `git status` before assuming a helper script is yours.
 
 ## 2026-09-11
 

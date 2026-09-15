@@ -1092,3 +1092,104 @@ not transfer to VST3's two, and the cost of assuming it did was a rack that
 built perfectly and ran nothing. The tell was not an error; it was
 `RackProcessor: '<slug>' constructed` appearing 0 times where a sibling probe
 showed 29.
+
+# The queue census — and what it found (E80, 2026-09-16)
+
+**Every figure the section above reports is an AGGREGATE**: 569 sends, largest
+325 bytes, 59,878 bytes of lifetime traffic. That says the 65,548-byte blob is
+not in the queue. It says nothing about what IS, and the two remaining
+explanations wanted opposite fixes — the blob never reaches the queue, or it
+reaches it and arrives broken.
+
+`TIDE_FEEDBACK_CENSUS=<N>` tallies every whole message `drainRackFeedback()`
+forwards by **(handle, 4-char id)**, and dumps the table every N drains and once
+at teardown. Unset, unparseable or `< 1` changes nothing, the same rule
+`TIDE_FEEDBACK_TRACE_EVERY` was added under. It costs one `std::map` insert per
+message, and the walk it hooks was already parsing those headers in order to
+find whole messages.
+
+```
+set TIDE_FEEDBACK_TRACE_EVERY=1
+set TIDE_FEEDBACK_CENSUS=100000
+e80vst3probe.exe <build>\SynthEditSem\Release\TIDE-Rack.vst3 ^
+    tests\fixtures\e75-vcv-visible-rack.xml --blocks 800 --editor 2> trace.err
+```
+
+On the `e75` fixture it printed **25 senders, every one a 13-byte `ppc`** — a
+patch-parameter change — and not one message of any other size. Thirteen bytes
+is a float parameter to the byte, so the queue was carrying lights and nothing
+else.
+
+## What that localised, and it is not the channel
+
+A rack module's lights **and** its display-state blob are both declared as
+private, non-persistent **parameters** with a `direction="out"` pin bound to
+them (`SynthEdit_Rack_Adaptor/RackAdaptor.h`). The lights were arriving. So the
+question stopped being "why does a blob behave differently from a float" and
+became "why is this module's parameter not a sender at all" — and the plug-in
+had been answering that in plain words the whole time, nine lines of it:
+
+```
+SynthEdit: no patch parameter for module 987654321 parameter id 0
+           -- pin left unconnected rather than dereferenced.
+SynthEdit: patch parameter slot is null in ug_patch_param_watcher
+           -- output parameter update skipped rather than dereferenced.
+```
+
+`987654321` is the fixture's VCV Scope, and **the document declares no patch
+parameters for it at all**. With none, `ug_patch_param_setter::ConnectParameter`
+leaves the pin unconnected, `UPlug::Transmit` iterates an empty connection list,
+and the blob is discarded — while the module constructs, processes, captures its
+display state and reports success.
+
+## The proof, and why the obvious check could not have found it
+
+`--save` on the VST3 probe writes what the plug-in *itself* stores
+(`component->getState`, length prefix stripped), so the same rack can be read
+back as the product writes it:
+
+```
+e80vst3probe.exe <TIDE-Rack.vst3> tests\fixtures\e75-vcv-visible-rack.xml ^
+    --blocks 1 --save roundtrip.xml
+python3 scripts\patch-parameters.py tests\fixtures\e75-vcv-visible-rack.xml ^
+    --compare roundtrip.xml
+```
+
+```
+VCV: Scope   987654321   0 -> 11   <-- MISSING 11
+```
+
+**A TiDE document stores its PatchManager twice** — `<Parameter Module=…>` in
+`<DSP>`, `<param module=…>` in `<Editor>` — which is exactly the shape E83 found
+the patch *cables* disagreeing in. **This defect defeats that check: both halves
+agree, and both are missing the same eleven parameters.** A cross-half
+comparison is blind to it by construction, which is why `--compare` against a
+round-trip is the mode to reach for and `--halves` is the secondary one.
+
+## The A/B — same binary, one variable
+
+800 blocks of 512 at 44.1 kHz, `--editor`, `TIDE_FEEDBACK_TRACE_EVERY=1`:
+
+| | `e75-vcv-visible-rack.xml` | `e80-vcv-scope-parameterised.xml` |
+|---|---|---|
+| `no patch parameter for module` | **9** | **0** |
+| sends | 569 | 573 |
+| **largest send** | **325 B** | **65,873 B** |
+| lifetime queue traffic | 59,878 B | **17,502,646 B** |
+| the blob's own sender | *absent* | `n=266  max=65,561  total=17,442,418` |
+| `display-state capture` | `#200 (65548 B)` | `#200 (65548 B)` — **the control** |
+| far end | `update #1 arrived (0 bytes)` | **`update #260 arrived (65548 bytes)`** |
+
+CLAP, same build tree: `#1 arrived (0 bytes)` → `#260 arrived (65548 bytes)`.
+
+The capture row is what makes this a fact about delivery rather than about the
+DSP: identical in both arms, so the module did the same work and only the fate
+of the picture changed.
+
+## The habit
+
+**Before believing a channel is broken, ask what it IS carrying.** Three runs on
+two platforms measured a total and a maximum, and a total cannot distinguish "the
+big thing is missing" from "this sender is missing entirely". A census is one map
+insert on a walk that was already happening, and it turned a nine-day
+format-comparison into a one-line document fact.
