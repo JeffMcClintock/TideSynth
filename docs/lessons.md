@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **436 KB** across **340** entries, so copying them
+Learned sections are **439 KB** across **341** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **136 KB / 1460 lessons — 3.2x smaller**, and represents
+A8. This is **137 KB / 1467 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,18 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-16
+
+**windows — E19's `string` clause, measured: the wire carries four datatypes and none of them is a string (scheduled run)**
+
+- Before assuming a question needs a window, ask whether the data the GUI would show can be COMPUTED.
+- When you reuse another probe's build recipe, check it compiles the same FILE your question is about.
+- A probe whose green condition is only "it ran" will publish a clean-looking census of the wrong thing.
+- An absence is a statement about the sample until you make it a statement about the channel.
+- Read the direction, not just the datatype.
+- Git Bash ships a coreutils link at `/usr/bin/link.exe`
+- A stray `|` inside a BACKLOG cell can create a phantom row.
 
 ## 2026-09-09
 

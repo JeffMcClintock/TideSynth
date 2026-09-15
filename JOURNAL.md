@@ -8,6 +8,97 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-16 — windows — E19's `string` clause, measured: the wire carries four datatypes and none of them is a string (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.52386.0.0** · as **tide-rack-bot** (both paths) · scheduled run
+
+**Did:** took **E19** — the topmost eligible row, after the `win` NEXT cell's own pick (E80, editor arm) turned out to be done and sitting in an open PR — and closed the one clause of it that has never had an artifact behind it. Row back to TODO; **no product code changed**, nothing built, no host launched, no window created. The instrument is [tests/e19_datatype_census_probe.cpp](tests/e19_datatype_census_probe.cpp) plus a negative control and a shim header.
+
+### Why this clause and not the other two
+
+E19's win/VST3 cell owes two clauses: a rack-canvas pixel diff, and `int/bool/enum` verified by right-clicking a VCV panel. **Both need an editor that has painted, and the developer was at the machine** — three Visual Studio instances (`SynthEditStore`, `SimulatorGmpi`, `SynthEdit_cmake` on `PolyphonyControl.xml`), Outlook and Slack, at 11:26 local. That is the second Windows run in a row to find him working; the 2026-09-13 E82 run left its remaining arm named for exactly this reason.
+
+The off-screen-parent-HWND rung does not rescue them: **an invisible window gets no `WM_PAINT`**, so anything that depends on the editor having drawn is out of reach by construction. They want an idle box.
+
+What was reachable is the rung below that one: **before assuming a question needs a window, ask whether the data the GUI would show can be computed.** E82 did that for the right-click menu with `readPanelLayout()`. This run does it for the datatypes with `generatePluginXml()`.
+
+### The measurement
+
+`rack_adaptor::generatePluginXml()` — `SynthEdit_Rack_Adaptor/RackAdaptor.h:187` — is the **single** place a rack module's pins and parameters come into existence. `RackAutoRegister.h:127` calls it and nothing else does; what it returns is what the host is handed. So the set of datatypes this path can carry **is** the set of `datatype` attributes it emits, and the probe calls it for all 39 compiled-in models with the same four `RegistrationOptions` the real registration fills in.
+
+```bash
+bash tests/e19_datatype_census_probe.sh            # rc=0, 41 TUs, ~1 min
+bash tests/e19_datatype_census_probe.sh '' '' '' --xml Scope   # one module's XML
+```
+
+**39 of 39 models linked.**
+
+| section | datatypes emitted, summed over 39 models |
+|---|---|
+| `<Parameters>` | **blob=7 bool=11 enum=5 float=374** |
+| `<GUI>` pins naming a type | blob=7 float=197 |
+| `<Audio>` in | float=174 |
+| `<Audio>` out, public | float=182 |
+| **`<Audio>` out, `private` — the DSP→GUI path** | **blob=7 float=197** |
+| **`string`, anywhere** | **0** |
+
+A "producer" for E19's purposes is a pin the DSP writes and the editor reads, and in the emitted XML that is exactly an `<Audio>` pin with `direction="out"` and `private="true"` (`RackAdaptor.h:374-385`). The probe counts those separately, so **"no string producer" is a count of a named thing rather than a failure to find one**.
+
+### Two things the census says that the row does not
+
+1. **The DSP→GUI path carries exactly TWO datatypes** — float (197 lights) and blob (7 display-state frames). **bool and enum are 0 on it.** A menu option travels GUI→DSP: the editor writes `menuIntPins`/`menuBoolPins` and the processor reads them. E19's *"menu options are the int/bool parameters this path carries"* is directionally the other way round — which is precisely why its own verification (*toggle an option, see the DSP obey*) is the right test for that clause and why a feedback counter would not be.
+2. **`int` is not a word the wire uses.** An `IndexPtr` option is emitted as datatype `enum`; the *editor* holds it in a `Pin<int32_t>` (`RackEditor.h:1184`). So the row's "int/bool/enum" is two datatypes on the wire, not three.
+
+**The 7 modules carrying display state:** ADSR, Octave, Quantizer, Scope, Sum, VCA-1, Viz.
+
+**Independent agreement with E82:** the modules with a bool or enum parameter number **12 of 39** — the same 12 E82's probe found, reached from a different call (`generatePluginXml` vs `readPanelLayout`). Two probes, two entry points, one answer.
+
+### The negative control is what makes "no string" a statement about the channel
+
+A census is a statement about today's sample. [tests/e19_string_member_negative_control.cpp](tests/e19_string_member_negative_control.cpp) turns it into one about the channel: it declares `RACK_DISPLAY_STATE` over a `std::string` member and **must fail to compile**.
+
+```
+  trivially-copyable member only : COMPILES (expected)
+  plus a std::string member      : REFUSED at compile time (expected)
+```
+
+The refusal is `RackDisplayState.h:94`, whose static_assert names `std::string` in its own message. The first arm is what makes the second attributable — without it, a file that failed for a typo would read as evidence. The display-state blob is the only pin on this path carrying arbitrary bytes, so a string cannot be added there without that guard being relaxed first, and if it ever is, this probe goes red on the same run.
+
+### The probe's own control caught it measuring the wrong file, and this is the part worth carrying forward
+
+**The first run reported `blob=0` for all 39 models** — and went **RED** rather than printing a clean-looking census, because its control requires the four datatypes E19 has already measured working to be present.
+
+The cause: it compiled `modules/X/vcv/X.cpp`, which is what `tests/e82_rack_menu_probe.cpp` compiles — correctly, for *its* question. But TIDE builds `modules/X/X.cpp`, the **port** (`static_library/CMakeLists.txt:67`), and `RACK_DISPLAY_STATE` is declared in the port and **never** in upstream's file. Every port is three lines: the umbrella include, upstream's `.cpp`, and optionally the display-state declaration.
+
+[tests/e19-shim/RackModule.h](tests/e19-shim/RackModule.h) is the fix — a header that shadows the adaptor's by sitting first on the include path and gives a port the Rack mock and `RackDisplayState.h` and nothing else. The real `RackModule.h` pulls the GMPI **and** gmpi_ui SDKs plus two CMake-generated headers, i.e. the configured build tree this probe exists to not need.
+
+**The general lesson: when you reuse another probe's build recipe, check it compiles the same FILE your question is about.** The recipe was right and the file was wrong, and the two are easy to conflate because the wrong file compiles perfectly and answers confidently.
+
+### Traps, both Windows-specific
+
+1. **Git Bash ships a coreutils link at `/usr/bin/link.exe`**, which shadows MSVC's linker whenever bash is launched from a VS developer `cmd` rather than the other way round. **Spelling it `link.exe` does not dodge it** — the coreutils one *is* a `.exe`. It answers `link: unknown option -- n`, which reads as a bad flag rather than as the wrong program entirely. Link through `cl` (`cl -nologo ./*.obj -Fe:out.exe`), which has no twin.
+2. **A quoted bash heredoc through this harness mangles apostrophes.** Two attempts to write a file with `<<'EOF'` died on `unexpected EOF while looking for matching '`, both times on content containing `'`. Writing the script to a file with the editor tool and running it works. This is the same family as the `/tmp` and `cmd //c` entries already in the Windows notes.
+
+Also, unrelated to the probe but worth the next run knowing: **a stray `|` inside a BACKLOG cell can create a phantom row.** `check-backlog-diff.py`'s `ROW` regex needs four ` | `-separated columns, and the `win` NEXT cell already carries one bare pipe; adding a second made the three-column NEXT row parse as a four-column backlog row named `win`, reported as `1 new row(s): win`. The check still said OK, so this is a near-miss rather than a failure — but a third pipe in that cell is a trap waiting.
+
+**Learned:**
+
+- **Before assuming a question needs a window, ask whether the data the GUI would show can be COMPUTED.** E82 answered the right-click menu with `readPanelLayout()`; this run answered every datatype with `generatePluginXml()`. Both took about a minute, needed no host, no screen and no build tree, and both were reachable on a box the developer was working at. The rung above them — an editor in an invisible off-screen parent HWND — cannot reach anything that depends on painting, because an invisible window gets no `WM_PAINT`.
+- **When you reuse another probe's build recipe, check it compiles the same FILE your question is about.** This probe borrowed E82's recipe, which compiles `modules/X/vcv/X.cpp`, and reported `blob=0` for all 39 models — because `RACK_DISPLAY_STATE` is declared in the PORT, `modules/X/X.cpp`, which is what `static_library/CMakeLists.txt:67` actually builds. The recipe was right and the file was wrong, and the wrong file compiles perfectly and answers confidently.
+- **A probe whose green condition is only "it ran" will publish a clean-looking census of the wrong thing.** This one requires the four datatypes E19 has already measured working in a host to be PRESENT before it reports on the fifth, so a zero for `string` is an absence inside data that demonstrably contains other things. That control is what turned the wrong-file run red instead of shippable, and it cost four lines.
+- **An absence is a statement about the sample until you make it a statement about the channel.** The census says no module offers a string today. The compile-time negative control — `RACK_DISPLAY_STATE` over a `std::string`, which must NOT compile, beside the same declaration without it, which must — says the one byte-carrying pin on this path could not be given one. The second is the one that stops this being re-derived in a month.
+- **Read the direction, not just the datatype.** The DSP→GUI path carries float and blob and nothing else; `bool` and `enum` are 0 on it, because a menu option travels the other way. E19 has described them as datatypes "this path carries" since 2026-08-25, and that wording is what makes its own (correct) verification for them look like an odd choice.
+- **Git Bash ships a coreutils link at `/usr/bin/link.exe`** that shadows MSVC's linker whenever bash is launched from a VS developer `cmd` rather than the other way round — and **spelling it `link.exe` does not dodge it**, because the coreutils one is a `.exe` too. It answers `link: unknown option -- n`, which reads as a bad flag rather than as the wrong program. Link through `cl`, which has no twin.
+- **A stray `|` inside a BACKLOG cell can create a phantom row.** `check-backlog-diff.py`'s `ROW` regex wants four ` | `-separated columns; the three-column `win` NEXT cell already carries one bare pipe, and adding a second made it parse as a backlog row named `win` (`1 new row(s): win`). It still exited 0, so this is a near-miss — but a third pipe in that cell is a trap already loaded.
+
+**Not verified:** **the two clauses E19's win/VST3 cell actually owes** — the rack-canvas pixel diff and the `int/bool/enum` toggle. Both need a painted editor and an idle box; neither was attempted. **Anything about routing, painting or hosting** — no editor was created, nothing was clicked, no rack was hosted. This probe reads what the factory DECLARES, which is upstream of all three. **That the declared pins behave as declared** — a pin can be emitted correctly and still not carry its value, which is exactly what E80 is about. **macOS and Linux** — the script takes both paths and was compiled only on Windows. **`SynthEditCL`, SynthEdit and TIDE** — not built. This branch touches no product code, so their state is unchanged rather than re-verified, and I cannot say from this run that they build. **E82's probe cross-check** — the "same 12 of 39" agreement was read off that PR's published table, not by re-running it here.
+
+**Machine state.** `TideSynth`, `SE16`, `SynthEditLib` and `gmpi_ui` were all clean and on their default branches at the start of the run. **`GMPI_Wrappers` carries a modified `wrapper/AU3/AU3_Wrapper.mm` that predates this run** — the developer's work in progress, left exactly as found and deliberately not touched. No repo but `TideSynth` was written to, and `git add` named four paths, never `-A`. `%APPDATA%` was not touched, no host was launched, no plug-in was installed, and the `MainWindowTitle` process list is unchanged across the run. Source shas the measurement was read against: `SynthEdit_Rack_Adaptor` and `VCV_Fundamental_gmpi` as checked out beside this repo; `GMPI` supplied `Core/Processor.h` and `Extensions/PinConnection.h` on two `-I` flags and was not modified — reading it has never needed permission. Object files went to a `mktemp -d` deleted on exit. `main`'s `build` is green on all three platforms at `0ed6ca1db`; the shas since are docs-only with no `build` run, which is `guard` working.
+
+**Next:** **E19's remaining win clauses and E82's remaining arm are the same session** — the same fixture (`tests/fixtures/e75-vcv-visible-rack.xml`), the same right-click, and both want an idle box. Whoever gets one should do them together: right-click **WT LFO**, confirm *Wave points* lists its 10 labels, pick one, show the DSP obey, and take the rack-canvas pixel pair while the editor is up. **Nothing else in this lane's queue is takeable** — A35 is parked on its own two `PROPOSED:` entries, S8 is `NEEDS-SPEC`, E2 is an umbrella its own row calls not takeable, E72/E79/E80/E81/E82 each have an open PR, E76 and E79 are linux in substance, and E84 is a `.github/workflows/**` edit the bot's token deliberately cannot make. **`JOURNAL.md` is ~229 KB against A24's 60 KB ceiling and rotation is deferred for the fifth time, with a changed reason:** [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) **is A36, the rotation rule itself**, and five other PRs are open beside it — rotating from this lane would conflict all six on the hardest file to resolve. Whoever merges last, once A36 has landed, should rotate. **`build.yml`'s `matrix.platform != 'win'` exclusion (`:523`) still means STEP 1 cannot fire on this platform** — a workflow edit the bot cannot make, so it is Jeff's or nobody's, and the `win` cell has now restated it six times.
+
+**Branch** `tide/win/E19-datatype-census`.
+
 ## 2026-09-09 — windows — E80's second opinion: the blob does not travel on Windows either, and it is not the timer (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.46388.4.0** · as **tide-rack-bot** (both paths) · scheduled run
