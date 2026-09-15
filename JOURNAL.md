@@ -62,6 +62,23 @@ Filed in [docs/decisions.md](docs/decisions.md). (a) leave it; (b) give host con
 
 **Also not established, and E81's row says the ruling turns on it:** whether the `:143` old-Banks hazard (*"if user deletes then adds parameter, new parameter will have old one's ID"*) can reach a host control at all, given host controls are created by the load itself, carry `isPrivate = true`, and are identified in the document by `HostControl=`. Stated as open in the entry rather than argued either way.
 
+### The thing this run found by accident, and it is worth more than the row it was filing
+
+**Two BACKLOG ids are each allocated TWICE, to different findings, on two unmerged branches.** Found by STEP 3's grep-before-filing rule while trying to claim one of them for something else — **filed as E87**.
+
+| id | `tide/linux/E79-clap-headless-document` ([#584](https://github.com/JeffMcClintock/TideSynth/pull/584)) | `tide/win/E80-clap-editor-arm` ([#586](https://github.com/JeffMcClintock/TideSynth/pull/586)) |
+|---|---|---|
+| first | 2026-09-09, E79's ordering defect asked of every other wrapper | 2026-09-10, `clap_plugin_gui.show()` |
+| second | 2026-09-09, triage of [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) | 2026-09-11, a VST3 component instantiated without its controller |
+
+**Four distinct findings, two ids.** `check-id-refs.py`'s duplicate check is blind to this **by construction** — the rows never meet on one branch until a merge puts them there, `main` shows a highest E-id of **84**, and both branches are perfectly consistent in isolation. Whoever merges second lands a doubled id and a red lint on a branch whose author did nothing wrong.
+
+**The general form is the part to keep: STEP 3's grep is against `origin/main`, and `origin/main` cannot show an id a concurrent branch has taken.** With five PRs open at once this is not a rare race; it has now happened twice. Sweep every `tide/*` branch's BACKLOG for its highest id before claiming one — one command, and it is what turned this from a third collision into a filed row.
+
+**A markup detail that cost a red check and is worth inheriting:** naming those ids in **bold** makes `check-id-refs.py` treat them as citations of rows that do not exist on this branch — 4 STALE, rc=1. Backticks are stripped as code spans, and are the honest markup anyway for an id *token* rather than a row citation. The script suggests `--allow-id`, which is **unreachable from CI**: `lint.yml` invokes it with no arguments.
+
+**Also observed, not filed:** `build.yml`'s header still says the matrix *"does not run yet"* and is *"EXPECTED TO FAIL until BACKLOG C7 is done"*. **C7 closed 2026-08-21 and B1 on 2026-08-25**, the guard now passes, and this run's push-event matrix went green on linux and macOS. Left as an observation rather than a row because it is a `.github/workflows/**` comment edit **the bot's token cannot make** — the same wall E84 sits behind.
+
 ### Process
 
 **STEP 1 empty** — no open `platform:mac` issue (the only open issues are #583, `platform:linux`, and the watchdog digest #44). **STEP 1.5 resolved to *leave it alone*, not to *empty*:** both mac PRs — [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36) and [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) (E72) — are **15/15 green, `MERGEABLE`, `CLEAN`, no reviews, no comments**. Waiting on Jeff, so STEP 1.5's own words applied and neither was touched.
