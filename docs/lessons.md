@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **438 KB** across **341** entries, so copying them
+Learned sections are **439 KB** across **342** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **137 KB / 1466 lessons — 3.2x smaller**, and represents
+A8. This is **137 KB / 1469 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,14 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-17
+
+**macos — sixth confirming cell: queue empty, E82 independently re-derived and already claimed, E83's flip already done elsewhere (scheduled run)**
+
+- The `platform:X` issue-label check is worth running across every repo the fleet touches, not just this one
+- A row's "no producer" finding can be an artifact of which module got tested, not a property of the mechanism.
+- Check unmerged sibling branches' own `BACKLOG-DONE.md` before flipping an `IN-REVIEW` row on `main`
 
 ## 2026-09-10
 
