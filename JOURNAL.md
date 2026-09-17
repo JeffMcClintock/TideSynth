@@ -8,6 +8,46 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-17 — macos — sixth confirming cell: queue empty, E82 independently re-derived and already claimed, E83's flip already done elsewhere (scheduled run)
+
+**Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.110.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no code change, in this repo or any sibling. Walked STEP 1 / STEP 1.5 / STEP 2 in full, confirmed the mac queue is genuinely empty, and independently re-derived E82's finding before the collision check caught that windows had already filed it. Re-pointed the mac NEXT cell and wrote this entry; nothing else.
+
+### STEP 1 / STEP 1.5
+
+Screen locked (`CGSSessionScreenIsLocked` present). No open `platform:mac` issue in `TideSynth`, and — since the label is not scoped to one repo and nothing in the prompt says it is — also checked empty in `SynthEditLib`, `GMPI_Wrappers`, `gmpi_ui` and `SynthEdit_Rack_Adaptor`. Three open PRs on `tide/mac/**`: [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36), [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) (E72), [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) (E81) — each checked by GraphQL for `mergeStateStatus` and unresolved review threads, not assumed: all three 15/15 green, `MERGEABLE`, `CLEAN`, zero reviews, zero threads. Left alone, per STEP 1.5's own words.
+
+### STEP 2 — the walk, and why nothing was eligible
+
+In file order: **A35** parked on its own two `PROPOSED:` entries (neither parks anything else); **S8** GATED, `NEEDS-SPEC`; **E19**'s mac AU3 cell wants the unlocked screen; **E2** not takeable by its own row; **E72/E81** — this platform's own, both already claimed on the branches above; **E79** taken by linux's [#584](https://github.com/JeffMcClintock/TideSynth/pull/584); **E80** taken by windows' [#586](https://github.com/JeffMcClintock/TideSynth/pull/586); **E82** taken by windows' [#587](https://github.com/JeffMcClintock/TideSynth/pull/587); **E76** linux in substance; **E84** a `lint.yml` edit the bot's token cannot make; **E20–E23** BLOCKED by the third-party-module ruling. Nothing left in the Release & distribution section either (R1 RESOLVED, R7 WONTFIX). **A run that does nothing is a fine outcome, and this is one.**
+
+### E82, independently — worth recording despite the collision, because it corroborates rather than duplicates
+
+Before running `git ls-remote`/`gh pr list` for the collision check, I had already read the code and reached the same conclusion #587 later turned out to state: `vcv/Scope.cpp` (in the `VCV_Fundamental_gmpi` fetch) declares no `appendContextMenu` at all, so E82's five probe points on the Scope panel were always going to return the rack's own generic menu — that is not evidence that *no* VCV module has a working menu producer. `WTLFO`'s wavetable submenu does: `Wavetable.hpp:318` calls `createIndexSubmenuItem("Wave points", sizeLabels, getter, setter)`, and `SynthEdit_Rack_Adaptor/rack/rack.hpp:2595`'s `isIndexPtr()` is `(target != nullptr || getIndexFn) && !labels.empty()` — true for the lambda form, not just the raw-pointer `createIndexPtrSubmenuItem`. `RackPanelLayout.h:216`'s `collectMenu()` records it into `layout.menu` as `MenuOptionKind::IndexPtr` (labels, `setIndex`, default all populated); everything else WTLFO's own `appendContextMenu` adds (`Initialize/Load/Save wavetable`) is a plain `createMenuItem` action, which `collectMenu()`'s `else { continue; }` branch at line 254 silently drops — so the LFO's menu should be exactly one item, "Wave points", not empty. None of this was run live; the screen was locked, and per [docs/ci/headless-gui-verification.md](docs/ci/headless-gui-verification.md)'s macOS section, a scheduled run on a locked session cannot open the plug-in editor to right-click and confirm it. Caught the collision with `git ls-remote --heads origin | grep -i e82` and `gh pr list --search E82` before claiming a branch, so nothing was duplicated — recorded here only because two independent readings landing on the same file:line pair (`Wavetable.hpp:318`, `rack.hpp:2595`) is stronger corroboration than either alone, and is cheap to write down.
+
+### STEP 4 bookkeeping
+
+`main` still shows **E83 `IN-REVIEW`** with its only linked PR ([#581](https://github.com/JeffMcClintock/TideSynth/pull/581)) merged, which STEP 4 would normally have this run flip to DONE. Per the 09-16 cell's own lesson (an IN-REVIEW row whose PR merged may already be archived on an unmerged branch), checked `git show origin/tide/mac/E72-cable-dsp-dirty:BACKLOG-DONE.md` before touching it: **the flip is already there**, dated 2026-09-09, on #588. Did not duplicate it on a fourth branch.
+
+### What changed since the 09-16 cell
+
+`SynthEditLib`'s uncommitted `modules/se_sdk3_hosting/SynthEditCocoaView.mm` (flagged 09-15 and 09-16 as the developer's live work-in-progress, left untouched both times) is gone — the tree is clean at `66b1eeca6` (2026-09-16), so that constraint no longer applies to this box. `main` is green at its current HEAD `13095a395` (run [34438892984](https://github.com/JeffMcClintock/TideSynth/actions/runs/34438892984), 2026-09-10); nothing has landed on `main` since, so no build to re-verify.
+
+**Learned:**
+
+- **The `platform:X` issue-label check is worth running across every repo the fleet touches, not just this one** — costs four extra `gh issue list` calls and would have caught a break filed against a sibling repo that STEP 1 as literally read (TideSynth only) would miss.
+- **A row's "no producer" finding can be an artifact of which module got tested, not a property of the mechanism.** E82 tested the one module (Scope) that structurally cannot have a menu; the adaptor's own recorder (`RackPanelLayout.h`) does capture a real candidate (WTLFO's index submenu) from a different module in the same fixture. Read the *mechanism* the row's Accept depends on before trusting a negative result drawn from one instance of it.
+- **Check unmerged sibling branches' own `BACKLOG-DONE.md` before flipping an `IN-REVIEW` row on `main`** — with several open PRs in flight at once, a STEP 4 obligation that looks outstanding from `origin/main` alone may already be done on a branch that just hasn't merged yet. `git show origin/tide/<platform>/<branch>:BACKLOG-DONE.md` costs one command.
+
+**Not verified:** **Whether the LFO panel's "Wave points" menu actually appears and toggles on a right-click** — the reading above is static (source + the adaptor's recording logic), not a live measurement; the screen was locked all run, and per `docs/ci/headless-gui-verification.md` a locked macOS session cannot open the plug-in editor at all, so this wants an unlocked screen on any platform, not just a fix. **Whether `SHASR`'s `createRangeItem` menu (a custom range-slider widget, not `Index`/`BoolPtr`) is silently dropped by `collectMenu()`'s `else { continue; }`** — read the shape but did not trace whether `createRangeItem` returns something `isIndexPtr()`/`isBoolPtr()` would recognise; not needed for E82 since WTLFO already gives a positive candidate, but worth knowing if SHASR's own menu is ever the one under test.
+
+**Machine state.** All six repos started and ended clean on their default branches except `TideSynth`, which carries this run's own commit on `tide/mac/2026-09-17-queue-blocked`. `SE16`'s untracked `UnitTest/Manual Tests/project_specific_resources.resources/samples/` folder (noted by prior mac cells) was not touched. No host was launched, no plug-in was built or installed, nothing outside `TideSynth` was read for anything other than static source inspection (`SynthEditLib`, `SynthEdit_Rack_Adaptor`, and the cached `VCV_Fundamental_gmpi` build dependency, all via local clean checkouts, none edited).
+
+**Next:** whichever of #585 (A36), #588 (E72) or #589 (E81) merges first unblocks the most — #585 also unblocks `JOURNAL.md` rotation, which has now been deferred five cells running (09-09 through today) because the rotation rule itself (A36) is what's sitting in the open PR. The next mac run should check `mergeStateStatus` on all three again before re-walking a queue that this cell already found empty — nothing here changes until one of them lands.
+
+**Branch/PR:** `tide/mac/2026-09-17-queue-blocked` — this journal entry and the refreshed `mac` NEXT cell only.
+
 ## 2026-09-15 — macos — E72: the cable path really is unguarded, and the save was never relying on it (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.52386.6** (no `claude` CLI on this box's PATH; A13 records the app's `CFBundleShortVersionString` as the discoverable one on a mac) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required
