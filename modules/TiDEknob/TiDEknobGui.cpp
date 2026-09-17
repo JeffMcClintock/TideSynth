@@ -18,7 +18,7 @@ constexpr float kPointerInnerFraction = 0.25f;
 
 // Knob look ported from VectorKnob_VCV (SynthEditLib/modules/SubControlsXp/VectorRingGui.cpp):
 // a filled disc with a single radial pointer line, sharing VectorKnob's circular hit-test.
-class TiDEknobGui final : public PluginEditor
+class TiDEknobGui final : public PluginEditor, public gmpi::api::IDrawingLayer
 {
  	Pin<float> pinpatchValue;
  	Pin<std::wstring> pinHint;
@@ -175,6 +175,60 @@ public:
 		g.drawLine(innerPoint, movingPoint, brushForeground, thickness, strokeStyle);
 
 		return ReturnCode::Ok;
+	}
+	// Layer 4 = editor guide (see IDrawingLayer in NativeUi.h): a design-time-only
+	// overlay pass, so the debug outline still needs its own _DEBUG guard to stay
+	// out of Release-configuration modules loaded into the same editor. Once a
+	// plugin implements IDrawingLayer, render() is never called for layer 0 either
+	// -- so all drawing, not just this guide, lives here now.
+	ReturnCode renderLayer(gmpi::drawing::api::IDeviceContext* drawingContext, int32_t layer) override
+	{
+		if(layer == 4)
+		{
+			Graphics g(drawingContext);
+
+			StrokeStyleProperties strokeStyleProperties{};
+			strokeStyleProperties.lineCap = CapStyle::Round; // Flat caps don't draw dots on Windows.
+			strokeStyleProperties.dashStyle = DashStyle::Dot;
+			auto dottedStroke = g.getFactory().createStrokeStyle(strokeStyleProperties);
+			Point center;
+			float radius;
+			float thickness;
+			calcDimensions(center, radius, thickness);
+
+			g.drawEllipse({ center, radius + 0.5f, radius + 0.5f }, g.createSolidColorBrush(Colors::Orange), 1.0f, dottedStroke);
+
+			return render(drawingContext);
+		}
+		else
+		{
+			return ReturnCode::NoSupport;
+		}
+		return ReturnCode::NoSupport;
+	}
+
+	// support IDrawingLayer
+	int32_t addRef() override
+	{
+		return PluginEditor::addRef();
+	}
+
+	int32_t release() override
+	{
+		return PluginEditor::release();
+	}
+	ReturnCode queryInterface(const gmpi::api::Guid* iid, void** returnInterface) override
+	{
+		*returnInterface = {};
+
+		if((*iid) == gmpi::api::IDrawingLayer::guid)
+		{
+			*returnInterface = static_cast<gmpi::api::IDrawingLayer*>(this);
+			PluginEditor::addRef();
+			return ReturnCode::Ok;
+		}
+
+		return PluginEditor::queryInterface(iid, returnInterface);
 	}
 };
 
