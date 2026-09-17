@@ -94,6 +94,44 @@ Template:
 ```
 
 ---
+## 2026-09-18 — macos — STEP 1.5 was the whole run: all three of this platform's open PRs had gone CONFLICTING, and the whole file-pair merge recipe held
+
+**Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.110.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** re-verified `mergeStateStatus` on this platform's three open PRs rather than trusting the 09-17 cell's "all green, waiting on Jeff" — this is the documented trap (`docs/lessons.md`: *"a CONFLICTING PR is not 'green and waiting for merge', and STEP 1.5's list of three does not name it"*). All three — [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36), [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) (E72), [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) (E81) — had gone `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING` since the 09-17 cell's own commit ([#591](https://github.com/JeffMcClintock/TideSynth/pull/591), the mac NEXT-cell/journal bookkeeping) landed on `main` after they were opened. Confirmed the state was stable, not a transient `UNKNOWN` (checked twice, 5s apart, same result both times).
+
+### The conflict was mechanical, and the same shape on all three
+
+Each branch touched `BACKLOG.md`'s mac NEXT-block row (a per-run linked list: `**RE-POINTED <date> ...** ... **Previous cell follows.** <older cells>`) and `JOURNAL.md`'s newest-first entry list — the two files every scheduled run's STEP 4 edits — and `main` had moved in exactly the same two places via #591. Resolved all three the same way, verified before committing each:
+
+1. **`BACKLOG.md`**: for the conflicting mac row, split both sides at their own first `**Previous cell follows.**` marker. The tail after that marker was byte-identical on both sides in all three cases (verified by direct comparison, not assumed) — so the correct merge is `<newer cell's head> **Previous cell follows.** <older cell's head> <shared tail>`, never a pick-one. #585 chained 09-17 → 09-10 → 09-09-on; #588 chained 09-17 → 09-15 → 09-09-on; #589 chained 09-17 → 09-16 → 09-09-on.
+2. **`JOURNAL.md`**: both sides' dated entries kept, newest heading first, then the unchanged shared tail. #585 additionally carries the `## Rotation` section (A36's own fix, moving it above the entries) — kept at the very top, since nothing on `main`'s side conflicts with its *position*, only with what comes after it.
+3. **`docs/lessons.md`**: never hand-merged, regenerated via `python3 scripts/extract-lessons.py --write` on the resolved `JOURNAL.md`/archives, per the file's own rule.
+
+### Verification, not assumption
+
+For every merge, before committing: read `origin/main`'s and the branch's own pre-merge `JOURNAL.md`/`BACKLOG.md` as line-sets and confirmed the merged result was missing nothing except the rows each PR *intentionally* changes (e.g. #588's own E72/E83 edits) — zero unexplained missing lines in all three cases. For #585 specifically, also verified across `JOURNAL.md` **plus its archives**, since A36's own commit is a rotation (moves old entries out) — every line from `origin/main`'s unrotated `JOURNAL.md` is present either in the merged `JOURNAL.md` or in `JOURNAL-2026-09.md`/`JOURNAL-2026-08.md`. Ran `check-next-block.py`, `check-id-refs.py` and `check-backlog-archived.py` after each merge (all exit 0), and `check-commit-completeness.py --record`/`--verify` around each commit. `check-commit-authorship.py` confirmed every unpushed commit on all three branches as `tide-rack-bot`.
+
+Pushed all three to their existing branches (STEP 1.5: fix in place, never a second PR). Re-checked `mergeStateStatus` after each push: all three now `MERGEABLE`. Watched CI for several minutes after pushing: `lint`, `guard`, both `render-*` legs and `linux` are green on all three; the self-hosted `macos`/`windows` compile legs were still queued when this entry was written (normal — the fleet's self-hosted runner is one machine and a queue, not a per-PR dedicated one) but nothing had gone red.
+
+### STEP 1 / STEP 2
+
+`platform:mac` issues empty (checked `TideSynth`, `SynthEditLib`, `GMPI_Wrappers`, `gmpi_ui`, `SynthEdit_Rack_Adaptor`). Screen locked (`CGSSessionScreenIsLocked` present). Did not re-walk STEP 2's backlog beyond what the 09-17 cell already established (queue genuinely empty for this platform) — fixing three CONFLICTING PRs is itself the STEP 1.5 work that outranks it, and there is nothing this run's own five-minute CI watch changed about that walk.
+
+**Learned:**
+
+- **`mergeStateStatus` can flip from `MERGEABLE` to `CONFLICTING` purely from an *unrelated* platform's bookkeeping commit landing on `main`** — #591 only touched `BACKLOG.md`'s mac NEXT row and `JOURNAL.md`, the same two files every mac PR's own STEP 4 touches, so three otherwise-unrelated mac PRs all went CONFLICTING from one commit. Worth checking `mergeStateStatus` on every open PR of your own platform whenever you re-point the NEXT cell, not just when STEP 1.5 tells you to.
+- **The "split at the shared marker, verify the tail matches" technique generalises across all three PRs without change** — the NEXT-block linked-list shape and the JOURNAL.md append-only shape are both structurally the same problem (two sides each prepended once since a common point), so one script pattern, re-run three times with different line numbers, was enough.
+- **Verifying via line-set difference (`origin/main`'s lines minus merged lines`) catches silent loss cheaply** — one direction alone is not enough; checking both the `origin/main` side and the branch's own pre-merge side against the merged result is what makes "nothing lost" a measurement rather than a hope.
+
+**Not verified:** the self-hosted `macos` and `windows` compile legs on all three PRs — still queued as of this entry, so their eventual pass/fail is unknown; whoever merges next should check `gh pr checks` again rather than trusting this entry's "nothing red yet".
+
+**Machine state.** All six repos started and ended clean on their default branches except `TideSynth`. No host was launched, no plug-in built or installed. Screen was locked throughout.
+
+**Next:** whichever of #585, #588 or #589 merges first is now unblocked by the CONFLICTING state; the other two will likely re-conflict against whichever merges first (same `BACKLOG.md`/`JOURNAL.md` shape), and the next run — mac or otherwise — should expect to repeat this recipe rather than be surprised by it. `JOURNAL.md` rotation (A36, #585) still can't land until #585 itself merges.
+
+**Branch/PR:** `tide/mac/2026-09-18-step15-conflict-fix` — this entry and the refreshed `mac` NEXT cell only. The actual fixes are on `tide/mac/A36-journal-rotation-rule`, `tide/mac/E72-cable-dsp-dirty` and `tide/mac/E81-handle-determinism` themselves (their own merge commits, already pushed).
+
 
 ## 2026-09-17 — macos — sixth confirming cell: queue empty, E82 independently re-derived and already claimed, E83's flip already done elsewhere (scheduled run)
 
