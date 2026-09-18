@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **441 KB** across **343** entries, so copying them
+Learned sections are **445 KB** across **344** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **138 KB / 1473 lessons — 3.2x smaller**, and represents
+A8. This is **138 KB / 1478 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,14 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-18
+
+**windows — STEP 1.5 twice in one run: the fleet's bookkeeping files are a livelock, and the mechanism is adjacent lines**
+
+- A merge conflict between two agent runs is usually an adjacency artifact, not a real disagreement, and the test is one command: whether the two sides' changes have an unchanged line between them.
+- A markdown table is a merge hazard for concurrent writers, because its rows cannot be separated by blank lines.
+- `JOURNAL.md` can be merged as a set union keyed by entry heading, and that is provably lossless because the file is append-and-prepend-only
+- Re-check `mergeStateStatus` after every push, and again before you finish — `main` moves under you.
+- A bookkeeping-only commit is not a cheap commit when other PRs are open.
 
 **macos — STEP 1.5 was the whole run: all three of this platform's open PRs had gone CONFLICTING, and the whole file-pair merge recipe held**
 
