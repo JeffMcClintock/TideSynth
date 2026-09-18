@@ -94,6 +94,75 @@ Template:
 ```
 
 ---
+## 2026-09-18 — windows — STEP 1.5 twice in one run: the fleet's bookkeeping files are a livelock, and the mechanism is adjacent lines
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **2.110.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no product code changed. STEP 1.5 was the entire run: all three open `tide/win/**` PRs had gone `CONFLICTING`, and I resolved and pushed all three — **then had to resolve and push all three again**, because the macOS box's own STEP 1.5 bookkeeping PR ([#592](https://github.com/JeffMcClintock/TideSynth/pull/592)) merged to `main` while I was working and re-conflicted every branch I had just fixed. Six resolutions, three branches, one run. All three are now `MERGEABLE`. Filed **A38** for the livelock this exposes, which is the part worth more than the three PRs.
+
+### STEP 1 / STEP 1.5
+
+`gh issue list --label platform:win` empty — **and that still verifies nothing**, because `build.yml:523` excludes `matrix.platform != 'win'` from filing platform issues; four generations of this cell have said so and it is still true. Read `main`'s build instead: green at `510947025`.
+
+**Seven PRs were open at run start, and the split is the finding:** `tide/mac/**` ×3 all `MERGEABLE/CLEAN`; `tide/win/**` ×3 and `tide/linux/**` ×1 all `CONFLICTING/DIRTY`. Not one of them was red, reviewed, or commented on — so under STEP 1.5's literal list of three (*failing checks, requested changes, unresolved review comments*) all seven read as *"green and waiting on Jeff"*. **This is the fifth-plus occurrence of that exact misreading across the three boxes** and `mergeStateStatus` is still not in the rule; it is one extra field on a `gh pr view` STEP 1.5 already makes you run.
+
+Resolved, and verified before each commit:
+
+| PR | branch | resolution |
+|---|---|---|
+| [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) | `tide/win/E80-clap-editor-arm` | 3 branch entries + 1 main entry, then again +1 |
+| [#587](https://github.com/JeffMcClintock/TideSynth/pull/587) | `tide/win/E82-rack-menu-producer` | 1 + 1, then again +1 |
+| [#590](https://github.com/JeffMcClintock/TideSynth/pull/590) | `tide/win/E19-datatype-census` | 1 + 1, then again +1 |
+
+`JOURNAL.md` by entry-set union, `BACKLOG.md` by NEXT-cell ownership (`win` cell from the branch, `mac` cell from `main`), `docs/lessons.md` regenerated and never merged. Every lint gate run on every resolution: `check-journal-prepend`, `check-backlog-diff`, `check-prompt-provenance`, `check-next-block`, `check-id-refs`, `check-links`, `check-backlog-archived` — all rc=0, all six times. `check-commit-authorship.py` clean on all three branches (12, 6 and 7 commits, all `tide-rack-bot`).
+
+### The mechanism, measured rather than reasoned: **adjacent lines**
+
+**Every conflict in this fleet, in all four conflicting branches, was in exactly the same three files — `BACKLOG.md`, `JOURNAL.md`, `docs/lessons.md` — and never once in code.** `docs/lessons.md` is generated, so it is not a real conflict. That leaves two hot spots, and they fail for the *same* reason:
+
+- **`BACKLOG.md`'s NEXT block is a markdown table whose four rows are adjacent lines.** Git needs at least one unchanged line of context between two sides' changes to merge them as separate hunks. The `win` cell is line 11 and the `mac` cell is line 12, so **a windows run re-pointing only its own cell and a macOS run re-pointing only its own cell collide in one hunk despite touching disjoint content.** A markdown table cannot carry a blank line between rows, so the adjacency is structural, not incidental.
+- **Each NEXT cell is a single line.** Measured on `main` today: `mac` **41,216 bytes on one line** (13-deep `Previous cell follows.` chain), `win` 15,406, `linux` 6,331, `any` 4,661. Git's smallest unit is a line, so a 41 KB cell is un-narrowable by construction — there is no such thing as a partial merge of it. This is A37's growth curve seen from the merge side; A37 measured the `mac` cell at 34,988 bytes / 10-deep on 09-10, so it has grown **18% in 8 days**.
+
+**The positive control for the mechanism came free, in the second round.** After #592 landed, `JOURNAL.md` **auto-merged on all three branches** where it had conflicted an hour earlier — because by then the branches' own entries sat *below* main's newest one, leaving the shared 09-17 entry as context between the two sides' insertions. Same file, same two runs, same append-only shape: **context present → clean; context absent → conflict.** That is the whole mechanism, and it says the fix is structural spacing, not better merge discipline.
+
+### The livelock, and why it is not just bad luck
+
+Each run's STEP 4 *requires* editing `JOURNAL.md`'s top and its own NEXT cell. So **every PR the fleet opens touches the same two hot spots, and every merge to `main` invalidates every other open PR.** With N open PRs a single merge costs up to N−1 re-resolutions, each costing a whole agent run — and runs are the scarce resource, not compute.
+
+Today both the macOS box and this one spent their **entire run** on it, and the two runs actively fought: #592 is a 3-file, 50-line bookkeeping commit carrying no product change, and it was sufficient to undo three completed resolutions. I did not lose the work — the re-resolution is mechanical — but **the fleet's whole output for 2026-09-18 across two of three machines is six conflict resolutions and two journal entries.**
+
+Why N grew: **A7** established the 7×/week cadence is deliberate, so the fleet opens ~21 PRs/week across three boxes, while merging happens in human "merge sweeps" (see the 09-07 and 09-08 entries). N is the gap between those rates, and the cost is quadratic in it.
+
+**Filed as A38**, with the concrete proposal that falls out of the mechanism: give each lane its own file (`docs/next/<platform>.md`) so no two platforms ever edit the same line, and do the same for per-run journal entries. That would subsume A37's size problem as a side effect, since each lane's chain would then live in a file only that lane writes. **It changes STEP 4 of the shared prompt, so it is a proposal for Jeff and not something a run should impose** — A38 says so in the row.
+
+### What I did NOT do, deliberately
+
+- **Did not touch [#584](https://github.com/JeffMcClintock/TideSynth/pull/584) (`tide/linux/E79-clap-headless-document`), which is still `CONFLICTING`.** Its conflict is in the same three bookkeeping files and needs no Linux toolchain, so I could have resolved it — but STEP 1.5 is scoped to `tide/{PLATFORM}/**` and STEP 2's collision rule treats another platform's branch as taken. **Flagging it loudly instead: the linux lane is one mechanical resolution from mergeable, and the recipe is in this entry.**
+- **Did not rotate `JOURNAL.md`,** now **244,359 bytes / 22 entries** against A24's 60 KB ceiling — the fifth consecutive cell to defer it. A rotation rewrites the bottom of the file and would conflict with all six other open PRs at once, and **A36, which restores the rotation instruction that rotated itself out, is itself sitting unmerged in [#585](https://github.com/JeffMcClintock/TideSynth/pull/585).** The rotation instruction is still **absent from `main`** — confirmed by `grep '^## Rotation' ` on `origin/main:JOURNAL.md`. Rotation wants a moment when the fleet has no open PR, which A38 is about creating.
+- **Did not build, did not launch a host, did not take the screen** — see machine state.
+
+**Learned:**
+
+- **A merge conflict between two agent runs is usually an adjacency artifact, not a real disagreement, and the test is one command: whether the two sides' changes have an unchanged line between them.** Measured both ways in one run on the same file — `JOURNAL.md` conflicted while both sides inserted at the very top, and auto-merged an hour later when a shared entry sat between them. Before hand-resolving, check whether the sides are actually disjoint; if they are, the fix belongs in the file's *layout*, not in the resolution.
+- **A markdown table is a merge hazard for concurrent writers, because its rows cannot be separated by blank lines.** Any per-actor table where each actor edits its own row will conflict on every concurrent edit, forever. This is why the NEXT block collides even when two platforms touch strictly disjoint cells.
+- **`JOURNAL.md` can be merged as a set union keyed by entry heading, and that is provably lossless because the file is append-and-prepend-only** (`check-journal-prepend.py` enforces it). The union must refuse to run when either side has *fewer* entries than the merge base — that is a rotation, and a union would silently resurrect the archived entries. Verified each merge by comparing entry sets three ways (main / branch / merged): zero missing, zero extra, zero altered, order newest-first.
+- **Re-check `mergeStateStatus` after every push, and again before you finish — `main` moves under you.** It moved once mid-run here (`3a85dbabc` → `510947025`) and silently undid three pushed resolutions; the PRs still showed green checks throughout. A resolution is not done when it is pushed, only when the PR reads `MERGEABLE` *after* the push.
+- **A bookkeeping-only commit is not a cheap commit when other PRs are open.** #592 carried no product change and cost three re-resolutions. The cost of a commit to a hot file scales with the number of open PRs, not with its own size.
+
+**Not verified:**
+
+- **Whether the self-hosted `windows` and `macos` compile legs pass on the three re-pushed branches.** `lint`, `guard`, `verify`, `render-*` and the container `linux` leg are all green on all three; the self-hosted legs were still **queued** when this entry was written (one runner, one queue — the same state the macOS box recorded today). Nothing had gone red. **Whoever reads this next should confirm them rather than assume**, and note the windows runner is this box, which was busy with the developer's own work all run.
+- **Whether A38's per-file proposal actually eliminates the conflicts,** as opposed to relocating them. The mechanism above predicts it does for the NEXT block and for per-run journal entries, but nothing was built or measured — A38 is a filing, not a fix, and its row says so.
+- **Whether #584 resolves as mechanically as the three win PRs did.** Its conflicted file set is identical, but I did not attempt it and did not test-merge beyond confirming `CONFLICT` on the same three files.
+
+**Machine state — the developer was at the machine all run, and this is the second consecutive windows cell to say so.**
+`Get-Process | Where-Object { $_.MainWindowTitle }` at run start: **Visual Studio actively DEBUGGING** (`SynthEditStore (Debugging) - DirectXGfx.h`), **SynthEdit 1.6 running a document** (`EQ Pro104 GRAPH`), plus Chrome and Outlook. Per the 09-09 cell's rule — *an unlocked screen with the developer working at it is a stronger reason to stay off the GUI than a locked one* — **no host was launched, nothing was built, no screenshot taken, and `%APPDATA%` was not touched.** This run needed none of it: every conflict is text, and text merges need no toolchain. That is also why this was a good run to take while the box was busy.
+All work was done in **`git worktree`s under the session scratchpad**, so `C:\SE\TideSynth` stayed on `main` and clean from first command to last — it was never checked out to a branch at any point. Worktrees removed at the end. Sibling repos were **not read, not built and not touched** — nothing this run did required going near them. **Recording their dirt anyway, because the 09-09 windows cell's lesson was that a machine-state record which does not is worse than none:** `SynthEditLib` `modules/se_sdk3_hosting/ModuleView.cpp` (+34, mtime 09-17 16:08), `gmpi_ui` `backends/DirectXGfx.cpp` and `backends/DirectXGfx.h` (+144/−16, mtime 09-17 18:22), `GMPI_Wrappers` `wrapper/AU3/AU3_Wrapper.mm` (mtime 09-10). `SE16` and `GMPI` clean; all five on their default branches. **All of it is real content, not CRLF churn** (`git diff --ignore-all-space` is non-empty for each), **all of it predates this run**, and `DirectXGfx.h` is the exact file Visual Studio had open and under the debugger — so this is the developer's live work in progress and was left strictly alone, per STEP 5's third category.
+
+**Next:** **six of seven PRs are now `MERGEABLE`** — #585, #586, #587, #588, #589, #590 — and only #584 (linux) is not. **The single highest-value action available to this project right now is Jeff merging that batch**, because every day they stay open costs another box another full run, and because `JOURNAL.md` rotation (244 KB, five cells deferred) and A36 are both waiting on the fleet being empty. **Merge order matters and is cheap to get right: merge #585 (A36) FIRST** — it restores the rotation instruction that is currently missing from `main` — **then the rest in any order, re-checking `mergeStateStatus` between each**, since each merge will re-conflict the remainder by exactly the mechanism above until A38 is addressed. The next windows run should do STEP 1.5 before anything else and expect it to be the whole run again.
+
+**Branch/PR:** `tide/win/2026-09-18-step15-conflicts` — this entry, the refreshed `win` NEXT cell, and the new A38 row. The three PRs above were fixed in place on their own branches, per STEP 1.5.
+
 ## 2026-09-18 — macos — STEP 1.5 was the whole run: all three of this platform's open PRs had gone CONFLICTING, and the whole file-pair merge recipe held
 
 **Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.110.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
