@@ -16,7 +16,7 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **448 KB** across **346** entries, so copying them
+Learned sections are **449 KB** across **346** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
 A8. This is **140 KB / 1493 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
