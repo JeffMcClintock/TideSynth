@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **442 KB** across **344** entries, so copying them
+Learned sections are **443 KB** across **345** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **138 KB / 1476 lessons — 3.2x smaller**, and represents
+A8. This is **139 KB / 1479 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,14 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-19
+
+**macos — STEP 1.5 for the fourth time on the same three PRs: A38's livelock, confirmed to recur across a run boundary (scheduled run)**
+
+- Exported `GIT_AUTHOR_*`/`GIT_COMMITTER_*` environment variables do not survive into a later, separate tool invocation in this harness — each shell call is a fresh environment.
+- An A38-shaped conflict can leave a NEXT cell corrupted (duplicated row prefix, divergent stale tail) rather than cleanly resolved, if a resolution pass concatenates a conflict side instead of choosing one.
+- A38's mechanism is confirmed to operate across run boundaries, not just within a single run's multiple pushes.
 
 ## 2026-09-18
 
