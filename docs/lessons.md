@@ -16,14 +16,14 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **442 KB** across **344** entries, so copying them
+Learned sections are **443 KB** across **345** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **138 KB / 1474 lessons — 3.2x smaller**, and represents
+A8. This is **139 KB / 1480 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
-[JOURNAL.md](../JOURNAL.md) if recent, else
-[JOURNAL-2026-08.md](../JOURNAL-2026-08.md).
+[JOURNAL.md](../JOURNAL.md) if recent, else the archive for its month:
+[JOURNAL-2026-09.md](../JOURNAL-2026-09.md), [JOURNAL-2026-08.md](../JOURNAL-2026-08.md).
 
 **This file GROWS, and someone will have to prune it.** ~4 lessons an entry at
 ~90 bytes is ~360 bytes per entry, and this fleet writes ~10 entries a day —
@@ -68,6 +68,17 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The `platform:X` issue-label check is worth running across every repo the fleet touches, not just this one
 - A row's "no producer" finding can be an artifact of which module got tested, not a property of the mechanism.
 - Check unmerged sibling branches' own `BACKLOG-DONE.md` before flipping an `IN-REVIEW` row on `main`
+
+## 2026-09-10
+
+**macos — A36: the rotation rule had rotated itself out, and the lessons digest was about to lose 106 lessons (scheduled run)**
+
+- A remedy that MOVES data can carry off the rule that governs it, and every check can stay green while it does.
+- When an instruction stops being followed, suspect that it stopped being READABLE before suspecting the readers.
+- A rule's position is part of its content when a process moves things.
+- Three descriptions can all say where something is while it is somewhere else.
+- Take the baseline BEFORE you touch anything, or your after-number proves nothing.
+- Match the file's own separator convention, and check it rather than assuming.
 
 ## 2026-09-09
 
@@ -261,23 +272,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - When two rows collide, renumber by reference count, not by filing time.
 - Read the exit code of the thing you ran, not of the pipeline that reported on it.
 - A locked screen is a queue fact, not a footnote.
-
-## 2026-08-31
-
-**linux — X1 closed by Jeff's ruling: the blocker was never written down (state update, interactive)**
-
-- A bare `BLOCKED` is unfalsifiable by construction, and the queue has no way to notice.
-- Two individually correct rules can compose into a deadlock that neither one describes.
-- Ask what the row is FOR before proposing a status.
-
-**linux — the merges, and E60's fix measured after it had already landed (interactive continuation, Jeff directing)**
-
-- A PR you resolved may merge before you finish checking it.
-- Say "post-hoc" out loud when verification arrives after the merge.
-- Keep the superseded binary — it is the A/B for free.
-- A markdown table cannot go inside a table cell, and the archive lint is what catches it.
-- `git checkout <ref> -- <file>` during a merge is not "undo".
-- Conflict marker text depends on how the conflict was produced.
 
 ## 2026-08-18
 
@@ -2620,3 +2614,18 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A no-output startup script is more often a modal than a bug.
 - When a symbol check is ambiguous and the thing is on screen, screenshot it.
 - Out-of-process changes what an instrument IS, not just where it prints.
+
+**linux — X1 closed by Jeff's ruling: the blocker was never written down (state update, interactive)**
+
+- A bare `BLOCKED` is unfalsifiable by construction, and the queue has no way to notice.
+- Two individually correct rules can compose into a deadlock that neither one describes.
+- Ask what the row is FOR before proposing a status.
+
+**linux — the merges, and E60's fix measured after it had already landed (interactive continuation, Jeff directing)**
+
+- A PR you resolved may merge before you finish checking it.
+- Say "post-hoc" out loud when verification arrives after the merge.
+- Keep the superseded binary — it is the A/B for free.
+- A markdown table cannot go inside a table cell, and the archive lint is what catches it.
+- `git checkout <ref> -- <file>` during a merge is not "undo".
+- Conflict marker text depends on how the conflict was produced.
