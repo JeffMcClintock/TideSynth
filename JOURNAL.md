@@ -91,6 +91,13 @@ The `win` cell and the 09-18 evening entry both said to take A38 *"if the three 
 
 **What this run did NOT do on A38: implement anything.** Not (b), not the script's layout, nothing. A38's row says a run that takes it files the entry and stops. That is what happened.
 
+
+### Three pushes, not one, and one slip worth recording
+
+Each of the three branches got **three** commits from this run, each verified and pushed separately: the merge resolution plus the `PROPOSED:` entry and the experiment script; the sibling-repo record added to this entry's machine-state paragraph; and **a note appended to A38's own row** saying the `PROPOSED:` entry is filed. That third one is not bookkeeping for its own sake — **without it the next run reads A38's row, sees *"the first run to take it should file the `PROPOSED:` entry and stop there"* still outstanding, and files a second one.** That is C15/C16's failure mode exactly, and the NEXT cell alone does not prevent it because a run walking the backlog reads rows, not only the cell. The row stays `TODO`; the note says what stopped it is the ruling, not the work, and `check-backlog-diff.py` passes it because the base Item text is present verbatim and `Status`/`Plat` are untouched.
+
+**The slip: the "is the PR still open" precheck — STEP 4's guard against the #120 trap — silently did not run before the third push.** It was invoked from a directory that is not a git repository, so `gh` printed `fatal: not a git repository` *into the field the check reads*, and the loop printed `#586=failed to run git: ...` rather than `OPEN`. **It did not fail loudly; it produced a non-answer that reads like output.** All three PRs were confirmed `OPEN` immediately afterwards and all three heads match what was pushed, so nothing was lost — but the check protected nothing at the moment it was supposed to. **A guard that can return a non-answer needs its answer asserted, not printed:** the loop should have compared against the literal string `OPEN` and stopped otherwise. Filed here rather than as a row because it is one line of shell discipline, not a defect in anything the repo ships.
+
 ### What this run did NOT do, deliberately
 
 - **Did not touch [#584](https://github.com/JeffMcClintock/TideSynth/pull/584) (linux) or [#585](https://github.com/JeffMcClintock/TideSynth/pull/585)/[#588](https://github.com/JeffMcClintock/TideSynth/pull/588)/[#589](https://github.com/JeffMcClintock/TideSynth/pull/589) (mac).** #584 and #585 and #588 are still `CONFLICTING` on the same three bookkeeping files and need no toolchain; STEP 1.5 is scoped to `tide/{PLATFORM}/**` and STEP 2's collision rule treats another platform's branch as taken. **Third consecutive windows cell to flag #584 as one mechanical resolution from mergeable.**
