@@ -42,12 +42,14 @@ days after it shipped. Both entries that stood here before 2026-09-08 closed on
 [#492](https://github.com/JeffMcClintock/TideSynth/pull/492)) and V7's
 context-menu question (ruled in session, in the table below).
 
-**Both entries below are BACKLOG [A35](../BACKLOG.md)'s two halves.** They are
-one row rather than two because A35 declined to split itself before Jeff had read
-either half; they are two `PROPOSED:` entries because A35's own words are *"both
-halves need answering, and they are separate"*. **Neither parks any work** — see
-each entry's *May proceed meanwhile* line, and note that the second is about what
-a run **records**, not about what it may build.
+**Three entries stand here. The FIRST TWO are BACKLOG [A35](../BACKLOG.md)'s two
+halves**; the third is [E72](../BACKLOG.md)'s and was added 2026-09-15. A35 is
+one row rather than two because it declined to split itself before Jeff had read
+either half; it is two `PROPOSED:` entries because A35's own words are *"both
+halves need answering, and they are separate"*. **A35's two park no work at all**
+— see each entry's *May proceed meanwhile* line, and note that the second is about
+what a run **records**, not about what it may build. **E72's parks exactly one
+row, E72 itself**, and says so on the same line.
 
 ```
 PROPOSED: May a BACKLOG row's `Plat` cell be corrected after filing, and if so
@@ -144,6 +146,53 @@ PROPOSED: What should happen when a run judges a required check to be wrong
            standing answer until then is the one the 2026-09-03 run reached:
            the check is the arbiter, and a run's own conviction is not evidence.
 ```
+
+**The third entry is BACKLOG [E72](../BACKLOG.md)'s, filed 2026-09-15 (macos,
+scheduled run).** E72 has said since 2026-08-31 that it "wants a ruling rather
+than a session", and in fifteen days nobody had actually ASKED — the row named
+the question and the mechanism for putting it to Jeff is this section, so the
+row sat naming a ruling that was never requested. This is that request. The
+reading behind it is now a measurement,
+[tests/e72_dsp_dirty_probe.py](../tests/e72_dsp_dirty_probe.py), with the
+structure-view path as a control in the same table.
+
+```
+PROPOSED: Should a RACK PATCH-CABLE edit mark the DSP dirty, given the fix is in
+          SynthEditLib and so lands in the commercial product too?
+  Options: (a) no -- leave it. The running rack is already correct (the cable
+               reaches the DSP through the message path) and the SAVE is already
+               correct (syncState mints unconditionally), so this buys only the
+               retained-chunk window, and SynthEdit proper has lived without it.
+           (b) guard both entry points -- one `SuspendDSP` in
+               `MfcDocPresenter::AddPatchCable` and one in `RemovePatchCable`,
+               matching what `ConnectPlugs` already does for structure-view
+               wires. Two lines, and it makes the flag mean what TideApp's
+               comment always assumed it meant.
+           (c) fix it TIDE-side instead -- have TIDE notice the cable parameter
+               changing and set its own flag, leaving SynthEditLib untouched.
+  Recommended default: (b) -- it is the smaller change, it removes an asymmetry
+           rather than adding a special case (the structure view's equivalent
+           operation is guarded and the rack view's is not), and (c) would put a
+           second, TIDE-only definition of "the document changed" beside the one
+           CSynthEditAppBase already maintains.
+  Default in effect meanwhile: (a). Nothing is broken that a user can see today:
+           saves carry their cables and the running rack plays them. The exposure
+           is a processor recreated after a cable edit with NO host state query
+           in between, which is born running the pre-cable document.
+  May proceed meanwhile: everything except E72 itself. This question changes no
+           other row: it is about two lines in a GATED file, and no item builds
+           on the answer. Do not read it as parking E19, E80, E82 or E84.
+  Decide-by: before anything relies on the retained chunk being current between
+           saves. Nothing does today, which is why this is a question and not an
+           incident.
+```
+
+**Why it is a ruling and not a patch.** `MfcDocPresenter.cpp` is in
+`SynthEditLib/EditorLib/`, which STEP 5 GATES, and this is not a build break, so
+the STEP 5 exception does not reach it. More to the point, the file is shared
+with SynthEdit proper: the question *"should a cable edit mark the DSP dirty"*
+is being answered for the commercial product at the same time, and that is
+Jeff's call rather than a scheduled run's.
 
 ---
 
