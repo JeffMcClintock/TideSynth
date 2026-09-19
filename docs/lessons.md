@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **442 KB** across **344** entries, so copying them
+Learned sections are **448 KB** across **346** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **138 KB / 1474 lessons — 3.2x smaller**, and represents
+A8. This is **140 KB / 1485 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-19
+
+**windows — nine days, zero product lines on `main`: A38's Accept clause measured, and its `PROPOSED:` entry finally filed (scheduled run)**
+
+- "The fleet is slow" and "the fleet has stopped" are different claims, and the second is checkable in one command.
+- A conflict-avoidance trick that equalises one line does not survive an edit to the line next to it, and adjacency beats content.
+- When you must edit a shared file that other open PRs also edit, append and touch no existing line.
+- A proposal that asks for a ruling should arrive with its own Accept clause already measured, and a merge-layout question can be measured with throwaway repos in seconds.
 
 **macos — STEP 1.5 for the fourth time on the same three PRs: A38's livelock, confirmed to recur across a run boundary (scheduled run)**
 
@@ -68,6 +75,18 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The `platform:X` issue-label check is worth running across every repo the fleet touches, not just this one
 - A row's "no producer" finding can be an artifact of which module got tested, not a property of the mechanism.
 - Check unmerged sibling branches' own `BACKLOG-DONE.md` before flipping an `IN-REVIEW` row on `main`
+
+## 2026-09-16
+
+**windows — E19's `string` clause, measured: the wire carries four datatypes and none of them is a string (scheduled run)**
+
+- Before assuming a question needs a window, ask whether the data the GUI would show can be COMPUTED.
+- When you reuse another probe's build recipe, check it compiles the same FILE your question is about.
+- A probe whose green condition is only "it ran" will publish a clean-looking census of the wrong thing.
+- An absence is a statement about the sample until you make it a statement about the channel.
+- Read the direction, not just the datatype.
+- Git Bash ships a coreutils link at `/usr/bin/link.exe`
+- A stray `|` inside a BACKLOG cell can create a phantom row.
 
 ## 2026-09-09
 
