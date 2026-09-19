@@ -145,6 +145,96 @@ PROPOSED: What should happen when a run judges a required check to be wrong
            the check is the arbiter, and a run's own conviction is not evidence.
 ```
 
+**Appended 2026-09-19 (windows, scheduled run): BACKLOG [A38](../BACKLOG.md)'s
+question.** A38 has said since it was filed on 2026-09-18 that its proposal
+*"changes STEP 4 of [the shared prompt] ... it changes the shared instructions on
+three boxes at once, so it wants a `PROPOSED:` entry ... and Jeff's ruling, not a
+run's judgement"*, and that *"the first run to take it should file the
+`PROPOSED:` entry and stop there"*. **Four consecutive runs each had the evidence
+and each deferred the filing** — 09-18 morning (windows, which filed the row),
+09-18 evening (windows), 09-19 (macos), and this one. This entry is that filing,
+and it arrives with A38's own Accept clause measured rather than argued.
+**It parks nothing** — see its *May proceed meanwhile* line; the present
+convention stays in force until it is answered, and no row becomes ineligible.
+
+```
+PROPOSED: Should each machine's NEXT cell, and each run's journal entry, live in
+          a file of its own, so that two runs never edit the same line?
+  Options: (a) no -- keep `BACKLOG.md`'s NEXT table and `JOURNAL.md` as they
+               are, and treat the repeated re-resolutions as a cost of the
+               7x/week cadence A7 fixed deliberately.
+           (b) the NEXT block only -- the four NEXT cells become four files
+               (`docs/next/<platform>.md`), and the table in `BACKLOG.md`
+               becomes four links to them. `JOURNAL.md` is left exactly as it
+               is. **(b) needs no change to the shared prompt** and so is
+               executable by an ordinary run: STEP 2 still reads a NEXT block
+               in `BACKLOG.md` and STEP 4 still updates it. The cost is
+               confined to `scripts/check-next-block.py`, which would follow
+               the links.
+           (c) both -- (b), plus one file per run under `docs/journal/`, with
+               `JOURNAL.md` becoming a generated index in the way
+               `docs/lessons.md` already is (A30 is the working precedent that
+               a generated aggregate is merge-safe). **(c) DOES change STEP 4**,
+               which says in terms "Append a `JOURNAL.md` entry using the
+               template at the top of that file" -- so (c) is the half that is
+               Jeff's and not a run's, and (b) is separable from it.
+  Recommended default: (c). **A38's Accept clause is now measured, by the
+           scripted two-branch test it asked for rather than by waiting:**
+           `scripts/a38-merge-layout-experiment.py`, which builds throwaway
+           repos from `origin/main`'s real `BACKLOG.md` and `JOURNAL.md`, has
+           two branches each make the edits ONE platform's run would make, and
+           merges them. Every arm's two edits are strictly disjoint -- no two
+           branches ever change the same fact -- so any conflict is an artifact
+           of where the bytes live. Against `792330672`:
+
+               arm 1  today  NEXT only     CONFLICT  BACKLOG.md
+               arm 2  (b)    NEXT only     clean
+               arm 3  today  full STEP 4   CONFLICT  BACKLOG.md, JOURNAL.md
+               arm 4  (c)    full STEP 4   clean
+
+           Arms 1 and 3 are the control the proposal needed: the present layout
+           conflicts on edits that do not disagree about anything. **(b) alone
+           is not enough and that too is observed, not predicted** -- the
+           2026-09-18 evening run removed the NEXT-block conflict outright by
+           writing one byte-identical `win` cell to all three branches, and
+           `JOURNAL.md` then began conflicting where it had auto-merged that
+           morning, because two branches' dated entries interleave once one
+           reaches `main`. Arm 3 reproduces that on demand. **(b) is still
+           worth taking alone if (c) is refused**, because a `JOURNAL.md`
+           interleaving conflict resolves by date-ordered set union -- provably
+           lossless, since `check-journal-prepend.py` already enforces
+           append-and-prepend-only -- whereas a NEXT-cell conflict needs a
+           human to read 36 KB of prose on a single line.
+  Default in effect meanwhile: (a). Every run keeps editing `BACKLOG.md`'s NEXT
+           table and `JOURNAL.md`'s top, and every merge to `main` keeps
+           re-conflicting every other open PR.
+  May proceed meanwhile: ALL ordinary work, without exception. This entry makes
+           no row ineligible under STEP 2 -- it is about where the fleet's own
+           bookkeeping lives, not about anything the product does. A38's row
+           stays TODO and is not blocked by this entry, but per its own text a
+           run that takes it files this and stops, so with the filing done
+           there is nothing further for a run to do on A38 until the ruling.
+  Decide-by: the next merge sweep. That is not a soft deadline -- the sweep is
+           the event that empties the queue, and whether the fleet immediately
+           refills it with the same jam depends on this answer. If a sweep
+           happens and nothing is ruled, (a) is the answer in practice.
+```
+
+**The cost of (a), measured on the day of filing rather than argued.** `main`'s
+last non-bookkeeping line landed on **2026-09-10** (`13095a395`, Jeff's). In the
+nine days since, four PRs merged —
+[#591](https://github.com/JeffMcClintock/TideSynth/pull/591),
+[#592](https://github.com/JeffMcClintock/TideSynth/pull/592),
+[#593](https://github.com/JeffMcClintock/TideSynth/pull/593),
+[#594](https://github.com/JeffMcClintock/TideSynth/pull/594) — totalling **227
+insertions across exactly three files** (`BACKLOG.md`, `JOURNAL.md`,
+`docs/lessons.md`) and **not one line outside them**; three of the four are
+STEP 1.5 conflict resolutions. Meanwhile the seven open PRs carry **23
+non-bookkeeping files and 3,964 added lines** that cannot land. **The fleet's
+throughput of product change over those nine days is zero**, and its entire
+recorded output for them is resolving conflicts created by recording that it
+resolved conflicts.
+
 ---
 
 ## Decisions
