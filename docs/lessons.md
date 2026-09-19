@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **449 KB** across **346** entries, so copying them
+Learned sections are **452 KB** across **348** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **140 KB / 1493 lessons — 3.2x smaller**, and represents
+A8. This is **141 KB / 1500 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,21 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-19
+
+**windows — nine days, zero product lines on `main`: A38's Accept clause measured, and its `PROPOSED:` entry finally filed (scheduled run)**
+
+- "The fleet is slow" and "the fleet has stopped" are different claims, and the second is checkable in one command.
+- A conflict-avoidance trick that equalises one line does not survive an edit to the line next to it, and adjacency beats content.
+- When you must edit a shared file that other open PRs also edit, append and touch no existing line.
+- A proposal that asks for a ruling should arrive with its own Accept clause already measured, and a merge-layout question can be measured with throwaway repos in seconds.
+
+**macos — STEP 1.5 for the fourth time on the same three PRs: A38's livelock, confirmed to recur across a run boundary (scheduled run)**
+
+- Exported `GIT_AUTHOR_*`/`GIT_COMMITTER_*` environment variables do not survive into a later, separate tool invocation in this harness — each shell call is a fresh environment.
+- An A38-shaped conflict can leave a NEXT cell corrupted (duplicated row prefix, divergent stale tail) rather than cleanly resolved, if a resolution pass concatenates a conflict side instead of choosing one.
+- A38's mechanism is confirmed to operate across run boundaries, not just within a single run's multiple pushes.
 
 ## 2026-09-18
 
