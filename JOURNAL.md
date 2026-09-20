@@ -8,6 +8,107 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-21 — windows — the conflict was provably about nothing: all four NEXT lanes hashed at the merge base, and every merge to `main` in eleven days is bookkeeping (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.2553.1** (Code tab) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1.5 was the entire run for the **fifth consecutive windows run**. All three `tide/win/**` PRs were `CONFLICTING/DIRTY` again — [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) (E80), [#587](https://github.com/JeffMcClintock/TideSynth/pull/587) (E82), [#590](https://github.com/JeffMcClintock/TideSynth/pull/590) (E19) — resolved and pushed all three, all now `MERGEABLE`. No product code changed, and none was available to change. **What this run adds is not the resolution, which is now routine, but two measurements that turn A38 from a well-argued model into an arithmetic one.**
+
+### Measurement 1 — the conflicting hunk contained zero disagreement, proved by hash
+
+A38 argues the conflicts are caused by adjacency rather than disagreement. The 09-19 cell showed the `win` cell was byte-identical across the three branches; it did not show what `main` had done to it. **Hashing all four NEXT lanes at the merge base (`792330672`), at the branch head (`bcf81aaf5`) and at `origin/main` (`f4fc888a4`) settles it in one table:**
+
+| lane | base sha256[:10] | branch | `origin/main` | bytes base/branch/main | changed on |
+|---|---|---|---|---|---|
+| `win`   | `73b73dd0fe` | `cefdc9ed01` | `73b73dd0fe` | 18,904 / 40,818 / 18,904 | **BRANCH only** |
+| `mac`   | `8b2cc8c7f7` | `8b2cc8c7f7` | `32e990713e` | 43,261 / 43,261 / 47,058 | **MAIN only** |
+| `linux` | `899d375ecd` | `899d375ecd` | `899d375ecd` | 6,331 / 6,331 / 6,331 | neither |
+| `any`   | `297302d0f4` | `297302d0f4` | `297302d0f4` | 4,635 / 4,635 / 4,635 | neither |
+
+**The two sides' edit sets are disjoint — not approximately, but by hash — and git conflicted anyway.** `origin/main`'s `win` cell is byte-identical to the merge base, so `main` expressed no opinion whatever about the row this lane changed, and the branch expressed none about the row `main` changed. The conflict is `win` on line 11 and `mac` on line 12 of a markdown table that cannot carry a blank line between rows. **This is arm 1 of `scripts/a38-merge-layout-experiment.py` reproduced in production with the disjointness asserted rather than assumed**, and it is the strongest form of A38's negative control: *there was nothing to resolve, and a human-scale resolution was required anyway.*
+
+`JOURNAL.md` has the same shape and a simpler cause. **The first dated entry is line 11 in all three revisions — base, branch and `origin/main`.** "Newest at the top" gives every run in the fleet the identical insertion anchor, so two in-flight runs collide there by construction. The 09-18 cell's observation that `JOURNAL.md` later *auto-merged* is consistent and is not the file behaving well: by then those branches had absorbed an intervening entry, so their own insertion was no longer at the top and a shared line sat between the two sides.
+
+### Measurement 2 — eleven days, and every single merge to `main` is bookkeeping
+
+The 09-19 cell measured nine days and four merges. Two days later:
+
+    git log --first-parent 13095a395..origin/main   ->  6 merges
+    git diff  --stat       13095a395..origin/main   ->  3 files, 321 insertions, 4 deletions
+
+Last product line on `main` is **`13095a395`, 2026-09-10**. The six merges since, listed with the files each one touched:
+
+| PR | head branch | merged | files |
+|---|---|---|---|
+| [#591](https://github.com/JeffMcClintock/TideSynth/pull/591) | `tide/mac/2026-09-17-queue-blocked` | 09-16 | the three |
+| [#592](https://github.com/JeffMcClintock/TideSynth/pull/592) | `tide/mac/2026-09-18-step15-conflict-fix` | 09-17 | the three |
+| [#593](https://github.com/JeffMcClintock/TideSynth/pull/593) | `tide/win/2026-09-18-step15-conflicts` | 09-17 | the three |
+| [#594](https://github.com/JeffMcClintock/TideSynth/pull/594) | `tide/mac/2026-09-19-step15-conflicts` | 09-18 | the three |
+| [#595](https://github.com/JeffMcClintock/TideSynth/pull/595) | `tide/mac/2026-09-20-step15-conflicts` | 09-19 | the three |
+| [#596](https://github.com/JeffMcClintock/TideSynth/pull/596) | `tide/mac/2026-09-21-step15-conflicts` | 09-20 | the three |
+
+"The three" is `BACKLOG.md`, `JOURNAL.md`, `docs/lessons.md`, and for all six PRs it is the **complete** file list, read from `gh pr view --json files`, not inferred. **Six merges, six bookkeeping PRs, zero product files. Against that, the seven open PRs still carry the 23 non-bookkeeping files the 09-19 cell tabulated.**
+
+### The two measurements compose, and the result is the actionable part
+
+This run's merge base is `792330672`, which *is* #594. The only thing that changed on `main` between that and `f4fc888a4` is #595 and #596 — two bookkeeping PRs — and per Measurement 1 the only NEXT lane they touched is `mac`. **So this entire run was caused by two merges that carried no product change and edited no row this lane has any opinion about.** That is not a figure of speech; it is the whole causal chain, and every link in it is in the tables above.
+
+**Which makes one mitigation available with no ruling at all: a lane that rides its bookkeeping on an already-open PR adds no merge event.** The 09-18 evening cell called this Change 2 and the win lane has followed it since — this run opens no new branch and no new PR either, so it contributes nothing to the next box's STEP 1.5. In the eleven-day window the win lane produced **one** merge event across four runs (#593, before it adopted the convention) and the mac lane produced **five** across five runs.
+
+**Stated fairly, because the asymmetry is not a fault of that lane: Change 2 was written into a windows journal entry and a `win` NEXT cell, and there is no mechanism by which either reaches the macOS box.** A lane reads the shared prompt and its own cell. **A convention that lives in one lane's cell cannot propagate to another lane, and this is the first measured instance of that costing real runs.** The fix is one sentence in STEP 4, it is Jeff's to make because the prompt is shared, and — this is the point — **it is independent of A38's ruling and very much smaller.** Noted as an addendum on A38's row rather than filed as a new id, per STEP 3's grep rule: A38's Scope already names STEP 4 of the prompt, so a second id here is C15/C16 exactly.
+
+Honest limit on the claim: riding bookkeeping on a product PR **defers** the merge event, it does not delete it. When #586/#587/#590 merge they will carry this bookkeeping and will re-conflict whatever else is open. The saving is that merge events then equal the number of *product* PRs instead of product PRs plus one per run — and in a window whose product-PR count is zero, that is the difference between six fleet-wide re-conflictions and none.
+
+### The resolution itself
+
+Three branches, `git merge origin/main` in worktrees under the session scratchpad. Identical conflict set on all three: `BACKLOG.md`, `JOURNAL.md`, `docs/lessons.md`. **Never code, for the sixth consecutive time.**
+
+- **`BACKLOG.md`** — one hunk, four lines, resolved by ownership: this branch's `win` cell, `origin/main`'s `mac` cell. Measurement 1 is what makes that resolution provably lossless rather than a judgement call.
+- **`JOURNAL.md`** — one hunk. `origin/main`'s 09-21 and 09-20 mac entries placed above this branch's 09-19 windows entry, remainder untouched. Verified by counting dated headers before and after rather than by reading the diff: E80's branch 31 entries, E82's and E19's 29 — **the difference is real and expected**, E80's branch carries its own 09-10 and 09-11 windows entries which are not on `main` or on the other two.
+- **`docs/lessons.md`** — regenerated with `extract-lessons.py --write`, never hand-merged (A30). 1505 / 1489 / 1490 lessons respectively.
+
+`check-next-block.py`, `check-id-refs.py`, `check-backlog-archived.py`, `check-links.py` clean on all three post-merge. `check-commit-completeness.py --record`/`--verify` around each commit (`--verify` correctly skips a merge commit). `GH_TOKEN` and the four `GIT_*` variables re-exported immediately before each `git commit`, per the 09-19 lesson; all three landed authored as `tide-rack-bot` first time, `check-commit-authorship.py --repo .` clean on all three with no `--reset-author` needed. **The "is the PR still open" precheck was asserted against the literal string `OPEN` this time, not printed** — which is the 09-19 entry's own slip, and it cost one line of shell.
+
+### The `win` cell is pruned this run, deliberately
+
+A37 is a filed defect about this cell's size and A38's second factor is that git's smallest unit is a line, so a 40 KB cell has no partial merge by construction. The cell arrived at **40,818 bytes across ten generations**; it leaves materially smaller, carrying 09-21, 09-19, 09-18-evening and 09-18 and dropping the six older ones. **Nothing is lost: each pruned generation is told in full in `JOURNAL.md` under its own date**, which is the same justification the 09-08 cell used when it pruned. Lints re-run after the prune.
+
+### STEP 2 walk — the queue is empty for this lane, seventh confirming cell
+
+Walked in file order against freshly-fetched `origin/main`, not taken from the previous cell's word. Every `TODO` row with `Plat` of `win` or `any`: **A35** parked on its own two `PROPOSED:` entries (STEP 2 makes it ineligible regardless of status, by its own row); **A38** filed, its `PROPOSED:` entry already on these three branches since 09-19, awaiting Jeff and explicitly not a run's to implement; **S8** `NEEDS-SPEC`; **E2** an umbrella its own row calls not takeable; **E19/E80/E82** this lane's own open PRs; **E72/E81** macOS's open PRs; **E76/E79** linux in substance; **E84** a `.github/workflows/**` edit the bot's token deliberately cannot make. Nothing eligible, and no invented work.
+
+### STEP 1 — still structurally empty on this platform, sixth generation of this warning
+
+`gh issue list --label platform:win` empty, **and that verifies nothing**: `build.yml:523` excludes `matrix.platform != 'win'` from filing platform issues. Read `main`'s build instead — green at `13095a395`, run [34438892984](https://github.com/JeffMcClintock/TideSynth/actions/runs/34438892984). Every commit since is docs-only so `guard` skipped the matrix, which is the guard working. Two open issues fleet-wide, neither this platform's: [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (`platform:linux`, `tide-rack-bot`) and #44 (the watchdog digest).
+
+### What this run did NOT do, deliberately
+
+- **Did not touch [#584](https://github.com/JeffMcClintock/TideSynth/pull/584) (linux) or [#585](https://github.com/JeffMcClintock/TideSynth/pull/585)/[#588](https://github.com/JeffMcClintock/TideSynth/pull/588) (mac)** — all three still `CONFLICTING` on the same three bookkeeping files and needing no toolchain. STEP 1.5 is scoped to `tide/{PLATFORM}/**`. [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) is `MERGEABLE/CLEAN`. **Fourth consecutive windows cell to flag #584 as one mechanical resolution from mergeable.**
+- **Did not implement any A38 option.** Not (b), not (c), nothing. Its row says file and stop, and the filing happened on 09-19.
+- **Did not rotate `JOURNAL.md`** — **eighth** consecutive cell to defer it. A rotation rewrites the bottom of the file and would conflict with all seven open PRs at once, and A36 — which restores the rotation instruction *still absent from `main`* — is itself #585.
+- **Did not build, launch a host, install a plug-in, or take the screen.** Nothing this run needed one.
+
+**Learned:**
+
+- **"Disjoint" is a hashable property, and hashing it converts a merge argument into a fact.** Three revisions × four cells × `sha256` is one short script and it says, with no interpretation, which side changed what. Any future argument about whether a bookkeeping conflict was a real disagreement should open with that table rather than with a description of the diff.
+- **A file whose convention is "newest at the top" hands every concurrent writer the same insertion anchor, so it conflicts by construction rather than by bad luck.** Measured here as line 11 on all three revisions. It follows that *any* fix for `JOURNAL.md` that keeps one file and one anchor only changes how often the collision happens, not whether it does — which is an argument for A38's per-run-file half (c) specifically, not merely for splitting the NEXT block.
+- **A convention recorded in one lane's NEXT cell cannot reach another lane, and the cost is measurable in whole runs.** Change 2 has been live in the `win` lane since 09-18 and produced a 1-versus-5 difference in merge events over eleven days, and the other lane had no way to know it existed. **Anything intended to change how every box behaves belongs in the shared prompt; a NEXT cell is a lane's own memory, not a broadcast channel.**
+- **Check the whole population, not the three the rule names.** STEP 1.5 lists failing checks, requested changes and unresolved comments; for the seventh time the actual state was `CONFLICTING` with everything green, nothing reviewed and nothing commented. One extra field — `mergeStateStatus` — on a `gh pr view` the step already makes you run. Read `UNKNOWN` as "not computed yet" and re-query; it came back `UNKNOWN` on the first bulk read this run too.
+
+**Not verified:**
+
+- The self-hosted `windows` and `macos` compile legs on the three re-pushed branches — `MERGEABLE/UNSTABLE` at the time of writing, with the queued legs unreported. Nothing red. The 09-19 run showed the only cost of closing this bullet is staying alive for the single self-hosted runner.
+- **Whether the ride-along convention actually holds under a sweep.** Its cost is that if all three win PRs were closed unmerged, this entry goes with them. The branch names are in the NEXT cell, which is the mitigation STEP 4 already relies on, and it has never been tested.
+- Whether the prune leaves the `win` cell readable enough for a run with no other context. Lints pass; legibility is a judgement and the next windows run is the one that finds out.
+
+**Machine state — the developer was at the machine all run, the fifth consecutive windows cell to say so.**
+`Get-Process | Where-Object { $_.MainWindowTitle }` at run start: **Visual Studio on `SpacePro — PresetSelector.h*`** (the asterisk is unsaved changes), Chrome, Slack, Settings. Per the 09-09 cell's rule — an unlocked screen with the developer working at it is a stronger reason to stay off the GUI than a locked one — **no host was launched, nothing was built, no screenshot taken, and `%APPDATA%` was not touched.** All work in **`git worktree`s under the session scratchpad**; `C:\SE\TideSynth` stayed on `main` and clean from first command to last, and the worktrees were removed at the end.
+**Sibling repos read but not touched.** All dirt predates this run by three to eleven days (mtimes 09-18 and 09-10 against a 10:51 start on 09-21) and was left strictly alone per STEP 5's third category: `SynthEditLib` `EditorLib/PatchParameter.cpp` and `modules/Diagnostics2/ParametersQueryGui.cpp`; `GMPI` `Extensions/ParameterIterator.h`; `GMPI_Wrappers` `wrapper/AU3/AU3_Wrapper.mm` (`git diff --ignore-all-space` is **0 bytes** — pure CRLF churn, still not reverted, because it is in a repo this run did not commit in and the tree is the developer's). `SE16` and `gmpi_ui` clean; all five on their default branches. **Byte-for-byte the same dirt the 09-18-evening and 09-19 cells recorded.** `check-no-direct-commits.py` clean on `TideSynth`.
+
+**Next:** **merging the batch is still the highest-value action available to this project, for the fifth run running — and the eleven-day table above is the argument, not the three PRs.** **Merge [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36) first**, then the rest, re-checking `mergeStateStatus` between each. **Second is ruling on A38's `PROPOSED:` entry.** **Third, and new, and much the cheapest: one sentence in STEP 4 telling every lane to ride its bookkeeping on an already-open PR of its own platform where one exists** — that is a five-to-one difference in merge events on this window's evidence, it needs no layout change, and it is available whatever A38 is ruled. The next windows run should do STEP 1.5 first, expect it to be the whole run again, and read `mergeStateStatus` on every open PR rather than the three states the rule lists.
+
+**Branch/PR:** no new branch, per the 09-18 evening entry's Change 2. This entry, the pruned-and-re-pointed `win` NEXT cell and the A38 addendum ride on all three of `tide/win/E80-clap-editor-arm` ([#586](https://github.com/JeffMcClintock/TideSynth/pull/586)), `tide/win/E82-rack-menu-producer` ([#587](https://github.com/JeffMcClintock/TideSynth/pull/587)) and `tide/win/E19-datatype-census` ([#590](https://github.com/JeffMcClintock/TideSynth/pull/590)), byte-identical on each.
+
 ## 2026-09-21 — macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)
 
 **Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run

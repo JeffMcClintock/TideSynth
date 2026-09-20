@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **450 KB** across **348** entries, so copying them
+Learned sections are **452 KB** across **349** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **141 KB / 1490 lessons — 3.2x smaller**, and represents
+A8. This is **141 KB / 1494 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,13 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-21
+
+**windows — the conflict was provably about nothing: all four NEXT lanes hashed at the merge base, and every merge to `main` in eleven days is bookkeeping (scheduled run)**
+
+- "Disjoint" is a hashable property, and hashing it converts a merge argument into a fact.
+- A file whose convention is "newest at the top" hands every concurrent writer the same insertion anchor, so it conflicts by construction rather than by bad luck.
+- A convention recorded in one lane's NEXT cell cannot reach another lane, and the cost is measurable in whole runs.
+- Check the whole population, not the three the rule names.
 
 **macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)**
 
