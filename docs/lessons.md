@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **443 KB** across **345** entries, so copying them
+Learned sections are **444 KB** across **346** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **139 KB / 1480 lessons — 3.2x smaller**, and represents
+A8. This is **139 KB / 1482 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,13 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-20
+
+**macos — STEP 1.5 for the fifth time on the same shape: A38's livelock recurred again, only A36 and E72 needed the recipe this time (scheduled run)**
+
+- The livelock is not always all-three: whether a given open PR re-conflicts on a given `main` merge depends on whether that merge's changed hunks overlap the specific lines that PR's branch last touched, not just on which files were touched.
+- Once the export-immediately-before-commit discipline from the 09-19 entry is followed, the authorship failure it describes does not recur
 
 ## 2026-09-19
 
