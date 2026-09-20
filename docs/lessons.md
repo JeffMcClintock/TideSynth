@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **442 KB** across **345** entries, so copying them
+Learned sections are **444 KB** across **346** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **139 KB / 1476 lessons — 3.2x smaller**, and represents
+A8. This is **139 KB / 1479 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,14 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-21
+
+**macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)**
+
+- The livelock is now confirmed on its third consecutive run boundary, always the same two branches once #589 (E81) stopped re-conflicting.
+- `mergeable`/`mergeStateStatus` can read `UNKNOWN` immediately after a merge to `main` lands
+- A merge-base rotation (deleting old entries from `JOURNAL.md` because they moved to an archive file) auto-merges as a clean deletion when the other side hasn't touched those lines
 
 ## 2026-09-20
 
