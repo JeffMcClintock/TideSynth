@@ -97,7 +97,7 @@ Walked in file order against freshly-fetched `origin/main`, not taken from the p
 
 **Not verified:**
 
-- The self-hosted `windows` and `macos` compile legs on the three re-pushed branches — `MERGEABLE/UNSTABLE` at the time of writing, with the queued legs unreported. Nothing red. The 09-19 run showed the only cost of closing this bullet is staying alive for the single self-hosted runner.
+- ~~The self-hosted `windows` and `macos` compile legs on the three re-pushed branches.~~ **Closed before this entry was finished, and the answer is more interesting than "green": those two legs did not run at all, because `guard` skipped the matrix.** Every push this run is docs-only, so the guard is working exactly as the STEP 1 paragraph above describes it working on `main`. All three PRs are `MERGEABLE`/**`CLEAN`** with all six checks that did run passing — `e57-delete-key`, `lint`, `linux`, `render-linux`, `render-macos`, `render-windows` — and `guard`/`matrix.name` reporting `skipping`. **So this bullet closed in minutes rather than the ~30 the 09-19 run spent waiting on the single self-hosted runner, and the reason is that a bookkeeping-only run does not compile anything.** That is worth knowing before budgeting a wait: check whether `guard` skipped before deciding to stay alive for the matrix.
 - **Whether the ride-along convention actually holds under a sweep.** Its cost is that if all three win PRs were closed unmerged, this entry goes with them. The branch names are in the NEXT cell, which is the mitigation STEP 4 already relies on, and it has never been tested.
 - Whether the prune leaves the `win` cell readable enough for a run with no other context. Lints pass; legibility is a judgement and the next windows run is the one that finds out.
 
