@@ -69,7 +69,7 @@ The probe seeds a throwaway git repo with this repo's **real** `BACKLOG.md` and 
 
 **One thing that cost a cycle and is worth the next run's attention:** `check-backlog-diff.py` requires the base row's Item text to survive as a CONTIGUOUS substring, so appending STEP 4's branch name in the MIDDLE of an existing row -- even purely additively -- fails with `Item column differs`. Append at the END of the cell. The docstring says "still present verbatim somewhere inside the new Item text" and means contiguous; the check is the arbiter, per the 2026-09-03 precedent, and it was right.
 
-**Branch/PR:** `tide/win/A38-bookkeeping-livelock`.
+**Branch/PR:** `tide/win/A38-bookkeeping-livelock`, [#597](https://github.com/JeffMcClintock/TideSynth/pull/597).
 
 ## 2026-09-21 — macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)
 
