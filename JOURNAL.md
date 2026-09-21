@@ -8,6 +8,44 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-21 — macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)
+
+**Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** re-checked `mergeStateStatus` on this platform's three open PRs before touching anything, per STEP 1.5 and per the standing lesson that a CONFLICTING PR is not "green and waiting for merge". [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36) and [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) (E72) had gone `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING` again — the same two branches the 09-20 cell resolved, re-conflicted by `main` moving once more (`#595`, the 09-20 cell's own journal+NEXT-cell PR). [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) (E81) stayed `CLEAN`/`MERGEABLE` for a second cycle running, consistent with A38's diagnosis and the 09-20 entry's own note that the asymmetry is per-PR, not fleet-wide.
+
+### STEP 1 / STEP 1.5
+
+`platform:mac` issues empty (checked `TideSynth`, `SynthEditLib`, `GMPI_Wrappers`, `gmpi_ui`, `SynthEdit_Rack_Adaptor`). Screen locked (`CGSSessionScreenIsLocked` present, `ioreg -n Root -d1 -a`). `mergeStateStatus` read via GraphQL directly, not assumed from any prior cell's word for it — first read came back `UNKNOWN` on all three (GitHub had not finished computing it), a five-second retry settled it.
+
+### The resolution
+
+Both branches merged `origin/main` in the main checkout (not a worktree this time — no concurrent session on this box). **E72: `BACKLOG.md` and `JOURNAL.md` both auto-merged cleanly**; only `docs/lessons.md` conflicted (generated-content drift) and was regenerated via `extract-lessons.py --write`, never hand-merged. **A36: `BACKLOG.md` auto-merged cleanly; `JOURNAL.md` and `docs/lessons.md` both conflicted.** `JOURNAL.md`'s conflict was the same shape the 09-10/09-19/09-20 entries already document: HEAD (A36's own branch) holds the restored "Rotation" header block above the first dated entry; `origin/main` holds the new 09-20 entry appended below where that header used to sit. Resolved by keeping HEAD's header block, then `origin/main`'s new entry, then the unconflicted remainder — one splice, no interleaving needed. **Verified nothing was lost rather than assumed:** the entries A36's own prior rotation had already moved out of `JOURNAL.md` (09-08 windows through 08-31) are present verbatim in `JOURNAL-2026-09.md` on that branch, and the resolved `JOURNAL.md` carries both the 09-20 and 09-19 entries intact (checked by `grep -n "^## 202"` before and after). `docs/lessons.md` on A36 regenerated the same way as E72's.
+
+`check-next-block.py`, `check-id-refs.py`, `check-backlog-archived.py` and `check-links.py` all clean on both branches post-merge (`check-id-refs.py`'s standing E2-umbrella advisory prints on both, informational, unrelated to this merge). `check-commit-completeness.py --record`/`--verify` around each commit, no discrepancy (both merge commits, so `--verify`'s name-only diff correctly skips itself against a merge's first parent — expected, not a gap). Exported `GH_TOKEN`/`GIT_AUTHOR_*`/`GIT_COMMITTER_*` immediately before each `git commit`, per the 09-19 lesson; both commits landed authored as `tide-rack-bot` on the first attempt, `check-commit-authorship.py` clean on both with no `--reset-author` needed.
+
+Pushed both to their existing branches (STEP 1.5: fix in place, no new PRs) — `tide/mac/A36-journal-rotation-rule` and `tide/mac/E72-cable-dsp-dirty`. Did not touch #589 (E81), already `MERGEABLE`/`CLEAN`. Re-checked `mergeStateStatus` after each push (8-second wait, then GraphQL): both `MERGEABLE` again, `UNSTABLE` only on still-queued compile legs — nothing red.
+
+### What I did NOT do, deliberately
+
+- **Did not touch [#584](https://github.com/JeffMcClintock/TideSynth/pull/584)** (linux's `tide/linux/E79-clap-headless-document`) — STEP 1.5 is scoped to `tide/{PLATFORM}/**`.
+- **Did not re-walk STEP 2's backlog in depth** — walked the file order quickly to check for anything newly eligible since 09-20: **A38** (new since 09-17, filed by windows) is a design proposal "offered not ruled" and explicitly wants Jeff's decision on its shape, not takeable under STEP 2; everything else matches the 09-20 cell's own walk (A35/S8 parked on rulings, E19 wants the unlocked screen, E2 not takeable, E72/E76/E79/E80/E81/E82 all either this platform's own open PR, another platform's, or linux-in-substance, E84 a workflow edit the bot's token cannot make). Screen locked throughout, same as the eight prior mac cells (09-07 through 09-20) — nothing GUI-dependent was attempted.
+- **Did not rotate `JOURNAL.md` further** — A36's own rotation (still open on #585) already moved the bulk of history to archive; this cell only added the new top entry, same as 09-20's own choice.
+
+**Learned:**
+
+- **The livelock is now confirmed on its third consecutive run boundary, always the same two branches once #589 (E81) stopped re-conflicting.** Whether a branch re-conflicts on a given `main` merge continues to depend on whether that merge's changed hunks overlap the specific lines that branch last touched (A38's model), not on a fleet-wide "all conflicted again". Worth checking `mergeStateStatus` per-PR every cycle rather than assuming symmetry from the last cell's shape.
+- **`mergeable`/`mergeStateStatus` can read `UNKNOWN` immediately after a merge to `main` lands** — GitHub had not finished computing it on the first query this run; a short retry (5-8s) settled it to a real value both times. Don't treat `UNKNOWN` as `CLEAN` or as a failure; re-query.
+- **A merge-base rotation (deleting old entries from `JOURNAL.md` because they moved to an archive file) auto-merges as a clean deletion when the other side hasn't touched those lines** — which is correct, but the file's line count then legitimately diverges hugely from `origin/main`'s unrotated copy. Checking dated-entry headers on both sides (`grep -n "^## 202"`) is the one-command sanity check that the deletion is a rotation and not data loss, cheaper than diffing the whole file.
+
+**Not verified:** the self-hosted `macos`/`windows` compile legs on both re-pushed PRs — still `UNSTABLE`/queued when this entry was written.
+
+**Machine state.** All repos started and ended clean on their default branches except `TideSynth`. No host was launched, no plug-in built or installed. Screen was locked throughout. Work done directly in the main checkout (no worktree — no concurrent session detected); the checkout is left on `origin/main` after this entry's own branch is created and pushed, per STEP 5.
+
+**Next:** same as every prior cell in this chain — merging **#585 (A36) first** unblocks `JOURNAL.md` rotation and is the highest-value single action available; every day these two (down from three since 09-20) stay open costs another box another run repeating this recipe. The next run touching `BACKLOG.md`/`JOURNAL.md` should check `mergeStateStatus` per-PR, expect a possible `UNKNOWN` on the first read, and re-walk STEP 2 in file order rather than trust this entry's "matches 09-20" summary once `main` has moved with any code change (none has, since 09-17).
+
+**Branch/PR:** `tide/mac/2026-09-21-step15-conflicts` — this entry and the refreshed `mac` NEXT cell only. The two fixes are on `tide/mac/A36-journal-rotation-rule` and `tide/mac/E72-cable-dsp-dirty` themselves (their own pushed merge commits).
+
 ## 2026-09-20 — macos — STEP 1.5 for the fifth time on the same shape: A38's livelock recurred again, only A36 and E72 needed the recipe this time (scheduled run)
 
 **Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
