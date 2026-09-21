@@ -8,6 +8,50 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-22 — macos — STEP 1.5 for the seventh time on the same shape: A36 and E72 re-conflicted again, and windows has now filed a PR proposing A38's own fix (scheduled run)
+
+**Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** checked `mergeStateStatus` on this platform's three open PRs before touching anything, per STEP 1.5. [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36) and [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) (E72) had gone `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING` again — the same two branches every mac cell since 09-19 has resolved, re-conflicted by `main` moving once more (`#596`, the 09-21 cell's own journal+NEXT-cell PR). [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) (E81) stayed `CLEAN`/`MERGEABLE` for a third cycle running.
+
+### STEP 1 / STEP 1.5
+
+`platform:mac` issues empty (checked `TideSynth`, `SynthEditLib`, `GMPI_Wrappers`, `gmpi_ui`, `SynthEdit_Rack_Adaptor`). Screen locked (`CGSSessionScreenIsLocked` present, `ioreg -n Root -d1 -a`). `mergeStateStatus` read via GraphQL (`gh pr list --json mergeable,mergeStateStatus`), not assumed from the 09-21 entry's final state.
+
+### The resolution
+
+Both branches merged `origin/main` in worktrees under the session scratchpad (no concurrent session detected on this box). **E72: `BACKLOG.md` and `JOURNAL.md` both auto-merged cleanly**; only `docs/lessons.md` conflicted (generated-content drift) and was regenerated via `extract-lessons.py --write`, never hand-merged. **A36: `BACKLOG.md` auto-merged cleanly; `JOURNAL.md` and `docs/lessons.md` both conflicted**, the same shape every prior A36 cycle documents — HEAD (A36's own branch) held the restored "Rotation" header block above the first dated entry, `origin/main` held the new 09-21 entry appended below where that header used to sit. Resolved by keeping HEAD's header block, then `origin/main`'s new entry, then the unconflicted remainder — one splice. `docs/lessons.md` regenerated the same way as E72's.
+
+**Verified nothing was lost by full three-way set comparison, not spot-checking:** collected every `## 202...` heading across the resolved branch's `JOURNAL.md` + both its archives (`JOURNAL-2026-09.md`, `JOURNAL-2026-08.md` — 449 headings total) and diffed against both `origin/main`'s unrotated `JOURNAL.md` (26 headings) and the branch's own pre-merge set across its own file + archives (448 headings, `ORIG_HEAD`). Zero headings present on either side and missing from the resolved set, in both directions.
+
+`check-next-block.py`, `check-id-refs.py` (E2-umbrella advisory only, standing and unrelated), `check-backlog-archived.py` and `check-links.py` all clean on both branches post-merge. `check-commit-completeness.py --record`/`--verify` around each commit, no discrepancy. Exported `GH_TOKEN`/`GIT_AUTHOR_*`/`GIT_COMMITTER_*` immediately before each `git commit`, per the 09-19 lesson; both commits landed authored as `tide-rack-bot` on the first attempt, `check-commit-authorship.py` clean on both, no `--reset-author` needed.
+
+Pushed both to their existing branches (STEP 1.5: fix in place, no new PRs) — `tide/mac/A36-journal-rotation-rule` and `tide/mac/E72-cable-dsp-dirty`. Did not touch #589 (E81), already `MERGEABLE`/`CLEAN`. Re-checked `mergeStateStatus` after both pushes (8-second wait, then `gh pr list`): both `MERGEABLE` again, `UNSTABLE` only on still-queued/pending compile legs (`gh pr checks` on both: nothing `fail`, only `pending`/`pass`/`skipping`) — nothing red.
+
+### What's new since 09-21: windows has filed a PR against A38 itself
+
+**[#597](https://github.com/JeffMcClintock/TideSynth/pull/597) (`tide/win/A38-bookkeeping-livelock`)** is now open — windows measuring and proposing "the cheap half" of A38's own per-lane-file fix. Read only, not touched: it is a `tide/win/**` branch (out of STEP 1.5's scope for this platform) and A38's own row says the ruling is Jeff's, not a run's, so its content is not something this cell acts on either way. Noted here because it is the first sign the livelock itself may be addressed rather than merely worked around every cycle.
+
+### What I did NOT do, deliberately
+
+- **Did not touch [#584](https://github.com/JeffMcClintock/TideSynth/pull/584)** (linux's `tide/linux/E79-clap-headless-document`) — STEP 1.5 is scoped to `tide/{PLATFORM}/**`.
+- **Did not touch [#597](https://github.com/JeffMcClintock/TideSynth/pull/597)** (windows' A38 proposal) for the same reason, and because acting on its content would be pre-empting Jeff's ruling.
+- **Did not re-walk STEP 2's backlog in depth** — walked the file order quickly: the TODO set (`A35`, `A38`, `S8`, `E19`, `X2`, `E2`, `E72`, `E76`, `E79`, `E80`, `E81`, `E82`, `E84`) is unchanged from the 09-21 cell's own walk and every row is ineligible for the same reasons already on record (parked on rulings, this platform's or another's own open PR, GATED/NEEDS-SPEC, linux-in-substance, wants the unlocked screen, or a workflow edit the bot's token cannot make). Screen locked throughout, same as the nine prior mac cells (09-07 through 09-21) — nothing GUI-dependent was attempted.
+- **Did not rotate `JOURNAL.md` further** — still blocked on #585 (A36) itself merging.
+
+**Learned:**
+
+- **The livelock is now confirmed on a fourth consecutive run boundary, same two branches, same recipe, same result.** Nothing about repeating this a seventh time changed the mechanics; the only new datum is that a fix is now proposed (#597) rather than only diagnosed.
+- **A full three-way heading-set comparison (resolved vs. `origin/main` vs. pre-merge `ORIG_HEAD`, each including archives) is cheap — one `grep`/`sort`/`comm` pipeline — and is strictly stronger evidence than the `grep -c` count check prior cells used**, since a count match can hide a swap (one entry dropped, a different one duplicated). Worth using this shape going forward rather than the cheaper count-only check.
+
+**Not verified:** the self-hosted `macos`/`windows` compile legs on both re-pushed PRs — still `pending` when this entry was written.
+
+**Machine state.** All repos started and ended clean on their default branches except `TideSynth`. No host was launched, no plug-in built or installed. Screen was locked throughout. Work done in `git worktree`s under the session scratchpad; the main checkout (`~/Documents/GitHub/TideSynth`) was untouched beyond a `fetch` and was left on `main`/`origin/main` throughout.
+
+**Next:** unchanged — merging **#585 (A36) first** unblocks `JOURNAL.md` rotation and is the highest-value single action available; every day it and #588 stay open costs another box another run repeating this recipe. **#597 is worth Jeff's attention specifically**, since it is the first PR that would change this recipe rather than just re-run it. The next run touching `BACKLOG.md`/`JOURNAL.md` should check `mergeStateStatus` per-PR, expect a possible `UNKNOWN` on the first read, and check whether #597 has merged before assuming this recipe is still the right one to reach for.
+
+**Branch/PR:** `tide/mac/2026-09-22-step15-conflicts` — this entry and the refreshed `mac` NEXT cell only. The two fixes are on `tide/mac/A36-journal-rotation-rule` and `tide/mac/E72-cable-dsp-dirty` themselves (their own pushed merge commits).
+
 ## 2026-09-21 — macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)
 
 **Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
