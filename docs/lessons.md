@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **444 KB** across **346** entries, so copying them
+Learned sections are **445 KB** across **347** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **139 KB / 1479 lessons — 3.2x smaller**, and represents
+A8. This is **140 KB / 1485 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,15 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-21
+
+**windows — A38: the livelock measured, and the cheap half of its own proposal is as good as the expensive half (scheduled run)**
+
+- A proposal's cheap option and its expensive option can measure identically, and only a probe will say so.
+- A prepend-at-top file cannot be fixed by rearranging it.
+- A within-case control beats a separate clean run.
+- Seed a merge probe with the real files.
+- `main`'s own diff is a cheaper cost metric than counting branch re-resolutions.
+- A quiet STEP 1.5 is worth recording as loudly as a busy one.
 
 **macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)**
 

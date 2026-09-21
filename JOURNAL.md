@@ -8,6 +8,69 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-21 — windows — A38: the livelock measured, and the cheap half of its own proposal is as good as the expensive half (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **A38** — the first run to do so — and did what its own row instructs: filed the `PROPOSED:` entry in [docs/decisions.md](docs/decisions.md) and stopped there. Wrote [tests/a38_bookkeeping_merge_probe.py](tests/a38_bookkeeping_merge_probe.py) to satisfy A38's Accept clause, which asks for "a scripted two-branch test, not … waiting for it to happen". **The measurement changed the shape of the request**, which is the whole reason a ruling deserves a truth table under it.
+
+### STEP 1 / STEP 1.5 — and this lane's streak broke
+
+`gh issue list --label platform:win` empty, which as five prior cells have said **verifies nothing**: the exclusion is still `build.yml:523` (`matrix.platform != 'win'`), read again this run rather than taken on the previous cell's word. Read `main`'s latest `build` instead — run [34438892984](https://github.com/JeffMcClintock/TideSynth/actions/runs/34438892984) at `13095a395`, **success on all three platforms**. Two open issues fleet-wide, neither win: [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (`platform:linux`, tide-rack-bot) and #44 (the watchdog digest).
+
+**STEP 1.5 found all three of this platform's PRs `MERGEABLE`/`CLEAN` — the first windows cycle in this chain that needed no re-resolution at all.** [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) (E80), [#587](https://github.com/JeffMcClintock/TideSynth/pull/587) (E82), [#590](https://github.com/JeffMcClintock/TideSynth/pull/590) (E19): every check green, no reviews, no comments but this fleet's own. Checked `mergeStateStatus` explicitly, per the 09-18 cell, and got a real value on the first read (no `UNKNOWN` retry needed — the 09-21 mac cell's caution still worth keeping, it just did not bite). Left all three alone, per STEP 1.5's "green with nothing unresolved is not yours to fix".
+
+**That non-event is itself data for A38**, and it is the asymmetry the 09-20 and 09-21 mac cells describe: whether a branch re-conflicts depends on whether the merges that landed since touched the lines that branch touched, not on a fleet-wide sweep. Three mac merges landed since 09-18 and none of them re-dirtied this lane.
+
+### The measurement
+
+The probe seeds a throwaway git repo with this repo's **real** `BACKLOG.md` and `JOURNAL.md` — not a synthetic stand-in, because the claim is about these two files' real shape — and replays the fleet's actual sequence: two branches cut from one `main`, each applying only its own platform's STEP 4 edits, the other box's PR merging first, then the merge of `main` into the branch still open. The two sides' content is **strictly disjoint** by construction: different NEXT rows, different journal entries, no shared claim. `python3 tests/a38_bookkeeping_merge_probe.py`, ~5 s, no build, no network, **rc=0** with all six cases as recorded.
+
+| layout | conflicts in | what it says |
+|---|---|---|
+| `today` | **`BACKLOG.md`, `JOURNAL.md`** | both hot spots, on disjoint content |
+| `next-sections` — blank-line sections in `BACKLOG.md` | `JOURNAL.md` | NEXT block fixed, journal not |
+| `next-split` — `docs/next/<plat>.md`, A38's own proposal | `JOURNAL.md` | **identical to sections** |
+| `full-split` — per-lane NEXT **and** per-run journal files | *(clean)* | nothing shared, nothing to conflict |
+| `ctl-context` — positive control | `BACKLOG.md` | `JOURNAL.md` **drops out** once one unchanged entry sits between the two insertions; `BACKLOG.md`, untouched by the control, stays |
+| `ctl-code` — control | *(clean)* | code has never conflicted in this fleet, and does not here |
+
+**`ctl-context` is a within-case control, and that is what makes it worth more than a separate clean run.** One thing changes — the other side inserts its journal entry below the newest instead of above it — and exactly one file moves, the one the model says should. Same layout, same two runs, same harness.
+
+**THE FINDING A38's ROW DOES NOT HAVE: options (b) and (c) measure the same, so `docs/next/` is the expensive way to obtain a blank line.** A38 proposed per-lane files; they work, and they work *for the reason blank-line sections also work*, which is that git gets one unchanged line of context. The cheap half and the expensive half of the proposal are **separable**, and only the journal half genuinely needs new files — because two runs prepending at the top of one file collide however that file is arranged. The `PROPOSED:` entry is written as four options on that split and recommends nothing beyond naming which halves the measurement joins.
+
+### A second number, from `main` itself rather than from branches
+
+`git diff --name-only 13095a395..origin/main` — **six commits over eleven days, touching exactly three files: `BACKLOG.md`, `JOURNAL.md`, `docs/lessons.md`. No code at all.** A38 counted the cost on the branch side (16 re-resolutions across five consecutive runs: 09-18 win, 09-18/09-19/09-20/09-21 mac, zero product change). This is the same fact seen from `main`, and it needs no interpretation: the fleet's default branch has moved six times this fortnight and shipped nothing but its own bookkeeping.
+
+### What I did NOT do, deliberately
+
+- **Did not implement any option.** A38's row says the first run to take it should file the `PROPOSED:` entry and stop; the shape changes STEP 4 on three boxes and is Jeff's ruling. The probe is neutral by construction — it asserts today's behaviour and each candidate's, and picks nothing (the A35 precedent, 2026-09-08 mac).
+- **Did not touch [#584](https://github.com/JeffMcClintock/TideSynth/pull/584)** (linux, `CONFLICTING`) or [#585](https://github.com/JeffMcClintock/TideSynth/pull/585)/[#588](https://github.com/JeffMcClintock/TideSynth/pull/588) (mac, `CONFLICTING`) — STEP 1.5 is scoped to `tide/{PLATFORM}/**`, and three cells in a row have now noted #584 is one mechanical resolution from mergeable without anyone being allowed to do it.
+- **Did not rotate `JOURNAL.md`** — 274 KB against A24's 60 KB, the sixth consecutive cell to defer it, and for the same reason: seven PRs are open and A36 ([#585](https://github.com/JeffMcClintock/TideSynth/pull/585)) *is* the rotation rule. A rotation from this lane conflicts with every one of them at once. **It is also now a reason to rule A38 first:** option (d) changes what there is to rotate, so rotating before ruling means rotating twice.
+- **Did not launch a host, build anything, or take the screen.** The developer was at the machine (Chrome, Settings) — no VS and no SynthEdit this time, so nothing was moving underneath the run, but an unlocked screen in use is reason enough to stay off the GUI. This item needed neither.
+
+**Learned:**
+
+- **A proposal's cheap option and its expensive option can measure identically, and only a probe will say so.** A38 asked for per-lane files; blank-line-separated sections in the same file buy exactly the same merge behaviour. The thing that fixes a conflict is one unchanged line of context, not a file boundary — so "give it its own file" is a sufficient way to obtain context, never a necessary one.
+- **A prepend-at-top file cannot be fixed by rearranging it.** Two runs inserting at the same anchor collide by construction, which is why `JOURNAL.md` conflicts in three of the four layouts and only the per-run file removes it. Context fixes the NEXT block because the two sides write to *different* places in it; nothing fixes a journal because they write to the *same* place.
+- **A within-case control beats a separate clean run.** `ctl-context` changes one thing inside the failing case and exactly one file moves. A separate all-clean scenario would have proved the harness works; this proves the *mechanism*.
+- **Seed a merge probe with the real files.** Both hot spots' behaviour depends on their actual shape — a 47 KB single-line table cell, a header block above the newest entry — and a synthetic two-row table would have measured a different file.
+- **`main`'s own diff is a cheaper cost metric than counting branch re-resolutions.** Six commits, three files, no code, eleven days — one command, no journal archaeology.
+- **A quiet STEP 1.5 is worth recording as loudly as a busy one.** Four cells in a row told this lane to expect re-resolution; it did not happen, and that asymmetry is evidence for A38's model rather than against it.
+
+**Not verified:** nothing about how much work any option costs in `scripts/check-next-block.py`, `check-journal-prepend.py` or `extract-lessons.py` — A38's row calls it small and this run did not re-estimate it, which is said in the `PROPOSED:` entry too. The probe measures conflict *occurrence*, not conflict *size*; the size question is A37's and stays open.
+
+**Machine state.** `C:\SE\TideSynth` started and ended on `main`, clean, and was **never checked out to a branch** — all work in a `git worktree` under the session scratchpad, removed at the end. No other repo touched, so none to report dirty. No host launched, no plug-in built or installed, no screen taken. The developer was at the machine throughout (Chrome and Settings; no VS, no SynthEdit).
+
+**Next:** **the highest-value single action available is still merging [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36)**, unchanged from five cells running — and A38 now gives a second reason to sequence it with a ruling rather than before one. For the next windows run: STEP 1.5 first and check `mergeStateStatus` per-PR even when the previous cell says the lane was clean, because this cell's own finding is that the streak is per-PR and not a fleet property. **The queue for this lane is otherwise empty** and has been since 09-17; A38 is now `IN-REVIEW` and takes itself off the board. If nothing has changed, a run that finds no eligible row should say so and stop rather than invent work — that is a fine outcome and this queue has now produced it three times.
+
+**Verification, with the exit codes these commands actually returned** (the open `PROPOSED:` question about recording exit codes is a standing caution, not a park): `check-backlog-diff` **0**, `check-journal-prepend` **0**, `check-prompt-provenance` **0**, `check-next-block` **0**, `check-id-refs` **0** (its standing E2-umbrella advisory prints, informational), `check-links` **0**, `check-backlog-archived` **0**, `tests/a38_bookkeeping_merge_probe.py` **0**. `check-commit-completeness.py --record`/`--verify` around every commit, no discrepancy; `check-commit-authorship.py` clean on all three, no `--reset-author` needed. `docs/lessons.md` regenerated with `extract-lessons.py --write` (A30), never hand-edited.
+
+**One thing that cost a cycle and is worth the next run's attention:** `check-backlog-diff.py` requires the base row's Item text to survive as a CONTIGUOUS substring, so appending STEP 4's branch name in the MIDDLE of an existing row -- even purely additively -- fails with `Item column differs`. Append at the END of the cell. The docstring says "still present verbatim somewhere inside the new Item text" and means contiguous; the check is the arbiter, per the 2026-09-03 precedent, and it was right.
+
+**Branch/PR:** `tide/win/A38-bookkeeping-livelock`.
+
 ## 2026-09-21 — macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)
 
 **Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
