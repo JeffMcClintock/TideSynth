@@ -179,36 +179,13 @@ gmpi_plugin(
     NO_LOCAL_VST3_COPY
 	FORMATS_LIST ${FORMATS_LIST}
     SOURCE_FILES
-	  # BACKLOG E14 -- TIDE's OWN two modules, and the only ones in this list that
-	  # are not borrowed from SynthEditLib. They live in this repo's modules/
-	  # tree, which also builds them as loadable .gmpi bundles for authoring in
-	  # SynthEditCL; that build is the AUTHORING path and this is the SHIPPING
-	  # one. TIDE cannot load a bundle at all -- PLAN constraint 7 is a fixed,
-	  # statically registered set and S1a deleted the scan -- so the class only
-	  # reaches the product by being compiled in here. E2c set the precedent.
-	  #
-	  # Neither needs a _tide_xmls entry: both register with Register<>::withXml
-	  # carrying their own pin descriptions inline (TiDEknob.cpp:23,
-	  # TiDEPanelGui.cpp:2678), which is the `SE Label` case rather than the
-	  # `SE Rectangle XP` one. TiDEknobGui.cpp attaches to the same id with
-	  # withId, so the GUI half needs no separate registration either.
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDEknob.cpp
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDEknobGui.cpp
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEPanel/TiDEPanelGui.cpp
-	  # TiDE Patch Point In/Out -- the functional jacks every upgraded rack
-	  # prefab layers over the panel's painted rings (docs/tide-panel-layout.md).
-	  # MISSED when the prefabs moved onto them: the pair existed only as the
-	  # modules/ tree's loadable .gmpi, which the EDITOR scans and TIDE cannot
-	  # (constraint 7, no scan) -- so TIDE loaded the upgraded prefabs and the
-	  # seeded root MIDI-CV with phantom patch points and raised "don't have
-	  # some required SEM Modules: TiDE Patch Point Out" on session restore.
-	  # The editor-side checks all passed, which is the documented trap: the
-	  # authoritative check is placing the prefab in TIDE and looking.
-	  # Same one-line case as SE Label: both register withXml/withId inline,
-	  # so no _tide_xmls entry.
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/PatchPoint/PatchPoint.cpp
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/PatchPoint/PatchPointGui.cpp
-
+      ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDEknob.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDEknobGui.cpp
 	  SynthEdit.cpp
 	  SynthEditGui.cpp
 	  $<$<PLATFORM_ID:Darwin,iOS>:${CMAKE_CURRENT_SOURCE_DIR}/TideCursorMac.mm>  # S24 cross cursor;
