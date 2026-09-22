@@ -183,7 +183,11 @@ public:
 	// -- so all drawing, not just this guide, lives here now.
 	ReturnCode renderLayer(gmpi::drawing::api::IDeviceContext* drawingContext, int32_t layer) override
 	{
-		if(layer == 4)
+		if(layer == 1)
+		{
+			render(drawingContext);
+		}
+		else if(layer == 4)
 		{
 			Graphics g(drawingContext);
 
