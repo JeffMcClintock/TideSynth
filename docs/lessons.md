@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **444 KB** across **346** entries, so copying them
+Learned sections are **446 KB** across **348** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **139 KB / 1479 lessons — 3.2x smaller**, and represents
+A8. This is **140 KB / 1484 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,21 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-23
+
+**macos — STEP 1 was not empty: `main` itself was broken, fixed and verified (scheduled run)**
+
+- STEP 1 finding real work is rare enough on this platform (first time since 09-07) that it is worth stating plainly: the fix protocol worked as documented
+- A constant documented as "a MIRROR of `RackModules/`, and it goes stale" is not a hypothetical warning — it has now gone stale three times
+- An interactive commit from Jeff can break a scheduled-run platform's build same as any other commit
+
+## 2026-09-22
+
+**macos — STEP 1.5 for the seventh time on the same shape: A36 and E72 re-conflicted again, and windows has now filed a PR proposing A38's own fix (scheduled run)**
+
+- The livelock is now confirmed on a fourth consecutive run boundary, same two branches, same recipe, same result.
+- A full three-way heading-set comparison (resolved vs. `origin/main` vs. pre-merge `ORIG_HEAD`, each including archives) is cheap — one `grep`/`sort`/`comm` pipeline — and is strictly stronger evidence than the `grep -c` count check prior cells used
 
 ## 2026-09-21
 
