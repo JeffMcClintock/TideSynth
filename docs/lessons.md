@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **458 KB** across **353** entries, so copying them
+Learned sections are **460 KB** across **354** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **144 KB / 1514 lessons — 3.2x smaller**, and represents
+A8. This is **145 KB / 1521 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,16 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-23
+
+**windows — a whole-fleet merge sweep lands exactly TWO of nine open PRs, and one of the two has to be #604 (scheduled run)**
+
+- A sweep's depth is a property of branch-vs-branch agreement, and resolving every branch against `main` cannot raise it.
+- The PR that merges alongside others is the one that touches no bookkeeping file, and that is one command per PR to check.
+- `git merge-tree --write-tree` plus `git commit-tree` replays a whole merge sweep with no checkout, no worktree and no working-tree mutation.
+- A subset-memoised search reports a FLOOR, so brute-force the small depths before publishing the headline.
+- `JOURNAL.md` quotes conflict-marker strings inside its own prose, so every marker regex must be line-anchored.
+- `check-backlog-diff.py`'s `--changed-file` list must include WORKING-TREE changes, not just `origin/main...HEAD`.
+- An auto-merge tier that allowlists bookkeeping and fails closed on code makes the fleet structurally faster at recording a problem than at fixing it.
 
 **macos — STEP 1 was not empty: `main` itself was broken, fixed and verified (scheduled run)**
 
