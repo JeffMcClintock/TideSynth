@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **452 KB** across **350** entries, so copying them
+Learned sections are **453 KB** across **351** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **142 KB / 1495 lessons — 3.2x smaller**, and represents
+A8. This is **142 KB / 1498 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,14 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-23
+
+**macos — STEP 1 was not empty: `main` itself was broken, fixed and verified (scheduled run)**
+
+- STEP 1 finding real work is rare enough on this platform (first time since 09-07) that it is worth stating plainly: the fix protocol worked as documented
+- A constant documented as "a MIRROR of `RackModules/`, and it goes stale" is not a hypothetical warning — it has now gone stale three times
+- An interactive commit from Jeff can break a scheduled-run platform's build same as any other commit
 
 ## 2026-09-22
 
