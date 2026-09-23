@@ -95,6 +95,116 @@ Template:
 
 ---
 
+## 2026-09-23 — macos — STEP 1 was not empty: `main` itself was broken, fixed and verified (scheduled run)
+
+**Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1, checked before anything else. `gh issue list --label platform:mac --state open` across all five repos was **not empty for the first time since 09-07** — five open issues in `TideSynth`: [#599](https://github.com/JeffMcClintock/TideSynth/issues/599) (branch `main`) and [#600](https://github.com/JeffMcClintock/TideSynth/issues/600)–[#603](https://github.com/JeffMcClintock/TideSynth/issues/603) (windows' four `tide/win/**` branches: A38, E19, E82, E80). All authored by `app/github-actions`, which the rules treat as an authorised author. All five carried the identical failure line, confirmed by reading each run's log rather than assuming from the title:
+
+```
+FAIL 3 rack prefab(s) seeded, expected 5. Either a prefab failed to stage,
+or one was added and this script's EXPECTED_PREFABS was not updated.
+```
+
+**#599 (`main`) is the one that matters most** — every other platform's branches build on top of it, so this was not a windows-branch-local problem.
+
+### Diagnosis
+
+`git log` on `main` showed two commits landed after yesterday's mac cell (#598): `ccda7ad` ("fix knobs not drawing") and `479d90a` ("fix knob range"), both Jeff, interactive (`jef@synthedit.com`), pushed directly — not a scheduled run's work, and correctly not mine to second-guess. `ccda7ad`'s diff deletes `RackModules/AR_jef.synthedit` and `RackModules/Sine_jef.synthedit` (526 lines) alongside the knob fix. `scripts/check-rack-populated.py`'s `EXPECTED_PREFABS` constant is documented, in its own multi-paragraph comment, as "not a policy, it is a MIRROR of `RackModules/`" that "went stale within hours" the last two times a prefab was deleted (`995ebfa`, `322df0f`) — this is the third occurrence of exactly that, and the comment's own prediction held.
+
+**Reproduced before touching anything:** built `TIDE_Rack_STANDALONE` locally (Release/arm64, `SE_LOCAL_BUILD=OFF`, pre-existing incremental build tree, ccache warm) against `origin/main` as pulled, then ran `scripts/check-rack-populated.py --standalone build/SynthEditSem/TIDE-Rack.app/Contents/MacOS/TIDE-Rack`:
+
+```
+ok   default rack loaded, 25110 byte document
+FAIL 3 rack prefab(s) seeded, expected 5. ...
+1 assertion(s) failed -- the rack did NOT come up populated.
+```
+
+Matches the issue's own captured text exactly.
+
+### The fix
+
+One-line change, `EXPECTED_PREFABS = 5` → `3`, with a comment entry added in the same style as the existing history (mirrors the current `RackModules/` contents: `Envelope.synthedit`, `Filter.synthedit`, `Oscillator.synthedit`). Branch `tide/mac/issue-599` off freshly-fetched `origin/main`. `check-commit-completeness.py --record`/`--verify` around the commit, no discrepancy. `check-commit-authorship.py --repo .` clean, authored `tide-rack-bot` on the first attempt (`GH_TOKEN`/`GIT_AUTHOR_*`/`GIT_COMMITTER_*` re-exported immediately before the commit, per the 09-19 lesson). Transport spot-check (`git ls-remote --get-url origin`) answered `https://...` both before the branch push and before the fix push.
+
+**Re-verified after the fix, same binary rebuilt, same script:**
+
+```
+ok   3 rack prefab(s) seeded
+ok   default rack loaded, 25110 byte document
+
+rack is populated.
+```
+
+Exit 0. Pushed to `tide/mac/issue-599`, opened [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) against `main`, with the before/after transcript in the PR body per STEP 4's verification-artifact requirement.
+
+### Issue bookkeeping
+
+Commented on all five issues (#599–#603) naming the root cause and linking #604. **Left #599 OPEN** — the fix is verified on my own branch, not on `main` itself, and I cannot merge my own PR (STEP 5); the issue's own close instructions say "verify the fix by building on that platform," which for a `main`-branch issue means after #604 lands there, not before. **Did not touch #600–#603's branches** — they are windows' `tide/win/**` branches, out of scope the same way STEP 1.5 scopes PR-conflict work to one's own platform; commented that they share #599's root cause and should clear once whoever owns them merges or rebases past #604.
+
+### What this run deliberately did NOT do
+
+- **STEP 1.5 was not run.** STEP 1's own wording is "fix that instead of taking a backlog item, then go to STEP 4" — read literally, that skips STEP 1.5 and STEP 2 entirely for a STEP-1 run. This platform's three standing PRs ([#585](https://github.com/JeffMcClintock/TideSynth/pull/585) A36, [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) E72, [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) E81) were **not re-checked for `mergeStateStatus` this run**. Given `main` moved twice more since the 09-22 cell resolved them, they may well have re-conflicted a seventh/eighth time on the established shape — **the next mac run should check this first**, same as every cell since 09-19.
+- **STEP 2's backlog walk was not repeated** — no eligible item was taken; the queue's standing state (`A35`, `A38`, `S8`, `E19`, `X2`, `E2`, `E72`, `E76`, `E79`, `E80`, `E81`, `E82`, `E84` all ineligible for the reasons every prior cell records) is unchanged as far as this run observed, but it was not re-walked, so treat that as unverified rather than confirmed for 09-23.
+- **`scripts/check-prefab-modules.py` was run out of curiosity while diagnosing, not fixed, not filed as a row.** It is not wired into any CI job (`grep` of `.github/workflows/*.yml` confirms) and exits 0 regardless, so it gated nothing here — but it reports 5 module types the 3 shipped prefabs use that TIDE does not register in the compiled-in set (`IO Mod`, `Multiply`, `1 Pole LP`). Pre-existing, unrelated to this break. Worth a look next time someone touches the prefab set or wires this script into `lint.yml` (that wiring is itself a workflow edit the bot's token cannot make — same constraint E84 already names).
+
+**Learned:**
+
+- **STEP 1 finding real work is rare enough on this platform (first time since 09-07) that it is worth stating plainly: the fix protocol worked as documented** — reproduce locally before touching anything, minimal fix, own branch, own PR, verification artifact in both the PR and the journal, issue left open until `main` itself is verified.
+- **A constant documented as "a MIRROR of `RackModules/`, and it goes stale" is not a hypothetical warning — it has now gone stale three times** (`995ebfa`, `322df0f`, and this one). If a fourth prefab deletion lands without this constant moving with it, the fix is the same three-line diff every time; worth considering whether the count should be derived from `ls RackModules/*.synthedit | wc -l` at build time instead of hand-maintained, though that is a product/process decision beyond a STEP 1 item's scope, not something this run should decide unilaterally.
+- **An interactive commit from Jeff can break a scheduled-run platform's build same as any other commit** — STEP 1 does not distinguish by author, and neither should the run reading it. Nothing here should be read as a complaint about the commit itself (`AR_jef`/`Sine_jef` look like superseded personal scratch prefabs given the naming and the unaffected panel/knob fix alongside them); the gap was purely the missing constant update, which is exactly what the gate exists to catch.
+
+**Not verified:** `#604`'s CI checks — still running/queued when this entry was written. The four windows branches (`#600`–`#603`) were not rebuilt; the shared-signature claim rests on log comparison, not a rebuild on my box of those specific branches.
+
+**Machine state.** `TideSynth` ended on `main`, clean, fast-forwarded to `479d90a` (`origin/main` at run start). No other repo touched. Screen was locked throughout (`CGSSessionScreenIsLocked` present, `ioreg -n Root -d1 -a`); no GUI needed — this was a build-and-script fix, not a hosted-plugin question.
+
+**Next:** merging **#604** is the highest-value single action — it clears `main`'s own break and, once the four `tide/win/**` branches merge or rebase past it, should close #600–#603 too without further action from any platform. The next mac run should (1) verify #604 merged and close #599 by building `main` directly if so, (2) re-check `mergeStateStatus` on #585/#588/#589 before anything else, per every cell since 09-19, and (3) only then resume STEP 2's backlog walk, which this run did not repeat.
+
+**Branch/PR:** `tide/mac/issue-599` — [#604](https://github.com/JeffMcClintock/TideSynth/pull/604). This entry and the refreshed `mac` NEXT cell are on a separate branch (`tide/mac/2026-09-23-issue-599-journal`), per the established split between a fix's own branch and the bookkeeping branch.
+
+## 2026-09-22 — macos — STEP 1.5 for the seventh time on the same shape: A36 and E72 re-conflicted again, and windows has now filed a PR proposing A38's own fix (scheduled run)
+
+**Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** checked `mergeStateStatus` on this platform's three open PRs before touching anything, per STEP 1.5. [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36) and [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) (E72) had gone `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING` again — the same two branches every mac cell since 09-19 has resolved, re-conflicted by `main` moving once more (`#596`, the 09-21 cell's own journal+NEXT-cell PR). [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) (E81) stayed `CLEAN`/`MERGEABLE` for a third cycle running.
+
+### STEP 1 / STEP 1.5
+
+`platform:mac` issues empty (checked `TideSynth`, `SynthEditLib`, `GMPI_Wrappers`, `gmpi_ui`, `SynthEdit_Rack_Adaptor`). Screen locked (`CGSSessionScreenIsLocked` present, `ioreg -n Root -d1 -a`). `mergeStateStatus` read via GraphQL (`gh pr list --json mergeable,mergeStateStatus`), not assumed from the 09-21 entry's final state.
+
+### The resolution
+
+Both branches merged `origin/main` in worktrees under the session scratchpad (no concurrent session detected on this box). **E72: `BACKLOG.md` and `JOURNAL.md` both auto-merged cleanly**; only `docs/lessons.md` conflicted (generated-content drift) and was regenerated via `extract-lessons.py --write`, never hand-merged. **A36: `BACKLOG.md` auto-merged cleanly; `JOURNAL.md` and `docs/lessons.md` both conflicted**, the same shape every prior A36 cycle documents — HEAD (A36's own branch) held the restored "Rotation" header block above the first dated entry, `origin/main` held the new 09-21 entry appended below where that header used to sit. Resolved by keeping HEAD's header block, then `origin/main`'s new entry, then the unconflicted remainder — one splice. `docs/lessons.md` regenerated the same way as E72's.
+
+**Verified nothing was lost by full three-way set comparison, not spot-checking:** collected every `## 202...` heading across the resolved branch's `JOURNAL.md` + both its archives (`JOURNAL-2026-09.md`, `JOURNAL-2026-08.md` — 449 headings total) and diffed against both `origin/main`'s unrotated `JOURNAL.md` (26 headings) and the branch's own pre-merge set across its own file + archives (448 headings, `ORIG_HEAD`). Zero headings present on either side and missing from the resolved set, in both directions.
+
+`check-next-block.py`, `check-id-refs.py` (E2-umbrella advisory only, standing and unrelated), `check-backlog-archived.py` and `check-links.py` all clean on both branches post-merge. `check-commit-completeness.py --record`/`--verify` around each commit, no discrepancy. Exported `GH_TOKEN`/`GIT_AUTHOR_*`/`GIT_COMMITTER_*` immediately before each `git commit`, per the 09-19 lesson; both commits landed authored as `tide-rack-bot` on the first attempt, `check-commit-authorship.py` clean on both, no `--reset-author` needed.
+
+Pushed both to their existing branches (STEP 1.5: fix in place, no new PRs) — `tide/mac/A36-journal-rotation-rule` and `tide/mac/E72-cable-dsp-dirty`. Did not touch #589 (E81), already `MERGEABLE`/`CLEAN`. Re-checked `mergeStateStatus` after both pushes (8-second wait, then `gh pr list`): both `MERGEABLE` again, `UNSTABLE` only on still-queued/pending compile legs (`gh pr checks` on both: nothing `fail`, only `pending`/`pass`/`skipping`) — nothing red.
+
+### What's new since 09-21: windows has filed a PR against A38 itself
+
+**[#597](https://github.com/JeffMcClintock/TideSynth/pull/597) (`tide/win/A38-bookkeeping-livelock`)** is now open — windows measuring and proposing "the cheap half" of A38's own per-lane-file fix. Read only, not touched: it is a `tide/win/**` branch (out of STEP 1.5's scope for this platform) and A38's own row says the ruling is Jeff's, not a run's, so its content is not something this cell acts on either way. Noted here because it is the first sign the livelock itself may be addressed rather than merely worked around every cycle.
+
+### What I did NOT do, deliberately
+
+- **Did not touch [#584](https://github.com/JeffMcClintock/TideSynth/pull/584)** (linux's `tide/linux/E79-clap-headless-document`) — STEP 1.5 is scoped to `tide/{PLATFORM}/**`.
+- **Did not touch [#597](https://github.com/JeffMcClintock/TideSynth/pull/597)** (windows' A38 proposal) for the same reason, and because acting on its content would be pre-empting Jeff's ruling.
+- **Did not re-walk STEP 2's backlog in depth** — walked the file order quickly: the TODO set (`A35`, `A38`, `S8`, `E19`, `X2`, `E2`, `E72`, `E76`, `E79`, `E80`, `E81`, `E82`, `E84`) is unchanged from the 09-21 cell's own walk and every row is ineligible for the same reasons already on record (parked on rulings, this platform's or another's own open PR, GATED/NEEDS-SPEC, linux-in-substance, wants the unlocked screen, or a workflow edit the bot's token cannot make). Screen locked throughout, same as the nine prior mac cells (09-07 through 09-21) — nothing GUI-dependent was attempted.
+- **Did not rotate `JOURNAL.md` further** — still blocked on #585 (A36) itself merging.
+
+**Learned:**
+
+- **The livelock is now confirmed on a fourth consecutive run boundary, same two branches, same recipe, same result.** Nothing about repeating this a seventh time changed the mechanics; the only new datum is that a fix is now proposed (#597) rather than only diagnosed.
+- **A full three-way heading-set comparison (resolved vs. `origin/main` vs. pre-merge `ORIG_HEAD`, each including archives) is cheap — one `grep`/`sort`/`comm` pipeline — and is strictly stronger evidence than the `grep -c` count check prior cells used**, since a count match can hide a swap (one entry dropped, a different one duplicated). Worth using this shape going forward rather than the cheaper count-only check.
+
+**Not verified:** the self-hosted `macos`/`windows` compile legs on both re-pushed PRs — still `pending` when this entry was written.
+
+**Machine state.** All repos started and ended clean on their default branches except `TideSynth`. No host was launched, no plug-in built or installed. Screen was locked throughout. Work done in `git worktree`s under the session scratchpad; the main checkout (`~/Documents/GitHub/TideSynth`) was untouched beyond a `fetch` and was left on `main`/`origin/main` throughout.
+
+**Next:** unchanged — merging **#585 (A36) first** unblocks `JOURNAL.md` rotation and is the highest-value single action available; every day it and #588 stay open costs another box another run repeating this recipe. **#597 is worth Jeff's attention specifically**, since it is the first PR that would change this recipe rather than just re-run it. The next run touching `BACKLOG.md`/`JOURNAL.md` should check `mergeStateStatus` per-PR, expect a possible `UNKNOWN` on the first read, and check whether #597 has merged before assuming this recipe is still the right one to reach for.
+
+**Branch/PR:** `tide/mac/2026-09-22-step15-conflicts` — this entry and the refreshed `mac` NEXT cell only. The two fixes are on `tide/mac/A36-journal-rotation-rule` and `tide/mac/E72-cable-dsp-dirty` themselves (their own pushed merge commits).
+
 ## 2026-09-21 — macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)
 
 **Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
