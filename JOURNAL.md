@@ -8,6 +8,44 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-24 — macos — STEP 1.5 for the eighth time: A36 and E72 re-conflicted after #606 and Jeff's two knob commits; #604 still awaiting merge (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.7032.0** (`CFBundleShortVersionString` of `/Applications/Claude.app`; earlier cells recorded 2.2553.1, so either the app updated or the earlier figure came from somewhere else) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1, then STEP 1.5, per the 09-23 cell's three-item "Next" list.
+
+### STEP 1: nothing new to fix
+
+The same five `platform:mac` issues are open: [#599](https://github.com/JeffMcClintock/TideSynth/issues/599) (`main`) and [#600](https://github.com/JeffMcClintock/TideSynth/issues/600)–[#603](https://github.com/JeffMcClintock/TideSynth/issues/603) (windows' branches). The fix is still [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) (`EXPECTED_PREFABS` 5 -> 3). It is **still open**, `CLEAN`/`MERGEABLE`, and every check passes (`gh pr checks 604`: `macos`, `linux`, `windows`, three `render-*` legs, `lint`, `e57-delete-key`, `guard` all `pass`). `origin/main` has not moved in code since the 09-23 cell: its tip is `0a8a87c` (#606, that cell's bookkeeping), and `git show origin/main:scripts/check-rack-populated.py` still says `EXPECTED_PREFABS = 5`, so `main` is still broken and still has exactly one fix waiting. **#599 stays open.** It can only be closed once #604 is on `main` and `main` has been rebuilt. Nothing was rebuilt this run, because nothing would have changed since yesterday's reproduction.
+
+### STEP 1.5: the resolution
+
+`mergeStateStatus` read via `gh pr list --json`: [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36) and [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) (E72) were `DIRTY`/`CONFLICTING` again. [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) (E81) and #604 were `CLEAN`. Both merges were done in `git worktree`s under the session scratchpad.
+
+- **E72:** `BACKLOG.md` and `JOURNAL.md` auto-merged. Only `docs/lessons.md` conflicted, and it was regenerated with `extract-lessons.py --write` (1,489 lessons from 349 entries).
+- **A36:** `BACKLOG.md` auto-merged. `JOURNAL.md` conflicted in the usual shape: HEAD had the Rotation header block, and `origin/main` had the new 09-23 and 09-22 entries. Resolved by keeping HEAD's block and then `origin/main`'s entries. `docs/lessons.md` was regenerated.
+- **Nothing lost, by the three-way heading-set comparison from the 09-22 entry.** Resolved branch plus archives: 451 unique headings. `origin/main`: 28. Pre-merge `ORIG_HEAD` plus archives: 449. Headings missing from the resolved set: 0 against either side. Duplicates across `JOURNAL.md` and its archives: 0.
+- `check-next-block.py`, `check-id-refs.py`, `check-backlog-archived.py` and `check-links.py` are clean on both branches. Both merges also pulled in Jeff's `ccda7ad`/`479d90a` (the two prefab deletions and the TiDEknob sources). That is expected, since those commits are on `main`.
+- `check-commit-completeness.py --record`/`--verify` bracketed both commits. `--verify` skips merge commits by design. `check-commit-authorship.py` is clean on both, and both were authored `tide-rack-bot` on the first attempt. `ls-remote --get-url origin` returned `https://` before each push.
+- Pushed to the existing branches. No new PRs. Read three times after the pushes: both are `MERGEABLE`. `UNSTABLE` only means the compile legs are still `pending`. Nothing is `fail`.
+
+### STEP 2: walked, nothing eligible
+
+The rows are the same set as 09-22: `A35`, `A38`, `S8`, `E19`, `X2`, `E2`, `E72`, `E76`, `E79`, `E80`, `E81`, `E82`, `E84`. Each one is ineligible for the same reason already on record. The screen was locked (`CGSSessionScreenIsLocked` present). `main`'s only code change since 09-17 is Jeff's knob fix, and that makes nothing newly eligible. E83 is still `IN-REVIEW` on `main` with #581 merged. Its flip is already on the E72 branch, per the 09-17 cell, so it was not repeated here.
+
+**Learned:**
+
+- **Once STEP 1's fix is in review, STEP 1 has no work left. It is still worth re-checking**, because the fix could merge overnight and turn "leave #599 open" into "rebuild `main` and close it". One `gh pr view 604 --json state` settles which case applies.
+- **Every mac bookkeeping PR re-conflicts #585 and #588 when it merges**, and this entry's PR will do the same. That is A38's mechanism, and nothing a run does on its own lane avoids it. The only exit is merging #585/#588 or ruling on A38 / [#597](https://github.com/JeffMcClintock/TideSynth/pull/597).
+
+**Not verified:** the compile legs on the re-pushed #585/#588 were still `pending` when this was written. `main` was not rebuilt, because it is unchanged since the 09-23 reproduction.
+
+**Machine state.** `~/Documents/GitHub/TideSynth` left on `main`, clean. The merges were done in worktrees under the scratchpad, which were removed afterwards. No other repo was touched, no host was launched, and nothing was built.
+
+**Next:** merge **#604** first, because it is the one thing standing between `main` and green. Then **#585** (A36), then #588/#589. The next mac run should check whether #604 has merged. If it has, build `TIDE_Rack_STANDALONE` from `main`, run `check-rack-populated.py`, and close #599 on a pass. After that, check `mergeStateStatus` on this platform's PRs as usual.
+
+**Branch/PR:** `tide/mac/2026-09-24-step15-conflicts` holds this entry and the refreshed `mac` NEXT cell. The merges themselves are on `tide/mac/A36-journal-rotation-rule` and `tide/mac/E72-cable-dsp-dirty`.
+
 ## 2026-09-23 — macos — STEP 1 was not empty: `main` itself was broken, fixed and verified (scheduled run)
 
 **Prompt:** b97bc00 · Sonnet 5, `claude-sonnet-5` · app Claude desktop **2.2553.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
