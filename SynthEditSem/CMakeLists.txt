@@ -201,31 +201,6 @@ gmpi_plugin(
 
 	  ${SYNTHEDITLIB_DIR}/modules/se_sdk3_hosting/ConnectorView.h
 	  ${SYNTHEDITLIB_DIR}/modules/se_sdk3_hosting/ConnectorView.cpp
-
-	  # BACKLOG U2d -- TIDE's fixed module set (PLAN constraint 7), modern half.
-	  # These TUs are compiled into SynthEditLib ONLY inside IF(SE2JUCE), so a
-	  # GMPI/VST3 product never links them and their static registrations never
-	  # run: GetById("SE List Entry") returned null and ModuleViewPanel rendered
-	  # empty -- silently, in Release (see the diagnostic in ModuleView.cpp).
-	  # Listed as direct target sources because archive members can be
-	  # dead-stripped but target sources cannot. Grow this list deliberately as
-	  # TIDE's module set grows; do NOT fix this by defining
-	  # SE_GRAPHICS_SUPPORT for the whole lib -- that wakes unrelated dormant
-	  # code (Controller.cpp, MpParameter.cpp) and double-registers modules in
-	  # the scanning editor.
-	  # Landed first: SE Background Image (modern GMPI PluginEditor, no legacy
-	  # widget layer) -- registered and VERIFIED drawing in REAPER. The classic
-	  # SDK3 controls (SE List Entry / SE Text Entry, ControlsXp) also register
-	  # and construct once listed here, but their widget layer assumes skin
-	  # bitmaps/fonts exist and crashes in initialize/measure/arrange when
-	  # widgets never build (three distinct SIGSEGVs, stacks in the U2d row).
-	  # Add them back WITH their deps (ClassicControlGuiBase,
-	  # sharedLegacyWidgets/*, shared/ImageCache+ImageMetadata+FontCache) once
-	  # that layer is fixed.
-	  # U2e: the classic SDK3 controls and their widget/resource deps. Their
-	  # widget layer needs GmpiResourceManager's Image folder seeded (see
-	  # TideApp::InitInstance) -- without it these crashed, which is why U2d
-	  # landed with them excluded.
 	  ${SYNTHEDITLIB_DIR}/modules/shared/ImageCache.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/shared/ImageMetadata.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/shared/FontCache.cpp
@@ -239,146 +214,32 @@ gmpi_plugin(
 	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/ListEntryGui.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/TextEntry.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/TextEntryGui.cpp
-	  # BACKLOG E48 -- the three modules the shipped prefabs use that TIDE never
-	  # registered, ruled in by Jeff 2026-08-27 ("we need to ship these extra
-	  # modules with TiDE"). In SynthEditLib these sit behind IF(SE2JUCE) in the
-	  # lib's own srcs and behind GMPI_IS_PLATFORM_JUCE in UgDatabase.cpp's
-	  # INIT_STATIC list, so linking the lib brings in neither; compiling the TU
-	  # into this target is what registers it, same as every entry above. The
-	  # symptom when one is missing is NOT a build error: the prefab inserts and
-	  # looks right, the saved document carries the type, and the RELOAD skips
-	  # the module, drops its connectors, and (before -quiet worked) blocked the
-	  # restore behind a captionless MessageBox. scripts/check-prefab-modules.py
-	  # screens for it; the authoritative census is a -quiet launch's stderr.
-	  # SE Scope3 XP: pins from ControlsXp.xml, already staged and read.
 	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/Scope3.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/ControlsXp/Scope3Gui.cpp
-	  # SynthEdit ADSR: Adsr derives from Envelope (Adsr.h), whose impl is
-	  # envelope.cpp -- the lib pairs them too. Pins from EnvelopeAdsr.xml,
-	  # staged in _tide_xmls below and read in TideApp.cpp (the two lists MUST
-	  # MOVE TOGETHER -- see the comment at the read loop).
 	  ${SYNTHEDITLIB_DIR}/modules/EnvelopeAdsr/Adsr.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/EnvelopeAdsr/envelope.cpp
-	  # SE Oscillator: registers withId (Oscillator.cpp:614), so its pins come
-	  # from Oscillator.xml -- staged and read like EnvelopeAdsr.xml. NOT the
-	  # same module as OscillatorHD below, whose id is "SE Oscillator4" -- a
-	  # string that CONTAINS this one's, which is how the offline screen
-	  # mistook this module for present (JOURNAL 2026-08-27).
 	  ${SYNTHEDITLIB_DIR}/modules/Oscillator/Oscillator.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/PlainImageGui.cpp
-	  # BACKLOG E15 -- SE Rectangle XP is gone: the rack faceplate is TIDE's own
-	  # SE TiDE:Panel now (modules/TiDEPanel, static via TIDE_STATIC_EXTRAS), so
-	  # RectangleGui.cpp and the SubControlsXp.xml staging both came off this
-	  # list. The two-halves rule its comment taught lives on at MIDItoGate2
-	  # below.
-
-	  # The rack prefabs' captions. `SE Label` is the ONE-LINE case: it registers
-	  # with Register<>::withXml, so it carries its own pin descriptions and needs
-	  # no entry in _tide_xmls below -- unlike RectangleGui.cpp above. Its skin
-	  # dependency degrades safely: the load is guarded on findResourceUri(
-	  # "global.txt") succeeding, and SkinMetadata::getFont never returns null
-	  # (it falls back to a default Arial). gmpi_helper::SkinMetadata::Serialise
-	  # (const char*) is already a defined symbol in libSynthEditLib -- checked
-	  # with nm, not assumed -- via SynthEditLib's own helpers/ImageMetadata.cpp,
-	  # so there is nothing else to add.
-	  #
-	  # NOTE THE COLOUR TRAP: SE Label has NO colour pin. Its colour comes from
-	  # the skin font style, and with no skin in the bundle that default is
-	  # OPAQUE BLACK. Captions are therefore only legible on a LIGHT faceplate,
-	  # which is why build-prefabs.py paints one rather than a dark one. A
-	  # screenshot taken with SynthEditCL is NOT evidence here -- the CLI
-	  # resolves an external skin folder the plugin bundle does not have, so
-	  # text can come out white there and black in the DAW.
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/LabelGui.cpp
-
-	  # BACKLOG V3/E7 -- SE MIDItoGate2, a MONOPHONIC MIDI-to-gate. Same two-halves
-	  # rule as RectangleGui.cpp above: this .cpp for the classes, and its pins
-	  # merged from MidiPlayer2.xml (staged below).
-	  #
-	  # It needs adding here for a reason worth writing down, because it is NOT
-	  # the reason it first looked like. MidiToGate.cpp is listed in
-	  # SynthEditLib/CMakeLists.txt, but in a source list belonging to a SEPARATE
-	  # `MidiPlayer2` target -- it is built as a loadable module, not compiled into
-	  # the SynthEditLib static library. So no INIT_STATIC_FILE can rescue it:
-	  # adding one to UgDatabase.cpp fails to link outright, because the object is
-	  # not in the library. `modules/OscillatorNaive/OscillatorNaive.cpp` sits in
-	  # the same list, which is what S8 measured.
-	  #
-	  # TIDE links statically and has no scan (S1a), so a loadable module is
-	  # invisible to it until its source joins a target TIDE actually links --
-	  # which is this one.
+	  ${SYNTHEDITLIB_DIR}/modules/Controls/ButtonGui.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/MidiPlayer2/MidiToGate.cpp
-
-	  # BACKLOG E7 -- THE TYPE CONVERTERS, and this is not a nice-to-have.
-	  #
-	  # The DSP graph auto-inserts a converter module whenever two connected pins
-	  # have different datatypes: ug_base.cpp:1751 builds an id like
-	  # "SE <From>To<To>" and calls ModuleFactory()->GetById(). If that lookup
-	  # misses, the code does `assert(false); return;` -- so in a RELEASE build the
-	  # assert compiles out and **the connection is silently abandoned**. The
-	  # editor still shows the cable; the DSP simply never carries it.
-	  #
-	  # TIDE had none of these, because Converters.cpp builds into a separate
-	  # `Converters` target as a loadable Converters.sem, and TIDE links statically
-	  # with no scan (S1a). That is why SE MIDItoGate2's BoolOutPin gate never
-	  # reached the Envelope: bool -> audio-rate needs "SE BoolToVolts"
-	  # (Converters.cpp:137), which did not exist in TIDE.
-	  #
-	  # So this is a whole CLASS of silent failure, not one module's bug: any
-	  # mixed-datatype cable a user draws in TIDE would go quietly dead. Staged
-	  # with Converters.xml below for its pins, same two-halves rule as the rest.
 	  ${SYNTHEDITLIB_DIR}/modules/Converters/Converters.cpp
-	  # Converters.cpp instantiates SimpleConverter<From,To> for every pair, and
-	  # each one calls myTypeConvert<From,To>() -- whose specialisations live in a
-	  # separate translation unit. Without it the link fails on a wall of
-	  # undefined myTypeConvert<...> symbols.
+	  ${SYNTHEDITLIB_DIR}/modules/Converters/ConvertersGui.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Converters/my_type_convert.cpp
-
-	  # BACKLOG E2c -- TIDE's two GO-TO MVP MODULES, named by Jeff 2026-08-19.
-	  #
-	  # Same shape as MidiToGate.cpp and Converters.cpp above, and for the same
-	  # reason: both of these build into SEPARATE loadable targets (`VaFilters`,
-	  # `OscillatorHD`) rather than into the SynthEditLib static library, so no
-	  # INIT_STATIC_FILE can reach them -- UgDatabase.cpp already HAS
-	  # `INIT_STATIC_FILE(SVFilter4)` at :1114 and the class was still absent from
-	  # TIDE. That list is SynthEditLib's; TIDE links a subset of it, so it is not
-	  # a menu of what TIDE can instantiate.
-	  #
-	  # Measured before and after with the check that discriminates -- the
-	  # static-init SYMBOL, not the module-id string, which gives false positives
-	  # via the rename table at CUG.cpp:301 (see build-prefabs.py:514).
-	  #
-	  # SE SV Filter4 ("StateVar Filter"): Signal / Pitch / Resonance / Strength /
-	  # Mode / Output. Its pins live in VaFilters.xml, staged below -- without that
-	  # the class links but has no pins and the browser does not list it, exactly
-	  # the trap MidiPlayer2.xml records.
+	  ${SYNTHEDITLIB_DIR}/modules/shared/expression_evaluate.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/Converters/FloatFormulaGui.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/Converters/FloatFormulaGui.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/VaFilters/SvFilter.cpp
-
-	  # SE Oscillator4 ("Oscillator HD"): Pitch / Pulse Width / Waveform / Sync ...
-	  # NEEDS NO XML -- it registers with Register<>::withXml(R"XML(...)") inline in
-	  # its own .cpp (Oscillator.cpp:1054), the way MidiToCv2 does, so there is
-	  # nothing to stage for it. Do not add an OscillatorHD entry to _tide_xmls
-	  # looking for one; there is no such file.
 	  ${SYNTHEDITLIB_DIR}/modules/OscillatorHD/Oscillator.cpp
-	  # Oscillator HD builds its mipmapped wavetables with an FFT, and realft()
-	  # lives in a separate translation unit -- the same second-TU rule
-	  # my_type_convert.cpp records for Converters. Without it the link fails on
-	  # exactly one symbol: `realft(float*, unsigned int, int)`, referenced from
-	  # MipMapCalculator::generateWavetable in Oscillator.o.
 	  ${SYNTHEDITLIB_DIR}/modules/shared/real_fft.cpp
-
-	  # TideAppStubs.cpp supplies the three symbols EditorLib references from
-	  # SynthEditApp -- theApp, SafeMessagebox, and two licensing predicates.
-	  # It replaces compiling the whole of SynthEdit2/SynthEditApp.cpp, which
-	  # brought SynthEditApp::InitInstance() (a LoadOrScanModuleData() call site,
-	  # a filesystem-watcher thread and the settings-file writes) into the
-	  # plugin binary even though TIDE never calls it. BACKLOG S1b; see the
-	  # header comment in that file for why behaviour is unchanged. It also
-	  # replaces platform_plugin.cpp's stubs -- that file's SafeMessagebox would
-	  # collide, and its GmpiResourceManager::Instance() is superseded by
-	  # EditorLib's GmpiResourceManager_editor.cpp.
 	  AboutPane.h
 	  TideAppStubs.cpp
+      #Patchmems, XML also needs including.
+      ${SYNTHEDITLIB_DIR}/modules/PatchMemory/PatchMemoryFloat.cpp
+      ${SYNTHEDITLIB_DIR}/modules/PatchMemory/PatchMemoryfloatGui.cpp
+      ${SYNTHEDITLIB_DIR}/modules/PatchMemory/PatchMemoryBool.cpp
+      ${SYNTHEDITLIB_DIR}/modules/PatchMemory/PatchMemoryBoolGui.cpp
+      ${SYNTHEDITLIB_DIR}/modules/SubControls4/IntToBoolsGui.cpp
 )
 
 # BACKLOG M1 -- plist_util is an AU-ONLY helper, and TIDE's own global include
@@ -762,55 +623,44 @@ else()
   set(TIDE_TRACE_LOG_DEFS "")
 endif()
 
-# Bundle data, staged into EVERY format target.
-#
-# This block used to be `if(APPLE)` around a single add_custom_command naming
-# the VST3 target, which meant the GMPI build never got ControlsXp.xml and no format got it
-# on Windows -- the gap U2e's row flags. E2a's prefabs would inherit exactly the
-# same gap, so both are staged together here rather than repeating the mistake.
-#
-# BundleInfo::getResourceFolder() (SynthEditLib/modules/se_sdk3_hosting/
-# BundleInfo.cpp:258) is what reads these back, and on every platform where the
-# plugin is a BUNDLE it answers "<...>/Contents/Resources". That is the one
-# layout this block produces.
-#
-# KNOWN LIMIT, stated rather than hidden: a non-bundle target on Windows (the
-# standalone .exe) resolves resources through getImbeddedFileFolder() instead,
-# so it needs the resources embedded rather than copied. Nothing does that yet;
-# on Windows the standalone will report the missing folder on stderr and run
-# with an empty Prefabs group rather than misbehaving.
-
-# U2e — the classic controls' pin descriptions; E2a — the sub-controls'.
-# Merge-only enrichment for classes TIDE already links (see the loop in
-# TideApp::InitInstance), so an entry whose .cpp is not in the source list
-# above is skipped rather than becoming a phantom browser entry.
-# MidiPlayer2.xml joined for BACKLOG V3/E7: SE MIDItoGate2 registers with
-# sesdk::Register<>::withId, so its pins live in that file rather than inline
-# in its .cpp the way MidiToCv2's do -- without it the class is linked but has
-# no pins, and TIDE's browser does not list it at all.
-# ONE list, used by EVERY staging block below -- the shared Windows target,
-# the per-target commands, and the installed-bundle re-stage. Hoisted out of
-# the per-format loop with #314 so the Windows target, which is built once
-# outside that loop, reads the same list rather than a copy of it.
-#
-# It used to be a loop here and a hand-enumerated pair of copies for the
-# installed bundle, which meant adding an XML got it into the build tree and NOT
-# into the plugin the DAW loads -- silently, and indistinguishable from the
-# module not being linked. Cost a debugging cycle on V3; do not split them
-# again.
+#include the XMLs for SDK3 modules
 set(_tide_xmls
+  PatchMemory/PatchMemory.xml
   ControlsXp/ControlsXp.xml
   MidiPlayer2/MidiPlayer2.xml
   Converters/Converters.xml
-  # E48 -- pins for SynthEdit ADSR and SE Oscillator, whose .cpps register
-  # withId and describe nothing inline. Scope3 needs no new entry: its pins
-  # are in ControlsXp.xml above.
   EnvelopeAdsr/EnvelopeAdsr.xml
   Oscillator/Oscillator.xml
-  # E2c -- SE SV Filter4's pins. Oscillator HD is NOT here on purpose: its XML
-  # is inline in its own .cpp, so it needs no staging.
   VaFilters/VaFilters.xml
 )
+
+# module XML goes here too. automatic.
+set(_tide_xml_leaves "")
+foreach(_tide_xml ${_tide_xmls})
+  get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
+  string(APPEND _tide_xml_leaves "\t\"${_tide_xml_leaf}\",\n")
+endforeach()
+
+set(_tide_xmls_header "${CMAKE_CURRENT_BINARY_DIR}/TideStagedXmls.h")
+file(GENERATE OUTPUT "${_tide_xmls_header}" CONTENT
+"// GENERATED from _tide_xmls in SynthEditSem/CMakeLists.txt -- do not edit.
+#pragma once
+
+inline constexpr const char* kTideStagedXmls[] = {
+${_tide_xml_leaves}};
+")
+
+# The generated header lives in the binary dir, so put that on the include path.
+foreach(_fmt ${FORMATS_LIST})
+  if(_fmt STREQUAL "GMPI")
+    set(_tide_target ${PROJECT_NAME})
+  else()
+    set(_tide_target ${PROJECT_NAME}_${_fmt})
+  endif()
+  if(TARGET ${_tide_target})
+    target_include_directories(${_tide_target} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+  endif()
+endforeach()
 
 # FORMAT TARGETS THAT SHARE ONE DESTINATION STAGE ONCE, TOGETHER -- issue #314.
 #

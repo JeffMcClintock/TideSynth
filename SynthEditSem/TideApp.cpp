@@ -27,6 +27,7 @@
 #include "notify.h" // Notifiable / Notifier — required transitively by ModuleBrowser.h
 #include "ModuleBrowser.h"
 #include "PropertiesBrowser.h"
+#include "TideStagedXmls.h"          // generated from _tide_xmls
 #include <cstdarg>                   // tideDiag's varargs -- BACKLOG M6
 #if defined(__APPLE__)
 #include <os/log.h>                  // the one diagnostic channel an appex can reach -- BACKLOG M6
@@ -819,7 +820,8 @@ bool TideApp::InitInstance()
 	{
 		s_xmlMerged = true;
 
-		for (const auto* resourceName : { "ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilters.xml", "EnvelopeAdsr.xml", "Oscillator.xml" })
+		// Generated from _tide_xmls in CMakeLists.txt -- add new XMLs there.
+		for (const auto* resourceName : kTideStagedXmls)
 		{
 			const auto xml = BundleInfo::instance()->getResource(resourceName);
 			if (xml.empty())
