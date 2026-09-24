@@ -99,7 +99,7 @@ Posted as a [comment on #604](https://github.com/JeffMcClintock/TideSynth/pull/6
 3. **[#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36) before any `JOURNAL.md` rotation**, then rotate — nine cells have now deferred it.
 4. **A39** if this lane is otherwise empty, and it very likely is: the queue was already empty on 09-18 and nothing has entered it since.
 
-**Branch/PR:** `tide/win/2026-09-24-step15-conflicts` holds this entry, the refreshed `win` NEXT cell and the A39 row. The four merges are on their own branches and pushed — `e15c5fe73` (#597), `7d5beb6cd` (#586), `a901ba42e` (#587), `cd7d5c65f` (#590).
+**Branch/PR:** [#612](https://github.com/JeffMcClintock/TideSynth/pull/612) on `tide/win/2026-09-24-step15-conflicts` holds this entry, the refreshed `win` NEXT cell and the A39 row. The four merges are on their own branches and pushed — `e15c5fe73` (#597), `7d5beb6cd` (#586), `a901ba42e` (#587), `cd7d5c65f` (#590).
 
 ## 2026-09-24 — macos — STEP 1.5 for the eighth time: A36 and E72 re-conflicted after #606 and Jeff's two knob commits; #604 still awaiting merge (scheduled run)
 
