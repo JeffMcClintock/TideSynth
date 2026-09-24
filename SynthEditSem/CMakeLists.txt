@@ -232,6 +232,9 @@ gmpi_plugin(
 	  ${SYNTHEDITLIB_DIR}/modules/VaFilters/SvFilter.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/OscillatorHD/Oscillator.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/shared/real_fft.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/Logic/SampleAndHold2.cpp  # registers withXml, no _tide_xmls entry
+	  ${SYNTHEDITLIB_DIR}/modules/FloatToVolts2/FloatToVolts2.cpp  # ditto; its INIT_STATIC_FILE is JUCE-only
+	  ${SYNTHEDITLIB_DIR}/modules/Converters/FloatToText.cpp  # pins already in Converters.xml; INIT_STATIC_FILE is SE_GRAPHICS_SUPPORT-only
 	  AboutPane.h
 	  TideAppStubs.cpp
       #Patchmems, XML also needs including.
