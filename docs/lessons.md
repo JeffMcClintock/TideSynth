@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **450 KB** across **351** entries, so copying them
+Learned sections are **453 KB** across **352** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **142 KB / 1499 lessons — 3.2x smaller**, and represents
+A8. This is **143 KB / 1505 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,15 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-24
+
+**windows — STEP 1.5 again, but the four red `macos` checks were `main`'s break and not the branches': all four now CLEAN and green (scheduled run)**
+
+- A red CI check on a branch that has sat for days is a claim about the branch AND its base, and the fleet has been reading only the first half.
+- Read where in the job a red check died, not just that it died.
+- A gate whose expectation is a hand-maintained constant will go stale at exactly the rate the thing it counts changes.
+- Two correct fixes for one break, applied in opposite directions on two branches, is worse than one.
+- `JOURNAL.md` has literal conflict markers in its prose
+- The `mac` NEXT cell is 53,474 bytes on one line
 
 **macos — STEP 1.5 for the eighth time: A36 and E72 re-conflicted after #606 and Jeff's two knob commits; #604 still awaiting merge (scheduled run)**
 
