@@ -95,7 +95,8 @@ EXPECTED_XMLS = ("ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilte
 # hours for the second time in one day. If you delete a prefab, this number
 # moves with it; the gate's own failure text says so, and it is the only thing
 # that catches a prefab that silently failed to stage.
-EXPECTED_PREFABS = 5
+# 7 since AR, Keyboard, Logger and Sine were committed (2026-09-24).
+EXPECTED_PREFABS = 7
 
 # The AudioComponent this project registers -- SynthEditSem/CMakeLists.txt:162.
 AU_TYPE, AU_SUBTYPE, AU_MANUFACTURER = "aumu", "Drck", "Dsyh"
