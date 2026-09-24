@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **460 KB** across **354** entries, so copying them
+Learned sections are **461 KB** across **355** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **145 KB / 1521 lessons — 3.2x smaller**, and represents
+A8. This is **145 KB / 1523 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,13 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-24
+
+**macos — STEP 1.5 for the eighth time: A36 and E72 re-conflicted after #606 and Jeff's two knob commits; #604 still awaiting merge (scheduled run)**
+
+- Once STEP 1's fix is in review, STEP 1 has no work left. It is still worth re-checking
+- Every mac bookkeeping PR re-conflicts #585 and #588 when it merges
 
 ## 2026-09-23
 
