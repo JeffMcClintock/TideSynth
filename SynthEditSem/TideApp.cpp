@@ -672,6 +672,12 @@ gmpi::hosting::QueuedUsers* TideApp::PendingDspClients()
 	return &synthRuntime.pendingProcessorQueueClients;
 }
 
+// Same again. Gated on SynthRunning(), pin-default edits ("setd") were dropped.
+gmpi::hosting::IWriteableQue* TideApp::MessageQueToDspOrNull()
+{
+	return synthRuntime.MessageQueToDsp();
+}
+
 bool TideApp::setQuiet(bool newValue)
 {
 	const bool previous = quiet;
