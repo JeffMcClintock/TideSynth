@@ -8,6 +8,99 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-24 — windows — STEP 1.5 again, but the four red `macos` checks were `main`'s break and not the branches': all four now CLEAN and green (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.7032.0** · as **tide-rack-bot** (both paths — REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, which is the number in `GIT_AUTHOR_EMAIL`; transport assertion printed `git@github.com:`)
+
+**Did:** STEP 1, then STEP 1.5, which was the whole run — the fifth consecutive `win` cell for which that is true, exactly as the 09-18 and 09-23 cells predicted. **All four of this lane's PRs are now `CLEAN` / `MERGEABLE` with 13 SUCCESS + 2 SKIPPED and zero failures**, which is the first time this lane has had all four simultaneously green and unconflicted.
+
+### STEP 1: the feed is structurally empty, so `main`'s own build is the real check
+
+`gh issue list --label platform:win --state open` → empty, and that still verifies nothing: `build.yml:523` excludes `matrix.platform != 'win'` from filing platform issues, so this lane's STEP 1 feed cannot fill. Read `main`'s latest `build` instead — **green on all seven jobs at `7f9716996`** (run [35960104114](https://github.com/JeffMcClintock/TideSynth/actions/runs/35960104114)): `guard`, `render-windows`, `render-linux`, `render-macos`, `linux`, `windows`, `macos`.
+
+The five open `platform:mac` issues ([#600](https://github.com/JeffMcClintock/TideSynth/issues/600)–[#603](https://github.com/JeffMcClintock/TideSynth/issues/603), [#609](https://github.com/JeffMcClintock/TideSynth/issues/609), [#610](https://github.com/JeffMcClintock/TideSynth/issues/610)) are `github-actions`-authored and four of them name **this lane's** branches. They are not mine to fix — STEP 3's "do not fix build failures for a platform you cannot compile on" — but they were the entry point to the finding below, and #600–#603 are answered by it.
+
+### STEP 1.5: four CONFLICTING PRs, and a red check that was not theirs
+
+All four `tide/win/**` PRs were `CONFLICTING` **and** carried a red `macos` check: [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) (E80), [#587](https://github.com/JeffMcClintock/TideSynth/pull/587) (E82), [#590](https://github.com/JeffMcClintock/TideSynth/pull/590) (E19), [#597](https://github.com/JeffMcClintock/TideSynth/pull/597) (A38). No reviews, no unresolved comments.
+
+The conflicts were A38's shape exactly, for the sixth-plus time: **`BACKLOG.md`, `JOURNAL.md`, `docs/lessons.md` on every one of the four, and never a line of code.** Resolved by the standing recipe, in worktrees:
+
+- **`JOURNAL.md` by set arithmetic.** One hunk per branch, `main`'s 09-24 macos entry against the branch's 09-23 windows entry, both kept, newest first. Verified rather than eyeballed — on #597: branch 31 entries, `main` 29, result **32**, with `comm` showing **0 missing from the union and 0 extra**.
+- **`docs/lessons.md` regenerated, never merged** — `extract-lessons.py --write` then `--check` (exit 0) on each. The counts differ per branch (1499/1523/1507/1508 lessons from 351/355/353/353 entries) because each branch carries its own entries, which is the tell that the regeneration is reading the merged journal and not a stale copy.
+- **`BACKLOG.md` by ownership** — the `win` row from the branch (09-23, its own lane and the newer of the two), the `mac` row from `main` (09-24, likewise). One hunk, two rows, on all four.
+
+**One trap avoided by measuring instead of grepping:** `JOURNAL.md` contains literal conflict-start markers in prose — three occurrences, from earlier entries discussing merges — so a naive marker count says "3 left" on a fully resolved file. Anchor on line-start markers (`grep '^<<<<<<<'`), and let the set arithmetic be the actual proof.
+
+Lint green on all four before committing: `check-id-refs`, `check-links`, `check-next-block`, `extract-lessons --check`, `check-journal-prepend`, `check-backlog-diff`, `check-prompt-provenance` — all exit 0. `check-commit-completeness --record`/`--verify` around each commit (`--verify` correctly skips on a merge commit), and `check-commit-authorship --repo .` clean on all four (10/29/22/23 commits, all `tide-rack-bot`).
+
+### The finding: a stale branch's red check can be the BASE's break, and costs one command to tell apart
+
+**The red `macos` check on all four was not a compile break and was not caused by these branches.** The log shows the build reaching `[100%] Built target TIDE_Rack_AU3_assemble`, signing the bundle, and *then* failing the rack-content gate:
+
+```
+FAIL 3 rack prefab(s) seeded, expected 5.
+1 assertion(s) failed -- the rack did NOT come up populated.
+```
+
+That is `main`'s break, already fixed on `main`, and the four branches inherited it by being based before the fix. The mechanism, read out of the tree rather than guessed — `EXPECTED_PREFABS` against the actual `RackModules/*.synthedit` count at each revision:
+
+| rev | date | shipped | `EXPECTED_PREFABS` | gate |
+|---|---|---|---|---|
+| `ccda7ad97` "fix knobs not drawing" | 09-22 | 3 | 5 | **RED** |
+| `479d90acf` | 09-22 | 3 | 5 | **RED** |
+| `7738abf90` | 09-24 | 3 | 5 | **RED** |
+| `53a23a03e` "Ship the AR, Keyboard, Logger and Sine rack prefabs" | 09-24 | **7** | **7** | green |
+| `7f9716996` (current `main`) | 09-24 | 7 | 7 | green |
+
+**So the fix for four red checks was the merge itself, with no code change from this run at all**, and that is the measurement: `macos` **FAILURE → SUCCESS on all four**, same branches, the only new commit on each being the merge of `origin/main`.
+
+**The cheap discriminator, which this lane should reach for before ever treating a red check as its own defect:** ask whether `main` was red at the branch's merge-base and green now. `gh run list --branch main --workflow build.yml` answers it in one command — here it read `failure` at `ccda7ad97` (09-21) and `479d90acf` (09-22), `success` at `53a23a03e` and `7f9716996` (09-24). A red check on a branch that has sat for days is a claim about the branch **and** its base, and the fleet has been reading it as the former.
+
+### Second finding: [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) is superseded, and merging it would re-break the gate the other way
+
+The `mac` NEXT cell on `main` says *"merge **#604** first, because it is the one thing standing between `main` and green."* That was true when written and is not now. #604 changes one file, `scripts/check-rack-populated.py`, setting `EXPECTED_PREFABS = 3`; Jeff fixed the same mismatch on `main` by **addition** instead (`53a23a03e` shipped the four missing prefabs and moved the constant to 7). The comparison is `count != expect_prefabs` at `scripts/check-rack-populated.py:255`, strict in both directions. Run against the gate's own `check()`, no build required:
+
+```
+main's EXPECTED_PREFABS = 7
+expect_prefabs=7 (main as it stands) -> PASS
+expect_prefabs=3 (#604's value)      -> FAIL
+   FAIL: 7 rack prefab(s) seeded, expected 3.
+```
+
+Posted as a [comment on #604](https://github.com/JeffMcClintock/TideSynth/pull/604#issuecomment-5812386072) with that transcript. **Not merged, not closed, not modified** — it is another platform's PR, and it is `DIRTY` against `main` anyway, so nothing lands without someone looking. The durable part of #604 is its *diagnosis*, which is correct and which its added comment states well; only its resolution direction is stale.
+
+**Filed A39** for the underlying defect: the gate couples a hand-maintained constant to the contents of a directory, so any commit that changes `RackModules/` without it turns `main` red. **Third occurrence** — `14a8fd376` and `322df0f27` (both 08-26), now `ccda7ad97` (09-22) — and `995ebfab2`'s own subject line is *"main is red: EXPECTED_PREFABS was 7, RackModules/ holds 5"*. `main` already contains the same class of fix next door, `7738abf90` *"TIDE: read every staged pin XML, not a hand-copied list of them"*, landed the same day for the same reason, which is the shape A39 should copy. Grepped `origin/main`'s `BACKLOG.md` for `check-rack-populated.py` and `EXPECTED_PREFABS` before filing, per STEP 3: the only hit is the `mac` NEXT cell, not a row, so A39 is not a duplicate of the macOS box's work — their work is #604, which is the instance, not the class.
+
+**Learned:**
+
+- **A red CI check on a branch that has sat for days is a claim about the branch AND its base, and the fleet has been reading only the first half.** Four `platform:mac` issues (#600–#603) were filed against this lane's branches for a break that was `main`'s, and no run had to fix anything: the merge that STEP 1.5 was going to do anyway cleared all four. One command tells the cases apart — `gh run list --branch main --workflow build.yml` — and it is worth running before reading the compiler output, let alone before filing.
+- **Read where in the job a red check died, not just that it died.** This one reached `[100%] Built target` and signed the bundle before failing a *content gate*, which makes "Build failure on macos" the wrong description of every one of #600–#603. Nothing compiles differently on the four branches; the issue title says otherwise and cost the mac lane a real investigation.
+- **A gate whose expectation is a hand-maintained constant will go stale at exactly the rate the thing it counts changes.** Three occurrences in a month for `EXPECTED_PREFABS`, each turning `main` red for a day or more, each fixed by editing the constant — which is the fix that guarantees a fourth. The constant's own comment predicts its staleness ("if you delete a prefab, this number moves with it"), and a comment that accurately predicts the defect is evidence the design is wrong, not that the warning is sufficient.
+- **Two correct fixes for one break, applied in opposite directions on two branches, is worse than one.** #604 lowered the expectation, `main` raised the supply; both were right when made, and the second silently turned the first into a regression. When a fleet branch fixes a break on `main`, its PR is only valid while `main` has not fixed it differently — so check the base's own history before merging a days-old build fix, not only its mergeability.
+- **`JOURNAL.md` has literal conflict markers in its prose**, so a bare `grep -c` for them on a resolved file is not zero and that is not a bug. Anchor at line start and verify the resolution by set arithmetic over `^## 2026` headings; it caught nothing wrong here, which is the point of running it.
+- **The `mac` NEXT cell is 53,474 bytes on one line** — A37's curve continuing: 41,216 on 09-18, so **+30% in six days**. `BACKLOG.md` is 306,755 bytes and `JOURNAL.md` 302,984. A38's measurement stands and its PR is now green and clean.
+
+**Not verified:**
+
+- **Nothing was built on this box, and no host was launched.** The developer was at the machine all run (below), so the `macos` → SUCCESS result is CI's, not a local reproduction, and the A39 mechanism is read out of `git ls-tree` counts plus the gate's own `check()` rather than from a standalone binary. The `check()` run is a genuine execution of the shipped comparison against a synthetic transcript of the shape the gate parses — it proves the direction of the inequality, not that any particular binary seeds seven prefabs.
+- **A39 is filed, not started.** No attempt was made to derive the count from the staged prefabs.
+- **`JOURNAL.md` NOT rotated — ninth consecutive cell to defer it.** 302,984 bytes / 29 entries against A24's 60 KB ceiling. Five PRs from this lane are now open and a rotation rewrites the bottom of the file, so it would conflict with all five at once; [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36), which restores the rotation instruction currently ABSENT from `main`, is still open and should land first.
+- **#584 (linux) and the three `tide/mac/**` PRs were left alone.** STEP 1.5 is scoped to this platform's branches. #604 got a comment and nothing else.
+
+**Machine state.** `C:\SE\TideSynth` left on `main`, and **it never left it** — all five branches were handled in `git worktree`s under the scratchpad, which are removed. **The developer was at the machine for the whole run**: three Visual Studio instances (`TiDEModules — TiDEPanelGui.cpp`, `TideSynth — SeAudioMaster.cpp`, `SynthEditStore — ResizeAdorner.cpp`) plus Slack, per `Get-Process | Where-Object { $_.MainWindowTitle }`. No build, no host, no screenshot, no screen taken — and a text-merge run is the right thing to take on a busy box, which is the third consecutive `win` cell to say so.
+
+**Two files in that checkout are dirty and were left strictly alone**: `SynthEditSem/TideApp.cpp` (+6 lines) and `SynthEditSem/TideApp.h` (+1), both `mtime` 2026-09-24 17:43, i.e. **during this run**. They are STEP 5's third kind — the developer's work in progress — and **not** CRLF churn: `git diff --ignore-all-space` returns 17 and 12 lines respectively, so there is real content there. Not committed, not reverted, not stashed. They are plausibly the live edit behind the `TideSynth` VS window.
+
+**Next:**
+
+1. **Merge the four `tide/win/**` PRs — they are all `CLEAN`, `MERGEABLE` and 13/13 green right now**, and that state is perishable: A38 measures that any merge into `main` re-conflicts the rest, so merging them as a batch is worth more than merging one and coming back.
+2. **Do NOT merge [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) on the strength of the `mac` cell's instruction.** See the second finding; its comment carries the transcript.
+3. **[#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36) before any `JOURNAL.md` rotation**, then rotate — nine cells have now deferred it.
+4. **A39** if this lane is otherwise empty, and it very likely is: the queue was already empty on 09-18 and nothing has entered it since.
+
+**Branch/PR:** [#612](https://github.com/JeffMcClintock/TideSynth/pull/612) on `tide/win/2026-09-24-step15-conflicts` holds this entry, the refreshed `win` NEXT cell and the A39 row. The four merges are on their own branches and pushed — `e15c5fe73` (#597), `7d5beb6cd` (#586), `a901ba42e` (#587), `cd7d5c65f` (#590).
+
 ## 2026-09-24 — macos — STEP 1.5 for the eighth time: A36 and E72 re-conflicted after #606 and Jeff's two knob commits; #604 still awaiting merge (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.7032.0** (`CFBundleShortVersionString` of `/Applications/Claude.app`; earlier cells recorded 2.2553.1, so either the app updated or the earlier figure came from somewhere else) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
