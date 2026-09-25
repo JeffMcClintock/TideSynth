@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **463 KB** across **356** entries, so copying them
+Learned sections are **449 KB** across **351** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **146 KB / 1529 lessons — 3.2x smaller**, and represents
+A8. This is **142 KB / 1495 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,14 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-25
+
+**macos — STEP 1 was two inherited gate failures on this lane's own PRs, fixed by the STEP 1.5 merge; #604 superseded (scheduled run)**
+
+- One merge can clear both a CONFLICTING state and a red check, and when it does, STEP 1 and STEP 1.5 are one piece of work.
+- The fleet's own fix can go stale.
+- `check-journal-prepend.py`, `check-backlog-diff.py` and `check-prompt-provenance.py` take files, not git refs.
 
 ## 2026-09-24
 
@@ -55,16 +63,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-23
 
-**windows — a whole-fleet merge sweep lands exactly TWO of nine open PRs, and one of the two has to be #604 (scheduled run)**
-
-- A sweep's depth is a property of branch-vs-branch agreement, and resolving every branch against `main` cannot raise it.
-- The PR that merges alongside others is the one that touches no bookkeeping file, and that is one command per PR to check.
-- `git merge-tree --write-tree` plus `git commit-tree` replays a whole merge sweep with no checkout, no worktree and no working-tree mutation.
-- A subset-memoised search reports a FLOOR, so brute-force the small depths before publishing the headline.
-- `JOURNAL.md` quotes conflict-marker strings inside its own prose, so every marker regex must be line-anchored.
-- `check-backlog-diff.py`'s `--changed-file` list must include WORKING-TREE changes, not just `origin/main...HEAD`.
-- An auto-merge tier that allowlists bookkeeping and fails closed on code makes the fleet structurally faster at recording a problem than at fixing it.
-
 **macos — STEP 1 was not empty: `main` itself was broken, fixed and verified (scheduled run)**
 
 - STEP 1 finding real work is rare enough on this platform (first time since 09-07) that it is worth stating plainly: the fix protocol worked as documented
@@ -80,13 +78,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-21
 
-**windows — the conflict was provably about nothing: all four NEXT lanes hashed at the merge base, and every merge to `main` in eleven days is bookkeeping (scheduled run)**
-
-- "Disjoint" is a hashable property, and hashing it converts a merge argument into a fact.
-- A file whose convention is "newest at the top" hands every concurrent writer the same insertion anchor, so it conflicts by construction rather than by bad luck.
-- A convention recorded in one lane's NEXT cell cannot reach another lane, and the cost is measurable in whole runs.
-- Check the whole population, not the three the rule names.
-
 **macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)**
 
 - The livelock is now confirmed on its third consecutive run boundary, always the same two branches once #589 (E81) stopped re-conflicting.
@@ -101,13 +92,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Once the export-immediately-before-commit discipline from the 09-19 entry is followed, the authorship failure it describes does not recur
 
 ## 2026-09-19
-
-**windows — nine days, zero product lines on `main`: A38's Accept clause measured, and its `PROPOSED:` entry finally filed (scheduled run)**
-
-- "The fleet is slow" and "the fleet has stopped" are different claims, and the second is checkable in one command.
-- A conflict-avoidance trick that equalises one line does not survive an edit to the line next to it, and adjacency beats content.
-- When you must edit a shared file that other open PRs also edit, append and touch no existing line.
-- A proposal that asks for a ruling should arrive with its own Accept clause already measured, and a merge-layout question can be measured with throwaway repos in seconds.
 
 **macos — STEP 1.5 for the fourth time on the same three PRs: A38's livelock, confirmed to recur across a run boundary (scheduled run)**
 
@@ -138,43 +122,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The `platform:X` issue-label check is worth running across every repo the fleet touches, not just this one
 - A row's "no producer" finding can be an artifact of which module got tested, not a property of the mechanism.
 - Check unmerged sibling branches' own `BACKLOG-DONE.md` before flipping an `IN-REVIEW` row on `main`
-
-## 2026-09-16
-
-**windows — E80: the blob had nowhere to go — the fixture's Scope carries no patch parameters (scheduled run)**
-
-- Before believing a channel is broken, ask what it IS carrying.
-- Read the whole stderr, not the counters you came for.
-- A module handle that looks hand-typed probably is.
-- When a fixture is the suspect, ask the product what IT writes.
-- The check that caught the last fixture defect is blind to this one, by construction.
-- A screen with a measured false-alarm rate is publishable; one with a growing allowlist is not.
-- Say "screen" and "proof" in the tool, not in the write-up.
-- `git status` before assuming a helper script is yours.
-- Survey the sibling repos at the END as well as the start, and say which way the dirt moved.
-- The 2026-09-11 "stop using the overrides" remedy is not a preference on this box, it is the difference between a build and a wrong diagnosis.
-
-## 2026-09-11
-
-**windows — E80: the VST3 does not carry the blob either, so the row is mis-titled (scheduled run)**
-
-- When the question is *which format*, build both formats from ONE configure.
-- A `*_FOLDER_OVERRIDE` build reads a live checkout's COMMIT, not just its dirt.
-- When a probe and a plug-in disagree about what "a plug-in instance" is, the probe is wrong and it will not say so.
-- A bare host must supply what the wrapper's channel is built on, or it measures its own omission.
-- The heredoc backslash trap is still live on this box, and cost three failed patches.
-- A negative control that produces zero of everything is the cheapest line in the table.
-
-## 2026-09-10
-
-**windows — E80: the editor is not the variable, and the arm that says so took no screen (scheduled run)**
-
-- A GUI arm does not need a GUI.
-- Prefer refuting a hypothesis by ORDERING over refuting it by fixture.
-- Work in a `git worktree` when the developer's checkout is ahead of `origin`.
-- Reusing yesterday's binary is a feature, not a shortcut
-- A bare host reads return values that no DAW checks.
-- Read a lint's WHOLE output and its EXIT CODE, not its tail.
 
 ## 2026-09-09
 

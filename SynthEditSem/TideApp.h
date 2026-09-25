@@ -70,6 +70,7 @@ public:
 	// The queue is perfectly real; it just has a different drainer. Answer
 	// with it, and takeDspMessages ships what lands there.
 	gmpi::hosting::QueuedUsers* PendingDspClients() override;
+	gmpi::hosting::IWriteableQue* MessageQueToDspOrNull() override; // same reason as above
 	std::string exportChunkXml();        // S12/S11 — the saved chunk: <DSP> + <Editor>
 
 	// The SAVE-TIME export, and the one place the mutating pre-save steps
