@@ -8,6 +8,57 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-26 — macos — STEP 1.5 again, resolved with the take-main's-`lessons.md` recipe; A39 already claimed by windows, nothing else eligible (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1.5 on two of this lane's PRs. I took no backlog item. STEP 1 was empty, with no open `platform:mac` issue.
+
+### STEP 1.5
+
+Of the four open `tide/mac/**` PRs, [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36) and [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) (E72) were `DIRTY`/`CONFLICTING` again. [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) (E81) was `CLEAN`, and [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) is superseded and was left for Jeff to close. None of the four had failing checks or unresolved review threads (GraphQL `reviewThreads`, 0 unresolved on each).
+
+**I measured before applying any recipe**, following the windows cell's 09-25 lesson. `git merge-tree --write-tree --name-only origin/<branch> origin/main` gave:
+
+- **E72:** only `docs/lessons.md`. `BACKLOG.md`, `JOURNAL.md` and `SynthEditSem/TideApp.cpp`/`.h` auto-merged. The `TideApp` merge combines E72's change with Jeff's `2e9235a` (properties-browser pin edits delivered to the DSP live).
+- **A36:** `docs/lessons.md`, plus the usual `JOURNAL.md` hunk, with A36's Rotation header on one side and `main`'s two new 09-25 entries on the other.
+
+**Resolution.** On both branches I took `docs/lessons.md` from `origin/main` verbatim, and did not regenerate it. `git hash-object` equals `git rev-parse origin/main:docs/lessons.md` (`fbc56f0`). This is the windows lane's fix for the livelock. A regenerated copy differs per branch, so merging one PR re-conflicts the rest, and a verbatim copy does not. For A36, I kept the Rotation header and then `main`'s entries, and deleted the three markers.
+
+**Nothing was lost.** I compared `## 20…` heading sets:
+
+| branch | branch ∪ main | merged | missing | extra | dup |
+|---|---|---|---|---|---|
+| E72 (`JOURNAL.md`) | 31 ∪ 32 = 33 | 33 | 0 | 0 | 0 |
+| A36 (`JOURNAL.md` + `JOURNAL-2026-08.md` + `JOURNAL-2026-09.md`) | 455 | 455 | 0 | 0 | 0 |
+
+A36 counted `JOURNAL.md` alone shows 17 "missing". These are the entries its own rotation moves into the archive files, so the archive-inclusive count is the right one.
+
+**Lint, both branches, all exit 0:** `check-links`, `check-id-refs`, `check-next-block`, `check-backlog-archived`, `check-journal-prepend`, `check-backlog-diff` and `check-prompt-provenance`. The last three were given file paths written from `git show origin/main:…`, as CI does. `check-commit-completeness --record`/`--verify` ran around each commit (`--verify` skips merge commits). `check-commit-authorship --range origin/<branch>..HEAD` found no unpushed misattributed commit. It reported three already-pushed non-bot commits, which are `main`'s own: two squash merges stamped `Tide Funkster` and Jeff's `2e9235a`. These are all accounted for. `ls-remote --get-url origin` returned `https://`. Pushes: E72 `eac2888`, A36 `815fad0`. Right after the push, both PRs showed `UNSTABLE`/`MERGEABLE`, meaning checks were running and there was no conflict.
+
+### STEP 2: nothing eligible
+
+**A39 is no longer available to this lane.** The 09-25 mac cell named it as next, but windows claimed it the same day: branch `tide/win/A39-prefab-count-derived`, DOING mark `4efad04`, PR [#614](https://github.com/JeffMcClintock/TideSynth/pull/614). Under STEP 2 it is taken. Every other TODO row, `A35`, `A38`, `S8`, `E19`, `X2`, `E2`, `E72`, `E76`, `E79`, `E80`, `E81`, `E82` and `E84`, is **byte-identical on `origin/main` to its 09-24 text** (compared by row hash). Each stays ineligible for the reason already on record:
+
+- **Waiting on open `PROPOSED:` entries:** A35.
+- **Taken by an open PR:** A38/E19/E80/E82 (win), E79 (linux), E72/E81 (this lane).
+- **Parked by other constraints:** S8 is NEEDS-SPEC, and X2 is linux in substance. E2 is an umbrella with no stated module set. E76 needs a ruling. E84 is a workflow edit the bot's token cannot make.
+
+E83 is still `IN-REVIEW`. Its flip already rides on the E72 branch, per the 09-17 cell, so I did not repeat it.
+
+**Learned:**
+
+- **A NEXT cell's "take X next" is not a claim, and a lane that names an item without pushing a DOING mark can lose it overnight.** That is correct behaviour, not a collision. The windows cell did exactly what STEP 2 prescribes. The 09-25 mac cell was right not to take A39 under STEP 1's wording, and this run inherited nothing to take.
+- **When a branch rotates the journal, heading-set arithmetic must include the archive files.** On A36, `JOURNAL.md` alone shows 17 false "missing" headings, and `JOURNAL.md` + `JOURNAL-2026-0{8,9}.md` shows 455/455. In zsh, pass the three files as an array. A space-separated string is not word-split, so `cat $F` then reads nothing.
+
+**Not verified:** I built nothing locally. E72's re-merged `TideApp.cpp` (with `2e9235a`) will be compiled by CI's `macos`/`windows`/`linux` legs, and those were still running when this was written. A36 now carries `main`'s `lessons.md`, while its branch also changes `scripts/extract-lessons.py`, so `extract-lessons.py --check` on that branch is expected to differ. CI does not run it. One `--write` is owed after it lands, as the NEXT cell says.
+
+**Machine state.** `~/Documents/GitHub/TideSynth` started and ended on `main`, clean. All work was done in `git worktree`s under the scratchpad, which I removed at the end. `SynthEdit` (`master`) is clean and untouched. The screen was locked (`CGSSessionScreenIsLocked` present). I launched no host and did no GUI work.
+
+**Next:** see the `mac` NEXT cell. For Jeff: merge #585, then #588/#589, and close #604 unmerged.
+
+**Branch/PR:** `tide/mac/2026-09-26-step15` holds this entry and the refreshed `mac` NEXT cell. The merges are on `tide/mac/A36-journal-rotation-rule` and `tide/mac/E72-cable-dsp-dirty`.
+
 ## 2026-09-25 — windows — the bookkeeping livelock is ONE GENERATED FILE, not three; four PRs unblocked in a way that survives a merge, then A39 taken (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
