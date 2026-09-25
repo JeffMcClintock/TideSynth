@@ -14,6 +14,12 @@ python3 scripts/check-rack-populated.py --log-file tests/rack-content/unresolved
 python3 scripts/check-rack-populated.py --log-file tests/rack-content/lost-module-handle.log         # must exit 1
 ```
 
+Since **A39** the prefab count is derived from `RackModules/` rather than from a
+constant, so a capture taken at a different revision may fail on the count as
+well as on its own defect. Pass `--expect-prefabs <n>` to hold a fixture to the
+count of its own era — these four were captured at 5 — when you want it to
+exercise only the failure it was made for.
+
 ## `m5-empty-rack.log` — the state that shipped
 
 The plugin's own words, from the M5 measurement of 2026-08-25, reproducing what
