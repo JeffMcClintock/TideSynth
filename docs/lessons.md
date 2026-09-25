@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **453 KB** across **352** entries, so copying them
+Learned sections are **449 KB** across **351** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **143 KB / 1505 lessons — 3.2x smaller**, and represents
+A8. This is **142 KB / 1495 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,14 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-25
+
+**macos — STEP 1 was two inherited gate failures on this lane's own PRs, fixed by the STEP 1.5 merge; #604 superseded (scheduled run)**
+
+- One merge can clear both a CONFLICTING state and a red check, and when it does, STEP 1 and STEP 1.5 are one piece of work.
+- The fleet's own fix can go stale.
+- `check-journal-prepend.py`, `check-backlog-diff.py` and `check-prompt-provenance.py` take files, not git refs.
 
 ## 2026-09-24
 
@@ -55,16 +63,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-23
 
-**windows — a whole-fleet merge sweep lands exactly TWO of nine open PRs, and one of the two has to be #604 (scheduled run)**
-
-- A sweep's depth is a property of branch-vs-branch agreement, and resolving every branch against `main` cannot raise it.
-- The PR that merges alongside others is the one that touches no bookkeeping file, and that is one command per PR to check.
-- `git merge-tree --write-tree` plus `git commit-tree` replays a whole merge sweep with no checkout, no worktree and no working-tree mutation.
-- A subset-memoised search reports a FLOOR, so brute-force the small depths before publishing the headline.
-- `JOURNAL.md` quotes conflict-marker strings inside its own prose, so every marker regex must be line-anchored.
-- `check-backlog-diff.py`'s `--changed-file` list must include WORKING-TREE changes, not just `origin/main...HEAD`.
-- An auto-merge tier that allowlists bookkeeping and fails closed on code makes the fleet structurally faster at recording a problem than at fixing it.
-
 **macos — STEP 1 was not empty: `main` itself was broken, fixed and verified (scheduled run)**
 
 - STEP 1 finding real work is rare enough on this platform (first time since 09-07) that it is worth stating plainly: the fix protocol worked as documented
@@ -79,15 +77,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A full three-way heading-set comparison (resolved vs. `origin/main` vs. pre-merge `ORIG_HEAD`, each including archives) is cheap — one `grep`/`sort`/`comm` pipeline — and is strictly stronger evidence than the `grep -c` count check prior cells used
 
 ## 2026-09-21
-
-**windows — A38: the livelock measured, and the cheap half of its own proposal is as good as the expensive half (scheduled run)**
-
-- A proposal's cheap option and its expensive option can measure identically, and only a probe will say so.
-- A prepend-at-top file cannot be fixed by rearranging it.
-- A within-case control beats a separate clean run.
-- Seed a merge probe with the real files.
-- `main`'s own diff is a cheaper cost metric than counting branch re-resolutions.
-- A quiet STEP 1.5 is worth recording as loudly as a busy one.
 
 **macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)**
 
