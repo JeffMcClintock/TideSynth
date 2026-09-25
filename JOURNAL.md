@@ -95,6 +95,148 @@ Template:
 
 ---
 
+## 2026-09-25 — windows — the bookkeeping livelock is ONE GENERATED FILE, not three; four PRs unblocked in a way that survives a merge, then A39 taken (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1.5 on four `CONFLICTING` win PRs, then STEP 2 — **A39**, [#614](https://github.com/JeffMcClintock/TideSynth/pull/614). STEP 1 was empty: no open `platform:win` issue.
+
+### The finding, and it is bigger than the four PRs
+
+**`BACKLOG.md` and `JOURNAL.md` DID NOT CONFLICT. On any of the four. The sole conflicting path was `docs/lessons.md`, which is GENERATED.**
+
+Measured before touching anything, with `git merge-tree --write-tree --name-only origin/<branch> origin/main` on each of the four — one command per branch, no worktree needed:
+
+```
+--- tide/win/E80-clap-editor-arm (behind main by 2) ---
+Auto-merging BACKLOG.md
+Auto-merging JOURNAL.md
+Auto-merging docs/lessons.md
+CONFLICT (content): Merge conflict in docs/lessons.md
+```
+
+Identical on E82, E19 and A38. **Five consecutive win cells have recorded this livelock as a three-file problem** — the standing recipe names `BACKLOG.md` by ownership, `JOURNAL.md` by set arithmetic, `docs/lessons.md` regenerated — and today two thirds of that recipe had nothing to do. The two hand-written files merged themselves.
+
+**Why that changes the diagnosis.** A38's `PROPOSED:` entry ([#597](https://github.com/JeffMcClintock/TideSynth/pull/597)) offers four options and recommends (d)-with-(b): blank-line sections in `BACKLOG.md` **plus per-run journal files**, the second being the expensive half that needs new files and three script changes. A38's own probe found `JOURNAL.md` conflicting in three of six layouts, so the recommendation is sound *for the corpus it measured*. **Today's corpus does not conflict there at all**, because `main` advanced only two commits and the two journal insertions were separated by an unchanged entry — which is exactly the mechanism A38's own `ctl-context` control isolated (*"`JOURNAL.md` drops out once one unchanged entry sits between the two insertions"*). So the journal half is **conditional on run density**, not structural, and the file that conflicts unconditionally is the generated one.
+
+**The mechanism, stated plainly, because it is self-inflicted and cheap to fix:** `docs/lessons.md` is derived from `JOURNAL.md` by `scripts/extract-lessons.py`, it is TRACKED, and A30's convention tells every run to regenerate it. So every branch regenerates it from its own journal, every branch's copy differs from `main`'s **in the same region**, and every PR therefore conflicts there — permanently, by construction, on a file nobody reads for merge purposes. **CI does not check it.** I grepped all seven workflows: `extract-lessons` appears in none of them, so `--check` is convention only and no gate depends on the file being current.
+
+### How I resolved it, and why not by regenerating
+
+**I took `origin/main`'s `docs/lessons.md` verbatim on all four branches.** Regenerating on each branch — the standing recipe — produces four *different* copies, so `main` merging any one of them re-conflicts the other three. That is the livelock, and it is the merge side of it that five cells have not escaped. Taking `main`'s copy makes the merged tree's `lessons.md` **byte-identical to `main`'s**, so each branch now introduces no diff there at all, and **merging one does not re-conflict the rest.**
+
+Nothing is lost by it. The file is 100% derived from `JOURNAL.md`, which merged cleanly and completely on every branch, so one `extract-lessons.py --write` after the four land restores every line. **That regeneration is owed, and it is in the `win` NEXT cell.**
+
+Verified on each of the four, per the standing recipe:
+
+| branch | journal headings branch ∪ main → merged | missing | extra | `lessons.md` == `main`'s |
+|---|---|---|---|---|
+| E80 | 38 ∪ 31 = 39 → 39 | 0 | 0 | yes |
+| E82 | 36 ∪ 31 = 37 → 37 | 0 | 0 | yes |
+| E19 | 36 ∪ 31 = 37 → 37 | 0 | 0 | yes |
+| A38 | 33 ∪ 31 = 34 → 34 | 0 | 0 | yes |
+
+Identity compared by `git hash-object` against `git rev-parse origin/main:docs/lessons.md`, not by eye. **All four went `CONFLICTING`/`DIRTY` → `MERGEABLE`.** Lint on all four, 24 invocations, every one exit 0: `check-links`, `check-journal-prepend`, `check-backlog-diff`, `check-prompt-provenance`, `check-next-block`, `check-id-refs`. `check-commit-completeness --record`/`--verify` around each commit (`--verify` skips merge commits). `check-commit-authorship --range origin/<branch>..HEAD` clean on all four — **and note it needs `--range` explicitly in a detached worktree**, where it exits non-zero with *"detached HEAD -- pass --range explicitly"* and that is not a finding about the commits.
+
+### STEP 2 — A39, and the first win cell since 09-18 that is not STEP 1.5 alone
+
+A39 was `TODO`, `any`, unclaimed (`ls-remote` and `gh pr list` both empty on it), filed by this lane on 09-24. The open `PROPOSED:` entries — backlog `Plat` corrections, what to do about a check judged wrong, and A38's own shape — none change what A39 builds, so it was eligible. Claimed with a pushed DOING mark before any work, per STEP 2.
+
+**The `mac` cell names A39 as its next item.** It stated intent but never claimed: no branch, no PR, and STEP 2's test for "taken" is a remote branch or open PR from another platform. Pushing the DOING mark first is the sanctioned way to settle that, and I did it before writing a line of the fix.
+
+**What it changes.** `EXPECTED_PREFABS` is gone. `scripts/check-rack-populated.py` now counts `RackModules/` — the directory CMake stages wholesale into the bundle — with the same recursive walk and extension test `seedPrefabsFromBundle()` uses, so the two cannot drift. A missing or empty `RackModules/` **raises** rather than returning 0, because a zero expectation is vacuous in the one direction that matters.
+
+**The risk this change carries, and the control for it.** Deriving an expectation is safe only when it comes from the build's **input** and never from its **output** — a gate that reads the count off its own subject cannot fail at all, and **looks identical to one that works**. That is A39's own warning, and it is why the Accept made a negative control mandatory. `tests/a39_prefab_count_probe.py` (16 arms, rc=0, no build, no network) carries an explicit **vacuity control**: one tree, two captured logs claiming different counts, requiring different verdicts.
+
+**The Accept, run through the shipped CLI rather than a fixture:**
+
+| clause | run | result |
+|---|---|---|
+| (a) prefab ADDED, no script edit | real file into `RackModules/`, log says 8 | `expecting 8 prefab(s) (derived from RackModules/)` · **exit 0** |
+| (a) prefab DELETED, no script edit | `Logger.synthedit` moved aside, log says 6 | expects 6 · **exit 0** |
+| (b) **negative control** | 8 staged, 7 seeded | **exit 1** — *"7 rack prefab(s) seeded, but RackModules/ holds 8"* |
+| (b) other direction (E40's stale bundle) | 6 staged, 7 seeded | **exit 1**, naming both numbers |
+| (c) probe | `python3 tests/a39_prefab_count_probe.py` | **rc=0**, 16 arms |
+
+**A/B against `origin/main`'s script on all four shipped fixtures — verdicts identical** (rc=1 with 11 / 2 / 3 / 2 failures, before and after), so nothing was disarmed on the way in. `RackModules/` restored to its exact seven files afterwards.
+
+**Learned:**
+
+- **Measure which files actually conflict before applying a conflict recipe.** `git merge-tree --write-tree --name-only origin/<branch> origin/main` answers it in one command, with no worktree and no checkout, and today it cut the work by two thirds and changed the diagnosis. Five cells inherited "BACKLOG + JOURNAL + lessons" as a description of the problem and re-applied all three.
+- **A tracked GENERATED file conflicts on every branch forever, and regenerating it on the branch is what sustains that.** The resolution that breaks the cycle is to take the default branch's copy, so the branch introduces no diff there and merging one branch cannot re-conflict the others. It is only safe because the file is derived from something that *did* merge — check that first.
+- **A38's journal half is conditional on run density, not structural.** Two insertions with one unchanged entry between them do not conflict; A38's own `ctl-context` control says so. A quiet week measures differently from a busy one, so `JOURNAL.md`'s absence from today's conflicts is not evidence against A38 — but the generated file's presence in *every* conflict, for five cells running, is evidence about where the cost actually is.
+- **`check-commit-authorship.py` needs `--range` in a detached worktree.** It exits non-zero with *"detached HEAD -- pass --range explicitly"*, which reads like an authorship failure and is not one. `--range origin/<branch>..HEAD`.
+- **GitHub stamps a squash merge with the bot ACCOUNT's profile identity, not the run's `GIT_*` variables.** `a351fbf40` on `main` is authored `Tide Funkster <mcclintock.jeff+bot@gmail.com>`, not `tide-rack-bot <314850083+...>`. Expected, not a misconfigured box — but `check-commit-authorship` reports it on every branch that merges `main`, and it is worth recognising rather than re-investigating.
+
+**Not verified:** **no TIDE build was run on this box.** The rack gate's CI step is `macos`-only, so A39's live `--standalone` arm is unexercised by me — the derivation is verified against captured and synthesised logs and against the real `RackModules/` tree, and the `macos` leg on [#614](https://github.com/JeffMcClintock/TideSynth/pull/614) is what exercises it end to end. Whether `main` builds on windows is likewise unknown to me; I compiled nothing. The four merged branches' CI was still running when this was written. `tests/rack-content/README.md`'s claim that `m5-empty-rack.log` yields *"12 failures"* is off by one (11, before and after) — pre-existing drift, left alone.
+
+**Machine state.** `C:\SE\TideSynth` started and ended on `main`, clean, and **was never checked out to a branch** — every edit happened in `git worktree`s under the session scratchpad, all removed at the end. No other repo touched. Nothing built, no host launched, no screen taken, no GUI driven. **The developer was at the machine throughout** (Chrome, Outlook and GitHub Desktop open; no IDE or SynthEdit running), which is why the shared checkout was left alone entirely.
+
+**Next:** see the `win` NEXT cell. For Jeff: **[#614](https://github.com/JeffMcClintock/TideSynth/pull/614) (A39) is the one with code in it**; #586/#587/#590/#597 are unblocked and waiting. **One `python3 scripts/extract-lessons.py --write` is owed** once they land.
+
+**Branch/PR:** `tide/win/2026-09-25-step15-and-A39` holds this entry and the refreshed `win` NEXT cell. A39 is `tide/win/A39-prefab-count-derived` / [#614](https://github.com/JeffMcClintock/TideSynth/pull/614). The four merges are on their own existing branches.
+
+## 2026-09-25 — macos — STEP 1 was two inherited gate failures on this lane's own PRs, fixed by the STEP 1.5 merge; #604 superseded (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.7032.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1 and STEP 1.5, which turned out to be the same fix. Took no backlog item, because STEP 1 was not empty.
+
+### What changed since the 09-24 cell
+
+- **`main` is green and #599 is closed.** Jeff fixed the break the other way: `53a23a0` shipped `AR`, `Keyboard`, `Logger` and `Sine` and moved `EXPECTED_PREFABS` to **7**. The S41 auto-closer closed [#599](https://github.com/JeffMcClintock/TideSynth/issues/599) at 04:29 UTC on 09-24, on a green `macos` at that commit. #600–#603 closed the same day.
+- **So [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) is superseded.** It sets the constant to **3**, and `RackModules/` on `origin/main` has 7 `.synthedit` files. The gate compares with `!=`, so merging #604 would turn `main` red again. The windows cell showed this with a `check()` transcript, and I agree with it. I retitled #604 to start *"SUPERSEDED, do not merge"* and added a comment. **I did not close it.** Closing is Jeff's call, and the PR is `DIRTY`, so it cannot land by accident.
+
+### STEP 1: two open `platform:mac` issues, both on this lane's branches
+
+[#609](https://github.com/JeffMcClintock/TideSynth/issues/609) (`tide/mac/A36-journal-rotation-rule`) and [#610](https://github.com/JeffMcClintock/TideSynth/issues/610) (`tide/mac/E72-cable-dsp-dirty`). Both are from `github-actions`, filed 09-23 14:12 and 14:16 UTC. I read the logs of runs 35871916880 and 35871921549 instead of trusting the titles. Both runs failed in the rack-content gate, not in compilation:
+
+```
+FAIL 3 rack prefab(s) seeded, expected 5. Either a prefab failed to stage, or one was added and this script's EXPECTED_PREFABS was not updated.
+1 assertion(s) failed -- the rack did NOT come up populated.
+```
+
+These are the windows cell's "red check that was the base's break", on this lane this time. The push that went red was the 09-23 cell's own merge of `origin/main` at `479d90a`, which was then the broken base. **The fix was merging the current `origin/main`.** STEP 1.5 needed that merge anyway, because both PRs had gone `DIRTY` again after #612 and Jeff's four 09-24 commits.
+
+### The merges
+
+I did both in `git worktree`s under the scratchpad.
+
+- **E72:** `BACKLOG.md`, `JOURNAL.md` and `SynthEditSem/TideApp.cpp` auto-merged. The `TideApp.cpp` merge combines E72's change with Jeff's `7738abf`, so the compile legs below are what check it. Only `docs/lessons.md` conflicted, and I regenerated it: 1,497 lessons from 351 entries, `--check` exit 0.
+- **A36:** the usual shape. HEAD's Rotation header block (lines 12–97) was on one side, and `origin/main`'s two new 09-24 entries were on the other. I kept the header, then the entries, and deleted the three markers. `docs/lessons.md` regenerated to 1,498 lessons.
+- **Nothing lost (three-way heading sets, including archives):** 453 in the resolved set, 30 on `origin/main`, 451 in `ORIG_HEAD`. **Zero** missing against either side, and **zero** duplicates.
+- **Lint on both, all exit 0:** `check-next-block`, `check-id-refs`, `check-backlog-archived`, `check-links`, and also `check-journal-prepend`, `check-backlog-diff` and `check-prompt-provenance`. The last three take **file paths** for base and head, not refs. Passing `origin/<branch>` gives a `FileNotFoundError`, so I passed `git show origin/main:<file>` written to a temp file.
+- `check-commit-completeness --record`/`--verify` ran around both commits (`--verify` skips merge commits). `check-commit-authorship` was clean: 12 commits each, all `tide-rack-bot`. `ls-remote --get-url origin` returned `https://` before each push. I pushed to the existing branches and opened no new PRs.
+
+### CI verification
+
+The macOS CI leg rebuilt both pushed merge commits, and both passed. Runs **36010607518** (A36) and **36010606467** (E72) show `macos: success`, and the job log contains the gate's own lines:
+
+```
+  ok   7 rack prefab(s) seeded
+rack is populated.
+```
+
+The `linux`, `guard` and three `render-*` legs are also `success` on both. **The S41 auto-closer then closed #609 and #610** on those green runs, so no issue was closed by hand. Before that, both issues had gone from `FAIL 3 ... expected 5` to `ok 7`, and the only new commit on each branch was the merge.
+
+### STEP 2: A39 is eligible, but not taken
+
+**A39** was filed by windows on 09-24. It is `TODO`, `any` and unclaimed (`ls-remote` shows no `A39` branch). It has a stated Accept, including a mandatory negative control, and its scope is one file this lane may edit. That makes it the first eligible item a mac cell has found since 09-17. I did not take it. STEP 1 says a run with platform issues fixes those *"instead of taking a backlog item, then go to STEP 4"*, and I read that literally, as the 09-23 cell did. The other TODO rows (`A35`, `A38`, `S8`, `E19`, `X2`, `E2`, `E72`, `E76`, `E79`, `E80`, `E81`, `E82`, `E84`) have not changed since 09-24, and I did not re-examine them.
+
+**Learned:**
+
+- **One merge can clear both a CONFLICTING state and a red check, and when it does, STEP 1 and STEP 1.5 are one piece of work.** Before reading any compiler output on an issue that names this lane's own branch, check whether the failing push merged a base that was red at the time: `gh run list --branch main --workflow build.yml`. Here it had.
+- **The fleet's own fix can go stale.** #604 was a correct and verified fix, and one Jeff commit made it a regression. A PR that fixes `main` stays valid only as long as `main` has not been fixed some other way. Its owning lane should re-check that before the PR sits another day as "merge this first".
+- **`check-journal-prepend.py`, `check-backlog-diff.py` and `check-prompt-provenance.py` take files, not git refs.** CI passes paths. Locally, write `git show origin/main:<file>` to a temp file first.
+
+**Not verified:** the `windows` compile leg on both pushes was still `in_progress` when this was written. This merge touched no Windows-specific code, but E72's merged `TideApp.cpp` has not been seen compiling on Windows yet. I built nothing locally. The macOS verification is CI's, from the self-hosted `macos` leg, not from a build I ran myself. The standing STEP 2 rows were not re-walked.
+
+**Machine state.** `~/Documents/GitHub/TideSynth` was left on `main`, clean. It never left `main`, because all work was done in worktrees under the scratchpad, which I removed. `SynthEdit` (`master`) and `SynthEditLib` (`main`) are clean and untouched. The screen was locked (`CGSSessionScreenIsLocked` present). I launched no host and built nothing locally.
+
+**Next:** see the `mac` NEXT cell. (1) Check `mergeStateStatus` on #585/#588/#589. (2) **Take A39.** For Jeff: merge #585, then #588/#589, and close #604 unmerged.
+
+**Branch/PR:** `tide/mac/2026-09-25-step1-inherited-gate` holds this entry and the refreshed `mac` NEXT cell. The merges are on `tide/mac/A36-journal-rotation-rule` and `tide/mac/E72-cable-dsp-dirty`.
+
 ## 2026-09-24 — windows — STEP 1.5 again, but the four red `macos` checks were `main`'s break and not the branches': all four now CLEAN and green (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.7032.0** · as **tide-rack-bot** (both paths — REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, which is the number in `GIT_AUTHOR_EMAIL`; transport assertion printed `git@github.com:`)
