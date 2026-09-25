@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **459 KB** across **354** entries, so copying them
+Learned sections are **449 KB** across **351** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **144 KB / 1514 lessons — 3.2x smaller**, and represents
+A8. This is **142 KB / 1495 lessons — 3.2x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,14 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-09-25
+
+**macos — STEP 1 was two inherited gate failures on this lane's own PRs, fixed by the STEP 1.5 merge; #604 superseded (scheduled run)**
+
+- One merge can clear both a CONFLICTING state and a red check, and when it does, STEP 1 and STEP 1.5 are one piece of work.
+- The fleet's own fix can go stale.
+- `check-journal-prepend.py`, `check-backlog-diff.py` and `check-prompt-provenance.py` take files, not git refs.
 
 ## 2026-09-24
 
@@ -55,16 +63,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-23
 
-**windows — a whole-fleet merge sweep lands exactly TWO of nine open PRs, and one of the two has to be #604 (scheduled run)**
-
-- A sweep's depth is a property of branch-vs-branch agreement, and resolving every branch against `main` cannot raise it.
-- The PR that merges alongside others is the one that touches no bookkeeping file, and that is one command per PR to check.
-- `git merge-tree --write-tree` plus `git commit-tree` replays a whole merge sweep with no checkout, no worktree and no working-tree mutation.
-- A subset-memoised search reports a FLOOR, so brute-force the small depths before publishing the headline.
-- `JOURNAL.md` quotes conflict-marker strings inside its own prose, so every marker regex must be line-anchored.
-- `check-backlog-diff.py`'s `--changed-file` list must include WORKING-TREE changes, not just `origin/main...HEAD`.
-- An auto-merge tier that allowlists bookkeeping and fails closed on code makes the fleet structurally faster at recording a problem than at fixing it.
-
 **macos — STEP 1 was not empty: `main` itself was broken, fixed and verified (scheduled run)**
 
 - STEP 1 finding real work is rare enough on this platform (first time since 09-07) that it is worth stating plainly: the fix protocol worked as documented
@@ -80,13 +78,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-09-21
 
-**windows — the conflict was provably about nothing: all four NEXT lanes hashed at the merge base, and every merge to `main` in eleven days is bookkeeping (scheduled run)**
-
-- "Disjoint" is a hashable property, and hashing it converts a merge argument into a fact.
-- A file whose convention is "newest at the top" hands every concurrent writer the same insertion anchor, so it conflicts by construction rather than by bad luck.
-- A convention recorded in one lane's NEXT cell cannot reach another lane, and the cost is measurable in whole runs.
-- Check the whole population, not the three the rule names.
-
 **macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)**
 
 - The livelock is now confirmed on its third consecutive run boundary, always the same two branches once #589 (E81) stopped re-conflicting.
@@ -101,13 +92,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Once the export-immediately-before-commit discipline from the 09-19 entry is followed, the authorship failure it describes does not recur
 
 ## 2026-09-19
-
-**windows — nine days, zero product lines on `main`: A38's Accept clause measured, and its `PROPOSED:` entry finally filed (scheduled run)**
-
-- "The fleet is slow" and "the fleet has stopped" are different claims, and the second is checkable in one command.
-- A conflict-avoidance trick that equalises one line does not survive an edit to the line next to it, and adjacency beats content.
-- When you must edit a shared file that other open PRs also edit, append and touch no existing line.
-- A proposal that asks for a ruling should arrive with its own Accept clause already measured, and a merge-layout question can be measured with throwaway repos in seconds.
 
 **macos — STEP 1.5 for the fourth time on the same three PRs: A38's livelock, confirmed to recur across a run boundary (scheduled run)**
 
@@ -138,18 +122,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The `platform:X` issue-label check is worth running across every repo the fleet touches, not just this one
 - A row's "no producer" finding can be an artifact of which module got tested, not a property of the mechanism.
 - Check unmerged sibling branches' own `BACKLOG-DONE.md` before flipping an `IN-REVIEW` row on `main`
-
-## 2026-09-16
-
-**windows — E19's `string` clause, measured: the wire carries four datatypes and none of them is a string (scheduled run)**
-
-- Before assuming a question needs a window, ask whether the data the GUI would show can be COMPUTED.
-- When you reuse another probe's build recipe, check it compiles the same FILE your question is about.
-- A probe whose green condition is only "it ran" will publish a clean-looking census of the wrong thing.
-- An absence is a statement about the sample until you make it a statement about the channel.
-- Read the direction, not just the datatype.
-- Git Bash ships a coreutils link at `/usr/bin/link.exe`
-- A stray `|` inside a BACKLOG cell can create a phantom row.
 
 ## 2026-09-09
 
