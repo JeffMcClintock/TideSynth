@@ -149,7 +149,7 @@ Fourteen `TODO` rows walked. A38/A39/E19/E80/E82 are this lane's own open PRs; E
 
 **Next:** see the `win` NEXT cell. For Jeff: **merge #617, then #614** — measured as the only free pair in this lane. When you rule on A38, option (b) buys 4 of 21 pairs and costs `BACKLOG.md` its table, while (d) is aimed at the file that actually blocks.
 
-**Branch/PR:** `tide/win/2026-09-27-adjacency-measurement` holds this entry, the refreshed `win` NEXT cell, A40 and the new probe.
+**Branch/PR:** `tide/win/2026-09-27-adjacency-measurement` / [#618](https://github.com/JeffMcClintock/TideSynth/pull/618) holds this entry, the refreshed `win` NEXT cell, A40 and the new probe.
 
 ## 2026-09-26 — macos — STEP 1.5 again, resolved with the take-main's-`lessons.md` recipe; A39 already claimed by windows, nothing else eligible (scheduled run)
 
