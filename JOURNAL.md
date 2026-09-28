@@ -8,6 +8,86 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-28 — windows — a merge order published in this cell has a shelf life of one merge; #617 and #618 made no-ops against each other, and #617 is now a free merge (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1 empty. STEP 1.5 on this lane's two bookkeeping PRs, [#617](https://github.com/JeffMcClintock/TideSynth/pull/617) and [#618](https://github.com/JeffMcClintock/TideSynth/pull/618), which had both gone `DIRTY`. STEP 2 found nothing eligible, eleventh cell. I took no backlog item, opened no new PR, and pushed to none of the five green product PRs.
+
+### STEP 1 and STEP 1.5
+
+No open `platform:win` issue — and that still verifies nothing, because `build.yml:523` (`matrix.platform != 'win'`) excludes windows from filing at all. `main`'s build is green on all seven jobs at `2e9235a97`.
+
+Of the seven open `tide/win/**` PRs, five were `MERGEABLE`/`CLEAN` with every check green, no review decision and nothing unresolved — [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) (E80), [#587](https://github.com/JeffMcClintock/TideSynth/pull/587) (E82), [#590](https://github.com/JeffMcClintock/TideSynth/pull/590) (E19), [#597](https://github.com/JeffMcClintock/TideSynth/pull/597) (A38), [#614](https://github.com/JeffMcClintock/TideSynth/pull/614) (A39). Per STEP 1.5 those are waiting for merge and not mine to touch, and I did not touch them. The two that were `CONFLICTING`/`DIRTY` were #617 and #618, this lane's own bookkeeping branches from 09-26 and 09-27.
+
+### The 09-27 cell's merge order was already dead, and one merge killed it
+
+The `win` cell told the next run to merge **#617 first, #614 second**, on a measurement of `{1: 480, 2: 240}` over 720 orderings, because #617 *"blocks nothing and is blocked by nothing"*. Between that run and this one `main` advanced by **exactly one commit** — `bf23fc1ce`, macOS's own bookkeeping PR [#619](https://github.com/JeffMcClintock/TideSynth/pull/619).
+
+I re-ran the same probe, `tests/a38_lane_sweep_probe.py`, on the same lane, changing nothing first:
+
+| | 09-27 (6 branches) | today, before I touched anything (7 branches) |
+|---|---|---|
+| alone into `main` | 6 of 6 CLEAN | **5 of 7** — #617 and #618 both `CONFLICT: BACKLOG.md, JOURNAL.md` |
+| depth histogram | `{1: 480, 2: 240}` | **`{0: 1440, 1: 3600}`** over all 5040 orderings |
+| landing all of them | 0 of 720 | **0 of 5040** |
+| depth-2 matrix | #617 free | **after ANY of the five, all six others conflict** |
+
+So the recommendation did not survive to be used. **A merge order published in the NEXT cell has a shelf life of about one merge, and four consecutive cells have published one anyway.** That is not a criticism of the 09-27 measurement, which was correct when taken and which I reproduced with its own tool — it is a fact about what kind of claim is worth writing down. A depth number describes a queue that moves; the invariant does not, and the invariant here has held since 09-22: **this lane lands one PR per sweep and re-conflicts the rest, whatever order anyone writes down.**
+
+### What I changed, and the one thing that made it work
+
+#617 and #618 conflicted with **each other**, not only with `main` — which the 09-27 cell had itself predicted as structural: *"under the current layout every windows run necessarily conflicts with the previous windows run's bookkeeping PR."*
+
+So I did not resolve them branch-by-branch against `main`, which is what six previous cells did and what leaves them still mutually blocking. I resolved both **and made their contended regions byte-identical**, so they are no-ops against each other:
+
+- **`JOURNAL.md` is now byte-identical on the two branches** — equal `git hash-object`, checked after every commit including the one adding this entry — carrying the 09-26, 09-27 and 09-28 windows entries plus `main`'s 09-28 macOS entry, in date order. Each branch therefore carries the other's entry deliberately.
+- **Both `win` NEXT cells are the same string** (row `md5 2335c323…`).
+- **Both branches carry both A38 probes**, with identical blobs.
+
+That last one was not planned — `check-links` caught it. The cross-carried 09-26 entry links `tests/a38_lane_sweep_probe.py` by relative path, and that file existed only on #617, so whichever of the two merged first would have put a broken link on `main` under one order and not the other. **This is the 09-22 cell's warning arriving in practice:** *"identical relative links are only safe for files already on `main`."* Carrying both files on both branches fixes it and conflicts with nothing, because the blobs are equal.
+
+### Measured after, and it is better than the fix I was aiming at
+
+Same method, `git merge-tree --write-tree` plus `commit-tree`, no checkout:
+
+| | before | after |
+|---|---|---|
+| alone into `main` | 5 of 7 | **7 of 7** |
+| ordered pairs blocked | 30 of 30 measurable | **22 of 42** |
+| `#617` then `#618` | conflict | **both land** |
+| `#618` then `#617` | conflict | **both land** |
+| after `#617` lands | (did not merge at all) | **blocks NOTHING — all six others still merge** |
+| after `#618` lands | (did not merge at all) | blocks `#614` only, in `BACKLOG.md` |
+
+**#617 is now a free merge: it lands and costs no other PR its mergeability.** #618 costs only #614, and that is the A40-row-at-line-70 against A39-row-at-line-69 adjacency the 09-27 cell measured and chose not to dodge.
+
+**Read that as valid at `bf23fc1ce` and expiring on the next merge into `main`** — which is the whole point of the section above, and applies to this paragraph exactly as much as to the one it corrects.
+
+### The rule and the measurement disagree, and I did not resolve it
+
+The five product PRs are individually `CLEAN` and collectively land one: after any of them merges, the other four conflict, always in `BACKLOG.md` and `JOURNAL.md`, with `docs/decisions.md` on four of five. The same byte-identical treatment would take the lane from depth 1 toward depth 7 — but applying it means **pushing to five green PRs**, and STEP 1.5 says a green PR with nothing unresolved is waiting for merge and not a run's to fix.
+
+I followed the rule. **But the rule is written for a PR that is finished, and it reads "clean" as "done", when the measurement says these five are clean and stuck.** That is worth a ruling rather than a run's unilateral decision, and it belongs to A38. I have not implemented any of A38's four options and this is not a fifth.
+
+### STEP 2: nothing eligible, eleventh cell
+
+Fourteen `TODO` rows walked on `origin/main`. A38/A39/E19/E80/E82 are this lane's own open PRs; E72/E81 are mac's ([#588](https://github.com/JeffMcClintock/TideSynth/pull/588), [#589](https://github.com/JeffMcClintock/TideSynth/pull/589)); E79 is linux's ([#584](https://github.com/JeffMcClintock/TideSynth/pull/584)); A35 is parked on its own two open `PROPOSED:` entries; S8 is `NEEDS-SPEC`; E2 is an umbrella with no statable Accept; E76 is linux plus a ruling; X2's `Plat` cell is `linux`, which STEP 2 test (b) excludes; and E84 is a `.github/workflows/**` edit this credential deliberately cannot make.
+
+**Learned:**
+
+- **Re-measure before you act on any depth number in a NEXT cell, including one you wrote.** One unrelated merge on `main` took this lane from *"merge #617 first, #614 second"* to *"#617 does not merge at all"*. The cost of checking is one command; the cost of not checking is acting on a plan that no longer describes the repository.
+- **Resolving N branches against `main` is not the same work as making them agree with each other**, and only the second one raises sweep depth. Six cells did the first. The difference is visible only in a branch-versus-branch merge, which no `mergeStateStatus` and no branch-versus-`main` check reports.
+- **Byte-identical content is the cheap fix, and its one real cost is relative links.** A link is only safe in cross-carried text if its target is already on `main`, or is carried alongside it. `check-links` catches this; nothing else in the lint does.
+
+**Not verified:** I built nothing and ran no host. This run changed no code — the only non-document files touched are two A38 probes copied verbatim between two branches. The after-state numbers above are from direct `merge-tree` measurement at each branch's final commit; the `{0: 1440, 1: 3600}` before-histogram is `tests/a38_lane_sweep_probe.py` run unmodified against the branches exactly as found.
+
+**Machine state:** `C:\SE\TideSynth` started and ended on `main`, clean, and never left it — all work was done in `git worktree`s under the scratchpad, which I removed at the end. **The developer was at the machine and not in a TIDE tree:** Visual Studio on `SimulatorGmpi - SimulatorForm.h`, plus Chrome and GitHub Desktop. No build, no host, no screen taken. I did not touch `SE16`, `SynthEditLib`, `gmpi_ui` or `GMPI_Wrappers`.
+
+**Next:** see the `win` NEXT cell. For Jeff, measured today and expiring on the next merge: **#617 is the one free merge in this lane** — it lands and re-conflicts nothing. #618 second costs only #614.
+
+**Branch/PR:** no new branch. This entry and the refreshed `win` NEXT cell are committed byte-identically onto `tide/win/2026-09-26-step15-and-sweep-measurement` (#617) and `tide/win/2026-09-27-adjacency-measurement` (#618).
+
 ## 2026-09-28 — macos — STEP 1.5: only A36 re-conflicted after #616, in `JOURNAL.md` alone; STEP 2 walked, nothing eligible (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
