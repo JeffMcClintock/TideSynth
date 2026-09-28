@@ -95,6 +95,56 @@ Template:
 
 ---
 
+## 2026-09-28 — macos — STEP 1.5: only A36 re-conflicted after #616, in `JOURNAL.md` alone; STEP 2 walked, nothing eligible (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1.5 on one of this lane's PRs, [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36). I took no backlog item. STEP 1 was empty: there is no open `platform:mac` issue in TideSynth, SynthEdit, SynthEditLib, gmpi_ui or GMPI_Wrappers.
+
+### STEP 1.5
+
+The only thing that landed on `main` since the 09-26 cell was that cell's own bookkeeping, [#616](https://github.com/JeffMcClintock/TideSynth/pull/616) (`a7dec9a`). It changed `JOURNAL.md` (one prepended entry) and the `mac` NEXT cell in `BACKLOG.md`.
+
+I measured with `git merge-tree --write-tree --name-only origin/<branch> origin/main` first:
+
+| PR | state before | conflicting paths |
+|---|---|---|
+| [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) A36 | `DIRTY`/`CONFLICTING` | **`JOURNAL.md` only** |
+| [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) E72 | `CLEAN` | none |
+| [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) E81 | `CLEAN` | none |
+| [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) | `DIRTY` | superseded; left for Jeff to close unmerged |
+
+All four have every check green, no review decision and 0 unresolved review threads.
+
+**`docs/lessons.md` did not conflict on any branch this time.** The 09-26 fix, which took `main`'s copy verbatim, held across one `main` merge. A36's copy is still hash-identical to `origin/main`'s (`fbc56f0`). The remaining conflict is the one [#618](https://github.com/JeffMcClintock/TideSynth/pull/618) (windows, 09-27) predicts for this lane. A36 rewrites the region between the file header and the first entry, where every run's new entry is prepended, so any journal PR landing on `main` re-conflicts A36. E72 and E81 carry only an ordinary prepended entry further down, and `git` merges that cleanly.
+
+**Resolution:** I kept A36's Rotation header, then `main`'s entries, and removed the three markers. Merge commit is `c6c5e3b`, pushed to `tide/mac/A36-journal-rotation-rule`, after which the PR showed `MERGEABLE` (`UNSTABLE` while checks ran).
+
+**Verification.** I compared `## 20…` heading sets over `JOURNAL.md` + `JOURNAL-2026-08.md` + `JOURNAL-2026-09.md`, with the branch taken from `ORIG_HEAD`:
+
+| branch | main | union | merged | missing | extra | dup |
+|---|---|---|---|---|---|---|
+| 455 | 455 | 456 | 456 | 0 | 0 | 0 |
+
+These lint checks all exited 0, run as `lint.yml` runs them: `check-links`, `check-id-refs`, `check-next-block`, `check-backlog-archived`, `check-journal-prepend` (`1 new entry prepended … OK`, with `--changed-file` from `git diff --name-only origin/main -- '*.md'`), `check-backlog-diff` and `check-prompt-provenance`, each against `git show origin/main:` bases. `check-commit-completeness --record`/`--verify` ran around the commit (`--verify` skips merges). `check-commit-authorship --repo .` reported `all commits authored by tide-rack-bot`. `ls-remote --get-url origin` returned `https://`.
+
+### STEP 2: nothing eligible
+
+`git diff 1db622c origin/main -- BACKLOG.md` is a single changed line, the `mac` NEXT cell. **Every row is therefore byte-identical to the one the 09-26 cell walked**, and every PR that held a row then is still open. That covers A38 (#597), A39 (#614), E19 (#590), E80 (#586) and E82 (#587) for win, E79 (#584) for linux, and E72 (#588) and E81 (#589) for this lane. The remaining TODO rows are ineligible for the reasons already on record: A35 waits on an open `PROPOSED:`, S8 is NEEDS-SPEC, X2 is linux in substance, E2 is an umbrella with no stated module set, E76 wants a ruling, and E84 is a workflow edit this token cannot make.
+
+**Learned:**
+
+- **The take-main's-`lessons.md` recipe survived one `main` merge in this lane.** Two of three mac PRs stayed `CLEAN`, and the third conflicted in `JOURNAL.md` alone. That is a single data point, and it agrees with #618's measurement that `JOURNAL.md` is what blocks mac pairs.
+- **A36 will re-conflict on every journal PR until it merges**, this one included, because the region it rewrites is the prepend point. No per-branch recipe can fix that. Merging #585 first is the only fix.
+
+**Not verified:** I built nothing. This run changed no code. The only edit to a PR branch was a `JOURNAL.md` conflict resolution.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` started and ended on `main`, clean. All work was done in `git worktree`s under the scratchpad, and I removed them at the end. I did not touch `SynthEdit` (`master`, clean). I launched no host and did no GUI work.
+
+**Next:** see the `mac` NEXT cell. For Jeff: **merge #585 first**, because any other journal PR landing before it re-conflicts it. Then merge #588/#589, and close #604 unmerged.
+
+**Branch/PR:** `tide/mac/2026-09-28-step15` holds this entry and the refreshed `mac` NEXT cell. The merge is on `tide/mac/A36-journal-rotation-rule`.
+
 ## 2026-09-26 — macos — STEP 1.5 again, resolved with the take-main's-`lessons.md` recipe; A39 already claimed by windows, nothing else eligible (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
