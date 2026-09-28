@@ -8,6 +8,199 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-28 — macos — STEP 1.5: only A36 re-conflicted after #616, in `JOURNAL.md` alone; STEP 2 walked, nothing eligible (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1.5 on one of this lane's PRs, [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36). I took no backlog item. STEP 1 was empty: there is no open `platform:mac` issue in TideSynth, SynthEdit, SynthEditLib, gmpi_ui or GMPI_Wrappers.
+
+### STEP 1.5
+
+The only thing that landed on `main` since the 09-26 cell was that cell's own bookkeeping, [#616](https://github.com/JeffMcClintock/TideSynth/pull/616) (`a7dec9a`). It changed `JOURNAL.md` (one prepended entry) and the `mac` NEXT cell in `BACKLOG.md`.
+
+I measured with `git merge-tree --write-tree --name-only origin/<branch> origin/main` first:
+
+| PR | state before | conflicting paths |
+|---|---|---|
+| [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) A36 | `DIRTY`/`CONFLICTING` | **`JOURNAL.md` only** |
+| [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) E72 | `CLEAN` | none |
+| [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) E81 | `CLEAN` | none |
+| [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) | `DIRTY` | superseded; left for Jeff to close unmerged |
+
+All four have every check green, no review decision and 0 unresolved review threads.
+
+**`docs/lessons.md` did not conflict on any branch this time.** The 09-26 fix, which took `main`'s copy verbatim, held across one `main` merge. A36's copy is still hash-identical to `origin/main`'s (`fbc56f0`). The remaining conflict is the one [#618](https://github.com/JeffMcClintock/TideSynth/pull/618) (windows, 09-27) predicts for this lane. A36 rewrites the region between the file header and the first entry, where every run's new entry is prepended, so any journal PR landing on `main` re-conflicts A36. E72 and E81 carry only an ordinary prepended entry further down, and `git` merges that cleanly.
+
+**Resolution:** I kept A36's Rotation header, then `main`'s entries, and removed the three markers. Merge commit is `c6c5e3b`, pushed to `tide/mac/A36-journal-rotation-rule`, after which the PR showed `MERGEABLE` (`UNSTABLE` while checks ran).
+
+**Verification.** I compared `## 20…` heading sets over `JOURNAL.md` + `JOURNAL-2026-08.md` + `JOURNAL-2026-09.md`, with the branch taken from `ORIG_HEAD`:
+
+| branch | main | union | merged | missing | extra | dup |
+|---|---|---|---|---|---|---|
+| 455 | 455 | 456 | 456 | 0 | 0 | 0 |
+
+These lint checks all exited 0, run as `lint.yml` runs them: `check-links`, `check-id-refs`, `check-next-block`, `check-backlog-archived`, `check-journal-prepend` (`1 new entry prepended … OK`, with `--changed-file` from `git diff --name-only origin/main -- '*.md'`), `check-backlog-diff` and `check-prompt-provenance`, each against `git show origin/main:` bases. `check-commit-completeness --record`/`--verify` ran around the commit (`--verify` skips merges). `check-commit-authorship --repo .` reported `all commits authored by tide-rack-bot`. `ls-remote --get-url origin` returned `https://`.
+
+### STEP 2: nothing eligible
+
+`git diff 1db622c origin/main -- BACKLOG.md` is a single changed line, the `mac` NEXT cell. **Every row is therefore byte-identical to the one the 09-26 cell walked**, and every PR that held a row then is still open. That covers A38 (#597), A39 (#614), E19 (#590), E80 (#586) and E82 (#587) for win, E79 (#584) for linux, and E72 (#588) and E81 (#589) for this lane. The remaining TODO rows are ineligible for the reasons already on record: A35 waits on an open `PROPOSED:`, S8 is NEEDS-SPEC, X2 is linux in substance, E2 is an umbrella with no stated module set, E76 wants a ruling, and E84 is a workflow edit this token cannot make.
+
+**Learned:**
+
+- **The take-main's-`lessons.md` recipe survived one `main` merge in this lane.** Two of three mac PRs stayed `CLEAN`, and the third conflicted in `JOURNAL.md` alone. That is a single data point, and it agrees with #618's measurement that `JOURNAL.md` is what blocks mac pairs.
+- **A36 will re-conflict on every journal PR until it merges**, this one included, because the region it rewrites is the prepend point. No per-branch recipe can fix that. Merging #585 first is the only fix.
+
+**Not verified:** I built nothing. This run changed no code. The only edit to a PR branch was a `JOURNAL.md` conflict resolution.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` started and ended on `main`, clean. All work was done in `git worktree`s under the scratchpad, and I removed them at the end. I did not touch `SynthEdit` (`master`, clean). I launched no host and did no GUI work.
+
+**Next:** see the `mac` NEXT cell. For Jeff: **merge #585 first**, because any other journal PR landing before it re-conflicts it. Then merge #588/#589, and close #604 unmerged.
+
+**Branch/PR:** `tide/mac/2026-09-28-step15` holds this entry and the refreshed `mac` NEXT cell. The merge is on `tide/mac/A36-journal-rotation-rule`.
+
+## 2026-09-27 — windows — the livelock's CAUSE measured: A38's option (b) buys 4 of 21 pairs, and `JOURNAL.md` is the file that actually blocks (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1 empty. STEP 1.5 needed nothing, second cell running. STEP 2 found nothing eligible, tenth cell. That left the run free to answer the question three consecutive cells have argued from the wrong evidence, and it produced a result that corrects two of my own lane's cells.
+
+### STEP 1 and STEP 1.5
+
+No open `platform:win` issue — and that verifies nothing on this platform, because `build.yml:523` (`matrix.platform != 'win'`) excludes windows from filing at all. `main`'s build is green on all seven jobs at `2e9235a97`. The only open issues in the repo are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (linux, another box's) and [#44](https://github.com/JeffMcClintock/TideSynth/issues/44), the watchdog digest.
+
+All six `tide/win/**` PRs — [#617](https://github.com/JeffMcClintock/TideSynth/pull/617), [#614](https://github.com/JeffMcClintock/TideSynth/pull/614), [#597](https://github.com/JeffMcClintock/TideSynth/pull/597), [#590](https://github.com/JeffMcClintock/TideSynth/pull/590), [#587](https://github.com/JeffMcClintock/TideSynth/pull/587), [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) — were `MERGEABLE`/`CLEAN`, 13 of 13 checks green, 2 skipped, **zero reviews and zero unresolved review threads** (GraphQL `reviewThreads`, checked per PR). Nothing was pushed to any of them. Per STEP 1.5 a green PR with nothing unresolved is waiting for merge and not mine to touch.
+
+### The depth moved, and #617 is why
+
+The `win` cell told me to run `tests/a38_lane_sweep_probe.py` and record the depth rather than re-resolve. Done, both arms:
+
+| arm | alone into `main` | depth histogram, all 720 orderings | landing all 6 |
+|---|---|---|---|
+| **CONTROL** (branches replaced by their merge bases) | 6 of 6 CLEAN | `{6: 720}` | 720 of 720 |
+| **TREATMENT** (the real branches) | 6 of 6 CLEAN | **`{1: 480, 2: 240}`** | 0 of 720 |
+
+So the 09-26 cell's `{1: 120}` is out of date: **240 of 720 orderings now land two.** The cause is #617 itself, which **blocks nothing and is blocked by nothing** — the only PR in the lane with that property. Every ordering with #617 first or second reaches depth 2, and 120 + 120 = 240 accounts for the histogram exactly, which is what makes that the explanation rather than a guess. **Merge #617 first, #614 second.**
+
+### The cause, which no previous cell measured
+
+Three cells running have argued A38 from **sweep depth alone** and reached three different answers. Sweep depth cannot settle it. New probe `tests/a38_row_adjacency_probe.py`, three arms and three controls, no checkout — in-memory `merge-tree --write-tree` plus `commit-tree`, so it was safe to run against a tree the developer was working in.
+
+**Arm 1 — blob divergence across `main` and all eleven `tide/**` branches.** A file byte-identical on two branches cannot conflict between them however often a merge names it, so this separates *hot* from *merely named*:
+
+| file | distinct blobs (12 refs) | differ from `main` | reading |
+|---|---|---|---|
+| `BACKLOG.md` | **12** | **11 of 11** | maximally divergent |
+| `JOURNAL.md` | **12** | **11 of 11** | maximally divergent |
+| `docs/decisions.md` | 5 | 6 of 11 | partly |
+| `BACKLOG-DONE.md` | 4 | 6 of 11 | partly |
+| `docs/lessons.md` | 4 | **3 of 11** | inert on eight branches |
+
+Control **C1** checks the inference both ways — blob equal to `main`'s must give an empty `git diff` in that file, blob different must give a non-empty one — over 55 branch-file pairs, **0 mismatches**.
+
+**This corrects my own 09-26 cell.** `BACKLOG-DONE.md` is not a fifth hot file in any sense comparable to the first two: four win branches touch it and **all four share one identical blob**, so it conflicts nowhere in this lane. It is a real blocker in the mac lane only (A36 versus E72). *"Named in a merge"* is not *"divergent"*, and the fleet sweep probe reports paths, not divergence.
+
+`docs/lessons.md` confirms the 09-25 recipe spread: only `linux/E79`, `mac/E81` and `mac/issue-599` still carry a regenerated copy, and two of those three are stuck for other reasons.
+
+**Arm 2 — the touched-line map.** Which `BACKLOG.md` lines each win branch's diff against `main` actually touches:
+
+```
+2026-09-26-step15-and-sweep-measurement      L11(win)
+A38-bookkeeping-livelock                     L68(A38)
+A39-prefab-count-derived                     L69(A39)
+E19-datatype-census                          L68(A38), L92(E19)
+E80-clap-editor-arm                          L68(A38), L115(E80), L119(E85)
+E82-rack-menu-producer                       L68(A38), L117(E82)
+```
+
+**The single most contended line in the fleet is `BACKLOG.md` line 68 — the A38 row itself — rewritten by four separate runs.** A39 sits at line 69, adjacent and in disagreement with nobody. #617 sits at line 11 and collides with no one.
+
+**Arm 3 — the causal test.** Re-merge every pair after inserting one blank line between adjacent table rows, applied to the merge base **and both branches**:
+
+- **Adjacency-only pairs** — A39 against each of the four line-68 branches — go `BACKLOG.md`-conflicting → **CLEAN, 4 of 4.**
+- **Same-line pairs** — the four that all rewrite line 68 — **still conflict.** That is control **C2**, and it is what makes the result a measurement rather than a corrupted merge.
+- Control **C3**: the transform creates no new conflict anywhere.
+
+**So option (b) fixes 4 of 15 win pairs.**
+
+**The mac lane is the replication, and it is starker.** No mac branch pair touches the same or an adjacent `BACKLOG.md` line; `BACKLOG.md` appears in **zero of its six pair conflicts**; and **five of six still conflict — in `JOURNAL.md`.** Respacing `BACKLOG.md` does nothing at all for that lane. Fleet total for (b): **4 of 21 pairs.**
+
+**So A38's option (d), per-run journal files, is aimed at the file that actually blocks — and the 09-25 cell's *"the journal half is conditional on run density"* is wrong as a general claim.** It measured branch-versus-`main`. Branch-versus-branch, `JOURNAL.md` is maximally divergent (12 of 12 blobs) and is the sole blocker for five of six mac pairs. That is the same inference error the 09-26 cell caught in the 09-25 cell, one file over — and this is the third cell in a row to make a version of it, which is the part worth noticing.
+
+**The cost of (b), measured rather than assumed, because it is not what you would guess.** The repo's own lint **does not object**: `check-next-block.py` and `check-id-refs.py` both exit 0 on a fully respaced `BACKLOG.md`, A/B against the original, byte-identical output on both arms. What breaks is **rendering**. GitHub's own renderer, `POST /markdown` mode `gfm`, drops the row after a blank line out of the `<table>` and emits it as a paragraph of literal pipes:
+
+```
+arm a (no blank line)          <tbody><tr><td>A38</td>…<tr><td>A39</td>…</tbody>
+arm b (blank line between)     <tbody><tr><td>A38</td>…</tbody></table>…<p>| A39 | TODO |</p>
+```
+
+So (b) as worded means `BACKLOG.md` stops being a table on github.com. That is a real cost for the ruling to weigh, and it is not a lint problem.
+
+**A fifth option A38 does not list, offered as evidence and not implemented here: stop appending run narrative to an existing row.** Five of the nine win `BACKLOG.md` pair conflicts are four runs rewriting the A38 row. A convention of *"your narrative goes in the journal and the NEXT cell, never into another row"* removes them, costs nothing structural, and needs no layout change. **A38 remains Jeff's ruling** and nothing here implements any of its four options.
+
+### This branch confirms the finding at its own expense
+
+I measured my own branch against all eleven others before pushing, because a run
+that names a mechanism should be able to predict its own cost:
+
+| against | result |
+|---|---|
+| `origin/main` | **CLEAN** |
+| 6 of 11 branches (win A38/E19/E80/E82, mac E72/E81) | **CLEAN** |
+| **[#614](https://github.com/JeffMcClintock/TideSynth/pull/614)** (win, A39) | **`BACKLOG.md` alone** |
+| [#617](https://github.com/JeffMcClintock/TideSynth/pull/617) (win) | `BACKLOG.md` + `JOURNAL.md` |
+| [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (mac, A36) | `JOURNAL.md` |
+| [#584](https://github.com/JeffMcClintock/TideSynth/pull/584) (linux, E79) | `BACKLOG.md`, `JOURNAL.md`, `docs/lessons.md` |
+| [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) (mac, superseded) | `scripts/check-rack-populated.py` — inherited, not mine; #604 predates `53a23a03e` |
+
+**Both win-lane conflicts were predicted by arm 2 before they were measured.**
+A40 is a pure insertion at line 70 and #614 edits line 69 — the same adjacency
+that blocks A39 against the four line-68 branches. #617 and I both rewrite line
+11, which is same-line disagreement. Nothing here is a surprise, and that is the
+point: the probe's output was usable as a prediction.
+
+**I kept A40 in ID order at the end of the Process-hardening table rather than
+dodging the collision.** Moving it would have cost the section its ID ordering
+permanently for a transient merge benefit, and it could not have made this branch
+free anyway — the line-11 collision with #617 is unavoidable for any run that
+refreshes its own NEXT cell. That last clause is worth reading twice: **under the
+current layout every windows run necessarily conflicts with the previous windows
+run's bookkeeping PR**, which is a structural fact about the NEXT block that
+A38's four options do not address either.
+
+### STEP 2: nothing eligible, tenth cell
+
+Fourteen `TODO` rows walked. A38/A39/E19/E80/E82 are this lane's own open PRs; E72/E81 mac's; E79 linux's; A35 parked on its own two `PROPOSED:` entries; S8 `NEEDS-SPEC`; E2 an umbrella with no statable Accept; E76 linux plus a ruling; E84 a `.github/workflows/**` edit the credential deliberately cannot make.
+
+**X2 deserves its reason written down rather than inherited.** Three cells have called it *"linux in substance"* without saying why, and **its own prose says the opposite**: *"the Windows half belongs to this box and I did not do it."* That is a windows run inviting this lane in. But its `Plat` cell is `linux`, so STEP 2 test (b) excludes it — **and reading the prose over the column is precisely the question A35's open `PROPOSED:` entry asks**, which makes X2 ineligible twice over rather than once. Writing that down is worth more than repeating the conclusion.
+
+**E83 was left alone deliberately.** It is `IN-REVIEW` with its PR merged and the watchdog lists it as ready to flip, but the flip is already on both #585 and #588 dated `2026-09-09`, and a third copy would be the `BACKLOG-DONE.md` collision the 09-26 cell walked into. Not repeated.
+
+### Filed A40
+
+`scripts/watchdog-digest.py:299` holds `TOKEN_EXPIRY = '2026-11-07'` as a literal, and every *"Expires … (N days away)"* line in the digest is arithmetic on it. **Nothing reads the credential.** And the header that would confirm it is absent: GitHub returns `github-authentication-token-expiration` for a classic PAT with an expiry set, the fleet credential is a classic PAT (`ghp_` prefix, 40 characters — measured by class and length only, never its value), and **`user` and `rate_limit` both return no such header** under `gh api -i`. A39's shape one file over.
+
+**I checked before filing, per STEP 3 and the C15/C16 lesson:** `2026-11-07`, `agent-token` and `token expir` appear nowhere in `BACKLOG.md`, `JOURNAL.md`, `docs/decisions.md` or `docs/lessons.md` on `main`, **nor in `BACKLOG.md` on any of the eleven `tide/**` branches.** The row is genuinely unfiled.
+
+**Not verified:** I could not establish the real expiry, and I have no positive control. The only other credential on this box is Jeff's `gh` keyring token, which is an OAuth token and would not carry the header either, so *"absent"* cannot be distinguished from *"this environment never shows it"* without a credential known to expire. Only the owner can read the date, in the GitHub UI. That half is on the row as the NEEDS-JEFF part; the coded half is correct under either answer, so A40 is takeable as written.
+
+**Learned:**
+
+- **Sweep depth cannot answer a question about a mechanism.** Three cells argued A38's options from the depth number and got three answers. Blob divergence answers *which file*, the touched-line map answers *which line*, and a re-merge after a targeted transform answers *why*. All three are one command each and need no checkout.
+- **A control that fails is worth more than one that passes, and C2 caught a bug in its own probe.** `subprocess` in text mode translates each `\n` to `os.linesep` on **stdin**, so on Windows `git mktree` read the entry name as `BACKLOG.md\r` — a different path, which then conflicted with everything and looked exactly like a genuine merge result. Feed `mktree` and `hash-object` **bytes**. Without C2 asserting that same-line pairs must *still* conflict, the probe would have reported that blank lines fix everything.
+- **A control can also be over-broad, and that is not a licence to loosen it.** C2 first flagged E19+E80, which touch line 68 but write the *same* text there and so never conflicted in `BACKLOG.md` at all. The fix is to require *"conflicted before"* as a precondition, not to drop the control — otherwise C2 is a restatement of the same-line set rather than a discriminator.
+- **Text mode is the wrong default for git plumbing on this box in both directions.** Reading `BACKLOG.md` through `subprocess` text mode dies on cp1252 at the first em-dash, and the `UnicodeDecodeError` surfaces from a reader thread as an unrelated `NoneType` several frames later. Decode UTF-8 explicitly with `errors="replace"`, or use bytes.
+- **A14's authorship check caught a real misattribution on this run, and the cause is the harness, not the box.** Each Bash call in this agent runs a **fresh shell** -- working directory persists, exported variables do not. I exported the four `GIT_*` variables in the call that made the commit, then ran `git commit --amend` in a *later* call that had only re-exported `MSYS_NO_PATHCONV`, so the amend took the committer from the box's git config: `author: tide-rack-bot`, **`committer: Jeff McClintock`**. STEP 0.7 had passed and would have passed again; the content was correct; every exit code was 0. **Re-export all four `GIT_*` variables in EVERY call that commits, amends or rebases** -- not once per run -- and run `check-commit-authorship.py` before every push, because it is the only thing between that mistake and a commit carrying the name that sits on every ruleset's bypass list. Fixed with `--amend --reset-author` while unpushed, which is the sanctioned route.
+- **Check whether the fleet's own automation already covers a finding before filing it.** I had a second row drafted about the credential expiry going unnoticed; the digest already has an A12 liveness section that names a silent box, and it explains in its own text why a halted run cannot report itself. The remaining defect was one line narrower than the one I nearly filed.
+- **`gh api` needs `MSYS_NO_PATHCONV=1` for a leading-slash endpoint in Git Bash here**, otherwise `/markdown` is rewritten to `C:/Program Files/Git/markdown` and the error blames the endpoint.
+
+**Machine state.** `C:\SE\TideSynth` started and ended on `main`, clean, and **was never checked out to a branch** — all work happened in a `git worktree` under the session scratchpad, removed at the end. No other repo touched. **Nothing built, no host launched, no screen taken, no GUI driven.** The developer was at the machine throughout (Chrome, Outlook, GitHub Desktop, Steam; **no Visual Studio and no SynthEdit**, so no build was in flight and the 09-09 hazard of a source file changing under a build did not apply). A pure-measurement run is the right thing to take on a busy box — fourth cell to say so.
+
+**Not verified:** no TIDE build was run on this box, so whether `main` compiles on windows locally is unknown to me; CI says green at `2e9235a97`. The `linux` box has been silent 26 days and the digest flags it `LIKELY HALTED`; that needs someone at that keyboard and I could not act on it.
+
+**Next:** see the `win` NEXT cell. For Jeff: **merge #617, then #614** — measured as the only free pair in this lane. When you rule on A38, option (b) buys 4 of 21 pairs and costs `BACKLOG.md` its table, while (d) is aimed at the file that actually blocks.
+
+**Branch/PR:** `tide/win/2026-09-27-adjacency-measurement` / [#618](https://github.com/JeffMcClintock/TideSynth/pull/618) holds this entry, the refreshed `win` NEXT cell, A40 and the new probe.
+
 ## 2026-09-26 — windows — the 09-25 "merging one does not re-conflict the others" is FALSE, measured 0 of 120 orderings; the livelock survived, only `docs/lessons.md` left it (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths agreed: REST `tide-rack-bot`, GraphQL `tide-rack-bot` / `314850083`, which is the number in `GIT_AUTHOR_EMAIL`)
