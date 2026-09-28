@@ -8,6 +8,56 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-28 — macos — STEP 1.5: only A36 re-conflicted after #616, in `JOURNAL.md` alone; STEP 2 walked, nothing eligible (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1.5 on one of this lane's PRs, [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36). I took no backlog item. STEP 1 was empty: there is no open `platform:mac` issue in TideSynth, SynthEdit, SynthEditLib, gmpi_ui or GMPI_Wrappers.
+
+### STEP 1.5
+
+The only thing that landed on `main` since the 09-26 cell was that cell's own bookkeeping, [#616](https://github.com/JeffMcClintock/TideSynth/pull/616) (`a7dec9a`). It changed `JOURNAL.md` (one prepended entry) and the `mac` NEXT cell in `BACKLOG.md`.
+
+I measured with `git merge-tree --write-tree --name-only origin/<branch> origin/main` first:
+
+| PR | state before | conflicting paths |
+|---|---|---|
+| [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) A36 | `DIRTY`/`CONFLICTING` | **`JOURNAL.md` only** |
+| [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) E72 | `CLEAN` | none |
+| [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) E81 | `CLEAN` | none |
+| [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) | `DIRTY` | superseded; left for Jeff to close unmerged |
+
+All four have every check green, no review decision and 0 unresolved review threads.
+
+**`docs/lessons.md` did not conflict on any branch this time.** The 09-26 fix, which took `main`'s copy verbatim, held across one `main` merge. A36's copy is still hash-identical to `origin/main`'s (`fbc56f0`). The remaining conflict is the one [#618](https://github.com/JeffMcClintock/TideSynth/pull/618) (windows, 09-27) predicts for this lane. A36 rewrites the region between the file header and the first entry, where every run's new entry is prepended, so any journal PR landing on `main` re-conflicts A36. E72 and E81 carry only an ordinary prepended entry further down, and `git` merges that cleanly.
+
+**Resolution:** I kept A36's Rotation header, then `main`'s entries, and removed the three markers. Merge commit is `c6c5e3b`, pushed to `tide/mac/A36-journal-rotation-rule`, after which the PR showed `MERGEABLE` (`UNSTABLE` while checks ran).
+
+**Verification.** I compared `## 20…` heading sets over `JOURNAL.md` + `JOURNAL-2026-08.md` + `JOURNAL-2026-09.md`, with the branch taken from `ORIG_HEAD`:
+
+| branch | main | union | merged | missing | extra | dup |
+|---|---|---|---|---|---|---|
+| 455 | 455 | 456 | 456 | 0 | 0 | 0 |
+
+These lint checks all exited 0, run as `lint.yml` runs them: `check-links`, `check-id-refs`, `check-next-block`, `check-backlog-archived`, `check-journal-prepend` (`1 new entry prepended … OK`, with `--changed-file` from `git diff --name-only origin/main -- '*.md'`), `check-backlog-diff` and `check-prompt-provenance`, each against `git show origin/main:` bases. `check-commit-completeness --record`/`--verify` ran around the commit (`--verify` skips merges). `check-commit-authorship --repo .` reported `all commits authored by tide-rack-bot`. `ls-remote --get-url origin` returned `https://`.
+
+### STEP 2: nothing eligible
+
+`git diff 1db622c origin/main -- BACKLOG.md` is a single changed line, the `mac` NEXT cell. **Every row is therefore byte-identical to the one the 09-26 cell walked**, and every PR that held a row then is still open. That covers A38 (#597), A39 (#614), E19 (#590), E80 (#586) and E82 (#587) for win, E79 (#584) for linux, and E72 (#588) and E81 (#589) for this lane. The remaining TODO rows are ineligible for the reasons already on record: A35 waits on an open `PROPOSED:`, S8 is NEEDS-SPEC, X2 is linux in substance, E2 is an umbrella with no stated module set, E76 wants a ruling, and E84 is a workflow edit this token cannot make.
+
+**Learned:**
+
+- **The take-main's-`lessons.md` recipe survived one `main` merge in this lane.** Two of three mac PRs stayed `CLEAN`, and the third conflicted in `JOURNAL.md` alone. That is a single data point, and it agrees with #618's measurement that `JOURNAL.md` is what blocks mac pairs.
+- **A36 will re-conflict on every journal PR until it merges**, this one included, because the region it rewrites is the prepend point. No per-branch recipe can fix that. Merging #585 first is the only fix.
+
+**Not verified:** I built nothing. This run changed no code. The only edit to a PR branch was a `JOURNAL.md` conflict resolution.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` started and ended on `main`, clean. All work was done in `git worktree`s under the scratchpad, and I removed them at the end. I did not touch `SynthEdit` (`master`, clean). I launched no host and did no GUI work.
+
+**Next:** see the `mac` NEXT cell. For Jeff: **merge #585 first**, because any other journal PR landing before it re-conflicts it. Then merge #588/#589, and close #604 unmerged.
+
+**Branch/PR:** `tide/mac/2026-09-28-step15` holds this entry and the refreshed `mac` NEXT cell. The merge is on `tide/mac/A36-journal-rotation-rule`.
+
 ## 2026-09-27 — windows — the livelock's CAUSE measured: A38's option (b) buys 4 of 21 pairs, and `JOURNAL.md` is the file that actually blocks (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -150,6 +200,103 @@ Fourteen `TODO` rows walked. A38/A39/E19/E80/E82 are this lane's own open PRs; E
 **Next:** see the `win` NEXT cell. For Jeff: **merge #617, then #614** — measured as the only free pair in this lane. When you rule on A38, option (b) buys 4 of 21 pairs and costs `BACKLOG.md` its table, while (d) is aimed at the file that actually blocks.
 
 **Branch/PR:** `tide/win/2026-09-27-adjacency-measurement` / [#618](https://github.com/JeffMcClintock/TideSynth/pull/618) holds this entry, the refreshed `win` NEXT cell, A40 and the new probe.
+
+## 2026-09-26 — windows — the 09-25 "merging one does not re-conflict the others" is FALSE, measured 0 of 120 orderings; the livelock survived, only `docs/lessons.md` left it (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths agreed: REST `tide-rack-bot`, GraphQL `tide-rack-bot` / `314850083`, which is the number in `GIT_AUTHOR_EMAIL`)
+
+**Did:** STEP 1 empty, STEP 1.5 needed **nothing for the first time in nine cells**, STEP 2 found nothing eligible — and then measured the claim this lane shipped on 09-25, because STEP 1.5 having nothing to do was itself the evidence that claim wanted testing. **It does not hold.** I took no backlog item and pushed to none of the five open PRs.
+
+### The finding: a branch-vs-`main` measurement cannot answer a batch question, and the 09-25 cell answered one with it
+
+The 09-25 cell (mine, this lane) resolved four PRs by taking `main`'s `docs/lessons.md` verbatim instead of regenerating it, re-measured with `git merge-tree --write-tree --name-only origin/<branch> origin/main`, got a clean result on all four, and wrote: *"ALL FOUR ARE NOW `MERGEABLE` AND, UNLIKE EVERY PREVIOUS SWEEP, MERGING ONE DOES NOT RE-CONFLICT THE OTHERS."*
+
+**The first half is true and the second half is false, and no amount of the first measurement could have established the second.** `merge-tree <branch> <main>` asks whether a branch is *individually* mergeable. Whether **two** branches can both land is a question about branch-vs-branch content, which that command never looks at.
+
+Measured exhaustively — 5 branches, so all 120 orderings enumerated, no search heuristic involved, every merge a real in-memory `merge-tree --write-tree` + `commit-tree`:
+
+| arm | branches alone into `main` | depth histogram over all 120 orderings | orderings landing all 5 |
+|---|---|---|---|
+| **CONTROL** (each branch replaced by its merge base with `main`) | 5 of 5 CLEAN | `{5: 120}` | **120 of 120** |
+| **TREATMENT** (the real branches) | **5 of 5 CLEAN** | **`{1: 120}`** | **0 of 120** |
+
+**Every one of the 120 orderings stalls after the first merge.** The control is what makes that a measurement rather than a broken merge: substitute branches that provably contain nothing new and every ordering sweeps to depth 5.
+
+The depth-2 matrix says who blocks whom and on what:
+
+| after this lands | it blocks | conflicting bookkeeping paths | other |
+|---|---|---|---|
+| **#614** (A39) | #597, #590, #587, #586 | `BACKLOG.md` **only** | none |
+| #597 (A38) | the other four | `BACKLOG.md`, `JOURNAL.md`, `docs/decisions.md` | none |
+| #590 (E19) | the other four | `BACKLOG.md`, `JOURNAL.md`, `docs/decisions.md` | none |
+| #587 (E82) | the other four | `BACKLOG.md`, `JOURNAL.md`, `docs/decisions.md` | none |
+| #586 (E80) | the other four | `BACKLOG.md`, `JOURNAL.md`, `docs/decisions.md` | none |
+
+**`docs/lessons.md` appears in NONE of them.** So the 09-25 fix did exactly what it was measured to do and nothing more: it removed one file from the conflict set. Confirmed independently — `git diff origin/main...origin/tide/win/<branch> --name-only` lists `docs/lessons.md` for **zero of the five** branches, and across the whole fleet it now survives on only **#584** (linux), the one lane that never adopted the recipe. The livelock was never *only* that file, so removing it moved the sweep depth by **zero**.
+
+**Fleet-wide, the number is unchanged from the day A38 first measured it.** Re-ran the existing `tests/a38_fleet_sweep_probe.py` (from #597's branch) against all ten open PRs: **DEEPEST VERIFIED SWEEP: 2 of 10**, order `#614 -> #589`, control **10 of 10**. A38 measured **2 of 9** on 09-23. Six re-resolutions and one recipe change later, a full sweep still lands two.
+
+**`BACKLOG-DONE.md` is a FIFTH hot bookkeeping file, and A38's row lists four.** The fleet probe reports it as a conflicting path on **6 of the 10** open PRs (#585, #586, #587, #588, #590, #597) — it is not in `BOOKKEEPING = {BACKLOG.md, JOURNAL.md, docs/lessons.md, docs/decisions.md}`, so every previous sweep classified it under "other" and it read as a code conflict. **The mechanism is row archiving, and I walked into it myself this run — see below.**
+
+**Verification artifact:** [tests/a38_lane_sweep_probe.py](tests/a38_lane_sweep_probe.py), new this run. Reproduces the 09-25 measurement, then enumerates every ordering of a lane exhaustively and prints the depth-2 matrix. `--control` substitutes merge bases and **fails loudly** if they do not sweep fully in every ordering. Both arms above are its output; `rc=0` on both. No worktree, no checkout, no ref updates — safe against a tree the developer is working in, which mattered today.
+
+### E83: the bookkeeping I did NOT do, and why that was the right call
+
+E83 was `IN-REVIEW` on `main` with its only cited PR ([#581](https://github.com/JeffMcClintock/TideSynth/pull/581)) merged 2026-09-08, and its Accept met by its own row (*"one showing the input is constant"* — the row measures exactly that, two independent ways, with a control). STEP 4 says such a row becomes `DONE` and moves to `BACKLOG-DONE.md`. **I made that edit, then reverted it.**
+
+The 09-26 macOS entry says E83's flip *"already rides on the E72 branch"*. I checked rather than took it on trust, and it is on **two** branches, not one:
+
+| ref | E83 in `BACKLOG.md` | E83 in `BACKLOG-DONE.md` |
+|---|---|---|
+| `origin/main` | `IN-REVIEW` | absent |
+| `origin/tide/mac/E72-cable-dsp-dirty` (#588) | absent | **`2026-09-09`** |
+| `origin/tide/mac/A36-journal-rotation-rule` (#585) | absent | **`2026-09-09`** |
+
+**And I had used `2026-09-08`** — #581's actual merge date — so a third copy would have differed from the other two in the `Done` column. That is not a whitespace conflict, it is two archives disagreeing about a fact, in a file whose own rule is *"rows here are verbatim"*. It is also the C15/C16 / A31 duplicate-work shape: **two lanes doing one job from branches where the other's edit is invisible.**
+
+**This is the `BACKLOG-DONE.md` mechanism, caught live.** The prompt's defence against it is STEP 3's *"grep the backlog for the file you are about to name, against freshly-fetched `origin/main`"* — which **cannot see this**, because the competing edit is not on `main`. What found it was checking the other lanes' *branches*, and that is the check worth having: `git show origin/<branch>:BACKLOG-DONE.md` before archiving any row.
+
+### STEP 1.5 — nothing to do, and that is new
+
+All five `tide/win/**` PRs were already `MERGEABLE` / `CLEAN` with **13 of 13 checks green**, no reviews, no requested changes, and no comments but this lane's own resolution notes. Per STEP 1.5 that is *"waiting for merge — not yours to fix"*, so I pushed to none of them.
+
+**What makes it notable: `main` advanced TWO commits since those branches were last touched, and they survived it.** The branches were re-merged 09-25 at 10:11–10:19 UTC; `main` then took `1db622cb4` (#615, this lane's own bookkeeping, 10:23 UTC) and `a7dec9ab5` (#616, macOS bookkeeping, 14:11 UTC), **both touching `BACKLOG.md` and `JOURNAL.md`**. On 09-23 a single docs-only bookkeeping merge (`0a8a87c`) re-conflicted all four. So the 09-25 recipe **did** buy real immunity to `main` moving — it is just not the property the cell claimed, and it does not make the five landable together.
+
+### STEP 1 — structurally empty on this platform, unchanged
+
+`gh issue list --label platform:win` returns nothing, and it verifies nothing: `build.yml:523` excludes `matrix.platform != 'win'` from issue filing. Read `main`'s build instead — **green on all seven jobs at `2e9235a97`**, which is `main`'s newest *code* commit (#615/#616 are docs-only). The two open issues are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (`platform:linux`) and #44 (the watchdog digest); neither is mine.
+
+### STEP 2 — nothing eligible, walked in full
+
+Fourteen `TODO` rows, and every one is out for a reason I can state:
+
+| row | why not |
+|---|---|
+| A38, A39, E19, E80, E82 | **this lane's own open PRs** (#597, #614, #590, #586, #587) — green and clean, STEP 1.5 says leave them |
+| E72, E81 | mac's open PRs (#588, #589) |
+| E79, X2 | linux in substance; #584 open |
+| A35 | parked on its **own two `PROPOSED:` entries** in `docs/decisions.md` — STEP 2 forbids work an open question would change |
+| S8 | `NEEDS-SPEC`, and its real cause sits in GATED `SynthEditLib/CMakeLists.txt` |
+| E2 | umbrella; its own row says the Accept cannot be stated (which modules is a product decision) |
+| E76 | linux in substance, and wants a ruling on whether a measurement script may edit the caller's environment |
+| E84 | a `.github/workflows/**` edit; **the bot's token deliberately lacks `workflow` scope** |
+
+Nothing has entered the queue since 09-18. I did not invent work.
+
+**Learned:**
+
+- **A resolution that makes every branch mergeable against `main` is not a resolution that lets any two of them land, and this fleet has conflated those for six runs.** The cheap discriminator is one probe run, not another sweep: enumerate the orderings. Sixteen re-resolutions across six runs could not have raised the depth, because resolving against `main` says nothing about whether two branches agree with each other.
+- **State the property you measured, not the one you want.** The 09-25 cell had the right measurement and wrote down a stronger claim than it supports. The next run then reasonably planned a batch merge on it. A claim about a *set* needs a measurement over the *set*.
+- **`BACKLOG-DONE.md` belongs in every list of hot bookkeeping files.** Two lanes archiving the same row is a content disagreement, not a merge artifact, and the prompt's `origin/main` grep is blind to it by construction. Check the other lanes' branches before archiving a row.
+- **A NEXT cell can be confidently wrong, and it is still the best input available.** This cell's instruction (1) — check `mergeStateStatus` — was right and cost one command. Its framing was wrong. Both were worth reading.
+
+**Not verified:** I built nothing and ran no host. No build was needed for a measurement that runs entirely on git objects, and the developer was at the machine. Whether the five PRs pass CI *after* being made batch-mergeable is not something I can know, because nothing was re-resolved this run. The sweep numbers describe `origin/main` at `a7dec9ab5` and go stale the moment anything merges.
+
+**Machine state.** `C:\SE\TideSynth` started and ended on `main`, clean, and never left it — all work in a `git worktree` under the scratchpad. Its local `main` is one commit behind `origin/main` (`2e9235a97` vs `a7dec9ab5`); that is the developer's checkout and not mine to fast-forward. `SE16` (`master`), `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers` (all `main`) were clean and untouched. **The developer was at the machine** — Chrome, Outlook and GitHub Desktop, no Visual Studio, so no build in flight; **no screen taken, no GUI, no build run.** The probes write only loose git objects, no refs.
+
+**Next:** see the `win` NEXT cell. **For Jeff, the one thing worth knowing: a sweep of the ten open PRs lands two, and re-resolving them again will not change that.** The queue is not slow because review is slow. If you want this lane's five to land, the order `#614 -> #589` is what a sweep gets, and #614 (A39) is the cheapest first because it conflicts on `BACKLOG.md` alone. #604 is superseded and should be closed unmerged.
+
+**Branch/PR:** `tide/win/2026-09-26-step15-and-sweep-measurement` holds this entry, the refreshed `win` NEXT cell and the new probe. I pushed to none of the five open PRs.
 
 ## 2026-09-26 — macos — STEP 1.5 again, resolved with the take-main's-`lessons.md` recipe; A39 already claimed by windows, nothing else eligible (scheduled run)
 
