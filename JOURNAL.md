@@ -8,6 +8,67 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-29 — windows — A40: the watchdog's credential countdown was counting down to a date nothing could read (scheduled run, continuation)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **A40** — the first backlog item this lane has taken since 09-25, and the queue was only open because the two entries above cleared this lane's PRs out of it. Claimed it with a pushed DOING mark (`5e84e89de`) before any work, per STEP 2; it was unclaimed by that step's test, with no branch and no PR naming it. [#622](https://github.com/JeffMcClintock/TideSynth/pull/622), branch `tide/win/A40-token-expiry-derived`.
+
+### The defect, and it is worse than the row guessed
+
+`scripts/watchdog-digest.py` held `TOKEN_EXPIRY = '2026-11-07'` as a literal and every *"Expires … (N days away)"* line in the [digest](https://github.com/JeffMcClintock/TideSynth/issues/44) was arithmetic on it. The row filed it as A39's shape — a hand-maintained constant that goes stale — and it is that, but the live measurement makes it sharper.
+
+**The header is genuinely absent on the fleet credential.** `gh api -i rate_limit` under the bot PAT returns 24 headers and `github-authentication-token-expiration` is not among them. The 09-27 cell measured `user` and `rate_limit`; this is a third check through the script's own fetch path, and it agrees.
+
+So the digest was not merely at risk of going stale. **It was printing a countdown to a date that nothing in the system could read**, in the one place this project treats as its source of truth, about one of exactly two bounds on a standing plaintext write credential. `- Expires 2026-11-07 (38 days away).` looked like a measurement and was a recital.
+
+### The change
+
+- `expiry_from_headers(headers)` — pure, so the controls can fabricate input. Case-insensitive key match; GitHub's value is `2026-11-07 15:04:05 UTC`, so only the date is taken.
+- `fetch_response_headers(endpoint='rate_limit')` — one `gh api -i`. `rate_limit` needs no scope and consumes no quota, so asking costs nothing when the answer is "no such header".
+- `check_credential_expiry(headers=None, recorded=...)` — derives the countdown. **Header absent ⇒ no countdown at all**: it prints `unknown -- no expiry header on this credential`, states which credential it measured (in CI the workflow's `GITHUB_TOKEN`, not the bot PAT, which is the objection the old hard-coding comment raised and the reason this is not simply "query it"), and reports the recorded date as *unverified*. Header present but disagreeing with the doc ⇒ it says the doc is stale.
+
+**The old comment's objection was right and is preserved rather than overruled.** It argued against querying because CI runs under the wrong credential. The answer is not to query and pretend, nor to recite and pretend, but to **name the credential being measured and refuse to count down from a date it did not supply.**
+
+### Verification artifact
+
+A/B of the full `--dry-run` digest, `origin/main`'s script versus this branch, same repo-root, same credential: **one line replaced by two, nothing else changed** — 3 changed lines total out of 62, all inside the credential section.
+
+```
+- - Expires 2026-11-07 (38 days away).
++ - **unknown -- no expiry header on this credential.** ...
++ - Recorded in `docs/weekly-run-prompt.md`: **2026-11-07** -- unverified, and not counted down from.
+```
+
+`python3 tests/a40_token_expiry_probe.py` — **18 arms, 0 failed, rc=0**, no network, no credential. Two of the arms are the ones that matter:
+
+- **negative control** — two fabricated headers 100 days apart must move the reported date (`2026-10-09` vs `2027-01-17`);
+- **vacuity control** — `expiry_from_headers` monkeypatched to a stub that ignores its argument and returns the recorded constant must **fail** the negative control. Without this arm, "the test passed" is compatible with the test asserting nothing, which is A39's trap exactly.
+
+The full digest `--dry-run` exits 0 with all 8 sections intact.
+
+### What this does not settle, and it is the half that cannot be coded
+
+**Whether the credential expires at all.** Absent cannot be distinguished from *"this environment never shows it"* without a credential known to expire, and there is none on this box — Jeff's keyring token is OAuth and would not carry the header either. Only the owner can read the real date, in the GitHub UI. The row already said this; the digest now says it too, which is the whole improvement. **`NEEDS-JEFF`: the real expiry, and whether a non-expiring fleet credential is intended.** If it is non-expiring, the run prompt's *"it expires 2026-11-07"* is one of two stated bounds on that credential and is decorative.
+
+### The PR is code-only, deliberately
+
+`#622` touches `scripts/` and `tests/` and **neither `BACKLOG.md` nor `JOURNAL.md`**. It is allowlist-blocked and will wait for a human, correctly — it is code. Bundling the row flip into it would have bought nothing and cost it a re-conflict on every merge into `main`, which is this run's first finding applied to its own work. The DOING mark was pushed first and removed at the end (`e6571f54e`); the claim was visible for the whole of the work, which is what STEP 2 wants it for.
+
+**Learned:**
+
+- **A constant that no test can move is indistinguishable from a measurement, in the output.** The digest line read `Expires 2026-11-07 (38 days away)` either way. The vacuity control is the cheapest thing that tells them apart, and A39 had to learn it one file over.
+- **"Query it instead" was the wrong fix and the original comment knew why.** The digest runs under a different credential in CI than the one the number is about. Deriving without naming *which* credential you derived from would have replaced a confident wrong number with a confident irrelevant one.
+- **An absent signal is a finding only if you can say what its presence would have looked like.** This box has no positive control, so the honest report is "unknown", not "does not expire" — and the code says the former.
+
+**Not verified:** no build, no host, no GUI — this item touches no compiled code. `#622`'s CI checks were still running when this was written. I did not verify the bot PAT's real expiry, which is not verifiable from here.
+
+**Machine state:** `C:\SE\TideSynth` started and ended on `main`, clean, and never left it — all work in `git worktree`s under the scratchpad, removed at the end. The developer was at the machine throughout (Visual Studio on `TiDEModules - TiDESliderSwitchGui.cpp` and `SynthEditStore - ResizeAdorner.cpp`, Outlook, Slack); no build, no host, no screen taken. I did not touch `SE16`, `SynthEditLib`, `gmpi_ui` or `GMPI_Wrappers`. No credential value appears in any commit, PR, journal entry or test.
+
+**Next:** see the `win` NEXT cell.
+
+**Branch/PR:** [#622](https://github.com/JeffMcClintock/TideSynth/pull/622), `tide/win/A40-token-expiry-derived` (code). This entry and the row flip are on `tide/win/2026-09-29-a40-bookkeeping`.
+
 ## 2026-09-29 — windows — the result: #617 auto-merged two minutes after the probes came off it, having sat three days (scheduled run, continuation)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
