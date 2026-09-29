@@ -8,6 +8,48 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-29 — macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone after #619, as predicted; STEP 2 walked, nothing eligible (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1.5 on [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (A36). I took no backlog item. STEP 1 was empty: there is no open `platform:mac` issue in TideSynth, SynthEdit, SynthEditLib, gmpi_ui or GMPI_Wrappers. `FLEET-PAUSED` is absent on `origin/main`.
+
+### STEP 1.5
+
+The only commit on `main` since the 09-28 cell was that cell's own bookkeeping, [#619](https://github.com/JeffMcClintock/TideSynth/pull/619) (`bf23fc1`). It touched `JOURNAL.md` and the `mac` NEXT cell only. `git merge-tree --write-tree --name-only origin/<branch> origin/main` gave this:
+
+| PR | state before | conflicting paths | checks | reviews / unresolved threads |
+|---|---|---|---|---|
+| [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) A36 | `DIRTY` | **`JOURNAL.md` only** | 13 SUCCESS, 2 SKIPPED | none / 0 |
+| [#588](https://github.com/JeffMcClintock/TideSynth/pull/588) E72 | `CLEAN` | none | 13 SUCCESS, 2 SKIPPED | none / 0 |
+| [#589](https://github.com/JeffMcClintock/TideSynth/pull/589) E81 | `CLEAN` | none | 13 SUCCESS, 2 SKIPPED | none / 0 |
+| [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) | `DIRTY` | superseded; left for Jeff to close unmerged | | |
+
+**Resolution:** the same one as 09-28. I kept A36's Rotation header (HEAD lines 12–97), then `main`'s entries, and removed the three line-start markers. Merge commit `92f3fa2` is pushed to `tide/mac/A36-journal-rotation-rule`.
+
+**Verification:** I compared `## 20…` heading sets over `JOURNAL.md` + `JOURNAL-2026-08.md` + `JOURNAL-2026-09.md`. The branch side was taken from `ORIG_HEAD`.
+
+| branch | main | union | merged | missing | extra | dup |
+|---|---|---|---|---|---|---|
+| 456 | 34 | 457 | 457 | 0 | 0 | 0 |
+
+These lint checks all exited 0, run the way `lint.yml` runs them: `check-links`, `check-id-refs`, `check-next-block`, `check-backlog-archived`, `check-journal-prepend` (`prepend-only, OK`), `check-backlog-diff` and `check-prompt-provenance`. The last three got `git show origin/main:` base files and `--changed-file` from `git diff --name-only origin/main -- '*.md'`. `check-commit-completeness --record`/`--verify` bracketed the commit (`--verify` skips merges). `check-commit-authorship --range origin/<branch>..HEAD` reported `no unpushed commit is misattributed`, and `ls-remote --get-url origin` returned `https://`.
+
+### STEP 2: nothing eligible
+
+`git diff a7dec9a origin/main -- BACKLOG.md` is one changed line, the `mac` NEXT cell, and `docs/decisions.md`/`docs/lessons.md`/`PLAN.md` did not change at all. **Every row is therefore byte-identical to what the 09-26 and 09-28 cells walked.** Every PR that held a row is still open: A38 (#597), A39 (#614), E19 (#590), E80 (#586) and E82 (#587) for win, E79 (#584) for linux, and E72 (#588) and E81 (#589) for this lane. The remaining TODO rows stay ineligible for the reasons already on record: A35 waits on an open `PROPOSED:`, S8 is NEEDS-SPEC, X2 is linux in substance, E2 is an umbrella with no stated module set, E76 wants a ruling, and E84 is a workflow edit this token cannot make. No IN-REVIEW row's PRs merged, so there was nothing to flip.
+
+**Learned:**
+
+- **The 09-28 prediction held exactly.** A single bookkeeping PR on `main` re-conflicted #585 and nothing else. This is now three consecutive mac cells whose whole output is the same one-hunk `JOURNAL.md` resolution. The loop can't end from inside this lane, because this cell's own PR re-conflicts #585 when it lands. Only merging #585 (or a ruling on A38/[#597](https://github.com/JeffMcClintock/TideSynth/pull/597)) ends it.
+
+**Not verified:** I built nothing, and this run changed no code. The only edit to a PR branch was the `JOURNAL.md` conflict resolution.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` started and ended on `main`, clean. All work was done in `git worktree`s under the scratchpad, and I removed them at the end. I did not touch `SynthEdit` (`master`, clean). I launched no host and did no GUI work.
+
+**Next:** see the `mac` NEXT cell. For Jeff: **merge #585 first**, then #588/#589, and close #604 unmerged.
+
+**Branch/PR:** `tide/mac/2026-09-29-step15` holds this entry and the refreshed `mac` NEXT cell. The merge is on `tide/mac/A36-journal-rotation-rule`.
 ## 2026-09-28 — windows — a merge order published in this cell has a shelf life of one merge; #617 and #618 made no-ops against each other, and #617 is now a free merge (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
