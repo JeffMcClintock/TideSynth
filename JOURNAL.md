@@ -8,6 +8,39 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-29 — windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** recorded one machine-state fact from this run's STEP 5 that its three merged entries do not carry, because it was only observable after they merged.
+
+### What happened
+
+At **17:14**, mid-run, Jeff committed **`910b7b0d5` *"added tiDE slider switch"*** to the **local** `main` of `C:\SE\TideSynth` — matching the `TiDEModules - TiDESliderSwitchGui.cpp` window that was open all afternoon. The box therefore ended the run with `main` reading **`ahead 1, behind 2`** of `origin/main`.
+
+**`git status --short` printed nothing.** The tree *is* clean; a committed commit is not dirt, and none of STEP 5's three kinds of uncommitted change names it. A run that checked cleanliness alone would have been told everything was fine, and everything was — but not the thing that matters here.
+
+It is **the developer's unpushed commit on his own default branch**: category 3 by intent if not by wording, so not mine to push, rebase, reset or tidy. I left it exactly as found.
+
+### Verified rather than assumed
+
+`git merge-base --is-ancestor 910b7b0d5 origin/<branch>` is **false for all six** branches this run pushed — `2026-09-26-step15-and-sweep-measurement`, `2026-09-27-adjacency-measurement`, `A39-prefab-count-derived`, `2026-09-29-automerge-result`, `A40-token-expiry-derived`, `2026-09-29-a40-bookkeeping` — and `git branch -r --contains 910b7b0d5` finds it on **no remote ref at all**.
+
+That holds for a structural reason and not by luck: **every branch was cut from `origin/<default>`, per STEP 2's *"never base a branch on the working tree's state"*.** This is that rule doing precisely the job it was written for, and it is the first time this journal has a positive measurement of it rather than a statement of intent.
+
+**Learned:**
+
+- **"The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.** `git status -sb` prints both in one line; `git status --short`, which this lane's cells have been quoting, prints only the first.
+- **The developer-at-the-machine check should look at ahead/behind, not just dirt.** An open editor window predicts a commit as much as it predicts an unsaved buffer, and a mid-run commit to local `main` is invisible to every dirt rule the prompt states.
+
+**Not verified:** I did not inspect the contents of Jeff's commit beyond its subject line and author, and did not build anything.
+
+**Machine state:** `C:\SE\TideSynth` on `main`, clean, `ahead 1` (Jeff's commit) / `behind 2`, left exactly so. All worktrees removed. `SE16` (`master`) and `SynthEditLib` (`main`) carry 1 and 8 dirty files respectively, all predating this run and untouched; `gmpi_ui` and `GMPI_Wrappers` are clean and were not touched. No host, no build, no screen taken.
+
+**Next:** see the `win` NEXT cell, which this entry does not change.
+
+**Branch/PR:** `tide/win/2026-09-29-machine-state`. An earlier draft of this note tried to edit the already-merged [#623](https://github.com/JeffMcClintock/TideSynth/pull/623) entry in place; `check-journal-prepend` rejected it, correctly — a merged entry is not editable — so it was dropped unpushed and re-filed as this separate entry, which is the append-only route.
+
 ## 2026-09-29 — windows — A40: the watchdog's credential countdown was counting down to a date nothing could read (scheduled run, continuation)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
