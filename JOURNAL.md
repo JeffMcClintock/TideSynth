@@ -360,7 +360,7 @@ The depth-2 matrix says who blocks whom and on what:
 
 **`BACKLOG-DONE.md` is a FIFTH hot bookkeeping file, and A38's row lists four.** The fleet probe reports it as a conflicting path on **6 of the 10** open PRs (#585, #586, #587, #588, #590, #597) — it is not in `BOOKKEEPING = {BACKLOG.md, JOURNAL.md, docs/lessons.md, docs/decisions.md}`, so every previous sweep classified it under "other" and it read as a code conflict. **The mechanism is row archiving, and I walked into it myself this run — see below.**
 
-**Verification artifact:** [tests/a38_lane_sweep_probe.py](tests/a38_lane_sweep_probe.py), new this run. Reproduces the 09-25 measurement, then enumerates every ordering of a lane exhaustively and prints the depth-2 matrix. `--control` substitutes merge bases and **fails loudly** if they do not sweep fully in every ordering. Both arms above are its output; `rc=0` on both. No worktree, no checkout, no ref updates — safe against a tree the developer is working in, which mattered today.
+**Verification artifact:** `tests/a38_lane_sweep_probe.py`, new this run. Reproduces the 09-25 measurement, then enumerates every ordering of a lane exhaustively and prints the depth-2 matrix. `--control` substitutes merge bases and **fails loudly** if they do not sweep fully in every ordering. Both arms above are its output; `rc=0` on both. No worktree, no checkout, no ref updates — safe against a tree the developer is working in, which mattered today.
 
 ### E83: the bookkeeping I did NOT do, and why that was the right call
 
