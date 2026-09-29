@@ -8,6 +8,145 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-29 — windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** recorded one machine-state fact from this run's STEP 5 that its three merged entries do not carry, because it was only observable after they merged.
+
+### What happened
+
+At **17:14**, mid-run, Jeff committed **`910b7b0d5` *"added tiDE slider switch"*** to the **local** `main` of `C:\SE\TideSynth` — matching the `TiDEModules - TiDESliderSwitchGui.cpp` window that was open all afternoon. The box therefore ended the run with `main` reading **`ahead 1, behind 2`** of `origin/main`.
+
+**`git status --short` printed nothing.** The tree *is* clean; a committed commit is not dirt, and none of STEP 5's three kinds of uncommitted change names it. A run that checked cleanliness alone would have been told everything was fine, and everything was — but not the thing that matters here.
+
+It is **the developer's unpushed commit on his own default branch**: category 3 by intent if not by wording, so not mine to push, rebase, reset or tidy. I left it exactly as found.
+
+### Verified rather than assumed
+
+`git merge-base --is-ancestor 910b7b0d5 origin/<branch>` is **false for all six** branches this run pushed — `2026-09-26-step15-and-sweep-measurement`, `2026-09-27-adjacency-measurement`, `A39-prefab-count-derived`, `2026-09-29-automerge-result`, `A40-token-expiry-derived`, `2026-09-29-a40-bookkeeping` — and `git branch -r --contains 910b7b0d5` finds it on **no remote ref at all**.
+
+That holds for a structural reason and not by luck: **every branch was cut from `origin/<default>`, per STEP 2's *"never base a branch on the working tree's state"*.** This is that rule doing precisely the job it was written for, and it is the first time this journal has a positive measurement of it rather than a statement of intent.
+
+**Learned:**
+
+- **"The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.** `git status -sb` prints both in one line; `git status --short`, which this lane's cells have been quoting, prints only the first.
+- **The developer-at-the-machine check should look at ahead/behind, not just dirt.** An open editor window predicts a commit as much as it predicts an unsaved buffer, and a mid-run commit to local `main` is invisible to every dirt rule the prompt states.
+
+**Not verified:** I did not inspect the contents of Jeff's commit beyond its subject line and author, and did not build anything.
+
+**Machine state:** `C:\SE\TideSynth` on `main`, clean, `ahead 1` (Jeff's commit) / `behind 2`, left exactly so. All worktrees removed. `SE16` (`master`) and `SynthEditLib` (`main`) carry 1 and 8 dirty files respectively, all predating this run and untouched; `gmpi_ui` and `GMPI_Wrappers` are clean and were not touched. No host, no build, no screen taken.
+
+**Next:** see the `win` NEXT cell, which this entry does not change.
+
+**Branch/PR:** `tide/win/2026-09-29-machine-state`. An earlier draft of this note tried to edit the already-merged [#623](https://github.com/JeffMcClintock/TideSynth/pull/623) entry in place; `check-journal-prepend` rejected it, correctly — a merged entry is not editable — so it was dropped unpushed and re-filed as this separate entry, which is the append-only route.
+
+## 2026-09-29 — windows — A40: the watchdog's credential countdown was counting down to a date nothing could read (scheduled run, continuation)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **A40** — the first backlog item this lane has taken since 09-25, and the queue was only open because the two entries above cleared this lane's PRs out of it. Claimed it with a pushed DOING mark (`5e84e89de`) before any work, per STEP 2; it was unclaimed by that step's test, with no branch and no PR naming it. [#622](https://github.com/JeffMcClintock/TideSynth/pull/622), branch `tide/win/A40-token-expiry-derived`.
+
+### The defect, and it is worse than the row guessed
+
+`scripts/watchdog-digest.py` held `TOKEN_EXPIRY = '2026-11-07'` as a literal and every *"Expires … (N days away)"* line in the [digest](https://github.com/JeffMcClintock/TideSynth/issues/44) was arithmetic on it. The row filed it as A39's shape — a hand-maintained constant that goes stale — and it is that, but the live measurement makes it sharper.
+
+**The header is genuinely absent on the fleet credential.** `gh api -i rate_limit` under the bot PAT returns 24 headers and `github-authentication-token-expiration` is not among them. The 09-27 cell measured `user` and `rate_limit`; this is a third check through the script's own fetch path, and it agrees.
+
+So the digest was not merely at risk of going stale. **It was printing a countdown to a date that nothing in the system could read**, in the one place this project treats as its source of truth, about one of exactly two bounds on a standing plaintext write credential. `- Expires 2026-11-07 (38 days away).` looked like a measurement and was a recital.
+
+### The change
+
+- `expiry_from_headers(headers)` — pure, so the controls can fabricate input. Case-insensitive key match; GitHub's value is `2026-11-07 15:04:05 UTC`, so only the date is taken.
+- `fetch_response_headers(endpoint='rate_limit')` — one `gh api -i`. `rate_limit` needs no scope and consumes no quota, so asking costs nothing when the answer is "no such header".
+- `check_credential_expiry(headers=None, recorded=...)` — derives the countdown. **Header absent ⇒ no countdown at all**: it prints `unknown -- no expiry header on this credential`, states which credential it measured (in CI the workflow's `GITHUB_TOKEN`, not the bot PAT, which is the objection the old hard-coding comment raised and the reason this is not simply "query it"), and reports the recorded date as *unverified*. Header present but disagreeing with the doc ⇒ it says the doc is stale.
+
+**The old comment's objection was right and is preserved rather than overruled.** It argued against querying because CI runs under the wrong credential. The answer is not to query and pretend, nor to recite and pretend, but to **name the credential being measured and refuse to count down from a date it did not supply.**
+
+### Verification artifact
+
+A/B of the full `--dry-run` digest, `origin/main`'s script versus this branch, same repo-root, same credential: **one line replaced by two, nothing else changed** — 3 changed lines total out of 62, all inside the credential section.
+
+```
+- - Expires 2026-11-07 (38 days away).
++ - **unknown -- no expiry header on this credential.** ...
++ - Recorded in `docs/weekly-run-prompt.md`: **2026-11-07** -- unverified, and not counted down from.
+```
+
+`python3 tests/a40_token_expiry_probe.py` — **18 arms, 0 failed, rc=0**, no network, no credential. Two of the arms are the ones that matter:
+
+- **negative control** — two fabricated headers 100 days apart must move the reported date (`2026-10-09` vs `2027-01-17`);
+- **vacuity control** — `expiry_from_headers` monkeypatched to a stub that ignores its argument and returns the recorded constant must **fail** the negative control. Without this arm, "the test passed" is compatible with the test asserting nothing, which is A39's trap exactly.
+
+The full digest `--dry-run` exits 0 with all 8 sections intact.
+
+### What this does not settle, and it is the half that cannot be coded
+
+**Whether the credential expires at all.** Absent cannot be distinguished from *"this environment never shows it"* without a credential known to expire, and there is none on this box — Jeff's keyring token is OAuth and would not carry the header either. Only the owner can read the real date, in the GitHub UI. The row already said this; the digest now says it too, which is the whole improvement. **`NEEDS-JEFF`: the real expiry, and whether a non-expiring fleet credential is intended.** If it is non-expiring, the run prompt's *"it expires 2026-11-07"* is one of two stated bounds on that credential and is decorative.
+
+### The PR is code-only, deliberately
+
+`#622` touches `scripts/` and `tests/` and **neither `BACKLOG.md` nor `JOURNAL.md`**. It is allowlist-blocked and will wait for a human, correctly — it is code. Bundling the row flip into it would have bought nothing and cost it a re-conflict on every merge into `main`, which is this run's first finding applied to its own work. The DOING mark was pushed first and removed at the end (`e6571f54e`); the claim was visible for the whole of the work, which is what STEP 2 wants it for.
+
+**Learned:**
+
+- **A constant that no test can move is indistinguishable from a measurement, in the output.** The digest line read `Expires 2026-11-07 (38 days away)` either way. The vacuity control is the cheapest thing that tells them apart, and A39 had to learn it one file over.
+- **"Query it instead" was the wrong fix and the original comment knew why.** The digest runs under a different credential in CI than the one the number is about. Deriving without naming *which* credential you derived from would have replaced a confident wrong number with a confident irrelevant one.
+- **An absent signal is a finding only if you can say what its presence would have looked like.** This box has no positive control, so the honest report is "unknown", not "does not expire" — and the code says the former.
+
+**Not verified:** no build, no host, no GUI — this item touches no compiled code. `#622`'s CI checks were still running when this was written. I did not verify the bot PAT's real expiry, which is not verifiable from here.
+
+**Machine state:** `C:\SE\TideSynth` started and ended on `main`, clean, and never left it — all work in `git worktree`s under the scratchpad, removed at the end. The developer was at the machine throughout (Visual Studio on `TiDEModules - TiDESliderSwitchGui.cpp` and `SynthEditStore - ResizeAdorner.cpp`, Outlook, Slack); no build, no host, no screen taken. I did not touch `SE16`, `SynthEditLib`, `gmpi_ui` or `GMPI_Wrappers`. No credential value appears in any commit, PR, journal entry or test.
+
+**Next:** see the `win` NEXT cell.
+
+**Branch/PR:** [#622](https://github.com/JeffMcClintock/TideSynth/pull/622), `tide/win/A40-token-expiry-derived` (code). This entry and the row flip are on `tide/win/2026-09-29-a40-bookkeeping`.
+
+## 2026-09-29 — windows — the result: #617 auto-merged two minutes after the probes came off it, having sat three days (scheduled run, continuation)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** recorded the outcome of the split made earlier in this same run, which landed while the run was still going. The entry above predicted it and left it for the next cell; it did not have to wait.
+
+### The experiment resolved inside the run
+
+[#617](https://github.com/JeffMcClintock/TideSynth/pull/617) was opened 09-26 and sat `CONFLICTING` through four cells. I removed two files from it — `tests/a38_lane_sweep_probe.py` and `tests/a38_row_adjacency_probe.py` — changing no prose except one relative link, pushed at **09:15**, and it **auto-merged at 09:17:07 as `be41dbdbf`**. The `auto-merge` workflow run against head `9ccd09b32` concluded `success`.
+
+| | before | after |
+|---|---|---|
+| files touched | `BACKLOG.md`, `JOURNAL.md`, 2 × `tests/**` | `BACKLOG.md`, `JOURNAL.md` |
+| `automerge_eligible.py` | `not eligible`, rc=1 | **`eligible`, rc=0** |
+| time open | **3 days**, 4 cells of resolution | **~2 minutes** |
+
+**Nothing else about the PR changed.** Same branch, same entries, same NEXT cell, same lint. The only variable was the file list, which is the variable the A4 gate reads.
+
+### What the merge then did, which is A38 exactly as documented
+
+`be41dbdbf` re-conflicted two PRs in `BACKLOG.md`, both by adjacency rather than disagreement:
+
+- **[#614](https://github.com/JeffMcClintock/TideSynth/pull/614) (A39)** — the branch holds its own row as `IN-REVIEW`; `main` now holds it as `TODO` with the new **A40** row on the next line. Resolved by taking the branch's A39 and `main`'s A40. Lossless by heading-set arithmetic, **461/461, 0 missing, 0 extra**; all seven lint checks rc=0; pushed as `40d4d7287`.
+- **[#618](https://github.com/JeffMcClintock/TideSynth/pull/618)** — re-synced its `BACKLOG.md`/`JOURNAL.md` to `main` (`0c5bab71a`). It now differs from `main` by the two probe files alone and measures `CLEAN`.
+
+**I caused both of these and fixed both.** A merge into `main` costs the other open PRs a resolution; that is the A38 tax and it is unchanged by any of today's work. What changed is that the thing paying it is now a two-minute merge rather than a three-day wait.
+
+### One thing I got wrong and is worth stating
+
+I first reset #618's bookkeeping files to the **merge base** rather than to `main`, reasoning that a branch introducing no change to a file can never conflict in it. That is true of the merge, and it **fails `check-journal-prepend`**: relative to `main`, the head was missing `main`'s newest entry, which the lint correctly reads as an entry being dropped. So the conflict-proof choice is rejected by the lint, and the lint is right — the two goals genuinely pull in opposite directions here. Re-syncing to `main`'s current content passes, at the cost of needing a re-sync each time `main` moves. That re-sync is cheap and mechanical; it is `git checkout origin/main -- BACKLOG.md JOURNAL.md` and nothing else.
+
+**Learned:**
+
+- **The allowlist verdict is the single best predictor of whether a fleet PR is about to be stuck, and it costs one command.** Measured 0 of 66 eligible PRs open and 12 of 12 open PRs blocked; the causal test ran today and took two minutes.
+- **A PR that only records something should contain only records.** This entry and the one above it are on a PR touching two files, and that is now this lane's standing shape.
+- **A branch that deliberately carries no change to a contended file still cannot carry an *older* copy of it**, because `check-journal-prepend` compares head against `main`, not against the merge base.
+
+**Not verified:** I built nothing and ran no host. #618's and #614's own checks were still running when this was written; both were green before the merges and neither changed a line of code.
+
+**Machine state:** `C:\SE\TideSynth` started and ended on `main`, clean, and never left it — all work in `git worktree`s under the scratchpad, removed at the end. The developer was at the machine (Visual Studio on `TiDEModules - TiDESliderSwitchGui.cpp` and `SynthEditStore - ResizeAdorner.cpp`, Outlook, Slack); no build, no host, no screen taken.
+
+**Next:** see the `win` NEXT cell.
+
+**Branch/PR:** `tide/win/2026-09-29-automerge-result`, a two-file PR by construction.
+
 ## 2026-09-29 — windows — the bookkeeping PRs were never eligible for the auto-merge tier, and two probe files are the whole reason (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
