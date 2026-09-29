@@ -8,6 +8,51 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-29 — windows — the result: #617 auto-merged two minutes after the probes came off it, having sat three days (scheduled run, continuation)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** recorded the outcome of the split made earlier in this same run, which landed while the run was still going. The entry above predicted it and left it for the next cell; it did not have to wait.
+
+### The experiment resolved inside the run
+
+[#617](https://github.com/JeffMcClintock/TideSynth/pull/617) was opened 09-26 and sat `CONFLICTING` through four cells. I removed two files from it — `tests/a38_lane_sweep_probe.py` and `tests/a38_row_adjacency_probe.py` — changing no prose except one relative link, pushed at **09:15**, and it **auto-merged at 09:17:07 as `be41dbdbf`**. The `auto-merge` workflow run against head `9ccd09b32` concluded `success`.
+
+| | before | after |
+|---|---|---|
+| files touched | `BACKLOG.md`, `JOURNAL.md`, 2 × `tests/**` | `BACKLOG.md`, `JOURNAL.md` |
+| `automerge_eligible.py` | `not eligible`, rc=1 | **`eligible`, rc=0** |
+| time open | **3 days**, 4 cells of resolution | **~2 minutes** |
+
+**Nothing else about the PR changed.** Same branch, same entries, same NEXT cell, same lint. The only variable was the file list, which is the variable the A4 gate reads.
+
+### What the merge then did, which is A38 exactly as documented
+
+`be41dbdbf` re-conflicted two PRs in `BACKLOG.md`, both by adjacency rather than disagreement:
+
+- **[#614](https://github.com/JeffMcClintock/TideSynth/pull/614) (A39)** — the branch holds its own row as `IN-REVIEW`; `main` now holds it as `TODO` with the new **A40** row on the next line. Resolved by taking the branch's A39 and `main`'s A40. Lossless by heading-set arithmetic, **461/461, 0 missing, 0 extra**; all seven lint checks rc=0; pushed as `40d4d7287`.
+- **[#618](https://github.com/JeffMcClintock/TideSynth/pull/618)** — re-synced its `BACKLOG.md`/`JOURNAL.md` to `main` (`0c5bab71a`). It now differs from `main` by the two probe files alone and measures `CLEAN`.
+
+**I caused both of these and fixed both.** A merge into `main` costs the other open PRs a resolution; that is the A38 tax and it is unchanged by any of today's work. What changed is that the thing paying it is now a two-minute merge rather than a three-day wait.
+
+### One thing I got wrong and is worth stating
+
+I first reset #618's bookkeeping files to the **merge base** rather than to `main`, reasoning that a branch introducing no change to a file can never conflict in it. That is true of the merge, and it **fails `check-journal-prepend`**: relative to `main`, the head was missing `main`'s newest entry, which the lint correctly reads as an entry being dropped. So the conflict-proof choice is rejected by the lint, and the lint is right — the two goals genuinely pull in opposite directions here. Re-syncing to `main`'s current content passes, at the cost of needing a re-sync each time `main` moves. That re-sync is cheap and mechanical; it is `git checkout origin/main -- BACKLOG.md JOURNAL.md` and nothing else.
+
+**Learned:**
+
+- **The allowlist verdict is the single best predictor of whether a fleet PR is about to be stuck, and it costs one command.** Measured 0 of 66 eligible PRs open and 12 of 12 open PRs blocked; the causal test ran today and took two minutes.
+- **A PR that only records something should contain only records.** This entry and the one above it are on a PR touching two files, and that is now this lane's standing shape.
+- **A branch that deliberately carries no change to a contended file still cannot carry an *older* copy of it**, because `check-journal-prepend` compares head against `main`, not against the merge base.
+
+**Not verified:** I built nothing and ran no host. #618's and #614's own checks were still running when this was written; both were green before the merges and neither changed a line of code.
+
+**Machine state:** `C:\SE\TideSynth` started and ended on `main`, clean, and never left it — all work in `git worktree`s under the scratchpad, removed at the end. The developer was at the machine (Visual Studio on `TiDEModules - TiDESliderSwitchGui.cpp` and `SynthEditStore - ResizeAdorner.cpp`, Outlook, Slack); no build, no host, no screen taken.
+
+**Next:** see the `win` NEXT cell.
+
+**Branch/PR:** `tide/win/2026-09-29-automerge-result`, a two-file PR by construction.
+
 ## 2026-09-29 — windows — the bookkeeping PRs were never eligible for the auto-merge tier, and two probe files are the whole reason (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
