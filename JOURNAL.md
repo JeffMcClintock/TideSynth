@@ -8,6 +8,71 @@ entry that says "made progress on the view" is worthless. An entry that says
 "the structure view fails to measure because drawingHost is null until setHost
 runs; fixed by reordering, see commit abc123" is the whole point.
 
+## 2026-09-29 — windows — the bookkeeping PRs were never eligible for the auto-merge tier, and two probe files are the whole reason (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1 empty. STEP 1.5 on this lane's two `DIRTY` bookkeeping PRs, [#617](https://github.com/JeffMcClintock/TideSynth/pull/617) and [#618](https://github.com/JeffMcClintock/TideSynth/pull/618). STEP 2 found nothing eligible, twelfth cell. I took no backlog item and pushed to none of the five green product PRs.
+
+### The livelock has a cause this lane controls, and twelve cells have missed it
+
+Exactly one commit landed on `main` since the 09-28 cell — `9ccd09b32`, macOS's bookkeeping PR [#620](https://github.com/JeffMcClintock/TideSynth/pull/620) — and it re-conflicted both of this lane's bookkeeping branches in `BACKLOG.md` and `JOURNAL.md`, as every previous cell has recorded. What no cell has asked is **why the mac bookkeeping PR merged the same day and this lane's have sat since 09-26.**
+
+The answer is the A4 allowlist, and it is not subtle. `scripts/automerge_eligible.py` is a **strict inclusion** list: a PR auto-merges only if *every* file it touches is allowlisted. `tests/**` is not on it and never was.
+
+| PR | lane | files | verdict |
+|---|---|---|---|
+| [#620](https://github.com/JeffMcClintock/TideSynth/pull/620), [#619](https://github.com/JeffMcClintock/TideSynth/pull/619), [#616](https://github.com/JeffMcClintock/TideSynth/pull/616) | mac | `BACKLOG.md`, `JOURNAL.md` | **eligible** → merged same day |
+| [#617](https://github.com/JeffMcClintock/TideSynth/pull/617), [#618](https://github.com/JeffMcClintock/TideSynth/pull/618) | win | `BACKLOG.md`, `JOURNAL.md`, `tests/a38_lane_sweep_probe.py`, `tests/a38_row_adjacency_probe.py` | **blocked** → open 3 days |
+
+Run against the gate's own script: the mac file list gives `eligible: all 2 changed file(s) are on the auto-merge allowlist`, rc=0; this lane's gives `not eligible: tests/a38_lane_sweep_probe.py is not on the auto-merge allowlist`, rc=1. The workflow `.github/workflows/auto-merge.yml` then logs *"left for a human"* and stops. **This lane opted its own bookkeeping out of the fast lane and then spent twelve cells resolving the conflicts that follow from staying in the queue.**
+
+### Measured across all 120 PRs, not inferred from the five in front of me
+
+Eligibility computed by importing `automerge_eligible.classify` and applying it to each PR's file list from the API:
+
+| cohort | n | still open | merged | median age | p90 | max |
+|---|---|---|---|---|---|---|
+| **allowlist-eligible** | 66 | **0** | 65 | **0.0 h** | 0.0 h | 3.1 h |
+| **allowlist-blocked** | 54 | **12** | 41 | 0.6 h | 21.5 h | 129.6 h |
+
+**Not one eligible PR in the repository's history is stuck, and all twelve that are stuck are blocked.** Eligibility is sufficient for a same-day merge; every open PR, in all three lanes, fails it. Per lane, over PRs touching `JOURNAL.md`: win 15 pure / 19 impure (6 of the impure still open), mac 44 / 22 (3 open), linux 3 / 3 (1 open). The win lane made the majority of its journal PRs impure; mac made a third.
+
+**This does not contradict A38, it bounds it.** The branch-versus-branch divergence the 09-27 and 09-28 cells measured is real and unchanged. But it only ever gets to matter to a PR that is *waiting*, and a pure bookkeeping PR does not wait long enough to be caught by it. The 09-23 cell's *"the fleet's automation is systematically faster at recording problems than at fixing them"* is right, and the half it missed is that **recording is only fast when the recording PR is pure** — which is a property of what a run puts in it, not of the process.
+
+### What I changed
+
+I split the two PRs along the line the allowlist already draws, rather than proposing any change to it:
+
+- **#617 is now documentary only** — `BACKLOG.md` + `JOURNAL.md`, nothing else. It carries this lane's 09-26, 09-27, 09-28 and 09-29 entries, the refreshed `win` NEXT cell, and the **A40** row that previously existed only on #618. `automerge_eligible.py` on its changed-file list: **`eligible`, rc=0**.
+- **#618 now carries the two probes and nothing else** — `tests/a38_lane_sweep_probe.py` and `tests/a38_row_adjacency_probe.py`, byte-identical to what it already held. It touches **no bookkeeping file**, which is the [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) property the 09-23 cell identified as the only one that lets a PR merge alongside any other. It stays blocked, correctly: it is code, and A4 sends code to a human by design.
+
+**One trap, and `check-links` is what catches it.** #617's prose linked `tests/a38_lane_sweep_probe.py` by relative path, and stripping the file would have left a broken link and a red lint — which would have kept the PR from auto-merging just as effectively as the file did. There was exactly one such link and zero to the row-adjacency probe; the link is now inline code, per the 09-22 convention (*"identical relative links are only safe for files already on `main`"*). This is the same hazard the 09-28 cell hit from the opposite direction, where the fix was to carry the file rather than drop the link.
+
+### STEP 1.5 resolution
+
+`git merge-tree --write-tree --name-only origin/<branch> origin/main` first, on all seven `tide/win/**` PRs: five `CLEAN` ([#586](https://github.com/JeffMcClintock/TideSynth/pull/586) E80, [#587](https://github.com/JeffMcClintock/TideSynth/pull/587) E82, [#590](https://github.com/JeffMcClintock/TideSynth/pull/590) E19, [#597](https://github.com/JeffMcClintock/TideSynth/pull/597) A38, [#614](https://github.com/JeffMcClintock/TideSynth/pull/614) A39), two conflicting in `BACKLOG.md` and `JOURNAL.md`. All seven carry 13 SUCCESS / 2 SKIPPED, no review decision, 0 unresolved threads. Per STEP 1.5 the five green ones are waiting for merge and not mine to touch; I did not touch them.
+
+Resolution was the standing recipe: `JOURNAL.md` by date order (`main`'s 09-29 macOS entry above the branch's 09-28 windows entry), `BACKLOG.md` by row ownership (`win` from the branch, `mac` from `main`). Verified lossless by `## 20…` heading-set arithmetic over `JOURNAL.md` + `JOURNAL-2026-08.md` + `JOURNAL-2026-09.md`, with the branch side from `ORIG_HEAD`:
+
+| branch | main | union | merged | missing | extra | dup |
+|---|---|---|---|---|---|---|
+| 459 | 457 | 460 | 460 | **0** | **0** | **0** |
+
+**Learned:**
+
+- **Before resolving a bookkeeping conflict for the Nth time, run the changed-file list through `automerge_eligible.py`.** One command. If it says `not eligible`, the conflict is a consequence of the PR's file list and re-resolving it does not address anything — the PR will still be sitting there when the next merge lands.
+- **A measurement on the PRs in front of you cannot see a gate that filters which PRs are still in front of you.** Twelve cells measured conflicts among the stuck PRs and concluded the queue was slow. The eligible PRs were invisible precisely because they merged: 66 of them, 0 still open. **Survivorship, in a queue whose survivors are the failures.**
+- **Keep evidence out of the PR that records it.** A probe, fixture or script in a bookkeeping PR converts a zero-hour merge into an indefinite wait, and the cost is paid by every other open PR through the conflicts that follow. Two PRs is the cheap shape: documents auto-merge, code waits for a human.
+
+**Not verified:** I built nothing and ran no host — this run changed no code, and the only non-document files touched were moved between two branches with identical blobs. The 65-of-65 and 0-of-66 figures are from the GitHub API's own `files` lists scored by the repository's own allowlist script; I did not re-run any historical merge. Whether #617 actually auto-merges is CI's to demonstrate and is the next cell's first check.
+
+**Machine state:** `C:\SE\TideSynth` started and ended on `main`, clean, and never left it — all work was in `git worktree`s under the scratchpad, removed at the end. **The developer was at the machine and one of the trees is TIDE-adjacent:** Visual Studio on `TiDEModules - TiDESliderSwitchGui.cpp` and on `SynthEditStore - ResizeAdorner.cpp`, plus Outlook and Slack. No build, no host, no screen taken, and I did not touch `SE16`, `SynthEditLib`, `gmpi_ui` or `GMPI_Wrappers`.
+
+**Next:** see the `win` NEXT cell. For Jeff: **#617 should merge itself** — if it has, the experiment held. #618 is two probe files and conflicts with nothing, so it can merge at any time in any order.
+
+**Branch/PR:** no new branch. This entry and the refreshed `win` NEXT cell are on [#617](https://github.com/JeffMcClintock/TideSynth/pull/617) (`tide/win/2026-09-26-step15-and-sweep-measurement`); [#618](https://github.com/JeffMcClintock/TideSynth/pull/618) (`tide/win/2026-09-27-adjacency-measurement`) now carries only the two probes.
+
 ## 2026-09-29 — macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone after #619, as predicted; STEP 2 walked, nothing eligible (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.9939.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
