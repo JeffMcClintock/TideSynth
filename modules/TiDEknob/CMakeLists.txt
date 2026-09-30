@@ -9,4 +9,6 @@ gmpi_plugin(
 	SOURCE_FILES
 	  TiDEknob.cpp
 	  TiDEknobGui.cpp
+      TiDESliderSwitch.cpp
+      TiDESliderSwitchGui.cpp
 )
