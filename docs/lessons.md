@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **449 KB** across **351** entries, so copying them
+Learned sections are **462 KB** across **364** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **142 KB / 1495 lessons — 3.2x smaller**, and represents
+A8. This is **147 KB / 1534 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -37,7 +37,97 @@ by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
+## 2026-10-01
+
+**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, fifth cell running; `main` green after Jeff's slider switch; STEP 2 walked, nothing eligible (scheduled run)**
+
+- The app version moved from 2.9939.4 to 2.16120.0 between the 09-30 and 10-01 cells
+- Nothing new about the livelock.
+
+## 2026-09-30
+
+**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, for the fourth cell running; STEP 2 walked, nothing eligible (scheduled run)**
+
+- Nothing new about the mechanism.
+- The local `main` in `~/Documents/GitHub/TideSynth` is 16 commits behind `origin/main`
+
+## 2026-09-29
+
+**windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)**
+
+- "The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.
+- The developer-at-the-machine check should look at ahead/behind, not just dirt.
+
+**windows — A40: the watchdog's credential countdown was counting down to a date nothing could read (scheduled run, continuation)**
+
+- A constant that no test can move is indistinguishable from a measurement, in the output.
+- "Query it instead" was the wrong fix and the original comment knew why.
+- An absent signal is a finding only if you can say what its presence would have looked like.
+
+**windows — the result: #617 auto-merged two minutes after the probes came off it, having sat three days (scheduled run, continuation)**
+
+- The allowlist verdict is the single best predictor of whether a fleet PR is about to be stuck, and it costs one command.
+- A PR that only records something should contain only records.
+- A branch that deliberately carries no change to a contended file still cannot carry an *older* copy of it
+
+**windows — the bookkeeping PRs were never eligible for the auto-merge tier, and two probe files are the whole reason (scheduled run)**
+
+- Before resolving a bookkeeping conflict for the Nth time, run the changed-file list through `automerge_eligible.py`.
+- A measurement on the PRs in front of you cannot see a gate that filters which PRs are still in front of you.
+- Keep evidence out of the PR that records it.
+
+**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone after #619, as predicted; STEP 2 walked, nothing eligible (scheduled run)**
+
+- The 09-28 prediction held exactly.
+
+## 2026-09-28
+
+**windows — a merge order published in this cell has a shelf life of one merge; #617 and #618 made no-ops against each other, and #617 is now a free merge (scheduled run)**
+
+- Re-measure before you act on any depth number in a NEXT cell, including one you wrote.
+- Resolving N branches against `main` is not the same work as making them agree with each other
+- Byte-identical content is the cheap fix, and its one real cost is relative links.
+
+**macos — STEP 1.5: only A36 re-conflicted after #616, in `JOURNAL.md` alone; STEP 2 walked, nothing eligible (scheduled run)**
+
+- The take-main's-`lessons.md` recipe survived one `main` merge in this lane.
+- A36 will re-conflict on every journal PR until it merges
+
+## 2026-09-27
+
+**windows — the livelock's CAUSE measured: A38's option (b) buys 4 of 21 pairs, and `JOURNAL.md` is the file that actually blocks (scheduled run)**
+
+- Sweep depth cannot answer a question about a mechanism.
+- A control that fails is worth more than one that passes, and C2 caught a bug in its own probe.
+- A control can also be over-broad, and that is not a licence to loosen it.
+- Text mode is the wrong default for git plumbing on this box in both directions.
+- A14's authorship check caught a real misattribution on this run, and the cause is the harness, not the box.
+- Check whether the fleet's own automation already covers a finding before filing it.
+- `gh api` needs `MSYS_NO_PATHCONV=1` for a leading-slash endpoint in Git Bash here
+
+## 2026-09-26
+
+**windows — the 09-25 "merging one does not re-conflict the others" is FALSE, measured 0 of 120 orderings; the livelock survived, only `docs/lessons.md` left it (scheduled run)**
+
+- A resolution that makes every branch mergeable against `main` is not a resolution that lets any two of them land, and this fleet has conflated those for six runs.
+- State the property you measured, not the one you want.
+- `BACKLOG-DONE.md` belongs in every list of hot bookkeeping files.
+- A NEXT cell can be confidently wrong, and it is still the best input available.
+
+**macos — STEP 1.5 again, resolved with the take-main's-`lessons.md` recipe; A39 already claimed by windows, nothing else eligible (scheduled run)**
+
+- A NEXT cell's "take X next" is not a claim, and a lane that names an item without pushing a DOING mark can lose it overnight.
+- When a branch rotates the journal, heading-set arithmetic must include the archive files.
+
 ## 2026-09-25
+
+**windows — the bookkeeping livelock is ONE GENERATED FILE, not three; four PRs unblocked in a way that survives a merge, then A39 taken (scheduled run)**
+
+- Measure which files actually conflict before applying a conflict recipe.
+- A tracked GENERATED file conflicts on every branch forever, and regenerating it on the branch is what sustains that.
+- A38's journal half is conditional on run density, not structural.
+- `check-commit-authorship.py` needs `--range` in a detached worktree.
+- GitHub stamps a squash merge with the bot ACCOUNT's profile identity, not the run's `GIT_*` variables.
 
 **macos — STEP 1 was two inherited gate failures on this lane's own PRs, fixed by the STEP 1.5 merge; #604 superseded (scheduled run)**
 
