@@ -39,7 +39,15 @@ import re
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-SOURCES = ["JOURNAL.md", "JOURNAL-2026-08.md"]
+# DISCOVERED, NEVER LISTED (A36, 2026-09-10). This was a hard-coded pair, and a
+# rotation that opens a NEW month's archive would have dropped every lesson it
+# moved there -- silently, and in the one file written to stop lessons being
+# lost. The live journal first, then each JOURNAL-YYYY-MM.md archive, newest
+# month first; sorted so the digest's order does not depend on the filesystem.
+SOURCES = ["JOURNAL.md"] + sorted(
+    (p.name for p in REPO.glob("JOURNAL-[0-9][0-9][0-9][0-9]-[0-9][0-9].md")),
+    reverse=True,
+)
 OUT = REPO / "docs" / "lessons.md"
 
 ENTRY = re.compile(r"\n(?=## )")
@@ -193,8 +201,8 @@ A8. This is **{body_kb} KB / {lessons} lessons — {ratio}x smaller**, and repre
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
-[JOURNAL.md](../JOURNAL.md) if recent, else
-[JOURNAL-2026-08.md](../JOURNAL-2026-08.md).
+[JOURNAL.md](../JOURNAL.md) if recent, else the archive for its month:
+{archive_links}.
 
 **This file GROWS, and someone will have to prune it.** ~4 lessons an entry at
 ~90 bytes is ~360 bytes per entry, and this fleet writes ~10 entries a day —
@@ -254,6 +262,9 @@ def render(data):
     # `--write` twice has to be a no-op diff.
     raw = learned_bytes()
     return PREAMBLE.format(
+        archive_links=", ".join(
+            "[%s](../%s)" % (s, s) for s in SOURCES if s != "JOURNAL.md"
+        ),
         entries=len(data),
         lessons=n,
         raw_kb=round(raw / 1024),
