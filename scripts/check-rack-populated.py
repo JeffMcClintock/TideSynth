@@ -61,6 +61,9 @@ written to the user's disk and no sandbox exception is needed (PLAN constraints
     --au3                   run auval, read the unified log (macOS only)
     --log-file <path>       assert against already-captured text, for CI and
                             for testing this script
+    --expect-prefabs <n>    override the prefab count; by default it is DERIVED
+                            from RackModules/, the directory CMake stages into
+                            the bundle (BACKLOG A39)
 
 Exit 0 when the rack came up populated; 1 otherwise, naming what was missing.
 """
@@ -79,24 +82,74 @@ import time
 # gated, which is silent, so the count is asserted too.
 EXPECTED_XMLS = ("ControlsXp.xml", "MidiPlayer2.xml", "Converters.xml", "VaFilters.xml")
 
-# What a healthy `main` seeds today. M5 measured exactly these nine in
-# GarageBand: AR jef, Envelope, Filter, Midi, MidiCv, Oscillator, Output,
-# Output jef, Sine jef. Overridable, because adding a prefab is normal work and
-# this script should be updated deliberately rather than being a tripwire that
-# every prefab author has to guess at.
-# 7 since 2026-08-26: V6 made the root assembly a default DOCUMENT, which made
-# MidiCv.synthedit redundant, and Output_jef.synthedit went with it as the
-# other duplicate. Keeping MidiCv browsable would have been actively unsafe --
-# a second root `SE MIDI to CV 2` breaks voice allocation.
+# BACKLOG A39. This USED to be `EXPECTED_PREFABS = <n>`, a hand-maintained
+# mirror of RackModules/, and its own comment predicted the defect: "if you
+# delete a prefab, this number moves with it". It went stale three times --
+# `14a8fd376` (shipped 7 / expected 9), `322df0f27` (5 / 7) and `ccda7ad97`
+# (3 / 5) -- each time turning `main` red for a day or more, and each time the
+# fix was to edit the constant, which is the fix that guarantees the next one.
+# A comment that accurately predicts a defect is evidence the design is wrong,
+# not that the warning was sufficient.
 #
-# 5 since `322df0f update prefabs` the same evening, which removed Midi and
-# Output for the same reason -- the default rack supplies both. This constant
-# is not a policy, it is a MIRROR of RackModules/, and it went stale within
-# hours for the second time in one day. If you delete a prefab, this number
-# moves with it; the gate's own failure text says so, and it is the only thing
-# that catches a prefab that silently failed to stage.
-# 7 since AR, Keyboard, Logger and Sine were committed (2026-09-24).
-EXPECTED_PREFABS = 7
+# So the expectation is DERIVED from the staging INPUT: the files CMake copies
+# into the bundle. `SynthEditSem/CMakeLists.txt` stages RackModules/ wholesale
+# (`copy_directory RackModules -> <resources>/Prefabs`, three arms plus the iOS
+# shell script), so the directory below IS the list -- there is no hand-copied
+# CMake variable to read instead, and adding a prefab needs no CMake edit
+# either. Same shape as `7738abf90` ("read every staged pin XML, not a
+# hand-copied list of them"), landed 09-24 for the same reason.
+#
+# WHAT MUST NOT HAPPEN, and it is the whole risk of this change: the
+# expectation must NEVER come from the subject under test. If it did, the gate
+# would pass vacuously -- any count the standalone reported would equal any
+# count the gate expected -- and a vacuous gate is INDISTINGUISHABLE from a
+# working one at a glance. That is why the source is the repo tree, which the
+# build reads, and never the captured log, which the build writes. The negative
+# control in tests/a39_prefab_count_probe.py exists to keep it that way.
+#
+# THE TEETH ARE UNCHANGED. The assertion still catches a prefab that silently
+# FAILED TO STAGE -- RackModules/ holds N, the standalone reports fewer, the
+# gate fails and names both numbers. What it no longer catches is a human
+# forgetting to edit a constant, which was never a defect in the plugin.
+PREFAB_SOURCE_DIR = "RackModules"
+
+# Must match the extension test in TideApp.cpp's seedPrefabsFromBundle():
+# a recursive walk over regular files, comparing `path().extension()` exactly.
+# Exact and case-sensitive on purpose -- mirroring the app is the point, so a
+# name this list would count and the app would not is a bug in this list.
+PREFAB_EXTENSIONS = (".synthedit", ".syntheditprefab")
+
+
+def repo_root():
+    """This file is scripts/<name>.py, so the root is its parent's parent."""
+    return pathlib.Path(__file__).resolve().parent.parent
+
+
+def count_staged_prefabs(root=None):
+    """How many prefabs the build stages -- read from the source of the copy.
+
+    Mirrors seedPrefabsFromBundle(): recurse, regular files only, and keep the
+    two prefab extensions. Raises rather than returning 0, because a zero
+    expectation would make the count assertion vacuous in the one direction
+    that matters (0 seeded == 0 expected reads as a pass).
+    """
+    root = pathlib.Path(root) if root is not None else repo_root()
+    src = root / PREFAB_SOURCE_DIR
+    if not src.is_dir():
+        raise SystemExit(
+            "no %s/ directory under %s -- this script derives the expected "
+            "prefab count from the files CMake stages, so it cannot run "
+            "outside a checkout. Pass --expect-prefabs N to override."
+            % (PREFAB_SOURCE_DIR, root))
+
+    found = sorted(p for p in src.rglob("*")
+                   if p.is_file() and p.suffix in PREFAB_EXTENSIONS)
+    if not found:
+        raise SystemExit(
+            "%s/ holds no %s files -- refusing to expect zero prefabs, which "
+            "would make this assertion vacuous."
+            % (PREFAB_SOURCE_DIR, " or ".join(PREFAB_EXTENSIONS)))
+    return len(found)
 
 # The AudioComponent this project registers -- SynthEditSem/CMakeLists.txt:162.
 AU_TYPE, AU_SUBTYPE, AU_MANUFACTURER = "aumu", "Drck", "Dsyh"
@@ -190,8 +243,13 @@ LOST_MODULE = re.compile(
     r"which this document does not contain")
 
 
-def check(text, expect_prefabs=EXPECTED_PREFABS):
-    """Return (failures, notes) for a blob of captured diagnostic output."""
+def check(text, expect_prefabs=None):
+    """Return (failures, notes) for a blob of captured diagnostic output.
+
+    expect_prefabs=None means "derive it from the staging input" (A39).
+    """
+    if expect_prefabs is None:
+        expect_prefabs = count_staged_prefabs()
     failures, notes = [], []
 
     if not text.strip():
@@ -253,10 +311,12 @@ def check(text, expect_prefabs=EXPECTED_PREFABS):
     else:
         count = int(found[-1])
         if count != expect_prefabs:
-            failures.append("%d rack prefab(s) seeded, expected %d. Either a "
-                            "prefab failed to stage, or one was added and this "
-                            "script's EXPECTED_PREFABS was not updated."
-                            % (count, expect_prefabs))
+            failures.append("%d rack prefab(s) seeded, but %s/ holds %d -- a "
+                            "prefab did not reach the bundle. Commonest causes "
+                            "are a staging step that did not run and a stale "
+                            "build tree (BACKLOG E40); a prefab ADDED to the "
+                            "repo no longer needs this script edited (A39)."
+                            % (count, PREFAB_SOURCE_DIR, expect_prefabs))
         else:
             notes.append("%d rack prefab(s) seeded" % count)
 
@@ -272,7 +332,7 @@ def check(text, expect_prefabs=EXPECTED_PREFABS):
     return failures, notes
 
 
-def capture_standalone(binary, timeout, expect_prefabs=EXPECTED_PREFABS):
+def capture_standalone(binary, timeout, expect_prefabs=None):
     """Run the standalone, read its stderr, and stop the moment the evidence is
     complete.
 
@@ -378,13 +438,28 @@ def main():
                      help="run auval against the installed AUv3 and read the unified log")
     src.add_argument("--log-file", metavar="PATH",
                      help="assert against text captured earlier")
-    ap.add_argument("--expect-prefabs", type=int, default=EXPECTED_PREFABS,
-                    help="prefab count to require (default %d)" % EXPECTED_PREFABS)
+    ap.add_argument("--expect-prefabs", type=int, default=None,
+                    help="prefab count to require. Default: derived from "
+                         "%s/ (A39). Override it to assert against a capture "
+                         "from a different revision, as the fixtures in "
+                         "tests/rack-content/ do." % PREFAB_SOURCE_DIR)
     ap.add_argument("--timeout", type=int, default=90,
                     help="seconds to let the subject run (default 90)")
     ap.add_argument("--show-capture", action="store_true",
                     help="print everything captured, not just the verdict")
     args = ap.parse_args()
+
+    # Resolve the expectation ONCE, here, so the verdict can print where the
+    # number came from. A gate that asserts a count without saying what it
+    # compared against is the hard one to audit -- and auditing it is exactly
+    # what A39 is about.
+    if args.expect_prefabs is None:
+        expect_prefabs = count_staged_prefabs()
+        expect_source = "derived from %s/" % PREFAB_SOURCE_DIR
+    else:
+        expect_prefabs = args.expect_prefabs
+        expect_source = "--expect-prefabs"
+    args.expect_prefabs = expect_prefabs
 
     auval_rc = 0
     if args.standalone:
@@ -405,6 +480,7 @@ def main():
     failures, notes = check(text, args.expect_prefabs)
 
     print("subject: %s" % subject)
+    print("expecting %d prefab(s)  (%s)" % (expect_prefabs, expect_source))
     for n in notes:
         print("  ok   %s" % n)
     for f in failures:
