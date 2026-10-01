@@ -16,14 +16,14 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **440 KB** across **343** entries, so copying them
+Learned sections are **466 KB** across **367** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **138 KB / 1471 lessons — 3.2x smaller**, and represents
+A8. This is **149 KB / 1548 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
-[JOURNAL.md](../JOURNAL.md) if recent, else
-[JOURNAL-2026-08.md](../JOURNAL-2026-08.md).
+[JOURNAL.md](../JOURNAL.md) if recent, else the archive for its month:
+[JOURNAL-2026-09.md](../JOURNAL-2026-09.md), [JOURNAL-2026-08.md](../JOURNAL-2026-08.md).
 
 **This file GROWS, and someone will have to prune it.** ~4 lessons an entry at
 ~90 bytes is ~360 bytes per entry, and this fleet writes ~10 entries a day —
@@ -36,6 +36,172 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-01
+
+**windows — correction: the lane-sweep probe DID finish, and it plus #627's own merge confirm #618's zero-diff resting state (scheduled run, continuation)**
+
+- Re-read a backgrounded command's output file immediately before you commit the entry that describes it.
+- An allowlist-eligible PR merges faster than a run can revise it — about two minutes here.
+- The zero-diff resting state is now measured, not just argued.
+
+**windows — STEP 1.5: three content re-syncs never moved #618's merge-base, and a real merge did; the A38 probes' verdict flipped twice on fleet movement alone (scheduled run)**
+
+- A content re-sync is not a merge, and only the merge moves the merge-base.
+- "Zero diff in the contended file" is a durable resting state for a long-lived branch; "current copy of the contended file" is not.
+- A probe whose fixture is the live fleet has a shelf life, and its pass is not evidence a reader can re-check.
+- Run a PR's own verification artifact during STEP 1.5, not just the lints.
+- A recorded debt can outlive its stated precondition.
+
+**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, fifth cell running; `main` green after Jeff's slider switch; STEP 2 walked, nothing eligible (scheduled run)**
+
+- The app version moved from 2.9939.4 to 2.16120.0 between the 09-30 and 10-01 cells
+- Nothing new about the livelock.
+
+## 2026-09-30
+
+**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, for the fourth cell running; STEP 2 walked, nothing eligible (scheduled run)**
+
+- Nothing new about the mechanism.
+- The local `main` in `~/Documents/GitHub/TideSynth` is 16 commits behind `origin/main`
+
+## 2026-09-29
+
+**windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)**
+
+- "The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.
+- The developer-at-the-machine check should look at ahead/behind, not just dirt.
+
+**windows — A40: the watchdog's credential countdown was counting down to a date nothing could read (scheduled run, continuation)**
+
+- A constant that no test can move is indistinguishable from a measurement, in the output.
+- "Query it instead" was the wrong fix and the original comment knew why.
+- An absent signal is a finding only if you can say what its presence would have looked like.
+
+**windows — the result: #617 auto-merged two minutes after the probes came off it, having sat three days (scheduled run, continuation)**
+
+- The allowlist verdict is the single best predictor of whether a fleet PR is about to be stuck, and it costs one command.
+- A PR that only records something should contain only records.
+- A branch that deliberately carries no change to a contended file still cannot carry an *older* copy of it
+
+**windows — the bookkeeping PRs were never eligible for the auto-merge tier, and two probe files are the whole reason (scheduled run)**
+
+- Before resolving a bookkeeping conflict for the Nth time, run the changed-file list through `automerge_eligible.py`.
+- A measurement on the PRs in front of you cannot see a gate that filters which PRs are still in front of you.
+- Keep evidence out of the PR that records it.
+
+**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone after #619, as predicted; STEP 2 walked, nothing eligible (scheduled run)**
+
+- The 09-28 prediction held exactly.
+
+## 2026-09-28
+
+**windows — a merge order published in this cell has a shelf life of one merge; #617 and #618 made no-ops against each other, and #617 is now a free merge (scheduled run)**
+
+- Re-measure before you act on any depth number in a NEXT cell, including one you wrote.
+- Resolving N branches against `main` is not the same work as making them agree with each other
+- Byte-identical content is the cheap fix, and its one real cost is relative links.
+
+**macos — STEP 1.5: only A36 re-conflicted after #616, in `JOURNAL.md` alone; STEP 2 walked, nothing eligible (scheduled run)**
+
+- The take-main's-`lessons.md` recipe survived one `main` merge in this lane.
+- A36 will re-conflict on every journal PR until it merges
+
+## 2026-09-27
+
+**windows — the livelock's CAUSE measured: A38's option (b) buys 4 of 21 pairs, and `JOURNAL.md` is the file that actually blocks (scheduled run)**
+
+- Sweep depth cannot answer a question about a mechanism.
+- A control that fails is worth more than one that passes, and C2 caught a bug in its own probe.
+- A control can also be over-broad, and that is not a licence to loosen it.
+- Text mode is the wrong default for git plumbing on this box in both directions.
+- A14's authorship check caught a real misattribution on this run, and the cause is the harness, not the box.
+- Check whether the fleet's own automation already covers a finding before filing it.
+- `gh api` needs `MSYS_NO_PATHCONV=1` for a leading-slash endpoint in Git Bash here
+
+## 2026-09-26
+
+**windows — the 09-25 "merging one does not re-conflict the others" is FALSE, measured 0 of 120 orderings; the livelock survived, only `docs/lessons.md` left it (scheduled run)**
+
+- A resolution that makes every branch mergeable against `main` is not a resolution that lets any two of them land, and this fleet has conflated those for six runs.
+- State the property you measured, not the one you want.
+- `BACKLOG-DONE.md` belongs in every list of hot bookkeeping files.
+- A NEXT cell can be confidently wrong, and it is still the best input available.
+
+**macos — STEP 1.5 again, resolved with the take-main's-`lessons.md` recipe; A39 already claimed by windows, nothing else eligible (scheduled run)**
+
+- A NEXT cell's "take X next" is not a claim, and a lane that names an item without pushing a DOING mark can lose it overnight.
+- When a branch rotates the journal, heading-set arithmetic must include the archive files.
+
+## 2026-09-25
+
+**windows — the bookkeeping livelock is ONE GENERATED FILE, not three; four PRs unblocked in a way that survives a merge, then A39 taken (scheduled run)**
+
+- Measure which files actually conflict before applying a conflict recipe.
+- A tracked GENERATED file conflicts on every branch forever, and regenerating it on the branch is what sustains that.
+- A38's journal half is conditional on run density, not structural.
+- `check-commit-authorship.py` needs `--range` in a detached worktree.
+- GitHub stamps a squash merge with the bot ACCOUNT's profile identity, not the run's `GIT_*` variables.
+
+**macos — STEP 1 was two inherited gate failures on this lane's own PRs, fixed by the STEP 1.5 merge; #604 superseded (scheduled run)**
+
+- One merge can clear both a CONFLICTING state and a red check, and when it does, STEP 1 and STEP 1.5 are one piece of work.
+- The fleet's own fix can go stale.
+- `check-journal-prepend.py`, `check-backlog-diff.py` and `check-prompt-provenance.py` take files, not git refs.
+
+## 2026-09-24
+
+**windows — STEP 1.5 again, but the four red `macos` checks were `main`'s break and not the branches': all four now CLEAN and green (scheduled run)**
+
+- A red CI check on a branch that has sat for days is a claim about the branch AND its base, and the fleet has been reading only the first half.
+- Read where in the job a red check died, not just that it died.
+- A gate whose expectation is a hand-maintained constant will go stale at exactly the rate the thing it counts changes.
+- Two correct fixes for one break, applied in opposite directions on two branches, is worse than one.
+- `JOURNAL.md` has literal conflict markers in its prose
+- The `mac` NEXT cell is 53,474 bytes on one line
+
+**macos — STEP 1.5 for the eighth time: A36 and E72 re-conflicted after #606 and Jeff's two knob commits; #604 still awaiting merge (scheduled run)**
+
+- Once STEP 1's fix is in review, STEP 1 has no work left. It is still worth re-checking
+- Every mac bookkeeping PR re-conflicts #585 and #588 when it merges
+
+## 2026-09-23
+
+**macos — STEP 1 was not empty: `main` itself was broken, fixed and verified (scheduled run)**
+
+- STEP 1 finding real work is rare enough on this platform (first time since 09-07) that it is worth stating plainly: the fix protocol worked as documented
+- A constant documented as "a MIRROR of `RackModules/`, and it goes stale" is not a hypothetical warning — it has now gone stale three times
+- An interactive commit from Jeff can break a scheduled-run platform's build same as any other commit
+
+## 2026-09-22
+
+**macos — STEP 1.5 for the seventh time on the same shape: A36 and E72 re-conflicted again, and windows has now filed a PR proposing A38's own fix (scheduled run)**
+
+- The livelock is now confirmed on a fourth consecutive run boundary, same two branches, same recipe, same result.
+- A full three-way heading-set comparison (resolved vs. `origin/main` vs. pre-merge `ORIG_HEAD`, each including archives) is cheap — one `grep`/`sort`/`comm` pipeline — and is strictly stronger evidence than the `grep -c` count check prior cells used
+
+## 2026-09-21
+
+**macos — STEP 1.5 for the sixth time on the same shape: A38's livelock recurred again, same two branches as 09-20 (scheduled run)**
+
+- The livelock is now confirmed on its third consecutive run boundary, always the same two branches once #589 (E81) stopped re-conflicting.
+- `mergeable`/`mergeStateStatus` can read `UNKNOWN` immediately after a merge to `main` lands
+- A merge-base rotation (deleting old entries from `JOURNAL.md` because they moved to an archive file) auto-merges as a clean deletion when the other side hasn't touched those lines
+
+## 2026-09-20
+
+**macos — STEP 1.5 for the fifth time on the same shape: A38's livelock recurred again, only A36 and E72 needed the recipe this time (scheduled run)**
+
+- The livelock is not always all-three: whether a given open PR re-conflicts on a given `main` merge depends on whether that merge's changed hunks overlap the specific lines that PR's branch last touched, not just on which files were touched.
+- Once the export-immediately-before-commit discipline from the 09-19 entry is followed, the authorship failure it describes does not recur
+
+## 2026-09-19
+
+**macos — STEP 1.5 for the fourth time on the same three PRs: A38's livelock, confirmed to recur across a run boundary (scheduled run)**
+
+- Exported `GIT_AUTHOR_*`/`GIT_COMMITTER_*` environment variables do not survive into a later, separate tool invocation in this harness — each shell call is a fresh environment.
+- An A38-shaped conflict can leave a NEXT cell corrupted (duplicated row prefix, divergent stale tail) rather than cleanly resolved, if a resolution pass concatenates a conflict side instead of choosing one.
+- A38's mechanism is confirmed to operate across run boundaries, not just within a single run's multiple pushes.
 
 ## 2026-09-18
 
@@ -60,6 +226,17 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The `platform:X` issue-label check is worth running across every repo the fleet touches, not just this one
 - A row's "no producer" finding can be an artifact of which module got tested, not a property of the mechanism.
 - Check unmerged sibling branches' own `BACKLOG-DONE.md` before flipping an `IN-REVIEW` row on `main`
+
+## 2026-09-10
+
+**macos — A36: the rotation rule had rotated itself out, and the lessons digest was about to lose 106 lessons (scheduled run)**
+
+- A remedy that MOVES data can carry off the rule that governs it, and every check can stay green while it does.
+- When an instruction stops being followed, suspect that it stopped being READABLE before suspecting the readers.
+- A rule's position is part of its content when a process moves things.
+- Three descriptions can all say where something is while it is somewhere else.
+- Take the baseline BEFORE you touch anything, or your after-number proves nothing.
+- Match the file's own separator convention, and check it rather than assuming.
 
 ## 2026-09-09
 
@@ -253,23 +430,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - When two rows collide, renumber by reference count, not by filing time.
 - Read the exit code of the thing you ran, not of the pipeline that reported on it.
 - A locked screen is a queue fact, not a footnote.
-
-## 2026-08-31
-
-**linux — X1 closed by Jeff's ruling: the blocker was never written down (state update, interactive)**
-
-- A bare `BLOCKED` is unfalsifiable by construction, and the queue has no way to notice.
-- Two individually correct rules can compose into a deadlock that neither one describes.
-- Ask what the row is FOR before proposing a status.
-
-**linux — the merges, and E60's fix measured after it had already landed (interactive continuation, Jeff directing)**
-
-- A PR you resolved may merge before you finish checking it.
-- Say "post-hoc" out loud when verification arrives after the merge.
-- Keep the superseded binary — it is the A/B for free.
-- A markdown table cannot go inside a table cell, and the archive lint is what catches it.
-- `git checkout <ref> -- <file>` during a merge is not "undo".
-- Conflict marker text depends on how the conflict was produced.
 
 ## 2026-08-18
 
@@ -2612,3 +2772,18 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A no-output startup script is more often a modal than a bug.
 - When a symbol check is ambiguous and the thing is on screen, screenshot it.
 - Out-of-process changes what an instrument IS, not just where it prints.
+
+**linux — X1 closed by Jeff's ruling: the blocker was never written down (state update, interactive)**
+
+- A bare `BLOCKED` is unfalsifiable by construction, and the queue has no way to notice.
+- Two individually correct rules can compose into a deadlock that neither one describes.
+- Ask what the row is FOR before proposing a status.
+
+**linux — the merges, and E60's fix measured after it had already landed (interactive continuation, Jeff directing)**
+
+- A PR you resolved may merge before you finish checking it.
+- Say "post-hoc" out loud when verification arrives after the merge.
+- Keep the superseded binary — it is the A/B for free.
+- A markdown table cannot go inside a table cell, and the archive lint is what catches it.
+- `git checkout <ref> -- <file>` during a merge is not "undo".
+- Conflict marker text depends on how the conflict was produced.
