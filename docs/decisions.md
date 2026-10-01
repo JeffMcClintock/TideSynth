@@ -42,12 +42,18 @@ days after it shipped. Both entries that stood here before 2026-09-08 closed on
 [#492](https://github.com/JeffMcClintock/TideSynth/pull/492)) and V7's
 context-menu question (ruled in session, in the table below).
 
-**Both entries below are BACKLOG [A35](../BACKLOG.md)'s two halves.** They are
-one row rather than two because A35 declined to split itself before Jeff had read
-either half; they are two `PROPOSED:` entries because A35's own words are *"both
-halves need answering, and they are separate"*. **Neither parks any work** — see
-each entry's *May proceed meanwhile* line, and note that the second is about what
-a run **records**, not about what it may build.
+**Five entries stand here. The FIRST TWO are BACKLOG [A35](../BACKLOG.md)'s two
+halves**; the third is [E81](../BACKLOG.md)'s, filed 2026-09-16, the fourth is
+[E72](../BACKLOG.md)'s, filed 2026-09-15, and the fifth is [A38](../BACKLOG.md)'s,
+filed 2026-09-18. A35 is one row rather than two because it declined to split itself
+before Jeff had read either half; it is two `PROPOSED:` entries because A35's own
+words are *"both halves need answering, and they are separate"*. **A35's two park no
+work at all** — see each entry's *May proceed meanwhile* line, and note that the
+second is about what a run **records**, not about what it may build. **E81's parks
+nothing either** — the change it asks about is in GATED `SynthEditLib` and no run may
+make it regardless of the answer. **E72's parks exactly one row, E72 itself**, and
+says so on the same line. **A38's parks nothing** — it is the fleet's own process
+rather than the product, and says so on its *May proceed meanwhile* line.
 
 ```
 PROPOSED: May a BACKLOG row's `Plat` cell be corrected after filing, and if so
@@ -144,6 +150,227 @@ PROPOSED: What should happen when a run judges a required check to be wrong
            standing answer until then is the one the 2026-09-03 run reached:
            the check is the arbiter, and a run's own conviction is not evidence.
 ```
+
+```
+PROPOSED: May a host-control parameter's handle be DETERMINISTIC across loads --
+          i.e. should `GetHostGeneratedParameter` stop selecting the handle
+          branch with `!stateful`?
+  Options: (a) no -- leave it. Record the non-determinism as a known property of
+               every saved document and make each comparison mask handles, which
+               is what E59's byte-equality guard would then have to do forever.
+           (b) invert it for host controls -- give every host-control parameter
+               the sequential branch regardless of `stateful`, which is what
+               `UniqueSnowflake.cpp:146` already says that branch is for.
+           (c) a third branch -- derive the handle FROM `hostControlId_` (a
+               reserved range), so it is stable across loads AND independent of
+               the order the host controls happen to be created in.
+  Recommended default: (c), and the reason is the one thing separating it from
+           (b). The sequential branch returns *the smallest free non-negative
+           key* (E56's fix), so what it produces depends on what is already
+           registered -- it is deterministic only if host-control CREATION ORDER
+           is deterministic. **That has not been verified, by this run or any
+           other.** (c) does not have to care. If creation order IS shown to be
+           stable, (b) is the smaller change and is the better answer.
+  Default in effect meanwhile: (a), unchosen. No TiDE document round-trips
+           byte-identically today, and three separate things already pay for it:
+           E59's byte-equality guard (found by E77), every save/reload diff a
+           run reads, and any A/B that compares two saved documents -- which is
+           this fleet's most-used verification shape.
+  May proceed meanwhile: EVERYTHING. This question parks no row. The change is
+           in GATED `SynthEditLib/UniqueSnowflake.cpp` and
+           `EditorLib/PatchManager.cpp`, which no scheduled run may edit under
+           any answer -- STEP 5's build-break exception does not reach it,
+           because this is not a build break. Do not read this entry as making
+           E81, E59 or anything else ineligible.
+  Decide-by: before anything else is built on top of document byte-equality.
+           E59 already was, and E77 found it by measuring the consequence.
+```
+
+**E81 asked why, and this is the answer -- it is not a collision, and that
+matters because the last one was.** E56 fixed a collision: the sequential
+allocator iterated an `unordered_map` expecting sorted order, fell through its
+early-out, and every request after the first landed in the random fallback. Its
+fix holds and its measurement stands. What is left is not that shape at all:
+
+    EditorLib/PatchManager.cpp:1304   (CPatchManager::GetHostGeneratedParameter)
+        Container()->Document()->uniqueIdDatabase.setHandleAutoGenerated(p, !stateful);
+
+`stateful` is a local of that function, set true in the switch above for exactly
+those host controls whose value is **written into the document**. So `!stateful`
+sends every host control that serializes to the RANDOM branch, and every host
+control that does not to the sequential one. **The parameters that reach the DSP
+XML are precisely the ones excluded from the branch whose own comment exists to
+make that XML comparable:**
+
+    UniqueSnowflake.cpp:146
+    // This is useful for Host Controlled Parameters which get created during
+    // project load. Using the same ID every time ensures resulting DSP XML is
+    // consistant and comparable each run.
+
+**Measured, not read** — [tests/e81_handle_branch_probe.py](../tests/e81_handle_branch_probe.py),
+two independent halves. Against `SynthEditLib` at `origin/main`, 19 host controls
+assign `stateful` explicitly: **16 true (RANDOM), 3 false (sequential)**. The five
+E81 measured are all in the first group:
+
+| HC | name | `stateful` | branch | committed documents |
+|---|---|---|---|---|
+| 14 | `HC_VOICE_ALLOCATION_MODE` | true | RANDOM | 2 distinct values in 2 docs |
+| 21 | `HC_POLYPHONY` | true | RANDOM | 2 distinct values in 2 docs |
+| 22 | `HC_POLYPHONY_VOICE_RESERVE` | true | RANDOM | 2 distinct values in 2 docs |
+| 40 | `HC_PORTAMENTO` | true | RANDOM | 2 distinct values in 2 docs |
+| 49 | `HC_PATCH_CABLES` | true | RANDOM | 2 distinct values in 2 docs |
+| 59 | `HC_PROCESSOR_OFFLINE` | **false** | **sequential** | **`Handle="0"`, every doc** |
+
+**THE CONTROL WAS FREE AND IN THE TREE, AND NOBODY HAD SPENT IT.** The last row
+is not a separate experiment: `HC_PROCESSOR_OFFLINE` sits in the *same three
+documents*, written by the *same load*, and carries handle **0** — the smallest
+free key, which is what the sequential branch returns. One predicate apart, six
+orders of magnitude apart in the output. So the branch is visible in the
+committed bytes and does not have to be taken on the source's word.
+
+**E81's ten-loads result is also recoverable from the repo at zero cost**, which
+is worth knowing before anyone rebuilds a CLAP host to re-measure it:
+`e5-rack-macos-2026-08-21.xml` and `e53-vcv-rack-segv.xml` are two INDEPENDENT
+saves and disagree on all five handles, while `e53`/`e75`/`e83` are edits of one
+another rather than separate saves and agree exactly.
+
+**What this run did NOT verify, stated plainly:** whether host-control creation
+order is deterministic (the hinge between (b) and (c) above); and whether the
+`:143` old-Banks hazard — *"if user deletes then adds parameter, new parameter
+will have old one's ID"* — can reach a host control at all, given host controls
+are created by the load itself, carry `isPrivate = true`, and are identified by
+`HostControl=` in the document. E81's row raises that hazard as the thing the
+ruling turns on; it is not established either way here.
+
+**The third entry is BACKLOG [E72](../BACKLOG.md)'s, filed 2026-09-15 (macos,
+scheduled run).** E72 has said since 2026-08-31 that it "wants a ruling rather
+than a session", and in fifteen days nobody had actually ASKED — the row named
+the question and the mechanism for putting it to Jeff is this section, so the
+row sat naming a ruling that was never requested. This is that request. The
+reading behind it is now a measurement,
+[tests/e72_dsp_dirty_probe.py](../tests/e72_dsp_dirty_probe.py), with the
+structure-view path as a control in the same table.
+
+```
+PROPOSED: Should a RACK PATCH-CABLE edit mark the DSP dirty, given the fix is in
+          SynthEditLib and so lands in the commercial product too?
+  Options: (a) no -- leave it. The running rack is already correct (the cable
+               reaches the DSP through the message path) and the SAVE is already
+               correct (syncState mints unconditionally), so this buys only the
+               retained-chunk window, and SynthEdit proper has lived without it.
+           (b) guard both entry points -- one `SuspendDSP` in
+               `MfcDocPresenter::AddPatchCable` and one in `RemovePatchCable`,
+               matching what `ConnectPlugs` already does for structure-view
+               wires. Two lines, and it makes the flag mean what TideApp's
+               comment always assumed it meant.
+           (c) fix it TIDE-side instead -- have TIDE notice the cable parameter
+               changing and set its own flag, leaving SynthEditLib untouched.
+  Recommended default: (b) -- it is the smaller change, it removes an asymmetry
+           rather than adding a special case (the structure view's equivalent
+           operation is guarded and the rack view's is not), and (c) would put a
+           second, TIDE-only definition of "the document changed" beside the one
+           CSynthEditAppBase already maintains.
+  Default in effect meanwhile: (a). Nothing is broken that a user can see today:
+           saves carry their cables and the running rack plays them. The exposure
+           is a processor recreated after a cable edit with NO host state query
+           in between, which is born running the pre-cable document.
+  May proceed meanwhile: everything except E72 itself. This question changes no
+           other row: it is about two lines in a GATED file, and no item builds
+           on the answer. Do not read it as parking E19, E80, E82 or E84.
+  Decide-by: before anything relies on the retained chunk being current between
+           saves. Nothing does today, which is why this is a question and not an
+           incident.
+```
+
+**Why it is a ruling and not a patch.** `MfcDocPresenter.cpp` is in
+`SynthEditLib/EditorLib/`, which STEP 5 GATES, and this is not a build break, so
+the STEP 5 exception does not reach it. More to the point, the file is shared
+with SynthEdit proper: the question *"should a cable edit mark the DSP dirty"*
+is being answered for the commercial product at the same time, and that is
+Jeff's call rather than a scheduled run's.
+
+**The third entry is BACKLOG [A38](../BACKLOG.md)**, filed 2026-09-18 by the
+windows box out of a STEP 1.5 that had to be done twice in one run, and measured
+here by the windows box on 2026-09-21. It is the fleet's own process rather than
+the product, and it **parks nothing** — see its *May proceed meanwhile* line.
+
+```
+PROPOSED: Should the fleet's two bookkeeping hot spots stop being single shared
+          files, and if so which of them?
+  Options: (a) nothing -- keep one `BACKLOG.md` NEXT table and one `JOURNAL.md`,
+               and keep paying one STEP 1.5 re-resolution per open PR per merge.
+           (b) NEXT block only -- give the NEXT block blank-line-separated
+               per-platform sections inside `BACKLOG.md` (no new files), and
+               leave `JOURNAL.md` alone.
+           (c) NEXT block only, in per-lane files -- `docs/next/<platform>.md`,
+               linked from the NEXT table, as A38's own row proposed.
+           (d) both -- (b) or (c), PLUS one journal file per run
+               (`journal/<date>-<platform>.md`), with `JOURNAL.md` becoming an
+               index a run does not edit.
+  Recommended default: (d) with (b) as its first half -- because the measurement
+           below splits A38's single proposal into two independent questions with
+           different answers. The NEXT block is fixed by CONTEXT alone, so (b)
+           buys everything (c) buys for no new files; `JOURNAL.md` is NOT fixed
+           by context, because two runs prepending at the top of one file collide
+           by construction however that file is arranged, so only the per-run
+           file in (d) removes it.
+  Default in effect meanwhile: (a), and its price is on the board. Five
+           consecutive fleet runs -- 09-18 windows, 09-18/09-19/09-20/09-21 macos
+           -- were STEP 1.5 and nothing else: **16 branch re-resolutions, zero
+           product change on either box.** A run is the scarce resource here, not
+           a merge.
+  May proceed meanwhile: EVERYTHING, without exception. This question is about
+           where a run WRITES its bookkeeping, not about what any row builds, and
+           it makes no row ineligible. A run that hits a conflict meanwhile
+           resolves it exactly as the 09-18 through 09-21 entries describe.
+  Decide-by: the next JOURNAL.md rotation (A36, [#585](https://github.com/JeffMcClintock/TideSynth/pull/585)),
+           because (d) changes what there is to rotate. Doing the rotation first
+           and this second means doing the rotation twice.
+```
+
+**Measured, not asserted** — [tests/a38_bookkeeping_merge_probe.py](../tests/a38_bookkeeping_merge_probe.py)
+seeds a throwaway git repo with this repo's **real** `BACKLOG.md` and
+`JOURNAL.md`, then replays the fleet's actual sequence: two branches cut from one
+`main`, each doing only its own platform's STEP 4 edits, the other box's PR
+merging first, and then the merge of `main` into the branch still open. A38 filed
+its mechanism as a reading of six runs; this is the truth table under it, and it
+runs in about five seconds with no build and no network.
+
+| layout | conflicts in | what it says |
+|---|---|---|
+| `today` — one NEXT table, one JOURNAL.md | **`BACKLOG.md`, `JOURNAL.md`** | both hot spots, on strictly disjoint content |
+| `next-sections` — (b) | `JOURNAL.md` | the NEXT block is fixed; the journal is not |
+| `next-split` — (c) | `JOURNAL.md` | **identical to (b)** — new files are not what fixed it |
+| `full-split` — (d) | *(clean)* | nothing shared, nothing to conflict |
+| `ctl-context` — positive control | `BACKLOG.md` | `JOURNAL.md` drops out once one unchanged entry sits between the two insertions; `BACKLOG.md`, untouched by the control, stays |
+| `ctl-code` — control | *(clean)* | code has never conflicted in this fleet, and does not here |
+
+**The finding A38's row does not have: (b) and (c) measure the same, so the new
+files buy nothing the blank line does not.** A38 proposed per-lane files for the
+NEXT block, and that works — but it works for the reason `next-sections` also
+works, which is that git gets an unchanged line of context between the two sides.
+`docs/next/` is the more expensive way to obtain a blank line. The cheap half and
+the expensive half of A38's proposal are separable, and only the journal half
+needs new files.
+
+**Two things the probe does not measure, stated so nobody reads them into it.**
+It measures conflict *occurrence*, not conflict *size*: a markdown table cell
+cannot be hard-wrapped, so a re-point today is one changed line of 47,084 bytes
+(`mac`, 16-deep, measured on `main` 2026-09-21 — A37's growth curve, **+14% in
+the three days** since A38 measured 41,216 / 13-deep), whereas a section can be
+wrapped and a re-point becomes a few short lines. That favours (b) and (c) over
+(a) by more than the table shows, and it is A37's question, not this one. And it
+says nothing about what any option costs to *implement* in
+`scripts/check-next-block.py`, `scripts/check-journal-prepend.py` and
+`scripts/extract-lessons.py`, which is the work A38's row calls small and this
+entry does not re-estimate.
+
+**Why this is a ruling and not a run's judgement:** (b), (c) and (d) all change
+**STEP 4 of [docs/weekly-run-prompt.md](weekly-run-prompt.md)**, which is the
+shared instruction three boxes read fresh on every run. A38's row says so itself
+and left the row `TODO` rather than `NEEDS-JEFF` only so the measurement could
+land immediately. The measurement has landed; the shape is Jeff's.
+
 
 ---
 

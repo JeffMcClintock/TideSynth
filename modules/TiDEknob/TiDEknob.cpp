@@ -32,7 +32,7 @@ auto r = Register<TiDEknob>::withXml(R"XML(
         <Pin name="Signal Out" datatype="float" direction="out" autoConfigureParameter="true"/>
     </Audio>
     <GUI>
-        <Pin name="patchValue" datatype="float" private="true" parameterId="0"/>
+        <Pin name="patchValue" datatype="float" private="true" parameterId="0" parameterField="Normalized"/>
         <Pin name="Hint In" datatype="string_utf8" parameterId="0" parameterField="Hint"/>
         <Pin name="Background Color" datatype="string_utf8" default="00000000"/>
         <Pin name="Stroke Color" datatype="string_utf8" default="FFF9692C"/>

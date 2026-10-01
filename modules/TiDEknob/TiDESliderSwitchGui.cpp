@@ -18,7 +18,7 @@ constexpr float kPointerInnerFraction = 0.25f;
 
 // Knob look ported from VectorKnob_VCV (SynthEditLib/modules/SubControlsXp/VectorRingGui.cpp):
 // a filled disc with a single radial pointer line, sharing VectorKnob's circular hit-test.
-class TiDEknobGui final : public PluginEditor, public gmpi::api::IDrawingLayer
+class TiDEsliderSwitchGui final : public PluginEditor, public gmpi::api::IDrawingLayer
 {
  	Pin<float> pinpatchValue;
  	Pin<std::wstring> pinHint;
@@ -42,13 +42,6 @@ class TiDEknobGui final : public PluginEditor, public gmpi::api::IDrawingLayer
 		return hex.empty() ? fallback : colorFromHexString(hex);
 	}
 
-	void calcDimensions(Point& center, float& radius, float& thickness)
-	{
-		center = getCenter(bounds);
-		radius = (std::min)(getWidth(bounds), getHeight(bounds)) * 0.4f;
-		thickness = radius * 0.2f;
-	}
-
 	bool hasCapture() const
 	{
 		bool captured = false;
@@ -60,7 +53,7 @@ class TiDEknobGui final : public PluginEditor, public gmpi::api::IDrawingLayer
 	Point pointPrevious{};
 
 public:
-	TiDEknobGui()
+	TiDEsliderSwitchGui()
 	{
 		pinpatchValue.onUpdate = [this](PinBase*) { onSetpatchValue(); };
 		pinBackgroundColor.onUpdate = [this](PinBase*) { onSetpatchValue(); };
@@ -69,16 +62,7 @@ public:
 
 	ReturnCode hitTest(Point point, [[maybe_unused]] int32_t flags) override
 	{
-		Point center;
-		float radius;
-		float thickness;
-		calcDimensions(center, radius, thickness);
-
-		const float dx = point.x - center.x;
-		const float dy = point.y - center.y;
-		const float outerRadius = radius + thickness * 0.5f;
-
-		return dx * dx + dy * dy <= outerRadius * outerRadius ? ReturnCode::Ok : ReturnCode::Fail;
+		return ReturnCode::Ok;
 	}
 
 	ReturnCode onPointerDown(Point point, int32_t flags) override
@@ -146,33 +130,41 @@ public:
 	{
 		Graphics g(drawingContext);
 
-		Point center;
-		float radius;
-		float thickness;
-		calcDimensions(center, radius, thickness);
+		auto switchRect = bounds;
+		const auto isHorizontal = getWidth(bounds) > getHeight(bounds);
+		if(isHorizontal)
+		{
+			switchRect.left += (std::max)(1.0f, getWidth(bounds) * 0.5f * pinpatchValue.value);
+			switchRect.right = switchRect.left + getWidth(bounds) * 0.5f;
+		}
+		else
+		{
+			switchRect.top += (std::max)(1.0f, getHeight(bounds) * 0.5f * (1.0f - pinpatchValue.value));
+			switchRect.bottom = switchRect.top + getHeight(bounds) * 0.5f;
+		}
 
-		auto brushForeground = g.createSolidColorBrush(colorOrDefault(pinStrokeColor.value, Colors::White));
-		auto brushBackground = g.createSolidColorBrush(colorOrDefault(pinBackgroundColor.value, Colors::Gray));
+		auto brush = g.createSolidColorBrush(colorOrDefault(pinStrokeColor.value, Colors::White));
+		g.fillRectangle(switchRect, brush);
 
-		const float startAngleRadians = 35.0f * kPi / 180.0f; // gap between "straight down" and each end of the arc.
-		const float quarterTurnClockwise = kPi * 0.5f;
+		// shadow on grippy peaks
+		brush.setColor({1.0f,1.0f,1.0f,0.2f});
+		auto peakRect = switchRect;
+		const auto dx = isHorizontal ? getWidth(bounds) / 8.f: 0.0f;
+		const auto dy = isHorizontal ? 0.0f : getHeight(bounds) / 8.f;
+		if(isHorizontal)
+			peakRect.right = peakRect.left + dx * 0.5f;
+		else
+			peakRect.bottom = peakRect.top + dy * 0.5f;
 
-		const float normalized = std::clamp(pinpatchValue.value, 0.0f, 1.0f);
-		const float sweepAngle = normalized * (kPi * 2.0f - startAngleRadians * 2.0f);
-		const float angle = quarterTurnClockwise + startAngleRadians + sweepAngle;
-		const float dirX = cosf(angle);
-		const float dirY = sinf(angle);
-		// The pointer stops short of the center, leaving the hub uncovered.
-		const Point innerPoint{ center.x + radius * kPointerInnerFraction * dirX, center.y + radius * kPointerInnerFraction * dirY };
-		const Point movingPoint{ center.x + radius * dirX, center.y + radius * dirY };
+		for(float peak = 0.0f; peak < 4.0f; peak++)
+		{
+			g.fillRectangle(peakRect, brush);
 
-		auto strokeStyle = g.getFactory().createStrokeStyle(CapStyle::Round);
-
-		// Background circle.
-		g.fillCircle(center, radius + thickness * 0.5f, brushBackground);
-
-		// Pointer line.
-		g.drawLine(innerPoint, movingPoint, brushForeground, thickness, strokeStyle);
+			peakRect.left += dx;
+			peakRect.right += dx;
+			peakRect.top += dy;
+			peakRect.bottom += dy;
+		}
 
 		return ReturnCode::Ok;
 	}
@@ -185,7 +177,7 @@ public:
 	{
 		if(layer == 1)
 		{
-			render(drawingContext);
+			return render(drawingContext);
 		}
 		else if(layer == 4)
 		{
@@ -195,19 +187,12 @@ public:
 			strokeStyleProperties.lineCap = CapStyle::Round; // Flat caps don't draw dots on Windows.
 			strokeStyleProperties.dashStyle = DashStyle::Dot;
 			auto dottedStroke = g.getFactory().createStrokeStyle(strokeStyleProperties);
-			Point center;
-			float radius;
-			float thickness;
-			calcDimensions(center, radius, thickness);
 
-			g.drawEllipse({ center, radius + 0.5f, radius + 0.5f }, g.createSolidColorBrush(Colors::Orange), 1.0f, dottedStroke);
+			g.drawRectangle(bounds, g.createSolidColorBrush(Colors::Orange), 1.0f, dottedStroke);
 
 			return render(drawingContext);
 		}
-		else
-		{
-			return ReturnCode::NoSupport;
-		}
+
 		return ReturnCode::NoSupport;
 	}
 
@@ -238,5 +223,5 @@ public:
 
 namespace
 {
-auto r = gmpi::Register<TiDEknobGui>::withId("SE TiDE:knob");
+auto r = gmpi::Register<TiDEsliderSwitchGui>::withId("SE TiDE:sliderswitch");
 }
