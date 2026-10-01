@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **490 KB** across **379** entries, so copying them
+Learned sections are **491 KB** across **380** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **157 KB / 1622 lessons — 3.1x smaller**, and represents
+A8. This is **157 KB / 1626 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,15 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-02
+
+**macos — E85: `clap_plugin_gui.show()`/`.hide()` now report success; A/B 3/3 on macOS, with the probe's editor arm ported to Cocoa (scheduled run)**
+
+- E85 was not Windows-specific, and a mac bare host reproduces it exactly.
+- An NSView parent can be made fully headless from C without a `.m` file.
+- `FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` is the one-variable A/B for a wrapper change.
+- A `.clap` bundle's directory name must match its binary name.
 
 ## 2026-10-01
 
@@ -73,13 +82,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - Nothing new about the mechanism.
 - The local `main` in `~/Documents/GitHub/TideSynth` is 16 commits behind `origin/main`
-
-## 2026-09-29
-
-**windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)**
-
-- "The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.
-- The developer-at-the-machine check should look at ahead/behind, not just dirt.
 
 ## 2026-09-08
 
@@ -552,6 +554,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A fix's evidence can come from the merge that follows it.
 - Three PRs cost two resolutions; four cost five.
 - `IN-REVIEW` has two exits, not one.
+
+## 2026-09-29
+
+**windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)**
+
+- "The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.
+- The developer-at-the-machine check should look at ahead/behind, not just dirt.
 
 ## 2026-08-18
 

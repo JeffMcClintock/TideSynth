@@ -94,6 +94,55 @@ Template:
 ```
 
 ---
+## 2026-10-02 — macos — E85: `clap_plugin_gui.show()`/`.hide()` now report success; A/B 3/3 on macOS, with the probe's editor arm ported to Cocoa (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.16120.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E85** and fixed it in `GMPI_Wrappers` ([#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41)). I also ported `tests/e80_clap_feedback_probe.c`'s `--editor` arm to macOS so its Accept can be read on this platform. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`25bf45e..d58bdd1`).
+
+### STEP 1 / 1.5 / 2
+
+STEP 1 was empty: no open `platform:mac` issue. The only open issues are #583 (linux) and #44 (the digest). STEP 1.5 was also empty, because Jeff merged the whole queue on 10-01 and `gh pr list --state open` shows only win's #629 (A41). So this lane's five-cell #585 livelock is over. In STEP 2, the mac NEXT cell said "walk STEP 2". Five rows reached `main` with the 10-01 merges and had never been walked by this lane: E85, E86, E87, E88 and E89. **E85** was the topmost eligible `any` row: small, ALLOWED scope (`GMPI_Wrappers/`), and an Accept that is a command. No remote ref or open PR named it. I claimed it on `tide/mac/E85-clap-gui-show` and pushed the claim before starting work.
+
+### The fix
+
+`Processor_CLAP.h` overrode nine `gui*` methods but not `guiShow` or `guiHide`. `clap_helpers` `plugin.hh:304-305` defaults both to `return false`. I added both overrides. They return `editor != nullptr`, with a comment explaining why: `guiIsApiSupported()` refuses `isFloating`, so the editor is always embedded, and the host shows or hides its own parent. That is +22 lines in `wrapper/CLAP/Editor_CLAP.cpp` and `Processor_CLAP.h`, and nothing else.
+
+### Making the Accept observable on macOS
+
+The Accept names the probe's `--editor` arm, which was **win32-only** (`#else` printed *"--editor is win32-only"*). I added an `__APPLE__` branch, written against the Objective-C runtime so the probe stays one `.c` file:
+
+- `NSApplicationActivationPolicyProhibited` is set before any window exists, so there is no Dock icon and the process can never become active.
+- The parent is a borderless `NSWindow` at (-32000,-32000) that is **never ordered front**. The plug-in gets its `contentView` as `clap_window.cocoa`. The probe prints `isVisible=0` before and after `show`.
+
+`gui->hide`'s return value is now **checked** on every platform. The probe used to discard it, so half of E85's Accept ("`guiHide` implemented alongside") had nothing to read it with. Build line on macOS: add `-framework AppKit`. The header says so.
+
+### Verification artifact: A/B, one tree, one variable
+
+`cmake -S <ts worktree> -B <scratch>/bld -G Ninja -DCMAKE_BUILD_TYPE=Release -DFETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS=<worktree>`. A points that variable at `origin/main` 3da5548 and B at the fix branch. Nothing else differs. Both builds completed with rc=0. Then `./e80probe <arm>/TIDE-Rack.clap --no-preset --editor --blocks 200`, three runs per arm, interleaved:
+
+| arm | `gui->show` | `gui->hide` | rc | binary sha256 |
+|---|---|---|---|---|
+| A, `origin/main` | **FAIL** ×3 | **FAIL** ×3 | 1 | `af0a5378be2d781a…` |
+| B, fix | **PASS** ×3 | **PASS** ×3 | 0 | `16b5adde3ebba2b9…` |
+
+`diff A.out B.out` is exactly those two lines plus the summary line. In both arms `is_api_supported(cocoa)`, `create`, `set_scale(1.0)`, `get_size` (1100x600) and `set_parent` pass, and the editor adds **1 subview**, so A's FAIL is the API lying about a working editor, which is E85's claim reproduced on a second platform. `nm -C` shows `Processor_CLAP::guiShow()`/`guiHide()` exported only by B. Nothing appeared on screen: `isVisible=0` throughout.
+
+**Learned:**
+
+- **E85 was not Windows-specific, and a mac bare host reproduces it exactly.** The windows run that filed it could only see it through a win32 arm. The probe now has the same arm on Cocoa, so the next CLAP GUI question on macOS has an instrument.
+- **An NSView parent can be made fully headless from C without a `.m` file.** Use `objc_msgSend` casts, with `setActivationPolicy:2` *before* the window exists, and never order the window front. Embedded editors still build and attach. I did not check whether they paint.
+- **`FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` is the one-variable A/B for a wrapper change.** Swapping it on an existing build dir rebuilt 73 of 319 steps. Re-running `cmake -B` alone fails when the shell's cwd is a different source tree, so always pass `-S` explicitly.
+- **A `.clap` bundle's directory name must match its binary name.** The probe derives `Contents/MacOS/<name>` from the bundle name, so `cp -R X.clap A-X.clap` makes it fail to load. Copy into `A/X.clap` instead.
+
+**Not verified:** I did not run on Windows, which is the arm E85's Accept literally names. I did not compile on Windows or Linux, though the change has no platform branches. **TideSynth CI fetches GMPI_Wrappers at `origin/main`, so no CI run can see the fix until #41 merges.** I did no DAW test. I did not rebuild SynthEdit/SynthEditCL: neither compiles the CLAP wrapper (the only `gmpi_wrappers` consumer in SE16 is `se_gmpi/vst3`, Linux), so a CLAP-only change cannot reach them. I did not check whether the hidden editor paints. Audio was silent in both arms, as expected for `--no-preset` with no VCV modules compiled in (`TIDE_VCV_FUNDAMENTAL=OFF`). It is not this item's subject.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean and 34 behind, and I did not touch it. All work was in scratchpad worktrees, which I removed. `GMPI_Wrappers` stayed on `main`, clean (1 behind), and its work was also in a scratchpad worktree. `SynthEdit` was on `master`, clean, `ahead 1, behind 1`. That predates this run and I left it alone. `SynthEditLib`, `gmpi_ui` and `GMPI` were clean and untouched. I did no computer-use or GUI work. The probe's window was never on screen.
+
+**Next:** see the `mac` NEXT cell. **For Jeff:** [GMPI_Wrappers#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41) is the fix and can merge independently of this PR. **E87's Accept reads as met on `main` today**: E85/E86/E88/E89 are distinct and `check-id-refs.py` is rc=0. Its prompt-vs-check question is still open, so I left it for a run that takes it.
+
+**Branch/PR:** `tide/mac/E85-clap-gui-show` in TideSynth (probe + this entry + row + mac cell) and in GMPI_Wrappers ([#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41)).
+
 ## 2026-10-01 — windows — the queue reopened: all eleven PRs merged, A41 taken and measured, and the probes' verdict had THREE causes rather than one (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.16120.0** (CLI `2.1.284`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -432,36 +481,3 @@ All seven lint checks exited 0, run the way `lint.yml` runs them: `check-links`,
 **Next:** see the `mac` NEXT cell. For Jeff: **merge #585 first**, then #588/#589, and close #604 unmerged.
 
 **Branch/PR:** `tide/mac/2026-09-30-step15` holds this entry and the refreshed `mac` NEXT cell. The merge is on `tide/mac/A36-journal-rotation-rule`.
-
-## 2026-09-29 — windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)
-
-**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** recorded one machine-state fact from this run's STEP 5 that its three merged entries do not carry, because it was only observable after they merged.
-
-### What happened
-
-At **17:14**, mid-run, Jeff committed **`910b7b0d5` *"added tiDE slider switch"*** to the **local** `main` of `C:\SE\TideSynth` — matching the `TiDEModules - TiDESliderSwitchGui.cpp` window that was open all afternoon. The box therefore ended the run with `main` reading **`ahead 1, behind 2`** of `origin/main`.
-
-**`git status --short` printed nothing.** The tree *is* clean; a committed commit is not dirt, and none of STEP 5's three kinds of uncommitted change names it. A run that checked cleanliness alone would have been told everything was fine, and everything was — but not the thing that matters here.
-
-It is **the developer's unpushed commit on his own default branch**: category 3 by intent if not by wording, so not mine to push, rebase, reset or tidy. I left it exactly as found.
-
-### Verified rather than assumed
-
-`git merge-base --is-ancestor 910b7b0d5 origin/<branch>` is **false for all six** branches this run pushed — `2026-09-26-step15-and-sweep-measurement`, `2026-09-27-adjacency-measurement`, `A39-prefab-count-derived`, `2026-09-29-automerge-result`, `A40-token-expiry-derived`, `2026-09-29-a40-bookkeeping` — and `git branch -r --contains 910b7b0d5` finds it on **no remote ref at all**.
-
-That holds for a structural reason and not by luck: **every branch was cut from `origin/<default>`, per STEP 2's *"never base a branch on the working tree's state"*.** This is that rule doing precisely the job it was written for, and it is the first time this journal has a positive measurement of it rather than a statement of intent.
-
-**Learned:**
-
-- **"The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.** `git status -sb` prints both in one line; `git status --short`, which this lane's cells have been quoting, prints only the first.
-- **The developer-at-the-machine check should look at ahead/behind, not just dirt.** An open editor window predicts a commit as much as it predicts an unsaved buffer, and a mid-run commit to local `main` is invisible to every dirt rule the prompt states.
-
-**Not verified:** I did not inspect the contents of Jeff's commit beyond its subject line and author, and did not build anything.
-
-**Machine state:** `C:\SE\TideSynth` on `main`, clean, `ahead 1` (Jeff's commit) / `behind 2`, left exactly so. All worktrees removed. `SE16` (`master`) and `SynthEditLib` (`main`) carry 1 and 8 dirty files respectively, all predating this run and untouched; `gmpi_ui` and `GMPI_Wrappers` are clean and were not touched. No host, no build, no screen taken.
-
-**Next:** see the `win` NEXT cell, which this entry does not change.
-
-**Branch/PR:** `tide/win/2026-09-29-machine-state`. An earlier draft of this note tried to edit the already-merged [#623](https://github.com/JeffMcClintock/TideSynth/pull/623) entry in place; `check-journal-prepend` rejected it, correctly — a merged entry is not editable — so it was dropped unpushed and re-filed as this separate entry, which is the append-only route.
