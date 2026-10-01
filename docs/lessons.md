@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **488 KB** across **378** entries, so copying them
+Learned sections are **490 KB** across **379** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **156 KB / 1616 lessons — 3.1x smaller**, and represents
+A8. This is **157 KB / 1622 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,15 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-10-01
+
+**windows — the queue reopened: all eleven PRs merged, A41 taken and measured, and the probes' verdict had THREE causes rather than one (scheduled run)**
+
+- An unrecorded input can become unrecoverable, and then the measurement is simply lost.
+- A silent skip and a hard failure differ most when the input is partly available.
+- Archiving a row has a blast radius in the NEXT block's history, not just its present.
+- A `DONE` row and an archived row are not two states but one edit.
+- "May proceed meanwhile: EVERYTHING, without exception" is a claim about a question, and a row can still fall inside it.
+- Thirteen cells of pure STEP 1.5 ended the moment a human merged
 
 **windows — correction: the lane-sweep probe DID finish, and it plus #627's own merge confirm #618's zero-diff resting state (scheduled run, continuation)**
 
@@ -71,6 +80,173 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - "The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.
 - The developer-at-the-machine check should look at ahead/behind, not just dirt.
+
+## 2026-09-08
+
+**windows — E7: the answer was already shipped, and the row's own Accept is void rather than unmet (scheduled run)**
+
+- A row can be DONE for a fortnight because its Accept outlived its architecture.
+- When a row names a fixture as its Accept, read the fixture's DOCUMENT before believing the row.
+- "The note contributes nothing" can be proved instead of inferred.
+- A code comment can be the ruling.
+- A modal in an offline render looks exactly like a hung machine.
+- Counting the candidates is a valid substitute for identifying the loaded one
+- `extract-lessons.py --write` was writing CRLF into an LF file, and it is FIXED here rather than noted again.
+- The `/tmp` mismatch on this box bites Python and not bash.
+- `\V` in a non-raw Python string is a `SyntaxWarning` and NOT an error
+
+**macos — A35: the `Plat` column really is frozen, and the one legal route to a correct one is the route the process forbids (scheduled run)**
+
+- A row whose Accept and whose closing instruction disagree is takeable, and STEP 2 says which half.
+- Turn a code reading into a truth table before asking for a ruling on it.
+- "There is no legal route" and "there is no GOOD legal route" are different claims, and the second is the stronger request.
+- A validator that refuses in the wrong words costs more than one that refuses.
+- A probe that asserts today's behaviour is neutral between the options, and that is what makes it publishable under an open question.
+- Filing a `PROPOSED:` entry has a blast radius, so say what it does not park.
+- Check the previous run's headline before repeating it.
+
+## 2026-09-07
+
+**macos — E75: nothing was ever unreachable; the fixture opens 3,500 DIPs from its own rack (scheduled run)**
+
+- A constructor default in a saved file is indistinguishable from a decision, and that is the whole bug.
+- "I could not reach it" is a claim about your instrument until you compute the distance.
+- Read the source comment where the feature landed before diagnosing the feature.
+- The control for "why is this document invisible" is another document that is visible.
+- Measure the drawable region, do not read it off `--info`.
+- A zero is only a result once you have shown the thing could have been non-zero.
+- When one clause of a blocked row unblocks, check the OTHER clause separately.
+- A one-field edit inside a base64 blob needs a script, not a hand edit.
+
+**windows — the merge sweep: five PRs across two repos, and the macOS runner is the thing to look at (interactive continuation, Jeff directing)**
+
+- "These two must merge together" is a claim no tool enforces, and it failed for a day.
+- Which side of a journal merge has rotated is a per-merge fact.
+- Set arithmetic over entry headings, every time.
+- A NEXT cell is a linked list, and a merge truncates it silently.
+- A queued job and a failed job look the same in `mergeStateStatus` (`UNSTABLE`) and mean opposite things.
+- When you merge past a missing check, name what discharged it instead.
+- Merging N bookkeeping-heavy PRs costs O(N²) conflict resolutions, not O(N).
+
+**windows — E63: the gap SHIPPED — v0.1.3's Windows zip has no default rack, and the fix is to stop restating the list (scheduled run)**
+
+- A row's "unverified: did this ever ship?" is one command, and the answer changes what the row IS.
+- The same release's OTHER platform asset is the control that localises a shipping defect.
+- When a comment says two lists must move together, the fix is to delete one of them.
+- A completeness check must interrogate the BUILD, not the script's own list.
+- A parser's failure mode is the design decision, not its regex.
+- The standalone tests a PACKAGE's payload with no host at all.
+- Keep the pre-fix script, not just the pre-fix binary.
+- A single backslash in a non-raw Python string wrote a literal backspace into a regex.
+- `extract-lessons.py --write` is a CRLF trap on Windows.
+
+## 2026-09-06
+
+**macos — the E71 follow-up hit the #120 trap, and the lint then proved the follow-up was never allowed at all (scheduled run, continuation)**
+
+- A guard in the same command as the action it guards is a log line, not a guard.
+- Auto-merge can land a PR inside two minutes, so "still open when I opened it" is worth nothing.
+- When a landed entry needs a correction, the correction is a NEW entry.
+- A one-line orphan branch is not automatically deletable — ask what the branch is FOR.
+- STEP 4's PR-citation follow-up is unsatisfiable once the row has landed, and `check-backlog-diff.py` is what says so.
+
+**macos — E71: AU3 was the only wrapper that never told the plug-in its state had been restored, and the save cannot see it (scheduled run)**
+
+- A row's Accept and its question want different instruments — and that is now two for two on this lane.
+- To prove a MISSING call is load-bearing, delete it from a sibling that has it.
+- A save-based probe cannot see a controller-delivery defect, and ours is one.
+- Both arms should carry the change you are NOT testing.
+- Choose a fixture the build configuration can hold whole.
+- A stale build tree from an earlier run is a free negative control.
+- `grep -c` finding zero exits 1 and will be reported as a failed task.
+
+## 2026-09-05
+
+**macos — E77: the row was not GUI-blocked, and what differs at equal length is a random handle (scheduled run)**
+
+- A row's Accept and a row's question can want different instruments, and the NEXT cell will only remember the Accept.
+- A negative result needs the variable to have actually varied.
+- A size histogram costs nothing and points at the cases a size comparison cannot see.
+- When two documents differ in 1,754 bytes and five numbers, normalise before reading.
+- Uncommitted work in a shared tree is not automatically the developer's.
+- STEP 2's 24-hour DOING window does not decide an own-platform branch, and it is close enough to look like it does.
+- A pushed branch with no PR is invisible from outside, and this one had been for a day.
+
+## 2026-09-03
+
+**macos — STEP 1.5: #570 was red on one check of fifteen, and its PR body recorded that failure as rc=0 (scheduled run)**
+
+- A green-looking PR can be red in exactly one check, and STEP 1.5's own habits hide it.
+- Running the lint is not the same as obeying it, and this run had to learn which failure it was looking at.
+- A required check is an arbiter, not an opinion, and "deliberate" is not a passing grade.
+- Never transcribe an exit code you did not read.
+- When a check rejects the obviously-right edit, look for the legal route before working around it — and if there isn't one, that is the finding.
+- A validator's strictness and its blind spot are usually the same property.
+- A handoff line that says "re-check rather than assume" is an instruction with a deadline, and it expired within hours.
+- Archive a row with the reason DONE was awarded, not just the date.
+
+## 2026-09-02
+
+**windows — E19's windows VST3 cell PASSES its animation clause, and both traps that nearly stopped it were mine**
+
+- A wall that appears right after you change the harness is the harness.
+- Do not report a blocker before testing it.
+- `read -t N < /dev/zero` is a sleep on linux and a no-op in Git Bash.
+- `fx_ident` beats a distinguishing string, and the difference is when you learn the answer.
+- Put the control inside the screenshot pair.
+- Log the transport, or a stopped engine reads as a frozen plug-in.
+- A quit that prompts is a hang.
+
+**macos — E79 does not reproduce on macOS, and the run loop that was supposed to explain it made no difference (scheduled run)**
+
+- A control that does not move is telling you the mechanism is wrong, not that the control is broken.
+- Predict the control's result out loud before running it.
+- A negative result needs a positive control or it is not a result.
+- `#ifdef`-free code cannot be the platform-specific half of a platform-specific bug.
+- A locked screen is a filter on the queue, not only a blocker.
+- `scripts/decode_rpp.py` writes a `<rpp>.block0.param1.xml` next to the project as a side effect
+- Claim-first is what makes taking another platform's pointed-at row safe.
+
+## 2026-09-01
+
+**linux — E78: CLAP had E74's defect, and fixing it uncovered two more (interactive continuation, Jeff directing)**
+
+- "While you have the harness up" is an assumption to test, not a saving.
+- A probe that supplies the host extensions is not optional, it IS the measurement.
+- Count what the host did, not only what the plug-in did.
+- Returning every repo to its default branch is STEP 5 working, and it will silently un-build your next measurement.
+- A byte-identical rebuild is the cheapest possible proof that an A/B is clean.
+- When one datatype crosses and another does not, stop looking at the transport.
+- `gdk_*: assertion failed` from a DAW is the DAW's, and chasing it is chasing someone else's bug.
+
+**linux — E74: the editor was never bound to ANY processor, and nothing pumps GMPI's timers in a hosted Linux plug-in (scheduled run)**
+
+- A filed row is one run's reading, and STEP 1's "re-verify before acting" deserves to apply to BACKLOG rows too.
+- Instrument both ends of a channel before believing either end.
+- "Both sides are correct and the middle is missing" looks exactly like "the wrong side is attached".
+- A platform with no native timer is a whole class of dead code, not one dead feature.
+- A process-wide singleton pumped from a per-window callback is a bug waiting for a second window.
+- `scripts/kill-named.sh` exists; `pkill -f 'REAPER/reaper'` killed this shell with exit 144.
+- Writing a source file back with Python's text mode strips CRLF and produces an 800-line diff of nothing.
+- A NEXT cell is a table row, so replacing its opening text and keeping the tail silently makes a four-column row in a three-column table.
+
+**macos — E73 DONE, and the fleet has no open PRs and no agent branches for the first time (state update, interactive)**
+
+- Verify a merge by asking about the PR, not by reading your own push.
+- `git cherry` says what is unmerged, not what is lost.
+- Establish the recovery ref before the destructive command, not after.
+- A local default branch can be silently stale on a box that has been doing work all along.
+
+**macos — STEP 1.5: #565 had gone CONFLICTING, and BACKLOG.md merged cleanly into two different E74s (scheduled run)**
+
+- `mergeStateStatus` belongs in STEP 1.5's list and still is not in it.
+- A clean merge is not evidence of a clean result, and id collisions are exactly where that bites.
+- Two boxes can file the same id four hours apart and no per-run check can prevent it.
+- When two rows collide, renumber by reference count, not by filing time.
+- Read the exit code of the thing you ran, not of the pipeline that reported on it.
+- A locked screen is a queue fact, not a footnote.
+
+## 2026-09-29
 
 **windows — A40: the watchdog's credential countdown was counting down to a date nothing could read (scheduled run, continuation)**
 
@@ -376,169 +552,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A fix's evidence can come from the merge that follows it.
 - Three PRs cost two resolutions; four cost five.
 - `IN-REVIEW` has two exits, not one.
-
-**windows — E7: the answer was already shipped, and the row's own Accept is void rather than unmet (scheduled run)**
-
-- A row can be DONE for a fortnight because its Accept outlived its architecture.
-- When a row names a fixture as its Accept, read the fixture's DOCUMENT before believing the row.
-- "The note contributes nothing" can be proved instead of inferred.
-- A code comment can be the ruling.
-- A modal in an offline render looks exactly like a hung machine.
-- Counting the candidates is a valid substitute for identifying the loaded one
-- `extract-lessons.py --write` was writing CRLF into an LF file, and it is FIXED here rather than noted again.
-- The `/tmp` mismatch on this box bites Python and not bash.
-- `\V` in a non-raw Python string is a `SyntaxWarning` and NOT an error
-
-**macos — A35: the `Plat` column really is frozen, and the one legal route to a correct one is the route the process forbids (scheduled run)**
-
-- A row whose Accept and whose closing instruction disagree is takeable, and STEP 2 says which half.
-- Turn a code reading into a truth table before asking for a ruling on it.
-- "There is no legal route" and "there is no GOOD legal route" are different claims, and the second is the stronger request.
-- A validator that refuses in the wrong words costs more than one that refuses.
-- A probe that asserts today's behaviour is neutral between the options, and that is what makes it publishable under an open question.
-- Filing a `PROPOSED:` entry has a blast radius, so say what it does not park.
-- Check the previous run's headline before repeating it.
-
-## 2026-09-07
-
-**macos — E75: nothing was ever unreachable; the fixture opens 3,500 DIPs from its own rack (scheduled run)**
-
-- A constructor default in a saved file is indistinguishable from a decision, and that is the whole bug.
-- "I could not reach it" is a claim about your instrument until you compute the distance.
-- Read the source comment where the feature landed before diagnosing the feature.
-- The control for "why is this document invisible" is another document that is visible.
-- Measure the drawable region, do not read it off `--info`.
-- A zero is only a result once you have shown the thing could have been non-zero.
-- When one clause of a blocked row unblocks, check the OTHER clause separately.
-- A one-field edit inside a base64 blob needs a script, not a hand edit.
-
-**windows — the merge sweep: five PRs across two repos, and the macOS runner is the thing to look at (interactive continuation, Jeff directing)**
-
-- "These two must merge together" is a claim no tool enforces, and it failed for a day.
-- Which side of a journal merge has rotated is a per-merge fact.
-- Set arithmetic over entry headings, every time.
-- A NEXT cell is a linked list, and a merge truncates it silently.
-- A queued job and a failed job look the same in `mergeStateStatus` (`UNSTABLE`) and mean opposite things.
-- When you merge past a missing check, name what discharged it instead.
-- Merging N bookkeeping-heavy PRs costs O(N²) conflict resolutions, not O(N).
-
-**windows — E63: the gap SHIPPED — v0.1.3's Windows zip has no default rack, and the fix is to stop restating the list (scheduled run)**
-
-- A row's "unverified: did this ever ship?" is one command, and the answer changes what the row IS.
-- The same release's OTHER platform asset is the control that localises a shipping defect.
-- When a comment says two lists must move together, the fix is to delete one of them.
-- A completeness check must interrogate the BUILD, not the script's own list.
-- A parser's failure mode is the design decision, not its regex.
-- The standalone tests a PACKAGE's payload with no host at all.
-- Keep the pre-fix script, not just the pre-fix binary.
-- A single backslash in a non-raw Python string wrote a literal backspace into a regex.
-- `extract-lessons.py --write` is a CRLF trap on Windows.
-
-## 2026-09-06
-
-**macos — the E71 follow-up hit the #120 trap, and the lint then proved the follow-up was never allowed at all (scheduled run, continuation)**
-
-- A guard in the same command as the action it guards is a log line, not a guard.
-- Auto-merge can land a PR inside two minutes, so "still open when I opened it" is worth nothing.
-- When a landed entry needs a correction, the correction is a NEW entry.
-- A one-line orphan branch is not automatically deletable — ask what the branch is FOR.
-- STEP 4's PR-citation follow-up is unsatisfiable once the row has landed, and `check-backlog-diff.py` is what says so.
-
-**macos — E71: AU3 was the only wrapper that never told the plug-in its state had been restored, and the save cannot see it (scheduled run)**
-
-- A row's Accept and its question want different instruments — and that is now two for two on this lane.
-- To prove a MISSING call is load-bearing, delete it from a sibling that has it.
-- A save-based probe cannot see a controller-delivery defect, and ours is one.
-- Both arms should carry the change you are NOT testing.
-- Choose a fixture the build configuration can hold whole.
-- A stale build tree from an earlier run is a free negative control.
-- `grep -c` finding zero exits 1 and will be reported as a failed task.
-
-## 2026-09-05
-
-**macos — E77: the row was not GUI-blocked, and what differs at equal length is a random handle (scheduled run)**
-
-- A row's Accept and a row's question can want different instruments, and the NEXT cell will only remember the Accept.
-- A negative result needs the variable to have actually varied.
-- A size histogram costs nothing and points at the cases a size comparison cannot see.
-- When two documents differ in 1,754 bytes and five numbers, normalise before reading.
-- Uncommitted work in a shared tree is not automatically the developer's.
-- STEP 2's 24-hour DOING window does not decide an own-platform branch, and it is close enough to look like it does.
-- A pushed branch with no PR is invisible from outside, and this one had been for a day.
-
-## 2026-09-03
-
-**macos — STEP 1.5: #570 was red on one check of fifteen, and its PR body recorded that failure as rc=0 (scheduled run)**
-
-- A green-looking PR can be red in exactly one check, and STEP 1.5's own habits hide it.
-- Running the lint is not the same as obeying it, and this run had to learn which failure it was looking at.
-- A required check is an arbiter, not an opinion, and "deliberate" is not a passing grade.
-- Never transcribe an exit code you did not read.
-- When a check rejects the obviously-right edit, look for the legal route before working around it — and if there isn't one, that is the finding.
-- A validator's strictness and its blind spot are usually the same property.
-- A handoff line that says "re-check rather than assume" is an instruction with a deadline, and it expired within hours.
-- Archive a row with the reason DONE was awarded, not just the date.
-
-## 2026-09-02
-
-**windows — E19's windows VST3 cell PASSES its animation clause, and both traps that nearly stopped it were mine**
-
-- A wall that appears right after you change the harness is the harness.
-- Do not report a blocker before testing it.
-- `read -t N < /dev/zero` is a sleep on linux and a no-op in Git Bash.
-- `fx_ident` beats a distinguishing string, and the difference is when you learn the answer.
-- Put the control inside the screenshot pair.
-- Log the transport, or a stopped engine reads as a frozen plug-in.
-- A quit that prompts is a hang.
-
-**macos — E79 does not reproduce on macOS, and the run loop that was supposed to explain it made no difference (scheduled run)**
-
-- A control that does not move is telling you the mechanism is wrong, not that the control is broken.
-- Predict the control's result out loud before running it.
-- A negative result needs a positive control or it is not a result.
-- `#ifdef`-free code cannot be the platform-specific half of a platform-specific bug.
-- A locked screen is a filter on the queue, not only a blocker.
-- `scripts/decode_rpp.py` writes a `<rpp>.block0.param1.xml` next to the project as a side effect
-- Claim-first is what makes taking another platform's pointed-at row safe.
-
-## 2026-09-01
-
-**linux — E78: CLAP had E74's defect, and fixing it uncovered two more (interactive continuation, Jeff directing)**
-
-- "While you have the harness up" is an assumption to test, not a saving.
-- A probe that supplies the host extensions is not optional, it IS the measurement.
-- Count what the host did, not only what the plug-in did.
-- Returning every repo to its default branch is STEP 5 working, and it will silently un-build your next measurement.
-- A byte-identical rebuild is the cheapest possible proof that an A/B is clean.
-- When one datatype crosses and another does not, stop looking at the transport.
-- `gdk_*: assertion failed` from a DAW is the DAW's, and chasing it is chasing someone else's bug.
-
-**linux — E74: the editor was never bound to ANY processor, and nothing pumps GMPI's timers in a hosted Linux plug-in (scheduled run)**
-
-- A filed row is one run's reading, and STEP 1's "re-verify before acting" deserves to apply to BACKLOG rows too.
-- Instrument both ends of a channel before believing either end.
-- "Both sides are correct and the middle is missing" looks exactly like "the wrong side is attached".
-- A platform with no native timer is a whole class of dead code, not one dead feature.
-- A process-wide singleton pumped from a per-window callback is a bug waiting for a second window.
-- `scripts/kill-named.sh` exists; `pkill -f 'REAPER/reaper'` killed this shell with exit 144.
-- Writing a source file back with Python's text mode strips CRLF and produces an 800-line diff of nothing.
-- A NEXT cell is a table row, so replacing its opening text and keeping the tail silently makes a four-column row in a three-column table.
-
-**macos — E73 DONE, and the fleet has no open PRs and no agent branches for the first time (state update, interactive)**
-
-- Verify a merge by asking about the PR, not by reading your own push.
-- `git cherry` says what is unmerged, not what is lost.
-- Establish the recovery ref before the destructive command, not after.
-- A local default branch can be silently stale on a box that has been doing work all along.
-
-**macos — STEP 1.5: #565 had gone CONFLICTING, and BACKLOG.md merged cleanly into two different E74s (scheduled run)**
-
-- `mergeStateStatus` belongs in STEP 1.5's list and still is not in it.
-- A clean merge is not evidence of a clean result, and id collisions are exactly where that bites.
-- Two boxes can file the same id four hours apart and no per-run check can prevent it.
-- When two rows collide, renumber by reference count, not by filing time.
-- Read the exit code of the thing you ran, not of the pipeline that reported on it.
-- A locked screen is a queue fact, not a footnote.
 
 ## 2026-08-18
 
