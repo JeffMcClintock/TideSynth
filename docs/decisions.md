@@ -42,16 +42,18 @@ days after it shipped. Both entries that stood here before 2026-09-08 closed on
 [#492](https://github.com/JeffMcClintock/TideSynth/pull/492)) and V7's
 context-menu question (ruled in session, in the table below).
 
-**Four entries stand here. The FIRST TWO are BACKLOG [A35](../BACKLOG.md)'s two
-halves**; the third is [E81](../BACKLOG.md)'s, filed 2026-09-16, and the fourth is
-[E72](../BACKLOG.md)'s, filed 2026-09-15. A35 is one row rather than two because it
-declined to split itself before Jeff had read either half; it is two `PROPOSED:`
-entries because A35's own words are *"both halves need answering, and they are
-separate"*. **A35's two park no work at all** — see each entry's *May proceed
-meanwhile* line, and note that the second is about what a run **records**, not about
-what it may build. **E81's parks nothing either** — the change it asks about is in
-GATED `SynthEditLib` and no run may make it regardless of the answer. **E72's parks
-exactly one row, E72 itself**, and says so on the same line.
+**Five entries stand here. The FIRST TWO are BACKLOG [A35](../BACKLOG.md)'s two
+halves**; the third is [E81](../BACKLOG.md)'s, filed 2026-09-16, the fourth is
+[E72](../BACKLOG.md)'s, filed 2026-09-15, and the fifth is [A38](../BACKLOG.md)'s,
+filed 2026-09-18. A35 is one row rather than two because it declined to split itself
+before Jeff had read either half; it is two `PROPOSED:` entries because A35's own
+words are *"both halves need answering, and they are separate"*. **A35's two park no
+work at all** — see each entry's *May proceed meanwhile* line, and note that the
+second is about what a run **records**, not about what it may build. **E81's parks
+nothing either** — the change it asks about is in GATED `SynthEditLib` and no run may
+make it regardless of the answer. **E72's parks exactly one row, E72 itself**, and
+says so on the same line. **A38's parks nothing** — it is the fleet's own process
+rather than the product, and says so on its *May proceed meanwhile* line.
 
 ```
 PROPOSED: May a BACKLOG row's `Plat` cell be corrected after filing, and if so
@@ -286,6 +288,89 @@ the STEP 5 exception does not reach it. More to the point, the file is shared
 with SynthEdit proper: the question *"should a cable edit mark the DSP dirty"*
 is being answered for the commercial product at the same time, and that is
 Jeff's call rather than a scheduled run's.
+
+**The third entry is BACKLOG [A38](../BACKLOG.md)**, filed 2026-09-18 by the
+windows box out of a STEP 1.5 that had to be done twice in one run, and measured
+here by the windows box on 2026-09-21. It is the fleet's own process rather than
+the product, and it **parks nothing** — see its *May proceed meanwhile* line.
+
+```
+PROPOSED: Should the fleet's two bookkeeping hot spots stop being single shared
+          files, and if so which of them?
+  Options: (a) nothing -- keep one `BACKLOG.md` NEXT table and one `JOURNAL.md`,
+               and keep paying one STEP 1.5 re-resolution per open PR per merge.
+           (b) NEXT block only -- give the NEXT block blank-line-separated
+               per-platform sections inside `BACKLOG.md` (no new files), and
+               leave `JOURNAL.md` alone.
+           (c) NEXT block only, in per-lane files -- `docs/next/<platform>.md`,
+               linked from the NEXT table, as A38's own row proposed.
+           (d) both -- (b) or (c), PLUS one journal file per run
+               (`journal/<date>-<platform>.md`), with `JOURNAL.md` becoming an
+               index a run does not edit.
+  Recommended default: (d) with (b) as its first half -- because the measurement
+           below splits A38's single proposal into two independent questions with
+           different answers. The NEXT block is fixed by CONTEXT alone, so (b)
+           buys everything (c) buys for no new files; `JOURNAL.md` is NOT fixed
+           by context, because two runs prepending at the top of one file collide
+           by construction however that file is arranged, so only the per-run
+           file in (d) removes it.
+  Default in effect meanwhile: (a), and its price is on the board. Five
+           consecutive fleet runs -- 09-18 windows, 09-18/09-19/09-20/09-21 macos
+           -- were STEP 1.5 and nothing else: **16 branch re-resolutions, zero
+           product change on either box.** A run is the scarce resource here, not
+           a merge.
+  May proceed meanwhile: EVERYTHING, without exception. This question is about
+           where a run WRITES its bookkeeping, not about what any row builds, and
+           it makes no row ineligible. A run that hits a conflict meanwhile
+           resolves it exactly as the 09-18 through 09-21 entries describe.
+  Decide-by: the next JOURNAL.md rotation (A36, [#585](https://github.com/JeffMcClintock/TideSynth/pull/585)),
+           because (d) changes what there is to rotate. Doing the rotation first
+           and this second means doing the rotation twice.
+```
+
+**Measured, not asserted** — [tests/a38_bookkeeping_merge_probe.py](../tests/a38_bookkeeping_merge_probe.py)
+seeds a throwaway git repo with this repo's **real** `BACKLOG.md` and
+`JOURNAL.md`, then replays the fleet's actual sequence: two branches cut from one
+`main`, each doing only its own platform's STEP 4 edits, the other box's PR
+merging first, and then the merge of `main` into the branch still open. A38 filed
+its mechanism as a reading of six runs; this is the truth table under it, and it
+runs in about five seconds with no build and no network.
+
+| layout | conflicts in | what it says |
+|---|---|---|
+| `today` — one NEXT table, one JOURNAL.md | **`BACKLOG.md`, `JOURNAL.md`** | both hot spots, on strictly disjoint content |
+| `next-sections` — (b) | `JOURNAL.md` | the NEXT block is fixed; the journal is not |
+| `next-split` — (c) | `JOURNAL.md` | **identical to (b)** — new files are not what fixed it |
+| `full-split` — (d) | *(clean)* | nothing shared, nothing to conflict |
+| `ctl-context` — positive control | `BACKLOG.md` | `JOURNAL.md` drops out once one unchanged entry sits between the two insertions; `BACKLOG.md`, untouched by the control, stays |
+| `ctl-code` — control | *(clean)* | code has never conflicted in this fleet, and does not here |
+
+**The finding A38's row does not have: (b) and (c) measure the same, so the new
+files buy nothing the blank line does not.** A38 proposed per-lane files for the
+NEXT block, and that works — but it works for the reason `next-sections` also
+works, which is that git gets an unchanged line of context between the two sides.
+`docs/next/` is the more expensive way to obtain a blank line. The cheap half and
+the expensive half of A38's proposal are separable, and only the journal half
+needs new files.
+
+**Two things the probe does not measure, stated so nobody reads them into it.**
+It measures conflict *occurrence*, not conflict *size*: a markdown table cell
+cannot be hard-wrapped, so a re-point today is one changed line of 47,084 bytes
+(`mac`, 16-deep, measured on `main` 2026-09-21 — A37's growth curve, **+14% in
+the three days** since A38 measured 41,216 / 13-deep), whereas a section can be
+wrapped and a re-point becomes a few short lines. That favours (b) and (c) over
+(a) by more than the table shows, and it is A37's question, not this one. And it
+says nothing about what any option costs to *implement* in
+`scripts/check-next-block.py`, `scripts/check-journal-prepend.py` and
+`scripts/extract-lessons.py`, which is the work A38's row calls small and this
+entry does not re-estimate.
+
+**Why this is a ruling and not a run's judgement:** (b), (c) and (d) all change
+**STEP 4 of [docs/weekly-run-prompt.md](weekly-run-prompt.md)**, which is the
+shared instruction three boxes read fresh on every run. A38's row says so itself
+and left the row `TODO` rather than `NEEDS-JEFF` only so the measurement could
+land immediately. The measurement has landed; the shape is Jeff's.
+
 
 ---
 
