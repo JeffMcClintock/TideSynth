@@ -290,14 +290,15 @@ def latest_entry_per_platform(repo_root):
 QUIET_DAYS = 3
 HALTED_DAYS = 7
 
-# The bot credential's expiry, from docs/weekly-run-prompt.md's "Becoming the
-# agent" section. Hard-coded rather than queried because the digest runs in CI
-# under the workflow's GITHUB_TOKEN, not under the bot PAT, so asking the API
-# about "this token" would measure the wrong one. Update it when the token is
-# rotated -- and note the whole point of the countdown is that this date halts
-# ALL THREE boxes on the same day.
-TOKEN_EXPIRY = '2026-11-07'
+# The expiry recorded in docs/weekly-run-prompt.md. A40: this is no longer the
+# source of the countdown -- it is only what the docs CLAIM, reported as such
+# and compared against the credential when the credential will say.
+TOKEN_EXPIRY_RECORDED = '2026-11-07'
 TOKEN_WARN_DAYS = 30
+
+# GitHub returns this on requests made with a classic PAT that has an expiry set.
+# Anything else -- a GITHUB_TOKEN, an OAuth token, a non-expiring PAT -- omits it.
+EXPIRY_HEADER = 'github-authentication-token-expiration'
 
 
 def check_halted_boxes(repo_root):
@@ -365,23 +366,90 @@ def check_halted_boxes(repo_root):
     return '\n'.join(lines)
 
 
-def check_credential_expiry():
+def expiry_from_headers(headers):
+    """The expiry date a response's headers assert, or None if they assert none.
+
+    Pure, so the negative control can fabricate a header and watch the digest
+    move. Keys are matched case-insensitively; HTTP header case is not stable.
+    GitHub's value looks like '2026-11-07 15:04:05 UTC', so only the date is used.
+    """
+    if not headers:
+        return None
+    for k, v in headers.items():
+        if k.strip().lower() != EXPIRY_HEADER:
+            continue
+        m = re.match(r'\s*(\d{4}-\d{2}-\d{2})', v or '')
+        return m.group(1) if m else None
+    return None
+
+
+def fetch_response_headers(endpoint='rate_limit'):
+    """Headers from one `gh api -i` call, lowercased. (ok, headers-or-error).
+
+    rate_limit by default: it needs no scope and does not consume quota, so
+    asking costs nothing when the answer turns out to be 'no such header'.
+    """
+    try:
+        out = run(['gh', 'api', '-i', endpoint])
+    except RuntimeError as e:
+        return False, str(e)
+    headers = {}
+    for line in out.splitlines():
+        if not line.strip():
+            break                      # blank line ends the header block
+        if ':' in line:
+            k, _, v = line.partition(':')
+            headers[k.strip().lower()] = v.strip()
+    return True, headers
+
+
+def check_credential_expiry(headers=None, recorded=TOKEN_EXPIRY_RECORDED):
     """The one fleet-wide halt that is known in advance, so it should never
     arrive as a surprise. When the bot token expires, all three boxes fail
     STEP 0.7 on the same day and all three go silent together -- which the
-    check above would report as three simultaneous halts with no cause."""
+    check above would report as three simultaneous halts with no cause.
+
+    A40: the countdown is derived from the credential's own expiry header, not
+    from a constant. `headers` is injectable so the negative control can prove
+    the derivation is not vacuous.
+    """
     lines = ['\n### Bot credential expiry\n']
-    expiry = datetime.strptime(TOKEN_EXPIRY, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    if headers is None:
+        ok, result = fetch_response_headers()
+        headers = result if ok else {}
+    derived = expiry_from_headers(headers)
+
+    if derived is None:
+        # No countdown, because nothing measured here knows the date. Saying
+        # "unknown" is the finding; printing the recorded date as fact is the
+        # failure this check was rewritten to stop.
+        lines.append('- **unknown -- no expiry header on this credential.** GitHub returns '
+                     '`%s` only for a classic PAT that has an expiry set, so this is either a '
+                     'credential that does not expire or one whose expiry it will not state. '
+                     'The digest measures whatever credential it runs under -- in CI that is '
+                     'the workflow\'s `GITHUB_TOKEN`, not the bot PAT, so an absent header '
+                     'here says nothing about the bot PAT either way.' % EXPIRY_HEADER)
+        lines.append('- Recorded in `docs/weekly-run-prompt.md`: **%s** -- unverified, and not '
+                     'counted down from. Only the token\'s owner can read the real date, in the '
+                     'GitHub UI.' % recorded)
+        return '\n'.join(lines)
+
+    expiry = datetime.strptime(derived, '%Y-%m-%d').replace(tzinfo=timezone.utc)
     days = (expiry - datetime.now(timezone.utc)).days
     if days < 0:
         lines.append('- **EXPIRED %d days ago (%s).** Every box fails STEP 0.7 until the token '
                      'is rotated; expect the section above to show all three as halted.'
-                     % (-days, TOKEN_EXPIRY))
+                     % (-days, derived))
     elif days <= TOKEN_WARN_DAYS:
         lines.append('- **Expires in %d days (%s)** -- rotate it before then, or all three boxes '
-                     'halt on the same day.' % (days, TOKEN_EXPIRY))
+                     'halt on the same day.' % (days, derived))
     else:
-        lines.append('- Expires %s (%d days away).' % (TOKEN_EXPIRY, days))
+        lines.append('- Expires %s (%d days away).' % (derived, days))
+    lines.append('- Derived from the `%s` header on the credential this digest ran under.'
+                 % EXPIRY_HEADER)
+    if derived != recorded:
+        lines.append('- **`docs/weekly-run-prompt.md` records %s, which disagrees.** The header '
+                     'is authoritative; the doc is stale.' % recorded)
     return '\n'.join(lines)
 
 
