@@ -94,6 +94,59 @@ Template:
 ```
 
 ---
+## 2026-10-03 — macos — E87: its Accept is met on `main` -- the second merger renumbered, `Plat` untouched; the general form filed as A42 (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.19675.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E87**, measured its Accept, and found it already met; flipped it to IN-REVIEW with the evidence. Filed **A42** for the question E87 carried but did not need to answer. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded.
+
+### STEP 1 / 1.5 / 2
+
+STEP 1: no open `platform:mac` issue (open issues are #583, linux, and #44, the digest). STEP 1.5: this lane's only open PR is [#631](https://github.com/JeffMcClintock/TideSynth/pull/631) (E85, from the 10-02 run whose entry is on that branch, not yet on `main`), plus its companion [GMPI_Wrappers#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41). #631 is `MERGEABLE`/`CLEAN`, 13 SUCCESS + 2 SKIPPED, no reviews, no review comments; #41 is `OPEN`/`MERGEABLE`. Both are waiting for merge, so I left them alone.
+
+STEP 2, walked in file order, each reason checked rather than inherited:
+
+- **A35** waits on its own two open `PROPOSED:` entries. **A37** I read against the bookkeeping `PROPOSED:` entry (*"Should the fleet's two bookkeeping hot spots stop being single shared files"*), whose options move the NEXT block, which is all of A37. I agree with the 10-01 windows reasoning: it is not identical under every answer. **S8** is `NEEDS-SPEC`.
+- **E19**: the remaining mac cell is AU3 in a real host with an editor on screen. A scheduled run cannot take the screen. **E82**: same, its Accept is a right-click on a VCV panel. Both are also the X2-shape judgements the `win` NEXT cell reserves for the next win run.
+- **X2** and **E89** are linux. **E2** is an umbrella. **E76** wants a ruling. **E84** is a workflow edit this credential cannot make. **E85** is this lane's open #631.
+- **E86** I read before taking it, as its row asks. Its Accept is a fork: either the processor builds the factory, or Jeff rules that TIDE requires a same-process controller. Which one is a product and lifetime ruling, not a run's. The only bare-host instrument for it (`tests/e80_vst3_feedback_probe.cpp`) is win32-only (`:561`). **Recommendation:** E86 wants a `PROPOSED:` entry before anyone builds anything.
+- **E87** was next, `any`, small, BACKLOG-only. No branch or PR named it. I claimed it on `tide/mac/E87-id-collision-verified` and pushed the claim first.
+
+### E87, measured
+
+**The second merger did exactly what the row prescribed.** `82a9c49` (`tide-rack-bot`, 2026-10-01 13:58 +1300) is *"Merge origin/main into E79: renumber this lane's E85/E86 to E88/E89, per E87"*. It was pushed to [#584](https://github.com/JeffMcClintock/TideSynth/pull/584)'s branch two minutes after [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) landed (`98decfc`, 13:56) and merged as `be3930e`.
+
+| check | result |
+|---|---|
+| linux rows at `82a9c49^1` vs **E88**/**E89** at `82a9c49`, id cell stripped | `diff` empty: Status, `Plat`, Item byte-identical |
+| same rows, `82a9c49` vs `origin/main` | byte-identical |
+| `python3 scripts/check-id-refs.py` on `origin/main` `d58bdd1` | *"no stale ID references, no duplicate IDs, no shared live citations"*, **rc=0** |
+| `grep -c "^\| E8N \|"` in `BACKLOG.md` / `BACKLOG-DONE.md` | E85, E86, E88, E89: **1 / 0** each |
+| **positive control**: same tree, E88/E89 id cells set back to E85/E86 | **rc=1**, *"2 DUPLICATE ID(s) -- one ID, more than one row: E85 BACKLOG.md:115, BACKLOG.md:118; E86 …"* |
+| archived E79 row | cites **E88**, not the old id |
+
+So `Plat` did not move (E89 is still `linux`), which was the trap E87 warned about. The only residue is that `JOURNAL-2026-09.md` names the linux findings by their old ids in two entries. That is append-only history, correctly left alone.
+
+### Bookkeeping choices, and why
+
+- **I did not touch the `mac` NEXT cell.** `main`'s cell is the 10-01 one; #631 carries a 10-02 cell on the same single line. Any edit of mine would conflict with #631 on that line. That is A38's livelock in miniature, and the 10-01 windows finding is that a zero diff in a contended cell is the durable resting state. Instead, the next mac run's instruction is here: **(1) STEP 1.5 on #631 / GMPI_Wrappers#41. (2) Walk STEP 2: E88 is the next `any` row below E87.**
+- **The rotation is byte-identical to #631's.** Adding this entry put `JOURNAL.md` over 60 KB, and the oldest entry is the 09-29 windows one, which #631 also rotated. I took #631's `JOURNAL-2026-09.md` blob verbatim, so the two branches make the *same* change there and cannot conflict on it. `JOURNAL.md` will still conflict with #631 at the prepend point. Every pair of journal PRs does that, and whichever lands second resolves it.
+- **I checked for id collisions before filing A42**, using the guard A42 describes: the highest A-id is A41 on `main`, on `tide/mac/E85-clap-gui-show` and on `tide/win/A41-probe-ref-pinning`, and A38 on `tide/mac/issue-599`.
+
+**Learned:**
+
+- **E87 resolved itself the way it said it should, through a run doing a re-sync, not through anyone taking E87.** The row's value was the instruction, which the merging run read and followed (its commit subject says *"per E87"*). That only works if the row is on `main` before the second merge. It was, because #584 had carried it.
+- **`check-id-refs.py` passes on a renumbered id, but that does not mean every old mention is right.** It proves no id is *missing*. It cannot tell that a journal entry saying "E85" meant the linux finding now called E88. A renumber is safe for rows. For prose it is only as safe as the reader's willingness to look up the renumbering commit.
+- **To check an Accept that reads "a lint is rc=0", break it back to the predicted failure first.** rc=0 on a check that cannot see the problem looks identical to rc=0 on a fixed tree. A39's lesson applies to a BACKLOG-only item too.
+
+**Not verified:** no build, no host; nothing compiled was touched. I did not judge E19's or E82's Accepts (reserved for win). I did not answer E86.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean (behind `origin/main`); all work in a scratchpad `git worktree`, removed at the end. `SynthEdit` was on `master`, clean; I did not touch it or any other repo. No GUI work, no screen taken. No credential value appears anywhere.
+
+**Next:** above, under *Bookkeeping choices*. **For Jeff:** #631 + GMPI_Wrappers#41 (E85) and #629 (A41) are green and waiting. A42's prompt-vs-script question is yours. The stale pushed branch `tide/mac/issue-599` (PR #604 closed unmerged) is still there, and deleting it is yours too.
+
+**Branch/PR:** `tide/mac/E87-id-collision-verified`: the E87 flip, the A42 row, this entry, and the rotation.
+
 ## 2026-10-01 — windows — the queue reopened: all eleven PRs merged, A41 taken and measured, and the probes' verdict had THREE causes rather than one (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.16120.0** (CLI `2.1.284`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -433,35 +486,3 @@ All seven lint checks exited 0, run the way `lint.yml` runs them: `check-links`,
 
 **Branch/PR:** `tide/mac/2026-09-30-step15` holds this entry and the refreshed `mac` NEXT cell. The merge is on `tide/mac/A36-journal-rotation-rule`.
 
-## 2026-09-29 — windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)
-
-**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.9939.4** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** recorded one machine-state fact from this run's STEP 5 that its three merged entries do not carry, because it was only observable after they merged.
-
-### What happened
-
-At **17:14**, mid-run, Jeff committed **`910b7b0d5` *"added tiDE slider switch"*** to the **local** `main` of `C:\SE\TideSynth` — matching the `TiDEModules - TiDESliderSwitchGui.cpp` window that was open all afternoon. The box therefore ended the run with `main` reading **`ahead 1, behind 2`** of `origin/main`.
-
-**`git status --short` printed nothing.** The tree *is* clean; a committed commit is not dirt, and none of STEP 5's three kinds of uncommitted change names it. A run that checked cleanliness alone would have been told everything was fine, and everything was — but not the thing that matters here.
-
-It is **the developer's unpushed commit on his own default branch**: category 3 by intent if not by wording, so not mine to push, rebase, reset or tidy. I left it exactly as found.
-
-### Verified rather than assumed
-
-`git merge-base --is-ancestor 910b7b0d5 origin/<branch>` is **false for all six** branches this run pushed — `2026-09-26-step15-and-sweep-measurement`, `2026-09-27-adjacency-measurement`, `A39-prefab-count-derived`, `2026-09-29-automerge-result`, `A40-token-expiry-derived`, `2026-09-29-a40-bookkeeping` — and `git branch -r --contains 910b7b0d5` finds it on **no remote ref at all**.
-
-That holds for a structural reason and not by luck: **every branch was cut from `origin/<default>`, per STEP 2's *"never base a branch on the working tree's state"*.** This is that rule doing precisely the job it was written for, and it is the first time this journal has a positive measurement of it rather than a statement of intent.
-
-**Learned:**
-
-- **"The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.** `git status -sb` prints both in one line; `git status --short`, which this lane's cells have been quoting, prints only the first.
-- **The developer-at-the-machine check should look at ahead/behind, not just dirt.** An open editor window predicts a commit as much as it predicts an unsaved buffer, and a mid-run commit to local `main` is invisible to every dirt rule the prompt states.
-
-**Not verified:** I did not inspect the contents of Jeff's commit beyond its subject line and author, and did not build anything.
-
-**Machine state:** `C:\SE\TideSynth` on `main`, clean, `ahead 1` (Jeff's commit) / `behind 2`, left exactly so. All worktrees removed. `SE16` (`master`) and `SynthEditLib` (`main`) carry 1 and 8 dirty files respectively, all predating this run and untouched; `gmpi_ui` and `GMPI_Wrappers` are clean and were not touched. No host, no build, no screen taken.
-
-**Next:** see the `win` NEXT cell, which this entry does not change.
-
-**Branch/PR:** `tide/win/2026-09-29-machine-state`. An earlier draft of this note tried to edit the already-merged [#623](https://github.com/JeffMcClintock/TideSynth/pull/623) entry in place; `check-journal-prepend` rejected it, correctly — a merged entry is not editable — so it was dropped unpushed and re-filed as this separate entry, which is the append-only route.
