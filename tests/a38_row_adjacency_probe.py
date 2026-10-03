@@ -58,52 +58,60 @@ The controls, which are what make arm 3 a measurement
   C3  A pair that already merges cleanly must not be made to conflict by the
       transformation.
 
+The input is PINNED, not ambient (A41, 2026-10-01)
+--------------------------------------------------
+Every number below is a function of which refs are measured, and this probe used
+to discover those by asking the live fleet -- so a recorded pass could not be
+re-checked, and three separate defects hid in the gap. **The sharpest of them,
+measured for A41:** at one instant, from one `origin/main` sha, with this blob
+byte-identical, arm 1 called `BACKLOG.md` *MAXIMALLY DIVERGENT, 2 of 2* in the
+developer's tree and *inert on most branches, 0 of 2* in a fresh shallow clone.
+The input now comes from `tests/a38_fleet_state.json` by default, so a recorded
+run reproduces; `--live` measures today's fleet and labels itself a snapshot.
+`tests/a38_fleet_state.py` states all three defects and what each fix is.
+
 Usage
 -----
     python3 tests/a38_row_adjacency_probe.py [--repo PATH] [--lane win]
+    python3 tests/a38_row_adjacency_probe.py --live           # today's fleet
+    python3 tests/a38_row_adjacency_probe.py --live --fetch    # and fetch what it names
 
-Exit 0 if the measurement completed and every control held; 1 if a control
-failed. The divergence numbers and conflict verdicts are REPORTED, not asserted
--- they describe a moving queue, so a threshold here would be a tripwire on
-someone else's merge habits.
+Four exit codes, because A41's complaint is that one of them used to carry all
+four meanings: **0** measured and every control held, **1** a control failed,
+**2** the input names a ref this repo cannot resolve, **3** VACUOUS -- the
+fixture was too small to test the controls at all. With fewer than two branches
+in the lane there are no pairs, and the old code printed the same `PROBE OK` and
+`rc=0` as a real pass; a caller reading only the code could not tell them apart.
+The divergence numbers and conflict
+verdicts are REPORTED, not asserted -- they describe a moving queue, so a
+threshold here would be a tripwire on someone else's merge habits.
 """
 import argparse
 import itertools
+import os
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import a38_fleet_state  # noqa: E402
 
 BOOKKEEPING = ["BACKLOG.md", "BACKLOG-DONE.md", "JOURNAL.md",
                "docs/decisions.md", "docs/lessons.md"]
 
-
-def git(repo, *args, check=True, stdin=None, binary=False):
-    """Run git. `binary=True` keeps stdout/stdin as bytes.
-
-    Text mode decodes UTF-8 explicitly with `replace`: the default on Windows is
-    cp1252, and BACKLOG.md carries em-dashes and curly quotes that abort a read
-    partway through with a UnicodeDecodeError from a reader thread -- which
-    surfaces as an unrelated NoneType later, not as an encoding error.
-    """
-    kw = {"input": stdin}
-    if not binary:
-        kw.update(encoding="utf-8", errors="replace")
-    r = subprocess.run(["git", "-C", repo, *args], capture_output=True, **kw)
-    if check and r.returncode != 0:
-        err = r.stderr if not binary else r.stderr.decode("utf-8", "replace")
-        raise RuntimeError("git " + " ".join(args) + " -> "
-                           + str(r.returncode) + "\n" + err)
-    return r
+git = a38_fleet_state.git
 
 
 def blob(repo, ref, path):
+    """The blob sha for `path` at `ref`, or None if the PATH is absent there.
+
+    A41: the ref itself is guaranteed resolvable by now -- `a38_fleet_state`
+    fails the run on any it cannot resolve -- so None here means the file does
+    not exist at that commit, which is a real answer. It used to also mean "this
+    branch was never fetched", and that reading silently moved arm 1's numerator
+    while the denominator still counted the branch.
+    """
     r = git(repo, "rev-parse", ref + ":" + path, check=False)
     return r.stdout.strip() if r.returncode == 0 else None
-
-
-def branches(repo):
-    out = git(repo, "ls-remote", "--heads", "origin", "refs/heads/tide/*").stdout
-    return [l.split()[1].replace("refs/heads/", "")
-            for l in out.splitlines() if l.strip()]
 
 
 def merge(repo, base, a, b):
@@ -184,16 +192,22 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default=".")
     ap.add_argument("--lane", default="win")
+    a38_fleet_state.add_args(ap)
     a = ap.parse_args()
     repo, lane = a.repo, a.lane
-    main_ref = "origin/main"
-    main_sha = git(repo, "rev-parse", "--short", main_ref).stdout.strip()
-    allb = branches(repo)
-    laneb = [b for b in allb if "/" + lane + "/" in b]
+    # A41: resolve every ref ONCE, un-filtered -- arm 1 spans the whole fleet
+    # while arms 2 and 3 are one lane. Both now read the same resolved shas.
+    fleet = a38_fleet_state.resolve(repo, a, None)
+    main_ref = fleet.main
+    allb = [(label, branch, sha) for label, branch, sha in fleet.branches]
+    laneb = [e for e in allb if "/" + lane + "/" in e[1]]
     fails = []
 
-    print("=== A38 adjacency probe: lane '" + lane + "' from "
-          + main_ref + " " + main_sha + " ===\n")
+    print("=== A38 adjacency probe ===")
+    print(fleet.header())
+    print("  arms 2-3 lane '%s': %d of %d branch(es)"
+          % (lane, len(laneb), len(allb)))
+    print()
 
     print("--- arm 1: blob divergence across main + every tide/** branch ---")
     print("  %-22s %8s %17s   %s" % ("file", "distinct", "differ from main",
@@ -202,8 +216,8 @@ def main():
         m = blob(repo, main_ref, f)
         got = set([m]) if m else set()
         differ = 0
-        for b in allb:
-            x = blob(repo, "origin/" + b, f)
+        for _label, _branch, sha in allb:
+            x = blob(repo, sha, f)
             if x:
                 got.add(x)
                 if x != m:
@@ -221,14 +235,14 @@ def main():
     c1 = 0
     for f in BOOKKEEPING:
         m = blob(repo, main_ref, f)
-        for b in allb:
-            x = blob(repo, "origin/" + b, f)
+        for _label, branch, sha in allb:
+            x = blob(repo, sha, f)
             if x is None:
                 continue
-            empty = git(repo, "diff", "--quiet", main_ref, "origin/" + b, "--",
+            empty = git(repo, "diff", "--quiet", main_ref, sha, "--",
                         f, check=False).returncode == 0
             if (x == m) != empty:
-                fails.append("C1 " + b + ":" + f + " blob_eq="
+                fails.append("C1 " + branch + ":" + f + " blob_eq="
                              + str(x == m) + " diff_empty=" + str(empty))
             c1 += 1
     print("  %d (branch, file) pairs checked, %d mismatches"
@@ -237,11 +251,11 @@ def main():
     print("\n--- arm 2: which BACKLOG.md lines each '" + lane
           + "' branch touches ---")
     touch = {}
-    for b in laneb:
-        t = touched_lines(repo, main_ref, "origin/" + b, "BACKLOG.md")
-        touch[b] = t
+    for label, branch, sha in laneb:
+        t = touched_lines(repo, main_ref, sha, "BACKLOG.md")
+        touch[branch] = t
         pretty = ", ".join("L%d(%s)" % (n, r) for n, r in t) or "(none)"
-        print("  %-44s %s" % (b.split("/")[-1][:44], pretty))
+        print("  %-44s %s" % (branch.split("/")[-1][:44], pretty))
     hits = {}
     for b, t in touch.items():
         for n, r in t:
@@ -275,13 +289,14 @@ def main():
         if len(hits[n]) > 1:
             same_line += list(itertools.combinations(hits[n], 2))
 
-    for b1, b2 in itertools.combinations(laneb, 2):
-        base = git(repo, "merge-base", "origin/" + b1,
-                   "origin/" + b2).stdout.strip()
-        ok_b, paths_b = merge(repo, base, "origin/" + b1, "origin/" + b2)
+    npairs = 0
+    for (l1, b1, sha1), (l2, b2, sha2) in itertools.combinations(laneb, 2):
+        npairs += 1
+        base = git(repo, "merge-base", sha1, sha2).stdout.strip()
+        ok_b, paths_b = merge(repo, base, sha1, sha2)
         rb = rewrite_commit(repo, base, "BACKLOG.md")
-        r1 = rewrite_commit(repo, "origin/" + b1, "BACKLOG.md")
-        r2 = rewrite_commit(repo, "origin/" + b2, "BACKLOG.md")
+        r1 = rewrite_commit(repo, sha1, "BACKLOG.md")
+        r2 = rewrite_commit(repo, sha2, "BACKLOG.md")
         ok_a, paths_a = merge(repo, rb, r1, r2)
         s1, s2 = b1.split("/")[-1][:18], b2.split("/")[-1][:18]
         bl = "CLEAN" if ok_b else ",".join(
@@ -313,17 +328,33 @@ def main():
             fails.append("C3 " + s1 + "+" + s2
                          + ": respace created a BACKLOG.md conflict")
 
+    # A41: a control that held because nothing was tested is not a pass. C1
+    # counts its own (branch, file) pairs; C2 and C3 need at least one branch
+    # pair in the lane, and with zero the old code printed OK three times.
     print("\n--- controls ---")
+    exercised = {"C1": c1 > 0, "C2": npairs > 0, "C3": npairs > 0}
     for tag, label in (("C1", "blob-identity <-> empty-diff"),
                        ("C2", "same-line pairs still conflict after respace"),
                        ("C3", "respace creates no new conflict")):
         bad = any(f.startswith(tag) for f in fails)
-        print("  %s %-48s %s" % (tag, label, "FAIL" if bad else "OK"))
+        verdict = "FAIL" if bad else ("OK" if exercised[tag] else "VACUOUS")
+        print("  %s %-48s %s" % (tag, label, verdict))
     for f in fails:
         print("    " + f)
-    print("\n" + ("PROBE OK" if not fails
-                  else "PROBE FAILED (%d)" % len(fails)))
-    return 1 if fails else 0
+    vacuous = [t for t, ex in exercised.items() if not ex]
+    if vacuous:
+        print("\n  %d of 3 controls were VACUOUS (%s): the fixture was too small"
+              % (len(vacuous), ", ".join(sorted(vacuous))))
+        print("  to test them -- %d branch(es) in lane '%s', %d pair(s)."
+              % (len(laneb), lane, npairs))
+    if fails:
+        print("\nPROBE FAILED (%d)" % len(fails))
+        return 1
+    if vacuous:
+        print("\nPROBE VACUOUS -- nothing was measured, which is not a pass")
+        return 3
+    print("\nPROBE OK")
+    return 0
 
 
 if __name__ == "__main__":
