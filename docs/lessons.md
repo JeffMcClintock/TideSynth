@@ -16,14 +16,14 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **490 KB** across **379** entries, so copying them
+Learned sections are **493 KB** across **382** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **157 KB / 1622 lessons — 3.1x smaller**, and represents
+A8. This is **158 KB / 1632 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
 [JOURNAL.md](../JOURNAL.md) if recent, else the archive for its month:
-[JOURNAL-2026-09.md](../JOURNAL-2026-09.md), [JOURNAL-2026-08.md](../JOURNAL-2026-08.md).
+[JOURNAL-2026-10.md](../JOURNAL-2026-10.md), [JOURNAL-2026-09.md](../JOURNAL-2026-09.md), [JOURNAL-2026-08.md](../JOURNAL-2026-08.md).
 
 **This file GROWS, and someone will have to prune it.** ~4 lessons an entry at
 ~90 bytes is ~360 bytes per entry, and this fleet writes ~10 entries a day —
@@ -36,6 +36,31 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-04
+
+**macos — STEP 1.5: #631 (E85) went `DIRTY` in `JOURNAL.md` when #632 landed; re-synced, E87 archived, no backlog item (scheduled run)**
+
+- A branch that stays open across another run's merge must insert its journal entry below the newer one, not on top.
+- Taking the other open branch's rotation blob verbatim works.
+- Putting a lane's bookkeeping on its own open PR's branch removes the conflict at the source.
+
+## 2026-10-03
+
+**macos — E87: its Accept is met on `main` -- the second merger renumbered, `Plat` untouched; the general form filed as A42 (scheduled run)**
+
+- E87 resolved itself the way it said it should, through a run doing a re-sync, not through anyone taking E87.
+- `check-id-refs.py` passes on a renumbered id, but that does not mean every old mention is right.
+- To check an Accept that reads "a lint is rc=0", break it back to the predicted failure first.
+
+## 2026-10-02
+
+**macos — E85: `clap_plugin_gui.show()`/`.hide()` now report success; A/B 3/3 on macOS, with the probe's editor arm ported to Cocoa (scheduled run)**
+
+- E85 was not Windows-specific, and a mac bare host reproduces it exactly.
+- An NSView parent can be made fully headless from C without a `.m` file.
+- `FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` is the one-variable A/B for a wrapper change.
+- A `.clap` bundle's directory name must match its binary name.
 
 ## 2026-10-01
 
@@ -66,20 +91,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - The app version moved from 2.9939.4 to 2.16120.0 between the 09-30 and 10-01 cells
 - Nothing new about the livelock.
-
-## 2026-09-30
-
-**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, for the fourth cell running; STEP 2 walked, nothing eligible (scheduled run)**
-
-- Nothing new about the mechanism.
-- The local `main` in `~/Documents/GitHub/TideSynth` is 16 commits behind `origin/main`
-
-## 2026-09-29
-
-**windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)**
-
-- "The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.
-- The developer-at-the-machine check should look at ahead/behind, not just dirt.
 
 ## 2026-09-08
 
@@ -552,6 +563,20 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A fix's evidence can come from the merge that follows it.
 - Three PRs cost two resolutions; four cost five.
 - `IN-REVIEW` has two exits, not one.
+
+## 2026-09-29
+
+**windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)**
+
+- "The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.
+- The developer-at-the-machine check should look at ahead/behind, not just dirt.
+
+## 2026-09-30
+
+**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, for the fourth cell running; STEP 2 walked, nothing eligible (scheduled run)**
+
+- Nothing new about the mechanism.
+- The local `main` in `~/Documents/GitHub/TideSynth` is 16 commits behind `origin/main`
 
 ## 2026-08-18
 
