@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **491 KB** across **380** entries, so copying them
+Learned sections are **492 KB** across **381** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **157 KB / 1626 lessons — 3.1x smaller**, and represents
+A8. This is **158 KB / 1629 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,14 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-03
+
+**macos — E87: its Accept is met on `main` -- the second merger renumbered, `Plat` untouched; the general form filed as A42 (scheduled run)**
+
+- E87 resolved itself the way it said it should, through a run doing a re-sync, not through anyone taking E87.
+- `check-id-refs.py` passes on a renumbered id, but that does not mean every old mention is right.
+- To check an Accept that reads "a lint is rc=0", break it back to the predicted failure first.
 
 ## 2026-10-02
 
