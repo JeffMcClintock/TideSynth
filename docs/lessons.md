@@ -16,14 +16,14 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **490 KB** across **379** entries, so copying them
+Learned sections are **493 KB** across **381** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **157 KB / 1622 lessons — 3.1x smaller**, and represents
+A8. This is **158 KB / 1631 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
 [JOURNAL.md](../JOURNAL.md) if recent, else the archive for its month:
-[JOURNAL-2026-09.md](../JOURNAL-2026-09.md), [JOURNAL-2026-08.md](../JOURNAL-2026-08.md).
+[JOURNAL-2026-10.md](../JOURNAL-2026-10.md), [JOURNAL-2026-09.md](../JOURNAL-2026-09.md), [JOURNAL-2026-08.md](../JOURNAL-2026-08.md).
 
 **This file GROWS, and someone will have to prune it.** ~4 lessons an entry at
 ~90 bytes is ~360 bytes per entry, and this fleet writes ~10 entries a day —
@@ -36,6 +36,25 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-05
+
+**windows — E86: the processor-only VST3 finding reproduces, and its "unknown to fix" is now ONE MEASURED LINE; the fork escalated as a PROPOSED entry (scheduled run)**
+
+- "Unknown to fix" is sometimes one line, and the cheap way to find out is to patch, measure and revert.
+- The strongest evidence for a fix being sufficient was a DIFF OF THE STDERR, not a count.
+- An idempotence guard is a thread-safety claim in disguise, and adding a caller is what tests it.
+- An idempotent function that returns a COUNT lies to its second caller
+- `docs/decisions.md` being denied on the auto-merge allowlist makes the split MANDATORY, not stylistic.
+- The invisible-HWND arm has a hard boundary, and E19's remaining clause is on the wrong side of it.
+
+## 2026-10-03
+
+**macos — E87: its Accept is met on `main` -- the second merger renumbered, `Plat` untouched; the general form filed as A42 (scheduled run)**
+
+- E87 resolved itself the way it said it should, through a run doing a re-sync, not through anyone taking E87.
+- `check-id-refs.py` passes on a renumbered id, but that does not mean every old mention is right.
+- To check an Accept that reads "a lint is rc=0", break it back to the predicted failure first.
 
 ## 2026-10-01
 
@@ -54,6 +73,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - An allowlist-eligible PR merges faster than a run can revise it — about two minutes here.
 - The zero-diff resting state is now measured, not just argued.
 
+**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, fifth cell running; `main` green after Jeff's slider switch; STEP 2 walked, nothing eligible (scheduled run)**
+
+- The app version moved from 2.9939.4 to 2.16120.0 between the 09-30 and 10-01 cells
+- Nothing new about the livelock.
+
 **windows — STEP 1.5: three content re-syncs never moved #618's merge-base, and a real merge did; the A38 probes' verdict flipped twice on fleet movement alone (scheduled run)**
 
 - A content re-sync is not a merge, and only the merge moves the merge-base.
@@ -61,25 +85,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A probe whose fixture is the live fleet has a shelf life, and its pass is not evidence a reader can re-check.
 - Run a PR's own verification artifact during STEP 1.5, not just the lints.
 - A recorded debt can outlive its stated precondition.
-
-**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, fifth cell running; `main` green after Jeff's slider switch; STEP 2 walked, nothing eligible (scheduled run)**
-
-- The app version moved from 2.9939.4 to 2.16120.0 between the 09-30 and 10-01 cells
-- Nothing new about the livelock.
-
-## 2026-09-30
-
-**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, for the fourth cell running; STEP 2 walked, nothing eligible (scheduled run)**
-
-- Nothing new about the mechanism.
-- The local `main` in `~/Documents/GitHub/TideSynth` is 16 commits behind `origin/main`
-
-## 2026-09-29
-
-**windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)**
-
-- "The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.
-- The developer-at-the-machine check should look at ahead/behind, not just dirt.
 
 ## 2026-09-08
 
@@ -552,6 +557,20 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A fix's evidence can come from the merge that follows it.
 - Three PRs cost two resolutions; four cost five.
 - `IN-REVIEW` has two exits, not one.
+
+## 2026-09-29
+
+**windows — the developer committed to local `main` mid-run, and "the tree is clean" would not have caught it (scheduled run, continuation)**
+
+- "The tree is clean" and "the tree is where `origin` is" are different claims, and only the second one tells you whether a branch cut from local `main` would ship somebody else's commit.
+- The developer-at-the-machine check should look at ahead/behind, not just dirt.
+
+## 2026-09-30
+
+**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, for the fourth cell running; STEP 2 walked, nothing eligible (scheduled run)**
+
+- Nothing new about the mechanism.
+- The local `main` in `~/Documents/GitHub/TideSynth` is 16 commits behind `origin/main`
 
 ## 2026-08-18
 
