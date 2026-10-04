@@ -42,10 +42,10 @@ days after it shipped. Both entries that stood here before 2026-09-08 closed on
 [#492](https://github.com/JeffMcClintock/TideSynth/pull/492)) and V7's
 context-menu question (ruled in session, in the table below).
 
-**Five entries stand here. The FIRST TWO are BACKLOG [A35](../BACKLOG.md)'s two
+**Six entries stand here. The FIRST TWO are BACKLOG [A35](../BACKLOG.md)'s two
 halves**; the third is [E81](../BACKLOG.md)'s, filed 2026-09-16, the fourth is
-[E72](../BACKLOG.md)'s, filed 2026-09-15, and the fifth is [A38](../BACKLOG.md)'s,
-filed 2026-09-18. A35 is one row rather than two because it declined to split itself
+[E72](../BACKLOG.md)'s, filed 2026-09-15, the fifth is [A38](../BACKLOG.md)'s,
+filed 2026-09-18, and the sixth is [E86](../BACKLOG.md)'s, filed 2026-10-05. A35 is one row rather than two because it declined to split itself
 before Jeff had read either half; it is two `PROPOSED:` entries because A35's own
 words are *"both halves need answering, and they are separate"*. **A35's two park no
 work at all** — see each entry's *May proceed meanwhile* line, and note that the
@@ -53,7 +53,8 @@ second is about what a run **records**, not about what it may build. **E81's par
 nothing either** — the change it asks about is in GATED `SynthEditLib` and no run may
 make it regardless of the answer. **E72's parks exactly one row, E72 itself**, and
 says so on the same line. **A38's parks nothing** — it is the fleet's own process
-rather than the product, and says so on its *May proceed meanwhile* line.
+rather than the product, and says so on its *May proceed meanwhile* line. **E86's
+parks exactly one row, E86 itself**, and says so on the same line.
 
 ```
 PROPOSED: May a BACKLOG row's `Plat` cell be corrected after filing, and if so
@@ -373,6 +374,114 @@ land immediately. The measurement has landed; the shape is Jeff's.
 
 
 ---
+
+```
+PROPOSED: Should TIDE's VST3 PROCESSOR populate the module factory itself, or
+          is a same-process controller a supported requirement?
+  Options: (a) the processor registers -- one call to
+               `rack_adaptor::registerDeferredModules()` from
+               `SynthEdit::open()` (`SynthEditSem/SynthEdit.cpp:376`), which is
+               MEASURED below to close the gap completely for rack modules.
+           (b) close E86 as a documented limitation -- TIDE requires a
+               same-process controller, and the probe's `--no-controller` arm
+               documents a supported limitation rather than a defect. Costs
+               nothing and ships nothing.
+           (c) (a), PLUS make the registration guard thread-safe, because (a)
+               creates the first second caller it has ever had. See the hazard
+               below -- this is the only option that is safe under a host that
+               creates the two halves on different threads, and its other half
+               is in a GATED-BY-DEFAULT repo (see the scope note).
+           (d) (a) or (c), PLUS a diagnostic: the processor-only case is
+               currently SILENT, and a rack that reports success and plays
+               nothing is the shape of E27 and E63, both of which shipped.
+  Recommended default: (c). (a) alone is measured to work and is one line, but
+           it doubles the number of code paths that call a guard which is a
+           plain `static bool`, and the second caller is the whole point of the
+           change. (b) is defensible only if Jeff reads the VST3 spec's
+           separation of component and controller as theoretical; the spec
+           permits a host to instantiate the component alone, which is why the
+           row exists.
+  Default in effect meanwhile: (b) by inaction, and silently -- which is the
+           part worth seeing. Nobody has ruled that TIDE requires a
+           same-process controller; the behaviour is simply what happens, it
+           logs no complaint, and every probe check passes.
+  May proceed meanwhile: everything EXCEPT E86 itself. This question is about
+           one call site in TIDE's own processor and changes no other row.
+  Decide-by: before any bare-host or offline-scan path is added to the fleet's
+           instruments, because such a path reaches this and a DAW does not.
+```
+
+**MEASURED 2026-10-05 (windows, scheduled run), and the one-line fix is
+measured rather than proposed.** Same `TIDE-Rack.vst3`, same 43,247-byte
+document, same `TIDE: rack built for 44100 Hz, block 512`, 400 blocks at
+44.1 kHz, `TIDE_FEEDBACK_TRACE_EVERY=1`, built from `origin/main` with no
+`*_FOLDER_OVERRIDE` so every dependency is its own `main`:
+
+| arm | modules constructed | display-state captures | feedback sends | max send |
+|---|---|---|---|---|
+| with controller (what a DAW does) | **5** — `LFO`, `LFO2`, `Pulses`, `SHASR`, `Scope` | 4 | 287 | 65,798 B |
+| `--no-controller`, `main` as it stands | **0** | 0 | 11 | 37 B |
+| `--no-controller` + option (a)'s one call | **5** — the same five, by name | 4 | 287 | 65,823 B |
+
+**Every probe check passed in all three arms and no arm logged an error**, which
+is the finding rather than a caveat.
+
+**The control that says option (a) is sufficient and not merely necessary:**
+normalising the volatile counters out of the plug-in's own stderr and diffing
+the arms, the patched `--no-controller` run is identical to the with-controller
+run on **every rack and DSP line**. The only lines it still lacks are
+controller-side by nature — the seven enrichment XMLs
+(`ControlsXp.xml enriched 4 of 18 described class(es)` and six more), `7 rack
+prefab(s) seeded from the bundle`, and TideApp's own document state. 44 distinct
+line shapes with a controller, 33 with option (a), **5** on `main`'s
+`--no-controller`.
+
+**WHAT THAT CONTROL DOES NOT SETTLE, stated because the measurement cannot:**
+this fixture's DSP did not need the enrichment XMLs or the prefabs, so it cannot
+say whether some other document would. What would settle it is a fixture using a
+class whose pins come ONLY from one of the seven XMLs; `SE MIDI to CV 2`, the
+one SE module in this fixture, is not described by any of them.
+
+**THE HAZARD OPTION (a) CREATES, AND IT IS WHY (c) IS RECOMMENDED.**
+`rack_adaptor::registerDeferredModules()` is idempotent by a function-local
+`static bool done`, not an atomic and not a `call_once`
+(`SynthEdit_Rack_Adaptor/RackFactoryStatic.cpp:75-82`). Its comment says the
+guard is there *"rather than in the host"* precisely so a host creating several
+instances in one process is safe — and that reasoning holds for several
+instances on ONE thread. Today there is exactly one caller,
+`TideApp::InitInstance()`, reached from the controller's `initialize()`.
+Option (a) adds a second, and a VST3 host is not required to create the two
+halves on the same thread.
+
+**What makes (a) safe on the thread that matters, which is the audio thread:**
+`open()` is reached from `Processor_VST3::setActive(true)` →`reInitialise()` →
+`gmpi_processor::start_processor()` → `processor->open(host)`, and the VST3 SDK
+annotates `IComponent::setActive` **`[UI-thread & Setup Done]`**
+(`pluginterfaces/vst/ivstcomponent.h:195`). The processor's own rack build is
+NOT on that thread — `rack.prepareToPlay()` runs synchronously on the audio
+thread, from `onSetPins` (`SynthEditSem/SynthEdit.cpp:528`, where the code's
+own comment reads *"Synchronous on the audio thread ... but it parses XML and
+builds the graph there"*) and again from `subProcess` (`:598`) — so registering in
+`open()` happens on the UI thread and strictly before any audio-thread lookup.
+Registering from the rack-build path instead would put a process-global database
+write on the audio thread; that is the option nobody should take.
+
+**A SECOND DEFECT, VISIBLE ON `main` TODAY AND INDEPENDENT OF THIS QUESTION.**
+The guard makes the call return **0** on every call after the first, and both
+callers PRINT the return value as a count. Measured directly: the two processor
+objects this probe creates printed `-> 39 module(s)` then `-> 0 module(s)`.
+`TideApp.cpp:855` prints the same number the same way
+(`TIDE: %s — %d module(s) registered`), so **a host that creates a second TIDE
+instance in one process already logs `0 module(s) registered`** — which reads as
+a failure and is a success. This wants `already registered` rather than a count,
+and it is a TIDE-side one-liner under either answer above.
+
+**SCOPE NOTE, and it is a ruling question of its own.** Option (c)'s guard half
+lives in `SynthEdit_Rack_Adaptor`, which appears on **neither** of the run
+prompt's ALLOWED or GATED lists and is therefore GATED by default. So is
+`VCV_Fundamental_gmpi`. This is the **G3** shape exactly — the P4 crash fix
+lived entirely in two repos on neither list — and it is filed here rather than
+reached into. Option (a)'s half is `SynthEditSem/`, ALLOWED.
 
 ## Decisions
 
