@@ -108,6 +108,21 @@
  *      tests\e80_vst3_feedback_probe.cpp /Fe:e80vst3probe.exe ^
  *      /link user32.lib ole32.lib
  *
+ * Build (macOS), ported 2026-10-05 for BACKLOG E88. The VST3 SDK headers are
+ * the ones TideSynth's own CMake fetched into the CPM cache:
+ *   clang++ -std=c++17 -O2 -I <cpm>/vst3_sdk tests/e80_vst3_feedback_probe.cpp \
+ *      -framework CoreFoundation -o /tmp/e80vst3probe
+ * and run it on the BUNDLE, <build>/SynthEditSem/TIDE-Rack.vst3. --editor is
+ * still win32-only (it needs an NSView parent; the CLAP probe has one).
+ *
+ *   --activate-first  (E88) setActive(true) BEFORE the state restore, the
+ *                     order a host uses to load a preset onto a running
+ *                     plug-in. Every other arm restores first, and that order
+ *                     cannot see E79's defect on any wrapper -- see the
+ *                     comment at the arm itself. Also reports how many times
+ *                     the plug-in called restartComponent, VST3's analogue of
+ *                     CLAP's request_restart.
+ *
  * Nothing from the VST3 SDK is COMPILED or LINKED -- only its headers are
  * read. The interface IIDs come from the `IFoo_iid` constants DECLARE_CLASS_IID
  * puts at namespace scope; `IFoo::iid` (the FUID member) is NOT used, because
@@ -136,6 +151,9 @@
 
 #if defined(_WIN32)
   #include <windows.h>
+#elif defined(__APPLE__)
+  #include <CoreFoundation/CoreFoundation.h>
+  #include <unistd.h>
 #endif
 
 #include "pluginterfaces/base/funknown.h"
@@ -414,7 +432,22 @@ public:
     tresult PLUGIN_API beginEdit(ParamID) SMTG_OVERRIDE { return kResultOk; }
     tresult PLUGIN_API performEdit(ParamID, ParamValue) SMTG_OVERRIDE { return kResultOk; }
     tresult PLUGIN_API endEdit(ParamID) SMTG_OVERRIDE { return kResultOk; }
-    tresult PLUGIN_API restartComponent(int32) SMTG_OVERRIDE { return kResultOk; }
+    /* COUNTED, NOT DROPPED. Added 2026-10-05 (macos) with --activate-first,
+     * for the same reason tests/e79_clap_headless_probe.c stopped no-op'ing
+     * request_restart: restartComponent(kReloadComponent) is VST3's version
+     * of "deactivate and reactivate me", and it is the mechanism E88's row
+     * names as the likely VST3 fix. A host stub that swallows it in silence
+     * cannot observe any fix built on it. Reported, never acted on: the
+     * restart itself is the host's to schedule, and this probe's job is to
+     * show whether the plug-in ASKED. */
+    int restarts = 0;
+    int32 restartFlags = 0;
+    tresult PLUGIN_API restartComponent(int32 flags) SMTG_OVERRIDE
+    {
+        ++restarts;
+        restartFlags |= flags;
+        return kResultOk;
+    }
 };
 
 class PlugFrame : public IPlugFrame
@@ -498,6 +531,21 @@ static void pump_main_thread(double seconds)
         if (GetTickCount() >= until) break;
         Sleep(1);
     }
+#elif defined(__APPLE__)
+    /* gmpi's TimerClient is a CFRunLoopTimer on macOS (gmpi_ui helpers/
+     * Timer.cpp), added to the CURRENT thread's run loop -- which is this
+     * thread, because this thread constructed the plug-in. Run it for the
+     * slice. CFRunLoopRunInMode returns kCFRunLoopRunFinished AT ONCE when the
+     * loop has no sources or timers yet, so loop on the clock rather than
+     * trusting one call to have waited. */
+    const CFAbsoluteTime until = CFAbsoluteTimeGetCurrent() + seconds;
+    for (;;)
+    {
+        const CFTimeInterval left = until - CFAbsoluteTimeGetCurrent();
+        if (left <= 0.0) break;
+        if (CFRunLoopRunInMode(kCFRunLoopDefaultMode, left, false) == kCFRunLoopRunFinished)
+            usleep(1000);
+    }
 #else
     (void)seconds;
 #endif
@@ -522,6 +570,7 @@ int main(int argc, char** argv)
     const char* bundle = nullptr;
     const char* presetPath = nullptr;
     bool usePump = true, loadPreset = true, wantEditor = false, wantController = true;
+    bool activateFirst = false;
     const char* savePath = nullptr;
     int  blocks = 800;
     const int32  blockSize = 512;
@@ -535,6 +584,7 @@ int main(int argc, char** argv)
         else if (!strcmp(argv[i], "--editor"))     wantEditor = true;
         else if (!strcmp(argv[i], "--no-editor"))  wantEditor = false;
         else if (!strcmp(argv[i], "--no-controller")) wantController = false;
+        else if (!strcmp(argv[i], "--activate-first")) activateFirst = true;
         else if (!strcmp(argv[i], "--blocks") && i + 1 < argc) blocks = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--save") && i + 1 < argc) savePath = argv[++i];
         else if (!bundle)     bundle = argv[i];
@@ -544,7 +594,7 @@ int main(int argc, char** argv)
     {
         fprintf(stderr,
                 "usage: %s <path-to.vst3> <preset.xml> [--pump|--no-pump] [--no-preset]\n"
-                "       [--editor|--no-editor] [--no-controller] [--blocks N]\n"
+                "       [--editor|--no-editor] [--no-controller] [--activate-first] [--blocks N]\n"
                 "       [--save <out.xml>]\n",
                 argv[0]);
         return 2;
@@ -557,13 +607,13 @@ int main(int argc, char** argv)
            blocks, blockSize, sampleRate,
            wantEditor ? "EDITOR CREATED (embedded in an invisible off-screen parent)"
                       : "editor NEVER created");
+    if (activateFirst && loadPreset)
+        printf("      --activate-first: setActive(true) BEFORE the state restore (E88)\n\n");
 
-#if !defined(_WIN32)
-    fprintf(stderr, "this probe is win32-only; mac/linux load a .vst3 BUNDLE, "
-                    "not a bare shared library\n");
-    return 2;
-#else
+    typedef IPluginFactory* (PLUGIN_API * GetFactoryProc)();
+    GetFactoryProc getFactory = nullptr;
 
+#if defined(_WIN32)
     /* A .vst3 on Windows may be a bundle DIRECTORY or -- as TIDE builds it --
      * a plain DLL whose extension happens to be .vst3, which LoadLibrary is
      * perfectly happy with. */
@@ -580,14 +630,46 @@ int main(int argc, char** argv)
      * missing InitDll is expected rather than a failure. Called when present
      * because a host does. */
     typedef bool (PLUGIN_API * InitDllProc)();
-    typedef IPluginFactory* (PLUGIN_API * GetFactoryProc)();
 
     if (auto initDll = (InitDllProc)GetProcAddress(lib, "InitDll"))
         printf("      InitDll() -> %s\n", initDll() ? "true" : "false");
     else
         printf("      no InitDll export (expected: TIDE exports GetPluginFactory only)\n");
 
-    auto getFactory = (GetFactoryProc)GetProcAddress(lib, "GetPluginFactory");
+    getFactory = (GetFactoryProc)GetProcAddress(lib, "GetPluginFactory");
+#elif defined(__APPLE__)
+    /* PORTED 2026-10-05 (macos) for BACKLOG E88. On macOS a .vst3 is a real
+     * BUNDLE, and the VST3 module contract is not "dlopen it": the host must
+     * call bundleEntry(CFBundleRef) before GetPluginFactory and bundleExit()
+     * after the last release. CFBundle does the loading, so the binary's name
+     * inside Contents/MacOS is the bundle's business, not this probe's. */
+    if (wantEditor)
+    {
+        fprintf(stderr, "--editor is win32-only in this probe (no NSView parent yet)\n");
+        return 2;
+    }
+    CFURLRef bundleUrl = CFURLCreateFromFileSystemRepresentation(
+        kCFAllocatorDefault, (const UInt8*)bundle, (CFIndex)strlen(bundle), true);
+    CFBundleRef cfBundle = bundleUrl ? CFBundleCreate(kCFAllocatorDefault, bundleUrl) : nullptr;
+    if (bundleUrl) CFRelease(bundleUrl);
+    check("the plug-in bundle opens and loads",
+          cfBundle != nullptr && CFBundleLoadExecutable(cfBundle));
+    if (!cfBundle) return 1;
+
+    typedef bool (*BundleEntryProc)(CFBundleRef);
+    typedef bool (*BundleExitProc)();
+    auto bundleEntry = (BundleEntryProc)CFBundleGetFunctionPointerForName(cfBundle, CFSTR("bundleEntry"));
+    auto bundleExit  = (BundleExitProc) CFBundleGetFunctionPointerForName(cfBundle, CFSTR("bundleExit"));
+    check("bundleEntry and bundleExit are exported", bundleEntry != nullptr && bundleExit != nullptr);
+    if (bundleEntry)
+        check("bundleEntry(bundle) returns true", bundleEntry(cfBundle));
+
+    getFactory = (GetFactoryProc)CFBundleGetFunctionPointerForName(cfBundle, CFSTR("GetPluginFactory"));
+#else
+    (void)bundle;
+    fprintf(stderr, "this probe loads a .vst3 on win32 and macOS only\n");
+    return 2;
+#endif
     check("GetPluginFactory is exported", getFactory != nullptr);
     if (!getFactory) return 1;
 
@@ -675,7 +757,9 @@ int main(int argc, char** argv)
     IConnectionPoint* cpController = nullptr;
     ComponentHandler  handler;
     PlugFrame         frame;
+#if defined(_WIN32)
     HWND parentWnd = nullptr;
+#endif
     bool viewAttached = false;
 
     {
@@ -737,7 +821,7 @@ int main(int argc, char** argv)
              *
              * Controller first, then component, which is the order Steinberg's
              * own plugprovider uses. */
-            if (loadPreset)
+            if (loadPreset && !activateFirst)
             {
                 stateStream.pos = 0;
                 const auto rc = controller->setComponentState(&stateStream);
@@ -757,7 +841,7 @@ int main(int argc, char** argv)
          * every module the rack is about to ask for. --no-controller still
          * reaches this line, which is what makes that arm a REPRODUCTION of
          * the empty-factory failure rather than a crash or a skipped restore. */
-        if (loadPreset)
+        if (loadPreset && !activateFirst)
         {
             stateStream.pos = 0;
             check("component->setState accepts the preset",
@@ -777,6 +861,7 @@ int main(int argc, char** argv)
             printf("      NOT pumping the main thread (control arm)\n");
         }
 
+#if defined(_WIN32)
         if (view)
         {
             check("the view supports the HWND platform type",
@@ -821,6 +906,7 @@ int main(int argc, char** argv)
                 }
             }
         }
+#endif
     }
 
     /* ---- buses, setup, activate ----------------------------------------- */
@@ -853,6 +939,40 @@ int main(int argc, char** argv)
                rc == kResultOk ? "kResultOk"
                                : (rc == kNotImplemented ? "kNotImplemented (optional; expected here)"
                                                         : "an error"));
+    }
+
+    /* ---- --activate-first: E88's arm -------------------------------------
+     *
+     * Added 2026-10-05 (macos). Every arm above restores state BEFORE
+     * setActive(true), and that order delivers the document synchronously on
+     * every platform: Processor_VST3::setState ends in setPresetUnsafe(),
+     * which writes the parameter STORE, and setActive(true) -> reInitialise()
+     * -> start_processor seeds every pin from that store. So no load-first
+     * arm can see E79's defect, whatever wrapper it drives.
+     *
+     * Here the processor is already running when the document arrives, which
+     * is what a host does when it loads a preset onto a live plug-in. Same
+     * calls, same order between the two halves (controller, then component),
+     * just after activation instead of before. Then the same 0.5 s handover
+     * the load-first arm gives, so the only variable is the order. */
+    if (loadPreset && activateFirst)
+    {
+        if (controller)
+        {
+            stateStream.pos = 0;
+            const auto rc = controller->setComponentState(&stateStream);
+            printf("      [after activate] controller->setComponentState -> %s\n",
+                   rc == kResultTrue ? "kResultTrue" : "not kResultTrue");
+        }
+        stateStream.pos = 0;
+        check("[after activate] component->setState accepts the preset",
+              component->setState(&stateStream) == kResultTrue);
+
+        if (usePump)
+        {
+            printf("      pumping the main thread for 0.5 s (the host's restore->play gap)\n");
+            pump_main_thread(0.5);
+        }
     }
 
     /* Two channels per bus is what the wrapper's outputsAsStereoPairs builds,
@@ -944,6 +1064,8 @@ int main(int argc, char** argv)
 
     printf("      host allocated %d IMessage(s) for the wrapper's DSP->UI channel\n",
            messagesAllocated);
+    printf("      restartComponent called %d time(s), flags 0x%x\n",
+           handler.restarts, (unsigned)handler.restartFlags);
 
     processor->setProcessing(false);
     component->setActive(false);
@@ -1002,7 +1124,9 @@ int main(int argc, char** argv)
         if (viewAttached) view->removed();
         view->release();
     }
+#if defined(_WIN32)
     if (parentWnd) DestroyWindow(parentWnd);
+#endif
 
     if (cpComponent && cpController)
     {
@@ -1022,6 +1146,11 @@ int main(int argc, char** argv)
     component->terminate();
     component->release();
 
+#if defined(__APPLE__)
+    if (bundleExit) bundleExit();
+    CFRelease(cfBundle);
+#endif
+
     printf("\n%s -- the numbers that matter are on STDERR, from the plug-in:\n"
            "  RackProcessor: '<slug>' display-state capture #N (B bytes)   <- the DSP captured it\n"
            "  TIDE: instance #N feedback send #M (B bytes, H held back)    <- what the queue carried\n"
@@ -1035,5 +1164,4 @@ int main(int argc, char** argv)
              : "");
 
     return failures ? 1 : 0;
-#endif
 }
