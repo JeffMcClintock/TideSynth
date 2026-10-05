@@ -1,0 +1,63 @@
+{
+  "recorded": "2026-10-01",
+  "recorded_by": "windows, scheduled run, BACKLOG A41",
+  "why": [
+    "The fleet state that PR #618's three controls were measured against.",
+    "Pinned here because #618's PR body recorded 'all three controls OK' with",
+    "no record of the input, and the same probe blob printed PROBE FAILED (1)",
+    "earlier the same day. A41 exists because of that pair of readings.",
+    "Every ref is refs/pull/<N>/head, which GitHub keeps after the branch is",
+    "deleted -- all seven of these branches were deleted when Jeff merged them",
+    "on 2026-10-01, and refs/heads/tide/win/** would no longer resolve."
+  ],
+  "main": {
+    "ref": "refs/heads/main",
+    "sha": "57a1bf5931d7bfb5e2e8ae5ede1a3118e2b75822",
+    "note": "main's tip when the 2026-10-01 windows cell ran both probes"
+  },
+  "branches": [
+    {
+      "label": "#622",
+      "branch": "tide/win/A40-token-expiry-derived",
+      "ref": "refs/pull/622/head",
+      "sha": "e6571f54e153535360328933b322adf1512308f9"
+    },
+    {
+      "label": "#618",
+      "branch": "tide/win/2026-09-27-adjacency-measurement",
+      "ref": "refs/pull/618/head",
+      "sha": "cc025a2be512810d7d7ab4edee603f3def40d98e",
+      "note": "the STEP 1.5 merge commit that gave this branch its zero-diff resting state"
+    },
+    {
+      "label": "#614",
+      "branch": "tide/win/A39-prefab-count-derived",
+      "ref": "refs/pull/614/head",
+      "sha": "1c1f50e51345c70f2f16af0a4a1b2baf881f8f61"
+    },
+    {
+      "label": "#597",
+      "branch": "tide/win/A38-bookkeeping-livelock",
+      "ref": "refs/pull/597/head",
+      "sha": "ad12442b8950e8c480090b714528675605496811"
+    },
+    {
+      "label": "#590",
+      "branch": "tide/win/E19-datatype-census",
+      "ref": "refs/pull/590/head",
+      "sha": "443dbbdda41b110984c8e3c46397659b9c02b294"
+    },
+    {
+      "label": "#587",
+      "branch": "tide/win/E82-rack-menu-producer",
+      "ref": "refs/pull/587/head",
+      "sha": "d23ce43b13a774c3cd75d4b143bd325afae3b825"
+    },
+    {
+      "label": "#586",
+      "branch": "tide/win/E80-clap-editor-arm",
+      "ref": "refs/pull/586/head",
+      "sha": "7986ab2f355be9a41f444670f503bd985beb368d"
+    }
+  ]
+}

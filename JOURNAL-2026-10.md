@@ -205,3 +205,244 @@ I still do not have an A/B for the lane sweep — one side only, after the push.
 **Next:** see the `win` NEXT cell, which this entry does not change — **A41** is still what the next win run should take, and #622 still needs Jeff's one answer about the fleet PAT's expiry.
 
 **Branch/PR:** `tide/win/2026-10-01-lane-sweep-correction`.
+
+## 2026-10-01 — windows — the queue reopened: all eleven PRs merged, A41 taken and measured, and the probes' verdict had THREE causes rather than one (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.16120.0** (CLI `2.1.284`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **A41** and shipped option (a) — both A38 probes now take their fleet state as a pinned input. Then the STEP 4 bookkeeping the merge sweep made due: eight landed rows archived, and `JOURNAL.md` rotated for the first time since 2026-09-08. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded.
+
+### The thing that changed everything about this run: Jeff merged the entire queue
+
+`gh pr list --state open` is **empty**. Eleven PRs landed between 00:22 and 01:09 UTC — #622, #618, #585, #614, #589, #588, #597, #590, #587, #586, #584 — so **thirteen consecutive cells of "STEP 1.5 and nothing else" ended in one sweep**, on both this lane and mac's. The only remaining `tide/**` ref is `tide/mac/issue-599`, whose [#604](https://github.com/JeffMcClintock/TideSynth/pull/604) Jeff closed unmerged exactly as five mac cells asked.
+
+STEP 1 was empty and, unusually, **verifiable**: `main` at `be3930ec3` is `success` on `windows`, `macos`, `linux`, all three `render-*`, `guard` and `digest`. The structural caveat is unchanged — `build.yml:523` (`matrix.platform != 'win'`) excludes windows from filing, so an empty `gh issue list --label platform:win` verifies nothing on its own. STEP 1.5 had nothing to do: zero open PRs.
+
+### STEP 2: A41, which the `win` NEXT cell already named and which `check-next-block` agreed was live
+
+A35 is parked on its own two open `PROPOSED:` entries. **A37 I read rather than inherited, and ruled it ineligible on my own reasoning**: the open `PROPOSED:` entry *"Should the fleet's two bookkeeping hot spots stop being single shared files"* offers options (b) and (c) that move the NEXT block into per-platform sections or `docs/next/<platform>.md` — which is A37's entire scope. That entry's own *"May proceed meanwhile: EVERYTHING, without exception"* clause rests on the reasoning that the question is about *where a run writes* and not *what a row builds*; A37 is the one row where that does not hold, because what A37 builds is where the NEXT cells live. So STEP 2's "identical under every open answer" test fails for it.
+
+### A41, and the row named one cause where there were three
+
+The row's finding was that the probes' verdict flips on fleet movement. True, and two more defects were sitting underneath it. All three are now stated in `tests/a38_fleet_state.py`'s docstring, which is where a reader of the probes will be.
+
+**1. The probes had TWO ref sources, and they can disagree.** `branches()` enumerated from `ls-remote --heads origin` — the remote, live — while every read resolved `origin/<branch>`, which is whatever the local clone last fetched. At **one instant, from one `origin/main` sha (`be3930e`), with the probe blob byte-identical**, `a38_row_adjacency_probe.py` arm 1 reported:
+
+| repo | `BACKLOG.md` verdict |
+|---|---|
+| `C:\SE\TideSynth` (full clone, 14 stale `origin/tide/*` refs) | `3 distinct, 2 of 2 differ` — **MAXIMALLY DIVERGENT** |
+| a fresh `--depth 1 --single-branch` clone | `1 distinct, 0 of 2 differ` — **inert on most branches** |
+
+The two most opposite verdicts the script can print. Arm 2 in the same fresh clone said my branch touched `(none)` of `BACKLOG.md` when it demonstrably touched L73, and C1 reported `0 (branch, file) pairs checked, 0 mismatches` — a control that checked nothing, printed as a pass.
+
+**2. A ref it could not resolve was skipped in silence, and the skip was ASYMMETRIC.** `blob()` passes `check=False` and returns `None`; the divergence loop skipped the `None` **while `len(allb)` still counted that branch in the denominator**. So an unfetched branch quietly moved the numerator down and left the denominator alone — which is precisely what manufactured `0 of 2` above instead of an error.
+
+**3. An empty fixture read as a pass, and this one I measured on `main`'s own blob before changing anything.** With one branch in the lane there are no pairs, so C2 — the discriminator, the control that makes arm 3 a measurement — held because nothing was tested:
+
+| | controls | last line | rc |
+|---|---|---|---|
+| `main`'s blob, live fleet, today | `C1 OK  C2 OK  C3 OK` | `PROBE OK` | **0** |
+| this branch, same fleet | `C1 OK  C2 VACUOUS  C3 VACUOUS` | `PROBE VACUOUS` | **3** |
+
+That is A39's trap (*"a gate that derives its expectation from the subject passes vacuously and looks identical to a working one"*) inside the A38 probes, and A41 was the inverse half of the same family.
+
+**The fix.** `tests/a38_fleet_state.py` resolves one input for both probes. Live mode takes each sha from the **same `ls-remote` answer** as the name and never consults `origin/<branch>`. A ref the input names and the repo lacks is a hard stop (rc=2) printing the exact `git fetch` that repairs it, or `--fetch` runs it. A control that held vacuously prints `VACUOUS`. Both probes now use **four exit codes** — 0 measured, 1 control failed, 2 input unresolvable, 3 vacuous — because A41's whole complaint is that one code carried all four meanings.
+
+**`refs/pull/<N>/head` is what makes a pinned default possible at all.** All seven branches the 10-01 cell measured were deleted when Jeff merged them, so `refs/heads/tide/win/**` would not have survived the week. GitHub keeps the pull refs: `git ls-remote origin refs/pull/618/head` still answers `cc025a2be`, and a shallow clone can fetch it.
+
+**Verification: a recorded run reproduces byte-for-byte across two independent repositories.** Pinned, the row-adjacency probe measures a real fixture — 7 branches, 21 pairs, 35 `(branch, file)` pairs in C1, all three controls exercised — and the output hashes identically from the developer's tree and from a fresh shallow clone that had to fetch all eight refs:
+
+| run | repo | rc | sha256 (line-endings normalised) |
+|---|---|---|---|
+| 1 | `C:\SE\TideSynth` worktree | 0 | `d644b1fa0dcba1ab…` |
+| 2 | same, immediately again | 0 | `d644b1fa0dcba1ab…` |
+| 3 | fresh `--depth 1` clone, `--fetch` | 0 | `d644b1fa0dcba1ab…` |
+
+### The lane sweep: `0 of 5040` reproduces, the DEPTH HISTOGRAM DOES NOT, and the input that moved it NO LONGER EXISTS
+
+Pinned to `main = 57a1bf593` (the sha this run's STEP 0 fetch recorded for the 10-01 cell) the lane sweep reproduces the recorded conclusions exactly — `7 of 7 merge into main individually`, `orderings landing ALL 7: 0 of 5040`, and `after #622 blocks nothing` / `after #618 blocks nothing`, the two zero-diff branches. **But the histogram differs from the one the 10-01 entry records:**
+
+| | depth histogram | deepest order |
+|---|---|---|
+| recorded, 2026-10-01 entry | `{1: 2400, 2: 1920, 3: 720}` | `#622 -> #618 -> #614` |
+| pinned to `main = 57a1bf593` | `{1: 1920, 2: 1824, 3: 1008, 4: 288}` | `#622 -> #618 -> #590 -> #587` |
+
+Same seven PR heads. **And the branch set is NOT the variable: all seven tips are byte-identical to what is pinned**, checked `refs/pull/<N>/head` against this box's own `refs/remotes/origin/<branch>` one at a time. **And `main` is not the variable either.** I ran the pinned sweep against three candidate `main`s — `57a1bf593` (that cell's own fetch target), `7c92c3a8e` (#627) and `c6a3c0ee0` (#628), the only commits it could have been — and **all three give the identical histogram**, `{1: 1920, 2: 1824, 3: 1008, 4: 288}`. Their `docs/decisions.md` blobs are the same (`d7494d564`), so there was nothing for `main` to change.
+
+**What settles it is a path in the recorded matrix that CANNOT conflict among the commits I can still recover.** The recorded depth-2 matrix names `docs/decisions.md` on five rows; mine names it on none. The reason is exact: four of the seven branches — #597, #590, #587 and #586 — carry `docs/decisions.md` at the **byte-identical blob `5da644d6a`**, against a merge base holding `d7494d564`. An identical change on both sides of a three-way merge is not a conflict, so no pair drawn from those four heads can produce the recorded line, under any `main`.
+
+**So the heads the sweep measured are NOT the heads I can recover.** `refs/pull/<N>/head` is the branch head at **merge** time, and the sweep ran hours earlier; the branches were then pushed to again before Jeff merged them, and this box's stale `refs/remotes/origin/*` refs — never pruned, so they survived the deletion — agree with the pull refs rather than preserving the earlier tips. Nothing anywhere recorded them. **The recorded histogram is therefore unreproducible from any input that still exists**, and no amount of pinning fixes that after the fact: what A41's option (a) buys is that the NEXT such measurement is reproducible, not that this one can be recovered.
+
+**This is the sharpest possible statement of A41's thesis, and I did not expect to find it:** a recorded measurement in this repository cannot be reproduced **at all** — not by pinning every branch, not by trying every candidate `main`, because the commits it actually measured were overwritten before anyone thought to name them. Its *conclusions* survived (`0 of 5040`, `after #618 blocks nothing`); its distribution is gone. A41's fix is prospective by nature.
+
+### STEP 4's other half: the bookkeeping the merge sweep made due
+
+**Eight `IN-REVIEW` rows whose PRs had all merged** — A36, A38, A39, A40, E72, E79, E80, E81 — are archived to `BACKLOG-DONE.md` with `Done = 2026-10-01`. `BACKLOG.md` **369,423 → 317,545 bytes**, 62 table rows → 54. (The archive move alone took it to 303 KB; my own `win` cell and A41 row additions put 14 KB back, which is the cost of this entry's own bookkeeping and is worth naming.) Every cited PR was checked individually, not inferred: all `MERGED` except A39's citation of #604, which is `CLOSED` and is a reference to a related PR rather than A39's own work ([#614](https://github.com/JeffMcClintock/TideSynth/pull/614) is A39's and merged).
+
+**Two traps, both of which a future archiving run will hit.**
+
+**A bare `DONE` row left in `BACKLOG.md` FAILS `check-backlog-archived.py`** — so the flip and the move are one edit, not two. `check-backlog-diff.py` permits an archive move and never requires one, which is how the gap existed; E45's script is what closes it.
+
+**Archiving a row turns every HISTORICAL take clause naming it into a stale take-target, and `check-next-block.py` cannot tell a lane's live instruction from the `Previous cell follows.` chain below it.** Archiving these eight made the `mac` and `linux` cells red on three clauses naming A39, E79 and E80 — **all three in chain history**, one of them written on 2026-09-01. The fix that keeps the chain intact is a negation **in the same sentence as the verb**, because `RE_NEGATED` is scoped per sentence and `sentences()` splits on ` -- `: `(LANDED 2026-10-01 as #614 and archived, so do not take it)` works, while `-- landed, do not take` does not. **And I tripped the same lint with my own prose**, describing the three clauses by quoting them; rewording to *"three clauses naming A39, E79 and E80"* fixed it. That is A37's growth curve biting a second lint, and **the `mac` NEXT cell is now 61,508 bytes on one line** — A37 measured 34,988 on 09-10, A38 measured 41,216 on 09-18, so **+49% in 13 days**.
+
+**`JOURNAL.md` is rotated, for the first time since 2026-09-08.** It had reached **470,307 bytes across 43 entries** — A36 landed the rule that stopped it rotating itself out, and the rule was then visible but unapplied for three weeks. **470,307 → 53,277 bytes, 43 entries → 6**, with 38 moved into `JOURNAL-2026-09.md` (09-29 back to 09-08). The floor is 4 — the entries carrying the most recent date, 2026-10-01, now that mine is one of them — and the 60 KB ceiling bound first at 6, so the floor never came into it. I targeted **60,000 bytes rather than 60 KiB**, because *"under 60 KB"* is ambiguous and 7 entries came to 60,514 bytes: under 60 KiB, over 60 kB. **Lossless, checked by heading sets over all three journal files: 482 → 483 unique headings, 0 missing, 0 duplicated, and the one addition is this entry.** `check-journal-prepend.py` confirms it independently — `1 new entry prepended`, 38 rotated out and each verified verbatim in the diff. **And A36's companion warning held:** `extract-lessons.py` sees the archive by glob, so moving 38 entries into it did not drop their lessons — `--check` reports **1,622 lessons from 379 entries**, up from the 1,534 / 364 the 10-01 cell recorded, with **0 date sections removed**.
+
+**One thing in the rotation rule that does not hold, left for a ruling rather than fixed.** The rule says to append moved entries **below** what is already in the archive *"so the archive stays newest-first"*. The rationale is false in general and false here: `JOURNAL-2026-09.md` runs 09-08 → 09-01 newest-first, and the batch I moved (09-30 → 09-08) is **newer than everything in it**, so appending below cannot keep newest-first. I followed the instruction as written, because `JOURNAL-2026-08.md` shows previous runs did the same — its dates are **not** monotone — and inventing a prepend convention mid-run would diverge from what the other two boxes will do. The discrepancy is recorded here rather than filed as a row, because the `PROPOSED:` entry on the bookkeeping hot spots already covers the journal's layout and its **`Decide-by` was *"the next `JOURNAL.md` rotation"*, which this run has now done.**
+
+**Learned:**
+
+- **An unrecorded input can become unrecoverable, and then the measurement is simply lost.** A41 was filed about the branch set. Pinning all seven branches did not reproduce the recorded histogram, nor did any of the three candidate `main`s — because `refs/pull/<N>/head` preserves each branch's head at MERGE time and the sweep ran against earlier tips that were pushed over. The tell was a path in the recorded output (`docs/decisions.md`) that provably cannot conflict among the commits that still exist. **Record every ref at the moment you measure**; afterwards there may be nothing left to pin.
+- **A silent skip and a hard failure differ most when the input is partly available.** `blob()` returning `None` for an unresolvable ref moved arm 1's numerator while leaving its denominator alone, so a half-fetched clone produced not an error but a *confident opposite answer*. The asymmetry is the defect; `check=False` was the mechanism.
+- **Archiving a row has a blast radius in the NEXT block's history, not just its present.** `check-next-block.py` reads a whole cell, and a cell carries a ten-deep chain of superseded instructions. Expect to defuse clauses written weeks ago by another lane, and expect your own description of the problem to trip the same lint.
+- **A `DONE` row and an archived row are not two states but one edit.** `check-backlog-diff.py` permits the move without requiring it, and `check-backlog-archived.py` requires it — so flipping to `DONE` and stopping is the one combination that is red.
+- **"May proceed meanwhile: EVERYTHING, without exception" is a claim about a question, and a row can still fall inside it.** The bookkeeping `PROPOSED:` entry says it makes no row ineligible, reasoning that it is about where runs write rather than what rows build. A37 builds where the NEXT cells live, so the reasoning does not reach it — read the *reason* a question is declared non-blocking, not just the declaration.
+- **Thirteen cells of pure STEP 1.5 ended the moment a human merged**, which is what A38 measured and what its `PROPOSED:` entry's *"A run is the scarce resource here, not a merge"* says. Nothing in the fleet's own machinery ended it.
+
+**Not verified:** no build and no host — nothing this run touched is compiled code. Neither probe is run by any workflow (`grep -rn a38_ .github/workflows/` is empty) and this run did not change that, so the pinned default makes a recorded run reproducible without putting either probe on a gate. I did not judge the Accepts of E19 or E82, whose rows read `TODO` with merged PRs — the X2 shape, left for the next win run with a note in the `win` cell. I did not resolve why `tide/mac/issue-599` still exists as a pushed branch with a closed PR; it is mac's lane and predates this run, though it is now the only input the probes' `--live` mode sees besides my own branch. The bot PAT's real expiry remains unverifiable from here (A40's `NEEDS-JEFF` half, still unanswered).
+
+**Machine state:** `C:\SE\TideSynth` started and ended on `main`, clean, and **never left it** — all work in `git worktree`s under the scratchpad plus two throwaway shallow clones, all removed. **All five repos were clean at the start:** `TideSynth` (`main`, behind 14), `SE16` (`master`), `SynthEditLib`, `gmpi_ui` (both `main`) and `GMPI_Wrappers` (`main`, behind 1); I touched none of the other four. The developer was at the machine throughout — Visual Studio on `SynthEdit_cmake` / `ModuleFactory_Editor.cpp`, plus Outlook, Slack and Settings — so **no GUI work and no screen taken**, which A41 needed none of. `git fetch` again warned *"too many unreachable loose objects"* in `C:\SE\TideSynth`; that is a local housekeeping note for Jeff (`git gc`), not a repository problem, and I did not run it on his tree. No credential value appears in any commit, PR, comment, journal entry or row.
+
+**Next:** see the `win` NEXT cell. **For Jeff, three things:** (1) [#629](https://github.com/JeffMcClintock/TideSynth/pull/629) is A41's code and cannot auto-merge — `tests/**` is not on the allowlist, by design. (2) The bookkeeping `PROPOSED:` entry's `Decide-by` has arrived: the rotation is done, so the question *"should the fleet's two bookkeeping hot spots stop being single shared files"* is ripe, and A37 is parked behind it with a 61.5 KB `mac` cell as the cost. (3) A40's `NEEDS-JEFF` half is still one question only the GitHub UI can answer — does the fleet PAT expire, and if so when?
+
+**Branch/PR:** A41's code is on `tide/win/A41-probe-ref-pinning`, [#629](https://github.com/JeffMcClintock/TideSynth/pull/629) — `BACKLOG.md` byte-identical to `main` there, so it conflicts with nothing. This entry, the A41 row flip, the eight archive moves, the rotation, the regenerated `docs/lessons.md` and the refreshed `win` cell are on `tide/win/2026-10-01-a41-bookkeeping`, which is bookkeeping-only and should auto-merge.
+
+## 2026-10-02 — macos — E85: `clap_plugin_gui.show()`/`.hide()` now report success; A/B 3/3 on macOS, with the probe's editor arm ported to Cocoa (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.16120.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E85** and fixed it in `GMPI_Wrappers` ([#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41)). I also ported `tests/e80_clap_feedback_probe.c`'s `--editor` arm to macOS so its Accept can be read on this platform. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`25bf45e..d58bdd1`).
+
+### STEP 1 / 1.5 / 2
+
+STEP 1 was empty: no open `platform:mac` issue. The only open issues are #583 (linux) and #44 (the digest). STEP 1.5 was also empty, because Jeff merged the whole queue on 10-01 and `gh pr list --state open` shows only win's #629 (A41). So this lane's five-cell #585 livelock is over. In STEP 2, the mac NEXT cell said "walk STEP 2". Five rows reached `main` with the 10-01 merges and had never been walked by this lane: E85, E86, E87, E88 and E89. **E85** was the topmost eligible `any` row: small, ALLOWED scope (`GMPI_Wrappers/`), and an Accept that is a command. No remote ref or open PR named it. I claimed it on `tide/mac/E85-clap-gui-show` and pushed the claim before starting work.
+
+### The fix
+
+`Processor_CLAP.h` overrode nine `gui*` methods but not `guiShow` or `guiHide`. `clap_helpers` `plugin.hh:304-305` defaults both to `return false`. I added both overrides. They return `editor != nullptr`, with a comment explaining why: `guiIsApiSupported()` refuses `isFloating`, so the editor is always embedded, and the host shows or hides its own parent. That is +22 lines in `wrapper/CLAP/Editor_CLAP.cpp` and `Processor_CLAP.h`, and nothing else.
+
+### Making the Accept observable on macOS
+
+The Accept names the probe's `--editor` arm, which was **win32-only** (`#else` printed *"--editor is win32-only"*). I added an `__APPLE__` branch, written against the Objective-C runtime so the probe stays one `.c` file:
+
+- `NSApplicationActivationPolicyProhibited` is set before any window exists, so there is no Dock icon and the process can never become active.
+- The parent is a borderless `NSWindow` at (-32000,-32000) that is **never ordered front**. The plug-in gets its `contentView` as `clap_window.cocoa`. The probe prints `isVisible=0` before and after `show`.
+
+`gui->hide`'s return value is now **checked** on every platform. The probe used to discard it, so half of E85's Accept ("`guiHide` implemented alongside") had nothing to read it with. Build line on macOS: add `-framework AppKit`. The header says so.
+
+### Verification artifact: A/B, one tree, one variable
+
+`cmake -S <ts worktree> -B <scratch>/bld -G Ninja -DCMAKE_BUILD_TYPE=Release -DFETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS=<worktree>`. A points that variable at `origin/main` 3da5548 and B at the fix branch. Nothing else differs. Both builds completed with rc=0. Then `./e80probe <arm>/TIDE-Rack.clap --no-preset --editor --blocks 200`, three runs per arm, interleaved:
+
+| arm | `gui->show` | `gui->hide` | rc | binary sha256 |
+|---|---|---|---|---|
+| A, `origin/main` | **FAIL** ×3 | **FAIL** ×3 | 1 | `af0a5378be2d781a…` |
+| B, fix | **PASS** ×3 | **PASS** ×3 | 0 | `16b5adde3ebba2b9…` |
+
+`diff A.out B.out` is exactly those two lines plus the summary line. In both arms `is_api_supported(cocoa)`, `create`, `set_scale(1.0)`, `get_size` (1100x600) and `set_parent` pass, and the editor adds **1 subview**, so A's FAIL is the API lying about a working editor, which is E85's claim reproduced on a second platform. `nm -C` shows `Processor_CLAP::guiShow()`/`guiHide()` exported only by B. Nothing appeared on screen: `isVisible=0` throughout.
+
+**Learned:**
+
+- **E85 was not Windows-specific, and a mac bare host reproduces it exactly.** The windows run that filed it could only see it through a win32 arm. The probe now has the same arm on Cocoa, so the next CLAP GUI question on macOS has an instrument.
+- **An NSView parent can be made fully headless from C without a `.m` file.** Use `objc_msgSend` casts, with `setActivationPolicy:2` *before* the window exists, and never order the window front. Embedded editors still build and attach. I did not check whether they paint.
+- **`FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` is the one-variable A/B for a wrapper change.** Swapping it on an existing build dir rebuilt 73 of 319 steps. Re-running `cmake -B` alone fails when the shell's cwd is a different source tree, so always pass `-S` explicitly.
+- **A `.clap` bundle's directory name must match its binary name.** The probe derives `Contents/MacOS/<name>` from the bundle name, so `cp -R X.clap A-X.clap` makes it fail to load. Copy into `A/X.clap` instead.
+
+**Not verified:** I did not run on Windows, which is the arm E85's Accept literally names. I did not compile on Windows or Linux, though the change has no platform branches. **TideSynth CI fetches GMPI_Wrappers at `origin/main`, so no CI run can see the fix until #41 merges.** I did no DAW test. I did not rebuild SynthEdit/SynthEditCL: neither compiles the CLAP wrapper (the only `gmpi_wrappers` consumer in SE16 is `se_gmpi/vst3`, Linux), so a CLAP-only change cannot reach them. I did not check whether the hidden editor paints. Audio was silent in both arms, as expected for `--no-preset` with no VCV modules compiled in (`TIDE_VCV_FUNDAMENTAL=OFF`). It is not this item's subject.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean and 34 behind, and I did not touch it. All work was in scratchpad worktrees, which I removed. `GMPI_Wrappers` stayed on `main`, clean (1 behind), and its work was also in a scratchpad worktree. `SynthEdit` was on `master`, clean, `ahead 1, behind 1`. That predates this run and I left it alone. `SynthEditLib`, `gmpi_ui` and `GMPI` were clean and untouched. I did no computer-use or GUI work. The probe's window was never on screen.
+
+**Next:** see the `mac` NEXT cell. **For Jeff:** [GMPI_Wrappers#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41) is the fix and can merge independently of this PR. **E87's Accept reads as met on `main` today**: E85/E86/E88/E89 are distinct and `check-id-refs.py` is rc=0. Its prompt-vs-check question is still open, so I left it for a run that takes it.
+
+**Branch/PR:** `tide/mac/E85-clap-gui-show` in TideSynth (probe + this entry + row + mac cell) and in GMPI_Wrappers ([#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41)).
+
+## 2026-10-03 — macos — E87: its Accept is met on `main` -- the second merger renumbered, `Plat` untouched; the general form filed as A42 (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.19675.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E87**, measured its Accept, and found it already met; flipped it to IN-REVIEW with the evidence. Filed **A42** for the question E87 carried but did not need to answer. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded.
+
+### STEP 1 / 1.5 / 2
+
+STEP 1: no open `platform:mac` issue (open issues are #583, linux, and #44, the digest). STEP 1.5: this lane's only open PR is [#631](https://github.com/JeffMcClintock/TideSynth/pull/631) (E85, from the 10-02 run whose entry is on that branch, not yet on `main`), plus its companion [GMPI_Wrappers#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41). #631 is `MERGEABLE`/`CLEAN`, 13 SUCCESS + 2 SKIPPED, no reviews, no review comments; #41 is `OPEN`/`MERGEABLE`. Both are waiting for merge, so I left them alone.
+
+STEP 2, walked in file order, each reason checked rather than inherited:
+
+- **A35** waits on its own two open `PROPOSED:` entries. **A37** I read against the bookkeeping `PROPOSED:` entry (*"Should the fleet's two bookkeeping hot spots stop being single shared files"*), whose options move the NEXT block, which is all of A37. I agree with the 10-01 windows reasoning: it is not identical under every answer. **S8** is `NEEDS-SPEC`.
+- **E19**: the remaining mac cell is AU3 in a real host with an editor on screen. A scheduled run cannot take the screen. **E82**: same, its Accept is a right-click on a VCV panel. Both are also the X2-shape judgements the `win` NEXT cell reserves for the next win run.
+- **X2** and **E89** are linux. **E2** is an umbrella. **E76** wants a ruling. **E84** is a workflow edit this credential cannot make. **E85** is this lane's open #631.
+- **E86** I read before taking it, as its row asks. Its Accept is a fork: either the processor builds the factory, or Jeff rules that TIDE requires a same-process controller. Which one is a product and lifetime ruling, not a run's. The only bare-host instrument for it (`tests/e80_vst3_feedback_probe.cpp`) is win32-only (`:561`). **Recommendation:** E86 wants a `PROPOSED:` entry before anyone builds anything.
+- **E87** was next, `any`, small, BACKLOG-only. No branch or PR named it. I claimed it on `tide/mac/E87-id-collision-verified` and pushed the claim first.
+
+### E87, measured
+
+**The second merger did exactly what the row prescribed.** `82a9c49` (`tide-rack-bot`, 2026-10-01 13:58 +1300) is *"Merge origin/main into E79: renumber this lane's E85/E86 to E88/E89, per E87"*. It was pushed to [#584](https://github.com/JeffMcClintock/TideSynth/pull/584)'s branch two minutes after [#586](https://github.com/JeffMcClintock/TideSynth/pull/586) landed (`98decfc`, 13:56) and merged as `be3930e`.
+
+| check | result |
+|---|---|
+| linux rows at `82a9c49^1` vs **E88**/**E89** at `82a9c49`, id cell stripped | `diff` empty: Status, `Plat`, Item byte-identical |
+| same rows, `82a9c49` vs `origin/main` | byte-identical |
+| `python3 scripts/check-id-refs.py` on `origin/main` `d58bdd1` | *"no stale ID references, no duplicate IDs, no shared live citations"*, **rc=0** |
+| `grep -c "^\| E8N \|"` in `BACKLOG.md` / `BACKLOG-DONE.md` | E85, E86, E88, E89: **1 / 0** each |
+| **positive control**: same tree, E88/E89 id cells set back to E85/E86 | **rc=1**, *"2 DUPLICATE ID(s) -- one ID, more than one row: E85 BACKLOG.md:115, BACKLOG.md:118; E86 …"* |
+| archived E79 row | cites **E88**, not the old id |
+
+So `Plat` did not move (E89 is still `linux`), which was the trap E87 warned about. The only residue is that `JOURNAL-2026-09.md` names the linux findings by their old ids in two entries. That is append-only history, correctly left alone.
+
+### Bookkeeping choices, and why
+
+- **I did not touch the `mac` NEXT cell.** `main`'s cell is the 10-01 one; #631 carries a 10-02 cell on the same single line. Any edit of mine would conflict with #631 on that line. That is A38's livelock in miniature, and the 10-01 windows finding is that a zero diff in a contended cell is the durable resting state. Instead, the next mac run's instruction is here: **(1) STEP 1.5 on #631 / GMPI_Wrappers#41. (2) Walk STEP 2: E88 is the next `any` row below E87.**
+- **The rotation is byte-identical to #631's.** Adding this entry put `JOURNAL.md` over 60 KB, and the oldest entry is the 09-29 windows one, which #631 also rotated. I took #631's `JOURNAL-2026-09.md` blob verbatim, so the two branches make the *same* change there and cannot conflict on it. `JOURNAL.md` will still conflict with #631 at the prepend point. Every pair of journal PRs does that, and whichever lands second resolves it.
+- **I checked for id collisions before filing A42**, using the guard A42 describes: the highest A-id is A41 on `main`, on `tide/mac/E85-clap-gui-show` and on `tide/win/A41-probe-ref-pinning`, and A38 on `tide/mac/issue-599`.
+
+**Learned:**
+
+- **E87 resolved itself the way it said it should, through a run doing a re-sync, not through anyone taking E87.** The row's value was the instruction, which the merging run read and followed (its commit subject says *"per E87"*). That only works if the row is on `main` before the second merge. It was, because #584 had carried it.
+- **`check-id-refs.py` passes on a renumbered id, but that does not mean every old mention is right.** It proves no id is *missing*. It cannot tell that a journal entry saying "E85" meant the linux finding now called E88. A renumber is safe for rows. For prose it is only as safe as the reader's willingness to look up the renumbering commit.
+- **To check an Accept that reads "a lint is rc=0", break it back to the predicted failure first.** rc=0 on a check that cannot see the problem looks identical to rc=0 on a fixed tree. A39's lesson applies to a BACKLOG-only item too.
+
+**Not verified:** no build, no host; nothing compiled was touched. I did not judge E19's or E82's Accepts (reserved for win). I did not answer E86.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean (behind `origin/main`); all work in a scratchpad `git worktree`, removed at the end. `SynthEdit` was on `master`, clean; I did not touch it or any other repo. No GUI work, no screen taken. No credential value appears anywhere.
+
+**Next:** above, under *Bookkeeping choices*. **For Jeff:** #631 + GMPI_Wrappers#41 (E85) and #629 (A41) are green and waiting. A42's prompt-vs-script question is yours. The stale pushed branch `tide/mac/issue-599` (PR #604 closed unmerged) is still there, and deleting it is yours too.
+
+**Branch/PR:** `tide/mac/E87-id-collision-verified`: the E87 flip, the A42 row, this entry, and the rotation.
+
+## 2026-10-04 — macos — STEP 1.5: #631 (E85) went `DIRTY` in `JOURNAL.md` when #632 landed; re-synced, E87 archived, no backlog item (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.19675.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1.5 on [#631](https://github.com/JeffMcClintock/TideSynth/pull/631), plus the STEP 4 bookkeeping #632's merge made due. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`d58bdd1..2489013`).
+
+### STEP 1 / 1.5
+
+STEP 1: no open `platform:mac` issue. The open issues are #583 (linux) and #44 (digest). STEP 1.5: this lane's only open PR is #631. Its checks were 13 SUCCESS + 2 SKIPPED, with no reviews and no review comments, but it was **`CONFLICTING` / `DIRTY`**. [#632](https://github.com/JeffMcClintock/TideSynth/pull/632) (E87) merged at 2026-10-02 13:13 UTC and prepended its 10-03 entry at the same point where #631 prepends its 10-02 entry. The 10-03 entry predicted exactly that. `git merge-tree` named **`JOURNAL.md` alone**. `BACKLOG.md` auto-merged, and `JOURNAL-2026-09.md` was already identical on both sides, because #632 took #631's rotation blob verbatim. That choice paid off. [GMPI_Wrappers#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41) is still `OPEN` / `MERGEABLE`.
+
+**The resolution, and the one trap in it.** Both sides of the hunk are whole entries, so I kept both. **Putting #631's 10-02 entry first fails `check-journal-prepend.py` (rc=1)**: *"entries are not newest-first: 2026-10-02 > 2026-10-03 > …"*. The 10-02 entry therefore goes *below* `main`'s 10-03 entry, and the check then passes (`1 new entry prepended`, rc=0). The rule is "newest-first by date", not "the new entry on top". A branch that sits open across a later run's merge has to slot its entry in below. The second hunk was a trailing blank line, and I took `main`'s side.
+
+Then all of the lint workflow's checks (`check-links`, `check-journal-prepend`, `check-backlog-diff`, `check-prompt-provenance`, `check-id-refs`, `check-next-block`) plus `check-backlog-archived` exit 0 on the merge. `extract-lessons.py --check` reported `docs/lessons.md is stale` after the merge, so I regenerated it: **1629 lessons from 381 entries**. `git merge-tree origin/main HEAD` is clean afterwards.
+
+### Bookkeeping, and why it is on #631's branch
+
+- **E87 archived.** #632 is `MERGED`, checked with `gh pr view` rather than inferred. The flip and the move are one edit (`check-backlog-archived.py`), so `Done = 2026-10-02` uses the UTC merge date.
+- **This entry, the archive move and the `mac` NEXT cell are pushed to `tide/mac/E85-clap-gui-show`, not to a bookkeeping branch of their own.** The 10-03 run used a separate branch and #631 went `DIRTY` the moment it landed. That is A38's adjacency livelock, with this lane on both sides of it. One branch cannot conflict with itself. The cost is that #631 now carries an E87 archive move beside E85's probe. Both are bookkeeping-sized, and #631 cannot auto-merge anyway (`tests/**`).
+- **Rotated, 72,779 → 49,700 bytes, 8 entries → 5.** I first misread the floor as a stopping point, so I am recording the rule as it actually reads: rotate oldest-first until the file is under 60 KB, and the floor of four entries only limits how far that can go. Three entries moved out. The 09-30 macos entry was appended below `JOURNAL-2026-09.md`. The 10-01 windows STEP 1.5 entry and the 10-01 macos entry went into a **new `JOURNAL-2026-10.md`**, whose header copies September's, and the `Archives:` line now links it. `extract-lessons.py` finds it by glob (A36's warning): `--check` gives **1632 lessons from 382 entries** both before and after the rotation. Across `JOURNAL.md` and both archives, the entry headings show 0 missing and 0 duplicated against `main` plus #631, and the only new heading is this entry's.
+
+### STEP 2: not taken, and why
+
+**STEP 1.5 is "the same tier as a broken build", and STEP 1 says to fix a broken build instead of taking a backlog item and then go to STEP 4.** I read that as consuming the run. I walked the queue anyway, so the next run inherits a reading rather than a guess. Nothing on `main` changed since the 10-03 walk except E87 (now archived) and **A42**. A42's own row says option (b) without (a) *"is not identical under every answer"*, so it waits on Jeff. **E88** is the next `any` row. For mac it means AU2/AU3 and VST3 in the activate-then-state order. Two facts the next run should start from: only `TIDE-Rack.clap` and `TIDE-Rack.vst3` are installed in `~/Library/Audio/Plug-Ins`, with no `.component`; and `tests/e80_vst3_feedback_probe.cpp:561` is `#if !defined(_WIN32)` around a `LoadLibraryA` loader. **A mac VST3 arm therefore needs the bundle loader ported first, which is most of the work.** Note also the E79 probe's own prediction that macOS passes activate-first anyway, because `CFRunLoopTimer` ticks the controller with no window. A mac E88 measurement needs a starved-run-loop control, or a pass will mean nothing.
+
+**Learned:**
+
+- **A branch that stays open across another run's merge must insert its journal entry below the newer one, not on top.** `check-journal-prepend.py` checks date order as well as prepend-only, so "keep both sides, ours first" is rc=1 whenever the other side is newer.
+- **Taking the other open branch's rotation blob verbatim works.** #632 did it, and `JOURNAL-2026-09.md` did not conflict. Only the prepend point did.
+- **Putting a lane's bookkeeping on its own open PR's branch removes the conflict at the source.** A second journal PR from the same lane is guaranteed to conflict with the first.
+
+**Not verified:** no build and no host. Nothing compiled changed; the merge touched only `JOURNAL.md`, `BACKLOG*.md` and `docs/lessons.md`. I did not re-run #631's E85 A/B; its evidence stands as the 10-02 entry records it.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean (behind `origin/main`). All work was in a scratchpad `git worktree`, removed at the end. `SynthEdit` (`master`), `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers` and `GMPI` (`main`) were all clean, and I did not touch them. No GUI work and no screen taken. No credential value appears anywhere.
+
+**Next:** see the `mac` NEXT cell. **For Jeff:** #631 + GMPI_Wrappers#41 (E85) and #629 (A41) are waiting; #631 is clean again. A42's question is yours. The stale `tide/mac/issue-599` branch is still there.
+
+**Branch/PR:** `tide/mac/E85-clap-gui-show`, [#631](https://github.com/JeffMcClintock/TideSynth/pull/631): the merge, this entry, the E87 archive move and the `mac` cell.
+
