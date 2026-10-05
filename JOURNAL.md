@@ -175,6 +175,47 @@ Both halves are now fixed and **neither touches the caller's environment**, whic
 - **STEP 3's grep before filing:** three rows name `render-and-measure.py` — E19 (as an instrument), E29 (`WONTFIX`) and E76 itself. No existing row owns this job.
 - Lints on the bookkeeping branch: `check-id-refs` rc=0, `check-next-block` rc=0 (*1 take-target across 4 NEXT rows, every one live*), `check-links` rc=0.
 
+### After the push: seven "failures" on these two PRs were all CANCELLATIONS, and the cause is duplicate runs
+
+Worth knowing before the next run debugs its own diff, because `gh pr checks` prints a
+**cancelled** job as **`fail`** and nothing in that output says which it was.
+
+**Every one of the seven had NO RUNNER ASSIGNED** (`runner_name` empty) while sibling jobs on
+the same run got runners and succeeded. They spanned three workflows (`build`, `lint`,
+`verify`) on both PRs -- including [#637](https://github.com/JeffMcClintock/TideSynth/pull/637),
+which touches **four markdown files and nothing else**, so content cannot be the cause.
+
+**The mechanism is visible in the job lists: there are TWO `build` runs at one sha.** At
+`431f45d2d`, run `37369556946` has `render-linux` and `render-macos` **succeeded**; duplicate
+run `37369618746`, same sha, has those same two **cancelled**. So the work passed in one run
+and was cancelled in its twin -- a concurrency group with `cancel-in-progress` racing two runs
+of the same workflow, not a test result.
+
+| | reported by `gh pr checks` | actual `conclusion` | runner |
+|---|---|---|---|
+| the seven | `fail` | `cancelled` | **none assigned** |
+| their siblings, same runs | `pass` | `success` | assigned |
+
+**The one-command tell**, because the check name and the bucket both mislead here:
+
+    gh api repos/JeffMcClintock/TideSynth/actions/runs/<id>/jobs \
+      --jq '.jobs[]|"\(.name) \(.conclusion) runner=[\(.runner_name // "")]"'
+
+`conclusion == "cancelled"` with an empty runner is **never** a finding about the diff: the job
+never started. `gh run rerun <id> --failed` clears them.
+
+**RE-RUN EVERY DUPLICATE, NOT JUST THE NEWEST -- this is the part that cost an extra cycle.**
+Nine cancelled jobs across four runs in the end. I re-ran `37369010701` on #636 and a *second*
+pair of cancellations surfaced minutes later, which looked like the problem escalating and was
+not: they came from `37368962011`, the un-rerun TWIN `build` run at the same sha, which keeps
+reporting its own cancelled jobs into the PR's check list whatever you do to its sibling. Count
+the runs per workflow before concluding anything -- `gh pr checks` flattens them, so two runs
+of `build` appear as one set of names and a stale twin is invisible in that view.
+
+**A re-run is the right response to a cancellation and the wrong response to a failure.** If a
+job cancels again after every duplicate has been re-run, that is infrastructure for Jeff, not
+something a run can fix by retrying.
+
 **Learned:**
 
 - **"Needs a ruling" attaches to an OPTION, not to a row, and a fork can have one branch free.** E76's Accept was an `or`; the ruling sat on one side of it. Three runs read the row's *"which is why this is filed rather than done"* as covering the whole row and inherited each other's verdict. The check costs one careful read of the sentence that names the ruling.
@@ -182,6 +223,10 @@ Both halves are now fixed and **neither touches the caller's environment**, whic
 - **`wave` raises `EOFError` whose `str()` is empty.** An exception with no message is worse than a wrong message: there is nothing for the operator to search for, which is how it came to be read as a corrupt fixture for three days on another box.
 - **A vacuity control must be pinned to a commit, or it inverts when the fix lands.** Mine read `origin/main` in its first draft and would have gone red on merge. The general rule: a control that asserts *"the baseline does NOT do X"* is a statement about a specific tree, and naming a branch instead of a commit makes it a statement about whenever it happens to run.
 - **A docstring can be corrupted into something syntactically valid and semantically wrong, and only the rendered output shows it.** Reading the diff was not enough; `--help` was.
+- **A cancelled CI job is reported as `fail`, and the difference is one API field.** Seven
+  cancellations across both PRs, all with no runner assigned, one of them a job that
+  SUCCEEDED in its duplicate run at the same sha. **Read `conclusion` and `runner_name`
+  before reading your own diff** -- a job that never started cannot have been broken by it.
 - **The bookkeeping/code PR split forbids markdown links across the seam.** Name a cross-PR file in backticks; `check-links` is right to reject the link, and it will reject it on every future split.
 
 **Not verified:** **no committed fixture was rendered.** The developer was at this machine throughout and a fixture render loads the TIDE plug-in, which can raise the modal E29 documents — bounded by the script's 300 s timeout, but on his screen meanwhile. `--control` exercises the full REAPER round trip without a plug-in, so it was the right control to run and the wrong one to generalise from: **it says nothing about whether any fixture still measures at its reference figures**, only that the chain and the measurement arithmetic are unchanged. **Nothing was measured on linux** — the docstring's wrapper is transcribed from the harness doc's own 2026-08-31 linux measurement and checked for agreement with that doc, not re-derived against a running REAPER, so E76's **first** Accept branch remains unmet and unmeasured. No build of any product target, and no C++ compiled. I did not judge E19's or E82's Accepts beyond confirming each needs a screen. A40's `NEEDS-JEFF` half is still unanswered.

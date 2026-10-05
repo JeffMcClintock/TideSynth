@@ -18,7 +18,7 @@ that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
 Learned sections are **495 KB** across **382** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **159 KB / 1637 lessons — 3.1x smaller**, and represents
+A8. This is **159 KB / 1638 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -46,6 +46,7 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `wave` raises `EOFError` whose `str()` is empty.
 - A vacuity control must be pinned to a commit, or it inverts when the fix lands.
 - A docstring can be corrupted into something syntactically valid and semantically wrong, and only the rendered output shows it.
+- A cancelled CI job is reported as `fail`, and the difference is one API field.
 - The bookkeeping/code PR split forbids markdown links across the seam.
 
 ## 2026-10-05
