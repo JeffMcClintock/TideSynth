@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **494 KB** across **382** entries, so copying them
+Learned sections are **495 KB** across **383** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **158 KB / 1634 lessons — 3.1x smaller**, and represents
+A8. This is **159 KB / 1638 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,15 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-06
+
+**macos — STEP 1.5: #635 re-conflicted BOTH mac PRs (#631, #633); both re-synced, and they now merge cleanly with each other too (scheduled run)**
+
+- One auto-merged bookkeeping PR from another lane re-conflicts every open PR in this lane at once.
+- Two branches that each create the month's archive file collide add/add even when they agree on its content.
+- Where you insert a journal entry decides which other open PR you collide with.
+- Rotation can reintroduce a conflict.
 
 ## 2026-10-05
 
@@ -73,12 +82,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "May proceed meanwhile: EVERYTHING, without exception" is a claim about a question, and a row can still fall inside it.
 - Thirteen cells of pure STEP 1.5 ended the moment a human merged
 
-**windows — correction: the lane-sweep probe DID finish, and it plus #627's own merge confirm #618's zero-diff resting state (scheduled run, continuation)**
-
-- Re-read a backgrounded command's output file immediately before you commit the entry that describes it.
-- An allowlist-eligible PR merges faster than a run can revise it — about two minutes here.
-- The zero-diff resting state is now measured, not just argued.
-
 **macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, fifth cell running; `main` green after Jeff's slider switch; STEP 2 walked, nothing eligible (scheduled run)**
 
 - The app version moved from 2.9939.4 to 2.16120.0 between the 09-30 and 10-01 cells
@@ -91,6 +94,12 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A probe whose fixture is the live fleet has a shelf life, and its pass is not evidence a reader can re-check.
 - Run a PR's own verification artifact during STEP 1.5, not just the lints.
 - A recorded debt can outlive its stated precondition.
+
+**windows — correction: the lane-sweep probe DID finish, and it plus #627's own merge confirm #618's zero-diff resting state (scheduled run, continuation)**
+
+- Re-read a backgrounded command's output file immediately before you commit the entry that describes it.
+- An allowlist-eligible PR merges faster than a run can revise it — about two minutes here.
+- The zero-diff resting state is now measured, not just argued.
 
 ## 2026-09-08
 
