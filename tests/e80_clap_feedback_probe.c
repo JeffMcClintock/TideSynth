@@ -80,7 +80,9 @@
  *
  * Build (macOS/Linux):
  *   cc -std=c11 -I build/_deps/clap-src/include tests/e80_clap_feedback_probe.c \
- *      -ldl -o e80probe            # add -framework CoreFoundation on macOS
+ *      -ldl -o e80probe
+ *   # on macOS add: -framework CoreFoundation -framework AppKit
+ *   # (AppKit is for the --editor arm's invisible parent window; see below)
  *
  * Run, and note that the EVIDENCE IS ON STDERR, written by the plug-in:
  *   ./e80probe <path-to.clap> <preset.xml> --blocks 800 2> trace.err
@@ -110,6 +112,9 @@
 
 #if defined(__APPLE__)
   #include <CoreFoundation/CoreFoundation.h>
+  #include <CoreGraphics/CGGeometry.h>
+  #include <objc/runtime.h>
+  #include <objc/message.h>
 #endif
 
 static int failures = 0;
@@ -313,6 +318,46 @@ static HWND probe_make_hidden_parent(uint32_t w, uint32_t h)
         -32000, -32000, (int)w, (int)h,
         NULL, NULL, GetModuleHandleA(NULL), NULL);
 }
+#elif defined(__APPLE__)
+/* The macOS half of the same arm, added 2026-10-02 for BACKLOG E85 so the
+ * `gui->show succeeds` check can be read on this platform too. Same rules as
+ * the win32 parent, by the macOS equivalents:
+ *
+ *   - the process becomes NSApplicationActivationPolicyProhibited before any
+ *     window exists, so it gets no Dock icon and can never become active;
+ *   - the parent is a borderless NSWindow at (-32000,-32000) that is NEVER
+ *     ordered front, so it is never on screen and cannot take focus;
+ *   - CLAP's cocoa parent is an NSView, so the plug-in is handed that window's
+ *     contentView and builds its own view inside it.
+ *
+ * Written against the Objective-C runtime rather than as a .m file so the
+ * probe stays one C file with one build line per platform. */
+typedef id (*probe_msg_id)(id, SEL);
+typedef void (*probe_msg_void_long)(id, SEL, long);
+typedef id (*probe_msg_init_window)(id, SEL, CGRect, unsigned long, unsigned long, signed char);
+typedef signed char (*probe_msg_bool)(id, SEL);
+
+static id probe_make_hidden_parent_view(uint32_t w, uint32_t h, id *outWindow)
+{
+    id app = ((probe_msg_id)objc_msgSend)((id)objc_getClass("NSApplication"),
+                                          sel_registerName("sharedApplication"));
+    /* 2 == NSApplicationActivationPolicyProhibited */
+    ((probe_msg_void_long)objc_msgSend)(app, sel_registerName("setActivationPolicy:"), 2);
+
+    id win = ((probe_msg_id)objc_msgSend)((id)objc_getClass("NSWindow"), sel_registerName("alloc"));
+    CGRect r = CGRectMake(-32000.0, -32000.0, (double)w, (double)h);
+    /* styleMask 0 == NSWindowStyleMaskBorderless, backing 2 == NSBackingStoreBuffered,
+     * defer NO. Nothing here orders the window front, and nothing anywhere will. */
+    win = ((probe_msg_init_window)objc_msgSend)(win,
+            sel_registerName("initWithContentRect:styleMask:backing:defer:"), r, 0, 2, 0);
+    *outWindow = win;
+    return win ? ((probe_msg_id)objc_msgSend)(win, sel_registerName("contentView")) : NULL;
+}
+
+static int probe_window_is_visible(id win)
+{
+    return win ? (int)((probe_msg_bool)objc_msgSend)(win, sel_registerName("isVisible")) : -1;
+}
 #endif
 
 int main(int argc, char **argv)
@@ -322,6 +367,8 @@ int main(int argc, char **argv)
     int guiCreated = 0, guiParented = 0;
 #if defined(_WIN32)
     HWND parentWnd = NULL;
+#elif defined(__APPLE__)
+    id parentWin = NULL;
 #endif
     int usePump = 1, blocks = 800, loadPreset = 1;
     const uint32_t blockSize = 512;
@@ -500,9 +547,58 @@ int main(int argc, char **argv)
             }
         }
     }
+#elif defined(__APPLE__)
+    if (gui) {
+        uint32_t w = 0, h = 0;
+
+        check("clap.gui supports the cocoa api, embedded",
+              gui->is_api_supported(plug, CLAP_WINDOW_API_COCOA, false));
+
+        guiCreated = gui->create(plug, CLAP_WINDOW_API_COCOA, false);
+        check("gui->create succeeds", guiCreated);
+
+        if (guiCreated) {
+            const bool scaled = gui->set_scale ? gui->set_scale(plug, 1.0) : false;
+            printf("      gui->set_scale(1.0) -> %s\n", scaled ? "true" : "declined");
+
+            if (!gui->get_size(plug, &w, &h) || w == 0 || h == 0) {
+                w = 1024; h = 768;
+                printf("      gui->get_size declined; using %ux%u for the parent\n", w, h);
+            } else {
+                printf("      gui->get_size -> %ux%u\n", w, h);
+            }
+
+            id parentView = probe_make_hidden_parent_view(w, h, &parentWin);
+            check("an invisible off-screen parent view was created", parentView != NULL);
+            printf("      parent NSWindow isVisible=%d -- nothing appears on screen\n",
+                   probe_window_is_visible(parentWin));
+
+            if (parentView) {
+                clap_window_t cw;
+                memset(&cw, 0, sizeof cw);
+                cw.api   = CLAP_WINDOW_API_COCOA;
+                cw.cocoa = (clap_nsview)parentView;
+                guiParented = gui->set_parent(plug, &cw);
+                check("gui->set_parent succeeds", guiParented);
+
+                if (guiParented) {
+                    check("gui->show succeeds", gui->show(plug));
+                    pump_main_thread(0.5);
+                    {
+                        id subs = ((probe_msg_id)objc_msgSend)(parentView, sel_registerName("subviews"));
+                        unsigned long n = subs
+                            ? ((unsigned long (*)(id, SEL))objc_msgSend)(subs, sel_registerName("count"))
+                            : 0;
+                        printf("      editor is up; parent isVisible=%d, the plug-in added %lu subview(s)\n",
+                               probe_window_is_visible(parentWin), n);
+                    }
+                }
+            }
+        }
+    }
 #else
     if (wantEditor)
-        printf("      --editor is win32-only in this probe; mac/linux have "
+        printf("      --editor is win32/macOS-only in this probe; linux has "
                "tests/e78_clap_gui_probe.c\n");
 #endif
 
@@ -590,11 +686,16 @@ int main(int argc, char **argv)
     plug->deactivate(plug);
 
     if (gui && guiCreated) {
-        if (guiParented) gui->hide(plug);
+        /* E85: hide was ignored here until 2026-10-02, and it returned false
+         * for the same reason show did. Checked now, so both halves of the
+         * fix are observable. */
+        if (guiParented) check("gui->hide succeeds", gui->hide(plug));
         gui->destroy(plug);
     }
 #if defined(_WIN32)
     if (parentWnd) DestroyWindow(parentWnd);
+#elif defined(__APPLE__)
+    if (parentWin) ((probe_msg_id)objc_msgSend)(parentWin, sel_registerName("close"));
 #endif
 
     plug->destroy(plug);

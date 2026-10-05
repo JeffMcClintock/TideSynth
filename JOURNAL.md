@@ -312,6 +312,44 @@ The instrument is the row's own: `tests/e80_vst3_feedback_probe.cpp`, win32-only
 
 **Branch/PR:** the `PROPOSED:` entry is on `tide/win/E86-vst3-processor-factory`, [#634](https://github.com/JeffMcClintock/TideSynth/pull/634) (`docs/decisions.md` only). This entry, the E86 row, the E87 flip and archive, the rotation, the regenerated `docs/lessons.md` and the refreshed `win` cell are on `tide/win/2026-10-05-e86-bookkeeping`, which is bookkeeping-only and should auto-merge.
 
+## 2026-10-04 — macos — STEP 1.5: #631 (E85) went `DIRTY` in `JOURNAL.md` when #632 landed; re-synced, E87 archived, no backlog item (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.19675.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1.5 on [#631](https://github.com/JeffMcClintock/TideSynth/pull/631), plus the STEP 4 bookkeeping #632's merge made due. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`d58bdd1..2489013`).
+
+### STEP 1 / 1.5
+
+STEP 1: no open `platform:mac` issue. The open issues are #583 (linux) and #44 (digest). STEP 1.5: this lane's only open PR is #631. Its checks were 13 SUCCESS + 2 SKIPPED, with no reviews and no review comments, but it was **`CONFLICTING` / `DIRTY`**. [#632](https://github.com/JeffMcClintock/TideSynth/pull/632) (E87) merged at 2026-10-02 13:13 UTC and prepended its 10-03 entry at the same point where #631 prepends its 10-02 entry. The 10-03 entry predicted exactly that. `git merge-tree` named **`JOURNAL.md` alone**. `BACKLOG.md` auto-merged, and `JOURNAL-2026-09.md` was already identical on both sides, because #632 took #631's rotation blob verbatim. That choice paid off. [GMPI_Wrappers#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41) is still `OPEN` / `MERGEABLE`.
+
+**The resolution, and the one trap in it.** Both sides of the hunk are whole entries, so I kept both. **Putting #631's 10-02 entry first fails `check-journal-prepend.py` (rc=1)**: *"entries are not newest-first: 2026-10-02 > 2026-10-03 > …"*. The 10-02 entry therefore goes *below* `main`'s 10-03 entry, and the check then passes (`1 new entry prepended`, rc=0). The rule is "newest-first by date", not "the new entry on top". A branch that sits open across a later run's merge has to slot its entry in below. The second hunk was a trailing blank line, and I took `main`'s side.
+
+Then all of the lint workflow's checks (`check-links`, `check-journal-prepend`, `check-backlog-diff`, `check-prompt-provenance`, `check-id-refs`, `check-next-block`) plus `check-backlog-archived` exit 0 on the merge. `extract-lessons.py --check` reported `docs/lessons.md is stale` after the merge, so I regenerated it: **1629 lessons from 381 entries**. `git merge-tree origin/main HEAD` is clean afterwards.
+
+### Bookkeeping, and why it is on #631's branch
+
+- **E87 archived.** #632 is `MERGED`, checked with `gh pr view` rather than inferred. The flip and the move are one edit (`check-backlog-archived.py`), so `Done = 2026-10-02` uses the UTC merge date.
+- **This entry, the archive move and the `mac` NEXT cell are pushed to `tide/mac/E85-clap-gui-show`, not to a bookkeeping branch of their own.** The 10-03 run used a separate branch and #631 went `DIRTY` the moment it landed. That is A38's adjacency livelock, with this lane on both sides of it. One branch cannot conflict with itself. The cost is that #631 now carries an E87 archive move beside E85's probe. Both are bookkeeping-sized, and #631 cannot auto-merge anyway (`tests/**`).
+- **Rotated, 72,779 → 49,700 bytes, 8 entries → 5.** I first misread the floor as a stopping point, so I am recording the rule as it actually reads: rotate oldest-first until the file is under 60 KB, and the floor of four entries only limits how far that can go. Three entries moved out. The 09-30 macos entry was appended below `JOURNAL-2026-09.md`. The 10-01 windows STEP 1.5 entry and the 10-01 macos entry went into a **new `JOURNAL-2026-10.md`**, whose header copies September's, and the `Archives:` line now links it. `extract-lessons.py` finds it by glob (A36's warning): `--check` gives **1632 lessons from 382 entries** both before and after the rotation. Across `JOURNAL.md` and both archives, the entry headings show 0 missing and 0 duplicated against `main` plus #631, and the only new heading is this entry's.
+
+### STEP 2: not taken, and why
+
+**STEP 1.5 is "the same tier as a broken build", and STEP 1 says to fix a broken build instead of taking a backlog item and then go to STEP 4.** I read that as consuming the run. I walked the queue anyway, so the next run inherits a reading rather than a guess. Nothing on `main` changed since the 10-03 walk except E87 (now archived) and **A42**. A42's own row says option (b) without (a) *"is not identical under every answer"*, so it waits on Jeff. **E88** is the next `any` row. For mac it means AU2/AU3 and VST3 in the activate-then-state order. Two facts the next run should start from: only `TIDE-Rack.clap` and `TIDE-Rack.vst3` are installed in `~/Library/Audio/Plug-Ins`, with no `.component`; and `tests/e80_vst3_feedback_probe.cpp:561` is `#if !defined(_WIN32)` around a `LoadLibraryA` loader. **A mac VST3 arm therefore needs the bundle loader ported first, which is most of the work.** Note also the E79 probe's own prediction that macOS passes activate-first anyway, because `CFRunLoopTimer` ticks the controller with no window. A mac E88 measurement needs a starved-run-loop control, or a pass will mean nothing.
+
+**Learned:**
+
+- **A branch that stays open across another run's merge must insert its journal entry below the newer one, not on top.** `check-journal-prepend.py` checks date order as well as prepend-only, so "keep both sides, ours first" is rc=1 whenever the other side is newer.
+- **Taking the other open branch's rotation blob verbatim works.** #632 did it, and `JOURNAL-2026-09.md` did not conflict. Only the prepend point did.
+- **Putting a lane's bookkeeping on its own open PR's branch removes the conflict at the source.** A second journal PR from the same lane is guaranteed to conflict with the first.
+
+**Not verified:** no build and no host. Nothing compiled changed; the merge touched only `JOURNAL.md`, `BACKLOG*.md` and `docs/lessons.md`. I did not re-run #631's E85 A/B; its evidence stands as the 10-02 entry records it.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean (behind `origin/main`). All work was in a scratchpad `git worktree`, removed at the end. `SynthEdit` (`master`), `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers` and `GMPI` (`main`) were all clean, and I did not touch them. No GUI work and no screen taken. No credential value appears anywhere.
+
+**Next:** see the `mac` NEXT cell. **For Jeff:** #631 + GMPI_Wrappers#41 (E85) and #629 (A41) are waiting; #631 is clean again. A42's question is yours. The stale `tide/mac/issue-599` branch is still there.
+
+**Branch/PR:** `tide/mac/E85-clap-gui-show`, [#631](https://github.com/JeffMcClintock/TideSynth/pull/631): the merge, this entry, the E87 archive move and the `mac` cell.
+
 ## 2026-10-03 — macos — E87: its Accept is met on `main` -- the second merger renumbered, `Plat` untouched; the general form filed as A42 (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.19675.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -364,6 +402,55 @@ So `Plat` did not move (E89 is still `linux`), which was the trap E87 warned abo
 **Next:** above, under *Bookkeeping choices*. **For Jeff:** #631 + GMPI_Wrappers#41 (E85) and #629 (A41) are green and waiting. A42's prompt-vs-script question is yours. The stale pushed branch `tide/mac/issue-599` (PR #604 closed unmerged) is still there, and deleting it is yours too.
 
 **Branch/PR:** `tide/mac/E87-id-collision-verified`: the E87 flip, the A42 row, this entry, and the rotation.
+
+## 2026-10-02 — macos — E85: `clap_plugin_gui.show()`/`.hide()` now report success; A/B 3/3 on macOS, with the probe's editor arm ported to Cocoa (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.16120.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E85** and fixed it in `GMPI_Wrappers` ([#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41)). I also ported `tests/e80_clap_feedback_probe.c`'s `--editor` arm to macOS so its Accept can be read on this platform. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`25bf45e..d58bdd1`).
+
+### STEP 1 / 1.5 / 2
+
+STEP 1 was empty: no open `platform:mac` issue. The only open issues are #583 (linux) and #44 (the digest). STEP 1.5 was also empty, because Jeff merged the whole queue on 10-01 and `gh pr list --state open` shows only win's #629 (A41). So this lane's five-cell #585 livelock is over. In STEP 2, the mac NEXT cell said "walk STEP 2". Five rows reached `main` with the 10-01 merges and had never been walked by this lane: E85, E86, E87, E88 and E89. **E85** was the topmost eligible `any` row: small, ALLOWED scope (`GMPI_Wrappers/`), and an Accept that is a command. No remote ref or open PR named it. I claimed it on `tide/mac/E85-clap-gui-show` and pushed the claim before starting work.
+
+### The fix
+
+`Processor_CLAP.h` overrode nine `gui*` methods but not `guiShow` or `guiHide`. `clap_helpers` `plugin.hh:304-305` defaults both to `return false`. I added both overrides. They return `editor != nullptr`, with a comment explaining why: `guiIsApiSupported()` refuses `isFloating`, so the editor is always embedded, and the host shows or hides its own parent. That is +22 lines in `wrapper/CLAP/Editor_CLAP.cpp` and `Processor_CLAP.h`, and nothing else.
+
+### Making the Accept observable on macOS
+
+The Accept names the probe's `--editor` arm, which was **win32-only** (`#else` printed *"--editor is win32-only"*). I added an `__APPLE__` branch, written against the Objective-C runtime so the probe stays one `.c` file:
+
+- `NSApplicationActivationPolicyProhibited` is set before any window exists, so there is no Dock icon and the process can never become active.
+- The parent is a borderless `NSWindow` at (-32000,-32000) that is **never ordered front**. The plug-in gets its `contentView` as `clap_window.cocoa`. The probe prints `isVisible=0` before and after `show`.
+
+`gui->hide`'s return value is now **checked** on every platform. The probe used to discard it, so half of E85's Accept ("`guiHide` implemented alongside") had nothing to read it with. Build line on macOS: add `-framework AppKit`. The header says so.
+
+### Verification artifact: A/B, one tree, one variable
+
+`cmake -S <ts worktree> -B <scratch>/bld -G Ninja -DCMAKE_BUILD_TYPE=Release -DFETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS=<worktree>`. A points that variable at `origin/main` 3da5548 and B at the fix branch. Nothing else differs. Both builds completed with rc=0. Then `./e80probe <arm>/TIDE-Rack.clap --no-preset --editor --blocks 200`, three runs per arm, interleaved:
+
+| arm | `gui->show` | `gui->hide` | rc | binary sha256 |
+|---|---|---|---|---|
+| A, `origin/main` | **FAIL** ×3 | **FAIL** ×3 | 1 | `af0a5378be2d781a…` |
+| B, fix | **PASS** ×3 | **PASS** ×3 | 0 | `16b5adde3ebba2b9…` |
+
+`diff A.out B.out` is exactly those two lines plus the summary line. In both arms `is_api_supported(cocoa)`, `create`, `set_scale(1.0)`, `get_size` (1100x600) and `set_parent` pass, and the editor adds **1 subview**, so A's FAIL is the API lying about a working editor, which is E85's claim reproduced on a second platform. `nm -C` shows `Processor_CLAP::guiShow()`/`guiHide()` exported only by B. Nothing appeared on screen: `isVisible=0` throughout.
+
+**Learned:**
+
+- **E85 was not Windows-specific, and a mac bare host reproduces it exactly.** The windows run that filed it could only see it through a win32 arm. The probe now has the same arm on Cocoa, so the next CLAP GUI question on macOS has an instrument.
+- **An NSView parent can be made fully headless from C without a `.m` file.** Use `objc_msgSend` casts, with `setActivationPolicy:2` *before* the window exists, and never order the window front. Embedded editors still build and attach. I did not check whether they paint.
+- **`FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` is the one-variable A/B for a wrapper change.** Swapping it on an existing build dir rebuilt 73 of 319 steps. Re-running `cmake -B` alone fails when the shell's cwd is a different source tree, so always pass `-S` explicitly.
+- **A `.clap` bundle's directory name must match its binary name.** The probe derives `Contents/MacOS/<name>` from the bundle name, so `cp -R X.clap A-X.clap` makes it fail to load. Copy into `A/X.clap` instead.
+
+**Not verified:** I did not run on Windows, which is the arm E85's Accept literally names. I did not compile on Windows or Linux, though the change has no platform branches. **TideSynth CI fetches GMPI_Wrappers at `origin/main`, so no CI run can see the fix until #41 merges.** I did no DAW test. I did not rebuild SynthEdit/SynthEditCL: neither compiles the CLAP wrapper (the only `gmpi_wrappers` consumer in SE16 is `se_gmpi/vst3`, Linux), so a CLAP-only change cannot reach them. I did not check whether the hidden editor paints. Audio was silent in both arms, as expected for `--no-preset` with no VCV modules compiled in (`TIDE_VCV_FUNDAMENTAL=OFF`). It is not this item's subject.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean and 34 behind, and I did not touch it. All work was in scratchpad worktrees, which I removed. `GMPI_Wrappers` stayed on `main`, clean (1 behind), and its work was also in a scratchpad worktree. `SynthEdit` was on `master`, clean, `ahead 1, behind 1`. That predates this run and I left it alone. `SynthEditLib`, `gmpi_ui` and `GMPI` were clean and untouched. I did no computer-use or GUI work. The probe's window was never on screen.
+
+**Next:** see the `mac` NEXT cell. **For Jeff:** [GMPI_Wrappers#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41) is the fix and can merge independently of this PR. **E87's Accept reads as met on `main` today**: E85/E86/E88/E89 are distinct and `check-id-refs.py` is rc=0. Its prompt-vs-check question is still open, so I left it for a run that takes it.
+
+**Branch/PR:** `tide/mac/E85-clap-gui-show` in TideSynth (probe + this entry + row + mac cell) and in GMPI_Wrappers ([#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41)).
 
 ## 2026-10-01 — windows — the queue reopened: all eleven PRs merged, A41 taken and measured, and the probes' verdict had THREE causes rather than one (scheduled run)
 

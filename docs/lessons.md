@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **495 KB** across **382** entries, so copying them
+Learned sections are **497 KB** across **384** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **159 KB / 1638 lessons — 3.1x smaller**, and represents
+A8. This is **160 KB / 1645 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -60,6 +60,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `docs/decisions.md` being denied on the auto-merge allowlist makes the split MANDATORY, not stylistic.
 - The invisible-HWND arm has a hard boundary, and E19's remaining clause is on the wrong side of it.
 
+## 2026-10-04
+
+**macos — STEP 1.5: #631 (E85) went `DIRTY` in `JOURNAL.md` when #632 landed; re-synced, E87 archived, no backlog item (scheduled run)**
+
+- A branch that stays open across another run's merge must insert its journal entry below the newer one, not on top.
+- Taking the other open branch's rotation blob verbatim works.
+- Putting a lane's bookkeeping on its own open PR's branch removes the conflict at the source.
+
 ## 2026-10-03
 
 **macos — E87: its Accept is met on `main` -- the second merger renumbered, `Plat` untouched; the general form filed as A42 (scheduled run)**
@@ -67,6 +75,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - E87 resolved itself the way it said it should, through a run doing a re-sync, not through anyone taking E87.
 - `check-id-refs.py` passes on a renumbered id, but that does not mean every old mention is right.
 - To check an Accept that reads "a lint is rc=0", break it back to the predicted failure first.
+
+## 2026-10-02
+
+**macos — E85: `clap_plugin_gui.show()`/`.hide()` now report success; A/B 3/3 on macOS, with the probe's editor arm ported to Cocoa (scheduled run)**
+
+- E85 was not Windows-specific, and a mac bare host reproduces it exactly.
+- An NSView parent can be made fully headless from C without a `.m` file.
+- `FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` is the one-variable A/B for a wrapper change.
+- A `.clap` bundle's directory name must match its binary name.
 
 ## 2026-10-01
 
