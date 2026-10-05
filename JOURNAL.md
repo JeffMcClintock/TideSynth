@@ -94,6 +94,149 @@ Template:
 ```
 
 ---
+## 2026-10-06 — windows — E76: the Accept's free branch had been takeable for 36 days, and the fix is a guard that tested existence where a zero-length file exists (scheduled run)
+
+**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.19675.0** (CLI `2.1.286`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E76** and met the second branch of its Accept, which three previous runs had ruled ineligible. Filed **E90** for the ruling its other branch needs. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded.
+
+### STEP 1 / 1.5 / 2
+
+**STEP 1:** no open `platform:win` issue, which on this platform still verifies nothing — `build.yml:523` (`matrix.platform != 'win'`) excludes windows from filing. The two open issues are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (linux) and [#44](https://github.com/JeffMcClintock/TideSynth/issues/44), the digest.
+
+**STEP 1.5:** this lane has two open PRs and both are `MERGEABLE`/`CLEAN` with no reviews and no unresolved review comments — [#634](https://github.com/JeffMcClintock/TideSynth/pull/634) (E86's escalation, 13 pass + 2 skipping) and [#629](https://github.com/JeffMcClintock/TideSynth/pull/629) (A41, 13 pass + 2 skipping, carrying one `tide-rack-bot` comment that is a finding rather than a request). STEP 1.5 says a green PR with nothing unresolved is waiting for merge and not a run's to fix, so I left both alone. **#634 has NOT merged**, so E86 stays parked on its own ruling exactly as the `win` cell said it would be. The fleet's other two open PRs are mac's: [#631](https://github.com/JeffMcClintock/TideSynth/pull/631) (E85) and [#633](https://github.com/JeffMcClintock/TideSynth/pull/633) (E88).
+
+**STEP 2, walked in file order.** A35 is parked on its own two open `PROPOSED:` entries — I read both, and note their *"May proceed meanwhile: everything"* lines do not rescue A35 itself, because A35's deliverable IS the exception those entries decide. A37 is overlapped by the bookkeeping `PROPOSED:` entry, whose options (b) and (c) move the NEXT block, which is all A37 builds. **A42 is ineligible by its own words** (*"(b) without (a) is not identical under every answer"*). S8 carries `NEEDS-SPEC` as the first thing in its row. E2 is an umbrella that says of itself *"as one item it is not takeable"*. E19 and E82 both need a screen. X2 and E89 are linux. E84 is a `.github/workflows/**` edit this credential cannot make. E85 and E88 are mac's, with open PRs. E86 is this lane's, parked on #634.
+
+### The finding that matters most this run is about reading a row, not about the code
+
+**The 10-03 and 10-05 cells both ruled E76 ineligible, and both were wrong — in the same way.** Their stated reason was that *"choosing the second branch presumes the answer to the row's own open question."* The row says the opposite. Its words are: *"this is either a documented wrapper (done, in the harness doc) or a linux arm inside `render()` that scrubs the two variables — **the second** needs a ruling on whether a measurement script may edit the caller's environment."* The ruling attaches to the **code** option. The documented-wrapper option is the one the row calls already done.
+
+So **E76's Accept had a free branch for 36 days and three runs walked past it**, each inheriting a one-line verdict that reading the row disproves. The generalisable form: **when a row says something "needs a ruling", check WHICH of its options the ruling is attached to — a fork can have one branch free.** This is the clearest justification I have seen for STEP 2's instruction to re-check every reason rather than inherit it, and it is worth noting that the instruction worked: the only reason I found this is that the `win` cell told me to re-derive the verdicts.
+
+### E76, and the gap was not the one the row names
+
+The row frames this as a missing wrapper. **The wrapper is not missing — it is documented where the operator never looks.** `docs/ci/headless-gui-verification.md:200-205` carries the whole recipe. `scripts/render-and-measure.py` carried nothing: `grep -i "wayland\|GDK\|linux"` on `origin/main`'s copy returns three unrelated hits. And the script already passes `__doc__` to argparse through `RawDescriptionHelpFormatter`, so the docstring reaches `--help` for free — which is what makes a docstring the right place rather than a comment.
+
+**Checked rather than eyeballed:** the six environment names in the new docstring block (`WAYLAND_DISPLAY`, `DISPLAY`, `GDK_BACKEND`, `XDG_RUNTIME_DIR`, `HOME`, `REAPER`) are set-wise identical to those in the harness doc's block.
+
+**Then the other half, which the row states as a symptom and which turned out to have a one-word cause.** The row says the downstream symptom is *"an `EOFError` out of Python's `wave` module on a zero-length render, which reads as a corrupt fixture and is not one."* Reproduced here against `origin/main`'s copy:
+
+```
+zero-length size: 0
+RAISED: EOFError ''        <- wave.py:117
+```
+
+**The message is the empty string.** That is the whole of why it reads as a corrupt fixture: there is nothing in it to read.
+
+**And `main()` had a guard that should have caught it: `if not os.path.exists(out)`. A zero-length file exists.** So the one artefact a dead REAPER actually leaves behind went straight past the branch that prints the REAPER log tail — which is exactly where the `gdk_screen_get_root_window` assertions are — and into `analyse()`. The operator got a traceback with nothing in it instead of the log that names the cause.
+
+Both halves are now fixed and **neither touches the caller's environment**, which is what keeps this identical under every answer to E90:
+
+- `main()` tests size as well as existence, prints the log tail, and names the cause.
+- `analyse()` turns `EOFError`/`wave.Error` into a diagnostic naming REAPER rather than a traceback.
+
+### Verification
+
+`python3 tests/e76_render_diagnostic_probe.py` — **8 arms, rc=0**:
+
+| arm | holds |
+|---|---|
+| 1, 2 | zero-length and truncated renders are diagnosed, not raised |
+| 3 | a real -6 dBFS render still measures **-6.02** |
+| 4 | **digital silence still reports SILENCE** (peak `-inf`, `silent=True`) |
+| 5 | end to end through a REAPER stub that exits 1 leaving a zero-length file: **rc=1, cause named, `Traceback` absent** |
+| 6a-c | **vacuity controls at pinned `e7fba108d`, which MUST fail**: `EOFError('')`, `Error('fmt chunk and/or data chunk missing')`, and a **traceback** from its end-to-end run |
+
+**Arm 4 is the discriminator and is the reason the probe is eight arms rather than three.** A genuinely silent render is the finding this script exists to report. A guard that called silence "unusable" would pass arms 1, 2 and 5 while destroying the script's entire purpose, and nothing else in the probe would have noticed.
+
+**Arm 6 is pinned to a commit, not to `origin/main` — and I changed that during the run, having written it the wrong way first.** Against a moving ref the control goes **red the moment this fix merges**, because `origin/main` would then diagnose too: a probe that self-destructs on merge. That is A41's finding arriving in a new probe four days after A41 measured it. `--base <rev>` overrides the pin, and an unresolvable base is **rc=2** (input unresolvable) rather than a silent pass — the four-exit-code convention `tests/a38_fleet_state.py` settled on.
+
+**REAPER is installed on this box**, which I did not expect and which is worth recording for the lane: `C:/Program Files/REAPER (x64)/reaper.exe`. So `--control` is a **real** A/B rather than a synthetic one — `origin/main`'s script and this one, same machine, same REAPER:
+
+```
+  control (known -6 dBFS 1 kHz sine)
+    peak=   -6.0 dBFS  rms=   -9.0 dBFS  -> AUDIO PRESENT
+  PASS -- the render-and-measure chain does detect audio
+```
+
+`diff` of the two runs' output is **empty**, both rc=0. The measurement path is untouched by a real render, not only by fabricated wavs.
+
+### Two traps hit on the way, both about writing files rather than about E76
+
+**A quoted bash heredoc collapsed `\\` to `\` in this box's shell, twice, and the second time it corrupted a docstring silently.** `return "\\n".join(msg)` reached the file as a string literal broken across two real lines — caught immediately by `SyntaxError`. But the same collapse inside the docstring's shell-continuation lines produced **valid Python that renders wrong**: a lone `\` before a newline is a line continuation *inside the string*, so `--help` printed the four-line wrapper as one 200-character line with the indentation flattened into spaces. **The file looked right in the diff and was wrong in the output**, and the only thing that caught it was running `--help` and reading it. Fixed with the Edit tool rather than a heredoc. The standing note that *"Bash heredocs eat backslashes"* on this box is right, and the sharp corner is that the damage is sometimes syntactically legal.
+
+**`check-links.py` correctly rejects a markdown link to a file that lands in a different PR.** The E76 row cited `tests/e76_render_diagnostic_probe.py` as a link; the probe is on the code branch, so on the bookkeeping branch it does not exist — `BACKLOG.md:113 (no such file)`, rc=1. Backticks plus the PR number instead. **This is a structural consequence of the lane's documents-in-one-PR/code-in-another shape** and will recur on every split: the bookkeeping PR may *name* a new file but must not *link* it until the code PR merges.
+
+### Bookkeeping
+
+- **Two PRs, per the lane's measured shape.** `scripts/` and `tests/` are not on the auto-merge allowlist, so [#636](https://github.com/JeffMcClintock/TideSynth/pull/636) is code-only and waits for a human — with `BACKLOG.md` **byte-identical to `origin/main`** there, the 10-01 zero-diff resting state, so it cannot re-conflict as `main` moves. The DOING mark was pushed first (`6632beeae`) and removed at the end, so the claim was visible for the whole of the work.
+- **E90 filed rather than folded into E76**, because E76 is now IN-REVIEW and a question left inside a closing row is archived with it. That is **A42's shape, four days after A42 was filed for exactly this**. The id was allocated by A42's own guard: highest `E` id is **89** on `main` and on every one of the five remote `tide/*` branches, so E90 was free.
+- **STEP 3's grep before filing:** three rows name `render-and-measure.py` — E19 (as an instrument), E29 (`WONTFIX`) and E76 itself. No existing row owns this job.
+- Lints on the bookkeeping branch: `check-id-refs` rc=0, `check-next-block` rc=0 (*1 take-target across 4 NEXT rows, every one live*), `check-links` rc=0.
+
+### After the push: seven "failures" on these two PRs were all CANCELLATIONS, and the cause is duplicate runs
+
+Worth knowing before the next run debugs its own diff, because `gh pr checks` prints a
+**cancelled** job as **`fail`** and nothing in that output says which it was.
+
+**Every one of the seven had NO RUNNER ASSIGNED** (`runner_name` empty) while sibling jobs on
+the same run got runners and succeeded. They spanned three workflows (`build`, `lint`,
+`verify`) on both PRs -- including [#637](https://github.com/JeffMcClintock/TideSynth/pull/637),
+which touches **four markdown files and nothing else**, so content cannot be the cause.
+
+**The mechanism is visible in the job lists: there are TWO `build` runs at one sha.** At
+`431f45d2d`, run `37369556946` has `render-linux` and `render-macos` **succeeded**; duplicate
+run `37369618746`, same sha, has those same two **cancelled**. So the work passed in one run
+and was cancelled in its twin -- a concurrency group with `cancel-in-progress` racing two runs
+of the same workflow, not a test result.
+
+| | reported by `gh pr checks` | actual `conclusion` | runner |
+|---|---|---|---|
+| the seven | `fail` | `cancelled` | **none assigned** |
+| their siblings, same runs | `pass` | `success` | assigned |
+
+**The one-command tell**, because the check name and the bucket both mislead here:
+
+    gh api repos/JeffMcClintock/TideSynth/actions/runs/<id>/jobs \
+      --jq '.jobs[]|"\(.name) \(.conclusion) runner=[\(.runner_name // "")]"'
+
+`conclusion == "cancelled"` with an empty runner is **never** a finding about the diff: the job
+never started. `gh run rerun <id> --failed` clears them.
+
+**RE-RUN EVERY DUPLICATE, NOT JUST THE NEWEST -- this is the part that cost an extra cycle.**
+Nine cancelled jobs across four runs in the end. I re-ran `37369010701` on #636 and a *second*
+pair of cancellations surfaced minutes later, which looked like the problem escalating and was
+not: they came from `37368962011`, the un-rerun TWIN `build` run at the same sha, which keeps
+reporting its own cancelled jobs into the PR's check list whatever you do to its sibling. Count
+the runs per workflow before concluding anything -- `gh pr checks` flattens them, so two runs
+of `build` appear as one set of names and a stale twin is invisible in that view.
+
+**A re-run is the right response to a cancellation and the wrong response to a failure.** If a
+job cancels again after every duplicate has been re-run, that is infrastructure for Jeff, not
+something a run can fix by retrying.
+
+**Learned:**
+
+- **"Needs a ruling" attaches to an OPTION, not to a row, and a fork can have one branch free.** E76's Accept was an `or`; the ruling sat on one side of it. Three runs read the row's *"which is why this is filed rather than done"* as covering the whole row and inherited each other's verdict. The check costs one careful read of the sentence that names the ruling.
+- **An existence check is not a non-emptiness check, and the difference is exactly the case a crashed process produces.** `os.path.exists` on a file a dying writer created and never filled is `True`. The guard that would have printed the diagnosing log tail was already there and was skipped by the only failure it was written for.
+- **`wave` raises `EOFError` whose `str()` is empty.** An exception with no message is worse than a wrong message: there is nothing for the operator to search for, which is how it came to be read as a corrupt fixture for three days on another box.
+- **A vacuity control must be pinned to a commit, or it inverts when the fix lands.** Mine read `origin/main` in its first draft and would have gone red on merge. The general rule: a control that asserts *"the baseline does NOT do X"* is a statement about a specific tree, and naming a branch instead of a commit makes it a statement about whenever it happens to run.
+- **A docstring can be corrupted into something syntactically valid and semantically wrong, and only the rendered output shows it.** Reading the diff was not enough; `--help` was.
+- **A cancelled CI job is reported as `fail`, and the difference is one API field.** Seven
+  cancellations across both PRs, all with no runner assigned, one of them a job that
+  SUCCEEDED in its duplicate run at the same sha. **Read `conclusion` and `runner_name`
+  before reading your own diff** -- a job that never started cannot have been broken by it.
+- **The bookkeeping/code PR split forbids markdown links across the seam.** Name a cross-PR file in backticks; `check-links` is right to reject the link, and it will reject it on every future split.
+
+**Not verified:** **no committed fixture was rendered.** The developer was at this machine throughout and a fixture render loads the TIDE plug-in, which can raise the modal E29 documents — bounded by the script's 300 s timeout, but on his screen meanwhile. `--control` exercises the full REAPER round trip without a plug-in, so it was the right control to run and the wrong one to generalise from: **it says nothing about whether any fixture still measures at its reference figures**, only that the chain and the measurement arithmetic are unchanged. **Nothing was measured on linux** — the docstring's wrapper is transcribed from the harness doc's own 2026-08-31 linux measurement and checked for agreement with that doc, not re-derived against a running REAPER, so E76's **first** Accept branch remains unmet and unmeasured. No build of any product target, and no C++ compiled. I did not judge E19's or E82's Accepts beyond confirming each needs a screen. A40's `NEEDS-JEFF` half is still unanswered.
+
+**Machine state:** `C:\SE\TideSynth` started and ended on `main`, clean, and **never left it** — all work in two scratchpad `git worktree`s, both removed at the end. **Seven of the eight repos were clean at the start and I touched none of them:** `SE16` (`master`), `SynthEditLib`, `GMPI`, `GMPI_Wrappers`, `SynthEdit_Rack_Adaptor`, `VCV_Fundamental_gmpi` (all `main`). `gmpi_ui` (`main`) carried **one untracked directory, `examples/AluminiumDemo/`** — the developer's work in progress, predating this run, so left exactly alone per STEP 5's third kind. **The developer was at the machine throughout** (Visual Studio on `ToneMaster`/`HeaderPanel.h`, Outlook, Slack), so **no GUI work and no screen taken**; the one REAPER invocation is `-renderproject`, which renders and exits without a window. `git fetch` again warned *"too many unreachable loose objects"* in `C:\SE\TideSynth` — a local housekeeping note for Jeff (`git gc`), not a repository problem, and not mine to run on his tree. No credential value appears in any commit, PR, journal entry or row.
+
+**Next:** see the `win` NEXT cell. **For Jeff, three things:** (1) [#634](https://github.com/JeffMcClintock/TideSynth/pull/634) is E86's fork and **cannot auto-merge by design** — merging it is the ruling. (2) [#629](https://github.com/JeffMcClintock/TideSynth/pull/629) (A41, green since 10-01) and [#636](https://github.com/JeffMcClintock/TideSynth/pull/636) (E76) are both code-only and so allowlist-blocked by design, not stuck. (3) **E90 is a new ruling question** — may a measurement script edit the caller's environment — and it wants a `PROPOSED:` entry before anyone writes the linux arm.
+
+**Branch/PR:** E76's code is on `tide/win/E76-render-wrapper-docstring`, [#636](https://github.com/JeffMcClintock/TideSynth/pull/636) — `BACKLOG.md` byte-identical to `main` there, so it conflicts with nothing. This entry, the E76 flip, the E90 row and the refreshed `win` cell are on `tide/win/2026-10-06-e76-bookkeeping`, which is bookkeeping-only and should auto-merge.
+
 ## 2026-10-05 — windows — E86: the processor-only VST3 finding reproduces, and its "unknown to fix" is now ONE MEASURED LINE; the fork escalated as a PROPOSED entry (scheduled run)
 
 **Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.19675.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -409,67 +552,3 @@ Same seven PR heads. **And the branch set is NOT the variable: all seven tips ar
 
 **Branch/PR:** A41's code is on `tide/win/A41-probe-ref-pinning`, [#629](https://github.com/JeffMcClintock/TideSynth/pull/629) — `BACKLOG.md` byte-identical to `main` there, so it conflicts with nothing. This entry, the A41 row flip, the eight archive moves, the rotation, the regenerated `docs/lessons.md` and the refreshed `win` cell are on `tide/win/2026-10-01-a41-bookkeeping`, which is bookkeeping-only and should auto-merge.
 
-## 2026-10-01 — windows — correction: the lane-sweep probe DID finish, and it plus #627's own merge confirm #618's zero-diff resting state (scheduled run, continuation)
-
-**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.16120.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** corrected one false claim in the entry below and recorded two measurements that arrived after it had already merged. No code changed, no row changed.
-
-### The correction
-
-The entry below says, under **Not verified**: *"`tests/a38_lane_sweep_probe.py` did not finish inside this run's time budget, so I have its verdict from before the push only, not an A/B."* **Both halves are wrong.** It finished, `rc=0`, and the run was **after** the push, not before.
-
-It was still running when I checked it, and it completed between that check and the commit. I wrote the conservative-sounding sentence from the last thing I had looked at instead of re-reading the output file — and put it in the one section a reader trusts *because* it is conservative.
-
-**What it actually says**, post-push, over this lane's seven open PRs:
-
-```
---- every ordering, exhaustive (7! = 5040) ---
-  depth histogram: {1: 2400, 2: 1920, 3: 720}
-  deepest order: #622 -> #618 -> #614
-  orderings landing ALL 7: 0 of 5040
-
---- depth-2 matrix: after X lands, which others conflict, and where ---
-  after #622   blocks nothing                bookkeeping: none
-  after #618   blocks nothing                bookkeeping: none
-  after #614   blocks #597, #590, #587, #586  bookkeeping: BACKLOG.md
-  after #597   blocks #614, #590, #587, #586  bookkeeping: BACKLOG.md, JOURNAL.md, docs/decisions.md
-  after #590   blocks #614, #597, #587, #586  bookkeeping: BACKLOG.md, JOURNAL.md, docs/decisions.md
-  after #587   blocks #614, #597, #590, #586  bookkeeping: BACKLOG.md, JOURNAL.md, docs/decisions.md
-  after #586   blocks #614, #597, #590, #587  bookkeeping: BACKLOG.md, JOURNAL.md, docs/decisions.md
-```
-
-**`after #618 blocks nothing` is independent confirmation, from the lane's own probe, of exactly what the STEP 1.5 merge claimed** — and #622 sits beside it for the same reason, being the other PR with no bookkeeping diff. The five that block each other are the five carrying code *and* a `BACKLOG.md` edit. A38's livelock is untouched by any of this: **0 of 5040 orderings land all seven**, unchanged in character from the 0-of-120 measured on 09-26.
-
-I still do not have an A/B for the lane sweep — one side only, after the push. A41's A/B rests on the row-adjacency probe, where both sides exist, and that is unaffected.
-
-### The resting state then survived a real merge, which is the part no measurement had yet
-
-[#627](https://github.com/JeffMcClintock/TideSynth/pull/627) **auto-merged roughly two minutes after it opened** (`7c92c3a8e`), touching `BACKLOG.md`, `JOURNAL.md` **and** `docs/lessons.md` — all three contended files at once. Afterwards:
-
-| PR | before #627 | after #627 |
-|---|---|---|
-| [#618](https://github.com/JeffMcClintock/TideSynth/pull/618) | `MERGEABLE`/`CLEAN` | **`MERGEABLE`/`CLEAN`** |
-| #622, #614, #597, #590, #587, #586 | `MERGEABLE`/`CLEAN` | **`MERGEABLE`/`CLEAN`** |
-| [#585](https://github.com/JeffMcClintock/TideSynth/pull/585) (mac, A36) | `CONFLICTING` after #626 | `CONFLICTING` — unchanged, mac's lane |
-| #604 | superseded | superseded |
-
-**#627 re-conflicted nothing.** Before today, a `main` commit touching those files re-conflicted #618 every time — that is the whole content of the four preceding cells. This is the first time the zero-diff resting state has been *tested* rather than merely constructed, and it held.
-
-### The #120 trap fired again, and the rule was right
-
-#627 merged before I could add any of the above to it, so the entry below is a **merged** entry and not editable: `check-journal-prepend.py` compares head against `main` and would correctly read an in-place edit as a rewrite. That is precisely what the 2026-09-06 mac cell and the 2026-09-29 windows cell each hit. The append-only route is a separate entry, which is this one.
-
-**Learned:**
-
-- **Re-read a backgrounded command's output file immediately before you commit the entry that describes it.** Mine finished in the gap between my last check and the commit, and the entry shipped a false *"did not finish"* — in **Not verified**, the section whose whole value is that a reader can trust it to understate. A stale "still running" reads as caution and is a factual error.
-- **An allowlist-eligible PR merges faster than a run can revise it — about two minutes here.** Anything you might want to correct has to be correct *before* the push, because afterwards the only route is a second entry and a second PR.
-- **The zero-diff resting state is now measured, not just argued.** `after #618 blocks nothing` from the lane's own probe, plus #618 surviving a `main` merge that touched all three contended files. The construction was reasoning; these two are evidence.
-
-**Not verified:** no build, no host, no code touched. I have the lane sweep from one side of the push only. I did not investigate why #585 is still `CONFLICTING` — it is mac's lane and was already so before this run, from #626 rather than from #627.
-
-**Machine state:** `C:\SE\TideSynth` on `main`, clean, never left it; all work in scratchpad `git worktree`s, removed at the end. `SE16`, `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` untouched and clean. The developer was at the machine throughout (Visual Studio on `ToneMaster`) — no GUI work, no screen taken. `git fetch` warned *"too many unreachable loose objects"* in `C:\SE\TideSynth`; that is a local housekeeping note for Jeff (`git gc`), not a repository problem, and I did not run it on his tree.
-
-**Next:** see the `win` NEXT cell, which this entry does not change — **A41** is still what the next win run should take, and #622 still needs Jeff's one answer about the fleet PAT's expiry.
-
-**Branch/PR:** `tide/win/2026-10-01-lane-sweep-correction`.

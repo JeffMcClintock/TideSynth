@@ -32,6 +32,23 @@ judged on.
     saved projects held bare modules. E2a's prefabs carry internal cables and
     broke that inference.
 
+On Linux this needs a wrapper
+----------------------------
+Run straight from a scheduled run's shell it SEGFAULTS REAPER (rc -11), and the
+only thing visible downstream is an unreadable render. The cause is an inherited
+WAYLAND_DISPLAY: GDK connects to the developer's compositor while REAPER's own
+SWELL code takes the X11 path. render() hands REAPER its own environment, so the
+script cannot apply the fix from inside -- wrap it:
+
+    env -u WAYLAND_DISPLAY DISPLAY=:2 GDK_BACKEND=x11 \\
+        XDG_RUNTIME_DIR=/run/user/$(id -u) HOME=<scratch> \\
+        REAPER=<scratch>/reaper_linux_x86_64/REAPER/reaper \\
+        python3 scripts/render-and-measure.py tests/hosts/v1-rack.rpp
+
+With that every committed fixture renders at the macOS reference figures. The
+full recipe, the headless compositor and the audio-device trap that goes with
+it: docs/ci/headless-gui-verification.md. BACKLOG E76.
+
 Run --control first: it proves the render-and-measure chain detects audio, so a
 subsequent -inf is a fact about the patch rather than about this script.
 
@@ -91,11 +108,34 @@ RENDER_SECONDS = 2.0
 HC_PATCH_CABLES = 49
 
 
+def unusable_render(path, why):
+    """Why a render cannot be measured, said in terms of REAPER rather than wav.
+
+    A render REAPER never finished leaves a zero-length or truncated file, and
+    `wave` reports the zero-length case as a bare EOFError whose message is the
+    empty string -- so the one symptom reaching the operator reads as a corrupt
+    fixture (BACKLOG E76). Name the real cause instead, and the wrapper, since
+    on Linux that is what it almost always is.
+    """
+    msg = ["%s is not a readable wav (%s)." % (os.path.basename(path), why),
+           "REAPER produced no usable samples -- it died, was killed, or never",
+           "started rendering. This is NOT a corrupt fixture."]
+    if not sys.platform.startswith(("win", "darwin")):
+        msg += ["On Linux the usual cause is an inherited WAYLAND_DISPLAY; see",
+                "the module docstring for the wrapper, or",
+                "docs/ci/headless-gui-verification.md for the whole recipe."]
+    return "\n".join(msg)
+
+
 def analyse(path):
     """(peak_dbfs, rms_dbfs, silent) for a wav file."""
-    with wave.open(path) as w:
-        frames, chans, sw = w.getnframes(), w.getnchannels(), w.getsampwidth()
-        raw = w.readframes(frames)
+    try:
+        with wave.open(path) as w:
+            frames, chans, sw = w.getnframes(), w.getnchannels(), w.getsampwidth()
+            raw = w.readframes(frames)
+    except (EOFError, wave.Error) as exc:
+        raise SystemExit(unusable_render(path, type(exc).__name__ + (
+            ": " + str(exc) if str(exc) else ", with no message")))
     n = frames * chans
     if n == 0:
         return float("-inf"), float("-inf"), True
@@ -297,9 +337,15 @@ def main():
 
         out = os.path.join(workdir, "out.wav")
         rc, log = render(args.project, out, workdir)
-        if not os.path.exists(out):
-            print("no audio file produced (REAPER rc=%d); log tail:" % rc)
+        # SIZE, not just existence: the reported Linux failure leaves a
+        # zero-length file behind, which `os.path.exists` happily passes
+        # through to analyse() (BACKLOG E76). The log tail is where the real
+        # cause is -- the gdk assertions, or the modal E29 warns about.
+        if not os.path.exists(out) or os.path.getsize(out) == 0:
+            print("no usable audio file produced (REAPER rc=%d, %s); log tail:"
+                  % (rc, "no file" if not os.path.exists(out) else "zero bytes"))
             print("".join(open(log).readlines()[-10:]))
+            print(unusable_render(out, "nothing was written"))
             return 1
         pdb, rdb, silent = analyse(out)
         print("  %s" % os.path.basename(args.project))

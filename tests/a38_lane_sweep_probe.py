@@ -35,9 +35,10 @@ others then conflict and on what paths. That is where the hot bookkeeping files
 show themselves, and it is how `BACKLOG-DONE.md` was found to be a fifth one
 that A38's row does not list.
 
-No worktree, no checkout, no network beyond `gh pr list`. `merge-tree
---write-tree` plus `commit-tree` do every merge in memory, so this is safe to
-run against a tree the developer is working in.
+No worktree and no checkout; no network at all in pinned mode, and one
+`ls-remote` in `--live`. `merge-tree --write-tree` plus `commit-tree` do every
+merge in memory, so this is safe to run against a tree the developer is working
+in.
 
 The control
 -----------
@@ -47,19 +48,36 @@ If it does not, the merge machinery here is broken and nothing else this probe
 prints means anything. That arm is what makes a depth of 1 a measurement rather
 than a bug.
 
+The input is PINNED, not ambient (A41, 2026-10-01)
+--------------------------------------------------
+This probe used to ask `gh pr list` what to measure, which made every number it
+printed a function of the instant it ran -- and a recorded result could not be
+re-checked once the fleet moved. It now reads `tests/a38_fleet_state.json` by
+default, so a recorded run reproduces byte-for-byte; `--live` measures today's
+queue and labels the output a snapshot. See `tests/a38_fleet_state.py` for the
+three defects A41 measured and what each fix is.
+
 Usage
 -----
     python3 tests/a38_lane_sweep_probe.py [--repo PATH] [--lane win] [--control]
+    python3 tests/a38_lane_sweep_probe.py --live          # today's queue
+    python3 tests/a38_lane_sweep_probe.py --live --fetch   # and fetch what it names
 
-Exit 0 if the measurement completed (and, with --control, swept fully). The
-depth is REPORTED, not asserted: it describes a moving queue, so a threshold
-here would be a tripwire on someone else's merge habits.
+Four exit codes, matching `a38_row_adjacency_probe.py`: **0** the measurement
+completed (and, with --control, swept fully), **1** the control failed, **2** the
+input names a ref this repo cannot resolve, **3** VACUOUS -- fewer than two
+branches in the lane, so there was no ordering to compare and rc=0 would have
+read as a pass. The depth is REPORTED, not asserted: it describes a moving
+queue, so a threshold here would be a tripwire on someone else's merge habits.
 """
 import argparse
 import itertools
 import os
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import a38_fleet_state  # noqa: E402
 
 BOOKKEEPING = {"BACKLOG.md", "BACKLOG-DONE.md", "JOURNAL.md",
                "docs/lessons.md", "docs/decisions.md"}
@@ -71,26 +89,6 @@ def git(repo, *args, check=True):
     if check and p.returncode != 0:
         raise RuntimeError("git %s failed:\n%s%s" % (" ".join(args), p.stdout, p.stderr))
     return p
-
-
-def lane_prs(repo, lane):
-    """Open PRs whose head branch is in this lane, newest first."""
-    p = subprocess.run(
-        ["gh", "pr", "list", "--repo", "JeffMcClintock/TideSynth", "--state", "open",
-         "--limit", "50", "--json", "number,headRefName",
-         "--jq", '.[] | "\\(.number)\\t\\(.headRefName)"'],
-        capture_output=True, text=True, encoding="utf-8", errors="replace")
-    if p.returncode != 0:
-        raise SystemExit("gh pr list failed -- this probe needs the PR list:\n" + p.stderr)
-    out = []
-    for line in p.stdout.split("\n"):
-        if not line.strip():
-            continue
-        num, branch = line.split("\t")
-        if lane and not branch.startswith("tide/%s/" % lane):
-            continue
-        out.append(("#" + num, branch))
-    return out
 
 
 def try_merge(repo, cur, ref):
@@ -115,32 +113,32 @@ def main():
                     help="branch-name lane: win, mac, linux, or empty for all")
     ap.add_argument("--control", action="store_true",
                     help="replace each branch by its merge base -- every order must sweep fully")
+    a38_fleet_state.add_args(ap)
     a = ap.parse_args()
 
     repo = a.repo
-    base = git(repo, "rev-parse", "origin/main").stdout.strip()
-    prs = lane_prs(repo, a.lane)
+    # A41: one resolved input. `base` is a sha from the same answer as the
+    # branch shas, so nothing here re-resolves a name against the local clone.
+    fleet = a38_fleet_state.resolve(repo, a, a.lane)
+    base = fleet.main
 
     refs = []
-    for label, branch in prs:
-        r = git(repo, "rev-parse", "--verify", "--quiet",
-                "refs/remotes/origin/" + branch, check=False)
-        if r.returncode != 0:
-            print("  (skipping %s -- no local ref for %s; fetch first)" % (label, branch))
-            continue
-        sha = r.stdout.strip()
+    for label, branch, sha in fleet.branches:
         if a.control:
             sha = git(repo, "merge-base", sha, base).stdout.strip()
         refs.append((label, sha, branch))
 
-    print("=== %s: lane '%s' from origin/main %s ===" %
+    print("=== %s ===" %
           ("CONTROL (merge bases -- every order must sweep fully)" if a.control
-           else "TREATMENT", a.lane, base[:9]))
-    for label, sha, branch in refs:
-        print("  %-6s %s  %s" % (label, sha[:9], branch))
+           else "TREATMENT"))
+    print(fleet.header())
     if not refs:
-        print("  (no open PRs in this lane -- nothing to measure)")
-        return 0
+        print("\n  VACUOUS: no branches in this lane -- nothing was measured.")
+        return 3
+    vacuous = fleet.vacuous(len(refs) * (len(refs) - 1) // 2)
+    if vacuous:
+        print("\n  VACUOUS: one branch is zero pairs -- every ordering below is")
+        print("  the single branch, so there is nothing to compare it against.")
     print()
 
     # 1. the 09-25 measurement, reproduced: each branch alone into main.
@@ -213,6 +211,11 @@ def main():
         print("\ncontrol OK: %d/%d orderings swept fully -- a shallow depth on the "
               "real branches is a measurement, not a broken merge"
               % (full, sum(hist.values())))
+    if vacuous:
+        print("\nSWEEP VACUOUS -- fewer than two branches in the lane, so no"
+              " ordering was compared;\nrc=3 rather than 0, because this is not"
+              " a pass")
+        return 3
     return 0
 
 
