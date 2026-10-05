@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **492 KB** across **381** entries, so copying them
+Learned sections are **494 KB** across **382** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **158 KB / 1628 lessons — 3.1x smaller**, and represents
+A8. This is **158 KB / 1634 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -45,6 +45,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `CFRunLoopRunInMode` returns at once on a loop with no sources.
 - A host stub has to count `restartComponent`.
 
+**windows — E86: the processor-only VST3 finding reproduces, and its "unknown to fix" is now ONE MEASURED LINE; the fork escalated as a PROPOSED entry (scheduled run)**
+
+- "Unknown to fix" is sometimes one line, and the cheap way to find out is to patch, measure and revert.
+- The strongest evidence for a fix being sufficient was a DIFF OF THE STDERR, not a count.
+- An idempotence guard is a thread-safety claim in disguise, and adding a caller is what tests it.
+- An idempotent function that returns a COUNT lies to its second caller
+- `docs/decisions.md` being denied on the auto-merge allowlist makes the split MANDATORY, not stylistic.
+- The invisible-HWND arm has a hard boundary, and E19's remaining clause is on the wrong side of it.
+
 ## 2026-10-03
 
 **macos — E87: its Accept is met on `main` -- the second merger renumbered, `Plat` untouched; the general form filed as A42 (scheduled run)**
@@ -70,6 +79,11 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - An allowlist-eligible PR merges faster than a run can revise it — about two minutes here.
 - The zero-diff resting state is now measured, not just argued.
 
+**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, fifth cell running; `main` green after Jeff's slider switch; STEP 2 walked, nothing eligible (scheduled run)**
+
+- The app version moved from 2.9939.4 to 2.16120.0 between the 09-30 and 10-01 cells
+- Nothing new about the livelock.
+
 **windows — STEP 1.5: three content re-syncs never moved #618's merge-base, and a real merge did; the A38 probes' verdict flipped twice on fleet movement alone (scheduled run)**
 
 - A content re-sync is not a merge, and only the merge moves the merge-base.
@@ -77,11 +91,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A probe whose fixture is the live fleet has a shelf life, and its pass is not evidence a reader can re-check.
 - Run a PR's own verification artifact during STEP 1.5, not just the lints.
 - A recorded debt can outlive its stated precondition.
-
-**macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, fifth cell running; `main` green after Jeff's slider switch; STEP 2 walked, nothing eligible (scheduled run)**
-
-- The app version moved from 2.9939.4 to 2.16120.0 between the 09-30 and 10-01 cells
-- Nothing new about the livelock.
 
 ## 2026-09-08
 
