@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **497 KB** across **384** entries, so copying them
+Learned sections are **499 KB** across **386** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **160 KB / 1645 lessons — 3.1x smaller**, and represents
+A8. This is **160 KB / 1652 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -49,6 +49,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A cancelled CI job is reported as `fail`, and the difference is one API field.
 - The bookkeeping/code PR split forbids markdown links across the seam.
 
+**macos — STEP 1.5: #635 re-conflicted BOTH mac PRs (#631, #633); both re-synced, and they now merge cleanly with each other too (scheduled run)**
+
+- One auto-merged bookkeeping PR from another lane re-conflicts every open PR in this lane at once.
+- Two branches that each create the month's archive file collide add/add even when they agree on its content.
+- Where you insert a journal entry decides which other open PR you collide with.
+- Rotation can reintroduce a conflict.
+
 ## 2026-10-05
 
 **windows — E86: the processor-only VST3 finding reproduces, and its "unknown to fix" is now ONE MEASURED LINE; the fork escalated as a PROPOSED entry (scheduled run)**
@@ -60,41 +67,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `docs/decisions.md` being denied on the auto-merge allowlist makes the split MANDATORY, not stylistic.
 - The invisible-HWND arm has a hard boundary, and E19's remaining clause is on the wrong side of it.
 
-## 2026-10-04
+**macos — E88, VST3 on macOS: activate-then-state plays silence with or without the run loop; the probe now loads a bundle on macOS; fix not chosen (scheduled run)**
 
-**macos — STEP 1.5: #631 (E85) went `DIRTY` in `JOURNAL.md` when #632 landed; re-synced, E87 archived, no backlog item (scheduled run)**
-
-- A branch that stays open across another run's merge must insert its journal entry below the newer one, not on top.
-- Taking the other open branch's rotation blob verbatim works.
-- Putting a lane's bookkeeping on its own open PR's branch removes the conflict at the source.
-
-## 2026-10-03
-
-**macos — E87: its Accept is met on `main` -- the second merger renumbered, `Plat` untouched; the general form filed as A42 (scheduled run)**
-
-- E87 resolved itself the way it said it should, through a run doing a re-sync, not through anyone taking E87.
-- `check-id-refs.py` passes on a renumbered id, but that does not mean every old mention is right.
-- To check an Accept that reads "a lint is rc=0", break it back to the predicted failure first.
-
-## 2026-10-02
-
-**macos — E85: `clap_plugin_gui.show()`/`.hide()` now report success; A/B 3/3 on macOS, with the probe's editor arm ported to Cocoa (scheduled run)**
-
-- E85 was not Windows-specific, and a mac bare host reproduces it exactly.
-- An NSView parent can be made fully headless from C without a `.m` file.
-- `FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` is the one-variable A/B for a wrapper change.
-- A `.clap` bundle's directory name must match its binary name.
+- The macOS run loop rescues CLAP's controller queue, but not VST3's restore.
+- `CFRunLoopRunInMode` returns at once on a loop with no sources.
+- A host stub has to count `restartComponent`.
 
 ## 2026-10-01
-
-**windows — the queue reopened: all eleven PRs merged, A41 taken and measured, and the probes' verdict had THREE causes rather than one (scheduled run)**
-
-- An unrecorded input can become unrecoverable, and then the measurement is simply lost.
-- A silent skip and a hard failure differ most when the input is partly available.
-- Archiving a row has a blast radius in the NEXT block's history, not just its present.
-- A `DONE` row and an archived row are not two states but one edit.
-- "May proceed meanwhile: EVERYTHING, without exception" is a claim about a question, and a row can still fall inside it.
-- Thirteen cells of pure STEP 1.5 ended the moment a human merged
 
 **macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, fifth cell running; `main` green after Jeff's slider switch; STEP 2 walked, nothing eligible (scheduled run)**
 
@@ -114,6 +93,40 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Re-read a backgrounded command's output file immediately before you commit the entry that describes it.
 - An allowlist-eligible PR merges faster than a run can revise it — about two minutes here.
 - The zero-diff resting state is now measured, not just argued.
+
+**windows — the queue reopened: all eleven PRs merged, A41 taken and measured, and the probes' verdict had THREE causes rather than one (scheduled run)**
+
+- An unrecorded input can become unrecoverable, and then the measurement is simply lost.
+- A silent skip and a hard failure differ most when the input is partly available.
+- Archiving a row has a blast radius in the NEXT block's history, not just its present.
+- A `DONE` row and an archived row are not two states but one edit.
+- "May proceed meanwhile: EVERYTHING, without exception" is a claim about a question, and a row can still fall inside it.
+- Thirteen cells of pure STEP 1.5 ended the moment a human merged
+
+## 2026-10-02
+
+**macos — E85: `clap_plugin_gui.show()`/`.hide()` now report success; A/B 3/3 on macOS, with the probe's editor arm ported to Cocoa (scheduled run)**
+
+- E85 was not Windows-specific, and a mac bare host reproduces it exactly.
+- An NSView parent can be made fully headless from C without a `.m` file.
+- `FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` is the one-variable A/B for a wrapper change.
+- A `.clap` bundle's directory name must match its binary name.
+
+## 2026-10-03
+
+**macos — E87: its Accept is met on `main` -- the second merger renumbered, `Plat` untouched; the general form filed as A42 (scheduled run)**
+
+- E87 resolved itself the way it said it should, through a run doing a re-sync, not through anyone taking E87.
+- `check-id-refs.py` passes on a renumbered id, but that does not mean every old mention is right.
+- To check an Accept that reads "a lint is rc=0", break it back to the predicted failure first.
+
+## 2026-10-04
+
+**macos — STEP 1.5: #631 (E85) went `DIRTY` in `JOURNAL.md` when #632 landed; re-synced, E87 archived, no backlog item (scheduled run)**
+
+- A branch that stays open across another run's merge must insert its journal entry below the newer one, not on top.
+- Taking the other open branch's rotation blob verbatim works.
+- Putting a lane's bookkeeping on its own open PR's branch removes the conflict at the source.
 
 ## 2026-09-08
 
