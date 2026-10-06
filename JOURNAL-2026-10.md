@@ -577,3 +577,55 @@ The instrument is the row's own: `tests/e80_vst3_feedback_probe.cpp`, win32-only
 **Next:** see the `win` NEXT cell. **For Jeff, two things:** (1) **[#634](https://github.com/JeffMcClintock/TideSynth/pull/634) is E86's fork and cannot auto-merge by design** — four options, with (c) recommended and (a) measured; merging it is the ruling. (2) [#629](https://github.com/JeffMcClintock/TideSynth/pull/629) (A41) has been green and waiting since 10-01, and A40's one question — does the fleet PAT expire at all — is still answerable only in the GitHub UI.
 
 **Branch/PR:** the `PROPOSED:` entry is on `tide/win/E86-vst3-processor-factory`, [#634](https://github.com/JeffMcClintock/TideSynth/pull/634) (`docs/decisions.md` only). This entry, the E86 row, the E87 flip and archive, the rotation, the regenerated `docs/lessons.md` and the refreshed `win` cell are on `tide/win/2026-10-05-e86-bookkeeping`, which is bookkeeping-only and should auto-merge.
+
+## 2026-10-06 — macos — STEP 1.5: #635 re-conflicted BOTH mac PRs (#631, #633); both re-synced, and they now merge cleanly with each other too (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.19675.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** STEP 1.5 on both of this lane's open PRs. I took no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`2489013..e7fba10`).
+
+### STEP 1 / 1.5
+
+STEP 1: no open `platform:mac` issue. The open issues are #583 (linux) and #44 (digest). STEP 1.5: [#631](https://github.com/JeffMcClintock/TideSynth/pull/631) (E85) and [#633](https://github.com/JeffMcClintock/TideSynth/pull/633) (E88) were **both `CONFLICTING` / `DIRTY`**. Checks were 13 SUCCESS + 2 SKIPPED on each, with no reviews. #631's only comment is the 10-04 run's own. The cause of both conflicts was [#635](https://github.com/JeffMcClintock/TideSynth/pull/635), the 10-05 windows bookkeeping PR. It auto-merged, and it touched every file both branches touch. [GMPI_Wrappers#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41) is still `OPEN` / `MERGEABLE`, no reviews.
+
+`git merge-tree` named the same four files on both branches: `BACKLOG.md`, `JOURNAL.md`, `JOURNAL-2026-10.md` (add/add) and `docs/lessons.md`.
+
+### The resolutions
+
+Every hunk was whole rows or whole entries, so in every case I kept both sides. Nothing was rewritten.
+
+| file | #631 (E85) | #633 (E88) |
+|---|---|---|
+| `BACKLOG.md` | NEXT block: `main`'s 10-05 `win` cell + this branch's 10-04 `mac` cell. Rows: this branch's E85 (`IN-REVIEW`) + `main`'s E86 (measured) | `main`'s E86 + this branch's E88. E87 dropped: `main` archived it, and `BACKLOG-DONE.md` holds it exactly once |
+| `JOURNAL.md` | `main`'s 10-05 windows entry **above** this branch's 10-04 and 10-02 entries, newest-first | this branch's 10-05 macos entry **above** `main`'s 10-05 windows entry. Same date, so prepend-only decides the order |
+| `JOURNAL-2026-10.md` | `main`'s file | `main`'s file |
+| `docs/lessons.md` | regenerated | regenerated |
+
+**The add/add on `JOURNAL-2026-10.md` was not a content conflict.** #631 created that file on 10-04, and #635 created its own on 10-05. Both hold the **same two 10-01 entries**, byte-identical (I compared them entry by entry), in opposite order and under slightly different header prose. So `main`'s copy is correct for both branches.
+
+After each merge, all six lint-workflow checks (`check-links`, `check-journal-prepend`, `check-backlog-diff`, `check-prompt-provenance`, `check-id-refs`, `check-next-block`) plus `check-backlog-archived` and `extract-lessons.py --check` exit 0. `git merge-tree origin/main HEAD` is clean for both. `check-commit-authorship.py` reports every unpushed commit as `tide-rack-bot`.
+
+### Where this entry lives, and why
+
+**On #633's branch, not #631's, and the `mac` NEXT cell is left alone.** After the re-sync the two branches stop colliding in `BACKLOG.md` and `JOURNAL.md` (`git merge-tree` between them names **only `docs/lessons.md`**, and after this entry's commit, nothing). That holds because #631 inserts *below* `main`'s 10-05 entry and #633 inserts *above* it. If I put this entry on #631, both branches would insert above that line and collide again. #631 edits the `mac` cell and #633 does not, so a cell edit on #633 would collide too. **With this entry committed, `git merge-tree` between the two branch heads exits 0 with no conflicted path.** `docs/lessons.md` is generated output, so whichever PR lands second leaves it stale even though it merges textually. `extract-lessons.py --check` is not a lint-workflow step, so nothing will flag that. Regenerate it with `--write`.
+
+**Rotation, kept partial on purpose.** With this entry `JOURNAL.md` passes 60 KB. I moved the oldest entry only (the 10-01 windows *correction*), appended below `JOURNAL-2026-10.md`'s existing two. I did not move the next one (the 10-01 windows A41 entry). #631 inserts its 10-02 entry directly above that heading, so removing it here would make the two branches touch adjacent lines, which reopens the conflict this placement exists to avoid. The file stays a little over 60 KB until one of the two PRs lands. Then the next rotation can take it.
+
+### STEP 2: not taken
+
+STEP 1.5 is *"same tier as a broken build"*, and STEP 1 says to do that instead of a backlog item and then go to STEP 4. That is the 10-04 reading, and I followed it. Nothing on `main` changed the walk except E86, which now has an open `PROPOSED:` entry ([#634](https://github.com/JeffMcClintock/TideSynth/pull/634)) and is not a run's to build. **E88 is this lane's own open item** (#633). Its fix is a three-way mechanism choice that the 10-05 entry deliberately did not make.
+
+**Learned:**
+
+- **One auto-merged bookkeeping PR from another lane re-conflicts every open PR in this lane at once.** #635 touched `BACKLOG.md`, `JOURNAL.md`, the October archive and `docs/lessons.md`. Those are all four files a mac branch touches. This is A38's livelock, now with two victims instead of one.
+- **Two branches that each create the month's archive file collide add/add even when they agree on its content.** Before resolving that kind of conflict, compare the entries rather than the files. Here they were identical, and the fix was "take `main`".
+- **Where you insert a journal entry decides which other open PR you collide with.** Inserting above `main`'s top entry collides with any branch that also prepends. Inserting below it (because your entry is older) does not. With two open PRs in one lane, put the run's new entry on the branch that already prepends.
+- **Rotation can reintroduce a conflict.** Removing the oldest entry is safe only if no open branch inserts next to it. Check `git merge-tree` against the sibling branch after rotating, not only against `main`.
+
+**Not verified:** no build and no host. Nothing compiled changed: both merges touched only `BACKLOG.md`, `JOURNAL*.md` and `docs/lessons.md`. I did not re-run either PR's probe A/B; their evidence stands as the 10-02 and 10-05 entries record it.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean, and never left it. All work was in two scratchpad `git worktree`s, removed at the end. `SynthEdit` (`master`), `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers` and `GMPI` (`main`) were clean, and I did not touch them. No GUI work and no screen taken. No credential value appears anywhere.
+
+**Next:** **(1)** STEP 1.5 on #631, #633 and GMPI_Wrappers#41. If one of #631/#633 lands, the other should stay mergeable. Run `extract-lessons.py --check` on `main` afterwards, because the regenerated file goes stale without a conflict to flag it. **(2)** Then E88's VST3 fix, per the 10-05 entry's (a)/(b)/(c). That is a mechanism choice, so if a run cannot state it in one sentence it should be a `PROPOSED:` entry rather than code. **(3)** The `mac` NEXT cell is still the 10-04 one on #631, and it remains the place to update once #631 has landed. **For Jeff:** #631 + GMPI_Wrappers#41 (E85), #633 (E88), #629 (A41) and #634 (E86's ruling) are waiting. #631 and #633 are clean against `main` again. The stale `tide/mac/issue-599` branch still exists.
+
+**Branch/PR:** #631 (`tide/mac/E85-clap-gui-show`): the re-sync merge only. #633 (`tide/mac/E88-vst3-activate-first`): the re-sync merge, this entry and the one-entry rotation.

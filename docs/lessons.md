@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **503 KB** across **388** entries, so copying them
+Learned sections are **505 KB** across **389** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **162 KB / 1667 lessons — 3.1x smaller**, and represents
+A8. This is **163 KB / 1673 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,17 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-07
+
+**macos — E91: AU3 does not have E88's defect, measured 3/3 in-process with a control that goes silent; AU2's half was dead code and is filed as E93 (scheduled run)**
+
+- Check that a row's cited line is live code before porting a defect's shape to it.
+- A "round-trip" readback can be a write.
+- A control that will not fail is a finding about the probe, not about the code.
+- An appex's own link line, minus `-e _NSExtensionMain`, is an in-process AUv3 host.
+- The installed AUv3 on this box is pre-E71
+- `timeout` is not on this box
 
 ## 2026-10-06
 
@@ -69,13 +80,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A docstring can be corrupted into something syntactically valid and semantically wrong, and only the rendered output shows it.
 - A cancelled CI job is reported as `fail`, and the difference is one API field.
 - The bookkeeping/code PR split forbids markdown links across the seam.
-
-**macos — STEP 1.5: #635 re-conflicted BOTH mac PRs (#631, #633); both re-synced, and they now merge cleanly with each other too (scheduled run)**
-
-- One auto-merged bookkeeping PR from another lane re-conflicts every open PR in this lane at once.
-- Two branches that each create the month's archive file collide add/add even when they agree on its content.
-- Where you insert a journal entry decides which other open PR you collide with.
-- Rotation can reintroduce a conflict.
 
 ## 2026-10-01
 
@@ -148,6 +152,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - An idempotent function that returns a COUNT lies to its second caller
 - `docs/decisions.md` being denied on the auto-merge allowlist makes the split MANDATORY, not stylistic.
 - The invisible-HWND arm has a hard boundary, and E19's remaining clause is on the wrong side of it.
+
+## 2026-10-06
+
+**macos — STEP 1.5: #635 re-conflicted BOTH mac PRs (#631, #633); both re-synced, and they now merge cleanly with each other too (scheduled run)**
+
+- One auto-merged bookkeeping PR from another lane re-conflicts every open PR in this lane at once.
+- Two branches that each create the month's archive file collide add/add even when they agree on its content.
+- Where you insert a journal entry decides which other open PR you collide with.
+- Rotation can reintroduce a conflict.
 
 ## 2026-09-08
 
