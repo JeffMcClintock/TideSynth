@@ -446,3 +446,59 @@ Then all of the lint workflow's checks (`check-links`, `check-journal-prepend`, 
 
 **Branch/PR:** `tide/mac/E85-clap-gui-show`, [#631](https://github.com/JeffMcClintock/TideSynth/pull/631): the merge, this entry, the E87 archive move and the `mac` cell.
 
+## 2026-10-05 — macos — E88, VST3 on macOS: activate-then-state plays silence with or without the run loop; the probe now loads a bundle on macOS; fix not chosen (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.19675.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** ported `tests/e80_vst3_feedback_probe.cpp`'s loader to macOS, added an `--activate-first` arm, and measured E88's VST3 half on this box. **The defect is real on VST3.** E88 goes back to `TODO` with the measurement, because the fix is a choice between three mechanisms and this run did not make it. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`origin/main` = `2489013`, unchanged since the 10-04 run).
+
+### STEP 1 / 1.5 / 2
+
+STEP 1: no open `platform:mac` issue. STEP 1.5: [#631](https://github.com/JeffMcClintock/TideSynth/pull/631) (E85) is `MERGEABLE`, 13 SUCCESS + 2 SKIPPED, no reviews, and its only comment is the 10-04 run's own. [GMPI_Wrappers#41](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/41) is `MERGEABLE`, no reviews. Both are waiting for merge, so I left them alone. STEP 2: the 10-04 walk still holds. `main` has not moved, A42 waits on Jeff by its own words, and **E88** is the next eligible `any` row. No branch or PR named it. None of the five open `PROPOSED:` entries (Plat edits, a wrong required check, deterministic handles, patch-cable dirty, the bookkeeping hot spots) changes what E88 builds. Claimed on `tide/mac/E88-vst3-activate-first` and pushed the claim first.
+
+### The probe
+
+On macOS a `.vst3` is a bundle, and the module contract is `bundleEntry(CFBundleRef)` before `GetPluginFactory` and `bundleExit()` after the last release. The probe now does that through `CFBundle`. Its `pump_main_thread` runs `CFRunLoopRunInMode` on the clock, because that call returns `kCFRunLoopRunFinished` immediately when the loop has no timers yet. `--activate-first` runs the same controller-then-component restore, just after `setActive(true)` instead of before, followed by the same 0.5 s handover. The `ComponentHandler` stub now **counts** `restartComponent` instead of dropping it, which is the same lesson the e79 probe learned about `request_restart`. `--editor` still needs an NSView parent and refuses on macOS with rc=2. The Windows path is unchanged in logic, but **I did not compile it**: only `#if` guards moved around it.
+
+Build: `clang++ -std=c++17 -O2 -I <CPM>/vst3_sdk tests/e80_vst3_feedback_probe.cpp -framework CoreFoundation`, with the SDK headers TideSynth's own CMake had already fetched. The header says so.
+
+### E88, measured
+
+TIDE built from this branch: `cmake -G Ninja -DCMAKE_BUILD_TYPE=Release`, 659/659, rc=0. GMPI_Wrappers was fetched at `3da5548`, which **includes E79's CLAP fix**. VST3 binary sha256 `e65fe83ec8c493e0…`, probe `ce1999d8e0d32141…`. Preset: `v1-rack.rpp`'s 18,893-byte `<Preset>`, from `scripts/decode_rpp.py --preset-out`. 400 blocks of 512 at 44.1 kHz, three runs per arm, interleaved:
+
+| arm | stderr | peak | `restartComponent` | runs |
+|---|---|---|---|---|
+| state-then-activate, `--pump` | `instance #2 building rack from 14136 byte document`, `rack built for 44100 Hz, block 512` | **0.482431 (-6.3 dBFS)** | 0 | 3/3 |
+| state-then-activate, `--no-pump` | same | 0.482431 | 0 | 1/1 |
+| **activate-then-state, `--pump`** | `controller #1 restore of a 14136 byte document -> imported`, then `TIDE: unprepared - writing silence`; **no `building rack`** | **0 (-inf)** | **0** | 3/3 |
+| activate-then-state, `--no-pump` | identical | 0 | 0 | 3/3 |
+| `--no-preset` (negative control) | `unprepared`, no build | 0 | 0 | 1/1 |
+| **CLAP reference, same build**: `e79_clap_headless_probe.c --activate-first`, with and without `--runloop` | `building rack`, 1 build | **0.482431** | n/a | 1/1 each |
+
+**My prediction was wrong.** Before running, I expected activate-then-state to pass with the pump and fail without it. The controller's tick is a `CFRunLoopTimer` here, and the E79 probe's header predicts exactly that rescue for CLAP on macOS. It does not happen on VST3. The pump is not the variable: the controller imports the document either way, and nothing re-runs `start_processor` on a processor that is already live. The cause can be read straight off the code. `Processor_VST3::setState` (`GMPI_Wrappers/wrapper/VST3/Processor_VST3.cpp:1077`) ends in `setPresetUnsafe`. The only caller of `reInitialise()` after `initialize` is `setActive(true)` (`:357-372`). CLAP passing on the same build shows the difference is E79's `requestRestart`, which VST3 has no counterpart to.
+
+### Why I stopped short of the fix
+
+Detecting the case is trivial, since `Processor_VST3` already keeps `active_`. The remedy is a choice of mechanism, and the row warns against carrying the CLAP one over:
+
+- **(a)** `restartComponent(kReloadComponent)`. Only the controller holds the component handler, so the processor has to message it, and what a host does on `kReloadComponent` is host-defined. The probe would also have to **act** on it (`setActive(false/true)` between blocks), or the fix cannot be observed. That is the same trap the e79 probe documents.
+- **(b)** Calling `reInitialise()` from `setState`. That races the audio thread.
+- **(c)** Setting a flag in `setState` and rebuilding at the next `process()`. That puts the rack build on the audio thread.
+
+I could not state the fix in one sentence. A wrong choice here is a shipping regression in every VST3 host, so I filed the options in the row rather than committing one.
+
+**Learned:**
+
+- **The macOS run loop rescues CLAP's controller queue, but not VST3's restore.** A prediction drawn from the CLAP wrapper's structure did not transfer to VST3, even on the same platform and the same build. The row's *"Do NOT assume the CLAP fix transfers"* applies to the diagnosis too, not only to the fix.
+- **`CFRunLoopRunInMode` returns at once on a loop with no sources.** A pump written as a single call waits for nothing until the plug-in has registered its timer. Loop on the clock.
+- **A host stub has to count `restartComponent`.** Without the count, a later fix built on `kReloadComponent` would read as "no effect". The e79 lesson about `request_restart` applied to VST3 too.
+
+**Not verified:** no Windows or Linux compile of the probe, and no VST3 measurement on either. No AU2/AU3: this build has no `.component`, and `tests/e9_au_rate_probe.mm` is the nearest AU host. No DAW. No fix was made, so nothing in `GMPI_Wrappers` changed. SynthEdit/SynthEditCL were not rebuilt because nothing they compile changed.
+
+**Collision note:** this branch's `BACKLOG.md` **conflicts with #631**. #631 archives the E87 row, which sits directly above E88, and git treats adjacent hunks as a conflict. Whichever lands second has to re-sync. Both sides are whole-row edits, so the resolution is to keep both. I took #631's rotation blobs verbatim (`JOURNAL-2026-09.md`, `JOURNAL-2026-10.md`, the `Archives:` line), so those files cannot conflict. **That moved one entry more than the rule strictly needed.** Removing 09-30 and the 10-01 macos entry would already have brought the file under 60 KB (about 57 KB). I also moved the 10-01 windows STEP 1.5 entry, because a `JOURNAL-2026-10.md` that differs from #631's would be an add/add conflict on a brand-new file. Nothing is lost: it is in the archive, verbatim, and `JOURNAL.md` still meets the floor of four entries. `JOURNAL.md` will conflict at the prepend point as usual: the newest date goes on top. **I did not touch the `mac` NEXT cell**, because #631 edits the same line.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main` and was not touched. All work was in a scratchpad `git worktree` and build directory, both removed at the end. `GMPI_Wrappers` stayed on `main` (behind 1), clean, and was read only. `SynthEdit` was on `master`, clean, and untouched. No GUI, no screen taken. No credential value appears anywhere.
+
+**Next:** **(1)** STEP 1.5 on #631 + GMPI_Wrappers#41, and on this branch's PR. **(2)** E88's VST3 fix: pick (a), (b) or (c) above, then A/B it with `--activate-first` on this probe. If it is (a), teach the probe to act on `kReloadComponent` first. **(3)** E88's AU2/AU3 half still needs an AU build and a host.
+
+**Branch/PR:** `tide/mac/E88-vst3-activate-first`: the probe port, the E88 row, this entry and the rotation.

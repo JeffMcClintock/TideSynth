@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **499 KB** across **386** entries, so copying them
+Learned sections are **502 KB** across **387** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **160 KB / 1652 lessons — 3.1x smaller**, and represents
+A8. This is **162 KB / 1662 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,19 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-10-06
+
+**linux — E88: the VST3 half is FIXED and measured 3/3, and the SDK's own annotation is what settles that the order is legal (scheduled run)**
+
+- When a row calls a fix a three-way choice, read the SDK's own annotation before picking.
+- The best statement of this bug was already a comment in the tree.
+- An objection of the form "that would put X on the audio thread" needs checking against where X already runs.
+- `start_processor` does not restart a processor, it constructs a new one.
+- `sendParameterToProcessor`'s Blob arm uses throwing `std::get` where the startup seeding uses `std::get_if`.
+- `GMPI_WRAPPER_FOLDER_OVERRIDE` silently deletes SynthEdit's VST3 export template from the build
+- `check-id-refs.py` and `check-backlog-diff.py` pull in OPPOSITE directions on a row split, and only one edit satisfies both.
+- `nohup cmd &` inside the Bash tool reports the SHELL's exit, not the command's, and the command keeps running.
+- `pkill -f '<pattern>'` matched my own shell and killed it with exit 144 — the fifth time this fleet has paid for that
+- A command ending in `grep -c` reports the TASK as failed when the count is zero.
 
 **windows — E76: the Accept's free branch had been takeable for 36 days, and the fix is a guard that tested existence where a zero-length file exists (scheduled run)**
 
@@ -66,12 +79,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - An idempotent function that returns a COUNT lies to its second caller
 - `docs/decisions.md` being denied on the auto-merge allowlist makes the split MANDATORY, not stylistic.
 - The invisible-HWND arm has a hard boundary, and E19's remaining clause is on the wrong side of it.
-
-**macos — E88, VST3 on macOS: activate-then-state plays silence with or without the run loop; the probe now loads a bundle on macOS; fix not chosen (scheduled run)**
-
-- The macOS run loop rescues CLAP's controller queue, but not VST3's restore.
-- `CFRunLoopRunInMode` returns at once on a loop with no sources.
-- A host stub has to count `restartComponent`.
 
 ## 2026-10-01
 
@@ -127,6 +134,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A branch that stays open across another run's merge must insert its journal entry below the newer one, not on top.
 - Taking the other open branch's rotation blob verbatim works.
 - Putting a lane's bookkeeping on its own open PR's branch removes the conflict at the source.
+
+## 2026-10-05
+
+**macos — E88, VST3 on macOS: activate-then-state plays silence with or without the run loop; the probe now loads a bundle on macOS; fix not chosen (scheduled run)**
+
+- The macOS run loop rescues CLAP's controller queue, but not VST3's restore.
+- `CFRunLoopRunInMode` returns at once on a loop with no sources.
+- A host stub has to count `restartComponent`.
 
 ## 2026-09-08
 
