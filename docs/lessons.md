@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **502 KB** across **387** entries, so copying them
+Learned sections are **503 KB** across **388** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **162 KB / 1662 lessons — 3.1x smaller**, and represents
+A8. This is **162 KB / 1667 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,14 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-10-06
+
+**linux — the merge sweep Jeff asked for: all three PRs landed, five rows archived, and CI closed half of E88's own stated gap (interactive, Jeff directing)**
+
+- Merge order decided what got verified, and nobody planned it.
+- "Compiled on three platforms" and "verified on three platforms" are different claims
+- When two lints disagree, read the source of the one that is still failing.
+- A lint reports its first failure, not its last.
+- Archiving N rows has a blast radius of N NEXT-cell clauses
 
 **linux — E88: the VST3 half is FIXED and measured 3/3, and the SDK's own annotation is what settles that the order is legal (scheduled run)**
 
@@ -68,17 +76,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Two branches that each create the month's archive file collide add/add even when they agree on its content.
 - Where you insert a journal entry decides which other open PR you collide with.
 - Rotation can reintroduce a conflict.
-
-## 2026-10-05
-
-**windows — E86: the processor-only VST3 finding reproduces, and its "unknown to fix" is now ONE MEASURED LINE; the fork escalated as a PROPOSED entry (scheduled run)**
-
-- "Unknown to fix" is sometimes one line, and the cheap way to find out is to patch, measure and revert.
-- The strongest evidence for a fix being sufficient was a DIFF OF THE STDERR, not a count.
-- An idempotence guard is a thread-safety claim in disguise, and adding a caller is what tests it.
-- An idempotent function that returns a COUNT lies to its second caller
-- `docs/decisions.md` being denied on the auto-merge allowlist makes the split MANDATORY, not stylistic.
-- The invisible-HWND arm has a hard boundary, and E19's remaining clause is on the wrong side of it.
 
 ## 2026-10-01
 
@@ -142,6 +139,15 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - The macOS run loop rescues CLAP's controller queue, but not VST3's restore.
 - `CFRunLoopRunInMode` returns at once on a loop with no sources.
 - A host stub has to count `restartComponent`.
+
+**windows — E86: the processor-only VST3 finding reproduces, and its "unknown to fix" is now ONE MEASURED LINE; the fork escalated as a PROPOSED entry (scheduled run)**
+
+- "Unknown to fix" is sometimes one line, and the cheap way to find out is to patch, measure and revert.
+- The strongest evidence for a fix being sufficient was a DIFF OF THE STDERR, not a count.
+- An idempotence guard is a thread-safety claim in disguise, and adding a caller is what tests it.
+- An idempotent function that returns a COUNT lies to its second caller
+- `docs/decisions.md` being denied on the auto-merge allowlist makes the split MANDATORY, not stylistic.
+- The invisible-HWND arm has a hard boundary, and E19's remaining clause is on the wrong side of it.
 
 ## 2026-09-08
 
