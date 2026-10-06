@@ -196,6 +196,7 @@ gmpi_plugin(
 	  SynthEditController.cpp
 	  TideApp.h
 	  TideApp.cpp
+	  TideControllerPresence.h
 	  ${GMPI_UI_SDK}/helpers/Timer.h
 	  ${GMPI_UI_SDK}/helpers/Timer.cpp
 

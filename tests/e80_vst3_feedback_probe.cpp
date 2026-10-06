@@ -80,14 +80,20 @@
  * So --no-editor here means "a DAW with the window closed", NOT "no
  * controller". Reading it the other way measures the probe's own omission.
  *
- *   --no-controller  Do it anyway, deliberately. Kept as a REPRODUCTION of the
- *                    paragraph above rather than as a useful arm: it is the
- *                    only way to re-run that finding from the committed probe,
- *                    and a claim about a silent failure is worth little if the
- *                    next reader has to recreate the bug to see it. Expect
+ *   --no-controller  Do it anyway, deliberately. This arm exercises a
+ *                    configuration TIDE DOES NOT SUPPORT -- ruled by Jeff
+ *                    2026-10-06, BACKLOG E86: "There is always a Controller,
+ *                    else many things fail". Expect
  *                    `RackProcessor: '<slug>' constructed` to be ABSENT and
  *                    the feedback traffic to collapse. Do not quote its
  *                    numbers as a VST3 measurement.
+ *
+ *                    IT IS NO LONGER A REPRODUCTION OF A *SILENT* FAILURE,
+ *                    which is the whole of what changed: the processor now
+ *                    prints `TIDE: instance #N NO CONTROLLER in this process`
+ *                    at the rack-build site. So this arm's job is now to prove
+ *                    that line appears. If it does NOT, the diagnostic has
+ *                    regressed -- that is the finding, not the empty rack.
  *
  * A NOTE ON WHAT --editor NEEDS THAT --no-editor DOES NOT, because it is not
  * cosmetic on VST3. The wrapper moves DSP->UI traffic by allocating an
@@ -886,8 +892,10 @@ int main(int argc, char** argv)
 
         if (!wantController)
             printf("      --no-controller: deliberately NOT creating one. Expect NO\n"
-                   "      `RackProcessor: '<slug>' constructed` lines at all. This arm\n"
-                   "      REPRODUCES a silent failure; its numbers are not a VST3 measurement.\n");
+                   "      `RackProcessor: '<slug>' constructed` lines at all, and expect\n"
+                   "      `TIDE: instance #N NO CONTROLLER in this process` on stderr --\n"
+                   "      an UNSUPPORTED configuration that now announces itself (E86).\n"
+                   "      Its numbers are not a VST3 measurement.\n");
         else
             check("the component names a controller class", haveCtlCid);
 

@@ -37,6 +37,8 @@
 #include "RackFactory.h" // rack_adaptor::registerDeferredModules — the ported Rack modules
 #endif
 
+#include "TideControllerPresence.h" // E86 — let the processor see that a controller ran
+
 // TIDE ships none of SynthEdit's editor dialogs (PLAN constraint 5), and two of
 // the three below have live filesystem writes behind them, which constraint 3
 // forbids outright. These definitions have to exist regardless, because
@@ -750,6 +752,10 @@ void TideApp::CloseAllViews()
 
 bool TideApp::InitInstance()
 {
+	// E86: set before anything below can fail, so the processor's diagnostic
+	// means "no controller reached here" and not "the controller got partway".
+	tide::controllerInitialisedFlag() = true;
+
 	// No module scan, no module cache. Every module TIDE ships is statically
 	// registered before this runs -- CModuleFactory's constructor force-links
 	// the built-ins (SynthEditLib/UgDatabase.cpp, initialise_synthedit_modules)
@@ -852,7 +858,17 @@ bool TideApp::InitInstance()
 #else
 		const char* which = "HetrickCV";
 #endif
-		tideDiag("TIDE: %s — %d module(s) registered\n", which, registered);
+		// The adaptor's guard returns 0 for "already done", and the SECOND
+		// instance in a shared process reaches here (the s_xmlMerged reason
+		// above) -- so printing the bare count made a success read as
+		// `0 module(s) registered`. Distinguish the two: a 0 on the FIRST call
+		// is a real failure and still prints as one. BACKLOG E86.
+		static bool s_rackModulesRegistered = false;
+		if (s_rackModulesRegistered)
+			tideDiag("TIDE: %s — already registered in this process\n", which);
+		else
+			tideDiag("TIDE: %s — %d module(s) registered\n", which, registered);
+		s_rackModulesRegistered = true;
 	}
 #endif
 

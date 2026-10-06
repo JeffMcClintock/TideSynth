@@ -26,6 +26,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "tinyxml/tinyxml.h"       // TideSynth E10 - validating the chunk before the engine parses it
 #include "ChunkPrefix.h"           // why did this chunk arrive - Build, Sync, or Legacy
 #include "TraceLog.h"             // TideSynth E73 - a hosted plug-in has no stderr
+#include "TideControllerPresence.h" // TideSynth E86 - TIDE requires a same-process controller
 
 using namespace gmpi;
 
@@ -92,6 +93,9 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	// Latched, because this is the audio thread and a host may refresh per
 	// autosave. One line per instance is a report, not a trace.
 	bool loggedSyncIgnored = false;
+
+	// E86, same latching and for the same reason.
+	bool loggedNoController = false;
 
 	// E59: which processor OBJECT is talking. Two `building rack from` lines
 	// with different documents mean either one instance overwritten or two
@@ -490,6 +494,25 @@ public:
 				// nothing in this line said so.
 				fprintf(stderr, "TIDE: instance #%d building rack from %zu byte document (%s chunk, rack %s)\n",
 					instanceSeq, xml.size(), kindName, rackPrepared ? "already prepared" : "not yet prepared");
+
+				// E86: TIDE requires a same-process controller (ruled 2026-10-06).
+				// Only TideApp::InitInstance populates the module factory, and the
+				// CONTROLLER reaches it; without one this build silently produces a
+				// rack of zero modules and every check still passes. Checked HERE
+				// rather than in open() because this is the moment the dependency
+				// becomes load-bearing -- at open() the controller may simply not
+				// have initialised yet, and warning then would cry wolf on a
+				// perfectly ordinary DAW load.
+				if (!tide::controllerInitialised() && !loggedNoController)
+				{
+					loggedNoController = true;
+					fprintf(stderr,
+						"TIDE: instance #%d NO CONTROLLER in this process - the module "
+						"factory was never populated, so this rack will build ZERO "
+						"modules and make no sound. TIDE requires a same-process "
+						"controller; a processor-only host is not supported "
+						"(BACKLOG E86).\n", instanceSeq);
+				}
 
 				rack.setDocumentXml(xml);
 
