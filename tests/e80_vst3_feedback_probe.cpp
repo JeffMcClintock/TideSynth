@@ -121,6 +121,19 @@
  * and run it on the BUNDLE, <build>/SynthEditSem/TIDE-Rack.vst3. --editor is
  * still win32-only (it needs an NSView parent; the CLAP probe has one).
  *
+ * Build (Linux), ported 2026-10-06 for BACKLOG E88. Same headers-only trick,
+ * and -ldl for the loader:
+ *   g++ -std=c++17 -O2 -I <cpm>/vst3_sdk tests/e80_vst3_feedback_probe.cpp \
+ *      -ldl -o /tmp/e80vst3probe
+ * It takes the BUNDLE DIRECTORY (<build>/SynthEditSem/TIDE-Rack.vst3) and
+ * resolves Contents/x86_64-linux/TIDE-Rack.so itself, or a direct path to
+ * that .so. --editor is refused here too (no X11 parent).
+ *
+ * ONE THING ABOUT LINUX THAT IS NOT A DETAIL: --pump CANNOT MEAN HERE WHAT IT
+ * MEANS ELSEWHERE. gmpi_ui has no Linux timer backend at all (E74), so there
+ * is no host main-thread tick to drive and the Linux --pump is a wall-clock
+ * wait of the same length. See the comment in pump_main_thread().
+ *
  *   --activate-first  (E88) setActive(true) BEFORE the state restore, the
  *                     order a host uses to load a preset onto a running
  *                     plug-in. Every other arm restores first, and that order
@@ -160,6 +173,10 @@
 #elif defined(__APPLE__)
   #include <CoreFoundation/CoreFoundation.h>
   #include <unistd.h>
+#elif defined(__linux__)
+  #include <dlfcn.h>
+  #include <unistd.h>
+  #include <sys/stat.h>
 #endif
 
 #include "pluginterfaces/base/funknown.h"
@@ -552,6 +569,29 @@ static void pump_main_thread(double seconds)
         if (CFRunLoopRunInMode(kCFRunLoopDefaultMode, left, false) == kCFRunLoopRunFinished)
             usleep(1000);
     }
+#elif defined(__linux__)
+    /* PORTED 2026-10-06 (linux) for BACKLOG E88, and READ THE NEXT SENTENCE
+     * BEFORE QUOTING ANY --pump FIGURE FROM THIS PLATFORM.
+     *
+     * THERE IS NO TIMER TO PUMP ON LINUX. gmpi_ui's helpers/Timer.cpp has
+     * SetTimer on Windows and CFRunLoopTimer on macOS and **nothing on
+     * Linux** -- that is E74's finding, measured on this box 2026-09-01, and
+     * it is why no gmpi::TimerClient in a hosted Linux plug-in has ever
+     * ticked. So there is no host main-thread mechanism here for a bare host
+     * to drive, and a faithful port cannot invent one.
+     *
+     * What this therefore is: a plain WALL-CLOCK WAIT of the same duration,
+     * so that the handover window a real host leaves between restore and the
+     * first audio callback still elapses and any background thread inside the
+     * wrapper still gets scheduled. That keeps the arm's TIMING comparable
+     * with the Windows and macOS arms while making no claim to be comparable
+     * in MECHANISM.
+     *
+     * The consequence to state wherever these numbers appear: on Linux
+     * --pump and --no-pump differ only by this sleep, so they cannot
+     * discriminate a timer-delivered document from a never-delivered one.
+     * They are not the control pair they are on the other two platforms. */
+    usleep((useconds_t)(seconds * 1000000.0));
 #else
     (void)seconds;
 #endif
@@ -671,9 +711,85 @@ int main(int argc, char** argv)
         check("bundleEntry(bundle) returns true", bundleEntry(cfBundle));
 
     getFactory = (GetFactoryProc)CFBundleGetFunctionPointerForName(cfBundle, CFSTR("GetPluginFactory"));
+#elif defined(__linux__)
+    /* PORTED 2026-10-06 (linux) for BACKLOG E88. On Linux a .vst3 is a bundle
+     * DIRECTORY like macOS, but there is no CFBundle to resolve it, so the
+     * layout is this probe's business: the VST3 spec puts the binary at
+     *
+     *     <Name>.vst3/Contents/<arch>-linux/<Name>.so
+     *
+     * with <arch> from `uname -m`. TIDE builds exactly that -- measured on
+     * this box: TIDE-Rack.vst3/Contents/x86_64-linux/TIDE-Rack.so.
+     *
+     * The module contract is ModuleEntry(void*) before GetPluginFactory and
+     * ModuleExit() after the last release, the Linux counterparts of macOS's
+     * bundleEntry/bundleExit and of Windows' optional InitDll/ExitDll. The
+     * handle ModuleEntry wants is the dlopen handle, which is how the SDK's
+     * own hosting/module_linux.cpp calls it.
+     *
+     * A DIRECT PATH TO THE .so IS ALSO ACCEPTED, because it costs three lines
+     * and makes the probe usable against a build tree whose bundle has not
+     * been assembled yet. */
+    if (wantEditor)
+    {
+        fprintf(stderr, "--editor is win32-only in this probe (no X11 parent yet; "
+                        "tests/e78_clap_gui_probe.c has one)\n");
+        return 2;
+    }
+
+    std::string soPath(bundle);
+    {
+        struct stat st;
+        const bool isDir = (stat(bundle, &st) == 0) && S_ISDIR(st.st_mode);
+        if (isDir)
+        {
+            /* <dir>/<leaf>.vst3 -> leaf, which is also the .so's name. */
+            std::string dir(bundle);
+            while (dir.size() > 1 && dir[dir.size() - 1] == '/') dir.erase(dir.size() - 1);
+            std::string leaf = dir;
+            const size_t slash = leaf.find_last_of('/');
+            if (slash != std::string::npos) leaf = leaf.substr(slash + 1);
+            const size_t dot = leaf.find_last_of('.');
+            if (dot != std::string::npos) leaf = leaf.substr(0, dot);
+
+#if defined(__x86_64__)
+            const char* arch = "x86_64-linux";
+#elif defined(__aarch64__)
+            const char* arch = "aarch64-linux";
+#else
+            const char* arch = "unknown-linux";
+#endif
+            soPath = dir + "/Contents/" + arch + "/" + leaf + ".so";
+            printf("      bundle directory -> %s\n", soPath.c_str());
+        }
+    }
+
+    /* RTLD_LOCAL, deliberately. TIDE links its own copies of SynthEditLib and
+     * gmpi, and so does nothing else in this process -- but RTLD_GLOBAL would
+     * publish those symbols into the probe's namespace, where a future arm
+     * that links any of the same code would bind to the plug-in's copy
+     * instead of its own. That is the kind of failure that looks like a
+     * plug-in defect and is not one. */
+    void* lib = dlopen(soPath.c_str(), RTLD_NOW | RTLD_LOCAL);
+    check("the plug-in binary loads", lib != nullptr);
+    if (!lib)
+    {
+        fprintf(stderr, "  dlopen(%s) failed: %s\n", soPath.c_str(), dlerror());
+        return 1;
+    }
+
+    typedef bool (*ModuleEntryProc)(void*);
+    auto moduleEntry = (ModuleEntryProc)dlsym(lib, "ModuleEntry");
+    auto moduleExit  = (bool (*)())dlsym(lib, "ModuleExit");
+    check("ModuleEntry and ModuleExit are exported",
+          moduleEntry != nullptr && moduleExit != nullptr);
+    if (moduleEntry)
+        check("ModuleEntry(handle) returns true", moduleEntry(lib));
+
+    getFactory = (GetFactoryProc)dlsym(lib, "GetPluginFactory");
 #else
     (void)bundle;
-    fprintf(stderr, "this probe loads a .vst3 on win32 and macOS only\n");
+    fprintf(stderr, "this probe loads a .vst3 on win32, macOS and Linux only\n");
     return 2;
 #endif
     check("GetPluginFactory is exported", getFactory != nullptr);
@@ -1157,6 +1273,9 @@ int main(int argc, char** argv)
 #if defined(__APPLE__)
     if (bundleExit) bundleExit();
     CFRelease(cfBundle);
+#elif defined(__linux__)
+    if (moduleExit) moduleExit();
+    dlclose(lib);
 #endif
 
     printf("\n%s -- the numbers that matter are on STDERR, from the plug-in:\n"
