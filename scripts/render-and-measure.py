@@ -32,22 +32,19 @@ judged on.
     saved projects held bare modules. E2a's prefabs carry internal cables and
     broke that inference.
 
-On Linux this needs a wrapper
-----------------------------
-Run straight from a scheduled run's shell it SEGFAULTS REAPER (rc -11), and the
-only thing visible downstream is an unreadable render. The cause is an inherited
-WAYLAND_DISPLAY: GDK connects to the developer's compositor while REAPER's own
-SWELL code takes the X11 path. render() hands REAPER its own environment, so the
-script cannot apply the fix from inside -- wrap it:
+On Linux
+--------
+REAPER embeds plug-in editors via X11 only (its SWELL layer), so an inherited
+WAYLAND_DISPLAY just sends its GDK to the wrong compositor and segfaults it
+(rc -11). render() therefore launches REAPER with WAYLAND_DISPLAY removed and
+GDK_BACKEND=x11, and says so on stderr. You still need DISPLAY pointing at an X
+server, e.g. a headless weston's Xwayland:
 
-    env -u WAYLAND_DISPLAY DISPLAY=:2 GDK_BACKEND=x11 \\
-        XDG_RUNTIME_DIR=/run/user/$(id -u) HOME=<scratch> \\
-        REAPER=<scratch>/reaper_linux_x86_64/REAPER/reaper \\
+    DISPLAY=:2 HOME=<scratch> REAPER=<scratch>/REAPER/reaper \\
         python3 scripts/render-and-measure.py tests/hosts/v1-rack.rpp
 
-With that every committed fixture renders at the macOS reference figures. The
-full recipe, the headless compositor and the audio-device trap that goes with
-it: docs/ci/headless-gui-verification.md. BACKLOG E76.
+Full recipe and the audio-device trap: docs/ci/headless-gui-verification.md.
+BACKLOG E76, E90.
 
 Run --control first: it proves the render-and-measure chain detects audio, so a
 subsequent -inf is a fact about the patch rather than about this script.
@@ -121,8 +118,7 @@ def unusable_render(path, why):
            "REAPER produced no usable samples -- it died, was killed, or never",
            "started rendering. This is NOT a corrupt fixture."]
     if not sys.platform.startswith(("win", "darwin")):
-        msg += ["On Linux the usual cause is an inherited WAYLAND_DISPLAY; see",
-                "the module docstring for the wrapper, or",
+        msg += ["On Linux check DISPLAY points at a running X server; see",
                 "docs/ci/headless-gui-verification.md for the whole recipe."]
     return "\n".join(msg)
 
@@ -158,6 +154,17 @@ def analyse(path):
     rms = math.sqrt(sq / n)
     db = lambda x: 20 * math.log10(x / full) if x else float("-inf")
     return db(peak), db(rms), peak == 0
+
+
+def reaper_env(platform=None):
+    """REAPER's environment: on Linux, X11 only (see the module docstring)."""
+    env = dict(os.environ)
+    if (platform or sys.platform).startswith("linux"):
+        env.pop("WAYLAND_DISPLAY", None)
+        env["GDK_BACKEND"] = "x11"
+        sys.stderr.write("render-and-measure: launching REAPER with "
+                         "WAYLAND_DISPLAY unset, GDK_BACKEND=x11\n")
+    return env
 
 
 def render(rpp_in, wav_out, workdir):
@@ -196,6 +203,7 @@ def render(rpp_in, wav_out, workdir):
         try:
             rc = subprocess.call([REAPER, "-renderproject", staged],
                                  stdout=fh, stderr=subprocess.STDOUT,
+                                 env=reaper_env(),
                                  timeout=RENDER_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
             fh.write("\n*** REAPER did not exit within %d s -- killed.\n"
