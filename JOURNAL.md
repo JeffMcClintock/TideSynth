@@ -95,6 +95,45 @@ Template:
 
 ---
 
+## 2026-10-08 — macos — no item: STEP 1 and 1.5 empty, STEP 2 re-walked and nothing is eligible for `mac`; E92 is Linux-only by its own guard (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.26454.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item. The queue is blocked for this lane, and this entry says why, item by item, so the next run can check the reasons instead of inheriting them. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`5175b02..7e33c2e`).
+
+**STEP 1:** there is no open `platform:mac` issue. The open issues are #583 (linux, `tide-rack-bot`, already triaged as E89) and #44 (the digest).
+
+**STEP 1.5:** this lane has one open PR, [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (E91's probe). All its checks pass, and it has no reviews and no comments. Under STEP 1.5 it is waiting for merge, so I left it alone. It is `tests/` only and so allowlist-blocked by design. It is also the only open PR in the fleet.
+
+**STEP 2, re-derived rather than inherited.** Since the 10-07 walk, `main` gained only that run's bookkeeping (#644) and Jeff's `7e33c2e` (path-tracer core cap, `modules/common/TidePathTracer.*`). `git diff 5175b02 origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows only the E91 flip, the new E93 row and the `mac` cell. So every parking reason below rests on unchanged text, which I read again:
+
+| row | why not this run |
+|---|---|
+| A35, A37, A42 | parked on their own open `PROPOSED:` entries or, for A42, by its own words. The five `PROPOSED:` entries in `docs/decisions.md` are unchanged. |
+| S8 | `NEEDS-SPEC` is the first thing in its row |
+| E19 | Accept needs a real host with ≥60 s of watched animation and a VCV context-menu toggle. That is a screen, and a scheduled run cannot drive one. |
+| E82 | Accept is a right-click on a VCV panel, which also needs a screen |
+| E2 | an umbrella; it says of itself it is not takeable |
+| E84 | a `.github/workflows/**` edit, which this credential cannot make |
+| X2, E89 | `linux` |
+| **E92** | **`any` on paper, Linux-only in fact; see below** |
+| E93 | `mac`, but its first Accept branch is Jeff's scope ruling (AU2 is out of TIDE since S40). Fixing it is not identical under the WONTFIX answer. The 10-07 cell also says not to build an AU2 consumer unasked. |
+
+**E92 cannot be taken or measured on macOS, and no previous cell said so.** The 10-07 cell's walk did not mention it. `se_gmpi/vst3/CMakeLists.txt` opens with `if(NOT UNIX OR APPLE) return()`, ahead of the `gmpi_wrappers_POPULATED` guard the row is about. On this box, `SynthEditTemplate_VST3` therefore does not exist under **either** variable. E92's Accept (`ninja -t targets all | grep -c SynthEditTemplate_VST3` non-zero in both configures) is unsatisfiable by construction on mac and win. I read this from SE16 `master`. I did not configure it to measure it. I did not edit E92's `Plat` cell, because whether a run may correct a `Plat` cell after filing is itself an open `PROPOSED:` entry.
+
+**Learned:**
+
+- **Check a row's platform guards before you trust its `Plat` cell.** E92 says `any`, but the target it measures sits behind `if(NOT UNIX OR APPLE) return()`, three lines above the guard the row describes. Reading the first twenty lines of the file the Accept cites is enough to settle it.
+- **Neither `claude` nor its CLI version is on this box's `PATH` for a scheduled run.** The app version came from `/Applications/Claude.app`'s `Info.plist` (`CFBundleShortVersionString`).
+
+**Not verified:** nothing was built or run, because there was no item. I did not configure SE16 to measure E92's target count on mac. The claim above is a reading of the guard. I did not verify the fleet PAT's expiry (A40's `NEEDS-JEFF` half).
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean, and never left it. The work was in a scratchpad `git worktree`, removed at the end. `~/Documents/GitHub/SynthEdit` (`master`, clean) was read only. No GUI, no screen taken, and no credential value appears anywhere.
+
+**Next:** see the `mac` cell. **For Jeff:** (1) #643 waits on you by design. (2) E93 wants a scope call. (3) E92 is a linux job in practice. A ruling on the `Plat`-correction `PROPOSED:` entry would let a run re-label it. Until something moves, mac runs will keep producing entries like this one.
+
+**Branch/PR:** `tide/mac/2026-10-08-queue-blocked`. This entry, the `mac` cell, the rotation and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
 ## 2026-10-07 — macos — E91: AU3 does not have E88's defect, measured 3/3 in-process with a control that goes silent; AU2's half was dead code and is filed as E93 (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.19675.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -347,145 +386,3 @@ It prints `SynthEditTemplate_VST3: skipped (gmpi_wrappers not populated)` and ex
 
 **Branch/PR:** `tide/linux/E88-vst3-activate-first` in **two** repos — [GMPI_Wrappers#42](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/42) (the fix) and [#640](https://github.com/JeffMcClintock/TideSynth/pull/640) (the probe's Linux loader, `BACKLOG.md` byte-identical to `main`). This entry, the E88 flip, the E91 and E92 rows, the refreshed `linux` cell, the rotation and the regenerated `docs/lessons.md` are on `tide/linux/2026-10-06-e88-bookkeeping`, which is bookkeeping-only and should auto-merge.
 
-## 2026-10-06 — windows — E76: the Accept's free branch had been takeable for 36 days, and the fix is a guard that tested existence where a zero-length file exists (scheduled run)
-
-**Prompt:** b97bc00a5 · Opus 5, `claude-opus-5` · app Claude desktop **2.19675.0** (CLI `2.1.286`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** took **E76** and met the second branch of its Accept, which three previous runs had ruled ineligible. Filed **E90** for the ruling its other branch needs. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded.
-
-### STEP 1 / 1.5 / 2
-
-**STEP 1:** no open `platform:win` issue, which on this platform still verifies nothing — `build.yml:523` (`matrix.platform != 'win'`) excludes windows from filing. The two open issues are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (linux) and [#44](https://github.com/JeffMcClintock/TideSynth/issues/44), the digest.
-
-**STEP 1.5:** this lane has two open PRs and both are `MERGEABLE`/`CLEAN` with no reviews and no unresolved review comments — [#634](https://github.com/JeffMcClintock/TideSynth/pull/634) (E86's escalation, 13 pass + 2 skipping) and [#629](https://github.com/JeffMcClintock/TideSynth/pull/629) (A41, 13 pass + 2 skipping, carrying one `tide-rack-bot` comment that is a finding rather than a request). STEP 1.5 says a green PR with nothing unresolved is waiting for merge and not a run's to fix, so I left both alone. **#634 has NOT merged**, so E86 stays parked on its own ruling exactly as the `win` cell said it would be. The fleet's other two open PRs are mac's: [#631](https://github.com/JeffMcClintock/TideSynth/pull/631) (E85) and [#633](https://github.com/JeffMcClintock/TideSynth/pull/633) (E88).
-
-**STEP 2, walked in file order.** A35 is parked on its own two open `PROPOSED:` entries — I read both, and note their *"May proceed meanwhile: everything"* lines do not rescue A35 itself, because A35's deliverable IS the exception those entries decide. A37 is overlapped by the bookkeeping `PROPOSED:` entry, whose options (b) and (c) move the NEXT block, which is all A37 builds. **A42 is ineligible by its own words** (*"(b) without (a) is not identical under every answer"*). S8 carries `NEEDS-SPEC` as the first thing in its row. E2 is an umbrella that says of itself *"as one item it is not takeable"*. E19 and E82 both need a screen. X2 and E89 are linux. E84 is a `.github/workflows/**` edit this credential cannot make. E85 and E88 are mac's, with open PRs. E86 is this lane's, parked on #634.
-
-### The finding that matters most this run is about reading a row, not about the code
-
-**The 10-03 and 10-05 cells both ruled E76 ineligible, and both were wrong — in the same way.** Their stated reason was that *"choosing the second branch presumes the answer to the row's own open question."* The row says the opposite. Its words are: *"this is either a documented wrapper (done, in the harness doc) or a linux arm inside `render()` that scrubs the two variables — **the second** needs a ruling on whether a measurement script may edit the caller's environment."* The ruling attaches to the **code** option. The documented-wrapper option is the one the row calls already done.
-
-So **E76's Accept had a free branch for 36 days and three runs walked past it**, each inheriting a one-line verdict that reading the row disproves. The generalisable form: **when a row says something "needs a ruling", check WHICH of its options the ruling is attached to — a fork can have one branch free.** This is the clearest justification I have seen for STEP 2's instruction to re-check every reason rather than inherit it, and it is worth noting that the instruction worked: the only reason I found this is that the `win` cell told me to re-derive the verdicts.
-
-### E76, and the gap was not the one the row names
-
-The row frames this as a missing wrapper. **The wrapper is not missing — it is documented where the operator never looks.** `docs/ci/headless-gui-verification.md:200-205` carries the whole recipe. `scripts/render-and-measure.py` carried nothing: `grep -i "wayland\|GDK\|linux"` on `origin/main`'s copy returns three unrelated hits. And the script already passes `__doc__` to argparse through `RawDescriptionHelpFormatter`, so the docstring reaches `--help` for free — which is what makes a docstring the right place rather than a comment.
-
-**Checked rather than eyeballed:** the six environment names in the new docstring block (`WAYLAND_DISPLAY`, `DISPLAY`, `GDK_BACKEND`, `XDG_RUNTIME_DIR`, `HOME`, `REAPER`) are set-wise identical to those in the harness doc's block.
-
-**Then the other half, which the row states as a symptom and which turned out to have a one-word cause.** The row says the downstream symptom is *"an `EOFError` out of Python's `wave` module on a zero-length render, which reads as a corrupt fixture and is not one."* Reproduced here against `origin/main`'s copy:
-
-```
-zero-length size: 0
-RAISED: EOFError ''        <- wave.py:117
-```
-
-**The message is the empty string.** That is the whole of why it reads as a corrupt fixture: there is nothing in it to read.
-
-**And `main()` had a guard that should have caught it: `if not os.path.exists(out)`. A zero-length file exists.** So the one artefact a dead REAPER actually leaves behind went straight past the branch that prints the REAPER log tail — which is exactly where the `gdk_screen_get_root_window` assertions are — and into `analyse()`. The operator got a traceback with nothing in it instead of the log that names the cause.
-
-Both halves are now fixed and **neither touches the caller's environment**, which is what keeps this identical under every answer to E90:
-
-- `main()` tests size as well as existence, prints the log tail, and names the cause.
-- `analyse()` turns `EOFError`/`wave.Error` into a diagnostic naming REAPER rather than a traceback.
-
-### Verification
-
-`python3 tests/e76_render_diagnostic_probe.py` — **8 arms, rc=0**:
-
-| arm | holds |
-|---|---|
-| 1, 2 | zero-length and truncated renders are diagnosed, not raised |
-| 3 | a real -6 dBFS render still measures **-6.02** |
-| 4 | **digital silence still reports SILENCE** (peak `-inf`, `silent=True`) |
-| 5 | end to end through a REAPER stub that exits 1 leaving a zero-length file: **rc=1, cause named, `Traceback` absent** |
-| 6a-c | **vacuity controls at pinned `e7fba108d`, which MUST fail**: `EOFError('')`, `Error('fmt chunk and/or data chunk missing')`, and a **traceback** from its end-to-end run |
-
-**Arm 4 is the discriminator and is the reason the probe is eight arms rather than three.** A genuinely silent render is the finding this script exists to report. A guard that called silence "unusable" would pass arms 1, 2 and 5 while destroying the script's entire purpose, and nothing else in the probe would have noticed.
-
-**Arm 6 is pinned to a commit, not to `origin/main` — and I changed that during the run, having written it the wrong way first.** Against a moving ref the control goes **red the moment this fix merges**, because `origin/main` would then diagnose too: a probe that self-destructs on merge. That is A41's finding arriving in a new probe four days after A41 measured it. `--base <rev>` overrides the pin, and an unresolvable base is **rc=2** (input unresolvable) rather than a silent pass — the four-exit-code convention `tests/a38_fleet_state.py` settled on.
-
-**REAPER is installed on this box**, which I did not expect and which is worth recording for the lane: `C:/Program Files/REAPER (x64)/reaper.exe`. So `--control` is a **real** A/B rather than a synthetic one — `origin/main`'s script and this one, same machine, same REAPER:
-
-```
-  control (known -6 dBFS 1 kHz sine)
-    peak=   -6.0 dBFS  rms=   -9.0 dBFS  -> AUDIO PRESENT
-  PASS -- the render-and-measure chain does detect audio
-```
-
-`diff` of the two runs' output is **empty**, both rc=0. The measurement path is untouched by a real render, not only by fabricated wavs.
-
-### Two traps hit on the way, both about writing files rather than about E76
-
-**A quoted bash heredoc collapsed `\\` to `\` in this box's shell, twice, and the second time it corrupted a docstring silently.** `return "\\n".join(msg)` reached the file as a string literal broken across two real lines — caught immediately by `SyntaxError`. But the same collapse inside the docstring's shell-continuation lines produced **valid Python that renders wrong**: a lone `\` before a newline is a line continuation *inside the string*, so `--help` printed the four-line wrapper as one 200-character line with the indentation flattened into spaces. **The file looked right in the diff and was wrong in the output**, and the only thing that caught it was running `--help` and reading it. Fixed with the Edit tool rather than a heredoc. The standing note that *"Bash heredocs eat backslashes"* on this box is right, and the sharp corner is that the damage is sometimes syntactically legal.
-
-**`check-links.py` correctly rejects a markdown link to a file that lands in a different PR.** The E76 row cited `tests/e76_render_diagnostic_probe.py` as a link; the probe is on the code branch, so on the bookkeeping branch it does not exist — `BACKLOG.md:113 (no such file)`, rc=1. Backticks plus the PR number instead. **This is a structural consequence of the lane's documents-in-one-PR/code-in-another shape** and will recur on every split: the bookkeeping PR may *name* a new file but must not *link* it until the code PR merges.
-
-### Bookkeeping
-
-- **Two PRs, per the lane's measured shape.** `scripts/` and `tests/` are not on the auto-merge allowlist, so [#636](https://github.com/JeffMcClintock/TideSynth/pull/636) is code-only and waits for a human — with `BACKLOG.md` **byte-identical to `origin/main`** there, the 10-01 zero-diff resting state, so it cannot re-conflict as `main` moves. The DOING mark was pushed first (`6632beeae`) and removed at the end, so the claim was visible for the whole of the work.
-- **E90 filed rather than folded into E76**, because E76 is now IN-REVIEW and a question left inside a closing row is archived with it. That is **A42's shape, four days after A42 was filed for exactly this**. The id was allocated by A42's own guard: highest `E` id is **89** on `main` and on every one of the five remote `tide/*` branches, so E90 was free.
-- **STEP 3's grep before filing:** three rows name `render-and-measure.py` — E19 (as an instrument), E29 (`WONTFIX`) and E76 itself. No existing row owns this job.
-- Lints on the bookkeeping branch: `check-id-refs` rc=0, `check-next-block` rc=0 (*1 take-target across 4 NEXT rows, every one live*), `check-links` rc=0.
-
-### After the push: seven "failures" on these two PRs were all CANCELLATIONS, and the cause is duplicate runs
-
-Worth knowing before the next run debugs its own diff, because `gh pr checks` prints a
-**cancelled** job as **`fail`** and nothing in that output says which it was.
-
-**Every one of the seven had NO RUNNER ASSIGNED** (`runner_name` empty) while sibling jobs on
-the same run got runners and succeeded. They spanned three workflows (`build`, `lint`,
-`verify`) on both PRs -- including [#637](https://github.com/JeffMcClintock/TideSynth/pull/637),
-which touches **four markdown files and nothing else**, so content cannot be the cause.
-
-**The mechanism is visible in the job lists: there are TWO `build` runs at one sha.** At
-`431f45d2d`, run `37369556946` has `render-linux` and `render-macos` **succeeded**; duplicate
-run `37369618746`, same sha, has those same two **cancelled**. So the work passed in one run
-and was cancelled in its twin -- a concurrency group with `cancel-in-progress` racing two runs
-of the same workflow, not a test result.
-
-| | reported by `gh pr checks` | actual `conclusion` | runner |
-|---|---|---|---|
-| the seven | `fail` | `cancelled` | **none assigned** |
-| their siblings, same runs | `pass` | `success` | assigned |
-
-**The one-command tell**, because the check name and the bucket both mislead here:
-
-    gh api repos/JeffMcClintock/TideSynth/actions/runs/<id>/jobs \
-      --jq '.jobs[]|"\(.name) \(.conclusion) runner=[\(.runner_name // "")]"'
-
-`conclusion == "cancelled"` with an empty runner is **never** a finding about the diff: the job
-never started. `gh run rerun <id> --failed` clears them.
-
-**RE-RUN EVERY DUPLICATE, NOT JUST THE NEWEST -- this is the part that cost an extra cycle.**
-Nine cancelled jobs across four runs in the end. I re-ran `37369010701` on #636 and a *second*
-pair of cancellations surfaced minutes later, which looked like the problem escalating and was
-not: they came from `37368962011`, the un-rerun TWIN `build` run at the same sha, which keeps
-reporting its own cancelled jobs into the PR's check list whatever you do to its sibling. Count
-the runs per workflow before concluding anything -- `gh pr checks` flattens them, so two runs
-of `build` appear as one set of names and a stale twin is invisible in that view.
-
-**A re-run is the right response to a cancellation and the wrong response to a failure.** If a
-job cancels again after every duplicate has been re-run, that is infrastructure for Jeff, not
-something a run can fix by retrying.
-
-**Learned:**
-
-- **"Needs a ruling" attaches to an OPTION, not to a row, and a fork can have one branch free.** E76's Accept was an `or`; the ruling sat on one side of it. Three runs read the row's *"which is why this is filed rather than done"* as covering the whole row and inherited each other's verdict. The check costs one careful read of the sentence that names the ruling.
-- **An existence check is not a non-emptiness check, and the difference is exactly the case a crashed process produces.** `os.path.exists` on a file a dying writer created and never filled is `True`. The guard that would have printed the diagnosing log tail was already there and was skipped by the only failure it was written for.
-- **`wave` raises `EOFError` whose `str()` is empty.** An exception with no message is worse than a wrong message: there is nothing for the operator to search for, which is how it came to be read as a corrupt fixture for three days on another box.
-- **A vacuity control must be pinned to a commit, or it inverts when the fix lands.** Mine read `origin/main` in its first draft and would have gone red on merge. The general rule: a control that asserts *"the baseline does NOT do X"* is a statement about a specific tree, and naming a branch instead of a commit makes it a statement about whenever it happens to run.
-- **A docstring can be corrupted into something syntactically valid and semantically wrong, and only the rendered output shows it.** Reading the diff was not enough; `--help` was.
-- **A cancelled CI job is reported as `fail`, and the difference is one API field.** Seven
-  cancellations across both PRs, all with no runner assigned, one of them a job that
-  SUCCEEDED in its duplicate run at the same sha. **Read `conclusion` and `runner_name`
-  before reading your own diff** -- a job that never started cannot have been broken by it.
-- **The bookkeeping/code PR split forbids markdown links across the seam.** Name a cross-PR file in backticks; `check-links` is right to reject the link, and it will reject it on every future split.
-
-**Not verified:** **no committed fixture was rendered.** The developer was at this machine throughout and a fixture render loads the TIDE plug-in, which can raise the modal E29 documents — bounded by the script's 300 s timeout, but on his screen meanwhile. `--control` exercises the full REAPER round trip without a plug-in, so it was the right control to run and the wrong one to generalise from: **it says nothing about whether any fixture still measures at its reference figures**, only that the chain and the measurement arithmetic are unchanged. **Nothing was measured on linux** — the docstring's wrapper is transcribed from the harness doc's own 2026-08-31 linux measurement and checked for agreement with that doc, not re-derived against a running REAPER, so E76's **first** Accept branch remains unmet and unmeasured. No build of any product target, and no C++ compiled. I did not judge E19's or E82's Accepts beyond confirming each needs a screen. A40's `NEEDS-JEFF` half is still unanswered.
-
-**Machine state:** `C:\SE\TideSynth` started and ended on `main`, clean, and **never left it** — all work in two scratchpad `git worktree`s, both removed at the end. **Seven of the eight repos were clean at the start and I touched none of them:** `SE16` (`master`), `SynthEditLib`, `GMPI`, `GMPI_Wrappers`, `SynthEdit_Rack_Adaptor`, `VCV_Fundamental_gmpi` (all `main`). `gmpi_ui` (`main`) carried **one untracked directory, `examples/AluminiumDemo/`** — the developer's work in progress, predating this run, so left exactly alone per STEP 5's third kind. **The developer was at the machine throughout** (Visual Studio on `ToneMaster`/`HeaderPanel.h`, Outlook, Slack), so **no GUI work and no screen taken**; the one REAPER invocation is `-renderproject`, which renders and exits without a window. `git fetch` again warned *"too many unreachable loose objects"* in `C:\SE\TideSynth` — a local housekeeping note for Jeff (`git gc`), not a repository problem, and not mine to run on his tree. No credential value appears in any commit, PR, journal entry or row.
-
-**Next:** see the `win` NEXT cell. **For Jeff, three things:** (1) [#634](https://github.com/JeffMcClintock/TideSynth/pull/634) is E86's fork and **cannot auto-merge by design** — merging it is the ruling. (2) [#629](https://github.com/JeffMcClintock/TideSynth/pull/629) (A41, green since 10-01) and [#636](https://github.com/JeffMcClintock/TideSynth/pull/636) (E76) are both code-only and so allowlist-blocked by design, not stuck. (3) **E90 is a new ruling question** — may a measurement script edit the caller's environment — and it wants a `PROPOSED:` entry before anyone writes the linux arm.
-
-**Branch/PR:** E76's code is on `tide/win/E76-render-wrapper-docstring`, [#636](https://github.com/JeffMcClintock/TideSynth/pull/636) — `BACKLOG.md` byte-identical to `main` there, so it conflicts with nothing. This entry, the E76 flip, the E90 row and the refreshed `win` cell are on `tide/win/2026-10-06-e76-bookkeeping`, which is bookkeeping-only and should auto-merge.

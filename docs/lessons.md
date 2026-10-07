@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **505 KB** across **389** entries, so copying them
+Learned sections are **505 KB** across **390** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **163 KB / 1673 lessons — 3.1x smaller**, and represents
+A8. This is **163 KB / 1675 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,13 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-08
+
+**macos — no item: STEP 1 and 1.5 empty, STEP 2 re-walked and nothing is eligible for `mac`; E92 is Linux-only by its own guard (scheduled run)**
+
+- Check a row's platform guards before you trust its `Plat` cell.
+- Neither `claude` nor its CLI version is on this box's `PATH` for a scheduled run.
 
 ## 2026-10-07
 
@@ -70,16 +77,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `nohup cmd &` inside the Bash tool reports the SHELL's exit, not the command's, and the command keeps running.
 - `pkill -f '<pattern>'` matched my own shell and killed it with exit 144 — the fifth time this fleet has paid for that
 - A command ending in `grep -c` reports the TASK as failed when the count is zero.
-
-**windows — E76: the Accept's free branch had been takeable for 36 days, and the fix is a guard that tested existence where a zero-length file exists (scheduled run)**
-
-- "Needs a ruling" attaches to an OPTION, not to a row, and a fork can have one branch free.
-- An existence check is not a non-emptiness check, and the difference is exactly the case a crashed process produces.
-- `wave` raises `EOFError` whose `str()` is empty.
-- A vacuity control must be pinned to a commit, or it inverts when the fix lands.
-- A docstring can be corrupted into something syntactically valid and semantically wrong, and only the rendered output shows it.
-- A cancelled CI job is reported as `fail`, and the difference is one API field.
-- The bookkeeping/code PR split forbids markdown links across the seam.
 
 ## 2026-10-01
 
@@ -161,6 +158,16 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Two branches that each create the month's archive file collide add/add even when they agree on its content.
 - Where you insert a journal entry decides which other open PR you collide with.
 - Rotation can reintroduce a conflict.
+
+**windows — E76: the Accept's free branch had been takeable for 36 days, and the fix is a guard that tested existence where a zero-length file exists (scheduled run)**
+
+- "Needs a ruling" attaches to an OPTION, not to a row, and a fork can have one branch free.
+- An existence check is not a non-emptiness check, and the difference is exactly the case a crashed process produces.
+- `wave` raises `EOFError` whose `str()` is empty.
+- A vacuity control must be pinned to a commit, or it inverts when the fix lands.
+- A docstring can be corrupted into something syntactically valid and semantically wrong, and only the rendered output shows it.
+- A cancelled CI job is reported as `fail`, and the difference is one API field.
+- The bookkeeping/code PR split forbids markdown links across the seam.
 
 ## 2026-09-08
 
