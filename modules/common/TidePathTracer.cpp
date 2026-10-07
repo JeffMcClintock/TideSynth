@@ -2878,7 +2878,8 @@ void addStudio(Scene& scene, const Studio& studio)
 // Every thread the pool spawns demotes ITSELF below the UI before taking its
 // first tile.
 //
-// Why: the pool is hardware_concurrency wide -- 28 on the windows box -- and
+// Why: the pool used to be hardware_concurrency wide -- 28 on the windows
+// box; renderProgressive says why it is now a quarter of that -- and
 // at default priority those threads tie the UI thread for every core, so from
 // launch until the last full faceplate trace lands (~10 s on a three-panel
 // rack) the whole app answers sluggishly. Below the UI's priority the
@@ -2968,9 +2969,27 @@ void renderProgressive(const Scene& scene, const Camera& camera, const Settings&
 	const int tilesY = (image.height + kTile - 1) / kTile;
 	const int tileCount = tilesX * tilesY;
 
+	// The default is a QUARTER of the logical cores, because the faceplates
+	// are a cosmetic background job and the machine has better uses for the
+	// rest. lowerPoolThreadPriority is not a substitute for the cap: with
+	// every core taken, BELOW_NORMAL or not, Windows froze OTHER processes for
+	// up to 2.6 s at a time while the launch-time faceplates traced. The
+	// Windows MIDI service was one of them, so a keyboard played in the first
+	// ~15 s after launch sounded up to 2.5 s late.
+	//
+	// Measured 2026-10-07 on the 28-thread windows box, launching the
+	// standalone and watching a separate normal-priority process's worst
+	// Sleep(1) (idle machine: 19.5 ms):
+	//   threads  stall    faceplates done  CPU spent
+	//   28       2470 ms  16 s             410 s
+	//   14         41 ms  24 s             325 s
+	//    8         15 ms  34 s             268 s
+	//    4         15 ms  67 s             266 s
+	// Past ~8 threads the extra ones mostly contend rather than trace, so the
+	// cap also saves CPU. Until a full trace lands the panel shows its preview.
 	int threadCount = settings.threads;
 	if (threadCount <= 0)
-		threadCount = (int)std::thread::hardware_concurrency();
+		threadCount = (int)std::thread::hardware_concurrency() / 4;
 	threadCount = std::clamp(threadCount, 1, 64);
 
 	std::atomic<int> nextTile{ 0 };

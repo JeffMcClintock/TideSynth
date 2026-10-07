@@ -1075,7 +1075,8 @@ struct Settings
 
 	uint32_t seed = 0x9E3779B9u;
 
-	// 0 means "use the hardware concurrency". Tiles are independent and each
+	// 0 means "a quarter of the hardware concurrency, at least one" --
+	// renderProgressive says why. Tiles are independent and each
 	// gets its own RNG stream seeded from its coordinates, so the image is
 	// DETERMINISTIC regardless of thread count — a render is reproducible and
 	// diffable, which matters when the output is committed as a cached asset.
