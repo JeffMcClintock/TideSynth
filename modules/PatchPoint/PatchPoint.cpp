@@ -84,9 +84,11 @@ auto r = Register<PatchPointIn>::withXml(R"XML(
         <Pin name="Output" datatype="audio" direction="out"/>
         <Pin name="Connected" datatype="bool" direction="out"/>
     </Audio>
-    <GUI graphicsApi="GmpiUi"/>
+    <GUI graphicsApi="GmpiUi">
+        <Pin name="Title" datatype="string_utf8" default=""/>
+    </GUI>
     <PatchPoints>
-        <PatchPoint pinId="0" center="10,10" radius="5"/>
+        <PatchPoint pinId="0" center="15,25" radius="5"/>
     </PatchPoints>
 </Plugin>
 )XML");
@@ -98,9 +100,11 @@ auto r2 = Register<PatchPointOut>::withXml(R"XML(
       <Pin name="Input" datatype="audio" linearInput="true"/>
       <Pin name="Output" datatype="float" direction="out" rate="audio" isMinimised="true" />
     </Audio>
-    <GUI graphicsApi="GmpiUi"/>
+    <GUI graphicsApi="GmpiUi">
+        <Pin name="Title" datatype="string_utf8" default=""/>
+    </GUI>
     <PatchPoints>
-		<PatchPoint pinId="1" center="10,10" radius="5" />
+		<PatchPoint pinId="1" center="15,25" radius="5" />
     </PatchPoints>
   </Plugin>
 )XML");

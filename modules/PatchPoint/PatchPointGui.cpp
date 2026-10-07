@@ -6,14 +6,72 @@ using namespace gmpi;
 using namespace gmpi::editor;
 using namespace gmpi::drawing;
 
+// Outputs get a black rounded backing with a white title, inputs a bare black title.
+template<bool isOutput>
 class PatchPointGui final : public PluginEditor, public gmpi::api::IDrawingLayer
 {
+	// Sized like a VCV Fundamental output cell (one jack's share of VCO's output box). Must match <PatchPoint center="15,25"> in PatchPoint.cpp.
+	static constexpr Size moduleSize{ 30.0f, 40.0f };
+	static constexpr float jackBottomMargin = 15.0f; // layout rect bottom to jack centre
+
 	// Radius of the clickable disc, and of the debug outline.
 	static constexpr float radius = 9.0f;
-	static constexpr Point center{ 10.0f, 10.0f };
+
+	// VCV Fundamental's label size.
+	static constexpr float titleCapHeight = 4.3f;
+	static constexpr float titleGap = 2.0f;
+
+	// The backing's hole is the socket's black moulded body (TiDEPanel's kJackBodyMm = 8 mm), so the collar and bore show through.
+	static constexpr float jackBodyRadius = 4.0f * 75.0f / 25.4f;
+	static constexpr float backingCornerRadius = 2.83f; // 1 mm, as VCV
+
+	Pin<std::string> pinTitle;
+
+	TextFormat titleFormat;
+
+	// VCV Fundamental's panel colours.
+	static constexpr uint32_t darkColor = 0x1F1F1Fu;
+	static constexpr uint32_t lightColor = 0xF0F0F0u;
+
+	// Local coords. The jack sits near the bottom of the layout rect, the title above it.
+	Point jackCenter() const
+	{
+		return { getWidth(bounds) * 0.5f, getHeight(bounds) - jackBottomMargin };
+	}
+
+	Rect titleRect() const
+	{
+		return { 0.0f, 0.0f, getWidth(bounds), jackCenter().y - jackBodyRadius - titleGap };
+	}
+
+	void onTitleChanged()
+	{
+		if (!pinTitle.value.empty() && !titleFormat && drawingHost)
+		{
+			gmpi::shared_ptr<gmpi::api::IUnknown> unk;
+			drawingHost->getDrawingFactory(unk.put());
+			Factory factory;
+			if (unk)
+				unk->queryInterface(&drawing::api::IFactory::guid, AccessPtr::put_void(factory));
+
+			if (AccessPtr::get(factory))
+			{
+				titleFormat = factory.createTextFormat(titleCapHeight, {}, FontWeight::Bold, FontStyle::Normal, FontStretch::Normal, FontFlags::CapHeight);
+				titleFormat.setTextAlignment(TextAlignment::Center);
+				titleFormat.setParagraphAlignment(ParagraphAlignment::Far);
+				titleFormat.setWordWrapping(WordWrapping::NoWrap);
+			}
+		}
+
+		if (drawingHost)
+			drawingHost->invalidateRect(&bounds);
+	}
 
 public:
-	PatchPointGui() = default;
+	PatchPointGui()
+	{
+		pinTitle.onUpdate = [this](PinBase*) { onTitleChanged(); };
+	}
 
 	// Layer 4 = editor guide (see IDrawingLayer in NativeUi.h): a design-time-only
 	// overlay pass, so the debug outline still needs its own _DEBUG guard to stay
@@ -22,6 +80,33 @@ public:
 	// -- so all drawing, not just this guide, lives here now.
 	ReturnCode renderLayer(gmpi::drawing::api::IDeviceContext* drawingContext, int32_t layer) override
 	{
+		if (layer == 0)
+		{
+			Graphics g(drawingContext);
+			const auto center = jackCenter();
+
+			if constexpr (isOutput)
+			{
+				auto backing = g.getFactory().createPathGeometry();
+				auto sink = backing.open();
+				sink.setFillMode(FillMode::Alternate);
+				sink.addRoundedRect({ { 0.0f, 0.0f, getWidth(bounds), getHeight(bounds) }, backingCornerRadius, backingCornerRadius });
+				sink.addRoundedRect({ { center.x - jackBodyRadius, center.y - jackBodyRadius, center.x + jackBodyRadius, center.y + jackBodyRadius }, jackBodyRadius, jackBodyRadius });
+				sink.close();
+				g.fillGeometry(backing, g.createSolidColorBrush(colorFromHex(darkColor)));
+			}
+
+			if (titleFormat && !pinTitle.value.empty())
+			{
+				const auto r = titleRect();
+				g.pushAxisAlignedClip(r);
+				g.drawTextU(pinTitle.value, titleFormat, r, g.createSolidColorBrush(colorFromHex(isOutput ? lightColor : darkColor)));
+				g.popAxisAlignedClip();
+			}
+
+			return ReturnCode::Ok;
+		}
+
 		if (layer == 4)
 		{
 			Graphics g(drawingContext);
@@ -31,7 +116,7 @@ public:
 			strokeStyleProperties.dashStyle = DashStyle::Dot;
 			auto dottedStroke = g.getFactory().createStrokeStyle(strokeStyleProperties);
 
-			g.drawEllipse({ center, radius + 0.5f, radius + 0.5f }, g.createSolidColorBrush(Colors::Orange), 1.0f, dottedStroke);
+			g.drawEllipse({ jackCenter(), radius + 0.5f, radius + 0.5f }, g.createSolidColorBrush(Colors::Orange), 1.0f, dottedStroke);
 
 			return ReturnCode::Ok;
 		}
@@ -42,16 +127,17 @@ public:
 	// an editor declares it does not resize (see PluginEditor::measure).
 	ReturnCode measure([[maybe_unused]] const Size* availableSize, Size* returnDesiredSize) override
 	{
-		*returnDesiredSize = Size{ 20.0f, 20.0f };
+		*returnDesiredSize = moduleSize;
 		return ReturnCode::Ok;
 	}
 
 	// Ok = hit, Unhandled/Fail = miss.
 	// The base class defaults to Ok so the user can select by clicking; here we
-	// narrow the hit area to the disc so the corners of the 20x20 box fall through.
+	// narrow the hit area to the disc so the rest of the module falls through.
 	// point will always be within the bounding rect.
 	ReturnCode hitTest(Point point, [[maybe_unused]] int32_t flags) override
 	{
+		const auto center = jackCenter();
 		const float dx = point.x - center.x;
 		const float dy = point.y - center.y;
 
@@ -90,6 +176,6 @@ namespace
 	// no editor for the plugin. The factory keys on {subtype, id}, so registering
 	// the same class twice under two ids is fine -- SDK3 needed a second subclass
 	// here only because its macro keyed on the type.
-	auto rIn = gmpi::Register<PatchPointGui>::withId("TiDE Patch Point In");
-	auto rOut = gmpi::Register<PatchPointGui>::withId("TiDE Patch Point Out");
+	auto rIn = gmpi::Register<PatchPointGui<false>>::withId("TiDE Patch Point In");
+	auto rOut = gmpi::Register<PatchPointGui<true>>::withId("TiDE Patch Point Out");
 }
