@@ -111,23 +111,9 @@ inline void write(const char* fmt, ...)
 #define TIDE_LOG_NOW  0.0
 #endif
 
-// PREVIEW ONLY: the Draft image is the panel's final face, and the full trace
-// never runs. On by default in DEBUG builds and off in release.
-//
-// The full trace takes seconds per panel in an optimised build and many times
-// that unoptimised, and it cannot be cancelled once started.
-// A debug session that opens a rack spends that time waiting on faceplates,
-// and the lighting is rarely what is being debugged. The preview still has
-// every edge, hole and seam in place at full resolution. Only the light
-// transport is missing.
-//
-// Set it to 0 (-DTIDE_PANEL_PREVIEW_ONLY=0) to debug the full trace itself.
+// PREVIEW ONLY (-DTIDE_PANEL_PREVIEW_ONLY=1): the Draft image is the panel's final face and the full trace never runs. Off by default in all builds.
 #ifndef TIDE_PANEL_PREVIEW_ONLY
-#ifdef NDEBUG
 #define TIDE_PANEL_PREVIEW_ONLY 0
-#else
-#define TIDE_PANEL_PREVIEW_ONLY 1
-#endif
 #endif
 constexpr bool kPreviewOnly = TIDE_PANEL_PREVIEW_ONLY != 0;
 
@@ -1992,13 +1978,13 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 //
 //   1. On a panel's first render its Draft preview is traced right there, on
 //      the UI thread, at 100% size, so the very first frame is the face.
-//   2. In Release the full trace is then queued for one background worker, at
+//   2. The full trace is then queued for one background worker, at
 //      the hardware resolution for 100% zoom.
 //   3. The panel shows the full trace when it lands.
 //
 // Each is traced once. Zoom and resize never start a trace. Only a change to
-// one of the face's pins does, and that is a new face. Debug builds stop
-// after step 1 (see kPreviewOnly).
+// one of the face's pins does, and that is a new face. A preview-only build
+// stops after step 1 (see kPreviewOnly).
 struct FaceTrace
 {
 	// 1 once the preview is in, which it always is by the time anyone else
