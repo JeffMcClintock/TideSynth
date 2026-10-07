@@ -452,23 +452,21 @@ constexpr float kJackMetalRoughness = 0.14f;
 // surface rather than a nut done up against it.
 constexpr float kJackProudFrac = 0.25f;
 
-// The automatic indent. Jacks are grouped by proximity — centres within
-// kJackClusterDips share one pocket — and each group gets a pocket padded out
-// from the group's extent. The pocket then SHRINKS away from any other
-// component it would swallow, down to the minimum pad, because a pocket is a
-// jack feature: a knob half-in half-out of a pocket is a drawing error on a
-// real panel too.
-// THE RULE: adjacent patch points share an indent, unless doing so would
-// affect another widget. Expressed as a multiple of the bezel rather than as a
-// bare number, because what counts as "the next jack along" is set by how big a
-// jack is. 46 DIPs was too tight and split an ordinary row of three, which is
-// the shape a panel of patch points actually takes.
+// Output jacks sit on black paint, VCV style. Outputs within kJackClusterDips of each other share one
+// rounded rectangle, unless the merged one would overlap another widget (input jacks included).
+// Expressed as a multiple of the bezel, because "the next jack along" is set by how big a jack is.
 constexpr float kJackClusterDips = 3.5f * (2.0f * kJackSurroundDips);
-constexpr float kIndentPadDips = 5.0f;
-constexpr float kIndentMinPadDips = 2.0f;
-constexpr float kIndentCornerDips = 6.7f;
-constexpr float kIndentDepth = 0.035f;   // world units, from the front face
-constexpr float kIndentFillet = 0.02f;   // radius where the pocket meets the face
+
+// One output's paint is the TiDE Patch Point Out cell: 30x40, jack centre 15 above its bottom.
+constexpr float kOutputPaintPadXDips = 15.0f;
+constexpr float kOutputPaintPadTopDips = 25.0f;   // room for the patch point's title
+constexpr float kOutputPaintPadBottomDips = 15.0f;
+constexpr float kOutputPaintCornerDips = 2.83f;   // 1 mm, as VCV
+constexpr float kOutputPaintThicknessDips = 0.15f;
+constexpr float kOutputPaintAlbedo = 0.03f;       // lifted off black so the brushing reads through
+constexpr float kOutputPaintRoughness = 0.35f;    // a soft sheen, not gloss
+
+constexpr float kIndentFillet = 0.02f;   // radius where the switch pocket meets the face
 
 // LED punch-outs: a plain hole into a dark void. The lens and its light get
 // drawn over the top in vector later, like the knob pointer.
@@ -1019,7 +1017,7 @@ void addPanelStudio(tide::render::Scene& scene, float k)
 // carrying real newlines would arrive as one long line. '#' starts a comment.
 //
 //   knob [big|small] X Y
-//   jack X Y
+//   jack [in|out] X Y      (in if omitted; outputs get black paint)
 //   switch X Y
 //   grill X Y [COLS ROWS]
 //   slots X Y [ROWS]
@@ -1067,6 +1065,7 @@ struct PanelComponent
 	Kind kind{};
 	float x = 0.0f, y = 0.0f; // DIPs from panel top-left
 	bool big = false;         // knobs only
+	bool output = false;      // jacks only
 	int cols = 0, rows = 0;   // grill / slots only
 };
 
@@ -1134,7 +1133,15 @@ std::vector<PanelComponent> parsePanelLayout(const std::string& text)
 				coordAt = 2;
 			}
 		}
-		else if (tok[0] == "jack")   c.kind = PanelComponent::Kind::Jack;
+		else if (tok[0] == "jack")
+		{
+			c.kind = PanelComponent::Kind::Jack;
+			if (tok.size() > 1 && (tok[1] == "in" || tok[1] == "out"))
+			{
+				c.output = (tok[1] == "out");
+				coordAt = 2;
+			}
+		}
 		else if (tok[0] == "switch") c.kind = PanelComponent::Kind::Switch;
 		else if (tok[0] == "grill")  { c.kind = PanelComponent::Kind::Grill; c.cols = kVentColsAuto; c.rows = kVentRowsDefault; }
 		else if (tok[0] == "slots")  { c.kind = PanelComponent::Kind::Slots; c.rows = kSlotRowsDefault; }
@@ -1258,6 +1265,10 @@ KeepOut componentKeepOut(const PanelComponent& c, float dipsWide)
 			0.5f * kSlotPitchDips * (float)c.rows, 2.0f);
 	case PanelComponent::Kind::Led:
 		return box(kLedHoleRadiusDips, kLedHoleRadiusDips, 2.0f);
+	case PanelComponent::Kind::Jack:
+		if (c.output)
+			return {};
+		return box(kJackSurroundDips, kJackSurroundDips, 1.5f);
 	default:
 		return {};
 	}
@@ -1310,13 +1321,6 @@ void shrinkPocketClear(DipRect& rect, const DipRect& minRect, const DipRect& kee
 	}
 }
 
-// Jacks grouped by proximity (single linkage), one pocket per group, each
-// pocket shrunk away from anything that is not a jack.
-DipRect padRect(const DipRect& b, float pad)
-{
-	return { b.x0 - pad, b.y0 - pad, b.x1 + pad, b.y1 + pad };
-}
-
 // Pull `rect` back off every non-jack widget, never past `floorRect`, and
 // report whether that succeeded. Shrinking FIRST and vetoing only if it fails
 // is the difference between "these two jacks cannot share a pocket because a
@@ -1327,8 +1331,6 @@ bool clearOfOtherWidgets(DipRect& rect, const DipRect& floorRect,
 {
 	for (const auto& c : comps)
 	{
-		if (c.kind == PanelComponent::Kind::Jack)
-			continue;
 		const KeepOut k = componentKeepOut(c, dipsWide);
 		if (k.has)
 			shrinkPocketClear(rect, floorRect, k.rect);
@@ -1336,8 +1338,6 @@ bool clearOfOtherWidgets(DipRect& rect, const DipRect& floorRect,
 
 	for (const auto& c : comps)
 	{
-		if (c.kind == PanelComponent::Kind::Jack)
-			continue;
 		const KeepOut k = componentKeepOut(c, dipsWide);
 		if (k.has && rectsOverlap(rect, k.rect))
 			return false;
@@ -1345,22 +1345,25 @@ bool clearOfOtherWidgets(DipRect& rect, const DipRect& floorRect,
 	return true;
 }
 
-// One pocket per group of adjacent patch points.
+// One painted rectangle per group of adjacent output jacks.
 //
-// Agglomerative with a VETO rather than plain clustering: every jack starts in
-// its own pocket, and two pockets merge only if the combined one can be made
-// to clear every other widget. A single pass of "cluster then fix up" cannot
-// express that -- it has already committed to the grouping by the time it
-// discovers a knob in the way.
-std::vector<DipRect> computeJackPockets(const std::vector<PanelComponent>& comps,
+// Agglomerative with a VETO rather than plain clustering: every output starts in
+// its own rectangle, and two merge only if the combined one clears every other
+// widget. A single pass of "cluster then fix up" cannot express that.
+// The rectangle is the full patch-point cell around each jack; it never shrinks,
+// since the title sits in its top. Overlapping a widget only vetoes a merge.
+std::vector<DipRect> computeOutputPaint(const std::vector<PanelComponent>& comps,
 	float dipsWide)
 {
-	constexpr float pad = kJackSurroundDips + kIndentPadDips;
-	constexpr float minPad = kJackSurroundDips + kIndentMinPadDips;
+	const auto padCell = [](const DipRect& b)
+	{
+		return DipRect{ b.x0 - kOutputPaintPadXDips, b.y0 - kOutputPaintPadTopDips,
+			b.x1 + kOutputPaintPadXDips, b.y1 + kOutputPaintPadBottomDips };
+	};
 
 	std::vector<std::vector<size_t>> groups;
 	for (size_t i = 0; i < comps.size(); ++i)
-		if (comps[i].kind == PanelComponent::Kind::Jack)
+		if (comps[i].kind == PanelComponent::Kind::Jack && comps[i].output)
 			groups.push_back({ i });
 	if (groups.empty())
 		return {};
@@ -1407,9 +1410,8 @@ std::vector<DipRect> computeJackPockets(const std::vector<PanelComponent>& comps
 				std::vector<size_t> combined = groups[a];
 				combined.insert(combined.end(), groups[b].begin(), groups[b].end());
 
-				const DipRect bbox = bboxOf(combined);
-				DipRect candidate = padRect(bbox, pad);
-				if (!clearOfOtherWidgets(candidate, padRect(bbox, minPad), comps, dipsWide))
+				DipRect candidate = padCell(bboxOf(combined));
+				if (!clearOfOtherWidgets(candidate, candidate, comps, dipsWide))
 					continue; // merging here WOULD affect another widget: leave them apart
 
 				groups[a] = std::move(combined);
@@ -1419,16 +1421,11 @@ std::vector<DipRect> computeJackPockets(const std::vector<PanelComponent>& comps
 		}
 	}
 
-	std::vector<DipRect> pockets;
-	pockets.reserve(groups.size());
+	std::vector<DipRect> painted;
+	painted.reserve(groups.size());
 	for (const auto& g : groups)
-	{
-		const DipRect bbox = bboxOf(g);
-		DipRect pocket = padRect(bbox, pad);
-		clearOfOtherWidgets(pocket, padRect(bbox, minPad), comps, dipsWide);
-		pockets.push_back(pocket);
-	}
-	return pockets;
+		painted.push_back(padCell(bboxOf(g)));
+	return painted;
 }
 
 // --- the cutter fields -----------------------------------------------------
@@ -1543,26 +1540,26 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 
 	// Everything cut out of or behind the plate, gathered as WORLD-space PODs
 	// the panel's distance lambda can capture by value.
-	struct PocketW { float cx, cy, hw, hh, cr; };
+	struct PaintW { float cx, cy, hw, hh, cr; };
 	struct GrillW { float cx, cy, pitchX, pitchY, r; int cols, rows; };
 	struct SlotW { float cx, cy, pitchY, halfLen, halfThick; int rows; };
 	struct HoleW { float x, y, r; };
 	struct SwitchW { float cx, cy; }; // the slot is centred, so cy serves both
 
-	std::vector<PocketW> pockets;
+	std::vector<PaintW> outputPaint;
 	std::vector<GrillW> grills;
 	std::vector<SlotW> slotBanks;
 	std::vector<HoleW> holes; // jack bores and LED punch-outs
 	std::vector<SwitchW> switches;
 
-	for (const DipRect& r : computeJackPockets(spec.components, dipsWide))
+	for (const DipRect& r : computeOutputPaint(spec.components, dipsWide))
 	{
-		pockets.push_back({
+		outputPaint.push_back({
 			toWorldX(0.5f * (r.x0 + r.x1)),
 			toWorldY(0.5f * (r.y0 + r.y1)),
 			0.5f * (r.x1 - r.x0) / dipsWide,
 			0.5f * (r.y1 - r.y0) / dipsWide,
-			kIndentCornerDips / dipsWide });
+			kOutputPaintCornerDips / dipsWide });
 	}
 
 	// A dark interior behind every through-cut. Holes are drilled RIGHT
@@ -1748,21 +1745,6 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 				swHoleHalfW, swHoleHalfH, swHoleCorner), p.z, halfZ));
 		}
 
-		// POCKETS BEFORE HOLES, and the order is the whole difference between a
-		// punched hole and a moulded dimple.
-		//
-		// opSmoothSubtract blends with whatever is already in the field, so
-		// cutting the holes first let the pocket's fillet round their edges too:
-		// a hole in a pocket floor came out with a bevel about 1.9 DIPs wide,
-		// roughly two thirds of it fillet and the rest the through-cut taper.
-		// Cutting the pocket first and then punching through it with a HARD
-		// subtract leaves the hole's edge as sharp as the taper allows, which is
-		// what a punched panel looks like -- you fillet the pressing, then you
-		// punch it. The switch above has always done it in this order.
-		for (const auto& po : pockets)
-			d = opSmoothSubtract(d, sdIndentTool(p, po.cx, po.cy, po.hw, po.hh,
-				po.cr, halfZ - kIndentDepth), kIndentFillet);
-
 		// Jack bores and LED punch-outs: clean through the plate. What the eye
 		// looks down is the dark thing behind -- the jack's blind barrel, the
 		// LED's backing box -- so the hole goes dark without becoming a
@@ -1792,6 +1774,26 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 		// to stay conservative.
 		return d * 0.55f;
 	};
+	// Output paint: a thin coat that follows the face, so the brushing shows through it as relief.
+	// The face field is scaled by 0.55 (see above), hence the offset is too.
+	{
+		const auto faceField = panel.distance;
+		const float offset = 0.55f * kOutputPaintThicknessDips / dipsWide;
+		for (const auto& pa : outputPaint)
+		{
+			Object paint;
+			paint.material = recipes::plastic({ kOutputPaintAlbedo, kOutputPaintAlbedo, kOutputPaintAlbedo }, kOutputPaintRoughness);
+			paint.boundsCentre = { pa.cx, pa.cy, halfZ };
+			paint.boundsRadius = safeSqrt(pa.hw * pa.hw + pa.hh * pa.hh) + 0.02f;
+			paint.distance = [faceField, offset, pa](const Vec3& p)
+			{
+				return tide::render::maxf(faceField(p) - offset,
+					sdRoundRect2D(p.x, p.y, pa.cx, pa.cy, pa.hw, pa.hh, pa.cr));
+			};
+			scene.add(std::move(paint));
+		}
+	}
+
 	scene.add(std::move(panel));
 
 	// --- the hardware --------------------------------------------------------

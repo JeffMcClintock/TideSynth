@@ -6,7 +6,7 @@ using namespace gmpi;
 using namespace gmpi::editor;
 using namespace gmpi::drawing;
 
-// Outputs get a black rounded backing with a white title, inputs a bare black title.
+// Outputs get a light title (the TiDE panel paints their black backing), inputs a dark one.
 template<bool isOutput>
 class PatchPointGui final : public PluginEditor, public gmpi::api::IDrawingLayer
 {
@@ -21,9 +21,8 @@ class PatchPointGui final : public PluginEditor, public gmpi::api::IDrawingLayer
 	static constexpr float titleCapHeight = 4.3f;
 	static constexpr float titleGap = 2.0f;
 
-	// The backing's hole is the socket's black moulded body (TiDEPanel's kJackBodyMm = 8 mm), so the collar and bore show through.
+	// The socket's black moulded body (TiDEPanel's kJackBodyMm = 8 mm); the title stops above it.
 	static constexpr float jackBodyRadius = 4.0f * 75.0f / 25.4f;
-	static constexpr float backingCornerRadius = 2.83f; // 1 mm, as VCV
 
 	Pin<std::string> pinTitle;
 
@@ -83,18 +82,6 @@ public:
 		if (layer == 0)
 		{
 			Graphics g(drawingContext);
-			const auto center = jackCenter();
-
-			if constexpr (isOutput)
-			{
-				auto backing = g.getFactory().createPathGeometry();
-				auto sink = backing.open();
-				sink.setFillMode(FillMode::Alternate);
-				sink.addRoundedRect({ { 0.0f, 0.0f, getWidth(bounds), getHeight(bounds) }, backingCornerRadius, backingCornerRadius });
-				sink.addRoundedRect({ { center.x - jackBodyRadius, center.y - jackBodyRadius, center.x + jackBodyRadius, center.y + jackBodyRadius }, jackBodyRadius, jackBodyRadius });
-				sink.close();
-				g.fillGeometry(backing, g.createSolidColorBrush(colorFromHex(darkColor)));
-			}
 
 			if (titleFormat && !pinTitle.value.empty())
 			{
