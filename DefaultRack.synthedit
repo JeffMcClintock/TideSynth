@@ -136,7 +136,7 @@
                         </lines>
                         <PanelLocationCenter x="4029.3591" y="3970.6887"/>
                         <StructLocationCenter x="3312.4287" y="3925.2856"/>
-                        <PanelWndPosition l="168" r="176" t="144" b="152"/>
+                        <PanelWndPosition l="173" r="181" t="237" b="245"/>
                         <PanelLocation l="0" r="500" t="0" b="500"/>
                         <StructLocation l="0" r="500" t="0" b="500"/>
                         <PanelScroll x="3779" y="3720"/>
@@ -149,35 +149,35 @@
                             <plug default="PSR"/>
                         </plugs>
                         <structRect l="3804" r="3852" t="4092" b="4160"/>
-                        <panelRect l="157" r="187" t="314" b="354"/>
+                        <panelRect l="128" r="158" t="304" b="344"/>
                     </module>
                     <module type="TiDE Patch Point Out" handle="544098519">
                         <plugs>
                             <plug default="TRIG"/>
                         </plugs>
                         <structRect l="3804" r="3852" t="3744" b="3812"/>
-                        <panelRect l="157" r="187" t="53" b="93"/>
+                        <panelRect l="128" r="158" t="216" b="256"/>
                     </module>
                     <module type="TiDE Patch Point Out" handle="454607839">
                         <plugs>
                             <plug default="GATE"/>
                         </plugs>
                         <structRect l="3804" r="3852" t="3840" b="3908"/>
-                        <panelRect l="157" r="187" t="123" b="163"/>
+                        <panelRect l="162" r="192" t="216" b="256"/>
                     </module>
                     <module type="TiDE Patch Point Out" handle="1387091323">
                         <plugs>
                             <plug default="PITCH"/>
                         </plugs>
                         <structRect l="3804" r="3852" t="3924" b="3992"/>
-                        <panelRect l="157" r="187" t="193" b="233"/>
+                        <panelRect l="128" r="158" t="260" b="300"/>
                     </module>
                     <module type="TiDE Patch Point Out" handle="2040106367">
                         <plugs>
                             <plug default="VEL"/>
                         </plugs>
                         <structRect l="3804" r="3852" t="4008" b="4076"/>
-                        <panelRect l="157" r="187" t="263" b="303"/>
+                        <panelRect l="162" r="192" t="260" b="300"/>
                     </module>
                     <module type="SE Label" handle="552930444">
                         <plugs>
@@ -200,7 +200,7 @@
                     <module type="SE TiDE:Panel" handle="1206928317">
                         <plugs>
                             <plug default="2" idx="2"/>
-                            <plug default="jack out 60 54; jack out 60 124; jack out 60 194; jack out 60 264; jack out 60 314; slots 48 371"/>
+                            <plug default="jack out 31 217; jack out 65 217; jack out 31 261; jack out 65 261; jack out 31 305; slots 48 371"/>
                         </plugs>
                         <structRect l="4308" r="4428" t="3768" b="4228"/>
                         <panelRect l="112" r="208" t="24" b="408"/>
