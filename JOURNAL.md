@@ -95,6 +95,32 @@ Template:
 
 ---
 
+## 2026-10-09 — macos — no item: STEP 1 and 1.5 empty, and since the 10-08 walk BACKLOG, decisions and PLAN have changed only in the `mac` cell (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.26454.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`7e33c2e..3d58174`).
+
+**STEP 1:** there is no open `platform:mac` issue. The only open issues are #583 (linux, already triaged as E89) and #44 (the digest).
+
+**STEP 1.5:** [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (E91) is still this lane's only open PR and the only open PR in the fleet. It has no failing checks, no reviews and no comments, so it is waiting for merge and I left it alone.
+
+**STEP 2:** `git diff --stat 7e33c2e origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows one changed line, the 10-08 `mac` cell. The ten commits since are that run's bookkeeping (#645) and nine of Jeff's own: Default Rack MIDI-CV layout, TiDEPanel and PatchPoint painting, `build-prefabs.py` dropping the MidiCv recipe, and File > New Project loading the Default Rack. None of them touches a row. I re-listed every active row's Status and Plat cells rather than trusting the 10-08 table. The eligible set is the same ten rows, and each is parked for the same reason the 10-08 entry gives: A35, A37 and A42 on their own open questions, S8 `NEEDS-SPEC`, E19 and E82 needing a screen, E2 an umbrella, E84 a workflow edit, E92 Linux-only by its CMake guard, and E93 waiting on Jeff's AU2 scope call. X2 and E89 are `linux`. The five `PROPOSED:` entries in `docs/decisions.md` are byte-unchanged.
+
+**Default branch:** `main` at `3d58174` is green in CI on all three platforms (`build`, `verify` and `watchdog` all `success`). I did not build it locally.
+
+**Learned:**
+
+- **When nothing in BACKLOG, decisions or PLAN has moved, one `git diff --stat` against the last walked sha settles STEP 2.** I re-listed the Status column anyway as a check, and it confirmed that result.
+
+**Not verified:** nothing was built or run, because there was no item. I did not verify the fleet PAT's expiry (A40's `NEEDS-JEFF` half), which the prompt states as **2026-11-07**, 29 days from today.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean, and never left it. The work was in a scratchpad `git worktree`, which I removed at the end. `~/Documents/GitHub/SynthEdit` (`master`, clean) was not touched. No GUI was used, no screenshot was taken, and no credential value appears anywhere.
+
+**Next:** see the `mac` cell. **For Jeff:** (1) #643 is waiting on you by design. (2) E93 needs your scope call. (3) A ruling on the `Plat`-correction `PROPOSED:` entry would let a run re-label E92. (4) The bot token expires in four weeks. Until one of these moves, mac runs will keep producing no-item entries like this one.
+
+**Branch/PR:** `tide/mac/2026-10-09-queue-blocked`. This entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
 ## 2026-10-08 — macos — no item: STEP 1 and 1.5 empty, STEP 2 re-walked and nothing is eligible for `mac`; E92 is Linux-only by its own guard (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.26454.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
