@@ -222,6 +222,7 @@ gmpi_plugin(
 	  ${SYNTHEDITLIB_DIR}/modules/Oscillator/Oscillator.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/PlainImageGui.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/LabelGui.cpp
+	  ${SYNTHEDITLIB_DIR}/modules/Controls/LEDGui.cpp  # SE LED: DefaultRack's GATE light
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/ButtonGui.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/MidiPlayer2/MidiToGate.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Converters/Converters.cpp
@@ -241,6 +242,7 @@ gmpi_plugin(
       #Patchmems, XML also needs including.
       ${SYNTHEDITLIB_DIR}/modules/PatchMemory/PatchMemoryFloat.cpp
       ${SYNTHEDITLIB_DIR}/modules/PatchMemory/PatchMemoryfloatGui.cpp
+      ${SYNTHEDITLIB_DIR}/modules/PatchMemory/PatchMemoryFloatOutGui.cpp  # GUI half of PatchMemory Float Out, which drives the LED
       ${SYNTHEDITLIB_DIR}/modules/PatchMemory/PatchMemoryBool.cpp
       ${SYNTHEDITLIB_DIR}/modules/PatchMemory/PatchMemoryBoolGui.cpp
       ${SYNTHEDITLIB_DIR}/modules/SubControls4/IntToBoolsGui.cpp
