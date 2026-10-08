@@ -22,7 +22,8 @@ Checks, per RackModules/*.synthedit:
   5. the Layout pin is set explicitly (the pin's default is the demo layout,
      not this module's), it parses, and its jack/knob entries match the patch
      point / knob module centres EXACTLY, both directions, relative to the
-     panel's top-left
+     panel's top-left; `jack out` entries pair with TiDE Patch Point Out and
+     plain/`jack in` entries with TiDE Patch Point In
   6. every layout coordinate sits on the half-DIP widget grid, and every
      panel-visible child sits inside the panel rect
 
@@ -47,6 +48,7 @@ WIDGET_GRID = 0.5      # kWidgetGridDips
 PANEL = "SE TiDE:Panel"
 KNOB = "SE TiDE:knob"
 TIDE_JACKS = ("TiDE Patch Point In", "TiDE Patch Point Out")
+JACK_BOTTOM_MARGIN = 15  # PatchPointGui jackBottomMargin: the jack is centred, 15 DIPs above the rect's bottom
 STOCK_JACKS = ("SE Patch Point in", "SE Patch Point out")
 
 # Layout kinds that pair with a functional module vs decoration-only.
@@ -63,6 +65,20 @@ def centre(r):
     return ((l + rr) / 2.0, (t + b) / 2.0)
 
 
+def jack_centre(r):
+    l, t, rr, b = r
+    return ((l + rr) / 2.0, b - JACK_BOTTOM_MARGIN)
+
+
+def plugs_by_index(module):
+    """A <plug> with no idx takes the previous plug's index + 1."""
+    out, idx = {}, -1
+    for plug in module.findall("./plugs/plug"):
+        idx = int(plug.get("idx")) if plug.get("idx") is not None else idx + 1
+        out[idx] = plug
+    return out
+
+
 def snap(v):
     return round(v / WIDGET_GRID) * WIDGET_GRID
 
@@ -71,7 +87,7 @@ def parse_layout(text):
     """Mirror parsePanelLayout (TiDEPanelGui.cpp): ';'/newline separated,
     '#' comments -- but STRICT: the module skips a bad statement so live pin
     edits cannot blank the panel; in a committed file a bad statement is a bug.
-    Returns (entries, errors); entries are (kind, x, y)."""
+    Returns (entries, errors); entries are (kind, x, y), kind "jack out" for outputs."""
     entries, errors = [], []
     for raw in text.replace("\r", "\n").replace(";", "\n").split("\n"):
         line = raw.split("#", 1)[0].strip()
@@ -84,6 +100,10 @@ def parse_layout(text):
             continue
         coords = tok[1:]
         if kind == "knob" and coords and coords[0] in ("big", "small"):
+            coords = coords[1:]
+        if kind == "jack" and coords and coords[0] in ("in", "out"):
+            if coords[0] == "out":
+                kind = "jack out"
             coords = coords[1:]
         try:
             x, y = float(coords[0]), float(coords[1])
@@ -129,10 +149,8 @@ def check_file(path):
 
     # -- the panel's own geometry -------------------------------------------
     pl, pt, pr, pb = rect(panel.find("panelRect"))
-    units = 1
-    for plug in panel.findall("./plugs/plug"):
-        if plug.get("idx") == "2":
-            units = int(plug.get("default"))
+    panel_plugs = plugs_by_index(panel)
+    units = int(panel_plugs[2].get("default")) if 2 in panel_plugs else 1
     width, height = pr - pl, pb - pt
     if width != units * RACK_UNIT_DIPS or height != RACK_HEIGHT_DIPS:
         errors.append(
@@ -156,8 +174,7 @@ def check_file(path):
                 f"zero-size rect drops into the rack and draws NOTHING (e2a-prefabs 9.1)")
 
     # -- the layout pin vs the functional modules ---------------------------
-    layout_plug = next((p for p in panel.findall("./plugs/plug")
-                        if p.get("idx") == "3"), None)
+    layout_plug = panel_plugs.get(3)
     if layout_plug is None:
         errors.append("Layout pin not set -- the panel is painting the pin's demo default")
         return errors
@@ -168,11 +185,14 @@ def check_file(path):
         out = []
         for m in modules:
             if m.get("type") in types:
-                cx, cy = centre(rect(m.find("panelRect")))
+                at = jack_centre if m.get("type") in TIDE_JACKS else centre
+                cx, cy = at(rect(m.find("panelRect")))
                 out.append((cx - pl, cy - pt))
         return sorted(out)
 
-    for kind, types in (("jack", TIDE_JACKS), ("knob", (KNOB,))):
+    for kind, types in (("jack", ("TiDE Patch Point In",)),
+                        ("jack out", ("TiDE Patch Point Out",)),
+                        ("knob", (KNOB,))):
         painted = sorted((x, y) for k, x, y in entries if k == kind)
         real = centres_of(types)
         if painted != real:

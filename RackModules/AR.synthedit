@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="581175620" SelectedViewType="256" vst_preset_count="64">
+<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="581175620" SelectedViewType="128" vst_preset_count="64">
     <WindowLayout>
         <MainWindow l="152" t="152" r="3032" b="1689" monitor="\\.\DISPLAY1" ml="0" mt="0" mr="3840" mb="2160"/>
     </WindowLayout>
@@ -38,41 +38,6 @@
                 </plugs>
                 <structRect l="24" r="72" t="24" b="48"/>
                 <modules>
-                    <module type="SE Label" handle="306011854">
-                        <plugs>
-                            <plug default="Out"/>
-                        </plugs>
-                        <structRect l="540" r="648" t="480" b="552"/>
-                        <panelRect l="3968" r="4004" t="4104" b="4110"/>
-                    </module>
-                    <module type="SE Label" handle="751257471">
-                        <plugs>
-                            <plug default="Trig"/>
-                        </plugs>
-                        <structRect l="552" r="660" t="480" b="552"/>
-                        <panelRect l="3967" r="4003" t="3890" b="3896"/>
-                    </module>
-                    <module type="SE Label" handle="1039017689">
-                        <plugs>
-                            <plug default="Gate"/>
-                        </plugs>
-                        <structRect l="540" r="648" t="420" b="492"/>
-                        <panelRect l="3968" r="4004" t="3928" b="3934"/>
-                    </module>
-                    <module type="SE Label" handle="1808329957">
-                        <plugs>
-                            <plug default="A"/>
-                        </plugs>
-                        <structRect l="552" r="660" t="432" b="504"/>
-                        <panelRect l="3968" r="4004" t="4010" b="4016"/>
-                    </module>
-                    <module type="SE Label" handle="1105680368">
-                        <plugs>
-                            <plug default="In"/>
-                        </plugs>
-                        <structRect l="564" r="672" t="240" b="312"/>
-                        <panelRect l="3968" r="4004" t="3969" b="3975"/>
-                    </module>
                     <module type="SE Label" handle="94852515">
                         <plugs>
                             <plug default="AR"/>
@@ -82,31 +47,43 @@
                     </module>
                     <module type="SE TiDE:knob" handle="728750608">
                         <structRect l="156" r="264" t="192" b="292"/>
-                        <panelRect l="3974" r="3998" t="4026" b="4042"/>
+                        <panelRect l="3974" r="3998" t="4027" b="4043"/>
                     </module>
                     <module type="SE TiDE:knob" handle="1751584435">
                         <structRect l="24" r="132" t="192" b="292"/>
-                        <panelRect l="3977" r="3995" t="3985" b="4003"/>
+                        <panelRect l="3977" r="3995" t="3986" b="4004"/>
                     </module>
                     <module type="TiDE Patch Point In" handle="1730994779">
-                        <structRect l="12" r="72" t="36" b="84"/>
-                        <panelRect l="3976" r="3996" t="3864" b="3884"/>
+                        <plugs>
+                            <plug default="TRIG"/>
+                        </plugs>
+                        <structRect l="12" r="72" t="36" b="116"/>
+                        <panelRect l="3971" r="4001" t="3850" b="3890"/>
                     </module>
                     <module type="TiDE Patch Point In" handle="13007926">
-                        <structRect l="12" r="72" t="108" b="156"/>
-                        <panelRect l="3976" r="3996" t="3904" b="3924"/>
+                        <plugs>
+                            <plug default="GATE"/>
+                        </plugs>
+                        <structRect l="12" r="72" t="108" b="188"/>
+                        <panelRect l="3971" r="4001" t="3890" b="3930"/>
                     </module>
                     <module type="TiDE Patch Point In" handle="1257603951">
-                        <structRect l="216" r="276" t="24" b="72"/>
-                        <panelRect l="3976" r="3996" t="3944" b="3964"/>
+                        <plugs>
+                            <plug default="IN"/>
+                        </plugs>
+                        <structRect l="216" r="276" t="24" b="104"/>
+                        <panelRect l="3971" r="4001" t="3930" b="3970"/>
                     </module>
                     <module type="TiDE Patch Point Out" handle="34702161">
-                        <structRect l="432" r="468" t="120" b="156"/>
-                        <panelRect l="3976" r="3996" t="4121" b="4141"/>
+                        <plugs>
+                            <plug default="OUT"/>
+                        </plugs>
+                        <structRect l="432" r="480" t="108" b="176"/>
+                        <panelRect l="3971" r="4001" t="4107" b="4147"/>
                     </module>
                     <module type="SE TiDE:Panel" handle="1412763883">
                         <plugs>
-                            <plug default="knob big 24 200;knob big 24 240;grill 24 20; jack 24 80;jack 24 120;jack 24 160; jack 24 337; slots 24 371" idx="3"/>
+                            <plug default="knob big 24 200;knob big 24 240;grill 24 20; jack 24 80;jack 24 120;jack 24 160; jack out 24 337; slots 24 371" idx="3"/>
                             <plug default="2"/>
                             <plug default="FFdfd1a9"/>
                         </plugs>
@@ -114,7 +91,7 @@
                         <panelRect l="3962" r="4010" t="3795" b="4179"/>
                     </module>
                     <module type="VCA" handle="1039625299">
-                        <structRect l="264" r="348" t="96" b="144"/>
+                        <structRect l="300" r="396" t="96" b="144"/>
                     </module>
                     <module type="SynthEdit ADSR" handle="1652852263">
                         <plugs>
@@ -126,12 +103,12 @@
                 </modules>
                 <lines>
                     <line type="Line" handle="1354944933" lineType="1" fMod="1652852263" tMod="1039625299" fPlg="7" tPlg="1"/>
-                    <line type="Line" handle="185720371" lineType="1" fMod="1039625299" tMod="34702161" fPlg="2"/>
-                    <line type="Line" handle="732585325" lineType="1" fMod="1257603951" tMod="1039625299" fPlg="1"/>
-                    <line type="Line" handle="407755986" lineType="1" fMod="1730994779" tMod="1652852263" fPlg="1"/>
-                    <line type="Line" handle="1101575451" lineType="1" fMod="13007926" tMod="1652852263" fPlg="1" tPlg="1"/>
                     <line type="Line" handle="836794832" lineType="1" fMod="1751584435" tMod="1652852263" fPlg="6" tPlg="2"/>
                     <line type="Line" handle="28016249" lineType="1" fMod="728750608" tMod="1652852263" fPlg="6" tPlg="3"/>
+                    <line type="Line" handle="190616161" lineType="1" fMod="1039625299" tMod="34702161" fPlg="2" tPlg="1"/>
+                    <line type="Line" handle="70768971" lineType="1" fMod="1257603951" tMod="1039625299" fPlg="2"/>
+                    <line type="Line" handle="1590000411" lineType="1" fMod="13007926" tMod="1652852263" fPlg="2" tPlg="1"/>
+                    <line type="Line" handle="1991779248" lineType="1" fMod="1730994779" tMod="1652852263" fPlg="2"/>
                 </lines>
                 <PanelLocationCenter x="3960.2747" y="3927.3535"/>
                 <StructLocationCenter x="362.5" y="274"/>
@@ -198,7 +175,7 @@
                 <Pin name="Signal Out" datatype="float" direction="out" autoConfigureParameter="true"/>
             </Audio>
             <GUI>
-                <Pin name="patchValue" datatype="float" private="true" parameterId="0"/>
+                <Pin name="patchValue" datatype="float" private="true" parameterId="0" parameterField="Normalized"/>
                 <Pin name="Hint In" datatype="string_utf8" private="true" parameterId="0" parameterField="Hint"/>
                 <Pin name="Background Color" datatype="string_utf8" default="00000000"/>
                 <Pin name="Stroke Color" datatype="string_utf8" default="FFF9692C"/>
@@ -223,9 +200,11 @@
                 <Pin name="Output" datatype="float" rate="audio" direction="out"/>
                 <Pin name="Connected" datatype="bool" direction="out"/>
             </Audio>
-            <GUI graphicsApi="GmpiGui"/>
+            <GUI graphicsApi="GmpiGui">
+                <Pin name="Title" datatype="string_utf8"/>
+            </GUI>
             <PatchPoints>
-                <PatchPoint pinId="0" center="10,10" radius="5"/>
+                <PatchPoint pinId="0" center="15,25" radius="5"/>
             </PatchPoints>
         </Plugin>
         <Plugin id="TiDE Patch Point Out" name="Patch Point-&gt;" flags="384" category="TiDE">
@@ -233,9 +212,11 @@
                 <Pin name="Input" datatype="float" rate="audio" linearInput="true"/>
                 <Pin name="Output" datatype="float" rate="audio" direction="out" isMinimised="true"/>
             </Audio>
-            <GUI graphicsApi="GmpiGui"/>
+            <GUI graphicsApi="GmpiGui">
+                <Pin name="Title" datatype="string_utf8"/>
+            </GUI>
             <PatchPoints>
-                <PatchPoint pinId="1" center="10,10" radius="5"/>
+                <PatchPoint pinId="1" center="15,25" radius="5"/>
             </PatchPoints>
         </Plugin>
         <Plugin id="VCA" class="1" name="VCA" flags="4352" category="Modifiers">
@@ -265,6 +246,7 @@
         <Prefab id="*P=Controls\LED2.syntheditprefab" name="LED2" category="Controls" file="Controls\LED2.syntheditprefab"/>
         <Prefab id="*P=Controls\Mod Wheel.syntheditprefab" name="Mod Wheel" category="Controls" file="Controls\Mod Wheel.syntheditprefab"/>
         <Prefab id="*P=Controls\Peak Meter2.syntheditprefab" name="Peak Meter2" category="Controls" file="Controls\Peak Meter2.syntheditprefab"/>
+        <Prefab id="*P=Controls\Pitch Bender.syntheditprefab.synthedit" name="Pitch Bender.syntheditprefab" category="Controls" file="Controls\Pitch Bender.syntheditprefab.synthedit"/>
         <Prefab id="*P=Controls\Slider2.syntheditprefab" name="Slider2" category="Controls" file="Controls\Slider2.syntheditprefab"/>
         <Prefab id="*P=Controls\Switch.syntheditprefab" name="Switch" category="Controls" file="Controls\Switch.syntheditprefab"/>
         <Prefab id="*P=Controls\VU_meter.syntheditprefab" name="VU_meter" category="Controls" file="Controls\VU_meter.syntheditprefab"/>

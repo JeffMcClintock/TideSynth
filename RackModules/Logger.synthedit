@@ -38,14 +38,14 @@
                             <plug default="5"/>
                         </plugs>
                         <structRect l="3720" r="3780" t="4032" b="4080"/>
-                        <panelRect l="54" r="74" t="70" b="90"/>
+                        <panelRect l="49" r="79" t="55" b="95"/>
                     </module>
                     <module type="TiDE Patch Point In" handle="1142937646">
                         <plugs>
                             <plug default="5"/>
                         </plugs>
                         <structRect l="3696" r="3756" t="3936" b="3984"/>
-                        <panelRect l="14" r="34" t="70" b="90"/>
+                        <panelRect l="9" r="39" t="55" b="95"/>
                     </module>
                     <module type="SE Label" handle="91000003">
                         <plugs>
@@ -153,7 +153,7 @@
             </Audio>
             <GUI graphicsApi="GmpiGui"/>
             <PatchPoints>
-                <PatchPoint pinId="0" center="10,10" radius="5"/>
+                <PatchPoint pinId="0" center="15,25" radius="5"/>
             </PatchPoints>
         </Plugin>
     </PluginList>

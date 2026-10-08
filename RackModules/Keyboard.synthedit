@@ -88,7 +88,7 @@
                     </module>
                     <module type="TiDE Patch Point Out" handle="1009423914">
                         <structRect l="600" r="636" t="672" b="708"/>
-                        <panelRect l="3998" r="4018" t="4130" b="4150"/>
+                        <panelRect l="3993" r="4023" t="4115" b="4155"/>
                     </module>
                     <module type="SE PatchMemory Bool" handle="198874769">
                         <structRect l="144" r="240" t="840" b="936"/>
@@ -147,12 +147,12 @@
                     </module>
                     <module type="TiDE Patch Point Out" handle="1991779248">
                         <structRect l="612" r="648" t="468" b="504"/>
-                        <panelRect l="3998" r="4018" t="4090" b="4110"/>
+                        <panelRect l="3993" r="4023" t="4075" b="4115"/>
                     </module>
                     <module type="SE TiDE:Panel" handle="1590000411">
                         <plugs>
                             <plug default="4" idx="2"/>
-                            <plug default="grill 24 20; jack 24 300; jack 24 340; slots 24 371"/>
+                            <plug default="grill 24 20; jack out 24 300; jack out 24 340; slots 24 371"/>
                         </plugs>
                         <structRect l="828" r="1044" t="168" b="628"/>
                         <panelRect l="3984" r="4176" t="3800" b="4184"/>
@@ -334,7 +334,7 @@
             </Audio>
             <GUI graphicsApi="GmpiGui"/>
             <PatchPoints>
-                <PatchPoint pinId="1" center="10,10" radius="5"/>
+                <PatchPoint pinId="1" center="15,25" radius="5"/>
             </PatchPoints>
         </Plugin>
     </PluginList>

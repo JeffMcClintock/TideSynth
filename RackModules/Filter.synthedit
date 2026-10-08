@@ -19,37 +19,37 @@
             </Parameters>
         </PatchManager>
         <modules>
-            <module type="Container" handle="1081491801" name="TiDE Filter" PanelLocationZoom="1.9531249" StructLocationZoom="1" ViewOpenFlags="128" rack_module="true" skin="default3">
+            <module type="Container" handle="1081491801" name="TiDE Filter" PanelLocationZoom="1.9531249" StructLocationZoom="1" ViewOpenFlags="384" rack_module="true" skin="default3">
                 <plugs>
                     <plug default="1" idx="2"/>
                     <plug idx="7"/>
                 </plugs>
                 <structRect l="3834" r="3882" t="3834" b="3858"/>
                 <modules>
-                    <module type="SE Label" handle="1991779248">
-                        <plugs>
-                            <plug default="Out"/>
-                        </plugs>
-                        <structRect l="3888" r="3996" t="3840" b="3912"/>
-                        <panelRect l="8" r="44" t="304" b="312"/>
-                    </module>
                     <module type="TiDE Patch Point In" handle="1345400853">
-                        <structRect l="3726" r="3774" t="3876" b="3912"/>
-                        <panelRect l="14" r="34" t="70" b="90"/>
+                        <plugs>
+                            <plug default="IN"/>
+                        </plugs>
+                        <structRect l="3732" r="3792" t="3876" b="3956"/>
+                        <panelRect l="9" r="39" t="55" b="95"/>
                     </module>
                     <module type="TiDE Patch Point In" handle="1791606236">
                         <plugs>
+                            <plug default="PITCH"/>
                             <plug default="10"/>
                         </plugs>
-                        <structRect l="3726" r="3774" t="4032" b="4068"/>
-                        <panelRect l="14" r="34" t="110" b="130"/>
+                        <structRect l="3726" r="3786" t="4032" b="4112"/>
+                        <panelRect l="9" r="39" t="95" b="135"/>
                     </module>
                     <module type="1 Pole LP" handle="1310669619">
                         <structRect l="3930" r="3978" t="3876" b="3912"/>
                     </module>
                     <module type="TiDE Patch Point Out" handle="317454482">
-                        <structRect l="4182" r="4218" t="3876" b="3912"/>
-                        <panelRect l="14" r="34" t="327" b="347"/>
+                        <plugs>
+                            <plug default="OUT"/>
+                        </plugs>
+                        <structRect l="4182" r="4230" t="3876" b="3944"/>
+                        <panelRect l="9" r="39" t="312" b="352"/>
                     </module>
                     <module type="SE Label" handle="91000002">
                         <plugs>
@@ -58,46 +58,20 @@
                         <structRect l="3600" r="3708" t="3684" b="3756"/>
                         <panelRect l="2" r="46" t="46" b="54"/>
                     </module>
-                    <module type="SE Label" handle="91000003">
-                        <plugs>
-                            <plug default="In"/>
-                        </plugs>
-                        <structRect l="3720" r="3828" t="3684" b="3756"/>
-                        <panelRect l="6" r="42" t="96" b="104"/>
-                    </module>
-                    <module type="SE Label" handle="91000004">
-                        <plugs>
-                            <plug default="Freq"/>
-                        </plugs>
-                        <structRect l="3840" r="3948" t="3684" b="3756"/>
-                        <panelRect l="6" r="42" t="136" b="144"/>
-                    </module>
                     <module type="SE TiDE:Panel" handle="91000001">
                         <plugs>
-                            <plug default="grill 24 20; jack 24 80; jack 24 120; jack 24 337; slots 24 371" idx="3"/>
+                            <plug default="grill 24 20; jack 24 80; jack 24 120; jack out 24 337; slots 24 371" idx="3"/>
                             <plug default="2"/>
                             <plug default="FFdfd1a9"/>
                         </plugs>
-                        <structRect l="4560" r="4632" t="3876" b="4336"/>
+                        <structRect l="3504" r="3576" t="3792" b="4252"/>
                         <panelRect l="0" r="48" t="0" b="384"/>
-                    </module>
-                    <module type="IO Mod" handle="1218980282">
-                        <plugs>
-                            <plug/>
-                        </plugs>
-                        <structRect l="4484" r="4532" t="3984" b="3996"/>
-                    </module>
-                    <module type="IO Mod" handle="1510751148">
-                        <plugs>
-                            <plug/>
-                        </plugs>
-                        <structRect l="3484" r="3532" t="3984" b="3996"/>
                     </module>
                 </modules>
                 <lines>
-                    <line type="Line" handle="1549479277" lineType="1" fMod="1345400853" tMod="1310669619" fPlg="1"/>
-                    <line type="Line" handle="206238704" lineType="1" fMod="1791606236" tMod="1310669619" fPlg="1" tPlg="1"/>
-                    <line type="Line" handle="1761776939" lineType="1" fMod="1310669619" tMod="317454482" fPlg="2"/>
+                    <line type="Line" handle="94852515" lineType="1" fMod="1310669619" tMod="317454482" fPlg="2" tPlg="1"/>
+                    <line type="Line" handle="190616161" lineType="1" fMod="1791606236" tMod="1310669619" fPlg="2" tPlg="1"/>
+                    <line type="Line" handle="1412763883" lineType="1" fMod="1345400853" tMod="1310669619" fPlg="2"/>
                 </lines>
                 <PanelLocationCenter x="277.11432" y="242.9315"/>
                 <StructLocationCenter x="3984" y="3984"/>
@@ -144,11 +118,6 @@
                 <Pin name="Ignore Program Change" datatype="bool" noAutomation="true"/>
             </GUI>
         </Plugin>
-        <Plugin id="IO Mod" class="1" name="IO Mod" flags="4356" category="">
-            <Audio>
-                <Pin name="Spare" datatype="float" rate="audio" autoRename="true" autoDuplicate="true" isContainerIoPlug="true"/>
-            </Audio>
-        </Plugin>
         <Plugin id="SE Label" name="Label" flags="384" category="Sub-Controls">
             <GUI graphicsApi="GmpiGui">
                 <Pin name="Text" datatype="string_utf8" default="Label"/>
@@ -173,9 +142,11 @@
                 <Pin name="Output" datatype="float" rate="audio" direction="out"/>
                 <Pin name="Connected" datatype="bool" direction="out"/>
             </Audio>
-            <GUI graphicsApi="GmpiGui"/>
+            <GUI graphicsApi="GmpiGui">
+                <Pin name="Title" datatype="string_utf8"/>
+            </GUI>
             <PatchPoints>
-                <PatchPoint pinId="0" center="10,10" radius="5"/>
+                <PatchPoint pinId="0" center="15,25" radius="5"/>
             </PatchPoints>
         </Plugin>
         <Plugin id="TiDE Patch Point Out" name="Patch Point-&gt;" flags="384" category="TiDE">
@@ -183,16 +154,18 @@
                 <Pin name="Input" datatype="float" rate="audio" linearInput="true"/>
                 <Pin name="Output" datatype="float" rate="audio" direction="out" isMinimised="true"/>
             </Audio>
-            <GUI graphicsApi="GmpiGui"/>
+            <GUI graphicsApi="GmpiGui">
+                <Pin name="Title" datatype="string_utf8"/>
+            </GUI>
             <PatchPoints>
-                <PatchPoint pinId="1" center="10,10" radius="5"/>
+                <PatchPoint pinId="1" center="15,25" radius="5"/>
             </PatchPoints>
         </Plugin>
     </PluginList>
     <PrefabList>
         <Prefab id="*P=Controls\Bar Meter.syntheditprefab" name="Bar Meter" category="Controls" file="Controls\Bar Meter.syntheditprefab"/>
         <Prefab id="*P=Controls\Bender.seprefab" name="Bender" category="Controls" file="Controls\Bender.seprefab"/>
-        <Prefab id="*P=Controls\Bender.synthedit" name="Bender" category="Controls" file="Controls\Bender.synthedit"/>
+        <Prefab id="*P=Controls\Bender.syntheditprefab" name="Bender" category="Controls" file="Controls\Bender.syntheditprefab"/>
         <Prefab id="*P=Controls\Button Small2.syntheditprefab" name="Button Small2" category="Controls" file="Controls\Button Small2.syntheditprefab"/>
         <Prefab id="*P=Controls\Button2.syntheditprefab" name="Button2" category="Controls" file="Controls\Button2.syntheditprefab"/>
         <Prefab id="*P=Controls\Detuner.syntheditprefab" name="Detuner" category="Controls" file="Controls\Detuner.syntheditprefab"/>
@@ -221,16 +194,10 @@
         <Prefab id="*P=Examples\Sample Oscillator2.syntheditprefab" name="Sample Oscillator2" category="Examples" file="Examples\Sample Oscillator2.syntheditprefab"/>
         <Prefab id="*P=Examples\Step Sequencing.syntheditprefab" name="Step Sequencing" category="Examples" file="Examples\Step Sequencing.syntheditprefab"/>
         <Prefab id="*P=Examples\Tempo_sync_LFO.syntheditprefab" name="Tempo_sync_LFO" category="Examples" file="Examples\Tempo_sync_LFO.syntheditprefab"/>
-        <Prefab id="*P=Front to Back test prefab.seprefab" name="Front to Back test prefab" file="Front to Back test prefab.seprefab"/>
-        <Prefab id="*P=myprefab with spaces_and_underscores.seprefab" name="myprefab with spaces_and_underscores" file="myprefab with spaces_and_underscores.seprefab"/>
-        <Prefab id="*P=myprefab.seprefab" name="myprefab" file="myprefab.seprefab"/>
-        <Prefab id="*P=myprefab2.seprefab" name="myprefab2" file="myprefab2.seprefab"/>
-        <Prefab id="*P=myprefab3.seprefab" name="myprefab3" file="myprefab3.seprefab"/>
-        <Prefab id="*P=myprefab4.seprefab" name="myprefab4" file="myprefab4.seprefab"/>
-        <Prefab id="*P=myprefab_with_underscores.seprefab" name="myprefab_with_underscores" file="myprefab_with_underscores.seprefab"/>
         <Prefab id="*P=Synths\Fm_synth.syntheditprefab" name="Fm_synth" category="Synths" file="Synths\Fm_synth.syntheditprefab"/>
         <Prefab id="*P=Synths\Minimal.syntheditprefab" name="Minimal" category="Synths" file="Synths\Minimal.syntheditprefab"/>
         <Prefab id="*P=Synths\PD303.syntheditprefab" name="PD303" category="Synths" file="Synths\PD303.syntheditprefab"/>
+        <Prefab id="*P=Synths\Poly Synth.synthedit" name="Poly Synth" category="Synths" file="Synths\Poly Synth.synthedit"/>
         <Prefab id="*P=Synths\Poly Synth.syntheditprefab" name="Poly Synth" category="Synths" file="Synths\Poly Synth.syntheditprefab"/>
         <Prefab id="*P=Synths\Sample-based Instrument.syntheditprefab" name="Sample-based Instrument" category="Synths" file="Synths\Sample-based Instrument.syntheditprefab"/>
     </PrefabList>
