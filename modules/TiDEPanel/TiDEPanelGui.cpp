@@ -452,10 +452,10 @@ constexpr float kJackMetalRoughness = 0.14f;
 // surface rather than a nut done up against it.
 constexpr float kJackProudFrac = 0.25f;
 
-// Output jacks sit on black paint, VCV style. Outputs within kJackClusterDips of each other share one
-// rounded rectangle, unless the merged one would overlap another widget (input jacks included).
-// Expressed as a multiple of the bezel, because "the next jack along" is set by how big a jack is.
-constexpr float kJackClusterDips = 3.5f * (2.0f * kJackSurroundDips);
+// Output jacks sit on black paint, VCV style. Two outputs share one rounded rectangle only when
+// their cells (below) are within kOutputPaintMergeGapDips of touching, and the merged one would
+// not overlap another widget (input jacks included).
+constexpr float kOutputPaintMergeGapDips = 3.0f;
 
 // One output's paint is the TiDE Patch Point Out cell: 30x40, jack centre 15 above its bottom.
 constexpr float kOutputPaintPadXDips = 15.0f;
@@ -1216,7 +1216,7 @@ float ventCentreXDips(const PanelComponent& c, float dipsWide)
 	return ventIsAutoWidth(c) ? 0.5f * dipsWide : c.x;
 }
 
-// --- the automatic indent ------------------------------------------------------
+// --- output paint ------------------------------------------------------
 
 struct DipRect { float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f; };
 
@@ -1389,9 +1389,10 @@ std::vector<DipRect> computeOutputPaint(const std::vector<PanelComponent>& comps
 		for (const size_t a : ga)
 			for (const size_t b : gb)
 			{
-				const float dx = comps[a].x - comps[b].x;
-				const float dy = comps[a].y - comps[b].y;
-				if (dx * dx + dy * dy <= kJackClusterDips * kJackClusterDips)
+				// The gap between the two cells' outlines: centre distance less the cell's extent.
+				const float gapX = std::fabs(comps[a].x - comps[b].x) - 2.0f * kOutputPaintPadXDips;
+				const float gapY = std::fabs(comps[a].y - comps[b].y) - (kOutputPaintPadTopDips + kOutputPaintPadBottomDips);
+				if ((std::max)(gapX, gapY) <= kOutputPaintMergeGapDips)
 					return true;
 			}
 		return false;

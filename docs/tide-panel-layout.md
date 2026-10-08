@@ -29,7 +29,7 @@ Grammar (`parsePanelLayout`, `TiDEPanelGui.cpp:1185`):
 | separator | `;` or newline; `#` starts a comment |
 | `tok[0]` | `knob`, `jack`, `switch`, `grill`, `slots`, `led` |
 | optional size | `knob big`, `knob small` — shifts the coordinates one token right |
-| optional direction | `jack in` (the default), `jack out` — shifts the coordinates one token right. Output jacks sit on black paint; nearby outputs share one rounded rectangle |
+| optional direction | `jack in` (the default), `jack out` — shifts the coordinates one token right. Output jacks sit on black rounded boxes; outputs whose 30x40 cells come within 3 DIP of touching share one box |
 | `x y` | **DIPs from the panel's top-left**, and the **CENTRE** of the feature |
 | extras | `grill` takes `cols rows`; `slots` takes `rows` |
 
