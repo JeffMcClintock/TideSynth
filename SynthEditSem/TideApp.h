@@ -84,6 +84,8 @@ public:
 	// syncState.
 	std::string exportChunkXmlForSave();
 	bool importChunkXml(std::string_view xml); // S11 — rebuild the document from a saved chunk
+	void requestNewProject();                  // deferred to the GUI when one is open
+	void newProjectNow() override;
 	void OnCloseView(SE2::TopView*) override;
 	void CloseAllViews() override;
 	ModuleBrowser*     OpenModuleBrowser    (gmpi::api::IUnknown* host) override;

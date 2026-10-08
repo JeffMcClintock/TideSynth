@@ -533,8 +533,16 @@ public:
 		if (parameterHandle != chunkParamId || fieldId != Field::Value)
 			return ReturnCode::NoSupport;
 
-		if (!tideApp || !data || size <= 0)
+		if (!tideApp)
 			return ReturnCode::NoSupport;
+
+		// An empty chunk is the parameter's DEFAULT: the standalone's File > New
+		// Project (a revert to defaults), or a host's own reset.
+		if (!data || size <= 0)
+		{
+			tideApp->requestNewProject();
+			return ReturnCode::Ok;
+		}
 
 		// Either tag may come back from a save - Build if the last thing
 		// before saving was structural, Sync if it was syncState's refresh -
@@ -543,6 +551,12 @@ public:
 		const auto kind = tideChunk::classify(data, static_cast<size_t>(size));
 		const auto* doc = tideChunk::payload(data, kind);
 		const auto docSize = tideChunk::payloadSize(static_cast<size_t>(size), kind);
+
+		if (docSize == 0)
+		{
+			tideApp->requestNewProject();
+			return ReturnCode::Ok;
+		}
 
 		// A chunk we cannot use leaves the blank document standing - an empty
 		// rack, which is the fail-safe outcome S11 requires. It must never

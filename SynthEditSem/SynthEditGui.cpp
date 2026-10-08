@@ -389,6 +389,7 @@ class SynthEditGui final : public PluginEditor, public Notifiable, public gmpi::
 	CContainer* pendingNavTarget{};
 	int         pendingNavFlag{}; // 0 = route by depth; CF_* honours a menu request
 	bool        navPending{};
+	bool        newProjectPending{}; // File > New Project, deferred for the same reason
 
 	// True between OM_DRAG_NEW_MODULE start (browser click) and OM_DRAG_NEW_MODULE
 	// end (drop on view, ESC, or a second browser click). onPointerMove uses
@@ -595,6 +596,33 @@ class SynthEditGui final : public PluginEditor, public Notifiable, public gmpi::
 			seApp->serviceDocumentSync();
 		}
 
+		if (newProjectPending && seApp)
+		{
+			newProjectPending = false;
+			// Everything below points into the document about to be freed.
+			navPending = false;
+			pendingNavTarget = nullptr;
+			currentContainer = nullptr;
+			if (view)
+			{
+				seApp->OnCloseView(view.get());
+				view.attach(nullptr);
+			}
+
+			seApp->newProjectNow();
+
+			view.attach(seApp->OpenViewForContainer(hostUnknown.get(), nullptr, CF_PANEL_VIEW));
+			wireViewScrollbars();
+			if (view && bounds.right > bounds.left)
+			{
+				view->arrange(&editorContentRect);
+				view->updateScrollBars();
+			}
+			if (drawingHost)
+				drawingHost->invalidateRect(nullptr);
+			return true;
+		}
+
 		if (!navPending)
 			return true; // keep ticking for sync; stop only if we never started the periodic timer
 		navPending = false;
@@ -628,6 +656,7 @@ public:
 		{
 			seApp->onOpenContainerView = nullptr; // U1b — both capture `this`
 			seApp->onViewOpened = nullptr;
+			seApp->onNewProjectRequested = nullptr;
 			seApp->UnRegisterObserver(this);
 			if (view)
 				seApp->OnCloseView(view.get());
@@ -978,6 +1007,7 @@ public:
 				// The menu command's flag is honoured ("Goto Structure..." on the
 				// master is the rack's unlock); U3's context-menu items pass 0.
 				seApp->onOpenContainerView = [this](CContainer* c, int flag) { requestNavigate(c, flag); };
+				seApp->onNewProjectRequested = [this] { newProjectPending = true; startTimer(30); };
 				startTimer(500); // S12 - periodic document-sync heartbeat (also services deferred navigation)
 				// U3 — remember where we are so the context menu can offer
 				// "Goto Parent" / "Goto Rack". This is all that survives of the

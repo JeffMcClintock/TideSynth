@@ -1154,6 +1154,31 @@ bool TideApp::loadDefaultDocument()
 	return true;
 }
 
+// File > New Project. With an editor open the swap must wait for the GUI, which
+// owns the TopView that draws from the document being freed.
+void TideApp::requestNewProject()
+{
+	if (onNewProjectRequested)
+		onNewProjectRequested();
+	else
+		newProjectNow();
+}
+
+void TideApp::newProjectNow()
+{
+	if (!loadDefaultDocument())
+	{
+		// No usable Default Rack: still discard, leaving an empty rack.
+		Document()->DeleteContents();
+		Document()->OnNewDocument();
+		Document()->rackMode = true;
+	}
+
+	// The processor is still running the old rack; the next sync tick pushes this one.
+	dspDirty = true;
+	tideDiag("TIDE: new project\n");
+}
+
 // BACKLOG S7. TIDE ships its own look and must write NOTHING outside its own
 // container (PLAN constraints 4 and 8). Answering false keeps SkinMgr out of
 // <home>/SynthEdit Projects/ entirely -- no folder, no skins copy, and no
