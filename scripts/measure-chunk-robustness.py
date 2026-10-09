@@ -25,6 +25,16 @@ This is the harness that measured it, kept so the fix stays fixed. Every case
 must now print a `TIDE: REFUSED ...` line and render without dying. A crash
 shows up as `rc=-11`.
 
+2026-10-09: no saved chunk reaches the processor's guard any more. The
+processor never reads parameter 1; it builds only from parameter 4, this run's
+controller export (docs/decisions.md, E81). A malformed chunk now reaches only
+the controller, which logs `restore of a N byte document -> REJECTED` rather
+than `TIDE: REFUSED`, so a `refuse` case passes on either line. `skeleton` is
+rejected there too and never reaches E10's guard. Every rejected case renders
+the Default Rack the controller pushed at initialize; `empty` is the
+parameter's default, which the controller takes as New Project, so it reloads
+and pushes the Default Rack again. Not re-measured.
+
 Why the projects are synthesised rather than committed: REAPER stores the chunk
 inside a base64 VST3 state block whose length fields must agree with the payload
 (header[8] = len(body), body = u32(len(xml)+4), u32(1), u32(len(xml)), xml,
@@ -85,25 +95,27 @@ def real_chunk():
 
 # (name, chunk, why, expectation) where expectation is one of:
 #   "render"      must load and play -- refusing it would be a false positive
-#   "refuse"      must be refused, and must not crash
-#   "quiet"       nothing to refuse, nothing to build
+#   "refuse"      must be refused (controller REJECTED or processor REFUSED), and must not crash
+#   "quiet"       nothing to refuse; the rack it plays is the Default Rack. Must not crash
 #   "survive"     passes TIDE's guard by shape and is refused deeper, by E10's guard
 #                 in SeAudioMaster::BuildDspGraph. No TIDE: REFUSED line, no crash.
+#                 2026-10-09: skeleton now stops at the controller (REJECTED, no
+#                 <Editor>) and never reaches E10's guard; only "no crash" is checked.
 CASES = [
     ("valid",     None,
      "the real chunk from tests/hosts/v3-midi-pitch.rpp -- the positive control",
      "render"),
     ("skeleton",  b'<?xml version="1.0" ?>\n<Document>\n  <DSP>\n'
                   b'    <Module Id="1" Type="Container"/>\n  </DSP>\n</Document>\n',
-     "<Module> with no <PatchManager>: passes TIDE's guard, refused by E10 in the engine",
+     "<Module> with no <PatchManager>: E10's case, now rejected first by the controller (no <Editor>)",
      "survive"),
-    ("empty",     b"", "no chunk at all: the instance never prepares", "quiet"),
+    ("empty",     b"", "no chunk at all: the parameter's default, so the controller reloads the Default Rack", "quiet"),
     ("notxml",    b"this is not xml at all", "bytes that do not parse", "refuse"),
     ("badroot",   b"<Patch/>", "parses cleanly, but the root is not <Document> (crashed pre-fix)",
      "refuse"),
-    ("nodsp",     b"<Document/>", "<Document> with no <DSP> (crashed one frame up, in Open())",
+    ("nodsp",     b"<Document/>", "<Document> with no <DSP> (crashed one frame up, in Open()); now rejected for no <Editor>",
      "refuse"),
-    ("emptydsp",  b"<Document><DSP/></Document>", "<DSP> with no <Module> (crashed at :420)",
+    ("emptydsp",  b"<Document><DSP/></Document>", "<DSP> with no <Module> (crashed at :420); now rejected for no <Editor>",
      "refuse"),
 ]
 
@@ -177,7 +189,10 @@ def main():
             rc = subprocess.call([REAPER, "-renderproject", rpp],
                                  stdout=fh, stderr=subprocess.STDOUT)
         tide = [l.rstrip() for l in open(log, errors="replace") if l.startswith("TIDE:")]
-        refused = any("REFUSED" in l for l in tide)
+        # Since 2026-10-09 (E81) a bad chunk stops at the controller, not the processor.
+        refused = any(re.search(r"TIDE: REFUSED|restore of a \d+ byte document -> REJECTED", l)
+                      for l in tide)
+        imported = any(re.search(r"restore of a \d+ byte document -> imported", l) for l in tide)
         crashed = rc < 0 or not os.path.exists(out)
 
         print("  %-9s %s" % (name, why))
@@ -191,13 +206,14 @@ def main():
         if expect == "survive":
             if crashed:
                 failures.append(
-                    "%s crashed the host (rc=%d) -- E10's guard in "
-                    "SeAudioMaster::BuildDspGraph has regressed or is not in this build"
+                    "%s crashed the host (rc=%d) -- since 2026-10-09 it stops at "
+                    "TideApp::importChunkXml, so look there before E10's guard"
                     % (name, rc))
         elif crashed:
             failures.append("%s crashed the host (rc=%d)" % (name, rc))
-        elif expect == "render" and refused:
-            failures.append("the valid document was REFUSED -- the guard is too strict")
+        elif expect == "render" and (refused or not imported):
+            failures.append("the valid document was not imported (REJECTED, REFUSED or never "
+                            "restored) -- the guard is too strict, or no controller ran")
         elif expect == "refuse" and not refused:
             failures.append("%s was accepted -- the guard did not catch it" % name)
 
@@ -208,7 +224,7 @@ def main():
             print("  " + f)
     else:
         print("PASS -- every malformed chunk was refused or survived, the real document")
-        print("        was not refused, and nothing took the host down.")
+        print("        was imported, and nothing took the host down.")
     if args.keep:
         print("\n  artefacts kept in %s" % workdir)
     return 1 if failures else 0

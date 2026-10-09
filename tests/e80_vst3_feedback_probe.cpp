@@ -95,6 +95,14 @@
  *                    that line appears. If it does NOT, the diagnostic has
  *                    regressed -- that is the finding, not the empty rack.
  *
+ *                    2026-10-09: no rack is built at all in this arm now. The
+ *                    processor builds only the DSP the controller pushes on
+ *                    parameter 4 and has no pin for the restored parameter 1,
+ *                    so with no controller nothing ever builds. The line is
+ *                    printed on the 200th silent block instead of at the
+ *                    rack-build site, so run at least 200 (the default 800
+ *                    does). Not re-measured.
+ *
  * A NOTE ON WHAT --editor NEEDS THAT --no-editor DOES NOT, because it is not
  * cosmetic on VST3. The wrapper moves DSP->UI traffic by allocating an
  * IMessage from the host (Processor_VST3.cpp's background thread calls
@@ -866,7 +874,8 @@ int main(int argc, char** argv)
      * this plug-in that is load-bearing rather than pedantic: the module
      * factory is populated by TideApp::InitInstance(), which is controller
      * side. Skip it and the rack builds with none of its modules -- silently.
-     * See the header comment; it was measured, not reasoned about.
+     * See the header comment; it was measured, not reasoned about. (Since
+     * 2026-10-09 nothing builds without it; see --no-controller.)
      *
      * Order matters and this is the host-like one: a DAW restores state, the
      * user has the editor open, and then the transport rolls. Creating the
@@ -964,7 +973,9 @@ int main(int argc, char** argv)
          * and, crucially, after the controller's initialize() has registered
          * every module the rack is about to ask for. --no-controller still
          * reaches this line, which is what makes that arm a REPRODUCTION of
-         * the empty-factory failure rather than a crash or a skipped restore. */
+         * the empty-factory failure rather than a crash or a skipped restore.
+         * Since 2026-10-09 the processor ignores this restore (it builds only
+         * from parameter 4), so that arm builds nothing at all. */
         if (loadPreset && !activateFirst)
         {
             stateStream.pos = 0;

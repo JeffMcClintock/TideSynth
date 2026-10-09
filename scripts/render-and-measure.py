@@ -32,6 +32,9 @@ judged on.
     saved projects held bare modules. E2a's prefabs carry internal cables and
     broke that inference.
 
+    2026-10-09: a save now holds <Editor> only, no <DSP> (docs/decisions.md,
+    E81), so for it only the cable count is reported.
+
 On Linux
 --------
 REAPER embeds plug-in editors via X11 only (its SWELL layer), so an inherited
@@ -268,7 +271,8 @@ def graph_summary(rpp):
     """(rack_cables, container_lines) for the embedded TIDE document, or None.
 
     `rack_cables` is what decides whether the project could sound; see the
-    module docstring for why `container_lines` does not.
+    module docstring for why `container_lines` does not. `container_lines` is
+    None when the document has no <DSP> half.
 
     FOUR layers of encoding, each of which cost a wrong guess to find:
       1. The <VST block's body is base64, one stream split over many lines --
@@ -276,13 +280,25 @@ def graph_summary(rpp):
          concatenating everything and decoding truncates at its '='.
       2. The decoded state is the preset XML, whose blob attribute is `val=`,
          not `value=`.
-      3. That attribute is base64 again, and yields the <Document>.
+      3. That attribute is base64 again, and yields the <Document> -- behind a
+         4-byte TDs1/TDb1 tag on every save since 2026-08-26
+         (SynthEditSem/ChunkPrefix.h).
       4. The cable list is base64 a THIRD time, inside the <patch-list><s> of
          the param whose hostControl is HC_PATCH_CABLES.
 
-    Scoping the cable count to that hostControl matters: a saved document also
-    carries a copy of the same <patch-list> in its editor half, under a param
-    with no hostControl attribute, and counting both doubles every cable.
+    The cable regex is case-sensitive, and that is what stops an older save
+    counting each cable twice: it matches the <Editor> half's
+    `<param ... hostControl="49">`, not the <DSP> half's
+    `<Parameter ... HostControl="49">`. A save with <Editor> only still counts.
+
+    Corrected 2026-10-09. This paragraph used to say the editor half's copy
+    sat under a param with no hostControl attribute; it carries one, and it
+    is the copy counted.
+
+    2026-10-09: a save now holds <Editor> only, no <DSP> (docs/decisions.md,
+    E81), so `container_lines` is None for it. The tag is stripped before
+    parsing as of the same day; until then ET.fromstring rejected it, and
+    every save since 2026-08-26 came back None.
     """
     try:
         import base64
@@ -304,6 +320,8 @@ def graph_summary(rpp):
         if not m:
             return None
         doc = base64.b64decode(m.group(1))
+        if doc[:4] in (b"TDs1", b"TDb1"):   # ChunkPrefix.h's tag
+            doc = doc[4:]
 
         cables = 0
         for pm in re.finditer(
@@ -316,9 +334,11 @@ def graph_summary(rpp):
             cables += base64.b64decode(
                 b64 + b"=" * (-len(b64) % 4), validate=False).count(b"<Cable ")
 
-        dsp = ET.fromstring(doc).find("DSP")
+        root = ET.fromstring(doc)
+        dsp = root.find("DSP")
         if dsp is None:
-            return None
+            # Editor only (saved since 2026-10-09); the cables above are the Editor's.
+            return (cables, None) if root.find("Editor") is not None else None
         internal = sum(len(l) for mod in dsp.iter("Module")
                        for l in mod.findall("Lines"))
         return cables, internal
@@ -368,8 +388,17 @@ def main():
         cables, internal = summary
         print("    rack: %d patch cable(s) (HC_PATCH_CABLES) joining modules;"
               % cables)
-        print("          %d <Line>(s) inside prefab containers" % internal)
-        if silent and cables == 0:
+        if internal is None:
+            print("          no <Line> count: no <DSP> half (saved since 2026-10-09;")
+            print("          the DSP is exported each run, never saved). The cable")
+            print("          count is read from the <Editor> half and still holds.")
+        else:
+            print("          %d <Line>(s) inside prefab containers" % internal)
+        if silent and cables == 0 and internal is None:
+            print("    NOTE: NOTHING joins one rack module to another, so silence is")
+            print("    expected and says nothing about the plugin. Not a usable audio")
+            print("    test.")
+        elif silent and cables == 0:
             print("    NOTE: NOTHING joins one rack module to another, so silence is")
             print("    expected and says nothing about the plugin. Not a usable audio")
             print("    test. The <Line>s counted above are INSIDE containers and are")
@@ -378,13 +407,19 @@ def main():
             print("    NOTE: the rack IS wired, so this silence is a real finding about")
             print("    the plugin rather than about the project. The cables survived the")
             print("    save, so the fault is downstream of the document.")
-            print("    CHECK E59 FIRST, before ug_container::ConnectPatchCables: count")
-            print("    the plug-in's `TIDE: building rack from N byte document` lines on")
-            print("    stderr. TWO of them, the second ~17,957 bytes, means the DSP threw")
-            print("    your rack away and is running the DEFAULT one -- nothing was")
+            print("    CHECK E59 FIRST, before ug_container::ConnectPatchCables: find the")
+            print("    LAST `restore of a N byte document -> ...` line on stderr.")
+            print("    REJECTED, or no such line, means your rack never reached the")
+            print("    processor: the LAST of the plug-in's")
+            print("    `TIDE: instance #N building rack from N byte document` lines is")
+            print("    then the DEFAULT rack (~8 KB of DSP since 2026-10-09), or an empty")
+            print("    one if the import failed part-way. `imported` with a LAST build of")
+            print("    an older generation than the controller's last `pushing` line")
+            print("    means the push was lost on the way. Either way nothing was")
             print("    mis-cabled, and no amount of reading the cable code will show it.")
-            print("    Measured on linux and windows 2026-08-28; this fixture is silent")
-            print("    on windows for exactly that reason while macOS renders it at")
+            print("    Measured on linux and windows 2026-08-28, when it showed as two")
+            print("    builds, the second ~17,957 bytes; this fixture was silent on")
+            print("    windows for exactly that reason while macOS rendered it at")
             print("    -6.3 dBFS.")
         return 0
 

@@ -32,6 +32,9 @@
 > crash from `.ips` reports alone.
 >
 > Sections 1-3 below stand as written and were confirmed.
+>
+> 2026-10-09: section 3 no longer holds — the processor never reads the saved
+> chunk; see that section's note.
 
 Measured 2026-08-17 on the macOS box by the weekly scheduled run, against the
 mac NEXT row's instruction: *"measure `/tmp/tide-persist3.rpp` reopening before
@@ -68,6 +71,10 @@ The decoded document is checked in beside this note as
 [s11-restored-document.xml](s11-restored-document.xml) so a later run can diff
 against it rather than re-deriving it.
 
+> 2026-10-09: a save now carries `<Editor>` only and that file is `<DSP>` only,
+> so a current save has nothing to diff against it. See
+> [decisions.md](decisions.md) (E81).
+
 ## 2. The restore side cannot work — four one-way facts
 
 Every path that could carry parameter 1 (`chunk`) back into the editor is either
@@ -101,6 +108,9 @@ list (`controller_holder.cpp:51, 166, 229, 289, 365, 458, 504, 586`), so
 parameter 1 is unreachable from the editor by construction, whatever the preset
 holds.
 
+> 2026-10-09: parameter 1 now has no `<Audio>` pin either; the processor's pin
+> is `dsp`, parameter 4 (see section 3's note).
+
 **(c) `onPushChunk` is push-only.** Installed at `SynthEditController.cpp:78`,
 called from `TideApp::serviceDocumentSync` (`TideApp.cpp:274`). There is no
 inbound counterpart: `grep -rE "ImportXml|importDspXml|OnOpenDocument" SynthEditSem/`
@@ -125,6 +135,10 @@ current bytes, with a comment that names this exact case:
 
 So the restored document reaches `Processor::onSetPins` →
 `rack.setDocumentXml(...)` (`SynthEdit.cpp:54-58`) and the DSP graph rebuilds.
+
+> 2026-10-09: superseded — the processor has no parameter 1 pin and never reads
+> a saved chunk. It builds only from parameter 4, the DSP this run's controller
+> exports after every document load; see [decisions.md](decisions.md) (E81).
 
 **The prediction this suggested — "empty rack, audio from an invisible patch" —
 was NOT confirmed, and cannot be observed as stated.** See section 4: the host

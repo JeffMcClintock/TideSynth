@@ -114,6 +114,9 @@ def main():
                   f'<Param id="1"> -- not a TiDE preset or document', file=sys.stderr)
             return 1
         doc = base64.b64decode(param.get('val'))
+    # A save since 2026-08-26 has ChunkPrefix.h's 4-byte TDs1/TDb1 tag before the XML.
+    tag = doc[:4] if doc[:4] in (b'TDs1', b'TDb1') else b''
+    doc = doc[len(tag):]
     hits = list(CENTRE_RE.finditer(doc))
     if not hits:
         print(f'{args.preset}: document has no <PanelLocationCenter/>', file=sys.stderr)
@@ -187,7 +190,7 @@ def main():
     if param is None:
         open(out, 'wb').write(doc)
     else:
-        param.set('val', base64.b64encode(doc).decode('ascii'))
+        param.set('val', base64.b64encode(tag + doc).decode('ascii'))
         preset.write(out, encoding='UTF-8', xml_declaration=True)
     print(f'  wrote {out}')
     return 0

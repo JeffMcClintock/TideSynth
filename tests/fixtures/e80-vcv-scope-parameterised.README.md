@@ -39,6 +39,11 @@ The capture row is the control: the DSP was doing the same work in both arms, so
 what changed is what happened to the picture afterwards. CLAP reproduces it from
 the same build tree — `#1 arrived (0 bytes)` → `#260 arrived (65548 bytes)`.
 
+> 2026-10-09: the processor no longer builds from the saved `<DSP>`, only from what this
+> run's controller exports after loading `<Editor>`, so this A/B describes the old load path.
+> The load that made this fixture gave `e75`'s Scope its 11 parameters, so a current build
+> probably gives the left arm them too; not re-measured. See docs/decisions.md (E81).
+
 ## How it was made, and what "regenerate" can and cannot promise
 
 ```
@@ -53,7 +58,8 @@ rather than unnecessary.
 **It does NOT regenerate byte-identically, and the reason is a known row.**
 `Handle="…"` on a patch parameter is re-minted from a `time(nullptr)`-seeded RNG
 on every load (**E77**, mechanism at `SynthEditLib/UniqueSnowflake.cpp:176`;
-**E81** is the open question about it), and `<Parameter>` is sorted by handle, so
+**E81** is the open question about it, answered 2026-10-09: the handles stay),
+and `<Parameter>` is sorted by handle, so
 one changed handle moves whole blocks. Measured here: two saves a second apart
 differ in **592 of 892 decoded lines** — and are **identical** once handles are
 masked and order ignored, which is E77's own normalisation.
@@ -75,3 +81,8 @@ So: regenerate it when the document's *content* needs to change; do not expect a
   thing they reproduce. Check any of them with
   `scripts/patch-parameters.py <fixture> --compare` before quoting a
   display-state number from it.
+
+> 2026-10-09: a current build saves `<Editor>` only, so the `e80vst3probe.exe … --save`
+> command above now regenerates this fixture without the `<DSP>` half the first bullet reads,
+> and `--compare` then censuses both sides from `<Editor>`: `e75` against a current build's
+> save of the same rack still gives Scope 0 → 11. See docs/decisions.md (E81).

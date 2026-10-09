@@ -14,6 +14,11 @@ Scope capture for a week.
   ./scripts/patch-cables.py tests/fixtures/e75-vcv-visible-rack.xml --show
   ./scripts/patch-cables.py in.xml --sync-dsp -o out.xml
 
+Since 2026-10-09 a save holds only `<Editor>`, and a load ignores an older
+save's `<DSP>`: the audio graph is wired from this run's export of the editor's
+document (docs/decisions.md, E81). So the two lists can no longer disagree in a
+running TiDE, and `--sync-dsp` changes only what an older build would wire.
+
 WHY IT IS NOT READABLE WITHOUT THIS. A fixture is a `<Preset>` whose
 `<Param id="1">` holds the whole document base64'd, and the cable lists are
 base64'd a SECOND time inside that. So the field that decides whether a cable
@@ -40,6 +45,9 @@ they disagree under `--show`, 2 when the document cannot be read or repaired.
 **A half with no `HC_PATCH_CABLES` parameter has no cables**, which is the normal
 state of `DefaultRack.synthedit` and every prefab -- so that is a 0, not an
 error. `--show` is therefore usable as a check over every committed fixture.
+A document with no `<DSP>` half (every save since 2026-10-09, and every
+`.synthedit` file) prints its Editor list and exits 0 under `--show`, 2 under
+`--sync-dsp`.
 """
 
 import argparse
@@ -70,11 +78,12 @@ def load_document(path):
 
     A `<Preset>` fixture holds the whole document base64'd in `<Param id="1">`;
     a `.synthedit` file (`DefaultRack.synthedit`, and every fixture saved by the
-    editor) IS the document. The second form matters here because it is the only
-    source of a KNOWN-GOOD control: a rack whose two cable lists agree.
+    editor) IS the document. The second form has no `<DSP>` half at all
+    (`DefaultRack.synthedit` never had one), so `--show` prints only its Editor
+    list; it is not a two-list control.
 
     Returns (preset, param, header, doc, tree). `preset`/`param` are None for the
-    bare form; `header` is the legacy chunk prefix, empty for most fixtures.
+    bare form; `header` is the 4-byte chunk tag, empty for most fixtures.
     """
     raw = open(path, "rb").read()
     if b"<Preset" in raw[:400]:
@@ -89,11 +98,11 @@ def load_document(path):
 
 
 def split_chunk_header(blob):
-    """Separate a legacy chunk header from the document it prefixes.
+    """Separate a chunk's 4-byte tag from the document it prefixes.
 
     A fixture written by hand or by `set-view-center.py` is the document alone;
     one written by a plug-in's `state->save` carries a short binary header in
-    front of it (TiDE logs these as "Legacy chunk"). Splitting on the first `<`
+    front of it (the Sync/Build tag, ChunkPrefix.h). Splitting on the first `<`
     reads both, and keeping the header lets --sync-dsp write the file back in
     the shape it arrived in rather than silently converting it.
     """
@@ -130,7 +139,10 @@ def read_cables(slot):
 
 
 def module_types(document):
-    return {m.get("Id"): m.get("Type") for m in document.iter("Module")}
+    """Type by handle: `<DSP>` writes `<Module Id= Type=>`, `<Editor>` `<module handle= type=>`."""
+    names = {m.get("Id"): m.get("Type") for m in document.iter("Module")}
+    names.update((m.get("handle"), m.get("type")) for m in document.iter("module") if m.get("handle"))
+    return names
 
 
 def describe(cable, names):
@@ -161,10 +173,23 @@ def main():
     # A HALF WITH NO HC_PATCH_CABLES PARAMETER HAS NO CABLES, which is not an
     # error and must not be reported as one: `DefaultRack.synthedit` and every
     # prefab in RackModules/ are in exactly that state -- the shipped rack has
-    # no rack cabling, so its DSP half carries no such parameter at all while
-    # its editor half carries an empty one. Treating that as malformed would
+    # no rack cabling: its editor half carries an empty list, and it has no
+    # <DSP> half at all. Treating that as malformed would
     # make this unusable as a check over the fixtures that matter (E84).
     lists = {half: read_cables(slot) for half, slot in slots.items()}
+
+    # A save since 2026-10-09, like every .synthedit file, has no <DSP> half: a
+    # build wires its own export of the Editor half, so there is no second list.
+    if document.find("DSP") is None:
+        print(f"{args.fixture}: no <DSP> half (a build exports the DSP from the Editor half)")
+        print(f"  Editor  {len(lists['Editor'])} cable(s)")
+        for cable in lists["Editor"]:
+            print(f"      {describe(cable, names)}")
+        if args.show:
+            return 0
+        print(f"{args.fixture}: no <DSP> list to repair -- a build wires the Editor list",
+              file=sys.stderr)
+        return 2
 
     if args.show:
         print(f"{args.fixture}")
@@ -176,11 +201,12 @@ def main():
         if dsp == editor:
             print("  AGREE -- the audio graph is wired the way the panel draws it")
             return 0
-        print("  DISAGREE -- the panel and the audio graph are wired differently")
+        print("  DISAGREE -- the saved <DSP> list differs from the panel's. Builds since")
+        print("  2026-10-09 ignore it and wire the Editor list; older builds wired the <DSP> one")
         for cable in sorted(editor - dsp):
-            print(f"    drawn but NOT in the audio graph: {describe(cable, names)}")
+            print(f"    drawn but NOT in the saved <DSP>: {describe(cable, names)}")
         for cable in sorted(dsp - editor):
-            print(f"    in the audio graph but NOT drawn: {describe(cable, names)}")
+            print(f"    in the saved <DSP> but NOT drawn: {describe(cable, names)}")
         return 1
 
     # --sync-dsp: the editor's base64, verbatim, into the DSP slot -- as a byte

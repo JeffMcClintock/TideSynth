@@ -56,6 +56,12 @@ XDG_CONFIG_HOME="$E19_SCRATCH/sacfg" build-e19/SynthEditSem/TIDE-Rack 2> sa.err
 
 ## What it measured, 2026-08-31
 
+> 2026-10-09: the processor now builds only from the DSP this run's controller exports, never
+> a saved one, so a current build's `building rack from` sizes are DSP-only, a fresh instance
+> may build the Default Rack before the restored one, and it never logs `Legacy chunk`. Every
+> document size in this README, the 2026-09-02 Windows table's included, was measured when
+> parameter 1 carried both halves. See docs/decisions.md (E81).
+
 Same build, same document, same box, same compositor. The only variable is the
 host.
 

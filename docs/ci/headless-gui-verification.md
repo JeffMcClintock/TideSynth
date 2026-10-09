@@ -426,6 +426,14 @@ probe measured the consequence in one command, and the A/B is one commit wide:
   save did not echo; a size MATCH proves nothing** — the mint is a fixed point,
   so a re-saved document matches exactly.
 
+> 2026-10-09: a save now carries `<Editor>` only, so a document saved before then
+> sheds its whole `<DSP>` on its first re-save — not loss, and the size can move
+> either way: the `e83` fixture's 38,745-byte document came back as 57,207 bytes.
+> The census above is `<DSP>`'s modules plus both halves' cables (the 18,893-byte
+> rack's two cables, counted twice; its `<Editor>` line reads 21 modules, 2
+> cables), so compare an old save with a new one on `<Editor>` alone. See
+> docs/decisions.md (E81).
+
 **What it deliberately does not answer:** what the patch sounds like, and
 anything needing the editor. Those are the sections above, and this one does not
 replace them — it removes the host from the questions that never needed one.
@@ -889,6 +897,15 @@ figures read off it.
 the other arms came from the document under test rather than from something the
 plug-in does anyway.
 
+> 2026-10-09: superseded — the controller now pushes the Default Rack at
+> `initialize`, so `--no-preset` builds it instead of logging `unprepared -
+> writing silence`; its output is still silent (peak -1000 dBFS). A run that day
+> logged `building rack from 8109 byte document` and `rack feedback reaching the
+> editor`; it was not a `RACK_ADAPTOR_TRACE` build, so neither sends nor captures
+> were counted. The control is now the absent `display-state capture` (the
+> Default Rack has no VCV module), not zero sends. The `e75` rows above are the
+> old load path; see the E80 note further down. See docs/decisions.md (E81).
+
 **`--pump` and `--no-pump` are identical to the byte.** Whatever this is, it is
 not the controller's timer being starved — which is the first thing a bare host
 should be suspected of, and the trap `e79`'s two arms exist for.
@@ -993,6 +1010,12 @@ does not.
   five-alarm result on `v1-rack.rpp`. The evidence the document arrived is
   `TIDE: instance #1 building rack from 38661 byte document`, not the peak.
 
+  > 2026-10-09: that line now gives the size of the DSP-only export, not the
+  > fixture's, and a Default Rack build can precede it; match its `generation G`
+  > to the controller's `pushing N byte document (generation G)` logged with
+  > `restore of a M byte document -> imported` (M is the fixture's 38,661, N the
+  > export's). See docs/decisions.md (E81).
+
 # A bare VST3 host on WINDOWS — and the arm that retitled E80
 
 Written 2026-09-11 for **BACKLOG E80**, whose whole premise was that TIDE's
@@ -1043,6 +1066,15 @@ the two `IConnectionPoint`s, `controller->setComponentState`, and only then
 `component->setState`. Restoring the component's state before the controller's
 `initialize()` builds the rack against an empty factory.
 
+> 2026-10-09: partly superseded — the processor builds only from the parameter 4
+> its controller pushes (held until `connect()` if sent earlier), never from
+> component state, so the setComponentState/setState order no longer matters. The
+> controller must still be created, initialised, connected and given
+> `setComponentState`: `component->setState` alone leaves it on the Default Rack,
+> and `--no-controller` builds nothing and logs `NO CONTROLLER` after ~200 silent
+> blocks. Both follow from the code; neither was re-measured. See
+> docs/decisions.md (E81).
+
 ## The other thing a VST3 host must provide, or it measures its own omission
 
 DSP→UI traffic in this wrapper is `IMessage`-based: `Processor_VST3.cpp`'s
@@ -1077,6 +1109,13 @@ that differs**. `TIDE_FEEDBACK_TRACE_EVERY=1`, 800 blocks of 512 at 44.1 kHz,
 
 **The two formats' entire lifetime queue traffic differs by 25 bytes**, and both
 are smaller than ONE 65,548-byte picture. The blob crosses on neither.
+
+> 2026-10-09: a fresh VST3 instance now builds the Default Rack, so the
+> `--no-preset` row's zeros no longer hold: a run that day logged `building rack
+> from 8111 byte document` and `rack feedback reaching the editor` (not a
+> `RACK_ADAPTOR_TRACE` build, so sends and captures were not counted). The
+> control is now the absent `display-state capture`. The `e75` rows above are the
+> old load path; see the E80 note below. See docs/decisions.md (E81).
 
 So the figure E80 was filed on — *"65,673 repeatedly on VST3"*, read in REAPER
 off the old 1-in-100 cadence — does not survive a full trace, exactly as that
@@ -1166,6 +1205,17 @@ agree, and both are missing the same eleven parameters.** A cross-half
 comparison is blind to it by construction, which is why `--compare` against a
 round-trip is the mode to reach for and `--halves` is the secondary one.
 
+> 2026-10-09: a save now carries `<Editor>` only: `--halves` has no second half
+> to compare, and `--compare` against one is meaningful only counted on
+> `<Editor>` in both files (a `<DSP>`-only count passes vacuously); counted that
+> way, `e75` against a current save also flags each `TiDE Patch Point Out` 0 -> 1.
+> The processor now builds from this run's export of the loaded document, which
+> has the Scope's 11 (a current build's save of `e83`'s rack does): restoring
+> `e83`, whose Scope lacks them as `e75`'s does, printed 0 `no patch parameter
+> for module` lines that day where the old load path printed 9. So `e75` probably
+> no longer reproduces E80 (far end not counted: no `RACK_ADAPTOR_TRACE`); the A/B
+> below is the old load path, not re-measured. See docs/decisions.md (E81).
+
 ## The A/B — same binary, one variable
 
 800 blocks of 512 at 44.1 kHz, `--editor`, `TIDE_FEEDBACK_TRACE_EVERY=1`:
@@ -1212,6 +1262,16 @@ input pin from those stores. So:
 | `state->load` then `activate` | works, on every platform, no timer involved |
 | `activate` then `state->load` | **dropped on the floor** |
 
+> 2026-10-09: superseded — a blob the controller sets now reaches a running CLAP
+> processor and `stateLoad` queues the restore (both GMPI_Wrappers 399568d), and
+> TIDE's processor builds from the parameter 4 its controller pushes at every
+> load, so a load after `activate()` plays even if the host ignores
+> `request_restart`. Measured with a bare host that no-ops it (a scratch
+> `--activate-first` copy of `e80_clap_feedback_probe.c`): the restore's
+> `pushing 5176 byte document (generation 2)`, then `building rack from 5176 byte
+> document (… generation 2)` and `v1-rack` at -6.3 dBFS. See docs/decisions.md
+> (E81).
+
 `tests/e79_clap_headless_probe.c` was written in the first order and therefore
 could not see the defect on any platform. It now takes `--activate-first`:
 
@@ -1240,6 +1300,10 @@ the first `process()` — `stop_processing`, `deactivate`, `activate`,
 guarantees has no `process()` call in flight. **A bare host is only evidence for
 the callbacks it actually implements.**
 
+> 2026-10-09: TIDE's restore no longer depends on `request_restart` (see the note
+> above), so a stub that no-ops it now plays a load after `activate()`; the habit
+> stands for any fix that does depend on a callback. See docs/decisions.md (E81).
+
 ## The REAPER arm E79 needed, and it is the one REAPER *can* do
 
 `tests/e19-host-feedback/` drives it with no new code — set `E78_PREROLL` past
@@ -1260,6 +1324,12 @@ bash run-host.sh prepare-clap.lua mint
 E78_PREROLL=99999 bash run-host.sh measure-clap.lua noeditor 25
 grep -E 'building rack|unprepared' "$E19_SCRATCH/reaper-noeditor.err"
 ```
+
+> 2026-10-09: the controller now pushes the Default Rack at `initialize`, so this
+> grep finds a `building rack` line whether or not the restore arrived. Grep
+> `'building rack|unprepared|pushing|restore of'` instead and match the build's
+> `generation G` to the push logged with `restore of a M byte document -> imported`.
+> See docs/decisions.md (E81).
 
 This is the arm that works. REAPER 7.43 still **cannot** host TIDE's CLAP *GUI*
 on Linux — `TrackFX_Show` kills it inside its own GTK before `guiSetParent` —

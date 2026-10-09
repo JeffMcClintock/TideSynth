@@ -48,6 +48,10 @@ TIDE's whole patch is that blob (`pinChunk`, `parameterId 1`,
 `SynthEditSem/SynthEdit.cpp:29`). So the fresh instance is re-fed the document,
 `onSetPins` fires, and `prepareToPlay` runs at the **new** rate.
 
+> 2026-10-09: the processor's blob is now parameter 4 (`dsp`, non-persistent,
+> never saved), which the holder retains and re-seeds the same way; parameter 1
+> no longer reaches the processor. See [decisions.md](decisions.md) (E81).
+
 ## Per-format trigger — one mechanism, four doorbells
 
 | target | what the host calls | where | consequence |
@@ -185,6 +189,13 @@ same PR as this file.**
   precedent does NOT transfer, and copying it would crash the host** — see
   [the section below](#why-the-open-precedent-does-not-transfer), measured
   2026-08-19.
+  > 2026-10-09: closed — the controller now pushes a Build on parameter 4 at
+  > every document load, InitInstance's Default Rack included, and the wrappers
+  > now deliver it (VST3 sends the non-stateful blobs set before `connect()` at
+  > `connect()`; CLAP installs `sendNonNativeParameterToProcessor`,
+  > GMPI_Wrappers 399568d), so a fresh instance with no state prepares and
+  > builds the Default Rack in CLAP and VST3 (silent without input). AU3 and the
+  > standalone were not measured. See [decisions.md](decisions.md) (E81).
 - **`DoAsyncRestart()` alone cannot absorb a rate change.** The `resetting`
   branch rebuilds from the *member* `sampleRate` (`SynthRuntime.cpp:388`), which
   is only ever written by `prepareToPlay` (`:33`). A faded rate change would need
@@ -321,6 +332,10 @@ which synthesises REAPER VST3 state blocks so a project can carry an arbitrary
 saved chunk (the length fields make hand-editing a fixture impossible — the block
 has to be built).
 
+> 2026-10-09: a saved chunk no longer reaches the processor, so that script now
+> exercises only the controller's import, not the processor guard measured below.
+> See [decisions.md](decisions.md) (E81).
+
 ### 1. A malformed saved chunk was a live host crash, not a latent one
 
 `<Patch/>` as the saved chunk — well-formed XML, wrong root — **segfaulted the
@@ -370,6 +385,11 @@ return from `BuildDspGraph` — including the one already there — leads to
 only when a pin is set. A no-chunk instance gets no such event: `PinStreamingStart`
 is emitted only for audio **inputs** (TIDE declares none), output pins are skipped,
 MIDI has no default, and the empty blob `continue`s at `processor_holder.cpp:226`.
+
+> 2026-10-09: a no-chunk instance now gets that event — the controller pushes
+> the Default Rack on parameter 4 at `initialize()` (see the closed gap above)
+> — so it is no longer the unprepared case this A/B measured. See
+> [decisions.md](decisions.md) (E81).
 
 A/B measured on a project whose saved chunk is empty, same build except for those
 two lines:

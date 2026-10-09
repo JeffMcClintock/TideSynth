@@ -55,6 +55,11 @@ uncabled fixture is what keeps that from being re-learned the hard way. The
 count that decides it is the patch-cable list in `HC_PATCH_CABLES`; see the
 docstring of `render-and-measure.py`.
 
+> 2026-10-09: a fixture saved since then has no `<DSP>` half, so no `<Line>`s, and
+> `render-and-measure.py` prints no `<Line>` count for it. Its `<Editor>` carries the same
+> wiring as lower-case `<line>`s (eight in each of these two fixtures), which mislead a
+> reader the same way. See docs/decisions.md (E81).
+
 ## Measured on Windows for the first time, 2026-09-08
 
 REAPER 7.78, offline `-renderproject`, against the bundle that is actually on

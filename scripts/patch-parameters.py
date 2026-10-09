@@ -41,6 +41,16 @@ raises 6 flags on e75 of which 1 is the defect -- `IO Mod`, `VCA` and
 NOT extended to cover them, because a long allowlist is how a screen stops
 screening; the false-alarm rate is stated instead.
 
+Since 2026-10-09 a save holds only <Editor> (the DSP is exported each run, never
+saved; docs/decisions.md, E81), so the two copies above exist only in older
+saves and --halves has nothing to compare in a new one. A document with no
+<DSP> is censused from <Editor> instead, less the GUI-only modules <DSP> never
+listed. MEASURED on a current build's save of the e83 rack (a TiDE Rack
+standalone session.xml, not committed), 2026-10-09: 6 flags -- IO Mod x2,
+VCA x3 and SE MIDI to CV 2, all by design; that save's Scope carries 11
+parameters. Re-counted the same day, e75 raises 7, not 6: those six plus its
+Scope.
+
 TWO THINGS DO PROVE IT, and both are cheap.
 
   --compare <other>   Diff this document's per-module counts against another's.
@@ -54,6 +64,15 @@ TWO THINGS DO PROVE IT, and both are cheap.
                           patch-parameters.py <fixture> --compare roundtrip.xml
 
                       That is how E80 was settled: e75's Scope went 0 -> 11.
+                      2026-10-09: a current build saves no <DSP>, so if
+                      either side lacks one, both are censused from
+                      <Editor>. e83 against a current save of its rack:
+                      Scope 0 -> 11, and each Patch Point Out 0 -> 1 --
+                      the Level parameter the module gained after e83
+                      (modules/PatchPoint/PatchPoint.cpp, uncommitted when
+                      measured), not a defect in e83. Against an older
+                      fixture a 0 -> N can be the module changing, not
+                      the document.
 
   The plug-in's own diagnostic, which already exists and fires at graph build
   (SynthEditLib/ug_patch_param_setter.cpp, TIDE E49):
@@ -89,6 +108,16 @@ NO_PARAMETERS_EXPECTED = {
     "TiDE Patch Point Out",
     "Patch Point In",
     "Patch Point Out",
+}
+
+# Modules with no DSP part, which only <Editor> lists. An <Editor> census drops
+# them so it screens the same modules a <DSP> census did.
+GUI_ONLY = {
+    "SE Label",
+    "SE TiDE:Panel",
+    "SE Button",
+    "SE Float Function GUI",
+    "SE:Int to Bools2",
 }
 
 
@@ -158,14 +187,36 @@ def modules_of(dsp_half):
     }
 
 
-def counts_by_module(path):
-    """Per-module DSP parameter counts across every document in a file."""
+def editor_modules_of(editor_half):
+    """<Editor> spells a module <module type=".." handle="..">, the rack <master_container>."""
+    return {
+        m.group(2): m.group(1)
+        for m in re.finditer(r'<(?:module|master_container)\s+type="([^"]+)"\s+handle="(\d+)"',
+                             editor_half)
+        if m.group(1) not in GUI_ONLY
+    }
+
+
+def has_dsp(doc):
+    return "<DSP" in split_halves(doc)[0]
+
+
+def census(doc, use_dsp):
+    """(module types, parameters per module) from the <DSP> half, or from <Editor>."""
+    dsp, editor = split_halves(doc)
+    if use_dsp:
+        return modules_of(dsp), count_params(dsp, True)
+    return editor_modules_of(editor), count_params(editor, False)
+
+
+def counts_by_module(path, use_dsp):
+    """Per-module parameter counts across every document in a file."""
     out = collections.Counter()
     types = {}
     for _, doc in documents(path):
-        dsp, _ = split_halves(doc)
-        types.update(modules_of(dsp))
-        out.update(count_params(dsp, True))
+        mods, counts = census(doc, use_dsp)
+        types.update(mods)
+        out.update(counts)
     return out, types
 
 
@@ -176,11 +227,19 @@ def compare(path, other):
     itself writes it, so a shortfall is a fact about this document rather than
     a guess about what a module ought to declare.
     """
-    mine, types = counts_by_module(path)
-    theirs, other_types = counts_by_module(other)
+    # Like with like: a save since 2026-10-09 has no <DSP>, so then both sides use <Editor>.
+    use_dsp = all(has_dsp(doc) for p in (path, other) for _, doc in documents(p))
+    half = "<DSP>" if use_dsp else "<Editor>"
+    mine, types = counts_by_module(path, use_dsp)
+    theirs, other_types = counts_by_module(other, use_dsp)
+    for p, t in ((path, types), (other, other_types)):
+        if not t:
+            print("%s: no TiDE document with modules to census from %s" % (p, half),
+                  file=sys.stderr)
+            return 2
     types.update({h: t for h, t in other_types.items() if h not in types})
 
-    print("%s  vs  %s" % (path, other))
+    print("%s  vs  %s  (%s census)" % (path, other, half))
     worst = 0
     for handle in sorted(set(mine) | set(theirs), key=lambda h: (types.get(h, "~"), h)):
         a, b = mine.get(handle, 0), theirs.get(handle, 0)
@@ -201,31 +260,36 @@ def report(path, show_halves):
 
     for label, doc in documents(path):
         found_any = True
-        dsp, editor = split_halves(doc)
-        mods = modules_of(dsp)
-        dsp_counts = count_params(dsp, True)
+        _, editor = split_halves(doc)
+        # A save since 2026-10-09 has no <DSP> (exported each run, never saved).
+        use_dsp = has_dsp(doc)
+        mods, counts = census(doc, use_dsp)
         editor_counts = count_params(editor, False)
+        half = "dsp" if use_dsp else "editor"
 
-        print("%s [%s]  %d module(s), %d DSP parameter(s)"
-              % (path, label, len(mods), sum(dsp_counts.values())))
+        print("%s [%s]  %d module(s), %d %s parameter(s)%s"
+              % (path, label, len(mods), sum(counts.values()), "DSP" if use_dsp else "editor",
+                 "" if use_dsp else "  (no <DSP> half)"))
 
         for handle, mtype in sorted(mods.items(), key=lambda kv: (kv[1], kv[0])):
-            n = dsp_counts.get(handle, 0)
+            n = counts.get(handle, 0)
             suspect = n == 0 and mtype not in NO_PARAMETERS_EXPECTED
             flag = "   <-- NO PARAMETERS" if suspect else ""
             if suspect or show_halves or n == 0:
                 extra = ""
-                if show_halves:
+                if show_halves and use_dsp:
                     e = editor_counts.get(handle, 0)
                     extra = "  editor=%-4d%s" % (e, "  <-- HALVES DISAGREE" if e != n else "")
-                print("    %-24s %-12s dsp=%-4d%s%s" % (mtype, handle, n, extra, flag))
+                print("    %-24s %-12s %s=%-4d%s%s" % (mtype, handle, half, n, extra, flag))
             if suspect:
                 worst = 1
 
-        if show_halves:
-            d, e = sum(dsp_counts.values()), sum(editor_counts.values())
+        if show_halves and use_dsp:
+            d, e = sum(counts.values()), sum(editor_counts.values())
             print("    totals: dsp=%d editor=%d%s"
                   % (d, e, "" if d == e else "   <-- HALVES DISAGREE"))
+        elif show_halves:
+            print("    totals: editor=%d   (no <DSP> half to compare)" % sum(counts.values()))
 
     if not found_any:
         print("%s: no TiDE document with a <PatchManager> found" % path, file=sys.stderr)
@@ -238,7 +302,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("paths", nargs="+")
     ap.add_argument("--halves", action="store_true",
-                    help="also print the <Editor> half's copy and whether it agrees")
+                    help="also print the <Editor> half's copy and whether it agrees"
+                         " (older saves, which carry <DSP>)")
     ap.add_argument("--survey", action="store_true",
                     help="accept several paths and keep going past an unreadable one")
     ap.add_argument("--compare", metavar="OTHER",

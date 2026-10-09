@@ -101,6 +101,11 @@ finally mean something instead of nothing:
 
 Both were invisible while the panels were off screen, and neither is this fixture's doing.
 
+> 2026-10-09: the pixel-diff result describes the old load path. A current build wires this
+> rack from what its controller exports after loading `<Editor>`, whose cable list has
+> LFO→Scope (see [e83's README](e83-vcv-scope-cabled.README.md)); not re-measured. See
+> docs/decisions.md (E81).
+
 ## How to run it
 
 Exactly as `e53-vcv-rack-segv.xml` — see [its README](e53-vcv-rack-segv.README.md) for

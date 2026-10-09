@@ -56,6 +56,11 @@ file is still `TIDE Rack`, as the table above says; the two are different
 strings and both spellings are correct in their own place, which is exactly
 why this was easy to get wrong.
 
+> 2026-10-09: `building rack from` now reports the size of the DSP this run's controller
+> exports, not the saved document, so neither number holds for a current build (the Default
+> Rack's is about 8 KB; this fixture's was not re-measured), and the Default Rack may build
+> first either way, so read the last such line. See docs/decisions.md (E81).
+
 **Delete any `session.loading` sitting beside it first** — `SessionState` treats that
 sentinel as "the last load died here" and quarantines the file instead of restoring it
 (`SessionState.cpp:32`, `:312`).
@@ -98,3 +103,8 @@ The guard also prints `SynthEdit: no patch parameter for module 987654321 parame
 0..7` against this document. `987654321` is the `VCV: Scope`, which the document *does*
 define — so eight parameters are absent from the patch manager for a module that exists.
 Whether that is E53's cause is **untested**.
+
+> 2026-10-09: that was the processor building from the saved `<DSP>`. It now builds this
+> run's export, and a load supplies the Scope's missing parameters (see
+> [e80's README](e80-vcv-scope-parameterised.README.md)), so a current build may not print
+> it. Not re-measured. See docs/decisions.md (E81).

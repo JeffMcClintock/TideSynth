@@ -62,11 +62,18 @@ E81's ten-loads result, recoverable from the repo at zero cost.
     ./tests/e81_handle_branch_probe.py --syntheditlib ../SynthEditLib
 
 Exit codes: 0 when the coupling is as described above, 1 when it has MOVED (which
-is what makes this a regression guard for whichever way E81 is ruled), 2 when a
-path or document cannot be read. **This probe describes TODAY's behaviour and is
-therefore identical under every answer to E81's open question** -- it takes no
-position on whether the handle SHOULD be deterministic, which is Jeff's ruling to
-make and is filed as a `PROPOSED:` entry in docs/decisions.md.
+is what makes this a regression guard now that E81 is ruled), 2 when a
+path or document cannot be read. **This probe describes TODAY's behaviour** -- it
+takes no position on whether the handle SHOULD be deterministic.
+
+2026-10-09 -- E81 was answered (docs/decisions.md): the handle system stays as it
+is, and TIDE stops saving the DSP. Saves since then carry `<Editor>` only, and the
+document half matches only the DSP's `<Parameter HostControl=... Handle=...>`
+spelling, so it prints 'no host-control parameters' for them -- although their
+`<Editor>` still carries its stateful host controls, random handle and all, as
+`<param handle=... hostControl=...>`, which this probe does not read. The COUPLING
+check then rests on the older documents alone, and passes vacuously if none of
+them carries a host control.
 """
 
 import argparse

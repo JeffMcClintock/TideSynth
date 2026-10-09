@@ -24,8 +24,12 @@ Copy it into a build's `SynthEditSem/Resources/Prefabs/`, launch
 `TIDE_Rack_STANDALONE` with an isolated `HOME` (the session file is restored on
 launch, so a relaunch is NOT a clean rack), arm `Prefabs > V6TestPaste` in the
 module browser and click the rack — insertion is **arm-then-click**, not a drag.
-Quit, then decode `~/.config/TIDE Rack/session.xml`: it is a `<Preset>` whose
+Quit, then decode `~/.config/TiDE Rack/session.xml`: it is a `<Preset>` whose
 `Param id="1"` is base64.
+
+> 2026-10-09: this said `~/.config/TIDE Rack/`, the folder the 2026-08-24 run below read:
+> the folder is named after the plug-in, which was `TIDE Rack` until it was respelled
+> `TiDE Rack` on 2026-08-26 (#434).
 
 ## What it proved, 2026-08-24 (linux)
 
@@ -39,6 +43,9 @@ and in the DSP half:
 
     seeded  <Line From="1521837852" To="1620974935" />
     pasted  <Line From="811000001"  To="811000002"  />
+
+> 2026-10-09: a save no longer has a DSP half — the DSP is exported each run, never saved
+> (docs/decisions.md, E81) — so a re-run finds `<line>`s only, never `<Line>`s.
 
 The seeded pair is the positive control: it is the same wiring built the way
 TIDE builds it today, in the same document, so "the prefab produced the right

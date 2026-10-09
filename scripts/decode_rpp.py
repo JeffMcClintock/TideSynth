@@ -14,6 +14,11 @@ Used by tests/e9_au_rate_probe.mm (BACKLOG E9).
 The inner <Document> is what the existing report already writes per-Param; the
 two are different things and it is worth keeping them straight -- the document
 alone is NOT restorable, because the wrapper looks for the <Preset> wrapper.
+A leading TDs1/TDb1 tag is stripped from that document so it parses as XML.
+
+Modules are listed per half: <DSP> <Module Type=...>, <Editor>
+<master_container|module type=...>. A save since 2026-10-09 carries <Editor>
+only, so compare it with an older one on the <Editor> list.
 """
 import base64
 import re
@@ -111,13 +116,22 @@ def main():
                     print(f'        -> not base64 ({e})')
                     continue
                 print(f'        -> decodes to {len(inner)} bytes')
+                # TDs1 (Sync) / TDb1 (Build) prefix a chunk saved since 2026-08-26; not XML.
+                if inner[:4] in (b'TDs1', b'TDb1'):
+                    print(f'           {inner[:4].decode()} tag, stripped')
+                    inner = inner[4:]
                 for tag in (b'<Document', b'<DSP', b'<Editor', b'<master_container'):
                     n = inner.count(tag)
                     mark = 'yes' if n else 'NO '
                     print(f'           {mark} {tag.decode():<18} x{n}')
-                mods = re.findall(rb'<Module\s+[^>]*Type="([^"]+)"', inner)
-                if mods:
-                    print(f'           modules: {[m.decode() for m in mods]}')
+                # A save since 2026-10-09 has no <DSP>; <Editor> spells modules in lower case.
+                for half, spelling in (
+                        ('<DSP>', rb'<Module\s+[^>]*Type="([^"]+)"'),
+                        ('<Editor>',
+                         rb'<(?:master_container|module)\s+[^>]*\btype="([^"]+)"')):
+                    mods = re.findall(spelling, inner)
+                    if mods:
+                        print(f'           modules in {half}: {[m.decode() for m in mods]}')
                 out = path + f'.block{bi}.param{pid}.xml'
                 open(out, 'wb').write(inner)
                 print(f'           written: {out}')

@@ -36,7 +36,12 @@
  *   --no-runloop  never spin it. This is the POSITIVE CONTROL: it starves the
  *                 same timer Linux has no source for, so it should show E79's
  *                 symptom on a healthy build. A PASS in the first arm only
- *                 means something if this arm FAILS.
+ *                 means something if this arm FAILS. (Since 2026-10-09
+ *                 expect it to pass: stateLoad imports into the controller
+ *                 synchronously and GMPI_Wrappers 399568d queues the push on
+ *                 the ui->dsp queue that process() drains, so no timer gates
+ *                 delivery. The last `building rack` size says which rack
+ *                 played; see the final check. Not re-measured.)
  *
  * ARM THREE, added 2026-09-09 (linux), AND IT IS THE ONE THAT REPRODUCES E79.
  *
@@ -55,6 +60,13 @@
  * So load-then-activate delivers the document synchronously, on every
  * platform, with no timer and no editor involved. That is why arms one and two
  * are byte-identical on macOS AND on linux, and it is why they cannot see E79.
+ *
+ * 2026-10-09: not TIDE's route any more. The processor has no pin for the
+ * restored parameter 1, so the seeded store builds nothing; stateLoad's
+ * notifyControllerOfPreset imports the document into the controller, which
+ * pushes this run's DSP on parameter 4 through the ui->dsp queue
+ * (GMPI_Wrappers 399568d) for the first process() to drain. Still
+ * synchronous, still no timer. Not re-measured.
  *
  * Reverse the order and the only remaining route is the controller->processor
  * queue, serviced by `Controller_CLAP::onTimer` -- a `gmpi::TimerClient`. On
@@ -439,7 +451,20 @@ int main(int argc, char **argv)
      * it produces is the yardstick the experiment's number has to be different
      * from. Without it, "-6.3 dBFS with no editor" would be equally consistent
      * with "the restore worked" and with "the restore did nothing and the
-     * default rack happens to make a sound". */
+     * default rack happens to make a sound".
+     *
+     * 2026-10-09: the controller now pushes the Default Rack at init, and
+     * since GMPI_Wrappers 399568d that push reaches a CLAP processor, so a
+     * restore that is rejected or never delivered leaves the Default Rack
+     * playing. That rack is silent even with this note (the e80 CLAP probe's
+     * --no-preset arm sends the same note and read peak 0), so this check
+     * still fails then, but only while it stays silent. The restore played
+     * only if the controller's `restore of a N byte document` line says
+     * `imported` and the LAST `building rack` size is not the one --no-preset
+     * prints (~8 KB). Expect one `building rack` line or two: here both
+     * pushes are queued before the first process(), and since GMPI 41c7bb4
+     * the newer PinSet replaces the older when they drain in the same block.
+     * Not re-measured with this probe. */
     if (loadPreset)
         check("the RESTORED rack produced audio with no editor ever created", peak > 0.0);
     else

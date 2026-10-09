@@ -35,6 +35,13 @@ A TiDE document stores its rack cabling **twice**. `HC_PATCH_CABLES` (host contr
 `<Editor>` half, each holding its own base64'd `<Cables>` list. The panel draws from the
 editor's copy; **the audio graph is built from the DSP's**.
 
+> 2026-10-09: superseded — saves no longer carry a `<DSP>` half, and the processor never
+> builds from a saved one: it builds what this run's controller exports from `<Editor>`, so
+> by construction (not re-measured) a current build gives `e75` its LFO→Scope cable too, and
+> a split like the one below no longer reaches the audio from any fixture. The "live trap"
+> below is now only the stored `<DSP>` itself: an older build still wires it, and
+> `patch-cables.py --show` still reports it (exit 1 on `e75`). See docs/decisions.md (E81).
+
 In `e53-vcv-rack-segv.xml` — and therefore in `e75-vcv-visible-rack.xml`, which is two
 view fields away from it — those two lists **disagree**:
 

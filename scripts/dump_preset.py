@@ -28,6 +28,19 @@ counts below.
 The nesting is three deep and is why a plain grep for "Cable" finds nothing:
 each <Param> holds a base64 document, and each of that document's <patch-list>
 <s> entries holds ANOTHER base64 document, which is where <Cable> lives.
+
+COUNTED PER HALF; COMPARE ACROSS 2026-10-09 ON THE <Editor> LINE
+----------------------------------------------------------------
+Since 2026-10-09 a save carries <Editor> only (`TideApp::exportChunkXml`);
+older saves carry <DSP> too, and their first re-save sheds it. So each half is
+counted on its own line, and an old save is compared with a new one on the
+<Editor> line. The halves do not agree with each other: <Editor> spells modules
+<module type=...> under a <master_container>, includes GUI-only ones (SE Label,
+SE TiDE:Panel), lacks <DSP>'s outer Container, and holds its own cable list --
+e75 counts 24 modules and 2 cables in <Editor>, 19 and 1 in <DSP>. Summed, as
+this script did before, e83 reads 4 cables and its Editor-only re-save reads 2,
+with nothing lost (measured 2026-10-09 on a TiDE Rack standalone session.xml
+that restored e83, not committed).
 """
 import base64
 import collections
@@ -63,11 +76,28 @@ def cables(document_bytes):
 
 
 def module_types(document_bytes):
-    return collections.Counter(
-        re.findall(rb'<Module\b[^>]*\bType="([^"]*)"', document_bytes))
+    """<DSP>'s <Module Type=...> and <Editor>'s <master_container|module type=...>."""
+    return collections.Counter(re.findall(
+        rb'<(?:Module|module|master_container)\b[^>]*\b(?:Type|type)="([^"]*)"',
+        document_bytes))
+
+
+def halves(document_bytes):
+    """Yield (name, bytes) for <Editor> then <DSP>; the whole document if neither."""
+    found = False
+    for name in (b'Editor', b'DSP'):
+        m = re.search(rb'<%s\b.*?</%s>' % (name, name), document_bytes, re.S)
+        if m:
+            found = True
+            yield '<' + name.decode() + '>', m.group(0)
+    if not found:
+        yield 'document', document_bytes
 
 
 def report(path):
+    """Print the census; return the cables on its <Editor> lines (or 'document'
+    lines when a Param has neither half), summed over Params; a <DSP>-only save
+    returns 0."""
     text = open(path, encoding='utf-8', errors='replace').read()
     found = list(params(text))
     print(f"{path}")
@@ -79,15 +109,20 @@ def report(path):
         return 0
     total_cables = 0
     for pid, raw in found:
-        types = module_types(raw)
-        cbl = cables(raw)
-        total_cables += len(cbl)
-        print(f"  Param id={pid}: {len(raw)} bytes, "
-              f"{sum(types.values())} modules, {len(types)} types, {len(cbl)} cables")
-        if types:
-            print("    " + ", ".join(f"{k.decode()}={v}" for k, v in sorted(types.items())))
-        for c in cbl:
-            print("    " + c.decode('utf-8', 'replace'))
+        # TDs1 (Sync) / TDb1 (Build) prefix a chunk saved since 2026-08-26.
+        tag = f", {raw[:4].decode()} tag" if raw[:4] in (b'TDs1', b'TDb1') else ""
+        print(f"  Param id={pid}: {len(raw)} bytes{tag}")
+        for half, doc in halves(raw):
+            types = module_types(doc)
+            cbl = cables(doc)
+            if half in ('<Editor>', 'document'):
+                total_cables += len(cbl)
+            print(f"    {half}: "
+                  f"{sum(types.values())} modules, {len(types)} types, {len(cbl)} cables")
+            if types:
+                print("      " + ", ".join(f"{k.decode()}={v}" for k, v in sorted(types.items())))
+            for c in cbl:
+                print("      " + c.decode('utf-8', 'replace'))
     return total_cables
 
 
