@@ -232,8 +232,9 @@ class SynthEditController final : public gmpi::api::IController
 
 	// E59: which controller, and in what ORDER did its two state calls happen.
 	//
-	// The chunk parameter has exactly two writers on this side -- onPushChunk
-	// (Build) and syncState (Sync) -- and exactly one reader, setParameter.
+	// The saved chunk (parameter 1) is written only by syncState and read only
+	// by setParameter; the DSP (parameter 4) is written by onPushChunk (Build)
+	// and syncState (Sync).
 	// From outside, a hosted session shows a restored rack in the editor and
 	// the DEFAULT one in the DSP, and every explanation of that is a statement
 	// about the ORDER of those three calls. Nothing printed any of them.
@@ -339,22 +340,17 @@ public:
 		if (host)
 			host->setParameter(controllerPtrParamId, Field::Value, voiceId, sizeof(me), (const uint8_t*) &me);
 
-		// S12 - the GUI's periodic serviceDocumentSync() lands here: push the
-		// document's DSP XML through the chunk parameter (id 1). The wrapper
-		// carries it to the processor's blob pin like any other parameter -
-		// wrappers stay generic; everything TIDE-specific is on this side.
+		// S12 - serviceDocumentSync() and every document load land here: push
+		// the document's DSP XML on parameter 4. The wrapper carries it to the
+		// processor's blob pin like any other parameter - wrappers stay
+		// generic; everything TIDE-specific is on this side. Parameter 4 is
+		// never saved, so the processor builds only what this run's controller
+		// exported; parameter 1 is the saved document, and it has no DSP pin.
 		app->onPushChunk = [this](const void* data, size_t size)
 		{
-			constexpr int32_t chunkParamId = 1;
-			if (!host)
-				return;
-
 			// Tagged Build: the shape changed, and the processor must rebuild.
 			// See ChunkPrefix.h for the whole story.
-			std::vector<uint8_t> tagged(tideChunk::tagSize + size);
-			memcpy(tagged.data(), tideChunk::tagBuild, tideChunk::tagSize);
-			memcpy(tagged.data() + tideChunk::tagSize, data, size);
-			host->setParameter(chunkParamId, Field::Value, 0, static_cast<int32_t>(tagged.size()), tagged.data());
+			pushDsp(tideChunk::tagBuild, data, size);
 		};
 
 		// Parameter EDITS take this route instead of the chunk: whole `ppc`
@@ -368,7 +364,25 @@ public:
 				host->setParameter(dspMessagesParamId, Field::Value, 0, static_cast<int32_t>(size), (const uint8_t*)data);
 		};
 
+		// InitInstance loaded the Default Rack before these callbacks existed.
+		app->pushDocumentToProcessor();
+
 		return ReturnCode::Ok;
+	}
+
+	void pushDsp(const char (&tag)[tideChunk::tagSize], const void* data, size_t size)
+	{
+		constexpr int32_t dspParamId = 4;
+		if (!host || !tideApp)
+			return;
+
+		// Tag, then the generation (ChunkPrefix.h), then the DSP.
+		const uint32_t generation = tideApp->dspGeneration();
+		std::vector<uint8_t> tagged(tideChunk::dspHeaderSize + size);
+		memcpy(tagged.data(), tag, tideChunk::tagSize);
+		memcpy(tagged.data() + tideChunk::tagSize, &generation, sizeof(generation));
+		memcpy(tagged.data() + tideChunk::dspHeaderSize, data, size);
+		host->setParameter(dspParamId, Field::Value, 0, static_cast<int32_t>(tagged.size()), tagged.data());
 	}
 	
 	// "Sync unsaved state from plugin to host" - and until this existed a
@@ -393,11 +407,19 @@ public:
 		if (!tideApp || !host)
 			return ReturnCode::Ok; // nothing loaded; nothing to sync
 
+		// Parameter 1 still holds the restore the editor has yet to swap in; exporting now would save the old document.
+		if (tideApp->importPending())
+			return ReturnCode::Ok;
+
 		const auto xml = tideApp->exportChunkXmlForSave();
 		if (xml.empty())
 			return ReturnCode::Ok;
 
 		// E59 -- THE FIX, AND IT IS A REFUSAL RATHER THAN A CORRECTION.
+		//
+		// (Since the processor builds from parameter 4, which every restore
+		// re-pushes, this no longer guards the DSP; it still keeps a
+		// pre-restore save from recording the starter rack.)
 		//
 		// MEASURED 2026-08-28 on Windows, REAPER 7.78, rendering
 		// tests/hosts/v1-rack.rpp. The host asks the controller for state
@@ -422,10 +444,10 @@ public:
 		// the DSP is playing something else; v1-rack.rpp renders digital
 		// silence on a rack whose two patch cables are intact.
 		//
-		// It also refutes the assumption importChunkXml states in as many
+		// It also refuted the assumption importChunkXml then stated in as many
 		// words -- "the wrapper re-seeds the chunk parameter into the processor
 		// when it starts, so the processor builds this same document on its
-		// own". It does re-seed; the bytes were just not this document's.
+		// own". It did re-seed; the bytes were just not this document's.
 		//
 		// THE REFUSAL. Before any restore, the only thing this controller can
 		// possibly hold is the starter rack, so "the export equals the startup
@@ -513,6 +535,11 @@ public:
 		memcpy(tagged.data() + tideChunk::tagSize, xml.data(), xml.size());
 		host->setParameter(chunkParamId, Field::Value, 0, static_cast<int32_t>(tagged.size()), tagged.data());
 
+		// Refresh the DSP a restarted processor will be seeded with; a running rack ignores a Sync.
+		const auto dsp = tideApp->exportDspXml();
+		if (!dsp.empty())
+			pushDsp(tideChunk::tagSync, dsp.data(), dsp.size());
+
 		return ReturnCode::Ok;
 	}
 
@@ -562,14 +589,15 @@ public:
 		// rack, which is the fail-safe outcome S11 requires. It must never
 		// escape as an exception: we are on the host's main thread during
 		// project load.
-		const bool imported = tideApp->importChunkXml(
+		const bool imported = tideApp->requestImport(
 			std::string_view(reinterpret_cast<const char*>(doc), docSize));
 
 		// E59: the restore, with its size and its verdict. Paired with the
 		// syncState line above, the ORDER of the two is the finding.
 		std::cerr << "TIDE: controller #" << controllerSeq
 		          << " restore of a " << docSize << " byte document -> "
-		          << (imported ? "imported" : "REJECTED") << std::endl;
+		          << (!imported ? "REJECTED" : tideApp->importPending() ? "deferred until the editor closes its view" : "imported")
+		          << std::endl;
 
 		return imported ? ReturnCode::Ok : ReturnCode::Fail;
 	}

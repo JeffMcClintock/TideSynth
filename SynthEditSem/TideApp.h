@@ -71,7 +71,8 @@ public:
 	// with it, and takeDspMessages ships what lands there.
 	gmpi::hosting::QueuedUsers* PendingDspClients() override;
 	gmpi::hosting::IWriteableQue* MessageQueToDspOrNull() override; // same reason as above
-	std::string exportChunkXml();        // S12/S11 — the saved chunk: <DSP> + <Editor>
+	std::string exportChunkXml();        // S11 — the saved chunk: <Editor> only
+	std::string exportDspXml();          // S12 — what the processor builds from; never saved
 
 	// The SAVE-TIME export, and the one place the mutating pre-save steps
 	// belong. exportChunkXml deliberately skips preSaveState() - it was
@@ -84,8 +85,14 @@ public:
 	// syncState.
 	std::string exportChunkXmlForSave();
 	bool importChunkXml(std::string_view xml); // S11 — rebuild the document from a saved chunk
-	void requestNewProject();                  // deferred to the GUI when one is open
-	void newProjectNow() override;
+	void pushDocumentToProcessor(const char* why = "loaded"); // the processor runs only this run's export
+	uint32_t dspGeneration() const { return dspGeneration_; } // of the last DSP pushed
+	// Both deferred to the GUI when an editor is open (it owns the view the swap frees).
+	void requestNewProject();
+	bool requestImport(std::string_view xml); // false: rejected; a deferred import returns true
+	bool importPending() const { return !pendingImport_.empty(); }
+	const std::string& pendingImport() const { return pendingImport_; }
+	void replaceDocumentNow() override;
 	void OnCloseView(SE2::TopView*) override;
 	void CloseAllViews() override;
 	ModuleBrowser*     OpenModuleBrowser    (gmpi::api::IUnknown* host) override;
@@ -108,6 +115,9 @@ public:
 	std::wstring ResolveFilename(const std::wstring& name, const std::wstring& extension) override;
 
 private:
+	uint32_t dspGeneration_ = 0;
+	std::string pendingImport_; // a restore waiting for the GUI to close its view
+
 	// E2a — populate ModuleFactory()->PrefabFileNames from the bundle. In full
 	// SynthEdit the module scan does this; S1a deleted the scan by design, so
 	// nothing did, and the browser's Prefabs group was silent.

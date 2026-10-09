@@ -43,11 +43,12 @@ struct ISeApp
 	// container actually opened; the GUI keeps the breadcrumb trail current.
 	std::function<void(class CContainer*, int /*view_flag*/)> onViewOpened;
 
-	// File > New Project. Set by the GUI, which must close its view before the
-	// document under it is replaced; it then calls newProjectNow() and reopens.
-	std::function<void()> onNewProjectRequested;
-	// Discard the document and load the Default Rack. No view may be open.
-	virtual void newProjectNow() = 0;
+	// File > New Project, or a host restore while the editor is open. Set by the
+	// GUI, which must close its view before the document under it is replaced;
+	// it then calls replaceDocumentNow() and reopens.
+	std::function<void()> onDocumentReplaceRequested;
+	// The pending restore, else the Default Rack. No view may be open.
+	virtual void replaceDocumentNow() = 0;
 
 	// U1b follow-up — scoped suppression of the app's "duplicate module"
 	// dialogs around the offscreen thumbnail render, which walks the module

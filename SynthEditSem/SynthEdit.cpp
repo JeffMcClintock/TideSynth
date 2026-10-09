@@ -37,7 +37,7 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	MidiInPin pinMidi;
 	AudioOutPin pinLeft;
 	AudioOutPin pinRight;
-	BlobInPin pinChunk; // parameterId 1: the document's DSP XML, pushed by the editor
+	BlobInPin pinChunk; // parameterId 4 (never saved): the DSP XML this run's controller exported
 
 	// parameterId 2: the RETURN path -- the inner rack's DSP->GUI messages,
 	// forwarded verbatim to the editor. See drainRackFeedback().
@@ -55,6 +55,7 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	// TIDE, not in the (generic, shared) wrappers - Jeff's ruling.
 	SynthRuntime rack;
 	bool rackPrepared = false;
+	uint32_t builtGeneration = 0; // the controller's generation of the DSP the rack runs
 
 	// TideSynth V3 -- "is it even receiving MIDI?", which is the first question
 	// to ask when a rack that should be played from the host stays silent, and
@@ -96,6 +97,7 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 
 	// E86, same latching and for the same reason.
 	bool loggedNoController = false;
+	int unpreparedBlocks = 0;
 
 	// E59: which processor OBJECT is talking. Two `building rack from` lines
 	// with different documents mean either one instance overwritten or two
@@ -268,6 +270,7 @@ class SynthEdit final : public Processor, public IShellServices, public IProcess
 	// message tail between blocks; see the function for why partial bytes
 	// must never ride a pin update.
 	std::vector<uint8_t> feedbackScratch;
+	std::vector<uint8_t> feedbackOut; // generation + whole messages
 
 public:
 	SynthEdit()
@@ -300,6 +303,9 @@ public:
 	}
 
 	// TideSynth E10: is this blob a document the engine can actually build?
+	//
+	// (Since 2026-10-09 only this run's controller writes the DSP parameter, so
+	// host bytes no longer get here; the check stays as a guard on that export.)
 	//
 	// A host-supplied byte string reaches BuildDspGraph with no validation
 	// anywhere in between, and BuildDspGraph trusts its shape completely: it
@@ -387,34 +393,40 @@ public:
 		return r;
 	}
 
+	// Parameter edits from the editor: hand the bytes to the rack's own
+	// ui->dsp queue and let SynthRuntime::ServiceDspRingBuffers poll them
+	// out, exactly as it does when the editor and DSP share a process.
+	// The framing is untouched, so the reader on the far side is the one
+	// SynthEdit already uses.
+	void queueDspMessages()
+	{
+		// With no graph they could only reach the next one built, whose export already holds their values.
+		if (!pinDspMessages.isUpdated() || !rackPrepared)
+			return;
+
+		const auto& blob = pinDspMessages.getValue();
+		if (blob.empty())
+			return;
+
+		if (blob.size() <= (size_t)queUiToDsp.freeSpace())
+		{
+			queUiToDsp.pushString(static_cast<int>(blob.size()), blob.data());
+			queUiToDsp.Send();
+		}
+		else if (!loggedDspMessageOverflow)
+		{
+			// Audio thread: one line per instance, never per block.
+			loggedDspMessageOverflow = true;
+			fprintf(stderr,
+				"TIDE: dropped a %zu-byte parameter update - the rack's ui->dsp queue was full.\n",
+				blob.size());
+		}
+	}
+
 	void onSetPins() override
 	{
-		// Parameter edits from the editor: hand the bytes to the rack's own
-		// ui->dsp queue and let SynthRuntime::ServiceDspRingBuffers poll them
-		// out, exactly as it does when the editor and DSP share a process.
-		// The framing is untouched, so the reader on the far side is the one
-		// SynthEdit already uses.
-		if (pinDspMessages.isUpdated())
-		{
-			const auto& blob = pinDspMessages.getValue();
-			if (!blob.empty())
-			{
-				if (blob.size() <= (size_t)queUiToDsp.freeSpace())
-				{
-					queUiToDsp.pushString(static_cast<int>(blob.size()), blob.data());
-					queUiToDsp.Send();
-				}
-				else if (!loggedDspMessageOverflow)
-				{
-					// Audio thread: one line per instance, never per block.
-					loggedDspMessageOverflow = true;
-					fprintf(stderr,
-						"TIDE: dropped a %zu-byte parameter update - the rack's ui->dsp queue was full.\n",
-						blob.size());
-				}
-			}
-		}
-
+		// The DSP first: edits that arrive with a new document belong to its
+		// graph, and a rebuild hands whatever is already queued to the old one.
 		if (pinChunk.isUpdated())
 		{
 			const auto& blob = pinChunk.getValue();
@@ -427,8 +439,15 @@ public:
 				// builds a rack that does not exist yet: the wrapper re-seeds
 				// this parameter into a FRESH processor after a restart, and
 				// there the very same bytes are the restore.
+				// Only the controller writes parameter 4, always framed (ChunkPrefix.h).
 				const auto kind = tideChunk::classify(blob.data(), blob.size());
-				if (kind == tideChunk::Kind::Sync && rackPrepared)
+				if (!tideChunk::isDspFramed(blob.size(), kind))
+					return;
+				const auto generation = tideChunk::dspGeneration(blob.data());
+
+				// A Sync of a generation this rack never built (it overtook its
+				// Build in the same delivery) is a document, not a refresh.
+				if (kind == tideChunk::Kind::Sync && rackPrepared && generation == builtGeneration)
 				{
 					// Refresh only; the running rack already holds these
 					// values live. Fall through to the tail below - the
@@ -446,14 +465,14 @@ public:
 							"TIDE: instance #%d ignored a Sync refresh of %zu bytes"
 							" (rack already prepared; the holder RETAINS these bytes)\n",
 							instanceSeq,
-							tideChunk::payloadSize(blob.size(), kind));
+							blob.size() - tideChunk::dspHeaderSize);
 					}
 				}
 				else
 				{
 				const std::string xml(
-					(const char*)tideChunk::payload(blob.data(), kind),
-					tideChunk::payloadSize(blob.size(), kind));
+					(const char*)blob.data() + tideChunk::dspHeaderSize,
+					blob.size() - tideChunk::dspHeaderSize);
 
 				const char* whyNot = "";
 				if (!documentIsBuildable(xml, whyNot))
@@ -465,10 +484,12 @@ public:
 					{
 						loggedBadDocument = true;
 						fprintf(stderr,
-							"TIDE: REFUSED a %zu-byte chunk - it %s. The rack is unchanged"
-							" and stays silent rather than crashing the host (E10).\n",
+							"TIDE: REFUSED a %zu-byte chunk - it %s. The rack stops and"
+							" stays silent rather than crashing the host (E10).\n",
 							blob.size(), whyNot);
 					}
+					// The editor has moved to that document, so the old graph must not run its edits.
+					rackPrepared = false;
 					return;
 				}
 
@@ -492,8 +513,8 @@ public:
 				// E59 added `instance #N`: the two builds a hosted session
 				// produces come from two different processor OBJECTS, and
 				// nothing in this line said so.
-				fprintf(stderr, "TIDE: instance #%d building rack from %zu byte document (%s chunk, rack %s)\n",
-					instanceSeq, xml.size(), kindName, rackPrepared ? "already prepared" : "not yet prepared");
+				fprintf(stderr, "TIDE: instance #%d building rack from %zu byte document (%s chunk, rack %s, generation %u)\n",
+					instanceSeq, xml.size(), kindName, rackPrepared ? "already prepared" : "not yet prepared", generation);
 
 				// E86: TIDE requires a same-process controller (ruled 2026-10-06).
 				// Only TideApp::InitInstance populates the module factory, and the
@@ -513,6 +534,11 @@ public:
 						"controller; a processor-only host is not supported "
 						"(BACKLOG E86).\n", instanceSeq);
 				}
+
+				// The old graph's feedback goes out under ITS generation before the swap.
+				drainRackFeedback();
+				feedbackScratch.clear();
+				builtGeneration = generation;
 
 				rack.setDocumentXml(xml);
 
@@ -559,6 +585,8 @@ public:
 			}
 		}
 
+		queueDspMessages();
+
 		// The runtime must keep running through fades, rebuilds and tails -
 		// never let the wrapper put this module to sleep.
 		setSleep(false);
@@ -603,6 +631,23 @@ public:
 			{
 				loggedUnpreparedSilence = true;
 				fprintf(stderr, "TIDE: unprepared - writing silence to the host's output buffers\n");
+			}
+
+			// E86: only the controller pushes a DSP (parameter 4), so without one nothing ever
+			// builds. Asked after a few seconds of silence, not at once: a host may start
+			// processing before it creates the controller.
+			constexpr int blocksBeforeAsking = 200;
+			if (!loggedNoController && ++unpreparedBlocks == blocksBeforeAsking)
+			{
+				if (!tide::controllerInitialised())
+				{
+					loggedNoController = true;
+					fprintf(stderr,
+						"TIDE: instance #%d NO CONTROLLER in this process - nothing will "
+						"ever push this processor a DSP to build, so it stays silent. TIDE "
+						"requires a same-process controller; a processor-only host is not "
+						"supported (BACKLOG E86).\n", instanceSeq);
+				}
 			}
 			for (auto* out : outputs)
 				std::fill(out, out + sampleFrames, 0.0f);
@@ -739,7 +784,11 @@ public:
 		if (whole == 0)
 			return;
 
-		pinFeedback.setRaw({ feedbackScratch.data(), whole });
+		// Prefixed with the generation this graph was built from: the editor drops an older graph's feedback.
+		feedbackOut.resize(sizeof(builtGeneration) + whole);
+		memcpy(feedbackOut.data(), &builtGeneration, sizeof(builtGeneration));
+		memcpy(feedbackOut.data() + sizeof(builtGeneration), feedbackScratch.data(), whole);
+		pinFeedback.setRaw({ feedbackOut.data(), feedbackOut.size() });
 		pinFeedback.sendPinUpdate(getBlockPosition());
 		feedbackScratch.erase(feedbackScratch.begin(), feedbackScratch.begin() + whole);
 
@@ -878,12 +927,13 @@ public:
 			<Parameter id="1" name="chunk"         ignorePatchChange="true" datatype="blob"/>
 			<Parameter id="2" name="feedback"      ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 			<Parameter id="3" name="dspMessages"   ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
+			<Parameter id="4" name="dsp"           ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 		</Parameters>
         <Audio>
             <Pin name="MIDI" datatype="midi"/>
             <Pin name="Left"  datatype="float" rate="audio" direction="out"/>
             <Pin name="Right" datatype="float" rate="audio" direction="out"/>
-            <Pin name="chunk" datatype="blob" parameterId="1"/>
+            <Pin name="dsp" datatype="blob" parameterId="4"/>
             <Pin name="feedback" datatype="blob" direction="out" parameterId="2"/>
             <Pin name="dspMessages" datatype="blob" parameterId="3"/>
         </Audio>

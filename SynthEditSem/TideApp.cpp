@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstring>                      // memcpy - the feedback generation
 #include <string_view>                  // S11 - importChunkXml
 #include <fstream>                      // V6 - loadDefaultDocument
 #include "tinyxml/tinyxml.h"            // S12 - exportChunkXml
@@ -344,26 +345,24 @@ SE2::TopView* TideApp::OpenViewForContainer(gmpi::api::IUnknown* host, CContaine
 	return viewOb; // refcount = 1; caller (SynthEditGui) takes ownership
 }
 
-// The saved chunk. Two sections under one <Document>, because the two consumers
-// need different serialisations of the same rack:
+// The same rack, serialised two ways for two consumers:
 //
-//   <DSP>    - S12. The exporter's "DSP STRUCTURE XML" block (ExportAsPlugin.cpp)
-//              run at runtime against the live document. This is what the
-//              processor's blob pin feeds to SynthRuntime::setDocumentXml, and
-//              SeAudioMaster::BuildDspGraph navigates Document->DSP explicitly,
-//              so it neither sees nor minds the sibling below.
-//   <Editor> - S11. The editor's OWN document format, which is a different
-//              serialisation entirely: <Modules> (capital) with no positions on
-//              the DSP side, <modules> under <master_container> with the full
-//              object model on this side. The DSP text cannot rebuild the
-//              editor's document - it has no layout in it at all - so restoring
-//              the rack needs this section, and saving only <DSP> is why the
-//              rack could never have come back however well the blob survived.
+//   exportDspXml   - S12, <Document><DSP>: the exporter's "DSP STRUCTURE XML"
+//                    block (ExportAsPlugin.cpp) run against the live document.
+//                    The processor feeds it to SynthRuntime::setDocumentXml. It
+//                    travels on parameter 4 and is never saved: its runtime
+//                    host-control handles are only valid for this run's editor.
+//   exportChunkXml - S11, <Document><Editor>: the editor's OWN document format
+//                    (<modules> under <master_container>, with layout), the only
+//                    form that can rebuild the editor. This is what is saved.
 //
 // No Scramble - the text goes straight to the in-process runtime and into host
 // state, not into a shipped bundle.
-std::string TideApp::exportChunkXml()
+std::string TideApp::exportDspXml()
 {
+	if (!Document() || !Document()->MasterContainer)
+		return {};
+
 	// NOT EXP_PLUGIN: that flag makes doExport() drop every module marked
 	// excludeFromVst - which includes Sound Out and the Diagnostic modules -
 	// because a BAKED plugin export replaces them. TIDE self-hosts the
@@ -424,6 +423,23 @@ std::string TideApp::exportChunkXml()
 		}
 	}
 
+	TiXmlPrinter printer;
+	printer.SetIndent("  ");
+	doc2.Accept(&printer);
+
+	return printer.CStr();
+}
+
+// The saved document: <Editor> only. A saved <DSP> would be a second copy that
+// another run's editor could disagree with.
+std::string TideApp::exportChunkXml()
+{
+	TiXmlDocument doc2;
+	doc2.LinkEndChild(new TiXmlDeclaration("1.0", "", ""));
+
+	auto* documentElement = new TiXmlElement("Document");
+	doc2.LinkEndChild(documentElement);
+
 	// <Editor> - the half the editor can actually read back. Mirrors
 	// CSynthEditDocBase::ExportXmlProject, minus two things it does that a
 	// continuous sync must not:
@@ -441,11 +457,9 @@ std::string TideApp::exportChunkXml()
 	// <PrefabList> too, which upgrade detection has no use for.
 	if (auto* master = Document()->MasterContainer; master)
 	{
-		// The editor serialisers are tinyxml2 while the DSP block above is
-		// tinyxml1, and the two libraries share no node types. Build the section
-		// in tinyxml2, print it, and re-parse it with tinyxml1 so it can be
-		// linked in. A serialise/re-parse per tick is not free, but it keeps one
-		// chunk with one root rather than two parameters to keep in step.
+		// The editor serialisers are tinyxml2 while this document is tinyxml1,
+		// and the two libraries share no node types. Build the section in
+		// tinyxml2, print it, and re-parse it with tinyxml1 so it can be linked in.
 		tinyxml2::XMLDocument editorDoc;
 		auto* editorRoot = editorDoc.NewElement("Editor");
 		editorDoc.LinkEndChild(editorRoot);
@@ -548,13 +562,20 @@ bool TideApp::importChunkXml(std::string_view xml)
 		DeleteTemporaryModuleDescriptions();
 		Document()->OnNewDocument(); // DeleteContents already ran: leave an empty rack, not none
 		Document()->rackMode = true;
+		pushDocumentToProcessor();
 		return false;
 	}
 
 	Document()->ImportModules(editorE, SAT_SYNTHEDIT_DOCUMENT);
 
 	if (!Document()->MasterContainer)
-		return false; // import produced nothing usable; caller leaves the rack empty
+	{
+		// Import produced nothing usable, and DeleteContents already ran: leave an empty rack, not none.
+		Document()->OnNewDocument();
+		Document()->rackMode = true;
+		pushDocumentToProcessor();
+		return false;
+	}
 
 	// TIDE *is* the rack (PLAN constraint 1 / U1c), and rackMode is a document
 	// field, so a freshly imported document needs it set exactly as
@@ -575,13 +596,33 @@ bool TideApp::importChunkXml(std::string_view xml)
 		assert(false && "DSP wrapper handle reservation lost");
 	}
 
-	// No sync baseline to reset: since E68 the push is gated on dspDirty
-	// alone, and an import arrives with the flag clear. The wrapper re-seeds
-	// the chunk parameter into the processor when it starts (SynthEdit.cpp's
-	// preparedSampleRate comment walks the mechanism), so the processor
-	// builds this same document on its own and no push is owed here.
-
+	pushDocumentToProcessor();
 	return true;
+}
+
+// Like SynthEdit's engine restart: the processor never runs a DSP that another
+// run exported. Runtime host-control handles are minted per load, so a saved
+// <DSP> can disagree with this run's editor about what a handle means.
+void TideApp::pushDocumentToProcessor(const char* why)
+{
+	// Drop unsent edits; the export below carries every current value.
+	std::vector<unsigned char> stale;
+	takeDspMessages(stale);
+	if (onPushDspMessages)
+		onPushDspMessages(nullptr, 0); // and the processor holder's retained last batch
+
+	dspDirty = false;
+
+	if (onPushChunk && Document() && Document()->MasterContainer)
+	{
+		// A new generation per export: the processor can then tell a later Sync of
+		// this document from one it already built, and the editor can drop the old
+		// graph's feedback.
+		++dspGeneration_;
+		const auto xml = exportDspXml();
+		std::fprintf(stderr, "TIDE: document %s, pushing %zu byte document (generation %u)\n", why, xml.size(), dspGeneration_);
+		onPushChunk(xml.data(), xml.size());
+	}
 }
 
 
@@ -674,10 +715,7 @@ void TideApp::serviceDocumentSync()
 	// the message path - and any host state query refreshes the retained
 	// bytes, which is what keeps the window narrow. UNMEASURED: drawing the
 	// cable needs the editor, and E72's Accept is exactly that experiment.
-	auto xml = exportChunkXml();
-
-	std::fprintf(stderr, "TIDE: document changed, pushing %zu byte document\n", xml.size());
-	onPushChunk(xml.data(), xml.size());
+	pushDocumentToProcessor("changed");
 }
 
 // The chunk's return half. Bytes in, nothing decoded here: synthRuntime owns
@@ -703,7 +741,16 @@ void TideApp::receiveRackFeedback(const unsigned char* data, int size)
 			tracedFeedbackArrivals, size);
 	++tracedFeedbackArrivals;
 #endif
-	synthRuntime.receiveDspMessages(data, size);
+	// The processor prefixes the generation it built. An older graph's handles may
+	// mean different parameters in this document, so its feedback is dropped.
+	uint32_t generation{};
+	if (size < static_cast<int>(sizeof(generation)))
+		return;
+	memcpy(&generation, data, sizeof(generation));
+	if (generation != dspGeneration_)
+		return;
+
+	synthRuntime.receiveDspMessages(data + sizeof(generation), size - static_cast<int>(sizeof(generation)));
 }
 
 std::string TideApp::exportChunkXmlForSave()
@@ -716,8 +763,8 @@ std::string TideApp::exportChunkXmlForSave()
 		static_cast<CDocOb*>(Document()->MasterContainer)->preSaveState();
 
 		// Catch-all cull of orphaned host controls, exactly as the app's own
-		// save does. If it removes anything the document genuinely changed,
-		// and the next sync tick will push a Build - correct, and rare.
+		// save does. It sets no dspDirty, so no Build follows; the running rack
+		// keeps parameters nothing references any more, which is harmless.
 		Document()->MasterContainer->RemoveOrphanedHostControls();
 	}
 
@@ -1186,24 +1233,46 @@ bool TideApp::loadDefaultDocument()
 // owns the TopView that draws from the document being freed.
 void TideApp::requestNewProject()
 {
-	if (onNewProjectRequested)
-		onNewProjectRequested();
+	pendingImport_.clear();
+	if (onDocumentReplaceRequested)
+		onDocumentReplaceRequested();
 	else
-		newProjectNow();
+		replaceDocumentNow();
 }
 
-void TideApp::newProjectNow()
+// A host restore. Refusing it while the editor is open would leave both the
+// editor and the DSP on the old document, so it waits for the GUI the same way.
+bool TideApp::requestImport(std::string_view xml)
 {
-	if (!loadDefaultDocument())
+	if (view && onDocumentReplaceRequested)
+	{
+		pendingImport_.assign(xml);
+		onDocumentReplaceRequested();
+		return true;
+	}
+	return importChunkXml(xml);
+}
+
+void TideApp::replaceDocumentNow()
+{
+	if (!pendingImport_.empty())
+	{
+		const auto xml = std::move(pendingImport_);
+		pendingImport_.clear();
+		const bool imported = importChunkXml(xml);
+		std::fprintf(stderr, "TIDE: deferred restore of a %zu byte document -> %s\n", xml.size(), imported ? "imported" : "REJECTED");
+		return;
+	}
+
+	if (!loadDefaultDocument()) // pushes on success, through importChunkXml
 	{
 		// No usable Default Rack: still discard, leaving an empty rack.
 		Document()->DeleteContents();
 		Document()->OnNewDocument();
 		Document()->rackMode = true;
+		pushDocumentToProcessor();
 	}
 
-	// The processor is still running the old rack; the next sync tick pushes this one.
-	dspDirty = true;
 	tideDiag("TIDE: new project\n");
 }
 
