@@ -95,6 +95,39 @@ Template:
 
 ---
 
+## 2026-10-10 — macos — no item: STEP 1 and 1.5 empty, and nothing eligible for `mac`; E81's ruling leaves #643 measuring a route `main` no longer uses (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.31226.0** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`3d58174..07b0172`).
+
+**STEP 1:** there is no open `platform:mac` issue. The only open issues are #583 (linux, already triaged as E89) and #44 (the digest).
+
+**STEP 1.5:** [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (E91) is still this lane's only open PR and the only open PR in the fleet. It has 13 checks passing and 2 skipped, no reviews and no comments, so it is waiting for merge and I left it alone. **Its evidence is now out of date, though. See below.**
+
+**STEP 2:** `git diff 3d58174 origin/main -- BACKLOG.md PLAN.md` shows only the 10-09 `mac` cell. `docs/decisions.md` changed in one way: **Jeff answered E81's `PROPOSED:` entry on 10-09** (*"SynthEdit's handle system stays as it is, and TIDE stops SAVING the DSP"*), which leaves four open. Every walk since 10-07 records that E81's entry parked no row, so removing it frees nothing. The other four are unchanged. I re-listed the Status and Plat cells of every active row. The eligible set and the reasons are the 10-08 table's, row for row: A35, A37 and A42 are parked on their own open questions, S8 is `NEEDS-SPEC`, E19 and E82 need a screen, E2 is an umbrella, E84 is a workflow edit, E92 is Linux-only by its CMake guard, E93 waits on Jeff's AU2 scope call, and X2 and E89 are `linux`.
+
+### What E81's change does to #643
+
+Jeff's `13d4720` changes how the DSP is delivered. The processor now builds only the DSP that the controller pushes on a new non-persistent **parameter 4**, and parameter 1 saves `<Editor>` only. His own notes in `tests/e80_vst3_feedback_probe.cpp` say the processor *"has no pin for the restored parameter 1"*. He marked the e79 and e80 probes *"Not re-measured"*.
+
+#643's probe (`tests/e91_au3_restore_order_probe.mm`, on the branch only) measured the old route: `-setFullState:` framing parameter 1's blob onto the ui→dsp queue. **Its control arm was what made the result mean something.** With that queue send deleted, both orders went silent. On `main` after `13d4720`, parameter 1's blob should not build a rack whatever that line does. The rack should come from the controller's parameter-4 push. So the control would probably not go silent any more, and the 3/3 result no longer says anything about `main`'s restore path. **This is a reading of Jeff's commit message and his probe comments. I did not rebuild or run anything to confirm it.** The PR still asks the right question (does an AU3 restore after `allocateRenderResources` reach the DSP?), but its answer is for `5175b02`.
+
+**Default branch:** `main` at `07b0172` is green in CI (`build` and `verify` both `success`). One earlier `main` build, at `ecc73e4`, failed on **macos only**, at configure. The log shows `CMakeLists.txt:105 file DOWNLOAD … status: [56;"Failure when receiving data from the peer"]` three times, then `Could not download CPM.cmake v0.38.6 after 3 attempts`. That is a network failure on the runner, not a code break, and `4df8dbe` and `07b0172` both built after it. I filed no issue. I did not build `main` locally.
+
+**Learned:**
+
+- **A ruling can make an open PR's evidence stale without touching the PR.** #643 still shows green, and nothing on it changed. What changed is the code its control arm depended on. Since STEP 1.5 only checks a PR's checks and comments, read the commits that landed on `main` since the PR's base whenever they touch the PR's subject.
+- **One red `main` run is not a platform break until you read its log.** The `ecc73e4` macOS failure was a CPM.cmake download that failed with curl error 56. The next two commits were green.
+
+**Not verified:** nothing was built or run, because there was no item. The #643 finding above is a reading, not a measurement. I did not verify the fleet PAT's expiry (A40's `NEEDS-JEFF` half), which the prompt gives as **2026-11-07**, 28 days from today.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean, and never left it. The work was in a scratchpad `git worktree`, removed at the end. `~/Documents/GitHub/SynthEdit` (`master`, clean) was not touched. No GUI was used, no screenshot was taken, and no credential value appears anywhere.
+
+**Next:** see the `mac` cell. **For Jeff:** (1) **#643 predates E81.** Either merge it as a record of the old route, or hand it back with changes requested and a mac run will re-measure it against `07b0172` or later. (2) E93 needs your scope call. (3) A ruling on the `Plat`-correction `PROPOSED:` entry would let a run re-label E92. (4) The bot token expires in four weeks.
+
+**Branch/PR:** `tide/mac/2026-10-10-queue-blocked`. This entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
 ## 2026-10-09 — macos — no item: STEP 1 and 1.5 empty, and since the 10-08 walk BACKLOG, decisions and PLAN have changed only in the `mac` cell (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.26454.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
