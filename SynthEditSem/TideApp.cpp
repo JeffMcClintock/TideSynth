@@ -11,6 +11,7 @@
 #include "SynthEditDocBase.h"
 #include "Module_Info3_internal.h" // merge-only ControlsXp.xml enrichment — U2e
 #include "modules/tinyXml2/tinyxml2.h"
+#include "ModuleFactory_Editor.h" // ImportModuleInfo / ExportModuleInfo - module upgrade on load
 #include "conversion.h"
 #include "BundleInfo.h"
 #include "se_filesystem.h"           // se_fs — E2a prefab enumeration
@@ -429,13 +430,15 @@ std::string TideApp::exportChunkXml()
 	//
 	//  - preSaveState() / RemoveOrphanedHostControls() MUTATE the document, and
 	//    this runs on every serviceDocumentSync tick, not on a File>Save.
-	//  - ExportModuleInfo records what is known about UNAVAILABLE modules so a
-	//    document referencing a missing one still round-trips. TIDE's module set
-	//    is fixed and compiled in (PLAN constraint 7), so every module in a TIDE
-	//    document is available by construction and there is nothing to record.
+	// The window layout is skipped: constraint 1 leaves TIDE no window
+	// arrangement to preserve.
 	//
-	// The window layout is skipped for the same reason: constraint 1 leaves TIDE
-	// no window arrangement to preserve.
+	// The <PluginList> IS written, though this comment once said TIDE had no need
+	// of it. It also records each module's pins as saved, which is how a load
+	// notices a module whose pins have since changed and upgrades it - without
+	// it, a document saved before a module gained a pin reconnects to the wrong
+	// pins. Only that list: ExportModuleInfo(doc) would add the bundle's
+	// <PrefabList> too, which upgrade detection has no use for.
 	if (auto* master = Document()->MasterContainer; master)
 	{
 		// The editor serialisers are tinyxml2 while the DSP block above is
@@ -454,6 +457,15 @@ std::string TideApp::exportChunkXml()
 		auto* masterContainerE = editorDoc.NewElement("master_container");
 		editorRoot->LinkEndChild(masterContainerE);
 		master->Export(masterContainerE, SAT_SYNTHEDIT_DOCUMENT);
+
+		// Export() just flagged every module type the document uses.
+		auto* pluginListE = editorDoc.NewElement("PluginList");
+		editorRoot->LinkEndChild(pluginListE);
+		for (auto& [id, info] : ModuleFactory()->module_list)
+		{
+			if (info->getSerialiseFlag())
+				ExportModuleInfo(info, pluginListE, SAT_SYNTHEDIT_DOCUMENT);
+		}
 
 		tinyxml2::XMLPrinter p;
 		editorDoc.Print(&p);
@@ -522,6 +534,22 @@ bool TideApp::importChunkXml(std::string_view xml)
 	const int fileFormatVersion = Document()->ImportXml(editorE, SAT_SYNTHEDIT_DOCUMENT);
 	CDocOb::m_loading_version = fileFormatVersion;
 	Document()->SetLoadingVersion(fileFormatVersion);
+
+	// Compare each module's saved description with the current one, as
+	// ImportXmlDocument does, so ImportModules' UpGradeIncompatibleModules can
+	// replace a module whose pins have changed since the document was saved.
+	try
+	{
+		ImportModuleInfo(editorE, SAT_SYNTHEDIT_DOCUMENT, fileFormatVersion);
+	}
+	catch (const std::exception& e)
+	{
+		std::fprintf(stderr, "TIDE: module descriptions unreadable (%s) - document not imported\n", e.what());
+		DeleteTemporaryModuleDescriptions();
+		Document()->OnNewDocument(); // DeleteContents already ran: leave an empty rack, not none
+		Document()->rackMode = true;
+		return false;
+	}
 
 	Document()->ImportModules(editorE, SAT_SYNTHEDIT_DOCUMENT);
 
