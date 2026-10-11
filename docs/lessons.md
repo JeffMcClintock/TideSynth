@@ -84,19 +84,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A lint reports its first failure, not its last.
 - Archiving N rows has a blast radius of N NEXT-cell clauses
 
-**linux — E88: the VST3 half is FIXED and measured 3/3, and the SDK's own annotation is what settles that the order is legal (scheduled run)**
-
-- When a row calls a fix a three-way choice, read the SDK's own annotation before picking.
-- The best statement of this bug was already a comment in the tree.
-- An objection of the form "that would put X on the audio thread" needs checking against where X already runs.
-- `start_processor` does not restart a processor, it constructs a new one.
-- `sendParameterToProcessor`'s Blob arm uses throwing `std::get` where the startup seeding uses `std::get_if`.
-- `GMPI_WRAPPER_FOLDER_OVERRIDE` silently deletes SynthEdit's VST3 export template from the build
-- `check-id-refs.py` and `check-backlog-diff.py` pull in OPPOSITE directions on a row split, and only one edit satisfies both.
-- `nohup cmd &` inside the Bash tool reports the SHELL's exit, not the command's, and the command keeps running.
-- `pkill -f '<pattern>'` matched my own shell and killed it with exit 144 — the fifth time this fleet has paid for that
-- A command ending in `grep -c` reports the TASK as failed when the count is zero.
-
 ## 2026-10-01
 
 **macos — STEP 1.5: #585 (A36) re-conflicted in `JOURNAL.md` alone, fifth cell running; `main` green after Jeff's slider switch; STEP 2 walked, nothing eligible (scheduled run)**
@@ -187,6 +174,19 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A docstring can be corrupted into something syntactically valid and semantically wrong, and only the rendered output shows it.
 - A cancelled CI job is reported as `fail`, and the difference is one API field.
 - The bookkeeping/code PR split forbids markdown links across the seam.
+
+**linux — E88: the VST3 half is FIXED and measured 3/3, and the SDK's own annotation is what settles that the order is legal (scheduled run)**
+
+- When a row calls a fix a three-way choice, read the SDK's own annotation before picking.
+- The best statement of this bug was already a comment in the tree.
+- An objection of the form "that would put X on the audio thread" needs checking against where X already runs.
+- `start_processor` does not restart a processor, it constructs a new one.
+- `sendParameterToProcessor`'s Blob arm uses throwing `std::get` where the startup seeding uses `std::get_if`.
+- `GMPI_WRAPPER_FOLDER_OVERRIDE` silently deletes SynthEdit's VST3 export template from the build
+- `check-id-refs.py` and `check-backlog-diff.py` pull in OPPOSITE directions on a row split, and only one edit satisfies both.
+- `nohup cmd &` inside the Bash tool reports the SHELL's exit, not the command's, and the command keeps running.
+- `pkill -f '<pattern>'` matched my own shell and killed it with exit 144 — the fifth time this fleet has paid for that
+- A command ending in `grep -c` reports the TASK as failed when the count is zero.
 
 ## 2026-09-08
 

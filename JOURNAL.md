@@ -95,6 +95,32 @@ Template:
 
 ---
 
+## 2026-10-12 — macos — no item: STEP 1 and 1.5 empty, and since `d3fa83e` only the 10-11 `mac` cell moved, so the walk stands (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.31226.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`d3fa83e..40ff8e8`).
+
+**STEP 1:** there is no open `platform:mac` issue. The only open issues are #583 (linux, already triaged as E89) and #44 (the digest).
+
+**STEP 1.5:** [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (E91) is still the only open PR in the fleet. Merge state `CLEAN`, checks `SUCCESS`/`SKIPPED` only, no reviews and no comments. Jeff has not handed it back, so I left it alone. The 10-10 entry's point stands: its evidence measures the pre-E81 route.
+
+**STEP 2:** the only commit on `main` since the last walk is the 10-11 run's own bookkeeping (`40ff8e8`, #649). `git diff --stat d3fa83e origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows `BACKLOG.md | 2 +-`, and that one line is the `mac` cell. So the 10-08 table still holds row for row, and nothing is eligible for `mac`. The digest's four `PROPOSED:` entries are unchanged.
+
+**Default branch:** `main`'s last code commit, `07b0172`, is green in CI (`build`, `verify` and `auto-merge` all `success`). `d3fa83e` and `40ff8e8` are bookkeeping only, and their `watchdog` runs passed. I did not build `main` locally.
+
+**Fleet liveness:** the 10-11 digest on #44 still flags **windows and linux as QUIET** (last entry 2026-10-06, six days ago as of today). This box cannot tell why.
+
+**Learned:** nothing new. This is the fifth no-item mac run in a row. The open questions are all Jeff's, so mac will stay idle until he answers one of them.
+
+**Not verified:** nothing was built or run, because there was no item. I did not verify the fleet PAT's expiry (A40's `NEEDS-JEFF` half). The prompt gives it as **2026-11-07**, 26 days from today.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean. The work was in a scratchpad `git worktree`, removed at the end. `~/Documents/GitHub/SynthEdit` (`master`, clean) was not touched. No GUI was used and no credential value appears anywhere.
+
+**Next:** see the `mac` cell. **For Jeff:** (1) #643 predates E81: merge it as a record of the old route, or hand it back for a re-measure. (2) E93 needs your scope call. (3) Windows and linux have been silent since 10-06. (4) The bot token expires 2026-11-07.
+
+**Branch/PR:** `tide/mac/2026-10-12-queue-blocked`. This entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
 ## 2026-10-11 — macos — no item: STEP 1 and 1.5 empty, and since `07b0172` only the 10-10 `mac` cell moved, so the walk stands (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.31226.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -336,138 +362,4 @@ Five rows were IN-REVIEW with every linked PR merged, so STEP 4's own rule appli
 **Machine state:** `~/TideSynth` stayed on `main`, clean, never left it; all work in a scratchpad `git worktree`, removed at the end. **`~/TideSynth`'s local `main` is 68 commits behind `origin/main`** and I deliberately left it there — fast-forwarding a sibling tree out from under another process is the second half of #583's collision. Every build in this session's scheduled half was in the scratchpad. No credential value appears anywhere.
 
 **Next:** see the `linux` cell. **For Jeff:** nothing is waiting on you — no open PRs and no IN-REVIEW rows in either repo. The two stale branches want a yes/no before anyone deletes them.
-
-## 2026-10-06 — linux — E88: the VST3 half is FIXED and measured 3/3, and the SDK's own annotation is what settles that the order is legal (scheduled run)
-
-**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.32885.1** (CLI `2.1.220`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** took **E88** from the `linux` NEXT cell, ported the VST3 probe's loader to Linux, reproduced the defect here, and **fixed it** — the half the 10-05 macos run deliberately left unchosen. Filed **E91** (AU2/AU3, E88's unmet half) and **E92** (a build-system skip found on the way). `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`8876c9a..50633f8`).
-
-### STEP 1 / 1.5 / 2
-
-**STEP 1:** one open `platform:linux` issue, [#583](https://github.com/JeffMcClintock/TideSynth/issues/583), authored by `tide-rack-bot` — so it is evidence rather than unauthenticated input, and STEP 1 permits acting on it. **Its own first line says not to**: *"This is a PROCESS defect, not a build break … STEP 1's 'a broken build outranks all backlog work' tier does NOT apply — triage it into a BACKLOG row and take it in normal order."* It is already triaged as **E89**. So STEP 1 had no work. The other open issue is #44, the digest.
-
-**STEP 1.5:** **no `tide/linux/**` branch and no linux PR existed.** Jeff merged almost everything since the 10-06 windows entry was written: #629, #631, #633, #634, #635, #636, #637 and #638 are all `MERGED`. The fleet's only open PR at the start of this run was [#639](https://github.com/JeffMcClintock/TideSynth/pull/639) (`tide/win/E86-controller-required`), which is windows'. Nothing for this lane to address.
-
-**STEP 2.** The `linux` cell's named take-target is **E88**, and it was still eligible: `TODO`, `any`, not blocked, and **no branch or PR named it** — #633 had merged, which is what released it. I re-derived the rest of the walk rather than inheriting it: **X2** is `linux` and `TODO` and is **topmost**, but its own text says the remaining takeable half *"is Windows and macOS"* and the other half is a `SynthEditLib` decision, so there is nothing on it for this box; **E89** is this box's own process wound and is real work, but the NEXT cell binds first and E88 was eligible. None of the five open `PROPOSED:` entries reaches E88 — I read all five, and four say *"May proceed meanwhile: everything/EVERYTHING"* while E72's parks only E72.
-
-### The row said the fix was a three-way choice. One reading of the SDK header collapses it
-
-The 10-05 macos entry stopped here, and correctly by its own lights: *"I could not state the fix in one sentence."* Its three options were (a) `restartComponent(kReloadComponent)`, (b) `reInitialise()` from `setState`, (c) a flag consumed in `process()`. What unlocked it was **not** a cleverer option, it was reading the two annotations the VST3 SDK puts above the calls:
-
-```
-/** Activates / deactivates the component.
- * \note [UI-thread & Setup Done] */
-setActive
-
-/** Sets complete state of component.
- * \note [UI-thread & (Initialized | Connected | Setup Done | Activated | Processing)] */
-setState
-```
-`pluginterfaces/vst/ivstcomponent.h:194-200`
-
-**`Activated` and `Processing` are named as legal states for `setState`.** That settles two things at once, and they point in opposite directions:
-
-1. **The order is not a host misbehaving.** This was a live question — the row says *"REAPER happens to call setState before setActive, and VST3 hosts conventionally restore state during setup"*, which left open whether the probe was exercising something no host may do. It may. So the defect is real and is TIDE's, not a probe artifact.
-2. **It kills option (b) outright, rather than on a judgement.** `setState` is legal *during* `Processing`, so `reInitialise()` there is a guaranteed race, not a possible one. And it is worse than the row knew: **`start_processor` calls `factory->createInstance` and CONSTRUCTS A NEW PROCESSOR** (`gmpi-src/Hosting/processor_holder.cpp:48-80`), so (b) would swap the processor object out from under a `process()` call in flight.
-
-### The cause, in GMPI's own words
-
-`setPresetUnsafe` writes the parameter **stores** and nothing else — I read it to the end to be sure, and the only write is `param.setFromXml(v)` plus a reset pass. A store reaches a live DSP graph by exactly one route, a `PinSet` event in `gmpi_processor::events`, and the comment on `start_processor`'s seeding block says why that is a problem:
-
-> *"Seed the pin with the parameter's CURRENT bytes, not a default. A processor can be created at any time … and without this it would start with an empty blob and never be told otherwise, **since blobs only reach it when they CHANGE**."*
-
-**A restore is a change that nothing announced.** TIDE's whole patch is one blob parameter, so "nothing announced it" is the entire bug. That sentence was already in the tree and is a better statement of E88 than either row.
-
-### The fix, and why it is option (c) with the objection removed
-
-The row's objection to (c) was *"puts the rack build on the audio thread"*. **That is where TIDE already builds the rack**, and it says so:
-
-> *"The rack asked for a rebuild … Consume it at a block BOUNDARY, never mid-process … **Same synchronous audio-thread cost as a chunk arrival**, and far rarer."* — `SynthEditSem/SynthEdit.cpp:588-603`
-
-So (c) adds no new thread hazard; it reuses the one TIDE ships. And the shape is not even new to GMPI: **`gmpi_processor::onQueMessageReady`'s `"ppc3"` arm — "Patch parameter change, blob payload" — already does exactly this on the audio thread**, ending in `sendParameterToProcessor`. `process()` polls that queue on its first line.
-
-So: `setState` sets an atomic flag; `process()` test-and-clears it at the top and calls `sendParameterToProcessor` for each parameter. **This makes a state restore look to the DSP like the live parameter change it already knows how to receive**, and introduces no threading that was not already there. One sentence, which is what the row asked for.
-
-Two details that are not decoration:
-
-- **Empty blobs are skipped**, exactly as `start_processor`'s seeding skips them (*"nothing stored yet; a later change will deliver it"*). This also keeps the loop off a real hazard: `sendParameterToProcessor`'s Blob arm uses the **throwing** `std::get`, where the startup path uses `std::get_if`. An exception there would be on the audio thread.
-- **Every parameter, not only the ones the preset mentioned**, because `setPresetUnsafe` also resets absent parameters to their defaults — those stores moved too and are just as unannounced.
-
-`gmpi_processor` is a `struct`, so `sendParameterToProcessor` and `patchManager` are public and **the whole fix fits in GMPI_Wrappers (ALLOWED)**. No GMPI change, which matters: GMPI is PR-GATED and the first shape I reached for — having the controller announce the restore — would have landed there.
-
-### Verification
-
-One build tree, **one TU apart**: only `wrapper/VST3/Processor_VST3.{cpp,h}` differ between the two binaries. `v1-rack.rpp`'s 18,893-byte preset via `scripts/decode_rpp.py --preset-out`, 400 blocks of 512 at 44.1 kHz, **3 runs per arm, interleaved**:
-
-| arm | baseline `f43ce2d6` | fix `f5923fd3` |
-|---|---|---|
-| state-then-activate | −6.3 dBFS, `building rack` ×1 | −6.3 dBFS, `building rack` ×1 |
-| **activate-then-state** | **−inf, NO `building rack` line** | **−6.3 dBFS, `building rack` ×1** |
-| activate-then-state `--no-pump` | **−inf, NO `building rack` line** | **−6.3 dBFS, `building rack` ×1** |
-| `--no-preset` (negative control) | −inf | −inf |
-
-Peak is `0.482431` in every passing arm — **the same six digits macOS measured on 10-05**, and the same as the CLAP reference. `restartComponent` is called **0** times in every arm before and after, which is the practical argument against option (a): this needs no host cooperation at all.
-
-**The negative control is the arm that makes the rest mean anything.** A fix that simply always built a rack would turn `--no-preset` green too; it stays silent. That is the same discriminator the 10-06 windows run built its eight-arm probe around, and it is worth imitating every time.
-
-**The rebuild is byte-identical.** Restoring the patch and rebuilding reproduced `f5923fd3d7beac02` exactly, so the A/B's only variable really was the one TU — the cheapest available proof, per the 2026-09-01 lesson.
-
-**CLAP regression control, same build:** `e79_clap_headless_probe.c --activate-first` still renders −6.3 dBFS with one rack build. The change is VST3-only and E79's CLAP fix is unaffected.
-
-**Consumers built, because GMPI_Wrappers is shared and STEP 5 asks:**
-
-| consumer | result |
-|---|---|
-| TIDE — `TIDE-Rack.vst3`, `.clap`, standalone | **562/562, rc=0**, 0 `error:` lines |
-| **SynthEdit's Linux VST3 export template** (`SynthEditTemplate_VST3` → `se_vst3_linux.dat`) | **238/238, rc=0** |
-| **SynthEditCL** | **76/76, rc=0** |
-
-`main` **builds on Linux**: the baseline arm is `origin/main`'s wrappers exactly, and it configured and built rc=0. No platform issue needed filing.
-
-### E92: the one variable you set to test a wrapper change is the one that deletes its SynthEdit-side consumer
-
-Found while trying to satisfy *"rebuild SynthEditCL as well as TIDE"*, and it is a silent skip of the shape this project keeps paying for.
-
-`se_gmpi/vst3/CMakeLists.txt:21` guards SynthEdit's Linux VST3 export template with `if(NOT gmpi_wrappers_POPULATED) … return()`. `gmpi_wrappers_POPULATED` is set only by `FetchContent_MakeAvailable(gmpi_wrappers)` — and **the `GMPI_WRAPPER_FOLDER_OVERRIDE` branch of `SynthEditSem/CMakeLists.txt:44-50` deliberately does not call it**, it just sets `GMPI_ADAPTORS`. Measured, counting ninja targets:
-
-| configure | `SynthEditTemplate_VST3` targets |
-|---|---|
-| no override | present |
-| `-DGMPI_WRAPPER_FOLDER_OVERRIDE=<tree>` | **0** |
-| `-DFETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS=<tree>` | 10 |
-
-It prints `SynthEditTemplate_VST3: skipped (gmpi_wrappers not populated)` and exits 0, so a configure log scanned for errors shows nothing. **`FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` is the variable that works** — it keeps `_POPULATED` true *and* redirects the source — which is what the 10-02 macos lesson already said and I now know the reason for. Filed as **E92** rather than fixed: `se_gmpi/` is in `SE16` and on neither STEP 5 list, so GATED by default, and this is not a build break.
-
-**This is why my SynthEditCL and template builds used `FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` and my TIDE A/B used `GMPI_WRAPPER_FOLDER_OVERRIDE`** — TIDE's own targets carry no such guard, so the override is sound there; SE16's are not, and had I used the override for both I would have reported "SynthEditCL builds" on a configure that had silently dropped the only target that compiles my change.
-
-### Bookkeeping
-
-- **E88 → IN-REVIEW for the VST3 half, and the AU2/AU3 half filed as E91.** The row's Accept says *"for each wrapper"*, and AU2/AU3 are neither fixed nor measured, so leaving the question inside a closing row would archive it with the row — **A42's shape**, which the windows lane applied to E76/E90 on 10-06. Ids allocated by A42's guard: highest `E` is **90** across `origin/main` and all four remote `tide/*` branches, so E91 and E92 were free.
-- **Three PRs, because the work spans two repos and the lane's allowlist splits the third.** `automerge_eligible.py` on `tests/e80_vst3_feedback_probe.cpp` is **rc=1** (*"not on the auto-merge allowlist"*) and on `BACKLOG.md`/`JOURNAL.md`/`docs/lessons.md`/`JOURNAL-2026-10.md` is **rc=0**, so code and bookkeeping cannot ride together without parking the bookkeeping behind a human. `BACKLOG.md` on the code branch is **byte-identical to `origin/main`**.
-- **The DOING mark was pushed first** (`bf9851d`, before any work) and removed at the end, so the claim was visible for the whole of the run.
-- **STEP 3's grep before filing:** no row on `origin/main` names `GMPI_WRAPPER_FOLDER_OVERRIDE`, `se_gmpi/vst3` or `SynthEditTemplate_VST3`. E85 mentions `FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` only as its own A/B artifact, which is not this job.
-- **`docs/lessons.md` was stale on `origin/main` again**, exactly as the 10-06 macos entry predicted it would be once one of its two PRs landed (*"extract-lessons.py --check is not a lint-workflow step, so nothing will flag that"*). `--check` said *"stale -- run --write"* before I touched it. Regenerated here, so that debt is cleared as a by-product rather than left for another run to find.
-- `gh pr edit` **fails for this credential** — it asks for `read:org` to resolve reviewer logins, and the fleet token is `repo`-only by design. `gh api -X PATCH repos/.../pulls/<n> --input <json>` does the same job. Worth knowing before someone treats it as a broken token.
-
-**Learned:**
-
-- **When a row calls a fix a three-way choice, read the SDK's own annotation before picking.** `[UI-thread & (… | Activated | Processing)]` on `IComponent::setState` both proved the defect real and eliminated one option by making the race certain rather than arguable. Two days of "mechanism choice" was one header comment.
-- **The best statement of this bug was already a comment in the tree.** GMPI's *"blobs only reach it when they CHANGE"* is the whole of E88, written by whoever added blob seeding. **Grep the code you are about to change for a comment that already describes your bug** — it is faster than reasoning and it is evidence.
-- **An objection of the form "that would put X on the audio thread" needs checking against where X already runs.** TIDE already rebuilds its rack on the audio thread at a block boundary and documents the cost as accepted. The row's objection to option (c) was true of the words and false of the program.
-- **`start_processor` does not restart a processor, it constructs a new one.** Any fix phrased as "just call reInitialise again" is swapping a live object out from under `process()`. The name actively misleads here.
-- **`sendParameterToProcessor`'s Blob arm uses throwing `std::get` where the startup seeding uses `std::get_if`.** Two code paths that seed the same pins disagree about whether an unset blob is an error. A new caller that iterates ALL parameters meets the throwing one on the audio thread.
-- **`GMPI_WRAPPER_FOLDER_OVERRIDE` silently deletes SynthEdit's VST3 export template from the build**, because the guard tests `gmpi_wrappers_POPULATED` and the override path never populates. The variable you set in order to test a wrapper change removes the consumer you most need to compile. Use `FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS`.
-- **`check-id-refs.py` and `check-backlog-diff.py` pull in OPPOSITE directions on a row split, and only one edit satisfies both.** Filing E91 out of E88 made two live rows cite `AU2_Wrapper.cpp:341`, which `check-id-refs` fails. Dropping it from E88 then failed `check-backlog-diff`, whose rule is that a flipped row's base Item text must still be present **verbatim** — so the row I was allowed to edit was the one I was not allowed to shorten. **The new row is the one that has to yield**: E91 names the file without a line number and says why. Worth knowing before the next split, because the first fix looks obviously right and turns the other check red.
-- **`nohup cmd &` inside the Bash tool reports the SHELL's exit, not the command's, and the command keeps running.** I read "exit code 0" as "build finished", restarted it, and had **two ninja processes in one build tree**. Use the tool's own backgrounding; a second builder in one tree is unrecoverable by inspection, so I cleaned 168 objects and rebuilt rather than trust them.
-- **`pkill -f '<pattern>'` matched my own shell and killed it with exit 144 — the fifth time this fleet has paid for that**, and `scripts/kill-named.sh` has existed since the third. The pattern was `ninja -j 6`, which appears in my own `bash -c` command line. **`pkill -f` sees the command that is running it.**
-- **A command ending in `grep -c` reports the TASK as failed when the count is zero.** Three of my background steps came back "failed with exit code 1" on builds that had exited 0. The journal already carries this lesson; it is cheap to re-learn and cheaper to avoid by putting `; true` or the real check last.
-
-**Not verified:** **no Windows or macOS compile of either change**, and the wrapper fix is `#ifdef`-free shared code, so it reaches both platforms unmeasured — that is the largest gap in this run and the reason the PR says so in its own words. **AU2 and AU3 are not fixed and not measured** (E91); this build has no `.component`. No DAW was launched, no window opened and no screen taken — the probe needs none. `--editor` is still unimplemented on Linux, so nothing here speaks to the editor-attached case. SynthEdit's own GUI application has no Linux target, so *"SynthEdit builds"* is attested only through `SynthEditCL` and the export template. I did not re-run any committed fixture through `render-and-measure.py`, so this run says nothing about E76's or E90's recent changes. I did not verify the fleet PAT's expiry (A40's `NEEDS-JEFF` half, still open).
-
-**Machine state:** `~/TideSynth` started and ended on `main`, clean, and **never left it** — all work in three scratchpad `git worktree`s (two in TideSynth, one in GMPI_Wrappers), all removed at the end, with every build tree in the scratchpad. **I fast-forwarded nothing and touched none of Jeff's checkouts**, which is deliberate given #583: `~/SE/GMPI_Wrappers` was clean on `main` at `4c11d6d` (behind `origin/main`) and I **left it there**, working from a worktree at `origin/main` instead — the 09-09 collision's second half was a run fast-forwarding five sibling repos out from under another run. `~/SE/SE16` was clean on `master` and was read only; its two scratchpad configures wrote nothing into it. **One concurrent-run check at the start** (`ps` for a second `claude` CLI): exactly one, this run — so #583's duplicate firing did not recur today. No credential value appears in any commit, PR, journal entry or row.
-
-**Next:** see the `linux` NEXT cell. **For Jeff, three things:** (1) **[GMPI_Wrappers#42](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/42) is the fix and [#640](https://github.com/JeffMcClintock/TideSynth/pull/640) is the instrument** — they are independent, and #42 is the one that changes shipped behaviour in every VST3 host, so it wants a Windows or macOS build before it lands. (2) **E91** is E88's AU2/AU3 remainder and **E92** is the build-system skip above; neither needs a ruling. (3) [#639](https://github.com/JeffMcClintock/TideSynth/pull/639) (windows, E86's ruling) is still open and is a decision rather than a review.
-
-**Branch/PR:** `tide/linux/E88-vst3-activate-first` in **two** repos — [GMPI_Wrappers#42](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/42) (the fix) and [#640](https://github.com/JeffMcClintock/TideSynth/pull/640) (the probe's Linux loader, `BACKLOG.md` byte-identical to `main`). This entry, the E88 flip, the E91 and E92 rows, the refreshed `linux` cell, the rotation and the regenerated `docs/lessons.md` are on `tide/linux/2026-10-06-e88-bookkeeping`, which is bookkeeping-only and should auto-merge.
 
