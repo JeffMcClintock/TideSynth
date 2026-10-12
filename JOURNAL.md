@@ -95,6 +95,83 @@ Template:
 
 ---
 
+## 2026-10-13 — linux — E89: a box-scoped run lock, whose first version let #583 straight through at the exact 5.6 s gap (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.32885.1** (CLI `2.1.234`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E89**, this box's own process wound ([#583](https://github.com/JeffMcClintock/TideSynth/issues/583)). Added `scripts/run-lock.py`, a box-scoped lock taken at STEP 0.5, `tests/e89_box_lock_probe.py` which measures it in thirteen arms, and the STEP 0.5 / STEP 5 prompt edit that makes a run actually call it. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`5175b02..938e648`).
+
+**STEP 1:** #583 is the only open `platform:linux` issue, and its own first line says its tier is not STEP 1's — *"triage it into a BACKLOG row and take it in normal order"*. That row is E89. **STEP 1.5:** no open PR anywhere matches `tide/linux/**`; [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (mac, E91) is the fleet's only open PR and is not this lane's. **STEP 2:** the `linux` NEXT cell says *"TAKE NEXT: E89"* and has said so since 09-09. It is `TODO`, `linux`, and no branch or PR named it — `git ls-remote --heads origin` returns `main` and `tide/mac/E91-au-activate-first` only, so the two stale branches the 10-06 cell flagged have since been deleted. None of the four open `PROPOSED:` entries parks it: three say *"everything"* and E72's parks only E72. DOING mark pushed first, `b777d65`.
+
+### The thing worth reading: the fix's first version reproduced the defect it was for
+
+`run-lock.py` first recorded `os.getpid()` — the pid of the `acquire` process. **That process exits immediately, so the lock went stale the instant it was taken.** Run at #583's exact gap, on the real code:
+
+```
+run A acquire rc=0 -> lock acquired: pid=7047 ...
+run B acquire 5.6s later rc=0 -> reclaiming a stale lock (holder pid 7047 is gone)
+```
+
+**rc=0. Run B was let straight through, and the guard did nothing, silently** — which is the one outcome #583 calls worse than the collision. **Arms 1-10 of the probe were green while that was true**, because not one of them let a real `acquire`'s process exit before judging the lock. So the lock now records an *owner* pid: `--owner-pid auto` walks the parent chain and takes the first ancestor matching the Claude Code CLI, prints which pid it chose and how, and warns loudly when no ancestor matched (that lock is age-capped only). Arms 11-13 are that hole, its fix, and the broken configuration pinned so a regression says which half moved.
+
+### Why a lock, and not either of E89's other two shapes — measured, not argued
+
+| E89's shape | verdict |
+|---|---|
+| **`ps` for a second `claude`** (#583's own suggestion) | **refuted, in both directions at once** |
+| **a DOING check against the local `.git`** | **blind by 169 seconds** in the observed incident |
+| **fix the duplicate firing at source** | outside this repo; the scheduled-task runner |
+
+**`ps` cannot see a scheduled run, and the count-based variant would have stood down the run that measured it.** Swept `/proc/*/cmdline` across the whole box: **no `claude` process's cmdline contains `tidesynth-weekly-linux`** — the task name reaches a run through its prompt, not its argv; the single match was the sweep's own shell. And two `claude` CLI processes were alive for entirely ordinary reasons — pid 4270 (`--model default`, this run) and pid 4414 (`--model claude-haiku-4-5-20251001`), a sibling started 21 s later by the same `claude-desktop` parent 3836. A run that stands down on *"another claude exists"* stands down always.
+
+**The `.git`-aware DOING check is a late detector, and the number kills it as a preventer.** Run B started **22:03:07.240Z**; run A's DOING commit `9177984` is authored **2026-09-08T22:05:50Z** — **169 seconds later**. Run B did its STEP 2 claim survey inside that window, so there was nothing in the shared `.git` for such a check to read. Worth having as a backstop; cannot be the guard.
+
+### Evidence
+
+`python3 tests/e89_box_lock_probe.py` — **13 arms, rc=0, 7.5 s**, no build and no DAW. Arms 1-4 and 11-13 measure *"it lets two runs in"*; arms 5-8 measure *"it lets no run in"*, which #583 names as the worse failure; 9-10 are housekeeping.
+
+**The vacuity control runs first and must FAIL:** the same 12-process barrier-released harness against a deliberately non-atomic check-then-create acquire gives **12 of 12 winners**. Without it, arm 4's *"1 of 12"* would prove nothing — a harness whose children never overlap reports one winner for a lock with no exclusion in it at all.
+
+**Then three A/B breaks of the real script, each turning the probe red on exactly the arms it should**, with the restored file **byte-identical** (sha256 `433adc6ea11340d3`) so each A/B's only variable was its one edit:
+
+| break | arms red |
+|---|---|
+| `O_EXCL` → check-then-create with a window | **4** alone: 12 of 12 racers acquire |
+| `--owner-pid auto` → `self` (the hole as first written) | **11 and 12** |
+| `staleness()` → always "live" (strand the box) | **9 of 13** |
+
+Arm 12 is the incident itself with real processes: a holder resolved through the real `auto` walk, a **5.6 s** sleep, run B **rc=1 REFUSED** naming the holder's pid — then the holder is killed and the next acquire **rc=0, reclaimed**, so a crashed run does not strand the lane. It only became an end-to-end test of `auto` after the second A/B showed it staying green with an explicit `--owner-pid`; that is why it passes a marker ancestor now.
+
+**End-to-end on the real path**, the literal STEP 0.5 and STEP 5 commands: acquire rc=0 recording `pid=4270 … owner=auto:ancestor-match`, an immediate second acquire **rc=1 REFUSED**, release rc=0, release-again rc=0 and safe. `~/.tide/` is left holding `agent-token` alone, exactly as found.
+
+### Filed while here: A43, a `PROPOSED:` entry that outlived its row
+
+Working out which open questions park E89 meant reading all four `PROPOSED:` entries, and one of them has no owner. **[E72](BACKLOG-DONE.md) was archived DONE on 2026-10-01, and its entry still stands open in [docs/decisions.md](docs/decisions.md) saying *"May proceed meanwhile: everything except E72 itself"* — a parks-clause naming a row that is not in `BACKLOG.md` any more.** No ruling for it is in that file's Decisions table, so the question is genuinely still unanswered and nothing is carrying it. **This is A42's hazard from the other side:** A42 is *"a question left inside a closing row is archived with it"*, and E72 did the other sanctioned thing — escalated to `docs/decisions.md`, which *is* the mechanism — and the escalation then outlived its row. Both paths lose the question; they lose it in different files. Filed as **A43** with the shape of an answer and no pick, because this is process rather than product. Id allocated per A42's own guard: swept `BACKLOG.md` + `BACKLOG-DONE.md` on `origin/main` and on every remote `tide/*` branch, highest was E93 / A42, so A43 was free.
+
+**Learned:**
+
+- **A fix whose own probe is green can still be the defect.** Ten arms passed while `run-lock.py` recorded a pid that was dead a moment later. Every one of them tested the lock *file*; none let the acquiring *process* exit first, which is the only state a real run is ever in. **When a guard's correctness depends on a lifetime, an arm must outlive something.**
+- **`ps` cannot identify a scheduled run on this box.** The task name is in the prompt, not the argv — `/proc/*/cmdline` has zero matches — and two `claude` CLI processes are normal, so counting them false-positives. #583's own recommended cheap check would have stood this run down.
+- **Ask when a late detector could first have seen anything.** A `.git`-aware DOING check is blind for the 169 s between run B's start and run A's claim commit, and that is exactly the window run B spent in STEP 2. The gap between two firings (5.6 s) and the gap before the first local artefact (169 s) are different numbers, and only the second one judges the mechanism.
+- **`O_EXCL` over `flock` when the lock's value must be read by a different process.** An advisory `flock` dies with the fd; a run needs its successor to read *who* holds it, and `O_CREAT|O_EXCL` is the one primitive that is atomic and identical on all three boxes.
+- **A barrier file is what makes a race harness race.** Twelve children released together contend; twelve started in a loop are serialised by ~30 ms of interpreter startup each, and report one winner for a lock with no mutual exclusion in it.
+- **Pin the broken configuration as its own arm.** Arm 13 asserts `--owner-pid self` still goes stale on exit. That is what makes arm 12's pass attributable to the ancestor walk rather than to something else having moved.
+- **An escalation can outlive the row that raised it, and no check looks.** `check-id-refs.py` walks ids across files but not into `docs/decisions.md`'s `PROPOSED:` blocks, so E72's entry has been read as live by three consecutive runs since its row was archived. A43.
+- **`grep -oE` with a wide fixed-width prefix over `BACKLOG.md` backtracks catastrophically.** `grep -oE '.{90}(A[^|]{0,120}B|B[^|]{0,120}A).{60}'` against rows that are single 2-4 KB lines ran past a 2-minute timeout and had to be killed; the same question in python answered instantly. **This file's rows are not line-shaped, so line-oriented tools do not cost what you expect on it.**
+- **`os.kill(pid, 0)` has no Windows equivalent worth shipping unverified**, so `pid_alive` returns `True`/`False`/`None` and `None` means *possibly alive*. A lock is reclaimed only on a **known**-dead pid, which makes the Windows box strictly more conservative rather than less.
+
+**Not verified:** **the Windows and macOS boxes**. Everything above was measured on linux. `run-lock.py` is `#ifdef`-free Python and the probe needs no build, so `python3 tests/e89_box_lock_probe.py` should run on both, but it has not. **Windows is the one platform with a different code path** — no `/proc`, no `ps`, so `--owner-pid auto` falls back to `self` and `pid_alive` returns `None`, leaving the 6 h age cap as the sole reclaim route; **that path is written but unmeasured, and it is the thing to run first on that box.** macOS takes the `ps -o ppid=,args=` branch of `_parent_and_cmdline`, which linux never exercises because `/proc` exists here — also unmeasured. **Why the task fired twice is still unestablished**, as #583 said: this is a guard against the duplicate firing, not a fix for it, and fixing the scheduler still beats guarding against it. I did not test two genuinely separate scheduled firings, only two processes at the same gap. No product code was touched, nothing was built, and TiDE was not measured.
+
+**Rotation:** not needed. With this entry `JOURNAL.md` is **58,062 bytes**, under the 60 KB cap, and the floor (four most recent entries, which beats the two carrying today's date) binds anyway. `extract-lessons.py --check` is green, 1688 lessons from 394 entries.
+
+**Machine state:** `~/TideSynth` stayed on `main`, clean, and never left it — **its local `main` is 94 commits behind `origin/main` and I deliberately left it there**, for the reason the 10-06 entry gives: fast-forwarding a sibling tree out from under another process is the second half of #583. All work was in a scratchpad `git worktree`, removed at the end. No sibling repo was touched, read or fast-forwarded. No GUI, no screen taken, and no credential value appears anywhere.
+
+**Next:** see the `linux` cell. **For Jeff:** (1) this PR touches `docs/weekly-run-prompt.md`, which the A4 allowlist carves out on purpose, so it waits for you — and a prompt change reaches all three boxes on their next run, which is A2's stated trade and the reason the edit is 52 lines rather than a rewrite. (2) **Windows and linux had both been silent since 10-06**; this entry breaks linux's week. (3) The bot token expires **2026-11-07**, 25 days out.
+
+**Branch/PR:** `tide/linux/E89-box-run-lock` — the lock, the probe, the STEP 0.5 / STEP 5 prompt edit, the E89 flip, the `linux` cell, the A43 row and the regenerated `docs/lessons.md`. **It is NOT auto-mergeable and that is deliberate:** `docs/weekly-run-prompt.md` is carved out of the A4 allowlist, so it waits for Jeff.
+
+---
+
 ## 2026-10-13 — macos — no item: STEP 1 and 1.5 empty, and since `40ff8e8` only the 10-12 `mac` cell moved, so the walk stands (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.31226.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run

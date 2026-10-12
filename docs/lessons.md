@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **506 KB** across **393** entries, so copying them
+Learned sections are **509 KB** across **394** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **164 KB / 1679 lessons — 3.1x smaller**, and represents
+A8. This is **164 KB / 1688 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,20 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-13
+
+**linux — E89: a box-scoped run lock, whose first version let #583 straight through at the exact 5.6 s gap (scheduled run)**
+
+- A fix whose own probe is green can still be the defect.
+- `ps` cannot identify a scheduled run on this box.
+- Ask when a late detector could first have seen anything.
+- `O_EXCL` over `flock` when the lock's value must be read by a different process.
+- A barrier file is what makes a race harness race.
+- Pin the broken configuration as its own arm.
+- An escalation can outlive the row that raised it, and no check looks.
+- `grep -oE` with a wide fixed-width prefix over `BACKLOG.md` backtracks catastrophically.
+- `os.kill(pid, 0)` has no Windows equivalent worth shipping unverified
 
 ## 2026-10-11
 
