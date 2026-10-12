@@ -168,7 +168,7 @@ Working out which open questions park E89 meant reading all four `PROPOSED:` ent
 
 **Next:** see the `linux` cell. **For Jeff:** (1) this PR touches `docs/weekly-run-prompt.md`, which the A4 allowlist carves out on purpose, so it waits for you — and a prompt change reaches all three boxes on their next run, which is A2's stated trade and the reason the edit is 52 lines rather than a rewrite. (2) **Windows and linux had both been silent since 10-06**; this entry breaks linux's week. (3) The bot token expires **2026-11-07**, 25 days out.
 
-**Branch/PR:** `tide/linux/E89-box-run-lock` — the lock, the probe, the STEP 0.5 / STEP 5 prompt edit, the E89 flip, the `linux` cell, the A43 row and the regenerated `docs/lessons.md`. **It is NOT auto-mergeable and that is deliberate:** `docs/weekly-run-prompt.md` is carved out of the A4 allowlist, so it waits for Jeff.
+**Branch/PR:** `tide/linux/E89-box-run-lock`, [#652](https://github.com/JeffMcClintock/TideSynth/pull/652) — the lock, the probe, the STEP 0.5 / STEP 5 prompt edit, the E89 flip, the `linux` cell, the A43 row and the regenerated `docs/lessons.md`. **It is NOT auto-mergeable and that is deliberate:** `docs/weekly-run-prompt.md` is carved out of the A4 allowlist, so it waits for Jeff.
 
 ---
 
