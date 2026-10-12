@@ -228,6 +228,42 @@ STEP 0.5 — Pause and staleness checks.
     **and which of its two paths asserted it.**
     Three boxes can diverge on any of these, and the journal line is the only
     place that divergence is visible.
+  - **Take the box lock. One command, and its exit code is the whole rule:**
+
+        python3 {REPO}/scripts/run-lock.py acquire --repo {REPO} \
+            --platform {PLATFORM} --label "{MACHINE} scheduled run"
+
+    **Exit 0 means the lock is yours — carry on.** Exit 1 means **another run
+    on this box already holds it: stop immediately, write nothing at all.** No
+    commits, no journal entry, no issue, no PR — the same standing-down as
+    FLEET-PAUSED above, and for a sharper reason. A second concurrent run has
+    nothing to say that the first will not say better, and saying it costs
+    exactly one `JOURNAL.md` conflict. Exit 2 is misuse (an unwritable
+    `~/.tide`, a bad argument); read what it printed and stop.
+
+    **Why this exists, and why the DOING mark is not already it.** On
+    2026-09-08 the `tidesynth-weekly-linux` task **fired twice, 5.6 seconds
+    apart**, and both runs went to work in the same working trees
+    ([#583](https://github.com/JeffMcClintock/TideSynth/issues/583), BACKLOG
+    **E89**). Every guard in this file passed and would pass again: STEP 0.7
+    asserted the bot correctly in both processes, and
+    `check-commit-authorship.py` was clean because the commit really was the
+    bot's. **STEP 2's DOING mark is a claim against the other two MACHINES, not
+    against yourself** — two processes sharing one `.git` are not three boxes
+    that cannot see each other, and a pushed claim there is just a checkout of
+    the other process's HEAD. What saved it was run B noticing and standing down
+    voluntarily, which is not a mechanism.
+
+    **It cannot strand the box, and that was the harder half to get right**
+    (#583: a stale lock silently stopping the lane is worse than the collision).
+    The lock carries its holder's pid and a UTC stamp; a lock whose pid is known
+    dead is not a lock, and nor is one past the age cap. So a crashed run costs
+    the next run nothing on linux and macOS, and at most one run on Windows,
+    where pid liveness is not available and the age cap is the only reclaim
+    route. Measured, thirteen arms and a control that must fail:
+    `python3 tests/e89_box_lock_probe.py`.
+
+    **Release it in STEP 5**, and release it even if you stop early.
 
 STEP 0.7 — Become the agent. Do this before any command that touches GitHub.
 
@@ -668,6 +704,22 @@ Then put every working copy back on its default branch:
 **The default branch is not the same everywhere.** `SE16` is `master`;
 TideSynth, `SynthEditLib`, `gmpi_ui` and `GMPI_Wrappers` are `main`. Check with
 `git symbolic-ref --short refs/remotes/origin/HEAD` rather than assuming.
+
+**Then release the box lock, as the last thing you do:**
+
+    python3 {REPO}/scripts/run-lock.py release
+
+Release it whatever happened — item finished, item abandoned, queue blocked,
+context running out. A run that exits holding it costs the next run on this box
+nothing on linux or macOS, where the lock's pid is seen to be gone within
+seconds; on Windows it costs that box its next run, because there the age cap is
+the only reclaim route. `release` refuses to remove a lock belonging to a
+different run unless you pass `--force`, so running it when you do not hold one
+is safe and prints what it found.
+
+**Do NOT release it if you stood down at STEP 0.5 because exit 1 said another
+run holds it.** That lock is the other run's, you never took it, and `--force`
+is the one way to turn this guard back into the collision it prevents.
 
 Leaving a checkout parked on your branch strands the developer's machine in your
 half-finished state: whoever opens that tree next builds something they did not
