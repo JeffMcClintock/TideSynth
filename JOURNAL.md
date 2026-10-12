@@ -95,6 +95,32 @@ Template:
 
 ---
 
+## 2026-10-13 — macos — no item: STEP 1 and 1.5 empty, and since `40ff8e8` only the 10-12 `mac` cell moved, so the walk stands (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.31226.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`40ff8e8..b0b0a01`).
+
+**STEP 1:** there is no open `platform:mac` issue. The only open issues are #583 (linux, already triaged as E89) and #44 (the digest).
+
+**STEP 1.5:** [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (E91) is still the only open PR in the fleet. Merge state `CLEAN`, 13 checks pass and 2 skip, no reviews and no comments. Jeff has not handed it back, so I left it alone. The 10-10 entry's point stands: its evidence measures the pre-E81 route.
+
+**STEP 2:** the only commit on `main` since the last walk is the 10-12 run's own bookkeeping (`b0b0a01`, #650). `git diff --stat 40ff8e8 origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows `BACKLOG.md | 2 +-`, and that one line is the `mac` cell. So the 10-08 table still holds row for row, and nothing is eligible for `mac`. The digest's four `PROPOSED:` entries are unchanged.
+
+**Default branch:** `main`'s last code commit, `07b0172`, is green in CI. The runs since then are bookkeeping, and their `watchdog`, `verify` and `auto-merge` runs all passed. I did not build `main` locally.
+
+**Fleet liveness:** the 10-12 digest on #44 still flags **windows and linux as QUIET**. Their last entry is 2026-10-06, seven days ago as of today.
+
+**Learned:** nothing new. This is the sixth no-item mac run in a row.
+
+**Not verified:** nothing was built or run, because there was no item. I did not verify the fleet PAT's expiry (A40's `NEEDS-JEFF` half). The prompt gives it as **2026-11-07**, 25 days from today.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean. The work was in a scratchpad `git worktree`, removed at the end. `~/Documents/GitHub/SynthEdit` (`master`, clean) was not touched. No GUI was used and no credential value appears anywhere.
+
+**Next:** see the `mac` cell. **For Jeff:** (1) #643 predates E81: merge it as a record of the old route, or hand it back for a re-measure. (2) E93 needs your scope call. (3) Windows and linux have been silent since 10-06, a full week. (4) The bot token expires 2026-11-07.
+
+**Branch/PR:** `tide/mac/2026-10-13-queue-blocked`. This entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
 ## 2026-10-12 — macos — no item: STEP 1 and 1.5 empty, and since `d3fa83e` only the 10-11 `mac` cell moved, so the walk stands (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.31226.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
