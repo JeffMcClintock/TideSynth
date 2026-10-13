@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: ISC
 // Copyright 2007-2026 Jeff McClintock.
 #include "helpers/GmpiPluginEditor.h"
+#include "helpers/BitmapMask.h"
 
 using namespace gmpi;
 using namespace gmpi::editor;
@@ -25,8 +26,79 @@ class PatchPointGui final : public PluginEditor, public gmpi::api::IDrawingLayer
 	static constexpr float jackBodyRadius = 4.0f * 75.0f / 25.4f;
 
 	Pin<std::string> pinTitle;
+	Pin<float> pinLevel; // signed peak from the DSP; 1.0 = 10 V
 
 	TextFormat titleFormat;
+
+	// The LED in the middle of the jack, as VCV Rack's plug lights: green positive, red negative,
+	// brightness |V| / 10. Drawn like SE's LED (LEDGui.cpp): a lit core, plus an additive glow on layer 1.
+	static constexpr float ledRadius = 2.0f;
+	static constexpr float ledGlowSize = 6.0f;
+	static constexpr uint32_t ledPositiveColor = 0x90C73Eu; // VCV SCHEME_GREEN
+	static constexpr uint32_t ledNegativeColor = 0xED2C24u; // VCV SCHEME_RED
+	Bitmap ledGlow[2]; // [0] positive, [1] negative
+
+	float ledBrightness() const
+	{
+		return (std::min)(1.0f, std::fabs(pinLevel.value));
+	}
+
+	Color ledColor() const
+	{
+		return colorFromHex(pinLevel.value < 0.0f ? ledNegativeColor : ledPositiveColor);
+	}
+
+	Rect ledGlowRect() const
+	{
+		const auto c = jackCenter();
+		const float r = ledRadius + ledGlowSize;
+		return { c.x - r, c.y - r, c.x + r, c.y + r };
+	}
+
+	// Purely additive glow pixels (alpha 0), as LEDGui builds them, without its star spokes.
+	Bitmap& glowBitmap(Graphics& g)
+	{
+		auto& bitmap = ledGlow[pinLevel.value < 0.0f ? 1 : 0];
+		if (bitmap)
+			return bitmap;
+
+		const int32_t size = static_cast<int32_t>(std::ceil(2.0f * (ledRadius + ledGlowSize)));
+		bitmap = g.getFactory().createImage(size, size);
+
+		auto pixels = bitmap.lockPixels(BitmapLockFlags::Write);
+		if (!pixels)
+			return bitmap;
+
+		constexpr float falloff = 0.3f; // bigger = steeper (less glow)
+		constexpr float taperZoneStart = 0.5f;
+		constexpr float taperGradient = 1.0f / (1.0f - taperZoneStart);
+		const float centre = 0.5f * static_cast<float>(size);
+		const auto colour = ledColor();
+
+		for (auto& it : pixelIterator<RgbaHalfPixel>(pixels))
+		{
+			const auto dx = (it.x + 0.5f) - centre;
+			const auto dy = (it.y + 0.5f) - centre;
+			const auto distance = std::sqrt(dx * dx + dy * dy);
+			auto glow = 0.5f / (std::max)(1.0f, falloff * (distance - ledRadius));
+			glow *= (std::clamp)(1.0f - taperGradient * (distance - centre * taperZoneStart) / centre, 0.0f, 1.0f);
+
+			it->setR(colour.r * glow);
+			it->setG(colour.g * glow);
+			it->setB(colour.b * glow);
+			it->setA(0.0f);
+		}
+		return bitmap;
+	}
+
+	void onLevelChanged()
+	{
+		if (drawingHost)
+		{
+			const auto r = offsetRect(ledGlowRect(), { bounds.left, bounds.top });
+			drawingHost->invalidateRect(&r);
+		}
+	}
 
 	// VCV Fundamental's panel colours.
 	static constexpr uint32_t darkColor = 0x1F1F1Fu;
@@ -70,6 +142,7 @@ public:
 	PatchPointGui()
 	{
 		pinTitle.onUpdate = [this](PinBase*) { onTitleChanged(); };
+		pinLevel.onUpdate = [this](PinBase*) { onLevelChanged(); };
 	}
 
 	// Layer 4 = editor guide (see IDrawingLayer in NativeUi.h): a design-time-only
@@ -91,6 +164,31 @@ public:
 				g.popAxisAlignedClip();
 			}
 
+			if (const float brightness = ledBrightness(); brightness > 0.0f)
+			{
+				const auto c = jackCenter();
+				auto core = interpolateColor(ledColor(), Colors::White, 0.5f * brightness);
+				core.a = brightness;
+				g.fillEllipse({ c, ledRadius, ledRadius }, g.createSolidColorBrush(core));
+			}
+
+			return ReturnCode::Ok;
+		}
+
+		if (layer == 1)
+		{
+			const float brightness = ledBrightness();
+			if (brightness <= 0.0f)
+				return ReturnCode::Ok;
+
+			Graphics g(drawingContext);
+			auto& glow = glowBitmap(g);
+			if (!glow)
+				return ReturnCode::Ok;
+
+			const auto size = glow.getSize();
+			const Rect srcRect{ 0.0f, 0.0f, static_cast<float>(size.width), static_cast<float>(size.height) };
+			g.drawBitmap(glow, ledGlowRect(), srcRect, brightness);
 			return ReturnCode::Ok;
 		}
 

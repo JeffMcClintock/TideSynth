@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: ISC
 // Copyright 2007-2026 Jeff McClintock.
+#include <cmath>
 #include "Processor.h"
 #include "Extensions/PinConnection.h"
 
@@ -9,13 +10,38 @@ struct PatchPointOut : public Processor
 {
 	AudioInPin pinInput;
 	AudioOutPin pinOutput;
+	FloatOutPin pinLevel; // to the GUI's LED, via a private parameter
+
+	// The signed sample of largest magnitude since the last LED update, sent ~30 times a second.
+	float peak = 0.0f;
+	int samplesUntilLevel = 0;
+	int levelInterval = 1;
 
 	PatchPointOut() = default;
+
+	void onGraphStart() override
+	{
+		levelInterval = (std::max)(1, static_cast<int>(host->getSampleRate() / 30.0f));
+		Processor::onGraphStart();
+	}
 
 	void subProcess( int sampleFrames )
 	{
 		const auto* in = getBuffer(pinInput);
 		auto* __restrict out = getBuffer(pinOutput);
+
+		for (int i = 0; i < sampleFrames; ++i)
+		{
+			if (std::fabs(in[i]) > std::fabs(peak))
+				peak = in[i];
+		}
+		samplesUntilLevel -= sampleFrames;
+		if (samplesUntilLevel <= 0)
+		{
+			pinLevel.setValue(peak, getBlockPosition()); // subProcess must give the sample position
+			peak = 0.0f;
+			samplesUntilLevel = levelInterval;
+		}
 
 		// auto-vectorized copy.
 		while(sampleFrames > 3)
@@ -41,6 +67,10 @@ struct PatchPointOut : public Processor
 	{
 		// Set state of output audio pins.
 		pinOutput.setStreaming(pinInput.isStreaming());
+
+		// A steady input stops subProcess sending levels, so send the steady value itself.
+		if (!pinInput.isStreaming())
+			pinLevel = pinInput.getValue();
 
 		// Set processing method.
 		setSubProcess(&PatchPointOut::subProcess);
@@ -79,13 +109,18 @@ namespace
 auto r = Register<PatchPointIn>::withXml(R"XML(
 <?xml version="1.0" encoding="UTF-8"?>
 <Plugin id="TiDE Patch Point In" name="Patch Point&lt;-" category="TiDE">
+    <Parameters>
+        <Parameter id="0" name="Level" datatype="float" private="true" ignorePatchChange="true" persistant="false"/>
+    </Parameters>
     <Audio>
         <Pin name="Input" datatype="audio" linearInput="true" isMinimised="true"/>
         <Pin name="Output" datatype="audio" direction="out"/>
         <Pin name="Connected" datatype="bool" direction="out"/>
+        <Pin name="Level" datatype="float" direction="out" parameterId="0" private="true"/>
     </Audio>
     <GUI graphicsApi="GmpiUi">
         <Pin name="Title" datatype="string_utf8" default=""/>
+        <Pin name="Level" datatype="float" parameterId="0" private="true"/>
     </GUI>
     <PatchPoints>
         <PatchPoint pinId="0" center="15,25" radius="5"/>
@@ -96,12 +131,17 @@ auto r = Register<PatchPointIn>::withXml(R"XML(
 auto r2 = Register<PatchPointOut>::withXml(R"XML(
 <?xml version="1.0" encoding="UTF-8"?>
   <Plugin id="TiDE Patch Point Out" name="Patch Point-&gt;" category="TiDE">
+    <Parameters>
+        <Parameter id="0" name="Level" datatype="float" private="true" ignorePatchChange="true" persistant="false"/>
+    </Parameters>
    <Audio>
       <Pin name="Input" datatype="audio" linearInput="true"/>
       <Pin name="Output" datatype="float" direction="out" rate="audio" isMinimised="true" />
+      <Pin name="Level" datatype="float" direction="out" parameterId="0" private="true"/>
     </Audio>
     <GUI graphicsApi="GmpiUi">
         <Pin name="Title" datatype="string_utf8" default=""/>
+        <Pin name="Level" datatype="float" parameterId="0" private="true"/>
     </GUI>
     <PatchPoints>
 		<PatchPoint pinId="1" center="15,25" radius="5" />

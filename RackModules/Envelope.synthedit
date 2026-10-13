@@ -11,11 +11,14 @@
         <PatchManager>
             <ProgramNames/>
             <Parameters>
+                <param type="6" handle="70768971" shortName="Level" ignorePC="true" private="true" stateful="false" module="359705684" moduleParamId="0"/>
+                <param type="6" handle="1311285963" shortName="Level" ignorePC="true" private="true" stateful="false" module="1142937646" moduleParamId="0"/>
                 <param type="10" handle="1591759637" private="true" hostControl="49">
                     <patch-list>
                         <s repeat="128"></s>
                     </patch-list>
                 </param>
+                <param type="6" handle="1991779248" shortName="Level" ignorePC="true" private="true" stateful="false" module="1888218636" moduleParamId="0"/>
             </Parameters>
         </PatchManager>
         <modules>
@@ -36,7 +39,7 @@
                     <module type="TiDE Patch Point In" handle="1888218636">
                         <plugs>
                             <plug default="GATE"/>
-                            <plug default="10"/>
+                            <plug default="10" idx="2"/>
                         </plugs>
                         <structRect l="3606" r="3666" t="4032" b="4112"/>
                         <panelRect l="9" r="39" t="95" b="135"/>
@@ -76,9 +79,9 @@
                 </modules>
                 <lines>
                     <line type="Line" handle="474344374" lineType="1" fMod="553348735" tMod="295185799" fPlg="6" tPlg="1"/>
-                    <line type="Line" handle="94852515" lineType="1" fMod="295185799" tMod="359705684" fPlg="2" tPlg="1"/>
-                    <line type="Line" handle="190616161" lineType="1" fMod="1888218636" tMod="553348735" fPlg="2"/>
-                    <line type="Line" handle="1412763883" lineType="1" fMod="1142937646" tMod="295185799" fPlg="2"/>
+                    <line type="Line" handle="34702161" lineType="1" fMod="295185799" tMod="359705684" fPlg="2" tPlg="2"/>
+                    <line type="Line" handle="1590000411" lineType="1" fMod="1888218636" tMod="553348735" fPlg="3"/>
+                    <line type="Line" handle="185720371" lineType="1" fMod="1142937646" tMod="295185799" fPlg="3"/>
                 </lines>
                 <PanelLocationCenter x="254.32866" y="205.8761"/>
                 <StructLocationCenter x="3984" y="3984"/>
@@ -154,25 +157,35 @@
             </GUI>
         </Plugin>
         <Plugin id="TiDE Patch Point In" name="Patch Point&lt;-" flags="384" category="TiDE">
+            <Parameters>
+                <Parameter id="0" datatype="float" name="Level" private="true" ignorePatchChange="true" persistant="false"/>
+            </Parameters>
             <Audio>
                 <Pin name="Input" datatype="float" rate="audio" linearInput="true" isMinimised="true"/>
                 <Pin name="Output" datatype="float" rate="audio" direction="out"/>
                 <Pin name="Connected" datatype="bool" direction="out"/>
+                <Pin name="Level" datatype="float" direction="out" private="true" parameterId="0"/>
             </Audio>
             <GUI graphicsApi="GmpiGui">
                 <Pin name="Title" datatype="string_utf8"/>
+                <Pin name="Level" datatype="float" private="true" parameterId="0"/>
             </GUI>
             <PatchPoints>
                 <PatchPoint pinId="0" center="15,25" radius="5"/>
             </PatchPoints>
         </Plugin>
         <Plugin id="TiDE Patch Point Out" name="Patch Point-&gt;" flags="384" category="TiDE">
+            <Parameters>
+                <Parameter id="0" datatype="float" name="Level" private="true" ignorePatchChange="true" persistant="false"/>
+            </Parameters>
             <Audio>
                 <Pin name="Input" datatype="float" rate="audio" linearInput="true"/>
                 <Pin name="Output" datatype="float" rate="audio" direction="out" isMinimised="true"/>
+                <Pin name="Level" datatype="float" direction="out" private="true" parameterId="0"/>
             </Audio>
             <GUI graphicsApi="GmpiGui">
                 <Pin name="Title" datatype="string_utf8"/>
+                <Pin name="Level" datatype="float" private="true" parameterId="0"/>
             </GUI>
             <PatchPoints>
                 <PatchPoint pinId="1" center="15,25" radius="5"/>
