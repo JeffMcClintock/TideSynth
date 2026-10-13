@@ -322,7 +322,18 @@ def check_halted_boxes(repo_root):
              'A box that ran and found nothing to do still writes a journal entry, so it '
              'appears here as fine. A box that halted at STEP 0.7 cannot push anything at '
              'all -- it has no credential to push WITH -- so silence is the only symptom '
-             'it can produce, and this section is the thing that notices.\n']
+             'it can produce, and this section is the thing that notices.\n',
+             '**The windows box runs WEEKLY by design (`0 20 * * 1`), so silence of under '
+             'seven days is expected there and is not worth acting on.** The thresholds below '
+             'assume a daily fleet, which macos and linux are and windows is not, so that box '
+             'reads as QUIET for four days in every seven and reaches LIKELY HALTED on its own '
+             'run morning. Three mac runs escalated exactly that in 2026-10-11..13, one of them '
+             'asking for STEP 0.7 to be checked by hand on two machines that were fine. Ruled '
+             'WONTFIX (A44, 2026-10-13): the cadence is deliberate and not worth fretting about. '
+             'The flag is left in place rather than suppressed, because a genuinely long silence '
+             'still belongs here; what changed is that nobody need re-raise it. The known '
+             'fleet-wide halt -- the credential expiring -- has its own section below with a real '
+             'date, and does not depend on this one.\n']
 
     latest = latest_entry_per_platform(repo_root)
     today = datetime.now(timezone.utc)
