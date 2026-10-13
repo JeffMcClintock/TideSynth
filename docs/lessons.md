@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **508 KB** across **394** entries, so copying them
+Learned sections are **509 KB** across **395** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **164 KB / 1684 lessons — 3.1x smaller**, and represents
+A8. This is **165 KB / 1689 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,14 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-10-13
+
+**windows — the merge sweep Jeff asked for: #643 landed, and #652 did NOT, because measuring its Windows path showed `release` cannot release (interactive, Jeff directing)**
+
+- "Measure before you merge" earned its keep on the first try, and the thing it caught was not the thing the PR flagged.
+- A platform fallback can be safe in one verb and broken in the other.
+- Nine green arms out of thirteen is not "mostly working" when the four reds are all one direction.
+- A conditional instruction is still a condition.
+- Merging another lane's PR is cheap; judging its evidence is not, and the mechanical rule covers only the first.
 
 **windows — no item: the queue is empty for `win`, and the run's finding is that this lane was never halted — the box is WEEKLY and the digest assumes daily (scheduled run)**
 
@@ -83,16 +91,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - An appex's own link line, minus `-e _NSExtensionMain`, is an in-process AUv3 host.
 - The installed AUv3 on this box is pre-E71
 - `timeout` is not on this box
-
-## 2026-10-06
-
-**linux — the merge sweep Jeff asked for: all three PRs landed, five rows archived, and CI closed half of E88's own stated gap (interactive, Jeff directing)**
-
-- Merge order decided what got verified, and nobody planned it.
-- "Compiled on three platforms" and "verified on three platforms" are different claims
-- When two lints disagree, read the source of the one that is still failing.
-- A lint reports its first failure, not its last.
-- Archiving N rows has a blast radius of N NEXT-cell clauses
 
 ## 2026-10-01
 
@@ -197,6 +195,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `nohup cmd &` inside the Bash tool reports the SHELL's exit, not the command's, and the command keeps running.
 - `pkill -f '<pattern>'` matched my own shell and killed it with exit 144 — the fifth time this fleet has paid for that
 - A command ending in `grep -c` reports the TASK as failed when the count is zero.
+
+**linux — the merge sweep Jeff asked for: all three PRs landed, five rows archived, and CI closed half of E88's own stated gap (interactive, Jeff directing)**
+
+- Merge order decided what got verified, and nobody planned it.
+- "Compiled on three platforms" and "verified on three platforms" are different claims
+- When two lints disagree, read the source of the one that is still failing.
+- A lint reports its first failure, not its last.
+- Archiving N rows has a blast radius of N NEXT-cell clauses
 
 ## 2026-09-08
 
