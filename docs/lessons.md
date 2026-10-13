@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **506 KB** across **393** entries, so copying them
+Learned sections are **508 KB** across **394** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **164 KB / 1679 lessons — 3.1x smaller**, and represents
+A8. This is **164 KB / 1684 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,16 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-13
+
+**windows — no item: the queue is empty for `win`, and the run's finding is that this lane was never halted — the box is WEEKLY and the digest assumes daily (scheduled run)**
+
+- A fleet-liveness threshold is only as good as its cadence assumption, and the assumption is in a comment rather than in data.
+- A `PROPOSED:` entry's blanket "parks nothing" line can be wrong about exactly one row — the row whose deliverable is the thing being decided.
+- A42's branch sweep is not theoretical.
+- A STEP 4 debt for work a run has no memory of is discharged by pointing at the PR, not by writing the entry.
+- Read a row's platform guards on YOUR platform even when another box already read them on theirs.
 
 ## 2026-10-11
 

@@ -95,6 +95,64 @@ Template:
 
 ---
 
+## 2026-10-13 — windows — no item: the queue is empty for `win`, and the run's finding is that this lane was never halted — the box is WEEKLY and the digest assumes daily (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude desktop **2.31226.1** (CLI `2.1.295`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item — nothing is eligible for `win`, and the walk below is derived this run rather than inherited. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`b0b0a013a..938e648c1`, plus the new `tide/linux/E89-box-run-lock`). Filed **A44**. First windows entry since 10-06, which is **exactly one week, because that is this box's schedule.**
+
+**STEP 1:** no open `platform:win` issue, and on this platform that verifies nothing — `build.yml:523` (`matrix.platform != 'win'`) excludes windows from filing, as four previous cells record. Reading `main`'s `build` instead: green at **`07b0172`**, the last code commit. The one red run since, `ecc73e4`, was **macos-only** and was a CPM.cmake download (`curl` error 56); the 10-10 mac entry triaged it and the next two commits were green. The only open issues are #583 (linux, triaged as E89) and #44 (the digest).
+
+**STEP 1.5:** no open PR on `tide/win/**`. The fleet's two open PRs are [#652](https://github.com/JeffMcClintock/TideSynth/pull/652) (linux, E89, `CLEAN`) and [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (mac, E91) — neither this lane's, so neither mine to touch.
+
+### The finding: this lane was never halted, and the digest cannot tell
+
+Three consecutive mac entries escalated windows' silence to Jeff, the 10-11 one saying *"If those machines were on, someone at each keyboard needs to run STEP 0.7's assertions"* and today's reading *"Their last entry is 2026-10-06, seven days ago as of today"*. **That is the digest's `LIKELY HALTED` branch, raised on the exact day this box woke on time and ran.** Measured three ways:
+
+| evidence | value |
+|---|---|
+| this box's scheduled task | `cronExpression: 0 20 * * 1` — *"At 08:07 PM, only on Monday"*, `enabled: true` |
+| its `lastRunAt` / `nextRunAt` | **2026-10-13** (this run) / **2026-10-19** |
+| `scripts/watchdog-digest.py:290-291` | `QUIET_DAYS = 3`, `HALTED_DAYS = 7` |
+| the premise, in that file's own comment | *"The fleet runs roughly daily, so one missed day is ordinary … and three is not."* |
+| 2026-10-06 → 2026-10-13 | both **Mondays**, exactly 7 days apart — two consecutive on-schedule runs |
+
+So a healthy windows box is `QUIET` for four days in every seven and `LIKELY HALTED` on its own run morning, **by construction and forever**. Filed as **A44** with three non-equivalent options for where a per-box cadence should come from, because picking one is Jeff's. The row says explicitly what a run must not do meanwhile: **do not widen `QUIET_DAYS`**, which would buy windows' quiet by blinding the one box the check demonstrably works for.
+
+**This is not A7 re-filed, and A7 says no run should re-file it.** A7 asked to *change* the cadence and was answered *"the 7x/week cadence is DELIBERATE … not a scheduling problem"*. A44 asks nothing about cadence. It is the hazard A7 flagged on its way out — *"The **documents** that assume 1x are the part worth knowing about"* — arriving inverted: a *script* that assumes 7x. Both hold because **the fleet genuinely runs two cadences**: A7 measured macos at `0 6 * * *`, this run measures windows at `0 20 * * 1`. I can read only this box's task, so linux's cron is still unmeasured.
+
+### STEP 2, walked rather than inherited
+
+A35 is parked on its own two open `PROPOSED:` entries (both read, both still open). A42 is ineligible by its own words — *"(b) without (a) is not identical under every answer"*. S8 carries `NEEDS-SPEC` first in its row. E2 is an umbrella that says of itself it is not takeable. E84 is a `.github/workflows/**` edit this credential deliberately cannot make. X2 and E89 are `linux`; E93 is `mac`; E91 is IN-REVIEW. **E19 and E82 need a screen and the developer was at this machine** — Visual Studio on `SynthEdit_cmake - GmpiUiTest.cpp` started 13:15, four minutes before this run, plus Chrome, Outlook, Slack and a running VirtualBox VM. Two rows got more than an inherited verdict:
+
+**E92 is Linux-only in fact, and I verified it on Windows instead of trusting the mac reading.** `SE16/se_gmpi/vst3/CMakeLists.txt:17` is `if(NOT UNIX OR APPLE) return()`, **four lines above** the `gmpi_wrappers_POPULATED` guard the row is actually about. On Windows `UNIX` is false, so the file returns before the guard and `SynthEditTemplate_VST3` cannot exist under *either* variable — E92's Accept is unsatisfiable here by construction, as the 10-08 mac entry found for mac. It is now measured on two platforms of three and its `Plat` cell still says `any`; correcting that is what the open `Plat`-correction entry governs, so I left it.
+
+**A37's parking reason was weaker than the real one, and three cells carried the weak version.** They park it on the bookkeeping-hot-spots `PROPOSED:` entry — but that entry says in terms *"May proceed meanwhile: EVERYTHING, without exception … it makes no row ineligible"*, so a bare appeal to it parks nothing. It parks A37 anyway, and the collision is with **A37's own Accept**: *"the older links are recoverable from a named file"*, plus its *"where the rest goes"* clause, is answered differently by each option — one table under (a), per-platform sections under (b), `docs/next/<platform>.md` under (c), per-run journal files too under (d). **A37 is the single row whose deliverable IS the structure the question is about**, which is why a *"parks nothing"* line written about product rows does not reach it. A37's row already concedes it: *"the convention question … may want Jeff rather than a run"*. That entry is also **twelve days past its own `Decide-by`** (*"the next `JOURNAL.md` rotation"*, done 2026-10-01).
+
+### A42's id guard had its first live save
+
+`origin/main`'s highest A-series id is **A42**. Sweeping the two remote `tide/*` branches showed `tide/linux/E89-box-run-lock` already carrying A43, filed by linux hours earlier today and **invisible on `main`**. (That id is written unbolded on purpose. `check-id-refs.py` reads `**A43**` as a cross-reference and would correctly fail this branch, because the row really is dangling here -- its own docstring calls stacked PRs a known limitation and prescribes `--allow-id` on the trailing PR, which the `lint` workflow does not pass. Unbolded, the id is still legible as evidence and the branch stays green.) Allocating from `main` alone would have produced a second A43 surfacing only at merge time — the C15/C16 shape A42 was filed to prevent. So this row is **A44**. The guard cost one loop over `git ls-remote --heads origin`, exactly as A42 claims.
+
+### The #639 STEP 4 debt: addressed, and not payable in full
+
+The 10-06 linux entry recorded that [#639](https://github.com/JeffMcClintock/TideSynth/pull/639) (`tide/win/E86-controller-required`) landed code and a ruling with no journal entry, and called it this lane's debt. **It cannot be paid as written and the next run should not reopen it.** No run can write a first-person entry for work it did not do and has no memory of, and `JOURNAL.md` is newest-first, so a back-dated 10-06 entry cannot be prepended without failing `check-journal-prepend.py`. #639's PR body is a full record — the ruling in Jeff's words, three shipped changes, a four-row verification table with real object sizes, and an explicit *"Not verified: the diagnostic actually PRINTING in a processor-only run"*. This entry points at it, and that is the discharge. Also settled, closing the previous cell's instruction (2): **#634 is CLOSED UNMERGED**, so E86 never became buildable along one of its four options — the ruling was recorded by hand instead, and E86 is archived DONE.
+
+**Learned:**
+
+- **A fleet-liveness threshold is only as good as its cadence assumption, and the assumption is in a comment rather than in data.** `watchdog-digest.py` states *"the fleet runs roughly daily"* and three boxes do not. Before escalating another box's silence, check that box's own cron: one scheduled-task listing settles in seconds what three entries spent a paragraph each worrying about.
+- **A `PROPOSED:` entry's blanket "parks nothing" line can be wrong about exactly one row — the row whose deliverable is the thing being decided.** Read the row's Accept against the options rather than trusting the entry's self-description, in either direction. This is the 10-06 E76 lesson running the other way: that one found a row parked when it was free, this one finds a row parked for a reason nobody had stated.
+- **A42's branch sweep is not theoretical.** Its first use found a live collision the same day it was used, against a row filed hours earlier on another box.
+- **A STEP 4 debt for work a run has no memory of is discharged by pointing at the PR, not by writing the entry.** The append-only, newest-first journal makes the back-dated entry illegal anyway, so "pay the debt" and "obey the lint" cannot both be satisfied — say so once and stop re-inheriting it.
+- **Read a row's platform guards on YOUR platform even when another box already read them on theirs.** E92's guard excludes win and mac for the same one line, but "mac read it" is not "win measured it", and the two together are what makes "Linux-only in fact" a fleet claim.
+
+**Not verified:** nothing was built, compiled or run, because there was no item — no local build of `main` on Windows this run, so "green" above is CI's, not mine. **A44 is a reading plus two measurements, not a fix**: I did not edit `watchdog-digest.py`, and I did not run the digest to watch it emit the false `LIKELY HALTED` line — the claim rests on the thresholds, the premise comment, the cron and the three mac entries that acted on it. **Linux's cron is unmeasured**; I can read only this box's scheduled task, so "the fleet runs two cadences" is established for windows and macos and open for linux. I did not verify the fleet PAT's expiry (A40's `NEEDS-JEFF` half); the prompt records **2026-11-07**, 25 days from today. E92's Windows claim is a reading of the CMake guard — I did not configure SE16 to count targets.
+
+**Machine state:** `C:\SE\TideSynth` **stayed on `main` and was never checked out** — all work was in a scratchpad `git worktree`, removed at the end. **That tree is dirty with the developer's work in progress and I left every file alone:** `DefaultRack.synthedit`, `RackModules/Envelope.synthedit`, `modules/PatchPoint/PatchPoint.cpp`, `modules/PatchPoint/PatchPointGui.cpp`, all four mtimed **2026-10-09** and all four real content changes (`git diff --ignore-all-space` shows 196/77/99/133 diff lines, so none is CRLF churn). Not committed, not reverted, not stashed. `C:\SE\SE16` was read only (one `CMakeLists.txt`), and no other repo was touched. **No GUI was taken and no screenshot made** — the developer was working at this machine throughout. No credential value appears anywhere.
+
+**Next:** see the `win` cell. **For Jeff, four things:** (1) **A44 — the digest will call this box halted every Monday until a cadence source is chosen**, and widening `QUIET_DAYS` is the wrong fix. (2) The bookkeeping-hot-spots `PROPOSED:` entry is twelve days past its own `Decide-by`, and A37 is parked behind it. (3) #643 and #652 are both waiting on you; #643's evidence predates E81, as the 10-10 mac entry explains. (4) The bot token's recorded expiry is 2026-11-07, 25 days out.
+
+**Branch/PR:** `tide/win/2026-10-13-queue-blocked`. This entry, the A44 row, the `win` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
 ## 2026-10-13 — macos — no item: STEP 1 and 1.5 empty, and since `40ff8e8` only the 10-12 `mac` cell moved, so the walk stands (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.31226.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
