@@ -906,3 +906,65 @@ It prints `SynthEditTemplate_VST3: skipped (gmpi_wrappers not populated)` and ex
 **Next:** see the `linux` NEXT cell. **For Jeff, three things:** (1) **[GMPI_Wrappers#42](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/42) is the fix and [#640](https://github.com/JeffMcClintock/TideSynth/pull/640) is the instrument** — they are independent, and #42 is the one that changes shipped behaviour in every VST3 host, so it wants a Windows or macOS build before it lands. (2) **E91** is E88's AU2/AU3 remainder and **E92** is the build-system skip above; neither needs a ruling. (3) [#639](https://github.com/JeffMcClintock/TideSynth/pull/639) (windows, E86's ruling) is still open and is a decision rather than a review.
 
 **Branch/PR:** `tide/linux/E88-vst3-activate-first` in **two** repos — [GMPI_Wrappers#42](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/42) (the fix) and [#640](https://github.com/JeffMcClintock/TideSynth/pull/640) (the probe's Linux loader, `BACKLOG.md` byte-identical to `main`). This entry, the E88 flip, the E91 and E92 rows, the refreshed `linux` cell, the rotation and the regenerated `docs/lessons.md` are on `tide/linux/2026-10-06-e88-bookkeeping`, which is bookkeeping-only and should auto-merge.
+
+## 2026-10-06 — linux — the merge sweep Jeff asked for: all three PRs landed, five rows archived, and CI closed half of E88's own stated gap (interactive, Jeff directing)
+
+**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.32885.1** (CLI `2.1.220`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:` · **interactive continuation of this box's scheduled run, Jeff directing**
+
+**Did:** Jeff read the scheduled run's report and said ***"resolve and merge outstanding PRs"***. All three open PRs across both repos are now MERGED, the five IN-REVIEW rows whose PRs had all merged are DONE and archived, and the `linux` NEXT cell is re-pointed.
+
+**This is an interactive session, not the scheduled run, and the distinction is load-bearing twice over.** STEP 5 says *"Do NOT merge the PR"* and STEP 1.5 scopes a run to its own platform's PRs — I did both of the things those rules forbid, because Jeff asked for them in session. That is the same convention the 2026-09-07 merge sweep and the 2026-10-06 E90 entry record (*"Jeff read the run's report and said 'push to main branches'"*). **A scheduled run reading this entry must not copy it.**
+
+### What merged, and in what order and why
+
+| # | repo | what | note |
+|---|---|---|---|
+| [#42](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/42) | GMPI_Wrappers | E88's VST3 restore fix | merged FIRST, deliberately |
+| [#640](https://github.com/JeffMcClintock/TideSynth/pull/640) | TideSynth | the probe's Linux loader | 13 pass + 2 skipping |
+| [#639](https://github.com/JeffMcClintock/TideSynth/pull/639) | TideSynth | E86's ruling | conflicted; resolved, then 15 checks green |
+
+**#42 first was the right order by luck as much as design, and it is the most useful thing in this entry.** TideSynth fetches GMPI_Wrappers at `GIT_TAG origin/main`, so once #42 landed, **the next CI run on any TideSynth branch built against the fixed wrapper.** #639's re-synced head was pushed at 02:06 UTC, one minute after #42 merged at 02:05, and its configure step ran at 02:08–02:09. Read out of the run log rather than inferred from the timestamps:
+
+```
+linux    Configure   --   GMPI_Wrappers <- .../build/_deps/gmpi_wrappers-src [fetched]
+macos    Configure   --   GMPI_Wrappers <- .../build/_deps/gmpi_wrappers-src [fetched]
+windows  Configure   --   GMPI_Wrappers <- D:/a/.../build/_deps/gmpi_wrappers-src [fetched]
+linux    Build       [  8%] Building CXX object ... VST3_Wrapper.dir/Processor_VST3.cpp.o
+macos    Build       [  6%] Building CXX object ... VST3_Wrapper.dir/Processor_VST3.cpp.o
+windows  Build         Processor_VST3.cpp
+```
+
+`windows` **pass 10m44s**, `macos` **pass 3m41s**, `linux` **pass 1m58s**.
+
+**So the largest gap the scheduled run declared — *"not compiled on Windows or macOS, and it is `#ifdef`-free shared code"* — is now closed on its compile half, by a CI run belonging to someone else's PR.** State the limit precisely, because it is easy to overclaim: **CI builds, it does not measure.** Nothing on Windows or macOS has run the probe's `--activate-first` arm, so the *behaviour* of the fix on those platforms is still unverified. Confirming it is a small mac/win job — the probe already loads a bundle on macOS.
+
+### #639's conflict was one file and the two sides were disjoint
+
+`BACKLOG.md` alone. #639 edits the **E86** row; `main`'s 10-06 linux bookkeeping flipped **E88** and added E91/E92. Git saw one hunk only because E86 and E88 sit two rows apart. **`tests/e80_vst3_feedback_probe.cpp` auto-merged** — #639 edits the `--no-controller` documentation, I had added the Linux loader, different regions — which is what the scheduled run's `git merge-tree` check between the two branch heads had predicted.
+
+Resolved by keeping each row from the side that edited it. **Each side's copy of the other's row was the stale one**, which is the general shape of every conflict this fleet gets in `BACKLOG.md`.
+
+### The archive sweep, and one lint-driven correction
+
+Five rows were IN-REVIEW with every linked PR merged, so STEP 4's own rule applies (*"If you see an IN-REVIEW row whose PRs have all merged, flip it"*): **A41, E76, E85, E86, E88** → DONE, moved to `BACKLOG-DONE.md`. **I applied the mechanical rule and did not re-judge other lanes' evidence**, which stands as their entries record it. Two worth a note:
+
+- **E76's Accept is a FORK**, and it is met on its second branch. The first branch (a linux `render-and-measure.py` figure) was never this row's outstanding debt — it was the other option — and the ruling that branch wanted became E90, which has itself landed and been archived.
+- **E88 is DONE on its VST3 half only, and that is exactly why the scheduled run split E91 out of it** hours earlier. A row closing with an open question inside it is how a question gets archived; E91 carries AU2/AU3.
+
+**`check-next-block.py` then caught the archive's blast radius, as it is built to:** archiving A41 and E76 turned *"(1) take A41"* in the `win` cell and *"then **E76**"* in the `linux` cell into instructions pointing at dead rows. Both are preserved history, so both were corrected in place with an explicit negation rather than rewritten — the precedent being the `linux` cell's own earlier *"E75 has since been archived DONE, so the preserved wording here is corrected in place"*.
+
+**Reading that lint's source was quicker than guessing at it**, and the rule is worth knowing: a sentence is disarmed only by `do not | don't | never | rather than | instead of | not to | nor to`, and sentences split on `.` `;` ` -- ` ` — `. My first fix to the `win` cell passed by accident, because the words *"rather than an instruction"* happened to land in the same segment. The `linux` one failed because the offending phrase was a **different** E76 mention from the one I had patched — `then **E76**.` ending its own sentence. **Find every mention of an ID you archive, not the one the error names**: the lint reports the first failure, not all of them.
+
+**Learned:**
+
+- **Merge order decided what got verified, and nobody planned it.** Landing the wrapper fix before the next TideSynth CI run meant a PR from another lane compiled my change on two platforms I cannot build on. With a `GIT_TAG origin/main` dependency, *"which PR merges first"* is a question about test coverage, not just about conflicts.
+- **"Compiled on three platforms" and "verified on three platforms" are different claims**, and CI only ever offers the first. The temptation to write the second is strongest exactly when the first arrives unexpectedly.
+- **When two lints disagree, read the source of the one that is still failing.** `check-next-block`'s negation list and sentence splitter are eleven lines; two rounds of guessing cost more than reading them.
+- **A lint reports its first failure, not its last.** I patched the E76 mention the error pointed at and the error did not move, because there were three more take-shaped mentions of E76 in the same cell. Grep for every occurrence of an ID you archive.
+- **Archiving N rows has a blast radius of N NEXT-cell clauses**, and they are all in preserved text you may not rewrite. Budget for it; the fix is an inserted negation, not an edit.
+
+**Not verified:** **the behaviour of E88's fix on Windows and macOS** — compiled there now, measured nowhere but Linux. I ran no probe in this session at all; every figure above is either CI's or quoted from the scheduled run's own measurement. I did not re-judge A41's, E76's or E85's evidence before flipping them. I did not delete the two stale remote branches (`tide/mac/issue-599`, `tide/win/E86-vst3-processor-factory`) — deleting a branch is destructive and was not asked for, and the second is genuinely orphaned now that #634 is closed unmerged. **#639 landed code and a ruling with no journal entry of its own**, which is the windows lane's STEP 4 debt, not something this entry can discharge for it.
+
+**Machine state:** `~/TideSynth` stayed on `main`, clean, never left it; all work in a scratchpad `git worktree`, removed at the end. **`~/TideSynth`'s local `main` is 68 commits behind `origin/main`** and I deliberately left it there — fast-forwarding a sibling tree out from under another process is the second half of #583's collision. Every build in this session's scheduled half was in the scratchpad. No credential value appears anywhere.
+
+**Next:** see the `linux` cell. **For Jeff:** nothing is waiting on you — no open PRs and no IN-REVIEW rows in either repo. The two stale branches want a yes/no before anyone deletes them.
