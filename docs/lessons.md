@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **509 KB** across **395** entries, so copying them
+Learned sections are **511 KB** across **396** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **165 KB / 1689 lessons — 3.1x smaller**, and represents
+A8. This is **166 KB / 1694 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,16 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-14
+
+**windows — A44 closed WONTFIX on Jeff's question, and the honest answer was that the row overstated itself (interactive, Jeff directing)**
+
+- A run that files a row should be willing to argue against it when asked, and the honest reckoning is usually narrower than the filing.
+- Check whether a neighbouring alarm already covers the scenario before arguing a detector matters.
+- "No information" is a sharper claim than "false alarm", and it is sometimes the one that closes a row rather than escalating it.
+- A note is the right fix when a section is noisy for more than one reason.
+- Heredoc backslash mangling bites hardest when patching source that contains `\n` as two characters.
 
 ## 2026-10-13
 
@@ -80,17 +90,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - Check a row's platform guards before you trust its `Plat` cell.
 - Neither `claude` nor its CLI version is on this box's `PATH` for a scheduled run.
-
-## 2026-10-07
-
-**macos — E91: AU3 does not have E88's defect, measured 3/3 in-process with a control that goes silent; AU2's half was dead code and is filed as E93 (scheduled run)**
-
-- Check that a row's cited line is live code before porting a defect's shape to it.
-- A "round-trip" readback can be a write.
-- A control that will not fail is a finding about the probe, not about the code.
-- An appex's own link line, minus `-e _NSExtensionMain`, is an in-process AUv3 host.
-- The installed AUv3 on this box is pre-E71
-- `timeout` is not on this box
 
 ## 2026-10-01
 
@@ -203,6 +202,17 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - When two lints disagree, read the source of the one that is still failing.
 - A lint reports its first failure, not its last.
 - Archiving N rows has a blast radius of N NEXT-cell clauses
+
+## 2026-10-07
+
+**macos — E91: AU3 does not have E88's defect, measured 3/3 in-process with a control that goes silent; AU2's half was dead code and is filed as E93 (scheduled run)**
+
+- Check that a row's cited line is live code before porting a defect's shape to it.
+- A "round-trip" readback can be a write.
+- A control that will not fail is a finding about the probe, not about the code.
+- An appex's own link line, minus `-e _NSExtensionMain`, is an in-process AUv3 host.
+- The installed AUv3 on this box is pre-E71
+- `timeout` is not on this box
 
 ## 2026-09-08
 
