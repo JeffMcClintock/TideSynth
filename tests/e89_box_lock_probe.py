@@ -57,6 +57,15 @@ LOCK_SCRIPT = os.path.join(REPO, 'scripts', 'run-lock.py')
 DEAD_PID = 4194303
 
 
+# Four arms below assert a POSIX capability: run-lock.py can only resolve a
+# parent chain (/proc, or `ps`) and can only test pid liveness on posix. On a
+# platform without either -- Windows -- the DOCUMENTED contract is different:
+# never reclaim on a dead pid, age cap only. Those arms assert that contract
+# instead, and say which one they checked, so the suite is strict on both
+# rather than permanently red on one. Measured on the windows box 2026-10-13.
+PID_OWNERSHIP = os.name == 'posix'
+
+
 def run_lock(lock, *argv):
     """Invoke the real script as a subprocess. Returns (rc, combined output)."""
     cmd = [sys.executable, LOCK_SCRIPT] + list(argv) + ['--lock', lock]
@@ -216,6 +225,11 @@ def arms(tmp, racers):
         lock = os.path.join(tmp, 'a5.lock')
         write_raw(lock, {'pid': DEAD_PID, 'acquired': time.time(), 'label': 'crashed run'})
         rc, out = run_lock(lock, 'acquire', '--label', 'arm5')
+        if not PID_OWNERSHIP:
+            ok = rc == 1 and 'REFUSED' in out
+            return ok, ('rc=%d -- non-posix contract: a dead pid is NOT '
+                        'reclaimed because liveness is unknown; the age cap is '
+                        'the only route' % rc)
         ok = rc == 0 and 'reclaiming a stale lock' in out and 'is gone' in out
         return ok, 'rc=%d; %s' % (rc, out.strip().splitlines()[0] if out.strip() else '')
 
@@ -281,6 +295,13 @@ def arms(tmp, racers):
             return False, 'ancestor helper failed: %s' % (proc.stderr or '').strip()
         ancestor_pid, rc, acquire_out = open(out, encoding='utf-8').read().split('\n', 2)
         holder = json.load(open(lock, encoding='utf-8'))
+        if not PID_OWNERSHIP:
+            ok = (int(rc) == 0
+                  and holder['pid'] == holder['recorded_by']
+                  and holder['owner_how'].startswith('self (NO agent ancestor'))
+            return ok, ('non-posix contract: no parent chain to walk, so auto '
+                        'falls back to self and SAYS so -- pid=%s, how=%s'
+                        % (holder['pid'], holder['owner_how']))
         ok = (int(rc) == 0
               and holder['pid'] == int(ancestor_pid)
               and holder['recorded_by'] != holder['pid']
@@ -314,6 +335,16 @@ def arms(tmp, racers):
             holder.wait(timeout=30)
         # The holder is now gone: a crashed run must NOT leave the box stranded.
         after_rc, after_out = run_lock(lock, 'acquire', '--label', 'next day')
+        if not PID_OWNERSHIP:
+            # The half that MATTERS for #583 -- the second run is refused --
+            # holds here. The reclaim half cannot: liveness is unknown, so the
+            # age cap owns it, which is the accepted Windows behaviour.
+            ok = (refused_rc == 1 and 'REFUSED' in refused_out
+                  and after_rc == 1)
+            return ok, ('non-posix contract: run B at +5.6s rc=%d (REFUSED, '
+                        'which is #583 guarded), and after the kill rc=%d -- '
+                        'age cap only, not pid liveness'
+                        % (refused_rc, after_rc))
         ok = (resolved['owner_how'] == 'auto:ancestor-match'
               and resolved['pid'] == held_pid
               and refused_rc == 1 and 'REFUSED' in refused_out
@@ -335,12 +366,76 @@ def arms(tmp, racers):
         rc, _ = run_lock(lock, 'acquire', '--owner-pid', 'self', '--label', 'self-owned')
         holder = json.load(open(lock, encoding='utf-8'))
         status_rc, status_out = run_lock(lock, 'status')
+        if not PID_OWNERSHIP:
+            ok = (rc == 0 and holder['pid'] == holder['recorded_by']
+                  and status_rc == 1)
+            return ok, ('non-posix contract: self-owned lock reads HELD, not '
+                        'stale -- liveness is unknown so the dead pid is never '
+                        'believed dead (rc=%d, status rc=%d)' % (rc, status_rc))
         ok = (rc == 0 and holder['pid'] == holder['recorded_by']
               and status_rc == 0 and 'is gone' in status_out)
         return ok, ('acquire rc=%d with pid==recorded_by==%s; status now reads '
                     'stale ("%s") -- the hole, as recorded'
                     % (rc, holder['pid'],
                        status_out.strip().split(':')[0] if status_out else ''))
+
+    def a14_step5_release_is_unforced():
+        """STEP 5's ACTUAL command, which no other arm exercised.
+
+        Arm 10 releases with --force and its own comment says why: in this
+        harness every run_lock is its own pid. So the UNFORCED release the run
+        prompt prescribes was untested on every platform, and on Windows it
+        could never have succeeded -- which is how the defect reached a PR.
+
+        Three parts, because the same-box fallback that fixes Windows could
+        too easily weaken the check it replaces:
+
+          A. ownership establishable (an explicit, agreeing --owner-pid):
+             unforced release must SUCCEED. True on every platform, and it is
+             the generic contract arm 10 forced its way past.
+          B. a lock carrying a DIFFERENT host must still be REFUSED unforced,
+             on every platform.
+          C. on a platform with no pid ownership, the real STEP 0.5/STEP 5
+             pair -- auto acquire, then unforced auto release -- must succeed
+             via the same-box route. On posix the equivalent path is arm 11's
+             ancestor walk, which this harness cannot stand in for: with no
+             `claude` ancestor above it, auto correctly falls back to self
+             there too, so asserting C on posix would assert a configuration
+             no real run uses.
+        """
+        import socket as _socket
+
+        # A -- explicit matching owner, so `mine` is genuinely true
+        lock = os.path.join(tmp, 'a14a.lock')
+        me = str(os.getpid())
+        acq_rc, _ = run_lock(lock, 'acquire', '--label', 'arm14a', '--owner-pid', me)
+        rel_rc, rel_out = run_lock(lock, 'release', '--owner-pid', me)
+        gone = not os.path.exists(lock)
+
+        # B -- another box's lock, never ours to release without --force
+        foreign = os.path.join(tmp, 'a14b.lock')
+        write_raw(foreign, {'pid': os.getpid(), 'acquired': time.time(),
+                            'host': _socket.gethostname() + '-elsewhere',
+                            'label': 'another box'})
+        foreign_rc, _ = run_lock(foreign, 'release')
+
+        ok = acq_rc == 0 and rel_rc == 0 and gone and foreign_rc == 1
+        detail = ('explicit-owner acquire rc=%d, UNFORCED release rc=%d '
+                  '(removed=%s), another box refused rc=%d'
+                  % (acq_rc, rel_rc, gone, foreign_rc))
+
+        # C -- the literal prompt pair, where pid ownership is unavailable
+        if not PID_OWNERSHIP:
+            pair = os.path.join(tmp, 'a14c.lock')
+            c_acq, _ = run_lock(pair, 'acquire', '--label', 'arm14c')
+            c_rel, c_out = run_lock(pair, 'release')
+            c_gone = not os.path.exists(pair)
+            ok = ok and c_acq == 0 and c_rel == 0 and c_gone
+            detail += ('; STEP 0.5/STEP 5 pair as written: acquire rc=%d, '
+                       'release rc=%d (removed=%s) via %s'
+                       % (c_acq, c_rel, c_gone,
+                          c_out.strip().splitlines()[0] if c_out.strip() else ''))
+        return ok, detail
 
     return [
         ('1  free path -> acquired', a1_free),
@@ -356,6 +451,7 @@ def arms(tmp, racers):
         ('11 --owner-pid auto -> the ANCESTOR, not the acquire', a11_owner_is_the_ancestor),
         ('12 #583: live holder, +5.6s -> REFUSED; killed -> reclaimed', a12_the_583_gap),
         ('13 --owner-pid self -> stale on exit (the pinned hole)', a13_self_owner_is_the_known_hole),
+        ('14 STEP 5 release is UNFORCED, and another box is refused', a14_step5_release_is_unforced),
     ]
 
 

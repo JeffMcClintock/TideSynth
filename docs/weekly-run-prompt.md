@@ -717,6 +717,18 @@ the only reclaim route. `release` refuses to remove a lock belonging to a
 different run unless you pass `--force`, so running it when you do not hold one
 is safe and prints what it found.
 
+**On Windows that refusal is weaker than it reads, and the paragraph below is
+what carries the guard there.** Pid ownership cannot be established on that box
+-- there is no `/proc` and no `ps`, so `auto` cannot find the long-lived agent
+process and the pid in the lock belongs to the `acquire` command, which has
+already exited. Without a fallback, `release` could never match it and EVERY
+windows run would end still holding its lock; with one, `release` accepts any
+lock recorded by this same machine. It still refuses another machine's. So on
+Windows the thing that stops you releasing a concurrent run's lock is the rule
+below rather than a pid check -- which is why that rule is stated as an
+instruction and not as a courtesy. Measured on the windows box 2026-10-13, and
+pinned by arm 14 of `tests/e89_box_lock_probe.py`.
+
 **Do NOT release it if you stood down at STEP 0.5 because exit 1 said another
 run holds it.** That lock is the other run's, you never took it, and `--force`
 is the one way to turn this guard back into the collision it prevents.

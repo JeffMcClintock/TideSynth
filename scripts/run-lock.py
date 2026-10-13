@@ -205,6 +205,23 @@ def resolve_owner(spec, pattern):
                          'age-capped only)')
 
 
+def pid_ownership_available():
+    """Can a lock's owner be identified by PID on this platform?
+
+    `resolve_owner('auto')` needs a parent chain to find the long-lived agent
+    process. Without one it falls back to the short-lived `acquire`'s own pid,
+    which exits on return -- so no later `release` process can ever match it.
+    Windows has neither /proc nor `ps` (see `_parent_and_cmdline`, which
+    returns (None, None) there without trying), so the answer is no.
+
+    Measured on the windows box 2026-10-13: acquire recorded
+    pid == recorded_by == 33336, and `release` resolved to 33532 and refused,
+    leaving EVERY run holding its lock until the age cap -- not just crashed
+    ones, which is what the prompt had claimed.
+    """
+    return os.name == 'posix'
+
+
 def pid_alive(pid):
     """True / False / None, where None means "this platform cannot tell".
 
@@ -382,6 +399,21 @@ def cmd_release(args):
         return 0
     owner_pid, owner_how = resolve_owner(args.owner_pid, args.owner_pattern)
     mine = owner_pid is not None and holder.get('pid') == owner_pid
+    how = 'ours'
+    if not mine and args.owner_pid == 'auto' and not pid_ownership_available():
+        # The recorded pid belongs to the `acquire` process, which exited on
+        # return, so no release can match it here. Fall back to the identity
+        # the lock already carries and that this lock is SCOPED to anyway --
+        # the box. Safe in the prescribed flow because only a run that
+        # ACQUIRED ever reaches STEP 5: a run refused at STEP 0.5 is told to
+        # stop and write nothing, and never releases.
+        #
+        # What this gives up, stated plainly: on such a platform any run on
+        # this box could release another's lock without --force. Arm 14 pins
+        # both halves so the trade stays deliberate.
+        if holder.get('host') and holder.get('host') == socket.gethostname():
+            mine = True
+            how = 'same box (pid ownership unavailable on this platform)'
     if not mine and not args.force:
         print('REFUSED: the lock at %s is held by %s, not by this run '
               '(owner resolves to %s via %s). Pass --force only if you know '
@@ -392,7 +424,7 @@ def cmd_release(args):
         os.unlink(args.lock)
     except FileNotFoundError:
         pass
-    print('lock released (%s)' % ('ours' if mine else 'forced'))
+    print('lock released (%s)' % (how if mine else 'forced'))
     return 0
 
 
