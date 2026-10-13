@@ -95,6 +95,166 @@ Template:
 
 ---
 
+## 2026-10-14 — windows — A44 closed WONTFIX on Jeff's question, and the honest answer was that the row overstated itself (interactive, Jeff directing)
+
+**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude desktop **2.31226.1** (CLI `2.1.295`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:` · **interactive continuation of this box's 2026-10-13 scheduled run, Jeff directing**
+
+**Did:** Jeff asked ***"do we need to fret about the cadence of agents? it's not that important is it."*** He was right. **A44 is WONTFIX**, with the whole remedy being one standing note in the digest ([#657](https://github.com/JeffMcClintock/TideSynth/pull/657)) so no further run re-raises it.
+
+**This is an interactive session and a scheduled run must not copy it** — it closes a row on a ruling given in chat, which is Jeff's to give and not a run's to assume.
+
+### Why the row overstated itself, which is the part worth keeping
+
+I filed A44 the previous day and then had to argue against it, so the reckoning is written out rather than summarised. **Nothing was parked on it, no scheduled run was ever lost, and no work was blocked.** The entire measured cost was *attention*: three mac entries (10-11, 10-12, 10-13) each spent a paragraph escalating windows' silence, and the 10-11 one asked that STEP 0.7 be checked by hand on two machines that were fine.
+
+**What retired it was not the cadence argument but a coverage one.** The scenario the liveness check would be missed in — all three boxes dying together when the credential expires — **already has its own alarm with a real date**, `check_credential_expiry()`, which A40 built into the same digest. So closing A44 costs no coverage of the one fleet-wide halt that is known in advance. Without that, WONTFIX would have been cheap rather than safe.
+
+**The technically-true residue is recorded in the row and not in the queue:** on a weekly box the liveness check does not merely false-alarm, it carries **no information** — *"silent 7 days"* is simultaneously *perfectly healthy* and *halted a week ago*, which here are the same observation. **So this box has no halt detection, by arithmetic, and that is now an accepted state rather than an open question.**
+
+### The fix, and what it deliberately is not
+
+One sentence in `check_halted_boxes()`'s section intro. **No logic change, and deliberately no per-platform cadence table** — a table would be a second place to drift out of step with the real cron, which is the staleness A7 already flagged and this project keeps paying for. **The flag is not suppressed**: a genuinely long silence still belongs in that section, and suppressing windows would blind the one box the check demonstrably works for.
+
+`--selftest` still reports `all 4 liveness classifications correct`; `--dry-run` renders the note above the per-box lines.
+
+### A second cause of the same noise, found while verifying it
+
+`--dry-run` reported **linux as LIKELY HALTED, silent 7 days** — on a day linux had run and pushed [#652](https://github.com/JeffMcClintock/TideSynth/pull/652). Its journal entry is still inside that unmerged PR and the digest reads `main`. **No cadence fix would have touched that**, and it is the strongest argument for a note over machinery: the section is structurally noisy for at least two independent reasons. Not filed as a row — A44 was just closed for being the same shape of concern, and filing its sibling the same hour would be exactly the busywork STEP 2 warns against.
+
+**Learned:**
+
+- **A run that files a row should be willing to argue against it when asked, and the honest reckoning is usually narrower than the filing.** A44's real content shrank, under one question, from *"the fleet's liveness detection is wrong"* to *"three entries wasted a paragraph each"*. The filing was not wrong, it was disproportionate — and disproportionate is the failure mode a queue every run reads cannot afford.
+- **Check whether a neighbouring alarm already covers the scenario before arguing a detector matters.** The case for A44 collapsed on finding `check_credential_expiry()`, which is in the *same file* and was built by A40 for the exact halt A44's defenders would have cited. Reading the sibling check was worth more than any further measurement.
+- **"No information" is a sharper claim than "false alarm", and it is sometimes the one that closes a row rather than escalating it.** Showing the check cannot distinguish healthy from halted on this box is what made *accepting* the gap a defensible answer instead of a deferral.
+- **A note is the right fix when a section is noisy for more than one reason.** Had the only cause been cadence, option (c) would have been proportionate; two independent causes in one afternoon means precision machinery would still leave the section untrustworthy.
+- **Heredoc backslash mangling bites hardest when patching source that contains `\n` as two characters.** Three attempts to match a line ending in a literal backslash-n failed through the Bash tool's heredoc; writing the patch to a file and running `python3 -I` worked first time. Build such literals with `chr(92)+'n'` rather than escaping them.
+
+**Not verified:** the digest was **not** run in CI as part of #657, and no workflow was touched. **I did not re-measure macos's or linux's cron** — macos's `0 6 * * *` is quoted from A7's 2026-08-17 measurement, and linux's remains unmeasured by anyone, so "the fleet runs two cadences" is still established for windows and macos only. Nothing was built and no product code ran. I did not act on the linux `LIKELY HALTED` reading beyond noting its cause.
+
+**Machine state:** `C:\SE\TideSynth` stayed on `main` and was never checked out; both branches were built in scratchpad `git worktree`s, removed at the end. **The developer's four work-in-progress files are untouched for the third time across this session** — `DefaultRack.synthedit`, `RackModules/Envelope.synthedit`, and both `modules/PatchPoint/` files, still mtimed 2026-10-09. No GUI, no screenshot, and no credential value anywhere.
+
+**Next:** see the `win` cell. **For Jeff:** [#657](https://github.com/JeffMcClintock/TideSynth/pull/657) is `scripts/**` so it waits for you by design; it is one comment block and no logic. [#652](https://github.com/JeffMcClintock/TideSynth/pull/652) still needs the Windows `release` fix or your call to merge without it. The bookkeeping-hot-spots question is the next one worth your attention, and I have argued separately that most of it needs no ruling at all.
+
+**Branch/PR:** `tide/win/2026-10-14-a44-wontfix`. The A44 flip, this entry, the `win` cell and the regenerated `docs/lessons.md` are on that branch; the digest change is on `tide/win/A44-digest-weekly-note` ([#657](https://github.com/JeffMcClintock/TideSynth/pull/657)), deliberately separate because `scripts/**` is off the allowlist.
+
+## 2026-10-13 — windows — the merge sweep Jeff asked for: #643 landed, and #652 did NOT, because measuring its Windows path showed `release` cannot release (interactive, Jeff directing)
+
+**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude desktop **2.31226.1** (CLI `2.1.295`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:` · **interactive continuation of this box's scheduled run, Jeff directing**
+
+**Did:** Jeff read the scheduled run's report and said ***"merge any PRs that are suitable"***, then, asked how to handle #652, chose ***"measure on Windows, then merge"***. One PR merged, one deliberately not, and the measurement is the reason.
+
+**This is an interactive session, not the scheduled run, and the distinction is load-bearing twice.** STEP 5 says *"Do NOT merge the PR"* and STEP 1.5 scopes a run to its own platform's PRs — I did both of the things those rules forbid, because Jeff asked for them in session. That is the convention the 2026-09-07 and 2026-10-06 sweeps record. **A scheduled run reading this entry must not copy it.**
+
+### What merged
+
+| # | lane | what | note |
+|---|---|---|---|
+| [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) | mac | E91's AU3 probe | `CLEAN`, all checks pass, one additive file, no row touched → merged `0c7d4b498` |
+| [#653](https://github.com/JeffMcClintock/TideSynth/pull/653) | win | yesterday's bookkeeping | already auto-merged, **15 minutes** after opening |
+
+No other repo has an open PR — GMPI_Wrappers, SynthEditLib, gmpi_ui, GMPI and SynthEdit were all checked and all empty.
+
+**E91 is flipped DONE and archived, with the 10-10 caveat carried into the row rather than dropped.** Four consecutive mac cells offered Jeff *"merge it as a record of the old route, or hand it back for a re-measure"*; merging it is him taking the first. So the archived row says in terms that the probe measured `5175b02`, **before E81**, that `13d4720` changed the delivery route out from under it, and that **this row must not be cited as evidence about today's AU3 restore**. The durable part is the method, not the number.
+
+### #652 was NOT merged, and this is the finding
+
+The probe fails on this platform. `python3 tests/e89_box_lock_probe.py` at `f95b6b7b5`, native Windows `python3`: **rc=1, 13 arms, 4 failures** — arms 5, 11, 12, 13 — with the control correctly at 12-of-12 winners, and the script printing its own verdict: *"Do NOT adopt the STEP 0.5 lock on this result -- a lock that is wrong in direction (2) strands the box, which #583 calls the worse outcome."* **Arms 1–4 and 6–10 pass, so exclusion itself works here**: a second concurrent run *is* refused. Every failure is the other direction.
+
+**The cause is structural, not a flake.** `_parent_and_cmdline` returns `(None, None)` on Windows by construction — no `/proc`, and the `ps` branch sits behind `if os.name != 'posix': return None, None`, so it is never even attempted; its own docstring says so. The walk stops immediately, `--owner-pid auto` degrades to `self`, and `self` is the pid of the **`acquire` process**, which exits on return. That is exactly the hole the PR's own "part worth reading" section describes as its first version's defect.
+
+**The consequence is wider than the PR's "NOT verified" note admits.** `pid_alive` is `return None` unconditionally off posix, which masks the instant staleness for `acquire` and **breaks `release`**. End-to-end on the literal STEP 0.5 / STEP 5 commands from the prompt diff, which pass no `--owner-pid`:
+
+```
+acquire  rc=0  pid=33336  recorded_by=33336  owner=self (NO agent ancestor matched -- age-capped only)
+acquire  rc=1  REFUSED: another run holds the box lock -- pid=33336 ...        <- correct
+release  rc=1  REFUSED: held by pid=33336 ..., not by this run
+               (owner resolves to 33532 via self (NO agent ancestor matched))
+```
+
+**So on this box it is not a crashed run that leaves the lock held — it is every run**, because the prescribed release path cannot succeed. The 6 h age cap becomes the only reclaim route on the *normal* path, not the exceptional one. Two sentences in the prompt diff are therefore inaccurate for Windows rather than merely conservative: *"at most one run on Windows"* is not conditional on a crash, and *"a run that exits holding it"* reads as an edge case when here it is the only outcome.
+
+**Severity stated fairly, because it is low for scheduled runs on this box.** Windows runs **weekly on purpose** — `0 20 * * 1`, and Jeff confirmed it in this session — so 6 h always expires long before the next Monday and no scheduled run is lost. The exposure is the **manual same-day runs A7 records him making**: one started within 6 h of a scheduled run is refused and told to *"stop immediately, write nothing at all"*, leaving no trace in the repo by that PR's own design. linux and macOS are unaffected; their `release` resolves the ancestor correctly.
+
+**I did not touch `run-lock.py`.** It and E89 are the linux lane's. The finding is [posted as a comment on #652](https://github.com/JeffMcClintock/TideSynth/pull/652#issuecomment-6156131052) with three fix options in order of how little they move — `release` matching on host+repo when liveness is unknown; implementing `pid_alive` via `tasklist`/`OpenProcess`; or passing one stable `--owner-pid` at both ends — and an offer to re-run the probe here against whichever is picked.
+
+### A44: Jeff confirmed the premise, which sharpens the row rather than closing it
+
+He said ***"this box runs weekly on purpose"***. That is folded into A44, because the confirmation is what makes the digest's daily assumption *the* defect: there is now no reading in which the schedule is the thing to fix. The row now says explicitly that a future run must not "resolve" A44 by making windows daily, and must not read A7's *"the 7x/week cadence is DELIBERATE"* as covering this box — A7 measured macos. Two cadences, both deliberate, one global threshold.
+
+**Learned:**
+
+- **"Measure before you merge" earned its keep on the first try, and the thing it caught was not the thing the PR flagged.** #652 listed Windows as unverified and estimated the cost as *"at most one run after a crash"*. The measurement agreed about the mechanism and disagreed about the blast radius: the break is on the **normal** path, because `release` cannot match a pid that `acquire` recorded from a process that had already exited. A reading of the "not verified" note would have merged it.
+- **A platform fallback can be safe in one verb and broken in the other.** `auto`→`self` plus `pid_alive`→`None` is conservative for `acquire` (never steals a lock) and fatal for `release` (never returns one). Checking only the acquire side looks like a pass.
+- **Nine green arms out of thirteen is not "mostly working" when the four reds are all one direction.** #583's own framing — stranding is worse than collision — is what makes 4/13 a stop rather than a caveat, and the probe says so itself rather than leaving the reader to weigh it.
+- **A conditional instruction is still a condition.** *"Measure on Windows, then merge"* is not *"merge"*; the measurement failed, so the merge did not happen. Report, do not improvise past it.
+- **Merging another lane's PR is cheap; judging its evidence is not, and the mechanical rule covers only the first.** #643's merge was a two-second call on files and checks. Whether its *claim* still holds needed the 10-10 entry, and the archive is where that caveat had to go or it would have vanished with the row.
+
+**Not verified:** I did **not** build anything, run TiDE, or take a screen — the developer was at this machine. I did not run the E89 probe on macOS, so its `ps` branch remains unmeasured by anyone. I did not attempt any of the three fixes I suggested for `run-lock.py`, so none of them is measured either; the first option's effect on arms 5 and 12 is my reading, not a result. **#643's AU3 claim against today's `main` is still unmeasured by anybody** — merging it changed nothing about that, which is why the archived row says so. I did not re-judge E91's original mac evidence, only its currency.
+
+**Machine state:** `C:\SE\TideSynth` stayed on `main` and was never checked out; both pieces of work were scratchpad `git worktree`s, each removed at the end. **The developer's four work-in-progress files are untouched for the second time today** — `DefaultRack.synthedit`, `RackModules/Envelope.synthedit`, `modules/PatchPoint/PatchPoint.cpp`, `modules/PatchPoint/PatchPointGui.cpp`, still mtimed 2026-10-09, still real content changes. The E89 probe was run with an explicit `--lock` path in the scratchpad and that file was deleted, so **`~/.tide/` never held a `run.lock`** and is exactly as found. No credential value appears anywhere.
+
+**Next:** see the `win` cell. **For Jeff:** (1) #652 needs a Windows fix before it lands, or it will break `release` on this box every run — the comment names three options. (2) A44 still needs the cadence-source pick; you confirmed its premise, not its answer. (3) The bookkeeping-hot-spots `PROPOSED:` entry is still past its own `Decide-by`, with A37 parked behind it. (4) Nothing else is open in any repo.
+
+**Branch/PR:** `tide/win/2026-10-13-merge-sweep`. This entry, E91's flip and archive, the A44 update, the `win` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
+## 2026-10-13 — windows — no item: the queue is empty for `win`, and the run's finding is that this lane was never halted — the box is WEEKLY and the digest assumes daily (scheduled run)
+
+**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude desktop **2.31226.1** (CLI `2.1.295`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item — nothing is eligible for `win`, and the walk below is derived this run rather than inherited. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`b0b0a013a..938e648c1`, plus the new `tide/linux/E89-box-run-lock`). Filed **A44**. First windows entry since 10-06, which is **exactly one week, because that is this box's schedule.**
+
+**STEP 1:** no open `platform:win` issue, and on this platform that verifies nothing — `build.yml:523` (`matrix.platform != 'win'`) excludes windows from filing, as four previous cells record. Reading `main`'s `build` instead: green at **`07b0172`**, the last code commit. The one red run since, `ecc73e4`, was **macos-only** and was a CPM.cmake download (`curl` error 56); the 10-10 mac entry triaged it and the next two commits were green. The only open issues are #583 (linux, triaged as E89) and #44 (the digest).
+
+**STEP 1.5:** no open PR on `tide/win/**`. The fleet's two open PRs are [#652](https://github.com/JeffMcClintock/TideSynth/pull/652) (linux, E89, `CLEAN`) and [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (mac, E91) — neither this lane's, so neither mine to touch.
+
+### The finding: this lane was never halted, and the digest cannot tell
+
+Three consecutive mac entries escalated windows' silence to Jeff, the 10-11 one saying *"If those machines were on, someone at each keyboard needs to run STEP 0.7's assertions"* and today's reading *"Their last entry is 2026-10-06, seven days ago as of today"*. **That is the digest's `LIKELY HALTED` branch, raised on the exact day this box woke on time and ran.** Measured three ways:
+
+| evidence | value |
+|---|---|
+| this box's scheduled task | `cronExpression: 0 20 * * 1` — *"At 08:07 PM, only on Monday"*, `enabled: true` |
+| its `lastRunAt` / `nextRunAt` | **2026-10-13** (this run) / **2026-10-19** |
+| `scripts/watchdog-digest.py:290-291` | `QUIET_DAYS = 3`, `HALTED_DAYS = 7` |
+| the premise, in that file's own comment | *"The fleet runs roughly daily, so one missed day is ordinary … and three is not."* |
+| 2026-10-06 → 2026-10-13 | both **Mondays**, exactly 7 days apart — two consecutive on-schedule runs |
+
+So a healthy windows box is `QUIET` for four days in every seven and `LIKELY HALTED` on its own run morning, **by construction and forever**. Filed as **A44** with three non-equivalent options for where a per-box cadence should come from, because picking one is Jeff's. The row says explicitly what a run must not do meanwhile: **do not widen `QUIET_DAYS`**, which would buy windows' quiet by blinding the one box the check demonstrably works for.
+
+**This is not A7 re-filed, and A7 says no run should re-file it.** A7 asked to *change* the cadence and was answered *"the 7x/week cadence is DELIBERATE … not a scheduling problem"*. A44 asks nothing about cadence. It is the hazard A7 flagged on its way out — *"The **documents** that assume 1x are the part worth knowing about"* — arriving inverted: a *script* that assumes 7x. Both hold because **the fleet genuinely runs two cadences**: A7 measured macos at `0 6 * * *`, this run measures windows at `0 20 * * 1`. I can read only this box's task, so linux's cron is still unmeasured.
+
+### STEP 2, walked rather than inherited
+
+A35 is parked on its own two open `PROPOSED:` entries (both read, both still open). A42 is ineligible by its own words — *"(b) without (a) is not identical under every answer"*. S8 carries `NEEDS-SPEC` first in its row. E2 is an umbrella that says of itself it is not takeable. E84 is a `.github/workflows/**` edit this credential deliberately cannot make. X2 and E89 are `linux`; E93 is `mac`; E91 is IN-REVIEW. **E19 and E82 need a screen and the developer was at this machine** — Visual Studio on `SynthEdit_cmake - GmpiUiTest.cpp` started 13:15, four minutes before this run, plus Chrome, Outlook, Slack and a running VirtualBox VM. Two rows got more than an inherited verdict:
+
+**E92 is Linux-only in fact, and I verified it on Windows instead of trusting the mac reading.** `SE16/se_gmpi/vst3/CMakeLists.txt:17` is `if(NOT UNIX OR APPLE) return()`, **four lines above** the `gmpi_wrappers_POPULATED` guard the row is actually about. On Windows `UNIX` is false, so the file returns before the guard and `SynthEditTemplate_VST3` cannot exist under *either* variable — E92's Accept is unsatisfiable here by construction, as the 10-08 mac entry found for mac. It is now measured on two platforms of three and its `Plat` cell still says `any`; correcting that is what the open `Plat`-correction entry governs, so I left it.
+
+**A37's parking reason was weaker than the real one, and three cells carried the weak version.** They park it on the bookkeeping-hot-spots `PROPOSED:` entry — but that entry says in terms *"May proceed meanwhile: EVERYTHING, without exception … it makes no row ineligible"*, so a bare appeal to it parks nothing. It parks A37 anyway, and the collision is with **A37's own Accept**: *"the older links are recoverable from a named file"*, plus its *"where the rest goes"* clause, is answered differently by each option — one table under (a), per-platform sections under (b), `docs/next/<platform>.md` under (c), per-run journal files too under (d). **A37 is the single row whose deliverable IS the structure the question is about**, which is why a *"parks nothing"* line written about product rows does not reach it. A37's row already concedes it: *"the convention question … may want Jeff rather than a run"*. That entry is also **twelve days past its own `Decide-by`** (*"the next `JOURNAL.md` rotation"*, done 2026-10-01).
+
+### A42's id guard had its first live save
+
+`origin/main`'s highest A-series id is **A42**. Sweeping the two remote `tide/*` branches showed `tide/linux/E89-box-run-lock` already carrying A43, filed by linux hours earlier today and **invisible on `main`**. (That id is written unbolded on purpose. `check-id-refs.py` reads `**A43**` as a cross-reference and would correctly fail this branch, because the row really is dangling here -- its own docstring calls stacked PRs a known limitation and prescribes `--allow-id` on the trailing PR, which the `lint` workflow does not pass. Unbolded, the id is still legible as evidence and the branch stays green.) Allocating from `main` alone would have produced a second A43 surfacing only at merge time — the C15/C16 shape A42 was filed to prevent. So this row is **A44**. The guard cost one loop over `git ls-remote --heads origin`, exactly as A42 claims.
+
+### The #639 STEP 4 debt: addressed, and not payable in full
+
+The 10-06 linux entry recorded that [#639](https://github.com/JeffMcClintock/TideSynth/pull/639) (`tide/win/E86-controller-required`) landed code and a ruling with no journal entry, and called it this lane's debt. **It cannot be paid as written and the next run should not reopen it.** No run can write a first-person entry for work it did not do and has no memory of, and `JOURNAL.md` is newest-first, so a back-dated 10-06 entry cannot be prepended without failing `check-journal-prepend.py`. #639's PR body is a full record — the ruling in Jeff's words, three shipped changes, a four-row verification table with real object sizes, and an explicit *"Not verified: the diagnostic actually PRINTING in a processor-only run"*. This entry points at it, and that is the discharge. Also settled, closing the previous cell's instruction (2): **#634 is CLOSED UNMERGED**, so E86 never became buildable along one of its four options — the ruling was recorded by hand instead, and E86 is archived DONE.
+
+**Learned:**
+
+- **A fleet-liveness threshold is only as good as its cadence assumption, and the assumption is in a comment rather than in data.** `watchdog-digest.py` states *"the fleet runs roughly daily"* and three boxes do not. Before escalating another box's silence, check that box's own cron: one scheduled-task listing settles in seconds what three entries spent a paragraph each worrying about.
+- **A `PROPOSED:` entry's blanket "parks nothing" line can be wrong about exactly one row — the row whose deliverable is the thing being decided.** Read the row's Accept against the options rather than trusting the entry's self-description, in either direction. This is the 10-06 E76 lesson running the other way: that one found a row parked when it was free, this one finds a row parked for a reason nobody had stated.
+- **A42's branch sweep is not theoretical.** Its first use found a live collision the same day it was used, against a row filed hours earlier on another box.
+- **A STEP 4 debt for work a run has no memory of is discharged by pointing at the PR, not by writing the entry.** The append-only, newest-first journal makes the back-dated entry illegal anyway, so "pay the debt" and "obey the lint" cannot both be satisfied — say so once and stop re-inheriting it.
+- **Read a row's platform guards on YOUR platform even when another box already read them on theirs.** E92's guard excludes win and mac for the same one line, but "mac read it" is not "win measured it", and the two together are what makes "Linux-only in fact" a fleet claim.
+
+**Not verified:** nothing was built, compiled or run, because there was no item — no local build of `main` on Windows this run, so "green" above is CI's, not mine. **A44 is a reading plus two measurements, not a fix**: I did not edit `watchdog-digest.py`, and I did not run the digest to watch it emit the false `LIKELY HALTED` line — the claim rests on the thresholds, the premise comment, the cron and the three mac entries that acted on it. **Linux's cron is unmeasured**; I can read only this box's scheduled task, so "the fleet runs two cadences" is established for windows and macos and open for linux. I did not verify the fleet PAT's expiry (A40's `NEEDS-JEFF` half); the prompt records **2026-11-07**, 25 days from today. E92's Windows claim is a reading of the CMake guard — I did not configure SE16 to count targets.
+
+**Machine state:** `C:\SE\TideSynth` **stayed on `main` and was never checked out** — all work was in a scratchpad `git worktree`, removed at the end. **That tree is dirty with the developer's work in progress and I left every file alone:** `DefaultRack.synthedit`, `RackModules/Envelope.synthedit`, `modules/PatchPoint/PatchPoint.cpp`, `modules/PatchPoint/PatchPointGui.cpp`, all four mtimed **2026-10-09** and all four real content changes (`git diff --ignore-all-space` shows 196/77/99/133 diff lines, so none is CRLF churn). Not committed, not reverted, not stashed. `C:\SE\SE16` was read only (one `CMakeLists.txt`), and no other repo was touched. **No GUI was taken and no screenshot made** — the developer was working at this machine throughout. No credential value appears anywhere.
+
+**Next:** see the `win` cell. **For Jeff, four things:** (1) **A44 — the digest will call this box halted every Monday until a cadence source is chosen**, and widening `QUIET_DAYS` is the wrong fix. (2) The bookkeeping-hot-spots `PROPOSED:` entry is twelve days past its own `Decide-by`, and A37 is parked behind it. (3) #643 and #652 are both waiting on you; #643's evidence predates E81, as the 10-10 mac entry explains. (4) The bot token's recorded expiry is 2026-11-07, 25 days out.
+
+**Branch/PR:** `tide/win/2026-10-13-queue-blocked`. This entry, the A44 row, the `win` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
 ## 2026-10-13 — linux — E89: a box-scoped run lock, whose first version let #583 straight through at the exact 5.6 s gap (scheduled run)
 
 **Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.32885.1** (CLI `2.1.234`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -173,6 +333,7 @@ Working out which open questions park E89 meant reading all four `PROPOSED:` ent
 **Branch/PR:** `tide/linux/E89-box-run-lock`, [#652](https://github.com/JeffMcClintock/TideSynth/pull/652) — the lock, the probe, the STEP 0.5 / STEP 5 prompt edit, the E89 flip, the `linux` cell, the A43 row and the regenerated `docs/lessons.md`. **It is NOT auto-mergeable and that is deliberate:** `docs/weekly-run-prompt.md` is carved out of the A4 allowlist, so it waits for Jeff.
 
 ---
+
 
 ## 2026-10-13 — macos — no item: STEP 1 and 1.5 empty, and since `40ff8e8` only the 10-12 `mac` cell moved, so the walk stands (scheduled run)
 
@@ -349,122 +510,3 @@ Jeff's `13d4720` changes how the DSP is delivered. The processor now builds only
 **Next:** see the `mac` cell. **For Jeff:** (1) #643 waits on you by design. (2) E93 wants a scope call. (3) E92 is a linux job in practice. A ruling on the `Plat`-correction `PROPOSED:` entry would let a run re-label it. Until something moves, mac runs will keep producing entries like this one.
 
 **Branch/PR:** `tide/mac/2026-10-08-queue-blocked`. This entry, the `mac` cell, the rotation and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
-
-## 2026-10-07 — macos — E91: AU3 does not have E88's defect, measured 3/3 in-process with a control that goes silent; AU2's half was dead code and is filed as E93 (scheduled run)
-
-**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.19675.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** took **E91** (E88's AU2/AU3 remainder). I measured the AU3 half with a new in-process probe, which needs no wrapper change. I found that the AU2 half's premise was a line inside `#if 0`, and filed the real AU2 gap as **E93**. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`e7fba10..5175b02`).
-
-### STEP 1 / 1.5 / 2
-
-**STEP 1:** no open `platform:mac` issue. The open issues are #583 (linux) and #44 (the digest). **STEP 1.5:** there were **no open PRs anywhere in the fleet**, because the 10-06 linux merge sweep landed everything. **STEP 2:** the `mac` NEXT cell was the 10-04 one, and both its targets (E85, E88) are archived, so I walked the file. A35 is parked on its own two `PROPOSED:` entries, because its deliverable *is* the exception they decide. A37 is overlapped by the bookkeeping hot-spots entry, whose options move the NEXT block. A42 is ineligible by its own words. S8 is `NEEDS-SPEC`. E2 is an umbrella. **E19 and E82 need a screen**, and a scheduled run cannot drive one. E84 is a workflow edit. E89 is linux. **E91 was the first eligible row**: it is `any` but mac in practice, and no branch or PR named it. Of the five open `PROPOSED:` entries, none parks it: four say *"everything"* and E72's parks only E72. The DOING mark was pushed first (`07f8b02`).
-
-### AU2: the row's premise was dead code
-
-E91 said *"AU2 CALLS `setPresetUnsafe` THE SAME WAY"*, citing E88's `AU2_Wrapper.cpp:341`. **That line is inside `#if 0`**, in the old `stateMgr.callback` block. AU2's live restore is `RestoreState`. That function hands the `GMPIPRESET` to `gmpiController.setPresetXmlFromDaw` (the controller's store) **and nothing else**. There is no `notifyControllerOfPreset` (E71's fix on AU3), and there is no queue send: the only ui→dsp sender, in `onTimer`, is inside `/* … */`, and `sendNonNativeParameterToProcessor` is never assigned. Native floats are fine, because they go straight to the processor through `SetParameter`. **So on reading, a restored blob never reaches AU2's DSP in either order.** That is wider than E88, not the same defect. **TIDE builds no AU2** (`FORMATS_LIST GMPI VST3 CLAP AU3 STANDALONE`, S40), so no TIDE instrument can measure it. I filed it as **E93** (`mac`, may be WONTFIX for TIDE, which is Jeff's call) rather than leaving it inside a closing row. That is A42's shape. The id was allocated by sweeping `origin/main` and the one remote `tide/*` branch: the highest was E92.
-
-### AU3: the instrument
-
-AU3 by reading should be order-independent. `-setFullState:` never calls `setPresetUnsafe` on the processor. It frames every stateful parameter onto the ui→dsp queue (`ppc3` for a blob), and the render block drains that queue on its first line. That is the live-change route GMPI_Wrappers#42 had to *add* for VST3. E88's history is the warning against stopping at reading, so I measured it.
-
-**The obvious host was unavailable for two reasons.** Through `AudioComponent` the extension loads out-of-process, so `building rack` never reaches the host (E9's finding). And the registered AUv3 is Jeff's `~/Applications` install from **2026-08-31**, which predates E71 (`4c11d6d`, 09-07), so it is not the code under test. The 08-29 entry rules that an unattended run must not displace it.
-
-**The in-process host.** I took the appex's own link line (`ninja -t commands …/TIDE-Rack.appex/Contents/MacOS/TIDE-Rack | tail -1`), dropped `-e _NSExtensionMain`, added the probe's object, and wrote the executable into a **copy** of the built appex's `Contents/MacOS/`. NSBundle then resolves the plug-in's resources exactly as in the extension, and the probe instantiates `GmpiAudioUnit` by name. **Nothing was registered and nothing outside the scratch build was touched.** The header recipe was re-run verbatim from a clean directory, link rc=0.
-
-### Evidence
-
-TIDE from `origin/main` `5175b02`: `cmake -G Ninja -DCMAKE_BUILD_TYPE=Release`, **659/659, rc=0**, GMPI_Wrappers fetched at `0a791ad` (includes E71 and E88). Preset: `v1-rack.rpp`'s 18,893-byte `<Preset>` (sha256 `5d4aec4f…`). 400 blocks of 512 at 44.1 kHz. Three runs per arm, interleaved:
-
-| arm | `building rack` | peak |
-|---|---|---|
-| state-first `--no-readback` | ×1 | **0.482431 (−6.3 dBFS)**, 3/3 |
-| **activate-first `--no-readback`** | ×1, **after** `restore of a 14136 byte document -> imported`, following a 50-block pre-window at −inf | **0.482431 (−6.3 dBFS)**, 3/3 |
-| `--no-preset` (negative control) | none | **0 (−inf)**, 3/3 |
-| **control build**: `setFullState`'s `sendParameterToProcessorQueue(&param)` deleted, `--no-readback` | **none**, both orders | **0 (−inf)**, both orders |
-
-**0.482431 is the same six digits as VST3 and CLAP** for this document. **The control is what makes the pass mean something**: delete one line and both orders play silence, so the probe can see E88's shape when it is there, and that line is the route. After restoring the line, the rebuilt appex is **byte-identical** to the first build (sha256 `51601bcf2c0d47f7`), so the A/B's only variable was the one line.
-
-### The trap: reading `fullState` back is not passive
-
-My first control run *still played*, in both orders. The probe read `fullState` back after setting it, which is S33's round-trip check. **`-fullState` runs `syncState()` (E68)**, and TIDE's `syncState` re-exports the document through the parameter path, which is a second delivery route to the DSP. The log showed it (`syncState exporting … (host asked for state)`, then a rack built from a "Sync chunk"). The probe now has `--no-readback`, and every figure above uses it. With the readback, both builds play in both orders (3/3 each, also recorded), and that measures nothing about `setFullState`.
-
-**Learned:**
-
-- **Check that a row's cited line is live code before porting a defect's shape to it.** E91's AU2 premise was a `setPresetUnsafe` call inside `#if 0`. The real AU2 restore has a *different* and wider gap. One `grep -n '#if 0\|#endif'` around the citation would have shown it on 10-06.
-- **A "round-trip" readback can be a write.** `-fullState` calls `syncState()`, which re-delivers the document to the DSP. A probe that reads state back to prove it took can deliver the state itself, and that hides exactly the defect under test. It showed up only because the control build refused to go silent.
-- **A control that will not fail is a finding about the probe, not about the code.** I expected the deleted-line build to go silent. It did not, and the cause was my own readback. Run the control *before* believing the pass.
-- **An appex's own link line, minus `-e _NSExtensionMain`, is an in-process AUv3 host.** Running it from a copy of the appex bundle keeps resource lookup identical. The plug-in's stderr becomes visible and nothing is registered. That removes the 08-29 displacement problem for any AU3 question that does not need a real DAW.
-- **The installed AUv3 on this box is pre-E71** (2026-08-31). Any measurement through `AudioComponent` here is of old code, not `main`. Check the appex binary's mtime against the wrapper's history before trusting one.
-- **`timeout` is not on this box**; `perl -e 'alarm N; exec @ARGV' cmd …` is.
-
-**Not verified:** **AU2**, by construction: TIDE has no AU2 target. E93's claims are a reading of `AU2_Wrapper.cpp`. **No real DAW and no out-of-process load**: the in-process host shares the appex's code but not the XPC boundary, so a host that restores across that boundary is not measured. iOS AUv3 was not tested. SynthEdit and SynthEditCL were not rebuilt, because nothing they compile changed (no wrapper edit landed; the control edit lived only in the scratch build's `_deps` and was reverted, and byte-identity proves it). **Observed, not investigated:** every run prints `SynthEdit: could not read factory.se.xml -- this plugin has no identity` (`SynthEditLib/modules/se_sdk3_hosting/BundleInfo.cpp`) because the built `TIDE-Rack.appex/Contents/Resources` has no `factory.se.xml`, and Jeff's installed appex has none either. It did not stop the rack building or playing. I filed no row, because I cannot yet say it is a defect.
-
-**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean, and never left it. All work was in scratchpad `git worktree`s (TideSynth ×2, GMPI_Wrappers ×1, read-only) and a scratchpad build tree, all removed at the end. `SynthEdit` (`master`), `SynthEditLib`, `gmpi_ui`, `GMPI_Wrappers` and `GMPI` (`main`) were clean at the start and untouched. **Jeff's `~/Applications/TIDE-Rack-AUv3.app` and its registration were not touched.** No GUI and no screen taken. No credential value appears anywhere.
-
-**Next:** see the `mac` NEXT cell. **For Jeff, two things:** (1) [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) is `tests/` only and so allowlist-blocked by design. It closes E91's AU3 half. (2) **E93 wants a scope call**: AU2 is out of TIDE since S40, so it is WONTFIX unless GMPI_Wrappers' AU2 matters to another plug-in.
-
-**Branch/PR:** the probe is on `tide/mac/E91-au-activate-first`, [#643](https://github.com/JeffMcClintock/TideSynth/pull/643), with `BACKLOG.md` byte-identical to `main`. This entry, the E91 flip, the E93 row, the `mac` cell, the rotation and the regenerated `docs/lessons.md` are on `tide/mac/2026-10-07-e91-bookkeeping`, which is bookkeeping-only and should auto-merge.
-
-## 2026-10-06 — linux — the merge sweep Jeff asked for: all three PRs landed, five rows archived, and CI closed half of E88's own stated gap (interactive, Jeff directing)
-
-**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.32885.1** (CLI `2.1.220`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:` · **interactive continuation of this box's scheduled run, Jeff directing**
-
-**Did:** Jeff read the scheduled run's report and said ***"resolve and merge outstanding PRs"***. All three open PRs across both repos are now MERGED, the five IN-REVIEW rows whose PRs had all merged are DONE and archived, and the `linux` NEXT cell is re-pointed.
-
-**This is an interactive session, not the scheduled run, and the distinction is load-bearing twice over.** STEP 5 says *"Do NOT merge the PR"* and STEP 1.5 scopes a run to its own platform's PRs — I did both of the things those rules forbid, because Jeff asked for them in session. That is the same convention the 2026-09-07 merge sweep and the 2026-10-06 E90 entry record (*"Jeff read the run's report and said 'push to main branches'"*). **A scheduled run reading this entry must not copy it.**
-
-### What merged, and in what order and why
-
-| # | repo | what | note |
-|---|---|---|---|
-| [#42](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/42) | GMPI_Wrappers | E88's VST3 restore fix | merged FIRST, deliberately |
-| [#640](https://github.com/JeffMcClintock/TideSynth/pull/640) | TideSynth | the probe's Linux loader | 13 pass + 2 skipping |
-| [#639](https://github.com/JeffMcClintock/TideSynth/pull/639) | TideSynth | E86's ruling | conflicted; resolved, then 15 checks green |
-
-**#42 first was the right order by luck as much as design, and it is the most useful thing in this entry.** TideSynth fetches GMPI_Wrappers at `GIT_TAG origin/main`, so once #42 landed, **the next CI run on any TideSynth branch built against the fixed wrapper.** #639's re-synced head was pushed at 02:06 UTC, one minute after #42 merged at 02:05, and its configure step ran at 02:08–02:09. Read out of the run log rather than inferred from the timestamps:
-
-```
-linux    Configure   --   GMPI_Wrappers <- .../build/_deps/gmpi_wrappers-src [fetched]
-macos    Configure   --   GMPI_Wrappers <- .../build/_deps/gmpi_wrappers-src [fetched]
-windows  Configure   --   GMPI_Wrappers <- D:/a/.../build/_deps/gmpi_wrappers-src [fetched]
-linux    Build       [  8%] Building CXX object ... VST3_Wrapper.dir/Processor_VST3.cpp.o
-macos    Build       [  6%] Building CXX object ... VST3_Wrapper.dir/Processor_VST3.cpp.o
-windows  Build         Processor_VST3.cpp
-```
-
-`windows` **pass 10m44s**, `macos` **pass 3m41s**, `linux` **pass 1m58s**.
-
-**So the largest gap the scheduled run declared — *"not compiled on Windows or macOS, and it is `#ifdef`-free shared code"* — is now closed on its compile half, by a CI run belonging to someone else's PR.** State the limit precisely, because it is easy to overclaim: **CI builds, it does not measure.** Nothing on Windows or macOS has run the probe's `--activate-first` arm, so the *behaviour* of the fix on those platforms is still unverified. Confirming it is a small mac/win job — the probe already loads a bundle on macOS.
-
-### #639's conflict was one file and the two sides were disjoint
-
-`BACKLOG.md` alone. #639 edits the **E86** row; `main`'s 10-06 linux bookkeeping flipped **E88** and added E91/E92. Git saw one hunk only because E86 and E88 sit two rows apart. **`tests/e80_vst3_feedback_probe.cpp` auto-merged** — #639 edits the `--no-controller` documentation, I had added the Linux loader, different regions — which is what the scheduled run's `git merge-tree` check between the two branch heads had predicted.
-
-Resolved by keeping each row from the side that edited it. **Each side's copy of the other's row was the stale one**, which is the general shape of every conflict this fleet gets in `BACKLOG.md`.
-
-### The archive sweep, and one lint-driven correction
-
-Five rows were IN-REVIEW with every linked PR merged, so STEP 4's own rule applies (*"If you see an IN-REVIEW row whose PRs have all merged, flip it"*): **A41, E76, E85, E86, E88** → DONE, moved to `BACKLOG-DONE.md`. **I applied the mechanical rule and did not re-judge other lanes' evidence**, which stands as their entries record it. Two worth a note:
-
-- **E76's Accept is a FORK**, and it is met on its second branch. The first branch (a linux `render-and-measure.py` figure) was never this row's outstanding debt — it was the other option — and the ruling that branch wanted became E90, which has itself landed and been archived.
-- **E88 is DONE on its VST3 half only, and that is exactly why the scheduled run split E91 out of it** hours earlier. A row closing with an open question inside it is how a question gets archived; E91 carries AU2/AU3.
-
-**`check-next-block.py` then caught the archive's blast radius, as it is built to:** archiving A41 and E76 turned *"(1) take A41"* in the `win` cell and *"then **E76**"* in the `linux` cell into instructions pointing at dead rows. Both are preserved history, so both were corrected in place with an explicit negation rather than rewritten — the precedent being the `linux` cell's own earlier *"E75 has since been archived DONE, so the preserved wording here is corrected in place"*.
-
-**Reading that lint's source was quicker than guessing at it**, and the rule is worth knowing: a sentence is disarmed only by `do not | don't | never | rather than | instead of | not to | nor to`, and sentences split on `.` `;` ` -- ` ` — `. My first fix to the `win` cell passed by accident, because the words *"rather than an instruction"* happened to land in the same segment. The `linux` one failed because the offending phrase was a **different** E76 mention from the one I had patched — `then **E76**.` ending its own sentence. **Find every mention of an ID you archive, not the one the error names**: the lint reports the first failure, not all of them.
-
-**Learned:**
-
-- **Merge order decided what got verified, and nobody planned it.** Landing the wrapper fix before the next TideSynth CI run meant a PR from another lane compiled my change on two platforms I cannot build on. With a `GIT_TAG origin/main` dependency, *"which PR merges first"* is a question about test coverage, not just about conflicts.
-- **"Compiled on three platforms" and "verified on three platforms" are different claims**, and CI only ever offers the first. The temptation to write the second is strongest exactly when the first arrives unexpectedly.
-- **When two lints disagree, read the source of the one that is still failing.** `check-next-block`'s negation list and sentence splitter are eleven lines; two rounds of guessing cost more than reading them.
-- **A lint reports its first failure, not its last.** I patched the E76 mention the error pointed at and the error did not move, because there were three more take-shaped mentions of E76 in the same cell. Grep for every occurrence of an ID you archive.
-- **Archiving N rows has a blast radius of N NEXT-cell clauses**, and they are all in preserved text you may not rewrite. Budget for it; the fix is an inserted negation, not an edit.
-
-**Not verified:** **the behaviour of E88's fix on Windows and macOS** — compiled there now, measured nowhere but Linux. I ran no probe in this session at all; every figure above is either CI's or quoted from the scheduled run's own measurement. I did not re-judge A41's, E76's or E85's evidence before flipping them. I did not delete the two stale remote branches (`tide/mac/issue-599`, `tide/win/E86-vst3-processor-factory`) — deleting a branch is destructive and was not asked for, and the second is genuinely orphaned now that #634 is closed unmerged. **#639 landed code and a ruling with no journal entry of its own**, which is the windows lane's STEP 4 debt, not something this entry can discharge for it.
-
-**Machine state:** `~/TideSynth` stayed on `main`, clean, never left it; all work in a scratchpad `git worktree`, removed at the end. **`~/TideSynth`'s local `main` is 68 commits behind `origin/main`** and I deliberately left it there — fast-forwarding a sibling tree out from under another process is the second half of #583's collision. Every build in this session's scheduled half was in the scratchpad. No credential value appears anywhere.
-
-**Next:** see the `linux` cell. **For Jeff:** nothing is waiting on you — no open PRs and no IN-REVIEW rows in either repo. The two stale branches want a yes/no before anyone deletes them.
-

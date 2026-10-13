@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **509 KB** across **394** entries, so copying them
+Learned sections are **514 KB** across **397** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **164 KB / 1688 lessons — 3.1x smaller**, and represents
+A8. This is **166 KB / 1703 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -37,7 +37,33 @@ by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
+## 2026-10-14
+
+**windows — A44 closed WONTFIX on Jeff's question, and the honest answer was that the row overstated itself (interactive, Jeff directing)**
+
+- A run that files a row should be willing to argue against it when asked, and the honest reckoning is usually narrower than the filing.
+- Check whether a neighbouring alarm already covers the scenario before arguing a detector matters.
+- "No information" is a sharper claim than "false alarm", and it is sometimes the one that closes a row rather than escalating it.
+- A note is the right fix when a section is noisy for more than one reason.
+- Heredoc backslash mangling bites hardest when patching source that contains `\n` as two characters.
+
 ## 2026-10-13
+
+**windows — the merge sweep Jeff asked for: #643 landed, and #652 did NOT, because measuring its Windows path showed `release` cannot release (interactive, Jeff directing)**
+
+- "Measure before you merge" earned its keep on the first try, and the thing it caught was not the thing the PR flagged.
+- A platform fallback can be safe in one verb and broken in the other.
+- Nine green arms out of thirteen is not "mostly working" when the four reds are all one direction.
+- A conditional instruction is still a condition.
+- Merging another lane's PR is cheap; judging its evidence is not, and the mechanical rule covers only the first.
+
+**windows — no item: the queue is empty for `win`, and the run's finding is that this lane was never halted — the box is WEEKLY and the digest assumes daily (scheduled run)**
+
+- A fleet-liveness threshold is only as good as its cadence assumption, and the assumption is in a comment rather than in data.
+- A `PROPOSED:` entry's blanket "parks nothing" line can be wrong about exactly one row — the row whose deliverable is the thing being decided.
+- A42's branch sweep is not theoretical.
+- A STEP 4 debt for work a run has no memory of is discharged by pointing at the PR, not by writing the entry.
+- Read a row's platform guards on YOUR platform even when another box already read them on theirs.
 
 **linux — E89: a box-scoped run lock, whose first version let #583 straight through at the exact 5.6 s gap (scheduled run)**
 
@@ -76,27 +102,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 - Check a row's platform guards before you trust its `Plat` cell.
 - Neither `claude` nor its CLI version is on this box's `PATH` for a scheduled run.
-
-## 2026-10-07
-
-**macos — E91: AU3 does not have E88's defect, measured 3/3 in-process with a control that goes silent; AU2's half was dead code and is filed as E93 (scheduled run)**
-
-- Check that a row's cited line is live code before porting a defect's shape to it.
-- A "round-trip" readback can be a write.
-- A control that will not fail is a finding about the probe, not about the code.
-- An appex's own link line, minus `-e _NSExtensionMain`, is an in-process AUv3 host.
-- The installed AUv3 on this box is pre-E71
-- `timeout` is not on this box
-
-## 2026-10-06
-
-**linux — the merge sweep Jeff asked for: all three PRs landed, five rows archived, and CI closed half of E88's own stated gap (interactive, Jeff directing)**
-
-- Merge order decided what got verified, and nobody planned it.
-- "Compiled on three platforms" and "verified on three platforms" are different claims
-- When two lints disagree, read the source of the one that is still failing.
-- A lint reports its first failure, not its last.
-- Archiving N rows has a blast radius of N NEXT-cell clauses
 
 ## 2026-10-01
 
@@ -201,6 +206,25 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `nohup cmd &` inside the Bash tool reports the SHELL's exit, not the command's, and the command keeps running.
 - `pkill -f '<pattern>'` matched my own shell and killed it with exit 144 — the fifth time this fleet has paid for that
 - A command ending in `grep -c` reports the TASK as failed when the count is zero.
+
+**linux — the merge sweep Jeff asked for: all three PRs landed, five rows archived, and CI closed half of E88's own stated gap (interactive, Jeff directing)**
+
+- Merge order decided what got verified, and nobody planned it.
+- "Compiled on three platforms" and "verified on three platforms" are different claims
+- When two lints disagree, read the source of the one that is still failing.
+- A lint reports its first failure, not its last.
+- Archiving N rows has a blast radius of N NEXT-cell clauses
+
+## 2026-10-07
+
+**macos — E91: AU3 does not have E88's defect, measured 3/3 in-process with a control that goes silent; AU2's half was dead code and is filed as E93 (scheduled run)**
+
+- Check that a row's cited line is live code before porting a defect's shape to it.
+- A "round-trip" readback can be a write.
+- A control that will not fail is a finding about the probe, not about the code.
+- An appex's own link line, minus `-e _NSExtensionMain`, is an in-process AUv3 host.
+- The installed AUv3 on this box is pre-E71
+- `timeout` is not on this box
 
 ## 2026-09-08
 
