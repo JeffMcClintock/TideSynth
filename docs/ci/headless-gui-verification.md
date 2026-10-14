@@ -208,8 +208,9 @@ With that wrapper every committed fixture renders on Linux at the macOS
 reference figures — see `tests/hosts/README.md` for the table. **Note what this
 also settles: the committed fixtures carry the macOS 7.45 plug-in token and
 REAPER 7.43/Linux loads them anyway** (`restore of a 14136 byte document ->
-imported`). E29's byte-order divergence is real for what a host WRITES; it did
-not stop a fixture being read here.
+imported`). E29's byte-order divergence was real for what a host WRITES; it did
+not stop a fixture being read here. Since 2026-10-14 the class ID prints the
+same on every platform.
 
 ## Getting a prepared rack in without touching the token at all
 
@@ -222,7 +223,8 @@ chars, 105 bytes, `int32 len+4 | int32 1 | int32 len | XML | 8 zero bytes`.
 Adding the plug-in **by name** and then setting that parm makes REAPER mint its
 own token, so a fixture cannot carry the wrong platform's. It wrote
 `1013510754{506C7567696E474D50492050A2A07287}` here unprompted — the Linux token
-the 2026-08-28 run recorded. Drivers: `tests/e19-host-feedback/`.
+the 2026-08-28 run recorded, under the class ID TIDE had before 2026-10-14 (the
+current token is in `tests/hosts/README.md`). Drivers: `tests/e19-host-feedback/`.
 
 Two smaller things a fresh portable `HOME` does, neither documented anywhere and
 each worth one launch: it raises a **"REAPER New Version Notification"** modal,

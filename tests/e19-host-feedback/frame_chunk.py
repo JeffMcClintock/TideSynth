@@ -12,8 +12,8 @@ i.e. `build_state` from scripts/make-host-fixture.py and NOTHING else. The
 <VST> block in a .rpp file, not to this parm.
 
 WHY THIS EXISTS BESIDE make-host-fixture.py. That script rewrites a .rpp on
-disk, so it must know the plug-in TOKEN, which BACKLOG E29 records as
-byte-order-divergent per platform -- it carries a hard-coded Windows constant.
+disk, so it must know the plug-in TOKEN -- it carries a hard-coded constant
+(per-platform before the 2026-10-14 class-ID change, BACKLOG E29).
 Handing the same bytes to TrackFX_SetNamedConfigParm instead lets REAPER mint
 its own token when it instantiates the plug-in by name, so the platform
 question never arises and no fixture can carry the wrong one.

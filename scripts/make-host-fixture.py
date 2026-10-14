@@ -27,19 +27,16 @@ guessed, and every field this rewrites was identified there:
                         XML, then eight zero bytes.
   last line             REAPER's trailer, copied verbatim.
 
-BACKLOG E29 is why the token is rewritten rather than copied: REAPER 7.78 on
-Windows and 7.45 on macOS write DIFFERENT byte orders for the SAME UID, and a
-fixture carrying the wrong one hangs on a modal "not available" dialog rather
-than failing. Output from this script is therefore LOCAL, not committable --
-see tests/hosts/README.md.
+The token is rewritten rather than copied so a template saved before the
+2026-10-14 class-ID change still loads: a fixture carrying an unknown token
+hangs on a modal "not available" dialog rather than failing. See
+tests/hosts/README.md.
 """
 import base64, re, struct, sys
 
-# BACKLOG E29: REAPER 7.78 on Windows writes a different byte order for the
-# same UID than 7.45 on macOS, and the two are mutually exclusive. The
-# committed fixtures carry the 7.45 token; this box needs the other one.
-TOKEN_WIN = "1558955188{67756C506E694D4750492050A2A07287}"
-ID_WIN = 1558955188
+# REAPER 7.78/Windows token for TIDE's VST3 processor class (tests/hosts/README.md).
+TOKEN = "1807036386{291992A4F1938BD5A6D80454E17E55E9}"
+TOKEN_ID = 1807036386
 
 XMLDECL = b'<?xml version="1.0" encoding="UTF-8"?>\n'
 
@@ -55,7 +52,7 @@ def build_state(preset_bytes):
 
 def build_header(state_len):
     h = bytearray(44)
-    struct.pack_into("<i", h, 0, ID_WIN)
+    struct.pack_into("<i", h, 0, TOKEN_ID)
     struct.pack_into("<i", h, 4, -17998098)
     struct.pack_into("<i", h, 12, 2)
     struct.pack_into("<i", h, 16, 1)
@@ -85,7 +82,7 @@ def main():
     while i < len(lines):
         if lines[i].strip().startswith("<VST "):
             indent = lines[i][: len(lines[i]) - len(lines[i].lstrip())]
-            out.append(re.sub(r"\d+\{[0-9A-Fa-f]+\}", TOKEN_WIN, lines[i]))
+            out.append(re.sub(r"\d+\{[0-9A-Fa-f]+\}", TOKEN, lines[i]))
             out += [indent + "  " + b for b in body]
             depth = 1
             i += 1

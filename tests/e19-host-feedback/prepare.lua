@@ -2,9 +2,9 @@
 --
 -- Adds a TIDE-Rack VST3 to a fresh project, pushes the prepared rack in as the
 -- instance's vst_chunk, saves the project, and quits. REAPER writes its OWN
--- plug-in token that way, so nothing here has to know the Linux VST3 UID byte
--- order that BACKLOG E29 records as platform-divergent -- which is exactly the
--- trap scripts/make-host-fixture.py carries a hard-coded Windows constant for.
+-- plug-in token that way, so nothing here has to know the VST3 UID, which was
+-- platform-divergent before 2026-10-14 (BACKLOG E29) and which
+-- scripts/make-host-fixture.py carries as a hard-coded constant.
 --
 -- Phase 2 (measure.lua) then OPENS the saved project, which is the path E59
 -- was about and the only one that answers this cell.

@@ -66,7 +66,7 @@ REAPER 7.78, offline `-renderproject`, against the bundle that is actually on
 this box's `vstpath64` — `%COMMONPROGRAMFILES%\VST3\TIDE-Rack.vst3`, the
 developer's 2026-09-03 build, and the **only** `TIDE-Rack.vst3` any folder on
 that path holds, which is what makes an offline render attributable without
-`fx_ident`. **Every fixture needed E29's token swap first** (below); without it
+`fx_ident`. **Every fixture needed E29's token swap first** (the pre-2026-10-14 class ID; below); without it
 `-renderproject` sits on a modal for the full 300 s timeout and writes an empty
 log, which looks nothing like an error.
 
@@ -161,41 +161,55 @@ prefabs.
 
 ## The VST3 UID token, and why a fixture may refuse to load — BACKLOG E29
 
-Every `.rpp` here names the plugin by a REAPER-specific token. **Different
-REAPER versions write and expect DIFFERENT byte orders for the SAME UID**, and a
-fixture carrying the wrong one loads with no plugin at all:
+Every `.rpp` here names the plugin by a REAPER-specific token, and a fixture
+carrying a token no installed plug-in answers to loads with no plugin at all:
 
 > **Project Load Warning** — The following effects were in the project file and
 > are not available. `Track 1: VST3i: TIDE Rack (TIDE Synth)`
 
-| token | written/expected by | measured |
-|---|---|---|
-| `1386065673{506C7567696E474D50492050A2A07287}` | REAPER **7.45**, macOS — the raw TUID, and what is COMMITTED here | loads, renders `-6.3 / -17.0 dBFS` |
-| `1558955188{67756C506E694D4750492050A2A07287}` | REAPER **7.78**, Windows — COM little-endian | **refuses to load on 7.45** |
+**Since 2026-10-14 the fixtures carry one token for every platform:**
+`1807036386{291992A4F1938BD5A6D80454E17E55E9}`, also the first int32 of each
+`<VST>` block's 44-byte header. GMPI_Wrappers `4f22217` replaced the class-ID
+scheme (`wrapper/VST3/Vst3ClassIds.h`). TIDE declares no explicit IDs, so its
+processor class is a hash of the plugin id `TIDE Synth: TIDE Rack`, built with
+`FUID::from4Int` and printed as the same GUID string on every platform:
 
-**The plugin's identity has not changed.** The TUID is literally
-`"PluginGMPI     "` with byte 11 `'P'` plus a 4-byte id hash
-(`GMPI_Wrappers/wrapper/VST3/MyVstPluginFactory.cpp:200`); the two tokens are the
-same sixteen bytes in opposite order.
+| class | GUID |
+|---|---|
+| processor | `{291992A4-F193-8BD5-A6D8-0454E17E55E9}` |
+| controller | `{F9DC7291-8C1F-8F05-864E-05FDDB0787F9}` |
 
-**THE TWO ARE MUTUALLY EXCLUSIVE — measured 2026-08-26, both directions.** The
-committed token fails on 7.78 (the Windows box), and substituting the 7.78 token
-makes the same fixture fail on 7.45 (verified interactively on macOS: the dialog
-above, and the FX slot reading *"could not be loaded"*). **So re-saving these
-fixtures from a newer REAPER would fix one box and break the other.** Do not do
-it as a "fix" without deciding a fleet-wide REAPER version first.
+Measured 2026-10-14 on Windows, REAPER 7.78, against a no-overrides build of
+`origin/main` with the scan path narrowed to that one bundle. REAPER's scan
+cached it as `1807036386{291992A4F1938BD5A6D80454E17E55E9}`, and the same build
+with GMPI_Wrappers at `c6ed76f` cached the old Windows token below, so the
+measurement reproduces the history. A fixture carrying the new token resolved to
+that bundle; the old token left the FX slot unresolved. No render was possible:
+that `origin/main` build crashes on instantiation in any host, either class-ID
+scheme, in `MpController::Initialize` (reached from
+`Controller_VST3::initialize` since GMPI_Wrappers `7909b76`), which needs a
+`parameters.se.xml` TIDE does not ship. macOS and Linux are not
+measured yet. The hex is now platform-independent by construction. The leading
+number is REAPER's: Linux 7.43 wrote `1013510754` for the same hex macOS 7.45
+wrote as `1386065673`, and loaded the `1386065673` fixtures anyway, so the hex
+is what REAPER matches on.
 
-### If a fixture will not load on your box
+**Before 2026-10-14 the TUID was raw bytes** (`"PluginGMPI "` + `'P'` + djb2 of
+the id), which COM-compatible Windows builds read with the first three GUID
+fields byte-swapped. So the same plug-in printed differently per platform, and
+the fixtures loaded on one or the other, never both:
 
-Swap the token in a LOCAL copy — do not commit it:
+| old token | written/expected by |
+|---|---|
+| `1386065673{506C7567696E474D50492050A2A07287}` | REAPER 7.45 macOS, 7.43 Linux (hex) |
+| `1558955188{67756C506E694D4750492050A2A07287}` | REAPER 7.78 Windows |
 
-```bash
-sed 's/1386065673{506C7567696E474D50492050A2A07287}/1558955188{67756C506E694D4750492050A2A07287}/g' \
-    tests/hosts/v1-rack.rpp > /tmp/v1-rack-local.rpp
-```
+A project saved by a build before that change will not find a current build.
+That is BACKLOG E29's WONTFIX: nothing has shipped.
 
 To find what YOUR REAPER writes: load the plugin into an empty project, save it,
-and read the `<VST ...>` line.
+and read the `<VST ...>` line, or read the plug-in's line in
+`reaper-vstplugins64.ini` after a scan.
 
 ## Measuring YOUR build on Windows, not the one that happens to be installed
 

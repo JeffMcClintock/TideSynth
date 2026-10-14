@@ -99,7 +99,8 @@ the `AAAQAAAA` trailer that `scripts/make-host-fixture.py` also writes belong to
 a `.rpp`'s `<VST>` block, not to this parm. Minting through
 `TrackFX_SetNamedConfigParm` is also how the platform TOKEN question disappears:
 REAPER wrote `1013510754{506C7567696E474D50492050A2A07287}` — the Linux one —
-by itself, so no fixture can carry the wrong one (**BACKLOG E29**).
+by itself, so no fixture can carry the wrong one (**BACKLOG E29**). That was the
+class ID before 2026-10-14; the current token is in `tests/hosts/README.md`.
 
 **The standalone's config folder is `TiDE Rack`, lower-case `i`.**
 `tests/fixtures/e53-vcv-rack-segv.README.md` says `TIDE Rack`, and a run that

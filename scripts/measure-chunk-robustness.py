@@ -151,7 +151,7 @@ def write_project(path, out_wav, tone, chunk):
         '  <TRACK\n    NAME chunk-robustness\n    NCHAN 2\n    FX 1\n'
         '    <FXCHAIN\n      SHOW 0\n      LASTSEL 0\n      DOCKED 0\n      BYPASS 0 0 0\n'
         '      <VST "VST3i: TIDE Rack (TIDE Synth)" TIDE-Rack.vst3 0 "" '
-        '1386065673{506C7567696E474D50492050A2A07287} ""\n%s\n      >\n'
+        '1807036386{291992A4F1938BD5A6D80454E17E55E9} ""\n%s\n      >\n'
         '      FLOATPOS 0 0 0 0\n      WAK 0 0\n    >\n'
         # An audio item so the render has something to write even when the rack
         # is silent, and a note so the processor is exercised with real events.

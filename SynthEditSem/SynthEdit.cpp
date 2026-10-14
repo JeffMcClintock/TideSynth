@@ -900,8 +900,8 @@ public:
 		// WHAT THIS ONE STRING CONTROLS -- all four formats, which is why it is
 		// worth getting right once:
 		//
-		//   VST3  class GUID = djb2 hash of this string, textIdtoUuid() at
-		//         GMPI_Wrappers/wrapper/VST3/MyVstPluginFactory.cpp:200
+		//   VST3  class GUIDs = hash of this string, vst3ClassIds() in
+		//         GMPI_Wrappers/wrapper/VST3/Vst3ClassIds.h (no vst3ProcessorId here)
 		//   CLAP  clap_descriptor.id, verbatim (Factory_CLAP.cpp:25)
 		//   GMPI  the id, verbatim
 		//   AU    manufacturer and subtype, via to4charId() on the two halves
