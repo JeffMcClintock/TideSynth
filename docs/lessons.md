@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **514 KB** across **397** entries, so copying them
+Learned sections are **515 KB** across **398** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **166 KB / 1703 lessons — 3.1x smaller**, and represents
+A8. This is **167 KB / 1708 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -38,6 +38,14 @@ archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
 ## 2026-10-14
+
+**windows — E89 DONE and the box lock is live; four stale mac issues closed; and the link break that stopped #652 was Jeff's own cross-repo WIP, not this fleet's doing (interactive, Jeff directing)**
+
+- A bookkeeping-only PR going red is a free diagnosis: it says the cause is not in this repo.
+- Check before attributing a break to your own merge.
+- An auto-filed issue whose branch is deleted is immortal.
+- `GIT_TAG origin/main` makes a dependency's WIP your build's WIP.
+- A fix that is inert on the platforms you cannot test is worth more than a fix that is merely small.
 
 **windows — A44 closed WONTFIX on Jeff's question, and the honest answer was that the row overstated itself (interactive, Jeff directing)**
 
@@ -76,32 +84,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - An escalation can outlive the row that raised it, and no check looks.
 - `grep -oE` with a wide fixed-width prefix over `BACKLOG.md` backtracks catastrophically.
 - `os.kill(pid, 0)` has no Windows equivalent worth shipping unverified
-
-## 2026-10-11
-
-**macos — no item: STEP 1 and 1.5 empty, and since `07b0172` only the 10-10 `mac` cell moved, so the walk stands (scheduled run)**
-
-- nothing that an earlier entry does not already say
-
-## 2026-10-10
-
-**macos — no item: STEP 1 and 1.5 empty, and nothing eligible for `mac`; E81's ruling leaves #643 measuring a route `main` no longer uses (scheduled run)**
-
-- A ruling can make an open PR's evidence stale without touching the PR.
-- One red `main` run is not a platform break until you read its log.
-
-## 2026-10-09
-
-**macos — no item: STEP 1 and 1.5 empty, and since the 10-08 walk BACKLOG, decisions and PLAN have changed only in the `mac` cell (scheduled run)**
-
-- When nothing in BACKLOG, decisions or PLAN has moved, one `git diff --stat` against the last walked sha settles STEP 2.
-
-## 2026-10-08
-
-**macos — no item: STEP 1 and 1.5 empty, STEP 2 re-walked and nothing is eligible for `mac`; E92 is Linux-only by its own guard (scheduled run)**
-
-- Check a row's platform guards before you trust its `Plat` cell.
-- Neither `claude` nor its CLI version is on this box's `PATH` for a scheduled run.
 
 ## 2026-10-01
 
@@ -225,6 +207,32 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - An appex's own link line, minus `-e _NSExtensionMain`, is an in-process AUv3 host.
 - The installed AUv3 on this box is pre-E71
 - `timeout` is not on this box
+
+## 2026-10-08
+
+**macos — no item: STEP 1 and 1.5 empty, STEP 2 re-walked and nothing is eligible for `mac`; E92 is Linux-only by its own guard (scheduled run)**
+
+- Check a row's platform guards before you trust its `Plat` cell.
+- Neither `claude` nor its CLI version is on this box's `PATH` for a scheduled run.
+
+## 2026-10-09
+
+**macos — no item: STEP 1 and 1.5 empty, and since the 10-08 walk BACKLOG, decisions and PLAN have changed only in the `mac` cell (scheduled run)**
+
+- When nothing in BACKLOG, decisions or PLAN has moved, one `git diff --stat` against the last walked sha settles STEP 2.
+
+## 2026-10-10
+
+**macos — no item: STEP 1 and 1.5 empty, and nothing eligible for `mac`; E81's ruling leaves #643 measuring a route `main` no longer uses (scheduled run)**
+
+- A ruling can make an open PR's evidence stale without touching the PR.
+- One red `main` run is not a platform break until you read its log.
+
+## 2026-10-11
+
+**macos — no item: STEP 1 and 1.5 empty, and since `07b0172` only the 10-10 `mac` cell moved, so the walk stands (scheduled run)**
+
+- nothing that an earlier entry does not already say
 
 ## 2026-09-08
 
