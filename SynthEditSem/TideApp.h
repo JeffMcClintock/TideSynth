@@ -55,6 +55,7 @@ public:
 	void serviceDocumentSync() override; // S12 — push the document's chunk to the processor
 	void receiveRackFeedback(const unsigned char* data, int size) override; // the return half
 	bool takeDspMessages(std::vector<unsigned char>& out) override;         // the outbound half
+	void onSavedStateChanged() override { if (onSavedStateChange) onSavedStateChange(); } // ApplicationBase: tell the DAW
 
 	// WHY THIS EXISTS, and why a button press did nothing without it.
 	//

@@ -91,6 +91,9 @@ struct ISeApp
 	virtual bool takeDspMessages(std::vector<unsigned char>& out) = 0;
 	std::function<void(const void* data, size_t size)> onPushDspMessages;
 
+	// A saved parameter changed (a cable, a knob...): the controller bumps its state counter so the DAW marks the project modified.
+	std::function<void()> onSavedStateChange;
+
 	virtual void OnCloseView(SE2::TopView*) = 0;
 	virtual void CloseAllViews() = 0;
 

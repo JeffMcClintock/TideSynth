@@ -928,6 +928,7 @@ public:
 			<Parameter id="2" name="feedback"      ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 			<Parameter id="3" name="dspMessages"   ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
 			<Parameter id="4" name="dsp"           ignorePatchChange="true" datatype="blob" persistant="false" private="true"/>
+			<Parameter id="5" name="stateCounter"  ignorePatchChange="true" datatype="int" private="true"/>
 		</Parameters>
         <Audio>
             <Pin name="MIDI" datatype="midi"/>

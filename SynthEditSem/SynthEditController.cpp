@@ -230,6 +230,11 @@ class SynthEditController final : public gmpi::api::IController
 	gmpi::shared_ptr<gmpi::api::IControllerHost> host;
 	int32_t handle = 0;
 
+	// Parameter 5: a cheap stand-in for "the document (parameter 1) changed". The document is exported only when
+	// the host saves (syncState), so on an edit we change this instead, and the wrapper marks the DAW project modified.
+	static constexpr int32_t stateCounterParamId = 5;
+	int32_t stateCounter{};
+
 	// E59: which controller, and in what ORDER did its two state calls happen.
 	//
 	// The saved chunk (parameter 1) is written only by syncState and read only
@@ -362,6 +367,14 @@ public:
 			constexpr int32_t dspMessagesParamId = 3;
 			if (host)
 				host->setParameter(dspMessagesParamId, Field::Value, 0, static_cast<int32_t>(size), (const uint8_t*)data);
+		};
+
+		// A saved parameter changed. See stateCounterParamId.
+		app->onSavedStateChange = [this]()
+		{
+			++stateCounter;
+			if (host)
+				host->setParameter(stateCounterParamId, Field::Value, 0, sizeof(stateCounter), reinterpret_cast<const uint8_t*>(&stateCounter));
 		};
 
 		// InitInstance loaded the Default Rack before these callbacks existed.
@@ -556,6 +569,15 @@ public:
 	ReturnCode setParameter(int32_t parameterHandle, gmpi::Field fieldId, [[maybe_unused]] int32_t voice, int32_t size, const uint8_t* data) override
 	{
 		constexpr int32_t chunkParamId = 1;
+
+		// Continue counting from the restored value, so the next bump is always a change. (Restored scalars arrive as a double.)
+		if (parameterHandle == stateCounterParamId && fieldId == Field::Value && size == sizeof(double))
+		{
+			double restored{};
+			std::memcpy(&restored, data, sizeof(restored));
+			stateCounter = static_cast<int32_t>(restored);
+			return ReturnCode::Ok;
+		}
 
 		if (parameterHandle != chunkParamId || fieldId != Field::Value)
 			return ReturnCode::NoSupport;
