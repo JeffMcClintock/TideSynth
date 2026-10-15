@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<Preset pluginId="00000000" name="stage0 restore">
+  <Param id="70768971" val="3" MIDI="7"/>
+  <Param id="1991779248" val="1"/>
+  <Param id="1311285963" val="restored text"/>
+</Preset>

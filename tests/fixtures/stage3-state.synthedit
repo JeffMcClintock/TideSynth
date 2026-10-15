@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="94852515" SelectedViewType="256" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0">
+    <master_container type="Container" handle="94852515" name="Main" PanelLocationZoom="1" StructLocationZoom="1" skin="default3">
+        <plugs>
+            <plug idx="7"/>
+        </plugs>
+        <structRect l="0" r="0" t="0" b="0"/>
+        <PatchManager>
+            <ProgramNames/>
+            <Parameters>
+                <param type="6" handle="70768971" shortName="Oscillator (naive) Pitch" module="34702161" moduleParamId="0" private="true">
+                    <patch-list>
+                        <s>7</s>
+                        <s repeat="127">5</s>
+                    </patch-list>
+                </param>
+                <param type="1" handle="1311285963" shortName="patchValue" module="185720371" moduleParamId="0">
+                    <patch-list>
+                        <s>hello stage0</s>
+                        <s repeat="127"></s>
+                    </patch-list>
+                </param>
+                <param type="0" handle="1991779248" shortName="Oscillator (naive) Waveform" module="1590000411" moduleParamId="0" MetaData="Sine,Saw,Pulse,Tri">
+                    <patch-list>
+                        <s>2</s>
+                        <s repeat="127">1</s>
+                    </patch-list>
+                </param>
+                <param type="8" handle="2064520790" stateful="false" module="4224648" moduleParamId="0"/>
+            </Parameters>
+        </PatchManager>
+        <modules>
+            <module type="Container" handle="407755986" PanelLocationZoom="1" StructLocationZoom="1" skin="default3">
+                <plugs>
+                    <plug default="1" idx="5"/>
+                    <plug name="MIDI In" datatype="2" idx="7"/>
+                    <plug name="Audio Out" direction="1"/>
+                    <plug/>
+                </plugs>
+                <structRect l="3834" r="3834" t="3834" b="3834"/>
+                <modules>
+                    <module type="SE Patch Automator" handle="174695687">
+                        <structRect l="4254" r="4254" t="4236" b="4236"/>
+                    </module>
+                    <module type="MIDI Filter" handle="356931408">
+                        <structRect l="3954" r="3954" t="4236" b="4236"/>
+                    </module>
+                    <module type="Text Entry" handle="185720371">
+                        <plugs>
+                            <plug parameterId="-1" idx="9"/>
+                            <plug parameterId="-1"/>
+                        </plugs>
+                        <structRect l="3654" r="3654" t="4116" b="4116"/>
+                        <panelRect l="3742" r="3842" t="3742" b="3772"/>
+                    </module>
+                    <module type="List Entry" handle="1590000411">
+                        <plugs>
+                            <plug parameterId="-1" idx="10"/>
+                            <plug parameterId="-1"/>
+                        </plugs>
+                        <structRect l="3654" r="3654" t="3996" b="3996"/>
+                        <panelRect l="3742" r="3842" t="3792" b="3830"/>
+                    </module>
+                    <module type="Slider" handle="34702161">
+                        <plugs>
+                            <plug parameterId="-1" idx="13"/>
+                            <plug parameterId="-1"/>
+                        </plugs>
+                        <structRect l="3654" r="3654" t="3876" b="3876"/>
+                        <panelRect l="0" r="0" t="0" b="0"/>
+                    </module>
+                    <module type="SE Oscillator (naive)" handle="190616161">
+                        <structRect l="3654" r="3654" t="3672" b="3672"/>
+                        <panelRect l="0" r="0" t="0" b="0"/>
+                    </module>
+                    <module type="IO Mod" handle="306011854">
+                        <plugs>
+                            <plug name="Audio Out" tiedtomod="407755986" tiedtopin="8"/>
+                            <plug/>
+                        </plugs>
+                        <structRect l="4484" r="4484" t="3984" b="3984"/>
+                    </module>
+                    <module type="IO Mod" handle="1101575451">
+                        <plugs>
+                            <plug name="MIDI In" direction="1" datatype="2" tiedtomod="407755986" tiedtopin="7"/>
+                            <plug/>
+                        </plugs>
+                        <structRect l="3484" r="3484" t="3984" b="3984"/>
+                    </module>
+                </modules>
+                <lines>
+                    <line type="Line" handle="258587584" lineType="1" fMod="34702161" tMod="190616161" fPlg="6"/>
+                    <line type="Line" handle="1106310900" lineType="1" fMod="1590000411" tMod="190616161" fPlg="6" tPlg="2"/>
+                    <line type="Line" handle="732585325" lineType="1" fMod="356931408" tMod="174695687" fPlg="1" tPlg="1"/>
+                    <line type="Line" handle="1635057536" lineType="1" fMod="1101575451" tMod="356931408"/>
+                    <line type="Line" handle="1543325712" lineType="1" fMod="190616161" tMod="306011854" fPlg="5"/>
+                </lines>
+                <PanelLocationCenter x="3984" y="3984"/>
+                <StructLocationCenter x="3984" y="3984"/>
+                <PanelWndPosition l="0" r="0" t="0" b="0"/>
+                <PanelLocation l="0" r="500" t="0" b="500"/>
+                <StructLocation l="0" r="500" t="0" b="500"/>
+                <PanelScroll x="3734" y="3734"/>
+                <StructScroll x="3734" y="3734"/>
+                <PanelWndOffset cx="-99999" cy="-99999"/>
+                <panel_rect l="3732" r="4212" t="3732" b="4212"/>
+            </module>
+            <module type="MIDI In" handle="4224648">
+                <structRect l="3972" r="3972" t="3984" b="3984"/>
+                <panelRect l="0" r="0" t="0" b="0"/>
+            </module>
+            <module type="Sound Out" handle="1412763883">
+                <plugs>
+                    <plug name="Audio Out"/>
+                    <plug/>
+                </plugs>
+                <structRect l="696" r="696" t="96" b="96"/>
+            </module>
+        </modules>
+        <lines>
+            <line type="Line" handle="885964837" lineType="1" fMod="4224648" tMod="407755986" fPlg="1" tPlg="7"/>
+            <line type="Line" handle="2029632505" lineType="1" fMod="407755986" tMod="1412763883" fPlg="8"/>
+        </lines>
+        <PanelLocationCenter x="3984" y="3984"/>
+        <StructLocationCenter x="3984" y="3984"/>
+        <PanelWndPosition l="0" r="0" t="0" b="0"/>
+        <PanelLocation l="0" r="500" t="0" b="500"/>
+        <StructLocation l="0" r="500" t="0" b="500"/>
+        <PanelScroll x="3734" y="3734"/>
+        <StructScroll x="3734" y="3734"/>
+        <PanelWndOffset cx="-99999" cy="-99999"/>
+        <panel_rect l="3732" r="4212" t="3732" b="4212"/>
+    </master_container>
+    <PluginList>
+        <Plugin id="Container" class="1" name="Container" flags="384" category="">
+            <Audio>
+                <Pin name="Spare" datatype="float" rate="audio" autoRename="true" autoDuplicate="true" isContainerIoPlug="true"/>
+                <Pin name="Polyphony" datatype="enum" default="6" private="true" isMinimised="true" metadata="range 1,128"/>
+                <Pin name="MIDI Automation" datatype="bool" private="true" isMinimised="true"/>
+                <Pin name="Show Controls" datatype="enum" private="true" isMinimised="true" metadata="Off,On Panel,On Module"/>
+            </Audio>
+            <GUI>
+                <Pin name="Controls on Parent" datatype="bool" direction="out" isMinimised="true"/>
+                <Pin name="Controls on Module" datatype="bool" noAutomation="true"/>
+                <Pin name="Visible" datatype="bool"/>
+                <Pin name="Ignore Program Change" datatype="bool" noAutomation="true"/>
+            </GUI>
+        </Plugin>
+        <Plugin id="IO Mod" class="1" name="IO Mod" flags="4356" category="">
+            <Audio>
+                <Pin name="Spare" datatype="float" rate="audio" autoRename="true" autoDuplicate="true" isContainerIoPlug="true"/>
+            </Audio>
+        </Plugin>
+        <Plugin id="List Entry" class="1" name="List Entry" flags="4480" category="Controls">
+            <Parameters>
+                <Parameter id="0" datatype="enum" name="patchValue"/>
+            </Parameters>
+            <Audio>
+                <Pin name="Channel" datatype="enum" default="-1" private="true" ignorePatchChange="true"/>
+                <Pin name="MIDI In" datatype="midi" private="true"/>
+                <Pin name="MIDI Out" datatype="midi" direction="out" private="true"/>
+                <Pin name="MIDI Controller ID" datatype="enum" default="-1" private="true"/>
+                <Pin name="Ignore Program Change" datatype="bool" private="true"/>
+                <Pin name="MIDI NRPN" datatype="enum" private="true" metadata="range 0,16255"/>
+                <Pin name="Choice" datatype="enum" direction="out" autoConfigureParameter="true"/>
+                <Pin name="Appearance" datatype="enum" isMinimised="true" metadata="Combo Box=0, LED Stack, Labeled LED Stack, Selector, Button Stack, Rotary Switch, Rotary (No Text), Up/Down Select"/>
+                <Pin name="Show Title On Panel" datatype="bool" default="1" isMinimised="true"/>
+                <Pin name="patchValue" datatype="enum" private="true" parameterId="0"/>
+            </Audio>
+            <GUI>
+                <Pin id="10" name="patchValue" datatype="enum" direction="out" private="true" parameterId="0"/>
+                <Pin name="Hint" datatype="string" direction="out" isMinimised="true"/>
+            </GUI>
+        </Plugin>
+        <Plugin id="MIDI Filter" class="1" name="MIDI Filter" flags="4352" category="MIDI">
+            <Audio>
+                <Pin name="MIDI In" datatype="midi"/>
+                <Pin name="MIDI Out" datatype="midi" direction="out"/>
+                <Pin name="Channel Lo" datatype="enum" default="1" metadata="range 1,16"/>
+                <Pin name="Channel Hi" datatype="enum" default="16" metadata="range 1,16"/>
+                <Pin name="Note Lo" datatype="enum" metadata="range 0,127"/>
+                <Pin name="Note Hi" datatype="enum" default="127" metadata="range 0,127"/>
+                <Pin name="Velocity Lo" datatype="enum" metadata="range 0,127"/>
+                <Pin name="Velocity Hi" datatype="enum" default="127" metadata="range 0,127"/>
+                <Pin name="Program Change" datatype="enum" default="1" metadata="Off,On"/>
+                <Pin name="MIDI Excluded" datatype="midi" direction="out"/>
+            </Audio>
+        </Plugin>
+        <Plugin id="MIDI In" class="2" name="MIDI In" flags="384" category="MIDI">
+            <Parameters>
+                <Parameter id="0" datatype="int" name="" persistant="false"/>
+            </Parameters>
+            <Audio>
+                <Pin name="MIDI Data" datatype="midi" direction="out"/>
+                <Pin name="Activity" datatype="int" direction="out" private="true" parameterId="0"/>
+                <Pin name="MPE Mode" datatype="bool"/>
+            </Audio>
+            <GUI graphicsApi="GmpiGui">
+                <Pin name="Activity" datatype="int" private="true" parameterId="0"/>
+            </GUI>
+        </Plugin>
+        <Plugin id="SE Oscillator (naive)" name="Oscillator (naive)" flags="256" category="Waveform">
+            <Audio>
+                <Pin name="Pitch" datatype="float" rate="audio" default="0.5" metadata="100, 0, 10, 0"/>
+                <Pin name="Pulse Width" datatype="float" rate="audio" default="0.5"/>
+                <Pin name="Waveform" datatype="enum" default="1" metadata="Sine,Saw,Pulse,Tri"/>
+                <Pin name="Sync" datatype="float" rate="audio" metadata="100, 0, 5, -5"/>
+                <Pin name="Phase Mod" datatype="float" rate="audio" metadata="100, 0, 10, 0"/>
+                <Pin name="Audio Out" datatype="float" rate="audio" direction="out"/>
+            </Audio>
+        </Plugin>
+        <Plugin id="SE Patch Automator" class="1" name="Patch Automator" flags="320" category="MIDI">
+            <Audio>
+                <Pin name="Channel" datatype="enum" private="true" ignorePatchChange="true" metadata="All=-1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16"/>
+                <Pin name="MIDI In" datatype="midi"/>
+                <Pin name="MIDI Out" datatype="midi" direction="out"/>
+                <Pin name="Hidden Output" datatype="midi" direction="out" private="true"/>
+                <Pin name="Send All On Patch Change" datatype="bool" private="true" isMinimised="true"/>
+            </Audio>
+        </Plugin>
+        <Plugin id="Slider" class="1" name="Slider" flags="4480" category="Old">
+            <Parameters>
+                <Parameter id="0" datatype="float" name="patchValue"/>
+            </Parameters>
+            <Audio>
+                <Pin name="Channel" datatype="enum" default="-1" private="true" ignorePatchChange="true"/>
+                <Pin name="MIDI In" datatype="midi" private="true"/>
+                <Pin name="MIDI Out" datatype="midi" direction="out" private="true"/>
+                <Pin name="MIDI Controller ID" datatype="enum" default="-1" private="true"/>
+                <Pin name="Ignore Program Change" datatype="bool" private="true"/>
+                <Pin name="MIDI NRPN" datatype="enum" private="true" metadata="range 0,16255"/>
+                <Pin name="Signal Out" datatype="float" rate="audio" direction="out" autoConfigureParameter="true"/>
+                <Pin name="Lo Value" datatype="float" private="true"/>
+                <Pin name="Hi Value" datatype="float" default="10" private="true"/>
+                <Pin name="Appearance" datatype="enum" default="1" isMinimised="true" metadata="None=-1,Plain Slider, Vert Slider, Horiz Slider, Knob, Button, Button (toggle),Plain Button, Small Knob, Small Button, Small Button (Toggle)"/>
+                <Pin name="Show Readout" datatype="bool" default="1" isMinimised="true"/>
+                <Pin name="Show Title On Panel" datatype="bool" default="1" isMinimised="true"/>
+                <Pin name="patchValue" datatype="float" private="true" parameterId="0"/>
+            </Audio>
+            <GUI>
+                <Pin id="13" name="patchValue" datatype="float" direction="out" private="true" parameterId="0"/>
+                <Pin name="Hint" datatype="string" direction="out" isMinimised="true"/>
+            </GUI>
+        </Plugin>
+        <Plugin id="Sound Out" class="1" name="Sound Out" flags="4352" category="Input-Output">
+            <Audio>
+                <Pin name="Out" datatype="float" rate="audio" autoRename="true" linearInput="true" autoDuplicate="true"/>
+            </Audio>
+        </Plugin>
+        <Plugin id="Text Entry" class="1" name="Text Entry" flags="4480" category="Controls">
+            <Parameters>
+                <Parameter id="0" datatype="string" name="patchValue"/>
+            </Parameters>
+            <Audio>
+                <Pin name="Channel" datatype="enum" default="-1" private="true" ignorePatchChange="true"/>
+                <Pin name="MIDI In" datatype="midi" private="true"/>
+                <Pin name="MIDI Out" datatype="midi" direction="out" private="true"/>
+                <Pin name="MIDI Controller ID" datatype="enum" default="-1" private="true"/>
+                <Pin name="Ignore Program Change" datatype="bool" private="true"/>
+                <Pin name="MIDI NRPN" datatype="enum" private="true" metadata="range 0,16255"/>
+                <Pin name="Text Out" datatype="string" direction="out" autoConfigureParameter="true"/>
+                <Pin name="Show Title On Panel" datatype="bool" default="1" isMinimised="true"/>
+                <Pin name="patchValue" datatype="string" default="0" private="true" parameterId="0"/>
+            </Audio>
+            <GUI>
+                <Pin id="9" name="patchValue" datatype="string" direction="out" private="true" parameterId="0"/>
+                <Pin name="Hint" datatype="string" direction="out" isMinimised="true"/>
+            </GUI>
+        </Plugin>
+    </PluginList>
+    <PrefabList>
+        <Prefab id="*P=Controls\Bar Meter.syntheditprefab" name="Bar Meter" category="Controls" file="Controls\Bar Meter.syntheditprefab"/>
+        <Prefab id="*P=Controls\Bender.seprefab" name="Bender" category="Controls" file="Controls\Bender.seprefab"/>
+        <Prefab id="*P=Controls\Bender.syntheditprefab" name="Bender" category="Controls" file="Controls\Bender.syntheditprefab"/>
+        <Prefab id="*P=Controls\Button Small2.syntheditprefab" name="Button Small2" category="Controls" file="Controls\Button Small2.syntheditprefab"/>
+        <Prefab id="*P=Controls\Button2.syntheditprefab" name="Button2" category="Controls" file="Controls\Button2.syntheditprefab"/>
+        <Prefab id="*P=Controls\Detuner.syntheditprefab" name="Detuner" category="Controls" file="Controls\Detuner.syntheditprefab"/>
+        <Prefab id="*P=Controls\HSlider2.syntheditprefab" name="HSlider2" category="Controls" file="Controls\HSlider2.syntheditprefab"/>
+        <Prefab id="*P=Controls\Joystick.syntheditprefab" name="Joystick" category="Controls" file="Controls\Joystick.syntheditprefab"/>
+        <Prefab id="*P=Controls\Knob.syntheditprefab" name="Knob" category="Controls" file="Controls\Knob.syntheditprefab"/>
+        <Prefab id="*P=Controls\Knob2.syntheditprefab" name="Knob2" category="Controls" file="Controls\Knob2.syntheditprefab"/>
+        <Prefab id="*P=Controls\Knob_Sm.syntheditprefab" name="Knob_Sm" category="Controls" file="Controls\Knob_Sm.syntheditprefab"/>
+        <Prefab id="*P=Controls\LED (blue).syntheditprefab" name="LED (blue)" category="Controls" file="Controls\LED (blue).syntheditprefab"/>
+        <Prefab id="*P=Controls\LED (green).syntheditprefab" name="LED (green)" category="Controls" file="Controls\LED (green).syntheditprefab"/>
+        <Prefab id="*P=Controls\LED (red).syntheditprefab" name="LED (red)" category="Controls" file="Controls\LED (red).syntheditprefab"/>
+        <Prefab id="*P=Controls\LED2.syntheditprefab" name="LED2" category="Controls" file="Controls\LED2.syntheditprefab"/>
+        <Prefab id="*P=Controls\Mod Wheel.syntheditprefab" name="Mod Wheel" category="Controls" file="Controls\Mod Wheel.syntheditprefab"/>
+        <Prefab id="*P=Controls\Peak Meter2.syntheditprefab" name="Peak Meter2" category="Controls" file="Controls\Peak Meter2.syntheditprefab"/>
+        <Prefab id="*P=Controls\Pitch Bender.syntheditprefab.synthedit" name="Pitch Bender.syntheditprefab" category="Controls" file="Controls\Pitch Bender.syntheditprefab.synthedit"/>
+        <Prefab id="*P=Controls\Slider2.syntheditprefab" name="Slider2" category="Controls" file="Controls\Slider2.syntheditprefab"/>
+        <Prefab id="*P=Controls\Switch.syntheditprefab" name="Switch" category="Controls" file="Controls\Switch.syntheditprefab"/>
+        <Prefab id="*P=Controls\VU_meter.syntheditprefab" name="VU_meter" category="Controls" file="Controls\VU_meter.syntheditprefab"/>
+        <Prefab id="*P=Effects\Echo.syntheditprefab.synthedit" name="Echo.syntheditprefab" category="Effects" file="Effects\Echo.syntheditprefab.synthedit"/>
+        <Prefab id="*P=Effects\Flanger.syntheditprefab.synthedit" name="Flanger.syntheditprefab" category="Effects" file="Effects\Flanger.syntheditprefab.synthedit"/>
+        <Prefab id="*P=Examples\Delayed LFO.syntheditprefab" name="Delayed LFO" category="Examples" file="Examples\Delayed LFO.syntheditprefab"/>
+        <Prefab id="*P=Examples\GammaTest.syntheditprefab" name="GammaTest" category="Examples" file="Examples\GammaTest.syntheditprefab"/>
+        <Prefab id="*P=Examples\Open Web Page.syntheditprefab" name="Open Web Page" category="Examples" file="Examples\Open Web Page.syntheditprefab"/>
+        <Prefab id="*P=Examples\Paged Panels2.syntheditprefab" name="Paged Panels2" category="Examples" file="Examples\Paged Panels2.syntheditprefab"/>
+        <Prefab id="*P=Examples\Radio Button.syntheditprefab" name="Radio Button" category="Examples" file="Examples\Radio Button.syntheditprefab"/>
+        <Prefab id="*P=Examples\Sample Oscillator2.syntheditprefab" name="Sample Oscillator2" category="Examples" file="Examples\Sample Oscillator2.syntheditprefab"/>
+        <Prefab id="*P=Examples\Step Sequencing.syntheditprefab" name="Step Sequencing" category="Examples" file="Examples\Step Sequencing.syntheditprefab"/>
+        <Prefab id="*P=Examples\Tempo_sync_LFO.syntheditprefab" name="Tempo_sync_LFO" category="Examples" file="Examples\Tempo_sync_LFO.syntheditprefab"/>
+        <Prefab id="*P=Synths\Fm_synth.syntheditprefab" name="Fm_synth" category="Synths" file="Synths\Fm_synth.syntheditprefab"/>
+        <Prefab id="*P=Synths\Minimal.syntheditprefab" name="Minimal" category="Synths" file="Synths\Minimal.syntheditprefab"/>
+        <Prefab id="*P=Synths\PD303.syntheditprefab" name="PD303" category="Synths" file="Synths\PD303.syntheditprefab"/>
+        <Prefab id="*P=Synths\Poly Synth.synthedit" name="Poly Synth" category="Synths" file="Synths\Poly Synth.synthedit"/>
+        <Prefab id="*P=Synths\Poly Synth.syntheditprefab" name="Poly Synth" category="Synths" file="Synths\Poly Synth.syntheditprefab"/>
+        <Prefab id="*P=Synths\Sample-based Instrument.syntheditprefab" name="Sample-based Instrument" category="Synths" file="Synths\Sample-based Instrument.syntheditprefab"/>
+    </PrefabList>
+</Document>

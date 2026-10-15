@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<Preset pluginId="00000000" name="stage3 se">
+  <Param id="70768971" val="7" MIDI="33554439"/>
+  <Param id="1991779248" val="0"/>
+  <Param id="1311285963" val="learned"/>
+</Preset>

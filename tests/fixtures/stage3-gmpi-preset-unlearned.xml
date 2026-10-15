@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<Preset pluginId="00000000" name="stage3-gmpi-preset-unlearned.xml">
+  <Param id="0" val="0"/>
+  <Param id="1" val="PD94bWwgdmVyc2lvbj0iMS4wIj8+PFByZXNldCBwbHVnaW5JZD0iMDAwMDAwMDAiIG5hbWU9InN0YWdlMyBlbmdpbmUgdW5sZWFybmVkIj48UGFyYW0gaWQ9IjcwNzY4OTcxIiB2YWw9IjciLz48UGFyYW0gaWQ9IjEzMTEyODU5NjMiIHZhbD0idW5sZWFybmVkIi8+PC9QcmVzZXQ+"/>
+</Preset>
