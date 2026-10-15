@@ -472,18 +472,43 @@ layout rect, the first renders and a test load of the background image.
 | drag on the slider rect (252,238 -> 252,280) | no `panel -> host` trace, pitch stays 7, 1757.8 Hz |
 | drag on the background (control) | likewise unchanged |
 
-So the pointer, build and resource paths are proven, and two things fail
-together: the panel paints nothing and its slider does not hit-test, although
-both have correct layout rects. One mechanism explains both: the view's
-pan/zoom transform (`ViewBase::calcViewTransform`, which `SeGmpiEditor`
-centres with `setCenter`) placing the content off the 480x480 surface for
-drawing and for hit-testing alike. Not yet confirmed; the next step is a trace
-of `viewTransform` at render, or a render into a known-size bitmap. The probe
-arms are in `GMPI_Wrappers/tests/se_gmpi_state_probe.cpp` (`--editor`,
-`--drag`, `--screenshot`, `--block-ms`), and the run is
-`stage6-run.sh`-shaped: `Xvfb :99`, `DISPLAY=:99`, `SE_GMPI_TRACE=1`.
-Panel knob -> DAW (performEdit) and panel knob -> engine therefore remain
-unverified.
+The cause, found by reading the render target back after the children drew
+(0 non-black pixels, with an identity view transform, a full clip and a
+160x160 background image that loads): the panel's GUI modules were not in the
+Linux bundle. The Windows export ships them in `Contents/PlugIns`
+(`Controls.gmpi` holds SE Background Image and SE Slider; `ControlsXp.sem`,
+`Converters.sem`), and the Linux bundle carried only `OscillatorNaive.sem`. A
+module view whose module has metadata but no code builds with the right
+layout rect, draws nothing and ignores the pointer, and nothing reports it
+(`ModuleView::Build` logs only in a debug editor build). With the three Linux
+module targets (`modules/Controls.gmpi`, `modules/libControlsXp.sem`,
+`modules/libConverters.sem`) added in the `<Mod>/Contents/x86_64-linux/`
+layout the panel paints: 230155 of 230400 pixels non-black, 250 colours. The
+fixtures' default layout then put the List Entry and Text Entry over the
+slider's track, so both fixtures now place them top-left (`panelRect` on the
+two modules; re-exported).
+
+**Panel knob -> engine and -> DAW, measured (2026-10-15).** XTest drag on the
+slider at x=252, Xvfb, `SE_GMPI_TRACE=1`, 128 blocks, drag on block 16:
+
+| bundle, arm | path traced | audio | saved |
+|---|---|---|---|
+| Container3 (pitch private), no drag | - | 1760.7 Hz | blob 7 |
+| Container3, drag 238->270 | 8 x `controller -> SE/DspMessages 16 bytes` | **580.1 Hz** | **blob 5.4** |
+| Container3, drag 245->270 / 252->275 | same | 741.2 / 791.0 Hz | 5.75 / 5.85 |
+| Container3, drag on background (control) | nothing | 1760.7 Hz | 7 |
+| Container0 (pitch = DAW param 0), no drag | - | 79.1 Hz | id 0 = 0.25 |
+| Container0, drag 238->270 | 8 x `panel -> host setParameter(tag 0)`, 8 performEdit, 8 values handed back to the processor | **26.4 Hz** | **id 0 = 0.09** |
+| Container0, drag 252->275 | same | 35.2 Hz | id 0 = 0.135 |
+| Container0, drag on background (control) | nothing | 79.1 Hz | 0.25 |
+
+So every path the Stage 3 design names is now measured end to end on the
+Linux VST3 wrapper: DAW -> controller -> panel, engine -> controller -> save,
+panel -> controller -> engine (private parameter, via SE/DspMessages) and
+panel -> host -> DAW -> processor -> engine (DAW parameter, via performEdit),
+each with a negative control. The probe arms are `--editor`, `--drag`,
+`--screenshot`, `--block-ms`; `MEASURED editor pixels` and
+`MEASURED performEdit ids` are the new lines.
 
 ### Stage 4: one reader, one merge, one conversion
 

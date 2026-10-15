@@ -47,7 +47,7 @@
                             <plug parameterId="-1"/>
                         </plugs>
                         <structRect l="3954" r="3954" t="4176" b="4176"/>
-                        <panelRect l="0" r="0" t="0" b="0"/>
+                        <panelRect l="3742" r="3842" t="3742" b="3772"/>
                     </module>
                     <module type="List Entry" handle="1590000411">
                         <plugs>
@@ -55,7 +55,7 @@
                             <plug parameterId="-1"/>
                         </plugs>
                         <structRect l="3954" r="3954" t="4056" b="4056"/>
-                        <panelRect l="0" r="0" t="0" b="0"/>
+                        <panelRect l="3742" r="3842" t="3792" b="3830"/>
                     </module>
                     <module type="Slider" handle="34702161">
                         <plugs>
