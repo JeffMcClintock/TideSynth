@@ -510,6 +510,23 @@ each with a negative control. The probe arms are `--editor`, `--drag`,
 `--screenshot`, `--block-ms`; `MEASURED editor pixels` and
 `MEASURED performEdit ids` are the new lines.
 
+**The same on CLAP (2026-10-15).** `se_gmpi_clap_state_probe` gained the
+same `--editor` / `--drag` / `--screenshot` arms: the probe is the host's
+clap.timer-support and clap.posix-fd-support, and a `CLAP_EVENT_PARAM_VALUE`
+the plug-in reports on `out_events` comes back on the next block's
+`in_events`, as a DAW does. First run: `editor size 1x1`, a 1x1 render target
+with the view centred at (-240,-240). `Editor_CLAP::getSize` clamps a 100x100
+default between the editor's minimum and maximum `measure()`, and
+`ViewBase::measure` never writes a desired size, so both were 0 (the VST3
+wrapper never asks; it reads `gui.se.json` itself). Fix in the plug-in, where
+the knowledge belongs: `SeGmpiEditor::measure` answers the panel's declared
+size, for any wrapper. Then, arm for arm, the CLAP numbers equal the VST3
+ones: open 230155 / 230400 pixels, 250 colours; private-pitch drag 580.1 Hz
+and blob 5.4 via 8 SE/DspMessages frames; DAW-pitch drag 8
+`CLAP_EVENT_PARAM_VALUE` out events handed back, 26.4 Hz, saved 0.09; both
+background-drag controls unchanged. Steinberg validator on the VST3 bundle
+after all of today's changes: 47 passed, 0 failed.
+
 ### Stage 4: one reader, one merge, one conversion
 
 - Fold `gmpi_processor::readPreset` and
