@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **515 KB** across **398** entries, so copying them
+Learned sections are **517 KB** across **399** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **167 KB / 1708 lessons — 3.1x smaller**, and represents
+A8. This is **168 KB / 1713 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,16 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-16
+
+**linux — E92: its Accept is MET on SE16 `origin/master` — Jeff's own commit answered the ruling the row was parked on, and four configures here measure it (scheduled run)**
+
+- Before filing the `PROPOSED:` entry a NEXT cell asks for, re-read the GATED file at `origin`.
+- A ruling can arrive as a commit in the GATED repo rather than as a merged `PROPOSED:` entry, and a run has to look there to see it.
+- A configure-time Accept is cheap to measure and worth its control.
+- "Linux-only in fact" has a shelf life of one platform-guard edit.
+- The box lock's first live acquire resolved the agent process by ancestor walk
 
 ## 2026-10-14
 
@@ -72,18 +82,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A42's branch sweep is not theoretical.
 - A STEP 4 debt for work a run has no memory of is discharged by pointing at the PR, not by writing the entry.
 - Read a row's platform guards on YOUR platform even when another box already read them on theirs.
-
-**linux — E89: a box-scoped run lock, whose first version let #583 straight through at the exact 5.6 s gap (scheduled run)**
-
-- A fix whose own probe is green can still be the defect.
-- `ps` cannot identify a scheduled run on this box.
-- Ask when a late detector could first have seen anything.
-- `O_EXCL` over `flock` when the lock's value must be read by a different process.
-- A barrier file is what makes a race harness race.
-- Pin the broken configuration as its own arm.
-- An escalation can outlive the row that raised it, and no check looks.
-- `grep -oE` with a wide fixed-width prefix over `BACKLOG.md` backtracks catastrophically.
-- `os.kill(pid, 0)` has no Windows equivalent worth shipping unverified
 
 ## 2026-10-01
 
@@ -233,6 +231,20 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 **macos — no item: STEP 1 and 1.5 empty, and since `07b0172` only the 10-10 `mac` cell moved, so the walk stands (scheduled run)**
 
 - nothing that an earlier entry does not already say
+
+## 2026-10-13
+
+**linux — E89: a box-scoped run lock, whose first version let #583 straight through at the exact 5.6 s gap (scheduled run)**
+
+- A fix whose own probe is green can still be the defect.
+- `ps` cannot identify a scheduled run on this box.
+- Ask when a late detector could first have seen anything.
+- `O_EXCL` over `flock` when the lock's value must be read by a different process.
+- A barrier file is what makes a race harness race.
+- Pin the broken configuration as its own arm.
+- An escalation can outlive the row that raised it, and no check looks.
+- `grep -oE` with a wide fixed-width prefix over `BACKLOG.md` backtracks catastrophically.
+- `os.kill(pid, 0)` has no Windows equivalent worth shipping unverified
 
 ## 2026-09-08
 
