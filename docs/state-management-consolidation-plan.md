@@ -453,6 +453,38 @@ restored stateful parameters to the processor queue and the editors; and a
 Mac-only, so uncompiled here: it is a line-by-line mirror of the CLAP code
 that is compiled and measured.
 
+**The panel path, measured headlessly (2026-10-15, later).** The VST3 probe
+gained `--editor` (it hosts the editor in an X11 window on an Xvfb, as the
+editor's `IPlugFrame` and Linux `IRunLoop`, pumping it between blocks),
+`--drag x0 y0 x1 y1` (XTest pointer input), and a pixel instrument that reads
+the screen under the editor back from the X server. `SE_GMPI_TRACE` lines in
+`SeGmpiEditor` report the pointer's arrival, the panel build, each child's
+layout rect, the first renders and a test load of the background image.
+
+| what | measured |
+|---|---|
+| controller pointer reaches the editor | 8 bytes on SE/ControllerPtr |
+| panel built against the live controller | 6 children, host = the plug-in controller |
+| layout | background 0,0-480,480; slider 227,217-277,287 (as gui.se.json) |
+| skin image | resolves under Contents/Resources, loads 160x160 |
+| render | called once, rc 0 |
+| **pixels on screen under the editor** | **0 of 230400 non-black, 1 colour** |
+| drag on the slider rect (252,238 -> 252,280) | no `panel -> host` trace, pitch stays 7, 1757.8 Hz |
+| drag on the background (control) | likewise unchanged |
+
+So the pointer, build and resource paths are proven, and two things fail
+together: the panel paints nothing and its slider does not hit-test, although
+both have correct layout rects. One mechanism explains both: the view's
+pan/zoom transform (`ViewBase::calcViewTransform`, which `SeGmpiEditor`
+centres with `setCenter`) placing the content off the 480x480 surface for
+drawing and for hit-testing alike. Not yet confirmed; the next step is a trace
+of `viewTransform` at render, or a render into a known-size bitmap. The probe
+arms are in `GMPI_Wrappers/tests/se_gmpi_state_probe.cpp` (`--editor`,
+`--drag`, `--screenshot`, `--block-ms`), and the run is
+`stage6-run.sh`-shaped: `Xvfb :99`, `DISPLAY=:99`, `SE_GMPI_TRACE=1`.
+Panel knob -> DAW (performEdit) and panel knob -> engine therefore remain
+unverified.
+
 ### Stage 4: one reader, one merge, one conversion
 
 - Fold `gmpi_processor::readPreset` and
