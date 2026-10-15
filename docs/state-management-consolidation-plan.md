@@ -419,6 +419,31 @@ are the ones the design names, but they have not been exercised.
 - Touches: `GMPI/Hosting`, `SynthEditLib/modules/se_sdk3_hosting`
   (additive).
 
+**Stage 4 result, 2026-10-15: the reader is done; the merge and the
+conversion are deferred, deliberately.**
+
+- `readPresetXml(parameters, xml)` in `GMPI/Hosting/controller_holder.cpp`
+  is now the one reader beside the one writer, `writePresetXml`.
+  `gmpi_controller_holder::setPresetXmlFromDaw` and
+  `gmpi_processor::readPreset` both call it; the two loops they used to carry
+  (one had learned to dispatch on datatype, the other had not, and a blob once
+  aborted the host through `std::stod`) are gone. 307 lines removed, 49 added.
+- Measured: both templates rebuilt, all five arms (VST3 default / restore /
+  no-controller, CLAP default / restore) re-run; every saved chunk is
+  byte-identical to its Stage 3 counterpart (`cmp`); validator 47 passed, 0
+  failed. Negative control: restoring a document with no `<Preset>` element
+  is accepted by both halves and leaves the saved chunk byte-identical to the
+  default save, which is the "false, nothing changed" contract.
+- Deferred, not forgotten: the MIDI-learn-keep and ignore-program-change
+  rules exist in four places, three of them in production files
+  (`ProcessorStateMgrVst3::replacePresetMutable`, `DspPatchManager::setPreset`,
+  `DspPatchManager::setPresetState`). Moving only `MpController::setPreset`'s
+  copy onto a `DawPreset::merge` would relocate one of four, not consolidate
+  them, so it waits for the production freeze to lift. The same holds for the
+  unreferenced `normalizedToRaw()` in `ProcessorStateManager.cpp` and for
+  unifying the three normalised-to-real arithmetics, two of which are in
+  `MpParameter_base`, shared with `se_vst3`.
+
 ### Stage 5: decide voices
 
 - Choose: `DawPreset` carries per-voice values (and `toString` writes a
@@ -427,6 +452,18 @@ are the ones the design names, but they have not been exercised.
   saved by any wrapper.
 - Measurement: a polyphonic fixture parameter round-trips (or is documented
   not to).
+
+**Stage 5 status, 2026-10-15: a decision for Jeff, not yet taken.** Both
+options touch `DawPreset` in `ProcessorStateManager.cpp`, a production file,
+so nothing was changed. Facts to decide with: `DawPreset::toString` writes
+voice 0 only and `initFromXML` asserts one value per parameter, so the
+se_vst3 chunk, the GMPI engine-preset blob (same writer) and the undo
+history all carry monophonic state today; `DspPatchManager::getPresetState`
+writes per-voice `patch-list` elements and `setPresetState` reads them, but
+no wrapper calls that writer for a save any more. Recommendation: document
+"polyphonic parameter values are not saved by any plug-in format" in the
+survey unless a shipping project depends on it, which the probe can establish
+with a polyphonic fixture when one is named.
 
 ## What this removes, in the GMPI world
 
