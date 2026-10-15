@@ -436,9 +436,22 @@ Two findings on the way, both recorded in code:
 
 Also done: `StandaloneHost.cpp` and `AU3_Wrapper.mm` now set the holder's
 `pluginController` (the Standalone compiled on Linux; AU3 is mac-only and
-unverified here). AU2 instantiates no `<Controller/>` and never calls
-`syncState`, so an SE export on AU2 still saves only its DAW parameters; that
-is a separate piece of work.
+unverified here).
+
+AU2 (`AU2_Wrapper.cpp`) was the one wrapper with no `<Controller/>` at all,
+and it also had no controller-to-processor transport for a blob and a
+`RestoreState` that wrote only the controller's store. It now mirrors CLAP
+and AU3: the constructor creates, initialises and holds the plug-in
+controller and sets the holder's `pluginController`; a
+`sendNonNativeParameterToProcessor` lambda frames blobs into the ui->dsp
+queue (`sendParameterToProcessorQueue`, drained at the top of `Render`);
+`ParameterListener` calls `notifyPluginController` for DAW-originated values;
+`SaveState` drains `message_que_dsp_to_ui` and calls `syncState` before
+`getPreset`; `RestoreState` calls `notifyControllerOfPreset` and delivers the
+restored stateful parameters to the processor queue and the editors; and a
+`hostStateTransfer_` guard keeps a restore from marking the project modified.
+Mac-only, so uncompiled here: it is a line-by-line mirror of the CLAP code
+that is compiled and measured.
 
 ### Stage 4: one reader, one merge, one conversion
 
