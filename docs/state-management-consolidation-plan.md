@@ -397,10 +397,48 @@ the new controller under MSVC. CLAP probe:
 `GMPI_Wrappers/tests/se_gmpi_clap_state_probe.cpp`.
 
 Not measured here, because a headless probe has no panel: the editor
-receiving the pointer and building against the live `MpController`; a panel
-knob reaching the DAW and the engine; the engine's `SE/Feedback` reaching the
-panel (needs an engine-originated change such as a MIDI CC). The code paths
-are the ones the design names, but they have not been exercised.
+receiving the pointer and building against the live `MpController`, and a
+panel knob reaching the DAW and the engine. The code paths are the ones the
+design names, but they have not been exercised.
+
+**Measured later the same day: the engine → controller → save path, which
+is what the old processor shadow existed for.** Fixture
+`tests/fixtures/stage3-state.synthedit`: pitch private and MIDI-learned to CC 7
+(`MIDI="33554439"`, the engine's `(ControllerType::CC << 24) | 7`, not `7`),
+a `MIDI In` outside the container feeding a `MIDI Filter` and an
+`SE Patch Automator` inside, and the container's `MIDI Automation` plug on.
+The probe's new `--cc 7 0.5` arm delivers the CC as the VST3 parameter the
+wrapper maps MIDI onto (id 10007) on block 4 of 64.
+
+| arm | audio | pitch in saved blob |
+|---|---|---|
+| learned, no CC | 1757.8 Hz | 7 |
+| learned, CC 7 = 0.5 | **439.5 Hz** | **5** |
+| unlearned, CC 7 = 0.5 (control) | 1757.8 Hz | 7 |
+| learned, CC 7 = 0.5, `--no-controller` | 439.5 Hz | 7 (stale: the documented headless caveat) |
+
+Two findings on the way, both recorded in code:
+
+- The engine moved (439.5 Hz) but the first save still said 7. `SE_GMPI_TRACE=1`
+  (an env-gated stderr trace now in `SeGmpiProcessor` and `SeGmpiController`)
+  showed the processor shipping the feedback and the wrapper allocating the
+  messages, but the controller never receiving them: on a Linux host with no
+  editor open nothing ticks `Controller_VST3::onTimer`, so the wrapper's
+  dsp→ui queue is never polled (E74). Fix: `Controller_VST3::drainProcessorFeedback()`
+  polls that queue at save time, before `syncState`, in `mintFreshPresetXml`
+  and `getState`; `Processor_CLAP::stateSave` does the same. This is the one
+  behaviour of `ProcessorStateMgrVst3` worth keeping (its `getPreset` drained
+  its FIFO on demand), now on the controller side.
+- Two fixture lessons: an SE export gets a MIDI input only when a MIDI cable
+  crosses the container boundary (`ExportAsPlugin.cpp:791`), and MIDI learn
+  needs an `SE Patch Automator` the project places and feeds, since the one
+  the engine supplies automatically has an unconnected MIDI input.
+
+Also done: `StandaloneHost.cpp` and `AU3_Wrapper.mm` now set the holder's
+`pluginController` (the Standalone compiled on Linux; AU3 is mac-only and
+unverified here). AU2 instantiates no `<Controller/>` and never calls
+`syncState`, so an SE export on AU2 still saves only its DAW parameters; that
+is a separate piece of work.
 
 ### Stage 4: one reader, one merge, one conversion
 
