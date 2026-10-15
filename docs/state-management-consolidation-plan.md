@@ -453,17 +453,16 @@ conversion are deferred, deliberately.**
 - Measurement: a polyphonic fixture parameter round-trips (or is documented
   not to).
 
-**Stage 5 status, 2026-10-15: a decision for Jeff, not yet taken.** Both
-options touch `DawPreset` in `ProcessorStateManager.cpp`, a production file,
-so nothing was changed. Facts to decide with: `DawPreset::toString` writes
-voice 0 only and `initFromXML` asserts one value per parameter, so the
-se_vst3 chunk, the GMPI engine-preset blob (same writer) and the undo
-history all carry monophonic state today; `DspPatchManager::getPresetState`
-writes per-voice `patch-list` elements and `setPresetState` reads them, but
-no wrapper calls that writer for a save any more. Recommendation: document
-"polyphonic parameter values are not saved by any plug-in format" in the
-survey unless a shipping project depends on it, which the probe can establish
-with a polyphonic fixture when one is named.
+**Stage 5 decided, 2026-10-15 (Jeff): document it, no code change.**
+Polyphonic parameter values are not saved by any plug-in format: the se_vst3
+chunk, the GMPI engine-preset blob and the undo history each carry one value
+per parameter (voice 0), because `DawPreset::toString` writes voice 0 only and
+`initFromXML` asserts one value per parameter. Per-voice state is runtime
+state; the per-voice `patch-list` form that `DspPatchManager::getPresetState`
+writes serves the engine's own restart-and-rebuild and stays there. Recorded
+in the survey (section 2.2). `DawPreset`'s one-value assert and
+`paramValue::rawValues_`'s "voice is 0 - 127" comment now disagree on
+purpose; the assert is the truth.
 
 ## What this removes, in the GMPI world
 

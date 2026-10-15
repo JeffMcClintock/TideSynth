@@ -132,7 +132,18 @@ callers set to steer the receiver (`ignoreProgramChangeActive`, `resetUndo`,
 XML layouts. `toString()` writes voice 0 only, and a debug assert in
 `initFromXML` requires exactly one value per parameter, so a `DawPreset`
 is monophonic by construction; per-voice state only round-trips through
-`DspPatchManager::getPresetState`.
+`DspPatchManager::getPresetState`, which no wrapper calls for a save any
+more.
+
+**Decision (Jeff, 2026-10-15): polyphonic parameter values are not saved by
+any plug-in format, and this is accepted, not fixed.** The se_vst3 chunk,
+the GMPI engine-preset blob (same writer) and the undo history all carry one
+value per parameter: a polyphonic parameter's voice-0 value. A session
+restore therefore gives every voice that value, and whatever the engine then
+writes per voice (voice pitch, gate, per-voice modulation) is runtime state,
+not patch state. The per-voice `patch-list` form that
+`DspPatchManager::getPresetState` writes exists for the engine's own
+restart-and-rebuild (`SynthRuntime::getPresetsState`), where it stays.
 
 ### 2.3 Controller: `MpParameter` and `MpController`
 
