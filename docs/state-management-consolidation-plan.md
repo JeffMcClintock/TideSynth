@@ -527,6 +527,16 @@ and blob 5.4 via 8 SE/DspMessages frames; DAW-pitch drag 8
 background-drag controls unchanged. Steinberg validator on the VST3 bundle
 after all of today's changes: 47 passed, 0 failed.
 
+With the editor answering its own size, `Controller_VST3::createView` no longer
+reads `gui.se.json`: the platform editors ask through
+`measurePreferredSize()` as they always did, and the 200x200 there is only the
+fallback for an editor with no preference. That was the last thing in the VST3
+wrapper that knew what a SynthEdit bundle looks like. Measured after the
+change: editor 480x480, the three panel arms byte-for-byte the same numbers,
+validator 47 / 0. The Standalone sizes its window the same way as CLAP
+(`StandaloneHost::getEditorSize`, two `measure()` calls), so it gets the size
+for free; its panel has not been driven headlessly.
+
 ### Stage 4: one reader, one merge, one conversion
 
 - Fold `gmpi_processor::readPreset` and
