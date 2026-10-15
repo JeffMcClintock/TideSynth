@@ -95,6 +95,56 @@ Template:
 
 ---
 
+## 2026-10-16 — linux — E92: its Accept is MET on SE16 `origin/master` — Jeff's own commit answered the ruling the row was parked on, and four configures here measure it (scheduled run)
+
+**Prompt:** 1821076 · Fable 5.1, `claude-fable-5-1` · app Claude desktop **2.31226.1** (CLI `2.1.220`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E92**, the linux NEXT cell's target -- and did NOT do what that cell said to do with it. The cell said *"its first move is a `PROPOSED:` entry and not a fix"*, because the fix lived in one of two files and the two sat in different STEP 5 tiers. **Reading the GATED file on SE16 `origin/master` before writing the entry showed Jeff had already changed it**, so the ruling the row wanted was given by a landed commit and the item became *run the Accept*. It passes, in four configures on this box, with a pre-fix control that fails. **E92 is DONE and archived.** `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`938e648..c67f5c2`). **First scheduled run under the live box lock:** `run-lock.py acquire` rc=0, `owner=auto:ancestor-match`, pid 3275 -- the ancestor walk E89 built resolved the agent process on the first real try.
+
+**STEP 1:** [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) is the only open `platform:linux` issue, by the bot, and its own first line says its tier is not STEP 1's; its row **E89** is DONE and archived. `main`'s `linux` job is green on every `build.yml` run since 10-09. The **`macos` job failed three times** on `main` (`e8586e9`, `46aee55`, and the first run of `ddf2978`, 10-14/10-15) and is **green again at `c67f5c2` and on `ddf2978`'s re-run** -- not this platform's, no open `platform:mac` issue, latest run green, so nothing to file. **STEP 1.5:** zero open PRs in the fleet. **STEP 2:** E92 is `TODO`, `any`, unblocked; `git ls-remote --heads origin` returns `main` alone and `gh pr list` is empty, so nobody held it. None of the four open `PROPOSED:` entries parks it (three say *"everything"*, E72's parks only E72). DOING mark pushed first, `aecc2a0`.
+
+### The finding: the GATED half had already moved, and the row's ruling question is answered by whose commit moved it
+
+E92 named two candidate files and said *"which of the two files should change is the question, and it decides whether any of this is takeable at all"*: `SE16/se_gmpi/vst3/CMakeLists.txt` (GATED by default -- `se_gmpi/` is on neither STEP 5 list) and `SynthEditSem/CMakeLists.txt` (TideSynth's own, ALLOWED). On SE16 `origin/master`:
+
+- **`f9ad10372` (Jeff, 2026-10-15)** -- *"se_gmpi/vst3 honours GMPI_WRAPPER_FOLDER_OVERRIDE and builds a CLAP template too"*. The guard is now `if(NOT "${GMPI_WRAPPER_FOLDER_OVERRIDE}" STREQUAL "") set(GMPI_ADAPTORS ...) else() FetchContent_GetProperties(gmpi_wrappers) ... endif()`, with a comment giving E92's own mechanism and *"measured 2026-10-15, WSL"*. TideSynth's `docs/state-management-consolidation-plan.md:155` records the same fix as *"Fixed in SE16 (uncommitted)"* -- it is committed now.
+- **`c868fc19f` (Jeff, 2026-10-16)** -- the platform guard went from `if(NOT UNIX OR APPLE) return()` to **`if(APPLE) return()`**, so **Windows now configures `SynthEditTemplate_VST3` too** (VST3 only, never copied to Common Files). **E92's *"Linux-only in fact"*, measured by the mac lane on 10-08 and the windows lane on 10-13, is retired** -- only mac is excluded today.
+
+So the GATED file changed and TideSynth's `SynthEditSem/CMakeLists.txt:32-51` did not need to. That is the ruling, given the way Jeff gives most of them -- by doing it -- and a `PROPOSED:` entry filed today would have asked a question whose answer was already on `origin/master`.
+
+### Evidence: four configures, one of which must fail
+
+SE16 in a scratchpad worktree, Ninja, RelWithDebInfo, `CPM_SOURCE_CACHE=~/.cache/CPM` (warm), `GMPI_UI_FOLDER_OVERRIDE=~/SE/gmpi_ui`, everything else fetched by FetchContent exactly as `main` declares it; GMPI_Wrappers for the two local-override arms is a worktree at its `origin/main` `16c02e9`. The Accept's command, verbatim: `ninja -t targets all | grep -c SynthEditTemplate_VST3`.
+
+| arm | SE16 | wrapper variable | configure | `grep -c` | `skipped (gmpi_wrappers not populated)` |
+|---|---|---|---|---|---|
+| control | `f9d3b2d34` (`origin/master`) | neither -- FetchContent | rc=0, 26 s | **13** | no |
+| override | `f9d3b2d34` | `GMPI_WRAPPER_FOLDER_OVERRIDE` | rc=0, 23 s | **13** | no |
+| fcsrc | `f9d3b2d34` | `FETCHCONTENT_SOURCE_DIR_GMPI_WRAPPERS` | rc=0, 21 s | **13** | no |
+| **pre-fix control** | `ad236e24a` (= `f9ad10372^`) | `GMPI_WRAPPER_FOLDER_OVERRIDE` | rc=0, 19 s | **0** | **yes** -- `-- SynthEditTemplate_VST3: skipped (gmpi_wrappers not populated)` |
+
+The 13 lines are the target's object rules (SeGmpiFactory/Processor/Editor/Controller, `platform_plugin.cpp`, `ProcessorStateManager.cpp`, GMPI `Common.cpp`/`Processor.cpp`, the wrapper's VST3 sources), its link rule for `SynthEditTemplate_VST3.so`, and three phony aliases. The two local-override arms list a byte-identical template target set (`md5 07a1fa83…`); the control differs only in the wrapper path inside object names (`_deps/gmpi_wrappers-src` vs the worktree). **The pre-fix arm is what makes 13 a result:** same box, same cache, same wrapper checkout, same variable, SE16 one commit older -- 0 targets and the exact skip line the row quotes. The variable is the SE16 commit, not the environment.
+
+**Accept met:** *"non-zero in BOTH configures"* -- 13 and 13. The row is flipped `DONE 2026-10-16` and moved to `BACKLOG-DONE.md`. **DONE is awarded on Jeff's landed SE16 commits, not on any PR of mine** -- the P7d / E87 shape, *"a row that parks on a question can be closed by running its Accept"*. Nothing on this branch is code: the only edits are `BACKLOG.md`, `BACKLOG-DONE.md`, `JOURNAL.md`, `JOURNAL-2026-10.md` and the regenerated `docs/lessons.md`.
+
+**Learned:**
+
+- **Before filing the `PROPOSED:` entry a NEXT cell asks for, re-read the GATED file at `origin`.** The cell was written three days ago from a reading of the file as it then stood; Jeff changed it the next day and again this morning. The question was real on 10-13 and answered on 10-15, and the only cost of not noticing would have been a PR asking him to decide something he had already decided -- the inverse of E72, where a row waited fifteen days because nobody asked.
+- **A ruling can arrive as a commit in the GATED repo rather than as a merged `PROPOSED:` entry, and a run has to look there to see it.** `docs/decisions.md` records rulings given in session; a developer fixing the shared file himself leaves no trace in TideSynth except, here, one sentence in a plan document that still said *"uncommitted"*.
+- **A configure-time Accept is cheap to measure and worth its control.** Four SE16 configures cost 89 s on this box with the CPM cache warm. The pre-fix arm cost 19 s of that and is the whole reason the 13s mean anything -- without it, *"the target exists"* could have been true of every SE16 ever and the row's premise simply wrong.
+- **"Linux-only in fact" has a shelf life of one platform-guard edit.** Two lanes measured E92 as unsatisfiable on their platforms by reading `if(NOT UNIX OR APPLE)`; `c868fc19f` made that reading false for Windows the same morning this run started. A platform claim derived from a guard line should name the commit it was read at.
+- **The box lock's first live acquire resolved the agent process by ancestor walk**, which is the half E89's own probe said had never been exercised by a real scheduled run: `owner=auto:ancestor-match`, holder pid 3275 outliving the 3551 `acquire` process.
+
+**Not verified:** **nothing was built.** Configure only -- E92's Accept is a configure-time property by its own words, so the template target was generated and never compiled on this box this run; whether `SynthEditTemplate_VST3.so` links against today's SynthEditLib is CI's question (`main` is green on linux at `c67f5c2`, which fetches the same `origin/main`s). **The Windows arm is unmeasured** -- `c868fc19f` says Windows configures the template now; this box cannot check it and the windows lane has no reason to unless it wants the *"Linux-only"* retraction confirmed rather than read. **I did not measure the TIDE-side variable's effect on TIDE's own targets**, which the row said are unaffected and which no arm here counted. The three macOS `main` failures were read as job conclusions, not logs. `#583`'s root cause -- why the task fired twice on 09-08 -- is as unestablished as the 10-13 entry left it.
+
+**Rotation:** done. With this entry `JOURNAL.md` was over 60 KB; the two oldest entries (10-13 macos, 10-13 linux) moved to `JOURNAL-2026-10.md`, appended below the 10-12 entry already there, verbatim. The floor (four most recent entries, which beats the one carrying today's date) still holds five. `extract-lessons.py --check` green before and after.
+
+**Machine state:** `~/TideSynth` stayed on `main`, clean, and was never checked out -- its local `main` is **106 commits behind `origin/main` and deliberately left there**, for the 10-06 and 10-13 entries' reason: fast-forwarding a sibling tree out from under a possible concurrent process is the other half of #583. All work was in scratchpad `git worktree`s -- TideSynth (this branch), SE16 at `origin/master` and at `ad236e24a`, GMPI_Wrappers at `origin/main` -- each removed and pruned at the end. `~/SE/SE16` (`master`, clean, local `32e0ae3`, behind `origin`), `~/SE/GMPI_Wrappers`, `~/SE/SynthEditLib`, `~/SE/gmpi_ui` and `~/SE/GMPI` were read and fetched only; none was checked out, built or fast-forwarded, and Jeff's `~/SE/build` was read for its cache variables and not touched. No GUI, no screen taken, and no credential value appears anywhere. Box lock released as the last act.
+
+**Next:** see the `linux` cell. **For Jeff:** (1) [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) is still open with E89 DONE; it says of itself that the lock is a guard and not a fix for the double firing, so it is yours to close or keep -- the next linux run will meet it in STEP 1 again either way. (2) E92 needed nothing from you after all; your `f9ad10372` was the ruling. (3) The bot token expires **2026-11-07**, 22 days out.
+
+**Branch/PR:** `tide/linux/E92-template-vst3-override`. The E92 flip and archive, this entry, the `linux` cell, the rotation and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
 ## 2026-10-14 — windows — E89 DONE and the box lock is live; four stale mac issues closed; and the link break that stopped #652 was Jeff's own cross-repo WIP, not this fleet's doing (interactive, Jeff directing)
 
 **Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude desktop **2.31226.1** (CLI `2.1.295`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:` · **interactive continuation of this box's 2026-10-13 scheduled run, Jeff directing**
@@ -310,109 +360,3 @@ The 10-06 linux entry recorded that [#639](https://github.com/JeffMcClintock/Tid
 **Next:** see the `win` cell. **For Jeff, four things:** (1) **A44 — the digest will call this box halted every Monday until a cadence source is chosen**, and widening `QUIET_DAYS` is the wrong fix. (2) The bookkeeping-hot-spots `PROPOSED:` entry is twelve days past its own `Decide-by`, and A37 is parked behind it. (3) #643 and #652 are both waiting on you; #643's evidence predates E81, as the 10-10 mac entry explains. (4) The bot token's recorded expiry is 2026-11-07, 25 days out.
 
 **Branch/PR:** `tide/win/2026-10-13-queue-blocked`. This entry, the A44 row, the `win` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
-
-## 2026-10-13 — linux — E89: a box-scoped run lock, whose first version let #583 straight through at the exact 5.6 s gap (scheduled run)
-
-**Prompt:** b97bc00 · Opus 5 (1M context), `claude-opus-5[1m]` · app Claude desktop **1.32885.1** (CLI `2.1.234`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** took **E89**, this box's own process wound ([#583](https://github.com/JeffMcClintock/TideSynth/issues/583)). Added `scripts/run-lock.py`, a box-scoped lock taken at STEP 0.5, `tests/e89_box_lock_probe.py` which measures it in thirteen arms, and the STEP 0.5 / STEP 5 prompt edit that makes a run actually call it. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`5175b02..938e648`).
-
-**STEP 1:** #583 is the only open `platform:linux` issue, and its own first line says its tier is not STEP 1's — *"triage it into a BACKLOG row and take it in normal order"*. That row is E89. **STEP 1.5:** no open PR anywhere matches `tide/linux/**`; [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (mac, E91) is the fleet's only open PR and is not this lane's. **STEP 2:** the `linux` NEXT cell says *"TAKE NEXT: E89"* and has said so since 09-09. It is `TODO`, `linux`, and no branch or PR named it — `git ls-remote --heads origin` returns `main` and `tide/mac/E91-au-activate-first` only, so the two stale branches the 10-06 cell flagged have since been deleted. None of the four open `PROPOSED:` entries parks it: three say *"everything"* and E72's parks only E72. DOING mark pushed first, `b777d65`.
-
-### The thing worth reading: the fix's first version reproduced the defect it was for
-
-`run-lock.py` first recorded `os.getpid()` — the pid of the `acquire` process. **That process exits immediately, so the lock went stale the instant it was taken.** Run at #583's exact gap, on the real code:
-
-```
-run A acquire rc=0 -> lock acquired: pid=7047 ...
-run B acquire 5.6s later rc=0 -> reclaiming a stale lock (holder pid 7047 is gone)
-```
-
-**rc=0. Run B was let straight through, and the guard did nothing, silently** — which is the one outcome #583 calls worse than the collision. **Arms 1-10 of the probe were green while that was true**, because not one of them let a real `acquire`'s process exit before judging the lock. So the lock now records an *owner* pid: `--owner-pid auto` walks the parent chain and takes the first ancestor matching the Claude Code CLI, prints which pid it chose and how, and warns loudly when no ancestor matched (that lock is age-capped only). Arms 11-13 are that hole, its fix, and the broken configuration pinned so a regression says which half moved.
-
-### Why a lock, and not either of E89's other two shapes — measured, not argued
-
-| E89's shape | verdict |
-|---|---|
-| **`ps` for a second `claude`** (#583's own suggestion) | **refuted, in both directions at once** |
-| **a DOING check against the local `.git`** | **blind by 169 seconds** in the observed incident |
-| **fix the duplicate firing at source** | outside this repo; the scheduled-task runner |
-
-**`ps` cannot see a scheduled run, and the count-based variant would have stood down the run that measured it.** Swept `/proc/*/cmdline` across the whole box: **no `claude` process's cmdline contains `tidesynth-weekly-linux`** — the task name reaches a run through its prompt, not its argv; the single match was the sweep's own shell. And two `claude` CLI processes were alive for entirely ordinary reasons — pid 4270 (`--model default`, this run) and pid 4414 (`--model claude-haiku-4-5-20251001`), a sibling started 21 s later by the same `claude-desktop` parent 3836. A run that stands down on *"another claude exists"* stands down always.
-
-**The `.git`-aware DOING check is a late detector, and the number kills it as a preventer.** Run B started **22:03:07.240Z**; run A's DOING commit `9177984` is authored **2026-09-08T22:05:50Z** — **169 seconds later**. Run B did its STEP 2 claim survey inside that window, so there was nothing in the shared `.git` for such a check to read. Worth having as a backstop; cannot be the guard.
-
-### Evidence
-
-`python3 tests/e89_box_lock_probe.py` — **13 arms, rc=0, 7.5 s**, no build and no DAW. Arms 1-4 and 11-13 measure *"it lets two runs in"*; arms 5-8 measure *"it lets no run in"*, which #583 names as the worse failure; 9-10 are housekeeping.
-
-**The vacuity control runs first and must FAIL:** the same 12-process barrier-released harness against a deliberately non-atomic check-then-create acquire gives **12 of 12 winners**. Without it, arm 4's *"1 of 12"* would prove nothing — a harness whose children never overlap reports one winner for a lock with no exclusion in it at all.
-
-**Then three A/B breaks of the real script, each turning the probe red on exactly the arms it should**, with the restored file **byte-identical** (sha256 `433adc6ea11340d3`) so each A/B's only variable was its one edit:
-
-| break | arms red |
-|---|---|
-| `O_EXCL` → check-then-create with a window | **4** alone: 12 of 12 racers acquire |
-| `--owner-pid auto` → `self` (the hole as first written) | **11 and 12** |
-| `staleness()` → always "live" (strand the box) | **9 of 13** |
-
-Arm 12 is the incident itself with real processes: a holder resolved through the real `auto` walk, a **5.6 s** sleep, run B **rc=1 REFUSED** naming the holder's pid — then the holder is killed and the next acquire **rc=0, reclaimed**, so a crashed run does not strand the lane. It only became an end-to-end test of `auto` after the second A/B showed it staying green with an explicit `--owner-pid`; that is why it passes a marker ancestor now.
-
-**End-to-end on the real path**, the literal STEP 0.5 and STEP 5 commands: acquire rc=0 recording `pid=4270 … owner=auto:ancestor-match`, an immediate second acquire **rc=1 REFUSED**, release rc=0, release-again rc=0 and safe. `~/.tide/` is left holding `agent-token` alone, exactly as found.
-
-### Filed while here: A43, a `PROPOSED:` entry that outlived its row
-
-Working out which open questions park E89 meant reading all four `PROPOSED:` entries, and one of them has no owner. **[E72](BACKLOG-DONE.md) was archived DONE on 2026-10-01, and its entry still stands open in [docs/decisions.md](docs/decisions.md) saying *"May proceed meanwhile: everything except E72 itself"* — a parks-clause naming a row that is not in `BACKLOG.md` any more.** No ruling for it is in that file's Decisions table, so the question is genuinely still unanswered and nothing is carrying it. **This is A42's hazard from the other side:** A42 is *"a question left inside a closing row is archived with it"*, and E72 did the other sanctioned thing — escalated to `docs/decisions.md`, which *is* the mechanism — and the escalation then outlived its row. Both paths lose the question; they lose it in different files. Filed as **A43** with the shape of an answer and no pick, because this is process rather than product. Id allocated per A42's own guard: swept `BACKLOG.md` + `BACKLOG-DONE.md` on `origin/main` and on every remote `tide/*` branch, highest was E93 / A42, so A43 was free.
-
-**Learned:**
-
-- **A fix whose own probe is green can still be the defect.** Ten arms passed while `run-lock.py` recorded a pid that was dead a moment later. Every one of them tested the lock *file*; none let the acquiring *process* exit first, which is the only state a real run is ever in. **When a guard's correctness depends on a lifetime, an arm must outlive something.**
-- **`ps` cannot identify a scheduled run on this box.** The task name is in the prompt, not the argv — `/proc/*/cmdline` has zero matches — and two `claude` CLI processes are normal, so counting them false-positives. #583's own recommended cheap check would have stood this run down.
-- **Ask when a late detector could first have seen anything.** A `.git`-aware DOING check is blind for the 169 s between run B's start and run A's claim commit, and that is exactly the window run B spent in STEP 2. The gap between two firings (5.6 s) and the gap before the first local artefact (169 s) are different numbers, and only the second one judges the mechanism.
-- **`O_EXCL` over `flock` when the lock's value must be read by a different process.** An advisory `flock` dies with the fd; a run needs its successor to read *who* holds it, and `O_CREAT|O_EXCL` is the one primitive that is atomic and identical on all three boxes.
-- **A barrier file is what makes a race harness race.** Twelve children released together contend; twelve started in a loop are serialised by ~30 ms of interpreter startup each, and report one winner for a lock with no mutual exclusion in it.
-- **Pin the broken configuration as its own arm.** Arm 13 asserts `--owner-pid self` still goes stale on exit. That is what makes arm 12's pass attributable to the ancestor walk rather than to something else having moved.
-- **An escalation can outlive the row that raised it, and no check looks.** `check-id-refs.py` walks ids across files but not into `docs/decisions.md`'s `PROPOSED:` blocks, so E72's entry has been read as live by three consecutive runs since its row was archived. A43.
-- **`grep -oE` with a wide fixed-width prefix over `BACKLOG.md` backtracks catastrophically.** `grep -oE '.{90}(A[^|]{0,120}B|B[^|]{0,120}A).{60}'` against rows that are single 2-4 KB lines ran past a 2-minute timeout and had to be killed; the same question in python answered instantly. **This file's rows are not line-shaped, so line-oriented tools do not cost what you expect on it.**
-- **`os.kill(pid, 0)` has no Windows equivalent worth shipping unverified**, so `pid_alive` returns `True`/`False`/`None` and `None` means *possibly alive*. A lock is reclaimed only on a **known**-dead pid, which makes the Windows box strictly more conservative rather than less.
-
-**Not verified:** **the Windows and macOS boxes**. Everything above was measured on linux. `run-lock.py` is `#ifdef`-free Python and the probe needs no build, so `python3 tests/e89_box_lock_probe.py` should run on both, but it has not. **Windows is the one platform with a different code path** — no `/proc`, no `ps`, so `--owner-pid auto` falls back to `self` and `pid_alive` returns `None`, leaving the 6 h age cap as the sole reclaim route; **that path is written but unmeasured, and it is the thing to run first on that box.** macOS takes the `ps -o ppid=,args=` branch of `_parent_and_cmdline`, which linux never exercises because `/proc` exists here — also unmeasured. **Why the task fired twice is still unestablished**, as #583 said: this is a guard against the duplicate firing, not a fix for it, and fixing the scheduler still beats guarding against it. I did not test two genuinely separate scheduled firings, only two processes at the same gap. No product code was touched, nothing was built, and TiDE was not measured.
-
-**CI and the default branch:** [#652](https://github.com/JeffMcClintock/TideSynth/pull/652) is **6 pass, 2 skipping, `mergeStateStatus: CLEAN`** — `lint`, `linux`, `e57-delete-key` and the three `render-*` jobs. `main`'s last `build.yml` run is **success at `07b0172`** (2026-10-09); the commits since are bookkeeping. **I did not build `main` locally, and this item gave me no reason to** — it is Python and the probe needs no build, so unlike a code item there was no by-product build to report. **The lock is `#ifdef`-free Python, so nothing about SynthEdit, SynthEditCL or TIDE is changed by this PR.**
-
-**Rotation:** not needed. With this entry `JOURNAL.md` is **58,062 bytes**, under the 60 KB cap, and the floor (four most recent entries, which beats the two carrying today's date) binds anyway. `extract-lessons.py --check` is green, 1688 lessons from 394 entries.
-
-**Machine state:** `~/TideSynth` stayed on `main`, clean, and never left it — **its local `main` is 94 commits behind `origin/main` and I deliberately left it there**, for the reason the 10-06 entry gives: fast-forwarding a sibling tree out from under another process is the second half of #583. All work was in a scratchpad `git worktree`, removed at the end. No sibling repo was touched, read or fast-forwarded. No GUI, no screen taken, and no credential value appears anywhere.
-
-**Next:** see the `linux` cell. **For Jeff:** (1) this PR touches `docs/weekly-run-prompt.md`, which the A4 allowlist carves out on purpose, so it waits for you — and a prompt change reaches all three boxes on their next run, which is A2's stated trade and the reason the edit is 52 lines rather than a rewrite. (2) **Windows and linux had both been silent since 10-06**; this entry breaks linux's week. (3) The bot token expires **2026-11-07**, 25 days out.
-
-**Branch/PR:** `tide/linux/E89-box-run-lock`, [#652](https://github.com/JeffMcClintock/TideSynth/pull/652) — the lock, the probe, the STEP 0.5 / STEP 5 prompt edit, the E89 flip, the `linux` cell, the A43 row and the regenerated `docs/lessons.md`. **It is NOT auto-mergeable and that is deliberate:** `docs/weekly-run-prompt.md` is carved out of the A4 allowlist, so it waits for Jeff.
-
----
-
-
-## 2026-10-13 — macos — no item: STEP 1 and 1.5 empty, and since `40ff8e8` only the 10-12 `mac` cell moved, so the walk stands (scheduled run)
-
-**Prompt:** b97bc00 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **2.31226.1** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`40ff8e8..b0b0a01`).
-
-**STEP 1:** there is no open `platform:mac` issue. The only open issues are #583 (linux, already triaged as E89) and #44 (the digest).
-
-**STEP 1.5:** [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (E91) is still the only open PR in the fleet. Merge state `CLEAN`, 13 checks pass and 2 skip, no reviews and no comments. Jeff has not handed it back, so I left it alone. The 10-10 entry's point stands: its evidence measures the pre-E81 route.
-
-**STEP 2:** the only commit on `main` since the last walk is the 10-12 run's own bookkeeping (`b0b0a01`, #650). `git diff --stat 40ff8e8 origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows `BACKLOG.md | 2 +-`, and that one line is the `mac` cell. So the 10-08 table still holds row for row, and nothing is eligible for `mac`. The digest's four `PROPOSED:` entries are unchanged.
-
-**Default branch:** `main`'s last code commit, `07b0172`, is green in CI. The runs since then are bookkeeping, and their `watchdog`, `verify` and `auto-merge` runs all passed. I did not build `main` locally.
-
-**Fleet liveness:** the 10-12 digest on #44 still flags **windows and linux as QUIET**. Their last entry is 2026-10-06, seven days ago as of today.
-
-**Learned:** nothing new. This is the sixth no-item mac run in a row.
-
-**Not verified:** nothing was built or run, because there was no item. I did not verify the fleet PAT's expiry (A40's `NEEDS-JEFF` half). The prompt gives it as **2026-11-07**, 25 days from today.
-
-**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean. The work was in a scratchpad `git worktree`, removed at the end. `~/Documents/GitHub/SynthEdit` (`master`, clean) was not touched. No GUI was used and no credential value appears anywhere.
-
-**Next:** see the `mac` cell. **For Jeff:** (1) #643 predates E81: merge it as a record of the old route, or hand it back for a re-measure. (2) E93 needs your scope call. (3) Windows and linux have been silent since 10-06, a full week. (4) The bot token expires 2026-11-07.
-
-**Branch/PR:** `tide/mac/2026-10-13-queue-blocked`. This entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
