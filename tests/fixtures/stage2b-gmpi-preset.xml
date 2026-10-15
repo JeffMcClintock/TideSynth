@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<Preset pluginId="00000000" name="stage2b restore">
+  <Param id="0" val="0"/>
+  <Param id="1" val="PD94bWwgdmVyc2lvbj0iMS4wIj8+PFByZXNldCBwbHVnaW5JZD0iMDAwMDAwMDAiIG5hbWU9InN0YWdlMmIgZW5naW5lIj48UGFyYW0gaWQ9IjcwNzY4OTcxIiB2YWw9IjMiLz48UGFyYW0gaWQ9IjEzMTEyODU5NjMiIHZhbD0icmVzdG9yZWQgdGV4dCIvPjwvUHJlc2V0Pg=="/>
+</Preset>

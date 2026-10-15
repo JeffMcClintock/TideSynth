@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<Preset pluginId="00000000" name="stage0 restore">
+  <Param id="0" val="0.25"/>
+  <Param id="1" val="0"/>
+</Preset>
