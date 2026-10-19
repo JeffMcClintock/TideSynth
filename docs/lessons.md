@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **517 KB** across **399** entries, so copying them
+Learned sections are **518 KB** across **400** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **168 KB / 1713 lessons — 3.1x smaller**, and represents
+A8. This is **168 KB / 1718 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,16 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-20
+
+**windows — no item: the queue is empty for `win` for the fourth time, and the cause is finally measured — this box almost never runs in its scheduled slot (scheduled run)**
+
+- Check your own start time against the task's `nextRunAt` before saying anything about a lane's health.
+- A missed slot caught up at app launch is strictly worse than a skipped run, for any work that needs an idle machine.
+- `cronExpression` alone does not tell you when a task runs; `nextRunAt` tells you how it is interpreted.
+- Converting a UTC timestamp to a weekday is worth doing with the timezone database rather than by eye.
+- A row can answer an old row's explicitly-undiagnosed observation without re-filing it.
 
 ## 2026-10-16
 
@@ -64,24 +74,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "No information" is a sharper claim than "false alarm", and it is sometimes the one that closes a row rather than escalating it.
 - A note is the right fix when a section is noisy for more than one reason.
 - Heredoc backslash mangling bites hardest when patching source that contains `\n` as two characters.
-
-## 2026-10-13
-
-**windows — the merge sweep Jeff asked for: #643 landed, and #652 did NOT, because measuring its Windows path showed `release` cannot release (interactive, Jeff directing)**
-
-- "Measure before you merge" earned its keep on the first try, and the thing it caught was not the thing the PR flagged.
-- A platform fallback can be safe in one verb and broken in the other.
-- Nine green arms out of thirteen is not "mostly working" when the four reds are all one direction.
-- A conditional instruction is still a condition.
-- Merging another lane's PR is cheap; judging its evidence is not, and the mechanical rule covers only the first.
-
-**windows — no item: the queue is empty for `win`, and the run's finding is that this lane was never halted — the box is WEEKLY and the digest assumes daily (scheduled run)**
-
-- A fleet-liveness threshold is only as good as its cadence assumption, and the assumption is in a comment rather than in data.
-- A `PROPOSED:` entry's blanket "parks nothing" line can be wrong about exactly one row — the row whose deliverable is the thing being decided.
-- A42's branch sweep is not theoretical.
-- A STEP 4 debt for work a run has no memory of is discharged by pointing at the PR, not by writing the entry.
-- Read a row's platform guards on YOUR platform even when another box already read them on theirs.
 
 ## 2026-10-01
 
@@ -245,6 +237,22 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - An escalation can outlive the row that raised it, and no check looks.
 - `grep -oE` with a wide fixed-width prefix over `BACKLOG.md` backtracks catastrophically.
 - `os.kill(pid, 0)` has no Windows equivalent worth shipping unverified
+
+**windows — the merge sweep Jeff asked for: #643 landed, and #652 did NOT, because measuring its Windows path showed `release` cannot release (interactive, Jeff directing)**
+
+- "Measure before you merge" earned its keep on the first try, and the thing it caught was not the thing the PR flagged.
+- A platform fallback can be safe in one verb and broken in the other.
+- Nine green arms out of thirteen is not "mostly working" when the four reds are all one direction.
+- A conditional instruction is still a condition.
+- Merging another lane's PR is cheap; judging its evidence is not, and the mechanical rule covers only the first.
+
+**windows — no item: the queue is empty for `win`, and the run's finding is that this lane was never halted — the box is WEEKLY and the digest assumes daily (scheduled run)**
+
+- A fleet-liveness threshold is only as good as its cadence assumption, and the assumption is in a comment rather than in data.
+- A `PROPOSED:` entry's blanket "parks nothing" line can be wrong about exactly one row — the row whose deliverable is the thing being decided.
+- A42's branch sweep is not theoretical.
+- A STEP 4 debt for work a run has no memory of is discharged by pointing at the PR, not by writing the entry.
+- Read a row's platform guards on YOUR platform even when another box already read them on theirs.
 
 ## 2026-09-08
 
