@@ -95,6 +95,52 @@ Template:
 
 ---
 
+## 2026-10-23 — macos — no item: STEP 1 and 1.5 empty, #643 merged, and the new `any` rows A43 and A45 are both parked (scheduled run)
+
+**Prompt:** 1821076 · Opus 5.5, `claude-opus-5-5` · app Claude desktop (version not read this run) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded. `run-lock.py acquire` returned rc=0 (`owner=auto:ancestor-match`). This is the first scheduled run on macOS under the box lock.
+
+**STEP 1:** there is no open `platform:mac` issue. **STEP 1.5:** there are no open PRs in the fleet. [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (E91) **merged on 2026-10-13**, and E91 has already been archived. So the 10-13 cell's step (1) is closed, and no `IN-REVIEW` row is left to flip.
+
+**STEP 2:** I walked the rows again rather than relying on the earlier walk, because `BACKLOG.md` gained rows since `b0b0a01`. `git diff --stat b0b0a01 origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows only `BACKLOG.md` changes: three NEXT cells, A43 and A45 filed, A44 WONTFIX, and E89, E91 and E92 archived. `decisions.md` and `PLAN.md` did not change. The `mac`/`any` rows that are `TODO`:
+
+- **A43** says *"a run should not pick"* among (a), (b) and (c). Work that is identical under every answer does not exist, because (a) alone builds no lint.
+- **A45** is scoped to the **windows** box's scheduled task, which its own words say is *"NOT a run's to edit"*. The decision is Jeff's.
+- **A35, A37, A42, S8, E2 and E84** are unchanged and parked for the reasons the 10-20 windows entry lists.
+- **E19 and E82** need an idle box with a GUI. This run fired at 02:05 local, so the box may be idle. But computer-use approval is suppressed for scheduled tasks on this box (measured in earlier mac runs). So neither clause can be measured from here.
+- **E93** (`mac`) is still waiting on Jeff's AU2 scope call. The cell says not to build an AU2 consumer unasked.
+
+Nothing is eligible.
+
+### A measurement for A45, which its own entry says it lacked
+
+The 10-20 windows entry says *"macOS's and linux's crons remain unmeasured by me"*. Here is the mac one, from `list_scheduled_tasks` and `list_task_runs`:
+
+| evidence | value |
+|---|---|
+| cron | `0 2 * * *`, `jitterSeconds: 271`, read in local time (NZDT, UTC+13) |
+| this run | started `2026-10-22T13:05:03Z` = **2026-10-23 02:05 local**, **in its slot** |
+| previous run | `2026-10-12T13:05:21Z` = 2026-10-13 02:05 local, also in its slot |
+| between them | **no runs at all.** Nine daily slots (10-14 to 10-22 local) have no session against them, and nothing caught them up at app launch either |
+| 10-02 to 10-13 | twelve runs, all at 13:04–13:05Z, every one in its slot |
+
+So the mac lane does not show windows' A45 pattern. When this box runs, it runs in its 02:05 slot. When it misses, it seems to miss outright with no catch-up, unlike windows. I did not establish why the nine days were missed. Likely causes are the machine being asleep or off, or the app being closed. That is an inference, and I have not checked it. I filed nothing, because this is data for A45 rather than a new problem.
+
+**Default branch:** I did not build `main` locally. The last code commits on `main` are Jeff's (`46aee55`, `e8586e9`, `c67f5c2`).
+
+**Learned:**
+
+- **A lane's gap in the journal can be missing firings, not runs that wrote nothing.** `list_task_runs` tells the two apart in one call. Use it before reading anything into a quiet lane.
+
+**Not verified:** nothing was built or run, because there was no item. I did not read `docs/lessons.md` in full (175 KB), only the parts that bear on this walk. I did not check the Claude app version. The bot token expires **2026-11-07**, 15 days from today. I did not re-check that date.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean. The work was in a scratchpad `git worktree`, removed at the end. `~/Documents/GitHub/SynthEdit` (`master`, clean) was not touched. No GUI was used, and no credential value appears anywhere. I released the box lock as the last step.
+
+**Next:** see the `mac` cell. **For Jeff:** (1) E93 needs your AU2 scope call. (2) A43 and A45 each need a pick from you. (3) The bot token expires 2026-11-07.
+
+**Branch/PR:** `tide/mac/2026-10-23-queue-blocked`. This entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
 ## 2026-10-20 — windows — no item: the queue is empty for `win` for the fourth time, and the cause is finally measured — this box almost never runs in its scheduled slot (scheduled run)
 
 **Prompt:** 18210767f · Opus 5, `claude-opus-5` · app Claude desktop **2.42304.0** (CLI version not readable — `~/.claude/versions` is empty on this box) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run

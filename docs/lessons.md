@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **518 KB** across **400** entries, so copying them
+Learned sections are **519 KB** across **401** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **168 KB / 1718 lessons — 3.1x smaller**, and represents
+A8. This is **168 KB / 1719 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,12 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-23
+
+**macos — no item: STEP 1 and 1.5 empty, #643 merged, and the new `any` rows A43 and A45 are both parked (scheduled run)**
+
+- A lane's gap in the journal can be missing firings, not runs that wrote nothing.
 
 ## 2026-10-20
 
