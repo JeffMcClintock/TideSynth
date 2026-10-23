@@ -350,6 +350,20 @@ if(APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffp-contract=off")
 endif()
 
+# gmpi_ui's GPU renderer (bgfx; backends/GpuGfx.h). The default, per Jeff
+# 2026-10-24. Until it merges to gmpi_ui main it lives on the gpu-backend
+# branch, so a gmpi_ui without it falls back to the CPU renderer rather than
+# breaking the build. After project(): gmpi_gpu.cmake declares targets.
+option(TIDE_GPU_BACKEND "Draw with gmpi_ui's GPU renderer (Linux Wayland standalone)" ON)
+if(TIDE_GPU_BACKEND AND NOT EXISTS ${GMPI_UI_SDK}/backends/gpu/gmpi_gpu.cmake)
+  message(WARNING "TIDE_GPU_BACKEND: ${GMPI_UI_SDK} has no backends/gpu/gmpi_gpu.cmake (gmpi_ui's gpu-backend branch); using the CPU renderer")
+  set(TIDE_GPU_BACKEND OFF)
+endif()
+if(TIDE_GPU_BACKEND)
+  set(GMPI_UI_DIR ${GMPI_UI_SDK})
+  include(${GMPI_UI_SDK}/backends/gpu/gmpi_gpu.cmake)
+endif()
+
 option(SE_SOFTWARE_RENDERER "Compile the CPU software renderer into ALL configs (default: Debug only)" OFF)
 if(SE_SOFTWARE_RENDERER)
     add_compile_definitions(SE_SOFTWARE_RENDERER_OPTION=1)
