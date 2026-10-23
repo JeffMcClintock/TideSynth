@@ -1295,11 +1295,14 @@ tide_apply_app_icon(${PROJECT_NAME}_STANDALONE)
 tide_apply_app_icon(${PROJECT_NAME}_AU3App)
 
 # Every TU that includes gmpi_ui's DrawingFrame*.h must see the same define
-# (ODR), so this goes on the whole standalone target, not just MainWayland.cpp.
+# (ODR), so this goes on the whole standalone target, not just MainWayland.cpp,
+# and on the wrapper library linked into it: its StandaloneApp.cpp picks the
+# renderer at startup and offers Options > Disable GPU only when it is defined.
 if(TIDE_GPU_BACKEND AND TARGET ${PROJECT_NAME}_STANDALONE)
-    target_link_libraries(${PROJECT_NAME}_STANDALONE PRIVATE gmpi_gpu)
-    target_compile_definitions(${PROJECT_NAME}_STANDALONE PRIVATE GMPI_UI_GPU_BACKEND=1)
-    target_sources(${PROJECT_NAME}_STANDALONE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/TideGpuPreference.cpp)
+    foreach(_tide_gpu_target ${PROJECT_NAME}_STANDALONE Standalone_Wrapper)
+        target_link_libraries(${_tide_gpu_target} PRIVATE gmpi_gpu)
+        target_compile_definitions(${_tide_gpu_target} PRIVATE GMPI_UI_GPU_BACKEND=1)
+    endforeach()
 endif()
 
 # The Windows exe icon: a two-line .rc embedding the committed multi-size
