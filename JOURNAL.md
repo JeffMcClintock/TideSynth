@@ -156,7 +156,7 @@ Alternates with the pick, repeats within it, five rebuilds. `Wave points` is `Wa
 
 **Next:** see the `mac` cell. **For Jeff:** (1) the E82 PR is `tests/` plus bookkeeping and waits for you by design -- the probe is self-contained and re-runnable in 27 s against any `-DRACK_ADAPTOR_TRACE=1` standalone. (2) E19's `int/bool/enum` clause now has a producer and a recipe; whether its per-host cells should reuse this instrument or insist on audio is your call. (3) Your `gpu-backend` branch has no PR; no run will touch it. (4) The bot token expires **2026-11-07**, 13 days out.
 
-**Branch/PR:** `tide/mac/E82-wtlfo-wave-points`. The probe, the E82 flip, this entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. `tests/**` is off the auto-merge allowlist, so it waits for Jeff.
+**Branch/PR:** `tide/mac/E82-wtlfo-wave-points`, [#669](https://github.com/JeffMcClintock/TideSynth/pull/669). The probe, the E82 flip, this entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. `tests/**` is off the auto-merge allowlist, so it waits for Jeff.
 
 ## 2026-10-24 — macos — no item: STEP 1 and 1.5 empty, and nothing in BACKLOG, decisions or PLAN has moved since the 10-23 walk (scheduled run)
 
