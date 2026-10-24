@@ -95,6 +95,69 @@ Template:
 
 ---
 
+## 2026-10-25 — macos — E82: the WT LFO's `Wave points` menu is offered and the DSP obeys it — both clauses measured on the standalone with the screen locked, A/B/A/B through the adaptor's own trace (scheduled run)
+
+**Prompt:** 1821076 · Fable 5.1, `claude-fable-5-1` · app Claude desktop **3.6556.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E82** and met its Accept. New [tests/e82_wtlfo_wave_points_probe.py](tests/e82_wtlfo_wave_points_probe.py) -- **18 checks, 0 failures, 27 s** -- plus the three bookkeeping files. **No product code changed, in this repo or any sibling.** `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`dc80d88..85a3147`, plus a new `gpu-backend` branch of Jeff's). `run-lock.py acquire` rc=0, `owner=auto:ancestor-match`, holder pid 69485.
+
+**STEP 1:** no open `platform:mac` issue; the only open issues in the repo are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (linux, E89 DONE) and #44 (the digest). **STEP 1.5:** zero open PRs in the fleet; `git ls-remote --heads origin` returned `main` and `gpu-backend` only. **STEP 2:** `git diff --stat dc80d88 origin/main -- BACKLOG.md docs/decisions.md PLAN.md` showed one line in `BACKLOG.md` -- the 10-24 `mac` cell -- so the 10-23 walk stood, and the walk's one condition for E82 and E19 was an idle box. It was idle: `ioreg` HID idle **122,023 s (33.9 h)**, `pmset -g log` says the display went off **2026-10-23 17:13** and never came back, console user `jeffmcclintock`, no Xcode, SynthEdit, DAW or IDE process. E82 is `TODO`, `any`, not blocked, and none of the four open `PROPOSED:` entries parks it (three say *everything*, E72's parks E72). DOING mark pushed first, `5fc223b`.
+
+### The row's two clauses, measured on the standalone built from `main` at `85a3147`
+
+| step | gesture (window DIPs) | readout |
+|---|---|---|
+| place a WT LFO | `--pointer-down 130,294 --double` on the browser's `LFO2` | `RackProcessor: 'LFO2' constructed` -- the DSP built it |
+| cable it | `--drag 590,540 592,220` (its `WT` jack to Out L) | rebuild, `connections ins=0000 outs=1`, `first NONZERO OUTPUT pin 0 (0.500143)` |
+| menu, module NOT selected | `--context-menu 565,352` | **7** -- the rack's own (E38's selection fact) |
+| menu, module selected | select, then the same | **20** -- the 7 plus **`Wave points`** submenu: `32 64 128 256 512 1024 2048 4096 8192 16384`, **1024 ticked** |
+| control: background | deselect, `--context-menu 700,330` | **7** |
+| control: unknown label | `--context-menu 565,352 NoSuchLabelXYZ` | `ok:false`, *"menu offers: Goto Rack, About TIDE..., Cut, Copy, Paste, Delete, 32, 64, ..."* |
+| pick 32 | `--context-menu 565,352 32` | `invoked: "32"`, re-list shows **32 ticked** |
+
+That is clause one: a right-click on a VCV panel offers an option the module owns. E82's own 09-14 finding said `WT LFO` would be the producer and that the five e75 probe points had all been on a module with nothing to offer; both halves hold.
+
+### Clause two -- "toggling it changes DSP behaviour" -- and the instrument that did NOT work first
+
+`--render-audio` was the obvious instrument and it measured nothing: **`peak 0`, `parametersUnprimed 5`** with the cable in place. The verb's own comment explains it -- *"TIDE's entire patch is one blob parameter, so this loop primes NOTHING for it and the render is built from an empty graph"* -- and names **E6** as the row it is filed on. So nothing new was filed; the lesson is to read `parametersUnprimed` before reading `peak`.
+
+What did work is the adaptor's own trace. A menu pick writes the chosen index into the live instance in `onSetPins` (`RackAdaptor.h:594`, `m.write(menuIntPins[slot])`) and traces nothing. But every rack rebuild constructs a fresh `RackProcessor`, which receives the option with its other pins and prints `first NONZERO OUTPUT` exactly once. A cable edit forces a rebuild. So: pick, edit a cable, read the new instance.
+
+| arm | pick | cable edit | `first NONZERO OUTPUT pin 0` |
+|---|---|---|---|
+| A (baseline) | 1024 (default) | WT -> Out L added | **0.500143** |
+| B | 32 | Out R -> WT added | **0.500004** |
+| A | 1024 | Out R cable dragged into space (removed) | **0.500143** |
+| B | 32 | Out R -> WT added | **0.500004** |
+| A | 1024 | Out R cable removed | **0.500143** |
+
+Alternates with the pick, repeats within it, five rebuilds. `Wave points` is `Wavetable::setWaveLen` (`modules/WTVCO/vcv/Wavetable.hpp`), which changes the slice length over the same 4096 stored samples and never resamples them -- so at 32 the LFO plays the sine's first 32-sample sliver instead of its cycle, and the first sample a fresh instance emits at the same phase is a different number. The direction and the ~36:1 ratio are consistent with that reading; I did not measure the waveform itself.
+
+### Also done: the box lock probe on macOS, which no posix box had run
+
+`python3 tests/e89_box_lock_probe.py` in a scratchpad worktree at `85a3147`: **control 12 of 12 (must fail, did), 14 arms, 0 failures, 8.2 s.** Arm 11 resolved the ancestor, arm 12 reproduced #583's 5.6 s gap and refused run B, arm 14's unforced `release` returned rc=0. The 10-14 and 10-20 win cells both said *"whichever posix box runs next should just run it and say so"*; it is run and said, and the lock also worked end to end this run.
+
+**Build:** fresh scratchpad tree from `origin/main` at `85a3147`, Ninja, Release, arm64, `SE_LOCAL_BUILD=OFF`, `TIDE_VCV_FUNDAMENTAL=ON`, `-DCMAKE_CXX_FLAGS=-DRACK_ADAPTOR_TRACE=1`, **no `*_FOLDER_OVERRIDE`** -- every dependency fetched at its own `origin/main` exactly as `main` declares. `TIDE_Rack_STANDALONE`: **374/374, 0 `error:`, 5 warnings.** So `main` builds the standalone on macOS at `85a3147`; the VST3, AU3 appex and CLAP targets were not built.
+
+**Learned:**
+
+- **A channel `--drag` from the module browser selects the row and drops nothing; a `--double` click places the module.** The browser-to-rack drop is a native drag the command channel never touches, so the one gesture that looks like "place a module" is the one that cannot.
+- **The context menu follows the SELECTION, even over empty canvas.** A background "control" taken while a module is selected returns the module's menu, which the probe's first control got wrong and the second measured: 20 selected, 7 deselected. E38 said this about the module's point; it is equally true of the background's.
+- **When a parameter change leaves no trace, force a rebuild and read the fresh instance.** The adaptor's one-shot per-instance lines (`constructed`, `connections`, `first NONZERO OUTPUT`) become an A/B instrument the moment something rebuilds the rack, and a cable edit does. Cheaper than audio, and it measures the DSP itself.
+- **`--render-audio` cannot measure a TIDE rack today, and says so in its result.** `parametersUnprimed` is the tell; `peak 0` after it is a reading about priming, not about the patch (E6).
+- **"Needs an idle box" is one command away from being a fact rather than a mood.** `ioreg -c IOHIDSystem` plus `pmset -g log` settled it in seconds, and the answer this time was 34 hours. A scheduled run that wants a GUI row should measure before parking.
+- **A locked screen stopped nothing in this toolchain.** The standalone launched, its socket answered, `--screenshot` returned real frames and the editor drove, all with the display off since the previous day. The 08-29 line through the tooling runs between the standalone and a DAW, not between the standalone and the run.
+
+**Not verified:** **nothing in a host** -- every measurement is the standalone, and E19's clauses are per-format; E82's Accept does not name a host and its row is flipped on the standalone alone. **The bool arm** (VCA-1's *Exponential response* and the other six bool-bearing modules) was not measured; `Wave points` is the `int/enum` arm only. **The waveform** behind the two numbers was not captured -- the cycle-versus-sliver reading is from `Wavetable.hpp`. **Only `TIDE_Rack_STANDALONE` was built**, so "main builds on macOS" is one target's claim. **Windows and Linux** ran nothing; the probe's coordinates are the standalone's default 1100x626 window on the shipped default rack and it exits 2 on any other size rather than clicking blind. **E19's row was not edited** -- its `int/bool/enum` clause now has a measured producer and a recipe, and flipping anything on E19 is that row's job. The `gpu-backend` branch was read, not built.
+
+**Rotation:** done. With this entry `JOURNAL.md` was 60,358 bytes; the oldest entry (10-14 windows, A44) moved to `JOURNAL-2026-10.md`, appended below what was there, verbatim. Six entries remain, above the four-entry floor.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` **stayed on `main`, clean, and was never checked out** -- its local `main` is at `dc80d88` and deliberately not fast-forwarded. All work was in a scratchpad `git worktree` (this branch) and a scratchpad build tree, both removed at the end. **Five standalone launches, every one under `GMPI_STANDALONE_CONFIG_DIR` and `GMPI_STANDALONE_IPC_DIR` pointed at the scratchpad**; each arm's `session.xml` and `standalone.conf` landed in its own scratch directory. The developer's `~/Library/Application Support/TiDE Rack/` **files are unchanged** (`session.xml` Sep 22 11:59, `standalone.conf` and `session.previous.xml` Aug 31 12:55, no new entry) -- but **the directory's own mtime moved to 02:14:26**, the same created-and-removed-entry phenomenon the 09-07 entry recorded and could not attribute; contents provably untouched, cause still unknown. `~/Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3` untouched (Aug 28). No DAW was launched, no AUv3 registered, no GUI or computer-use, no screenshot of the display -- the frames came from the app's own `--screenshot`. `SynthEditLib`, `gmpi_ui`, `GMPI`, `GMPI_Wrappers` and `SynthEdit_Rack_Adaptor` were fetched and read only; all five are clean on `main` at `origin/main`, none was checked out or built, and the build fetched its own copies. `~/Documents/GitHub/SynthEdit` (`master`, clean) was not touched. **0 TIDE processes left**, checked. No credential value appears anywhere. Box lock released as the last act.
+
+**Next:** see the `mac` cell. **For Jeff:** (1) the E82 PR is `tests/` plus bookkeeping and waits for you by design -- the probe is self-contained and re-runnable in 27 s against any `-DRACK_ADAPTOR_TRACE=1` standalone. (2) E19's `int/bool/enum` clause now has a producer and a recipe; whether its per-host cells should reuse this instrument or insist on audio is your call. (3) Your `gpu-backend` branch has no PR; no run will touch it. (4) The bot token expires **2026-11-07**, 13 days out.
+
+**Branch/PR:** `tide/mac/E82-wtlfo-wave-points`, [#669](https://github.com/JeffMcClintock/TideSynth/pull/669). The probe, the E82 flip, this entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. `tests/**` is off the auto-merge allowlist, so it waits for Jeff.
+
 ## 2026-10-24 — macos — no item: STEP 1 and 1.5 empty, and nothing in BACKLOG, decisions or PLAN has moved since the 10-23 walk (scheduled run)
 
 **Prompt:** 1821076 · Sonnet 5.5, `claude-sonnet-5-5` · app Claude desktop (version not read this run) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -337,45 +400,3 @@ It was two commits **sixteen seconds apart**, both Jeff's, both on 2026-10-13 15
 **Next:** see the `win` cell. **For Jeff:** nothing is waiting on you — no open PRs, no open mac issues, `main` green on three platforms. The queue's ten `TODO` rows are parked on the same open questions as before, and **E19 and E82 are still the only two blocked on nothing but an idle box.**
 
 **Branch/PR:** `tide/win/2026-10-14-e89-done`. The E89 flip and archive, this entry, the `win` cell, the rotation and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
-
-## 2026-10-14 — windows — A44 closed WONTFIX on Jeff's question, and the honest answer was that the row overstated itself (interactive, Jeff directing)
-
-**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude desktop **2.31226.1** (CLI `2.1.295`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:` · **interactive continuation of this box's 2026-10-13 scheduled run, Jeff directing**
-
-**Did:** Jeff asked ***"do we need to fret about the cadence of agents? it's not that important is it."*** He was right. **A44 is WONTFIX**, with the whole remedy being one standing note in the digest ([#657](https://github.com/JeffMcClintock/TideSynth/pull/657)) so no further run re-raises it.
-
-**This is an interactive session and a scheduled run must not copy it** — it closes a row on a ruling given in chat, which is Jeff's to give and not a run's to assume.
-
-### Why the row overstated itself, which is the part worth keeping
-
-I filed A44 the previous day and then had to argue against it, so the reckoning is written out rather than summarised. **Nothing was parked on it, no scheduled run was ever lost, and no work was blocked.** The entire measured cost was *attention*: three mac entries (10-11, 10-12, 10-13) each spent a paragraph escalating windows' silence, and the 10-11 one asked that STEP 0.7 be checked by hand on two machines that were fine.
-
-**What retired it was not the cadence argument but a coverage one.** The scenario the liveness check would be missed in — all three boxes dying together when the credential expires — **already has its own alarm with a real date**, `check_credential_expiry()`, which A40 built into the same digest. So closing A44 costs no coverage of the one fleet-wide halt that is known in advance. Without that, WONTFIX would have been cheap rather than safe.
-
-**The technically-true residue is recorded in the row and not in the queue:** on a weekly box the liveness check does not merely false-alarm, it carries **no information** — *"silent 7 days"* is simultaneously *perfectly healthy* and *halted a week ago*, which here are the same observation. **So this box has no halt detection, by arithmetic, and that is now an accepted state rather than an open question.**
-
-### The fix, and what it deliberately is not
-
-One sentence in `check_halted_boxes()`'s section intro. **No logic change, and deliberately no per-platform cadence table** — a table would be a second place to drift out of step with the real cron, which is the staleness A7 already flagged and this project keeps paying for. **The flag is not suppressed**: a genuinely long silence still belongs in that section, and suppressing windows would blind the one box the check demonstrably works for.
-
-`--selftest` still reports `all 4 liveness classifications correct`; `--dry-run` renders the note above the per-box lines.
-
-### A second cause of the same noise, found while verifying it
-
-`--dry-run` reported **linux as LIKELY HALTED, silent 7 days** — on a day linux had run and pushed [#652](https://github.com/JeffMcClintock/TideSynth/pull/652). Its journal entry is still inside that unmerged PR and the digest reads `main`. **No cadence fix would have touched that**, and it is the strongest argument for a note over machinery: the section is structurally noisy for at least two independent reasons. Not filed as a row — A44 was just closed for being the same shape of concern, and filing its sibling the same hour would be exactly the busywork STEP 2 warns against.
-
-**Learned:**
-
-- **A run that files a row should be willing to argue against it when asked, and the honest reckoning is usually narrower than the filing.** A44's real content shrank, under one question, from *"the fleet's liveness detection is wrong"* to *"three entries wasted a paragraph each"*. The filing was not wrong, it was disproportionate — and disproportionate is the failure mode a queue every run reads cannot afford.
-- **Check whether a neighbouring alarm already covers the scenario before arguing a detector matters.** The case for A44 collapsed on finding `check_credential_expiry()`, which is in the *same file* and was built by A40 for the exact halt A44's defenders would have cited. Reading the sibling check was worth more than any further measurement.
-- **"No information" is a sharper claim than "false alarm", and it is sometimes the one that closes a row rather than escalating it.** Showing the check cannot distinguish healthy from halted on this box is what made *accepting* the gap a defensible answer instead of a deferral.
-- **A note is the right fix when a section is noisy for more than one reason.** Had the only cause been cadence, option (c) would have been proportionate; two independent causes in one afternoon means precision machinery would still leave the section untrustworthy.
-- **Heredoc backslash mangling bites hardest when patching source that contains `\n` as two characters.** Three attempts to match a line ending in a literal backslash-n failed through the Bash tool's heredoc; writing the patch to a file and running `python3 -I` worked first time. Build such literals with `chr(92)+'n'` rather than escaping them.
-
-**Not verified:** the digest was **not** run in CI as part of #657, and no workflow was touched. **I did not re-measure macos's or linux's cron** — macos's `0 6 * * *` is quoted from A7's 2026-08-17 measurement, and linux's remains unmeasured by anyone, so "the fleet runs two cadences" is still established for windows and macos only. Nothing was built and no product code ran. I did not act on the linux `LIKELY HALTED` reading beyond noting its cause.
-
-**Machine state:** `C:\SE\TideSynth` stayed on `main` and was never checked out; both branches were built in scratchpad `git worktree`s, removed at the end. **The developer's four work-in-progress files are untouched for the third time across this session** — `DefaultRack.synthedit`, `RackModules/Envelope.synthedit`, and both `modules/PatchPoint/` files, still mtimed 2026-10-09. No GUI, no screenshot, and no credential value anywhere.
-
-**Next:** see the `win` cell. **For Jeff:** [#657](https://github.com/JeffMcClintock/TideSynth/pull/657) is `scripts/**` so it waits for you by design; it is one comment block and no logic. [#652](https://github.com/JeffMcClintock/TideSynth/pull/652) still needs the Windows `release` fix or your call to merge without it. The bookkeeping-hot-spots question is the next one worth your attention, and I have argued separately that most of it needs no ruling at all.
-
-**Branch/PR:** `tide/win/2026-10-14-a44-wontfix`. The A44 flip, this entry, the `win` cell and the regenerated `docs/lessons.md` are on that branch; the digest change is on `tide/win/A44-digest-weekly-note` ([#657](https://github.com/JeffMcClintock/TideSynth/pull/657)), deliberately separate because `scripts/**` is off the allowlist.
