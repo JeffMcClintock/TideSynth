@@ -1437,3 +1437,59 @@ One sentence in `check_halted_boxes()`'s section intro. **No logic change, and d
 **Next:** see the `win` cell. **For Jeff:** [#657](https://github.com/JeffMcClintock/TideSynth/pull/657) is `scripts/**` so it waits for you by design; it is one comment block and no logic. [#652](https://github.com/JeffMcClintock/TideSynth/pull/652) still needs the Windows `release` fix or your call to merge without it. The bookkeeping-hot-spots question is the next one worth your attention, and I have argued separately that most of it needs no ruling at all.
 
 **Branch/PR:** `tide/win/2026-10-14-a44-wontfix`. The A44 flip, this entry, the `win` cell and the regenerated `docs/lessons.md` are on that branch; the digest change is on `tide/win/A44-digest-weekly-note` ([#657](https://github.com/JeffMcClintock/TideSynth/pull/657)), deliberately separate because `scripts/**` is off the allowlist.
+
+## 2026-10-14 — windows — E89 DONE and the box lock is live; four stale mac issues closed; and the link break that stopped #652 was Jeff's own cross-repo WIP, not this fleet's doing (interactive, Jeff directing)
+
+**Prompt:** b97bc00 · Opus 5, `claude-opus-5` · app Claude desktop **2.31226.1** (CLI `2.1.295`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:` · **interactive continuation of this box's 2026-10-13 scheduled run, Jeff directing**
+
+**Did:** Jeff merged everything, then said ***"do both please"***. **E89 is DONE and archived**, and the four stale `platform:mac` issues are closed with the cause and the evidence. **A scheduled run must not copy this entry** — it closes rows and issues on rulings given in chat.
+
+**State at the end: zero open PRs in any of the six repos, and `main` green on all three platforms** (`build` at `ff6c245db`: `linux`, `macos`, `windows`, all three `render-*` and `guard` all success).
+
+### The box lock is LIVE, which is the thing the next run most needs to know
+
+[#652](https://github.com/JeffMcClintock/TideSynth/pull/652) merged as `ff6c245db`, so **prompt sha is now `18210767f`** and from the next scheduled run every box acquires at STEP 0.5 and releases at STEP 5. The windows-specific correction is in that prompt text.
+
+### Why #652 was not merged when Jeff first asked, and what measuring it found
+
+He asked for suitable PRs to be merged, chose *"measure on Windows, then merge"* for this one, and it did not stay green. **4 of 13 arms failed and the probe printed its own verdict not to adopt the lock on that result.** `_parent_and_cmdline` returns `(None, None)` off posix by construction, so `--owner-pid auto` degraded to `self` — the short-lived `acquire`'s pid — and `pid_alive` is an unconditional `None` there, which masked the staleness for `acquire` and **broke `release`**:
+
+```
+acquire  rc=0  pid == recorded_by == 33336
+acquire  rc=1  REFUSED  <- correct, exclusion works
+release  rc=1  REFUSED: "not by this run" (owner resolves to 33532)
+```
+
+So **every** windows run would have ended holding its lock, not merely a crashed one, with the 6 h age cap the only route out on the *normal* path — the stranding direction #583 calls worse than the collision.
+
+**The cause of the cause is the durable part: no arm exercised an unforced `release` on ANY platform.** Arm 10 passes `--force`, and its own comment says why — in that harness every `run_lock` is its own pid. The one command STEP 5 prescribes was untested everywhere, which is how a green PR carried it.
+
+Fix: `release` falls back to the host the lock already carries, gated on `--owner-pid auto` **and** a platform that cannot establish pid ownership. `acquire` untouched. **Inert on posix by that gate**, which is the whole argument it cannot regress the other two boxes. Arms 5/11/12/13 now assert the documented non-posix contract instead of the posix one, and **new arm 14** pins the gap in three parts. Windows: **14 arms, 0 failures**, control still 12-of-12, re-run after merging `main` in.
+
+### The link break was not ours, and I said the opposite before checking
+
+`main` and four branches went red on macos and windows. **I first told Jeff I had caused it by merging #643** — wrong, and the correction matters more than the original claim. The undefined symbols were `DawPreset::calcHash()`, `DawPreset::DawPreset(...)`, `init(std::map<int, paramInfo>&, tinyxml2::XMLNode*)` and `_g_pendingEditorGuiHost`, from `libSynthEditLib.a(Controller.cpp.o)` and `libVST3_Wrapper.a(Controller_VST3.cpp.o)` — nothing to do with an AU3 test probe.
+
+**What settled it in one step: three of the red PRs were bookkeeping-only and touch no compiled file at all.** A link error cannot be caused by a `BACKLOG.md` edit, so the cause had to be external.
+
+It was two commits **sixteen seconds apart**, both Jeff's, both on 2026-10-13 15:33, in repos TideSynth fetches at `GIT_TAG origin/main`: SynthEditLib `45c349b` added `extern IGuiHost2* g_pendingEditorGuiHost;` to a header with no definition anywhere (+11/−1, header only), and GMPI_Wrappers `7909b76` then assigned it and pulled `Controller.cpp` into the link, which needs `DawPreset` from `ProcessorStateManager.cpp` — a file deliberately **not** part of SynthEditLib, per the comment at `SE16/tests/CMakeLists.txt:136`; `se_vst3` and `se_au` each add it to their own target and the TIDE wrappers did not. **I did not attempt the fix**: two repos, one GATED and one PR-gated, on a platform this box cannot compile. Jeff fixed both halves in GMPI_Wrappers `de118cb`.
+
+### The four stale issues, and why they could never close themselves
+
+#656, #658, #660 and #661 were auto-filed by the same break. **`build.yml`'s *"Close the platform issue on success"* step only closes the issue for the branch it just built** — so #654 (`main`) closed itself on the green run while these four could not, their branches being merged and deleted. Left open they read as four live mac build failures to the next mac run's STEP 1. Closed with the cause, `de118cb`, and the green run as evidence.
+
+**Learned:**
+
+- **A bookkeeping-only PR going red is a free diagnosis: it says the cause is not in this repo.** Three of them were red simultaneously, and a `BACKLOG.md` edit cannot break a link step. That observation cost nothing and was worth more than reading the compiler output.
+- **Check before attributing a break to your own merge.** I claimed authorship of this one on the strength of timing alone — my #643 merge was the first build run in four days, so it *looked* causal. The symbol names refuted it immediately and I should have read them first.
+- **An auto-filed issue whose branch is deleted is immortal.** The closing step is branch-scoped, so a fleet-wide break leaves one self-closing issue and N permanent ones. Whoever fixes such a break should expect to close the rest by hand.
+- **`GIT_TAG origin/main` makes a dependency's WIP your build's WIP.** Two commits sixteen seconds apart in two other repos turned every TideSynth build red with no TideSynth commit involved. The 10-06 entry noted this works in the useful direction too; this is the other one.
+- **A fix that is inert on the platforms you cannot test is worth more than a fix that is merely small.** The release fallback sits behind a non-posix gate, so the argument for linux and macOS safety is structural rather than a hope — which is what made it mergeable without a posix run.
+
+**Not verified:** **the lock probe has still never run on linux or macOS, by anyone.** No workflow references it, so CI will not catch a regression there, and the posix-safety case is the gate rather than a measurement — it needs no build and took ~8 s on linux. I did not run the probe against the merged `main`, only against the branch. Nothing was built or compiled on this box this session, and no product code ran. The three `DONE-PENDING-ACCEPT` rows (E7, E44, E49) were **not** touched — that status awaits an acceptance judgement, not a merge, so the mechanical STEP 4 rule does not reach them.
+
+**Machine state:** `C:\SE\TideSynth` stayed on `main` throughout and every piece of work was a scratchpad `git worktree`, each removed. **The developer's four work-in-progress files are now his own commit `27b36f71a`** — `DefaultRack.synthedit`, `RackModules/Envelope.synthedit` and both `modules/PatchPoint/` files — so the tree is clean for the first time this session, and they were never touched by any run. No GUI, no screenshot, no credential value anywhere.
+
+**Next:** see the `win` cell. **For Jeff:** nothing is waiting on you — no open PRs, no open mac issues, `main` green on three platforms. The queue's ten `TODO` rows are parked on the same open questions as before, and **E19 and E82 are still the only two blocked on nothing but an idle box.**
+
+**Branch/PR:** `tide/win/2026-10-14-e89-done`. The E89 flip and archive, this entry, the `win` cell, the rotation and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.

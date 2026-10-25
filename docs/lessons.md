@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **520 KB** across **402** entries, so copying them
+Learned sections are **521 KB** across **403** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **169 KB / 1725 lessons — 3.1x smaller**, and represents
+A8. This is **170 KB / 1729 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,15 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-26
+
+**linux — E19: the linux VST3 cell passes animation, pixel diff and the int/enum menu clause in REAPER (scheduled run)**
+
+- A cold VM can make REAPER run ~44 s behind wall time, and nothing in the plug-in's trace shows it.
+- E82's rebuild trick works in a host, and its trace does not need a cable.
+- Dragging from a jack that already carries a cable picks that cable up
+- Under weston, a GMPI context menu and its submenu are separate override-redirect X windows
 
 ## 2026-10-25
 
@@ -73,16 +82,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A configure-time Accept is cheap to measure and worth its control.
 - "Linux-only in fact" has a shelf life of one platform-guard edit.
 - The box lock's first live acquire resolved the agent process by ancestor walk
-
-## 2026-10-14
-
-**windows — E89 DONE and the box lock is live; four stale mac issues closed; and the link break that stopped #652 was Jeff's own cross-repo WIP, not this fleet's doing (interactive, Jeff directing)**
-
-- A bookkeeping-only PR going red is a free diagnosis: it says the cause is not in this repo.
-- Check before attributing a break to your own merge.
-- An auto-filed issue whose branch is deleted is immortal.
-- `GIT_TAG origin/main` makes a dependency's WIP your build's WIP.
-- A fix that is inert on the platforms you cannot test is worth more than a fix that is merely small.
 
 ## 2026-10-01
 
@@ -272,6 +271,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "No information" is a sharper claim than "false alarm", and it is sometimes the one that closes a row rather than escalating it.
 - A note is the right fix when a section is noisy for more than one reason.
 - Heredoc backslash mangling bites hardest when patching source that contains `\n` as two characters.
+
+**windows — E89 DONE and the box lock is live; four stale mac issues closed; and the link break that stopped #652 was Jeff's own cross-repo WIP, not this fleet's doing (interactive, Jeff directing)**
+
+- A bookkeeping-only PR going red is a free diagnosis: it says the cause is not in this repo.
+- Check before attributing a break to your own merge.
+- An auto-filed issue whose branch is deleted is immortal.
+- `GIT_TAG origin/main` makes a dependency's WIP your build's WIP.
+- A fix that is inert on the platforms you cannot test is worth more than a fix that is merely small.
 
 ## 2026-09-08
 
