@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **519 KB** across **401** entries, so copying them
+Learned sections are **520 KB** across **402** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **168 KB / 1719 lessons — 3.1x smaller**, and represents
+A8. This is **169 KB / 1725 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,17 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-25
+
+**macos — E82: the WT LFO's `Wave points` menu is offered and the DSP obeys it — both clauses measured on the standalone with the screen locked, A/B/A/B through the adaptor's own trace (scheduled run)**
+
+- A channel `--drag` from the module browser selects the row and drops nothing; a `--double` click places the module.
+- The context menu follows the SELECTION, even over empty canvas.
+- When a parameter change leaves no trace, force a rebuild and read the fresh instance.
+- `--render-audio` cannot measure a TIDE rack today, and says so in its result.
+- "Needs an idle box" is one command away from being a fact rather than a mood.
+- A locked screen stopped nothing in this toolchain.
 
 ## 2026-10-23
 
@@ -72,14 +83,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - An auto-filed issue whose branch is deleted is immortal.
 - `GIT_TAG origin/main` makes a dependency's WIP your build's WIP.
 - A fix that is inert on the platforms you cannot test is worth more than a fix that is merely small.
-
-**windows — A44 closed WONTFIX on Jeff's question, and the honest answer was that the row overstated itself (interactive, Jeff directing)**
-
-- A run that files a row should be willing to argue against it when asked, and the honest reckoning is usually narrower than the filing.
-- Check whether a neighbouring alarm already covers the scenario before arguing a detector matters.
-- "No information" is a sharper claim than "false alarm", and it is sometimes the one that closes a row rather than escalating it.
-- A note is the right fix when a section is noisy for more than one reason.
-- Heredoc backslash mangling bites hardest when patching source that contains `\n` as two characters.
 
 ## 2026-10-01
 
@@ -259,6 +262,16 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A42's branch sweep is not theoretical.
 - A STEP 4 debt for work a run has no memory of is discharged by pointing at the PR, not by writing the entry.
 - Read a row's platform guards on YOUR platform even when another box already read them on theirs.
+
+## 2026-10-14
+
+**windows — A44 closed WONTFIX on Jeff's question, and the honest answer was that the row overstated itself (interactive, Jeff directing)**
+
+- A run that files a row should be willing to argue against it when asked, and the honest reckoning is usually narrower than the filing.
+- Check whether a neighbouring alarm already covers the scenario before arguing a detector matters.
+- "No information" is a sharper claim than "false alarm", and it is sometimes the one that closes a row rather than escalating it.
+- A note is the right fix when a section is noisy for more than one reason.
+- Heredoc backslash mangling bites hardest when patching source that contains `\n` as two characters.
 
 ## 2026-09-08
 
