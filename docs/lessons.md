@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **520 KB** across **402** entries, so copying them
+Learned sections are **522 KB** across **403** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **169 KB / 1725 lessons — 3.1x smaller**, and represents
+A8. This is **170 KB / 1730 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,16 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-26
+
+**windows — no item: this lane finally got the idle evening box it has been blocked on for five runs, and the queue had nothing left for it — E19 was claimed by the linux lane nine hours earlier. What delivered the idle box was a **13-hour clock error** (scheduled run)**
+
+- A workstation's clock can be hours wrong for most of a day, and then a routine NTP sync becomes a scheduler event.
+- `Win32_OperatingSystem.LastBootUpTime` and the boot entry in the event log disagreeing by exactly a timezone offset is the cheapest possible detector for this.
+- Prefer tick-based instruments to wall-clock ones for "is anybody there".
+- A row reserved for a condition one lane almost never meets will be finished by a lane that meets it often.
+- A full stop in STEP 2 can be the correct outcome of a *successful* run.
 
 ## 2026-10-25
 
@@ -63,26 +73,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `cronExpression` alone does not tell you when a task runs; `nextRunAt` tells you how it is interpreted.
 - Converting a UTC timestamp to a weekday is worth doing with the timezone database rather than by eye.
 - A row can answer an old row's explicitly-undiagnosed observation without re-filing it.
-
-## 2026-10-16
-
-**linux — E92: its Accept is MET on SE16 `origin/master` — Jeff's own commit answered the ruling the row was parked on, and four configures here measure it (scheduled run)**
-
-- Before filing the `PROPOSED:` entry a NEXT cell asks for, re-read the GATED file at `origin`.
-- A ruling can arrive as a commit in the GATED repo rather than as a merged `PROPOSED:` entry, and a run has to look there to see it.
-- A configure-time Accept is cheap to measure and worth its control.
-- "Linux-only in fact" has a shelf life of one platform-guard edit.
-- The box lock's first live acquire resolved the agent process by ancestor walk
-
-## 2026-10-14
-
-**windows — E89 DONE and the box lock is live; four stale mac issues closed; and the link break that stopped #652 was Jeff's own cross-repo WIP, not this fleet's doing (interactive, Jeff directing)**
-
-- A bookkeeping-only PR going red is a free diagnosis: it says the cause is not in this repo.
-- Check before attributing a break to your own merge.
-- An auto-filed issue whose branch is deleted is immortal.
-- `GIT_TAG origin/main` makes a dependency's WIP your build's WIP.
-- A fix that is inert on the platforms you cannot test is worth more than a fix that is merely small.
 
 ## 2026-10-01
 
@@ -272,6 +262,24 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - "No information" is a sharper claim than "false alarm", and it is sometimes the one that closes a row rather than escalating it.
 - A note is the right fix when a section is noisy for more than one reason.
 - Heredoc backslash mangling bites hardest when patching source that contains `\n` as two characters.
+
+**windows — E89 DONE and the box lock is live; four stale mac issues closed; and the link break that stopped #652 was Jeff's own cross-repo WIP, not this fleet's doing (interactive, Jeff directing)**
+
+- A bookkeeping-only PR going red is a free diagnosis: it says the cause is not in this repo.
+- Check before attributing a break to your own merge.
+- An auto-filed issue whose branch is deleted is immortal.
+- `GIT_TAG origin/main` makes a dependency's WIP your build's WIP.
+- A fix that is inert on the platforms you cannot test is worth more than a fix that is merely small.
+
+## 2026-10-16
+
+**linux — E92: its Accept is MET on SE16 `origin/master` — Jeff's own commit answered the ruling the row was parked on, and four configures here measure it (scheduled run)**
+
+- Before filing the `PROPOSED:` entry a NEXT cell asks for, re-read the GATED file at `origin`.
+- A ruling can arrive as a commit in the GATED repo rather than as a merged `PROPOSED:` entry, and a run has to look there to see it.
+- A configure-time Accept is cheap to measure and worth its control.
+- "Linux-only in fact" has a shelf life of one platform-guard edit.
+- The box lock's first live acquire resolved the agent process by ancestor walk
 
 ## 2026-09-08
 
