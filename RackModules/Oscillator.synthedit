@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="606633040" SelectedViewType="128" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0">
     <WindowLayout>
-        <MainWindow l="418" t="418" r="3298" b="1955" monitor="\\.\DISPLAY1" ml="0" mt="0" mr="3840" mb="2160"/>
+        <MainWindow l="418" t="419" r="3298" b="1955" monitor="\\.\DISPLAY1" ml="0" mt="0" mr="3840" mb="2160"/>
     </WindowLayout>
     <master_container type="Container" handle="333283813" name="Main" PanelLocationZoom="1" StructLocationZoom="1" ViewOpenFlags="256" skin="default3">
         <plugs>
@@ -11,27 +11,65 @@
         <PatchManager>
             <ProgramNames/>
             <Parameters>
+                <param type="6" handle="34702161" shortName="Level" ignorePC="true" private="true" stateful="false" module="553348735" moduleParamId="0"/>
                 <param type="10" handle="162404167" private="true" hostControl="49">
                     <patch-list>
                         <s repeat="128"></s>
                     </patch-list>
                 </param>
+                <param type="10" handle="174695687" shortName="Capture Data A" ignorePC="true" private="true" stateful="false" isPolyphonic="true" module="1311285963" moduleParamId="0"/>
+                <param type="4" handle="258587584" shortName="polyDetect" ignorePC="true" private="true" stateful="false" module="1311285963" moduleParamId="2"/>
+                <param type="6" handle="1590000411" shortName="Level" ignorePC="true" private="true" stateful="false" module="1142937646" moduleParamId="0"/>
+                <param type="10" handle="1714709055" shortName="Capture Data B" ignorePC="true" private="true" stateful="false" isPolyphonic="true" module="1311285963" moduleParamId="1"/>
+                <param type="0" handle="2064520790" shortName="Oscillator Waveform" vstParameterNumber="0" module="4224648" moduleParamId="0" MetaData="Sine, Saw, Ramp, Triangle, Pulse,White Noise,Pink Noise">
+                    <patch-list>
+                        <s>6</s>
+                        <s repeat="127">1</s>
+                    </patch-list>
+                </param>
             </Parameters>
         </PatchManager>
         <modules>
-            <module type="Container" handle="606633040" name="TiDE Oscillator" PanelLocationZoom="1.5624998" StructLocationZoom="1" ViewOpenFlags="128" rack_module="true" skin="default3">
+            <module type="Container" handle="606633040" name="TiDE Oscillator" PanelLocationZoom="1.5624998" StructLocationZoom="3.8146973" ViewOpenFlags="384" m_locked="true" rack_module="true" skin="default3">
                 <plugs>
                     <plug default="1" idx="2"/>
                     <plug idx="7"/>
                 </plugs>
                 <structRect l="3834" r="3882" t="3834" b="3858"/>
                 <modules>
+                    <module type="SE Scope4" handle="1311285963">
+                        <structRect l="4140" r="4248" t="3816" b="3919"/>
+                        <panelRect l="143" r="242" t="145" b="245"/>
+                    </module>
+                    <module type="SE: SvgGeometry" handle="91000003">
+                        <plugs>
+                            <plug default="C:\SE\TideSynth\RackModules\Oscillator-waveforms.svg"/>
+                        </plugs>
+                        <structRect l="3900" r="3960" t="4120" b="4144"/>
+                        <panelRect l="0" r="0" t="0" b="0"/>
+                    </module>
+                    <module type="SE: StyleBuilder" handle="91000004">
+                        <plugs>
+                            <plug default="00000000"/>
+                            <plug default="000000"/>
+                        </plugs>
+                        <structRect l="3900" r="3972" t="4180" b="4252"/>
+                        <panelRect l="0" r="0" t="0" b="0"/>
+                    </module>
+                    <module type="SE: RenderGeometry" handle="91000005">
+                        <structRect l="4044" r="4140" t="4119" b="4227"/>
+                        <panelRect l="35" r="45" t="156" b="237"/>
+                    </module>
+                    <module type="SE TiDE:sliderswitch" handle="4224648">
+                        <structRect l="3768" r="3876" t="4116" b="4216"/>
+                        <panelRect l="20" r="28" t="160" b="234"/>
+                    </module>
                     <module type="TiDE Patch Point In" handle="1142937646">
                         <plugs>
                             <plug default="PITCH"/>
-                            <plug default="5"/>
+                            <plug default="5" idx="2"/>
                         </plugs>
-                        <structRect l="3726" r="3774" t="3954" b="3990"/>
+                        <structRect l="3726" r="3786" t="3954" b="4034"/>
                         <panelRect l="9" r="39" t="55" b="95"/>
                     </module>
                     <module type="Oscillator" handle="1888218636">
@@ -41,7 +79,7 @@
                         <plugs>
                             <plug default="OUT"/>
                         </plugs>
-                        <structRect l="4182" r="4218" t="3954" b="3990"/>
+                        <structRect l="4182" r="4230" t="3954" b="4022"/>
                         <panelRect l="9" r="39" t="312" b="352"/>
                     </module>
                     <module type="SE Label" handle="91000002">
@@ -53,37 +91,29 @@
                     </module>
                     <module type="SE TiDE:Panel" handle="91000001">
                         <plugs>
-                            <plug default="grill 24 20; jack 24 80; jack out 24 337; slots 24 371" idx="3"/>
+                            <plug default="switch 24 196 15.4 84; grill 24 20; jack 24 80; jack out 24 337; slots 24 371" idx="3"/>
                             <plug default="2"/>
                             <plug default="FFdfd1a9"/>
                         </plugs>
                         <structRect l="4560" r="4632" t="3876" b="4336"/>
                         <panelRect l="0" r="48" t="0" b="384"/>
                     </module>
-                    <module type="IO Mod" handle="263194789">
-                        <plugs>
-                            <plug/>
-                        </plugs>
-                        <structRect l="4484" r="4532" t="3984" b="3996"/>
-                    </module>
-                    <module type="IO Mod" handle="1843946995">
-                        <plugs>
-                            <plug/>
-                        </plugs>
-                        <structRect l="3484" r="3532" t="3984" b="3996"/>
-                    </module>
                 </modules>
                 <lines>
-                    <line type="Line" handle="94852515" lineType="1" fMod="1888218636" tMod="553348735" fPlg="3" tPlg="1"/>
-                    <line type="Line" handle="190616161" lineType="1" fMod="1142937646" tMod="1888218636" fPlg="2"/>
+                    <line type="Line" handle="91000006" lineType="1" fMod="91000003" tMod="91000005" fPlg="1"/>
+                    <line type="Line" handle="91000007" lineType="1" fMod="91000004" tMod="91000005" fPlg="4" tPlg="1"/>
+                    <line type="Line" handle="1412763883" lineType="1" fMod="1888218636" tMod="553348735" fPlg="3" tPlg="2"/>
+                    <line type="Line" handle="70768971" lineType="1" fMod="1142937646" tMod="1888218636" fPlg="3"/>
+                    <line type="Line" handle="356931408" lineType="1" fMod="4224648" tMod="1888218636" fPlg="5" tPlg="2"/>
+                    <line type="Line" handle="1106310900" lineType="1" fMod="1888218636" tMod="1311285963" fPlg="3" tPlg="8"/>
                 </lines>
-                <PanelLocationCenter x="250.50003" y="162.30003"/>
-                <StructLocationCenter x="3984" y="3984"/>
+                <PanelLocationCenter x="129.21426" y="248.53247"/>
+                <StructLocationCenter x="4056.5862" y="4147.4604"/>
                 <PanelWndPosition l="0" r="48" t="0" b="384"/>
                 <PanelLocation l="0" r="500" t="0" b="500"/>
                 <StructLocation l="0" r="500" t="0" b="500"/>
-                <PanelScroll x="0" y="-87"/>
-                <StructScroll x="3734" y="3734"/>
+                <PanelScroll x="-120" y="-1"/>
+                <StructScroll x="3806" y="3897"/>
                 <PanelWndOffset cx="-99999" cy="-99999"/>
                 <panel_rect l="0" r="48" t="0" b="384"/>
             </module>
@@ -114,11 +144,6 @@
                 <Pin name="Ignore Program Change" datatype="bool" noAutomation="true"/>
             </GUI>
         </Plugin>
-        <Plugin id="IO Mod" class="1" name="IO Mod" flags="4356" category="">
-            <Audio>
-                <Pin name="Spare" datatype="float" rate="audio" autoRename="true" autoDuplicate="true" isContainerIoPlug="true"/>
-            </Audio>
-        </Plugin>
         <Plugin id="Oscillator" class="1" name="Oscillator" flags="4352" category="Old">
             <Audio>
                 <Pin name="Pitch" datatype="float" rate="audio" default="0.5" metadata="100, 0, 10, 0"/>
@@ -141,6 +166,31 @@
                 <Pin name="Alignment" datatype="enum" default="1" metadata="Left,Center,Right"/>
             </GUI>
         </Plugin>
+        <Plugin id="SE Scope4" name="Scope4" flags="384" category="Controls">
+            <Parameters>
+                <Parameter id="0" datatype="blob" name="Capture Data A" private="true" ignorePatchChange="true" isPolyphonic="true" persistant="false"/>
+                <Parameter id="1" datatype="blob" name="Capture Data B" private="true" ignorePatchChange="true" isPolyphonic="true" persistant="false"/>
+                <Parameter id="2" datatype="bool" name="polyDetect" private="true" ignorePatchChange="true" persistant="false"/>
+            </Parameters>
+            <Audio>
+                <Pin name="Signal A" datatype="float" rate="audio"/>
+                <Pin name="Signal B" datatype="float" rate="audio"/>
+                <Pin name="VoiceFocus" datatype="bool" private="true" isPolyphonic="true" hostConnect="Voice/Focus"/>
+                <Pin name="Capture Data A" datatype="blob" direction="out" private="true" isPolyphonic="true" parameterId="0"/>
+                <Pin name="Capture Data B" datatype="blob" direction="out" private="true" isPolyphonic="true" parameterId="1"/>
+                <Pin name="polydetect" datatype="bool" direction="out" private="true" parameterId="2"/>
+            </Audio>
+            <GUI graphicsApi="GmpiGui">
+                <Pin name="Capture Data A" datatype="blob" private="true" isPolyphonic="true" parameterId="0"/>
+                <Pin name="Capture Data B" datatype="blob" private="true" isPolyphonic="true" parameterId="1"/>
+                <Pin name="polydetect" datatype="bool" private="true" parameterId="2"/>
+                <Pin name="Trace A Color" datatype="string_utf8" default="00FF00"/>
+                <Pin name="Trace B Color" datatype="string_utf8" default="FFFF00"/>
+                <Pin name="Axis Color" datatype="string_utf8" default="8F958F"/>
+                <Pin name="Value Color" datatype="string_utf8" default="C4CBC4"/>
+                <Pin name="Velocity Dim" datatype="float" default="0.7"/>
+            </GUI>
+        </Plugin>
         <Plugin id="SE TiDE:Panel" name="Panel" flags="384" category="TiDE">
             <GUI graphicsApi="GmpiGui">
                 <Pin name="Text" datatype="string_utf8"/>
@@ -151,26 +201,74 @@
                 <Pin name="Panel Color" datatype="string_utf8" default="FF2E3238"/>
             </GUI>
         </Plugin>
+        <Plugin id="SE TiDE:sliderswitch" name="switch" flags="384" category="TiDE">
+            <Parameters>
+                <Parameter id="0" datatype="enum" name="patchValue"/>
+            </Parameters>
+            <Audio>
+                <Pin name="patchValue" datatype="int" private="true" parameterId="0"/>
+                <Pin name="Out" datatype="enum" direction="out" autoConfigureParameter="true"/>
+            </Audio>
+            <GUI>
+                <Pin name="patchValue" datatype="float" private="true" parameterId="0" parameterField="Normalized"/>
+                <Pin name="Hint In" datatype="string_utf8" private="true" parameterId="0" parameterField="Hint"/>
+                <Pin name="Background Color" datatype="string_utf8" default="00000000"/>
+                <Pin name="Stroke Color" datatype="string_utf8" default="FF000000"/>
+            </GUI>
+        </Plugin>
+        <Plugin id="SE: RenderGeometry" name="Render" flags="384" category="Experimental/Cadmium">
+            <GUI>
+                <Pin name="Path" datatype="object:path"/>
+                <Pin name="Style" datatype="object:style"/>
+                <Pin name="Panel Rect" datatype="struct:rect"/>
+            </GUI>
+        </Plugin>
+        <Plugin id="SE: StyleBuilder" name="Style" flags="384" category="Experimental/Cadmium">
+            <GUI>
+                <Pin name="Fill" datatype="struct:color"/>
+                <Pin name="Stroke" datatype="struct:color"/>
+                <Pin name="Stroke Width" datatype="float" default="1"/>
+                <Pin name="Cap" datatype="enum" metadata="Flat,Square,Round"/>
+                <Pin name="Style" datatype="object:style" direction="out"/>
+                <Pin name="Glow Radius" datatype="float"/>
+            </GUI>
+        </Plugin>
+        <Plugin id="SE: SvgGeometry" name="Svg Geometry" flags="384" category="Experimental/Cadmium">
+            <GUI>
+                <Pin name="SVG File" datatype="string_utf8" isFilename="true" metadata="svg"/>
+                <Pin name="Path" datatype="object:path" direction="out"/>
+            </GUI>
+        </Plugin>
         <Plugin id="TiDE Patch Point In" name="Patch Point&lt;-" flags="384" category="TiDE">
+            <Parameters>
+                <Parameter id="0" datatype="float" name="Level" private="true" ignorePatchChange="true" persistant="false"/>
+            </Parameters>
             <Audio>
                 <Pin name="Input" datatype="float" rate="audio" linearInput="true" isMinimised="true"/>
                 <Pin name="Output" datatype="float" rate="audio" direction="out"/>
                 <Pin name="Connected" datatype="bool" direction="out"/>
+                <Pin name="Level" datatype="float" direction="out" private="true" parameterId="0"/>
             </Audio>
             <GUI graphicsApi="GmpiGui">
                 <Pin name="Title" datatype="string_utf8"/>
+                <Pin name="Level" datatype="float" private="true" parameterId="0"/>
             </GUI>
             <PatchPoints>
                 <PatchPoint pinId="0" center="15,25" radius="5"/>
             </PatchPoints>
         </Plugin>
         <Plugin id="TiDE Patch Point Out" name="Patch Point-&gt;" flags="384" category="TiDE">
+            <Parameters>
+                <Parameter id="0" datatype="float" name="Level" private="true" ignorePatchChange="true" persistant="false"/>
+            </Parameters>
             <Audio>
                 <Pin name="Input" datatype="float" rate="audio" linearInput="true"/>
                 <Pin name="Output" datatype="float" rate="audio" direction="out" isMinimised="true"/>
+                <Pin name="Level" datatype="float" direction="out" private="true" parameterId="0"/>
             </Audio>
             <GUI graphicsApi="GmpiGui">
                 <Pin name="Title" datatype="string_utf8"/>
+                <Pin name="Level" datatype="float" private="true" parameterId="0"/>
             </GUI>
             <PatchPoints>
                 <PatchPoint pinId="1" center="15,25" radius="5"/>

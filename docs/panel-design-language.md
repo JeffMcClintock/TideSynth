@@ -1,25 +1,13 @@
 # Panel design language
 
-*Written 2026-08-20. Status: **adopted**, subject to tweaks and refinements.
-Ruled in session by Jeff, after building it: see
-[decisions.md](decisions.md), 2026-08-20. This resolves BACKLOG E17 in a
-direction neither of the two proposals on the table had named.*
-
 TIDE Rack's panels are **rendered, not drawn**. A module's faceplate and its
 fittings — knobs, jacks, switch slots, vents, LED holes — are produced by a
 path tracer ([modules/common](../modules/common), `tide_render`) as a cached
 bitmap, and the moving parts are drawn over that in vector.
 
-This document is the authority for the **traced layer**. The vector layer on
-top of it is still governed by [ui-design-language.md](ui-design-language.md),
-which is now scoped to that overlay rather than to the whole UI — see
-[Two layers](#two-layers) below.
-
 The reference implementation is
 [modules/TiDEPanel](../modules/TiDEPanel) (`SE TiDE:Panel`), which carries
-every part described here behind a textual layout spec. It was developed as a
-separate `PanelTest` module and moved into the shipping one once it worked —
-the Layout pin is what removed the need for a scratch module to experiment in.
+every part described here behind a textual layout spec.
 
 ---
 
@@ -80,10 +68,6 @@ rail hole per HP.
 rails are painted as background by `ViewBase::renderRack` and the panel covers
 them, exactly as a real Eurorack panel covers the rails it is screwed to; TIDE
 draws no mounting hardware on the panel, so rails show only in empty slots.
-
-**A round 3 DIPs/mm was tried first and rejected.** It is only 1.6% away and
-looks identical, but it puts 1 HP at 15.24 DIPs — a panel width that can never
-be a whole number of DIPs, in a system where panel widths are counted in HP.
 
 ### Parts are specified as the real part
 
@@ -220,11 +204,17 @@ A panel is **described, not hard-coded**. One component per statement:
 ```
 knob [big|small] X Y
 jack X Y
-switch X Y
+switch X Y [W H]
 grill X Y [COLS ROWS]
 slots X Y [ROWS]
 led X Y
 ```
+
+`switch` takes an optional `W H`: the whole slot's size in DIPs (default
+15.4 x 26.8). Both or neither — a lone width is ignored. The punched hole keeps
+its default margin inside the pocket, so a resized switch is the default one
+stretched. `X` and `Y` stay the centre, snapped to the half-DIP grid; `W` and
+`H` are not snapped.
 
 `X` and `Y` are DIPs from the panel's **top-left, y downward** — GUI
 coordinates, so the vector overlays drawn later reuse the same numbers
