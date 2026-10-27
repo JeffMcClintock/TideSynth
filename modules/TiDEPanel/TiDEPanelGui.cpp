@@ -24,9 +24,8 @@
 // THE PROGRESSION LOG. Off by default; set this to 1 to find out which image
 // the panel actually put on screen, and when.
 //
-// It exists because that question is genuinely hard to answer from the outside.
 // Trying to tell a stretched full render from a flat-lit preview by looking at
-// screenshots wasted a lot of time and produced two confident wrong answers;
+// screenshots wasted a lot of time
 // the panel saying what it drew settles it in one line. Writes to
 // $TIDE_PANEL_LOG_PATH if set, else %TEMP%\TiDEPanel.log on Windows and
 // $TMPDIR/TiDEPanel.log elsewhere, truncated when the host process first draws
@@ -136,8 +135,7 @@ using namespace gmpi;
 using namespace gmpi::editor;
 using namespace gmpi::drawing;
 
-// The rack-module faceplate. BACKLOG E15 — this replaces `SE Rectangle XP` as
-// the background behind every rack-module prefab.
+// The rack-module faceplate.
 //
 // The panel is PATH TRACED, not drawn, and it is described by pins rather than
 // hard-coded: see docs/panel-design-language.md, which this module is the
@@ -1018,7 +1016,7 @@ void addPanelStudio(tide::render::Scene& scene, float k)
 //
 //   knob [big|small] X Y
 //   jack [in|out] X Y      (in if omitted; outputs get black paint)
-//   switch X Y
+//   switch X Y [W H]      (W x H = the whole slot's size in DIPs; default 15.4 x 26.8)
 //   grill X Y [COLS ROWS]
 //   slots X Y [ROWS]
 //   led X Y
@@ -1067,7 +1065,28 @@ struct PanelComponent
 	bool big = false;         // knobs only
 	bool output = false;      // jacks only
 	int cols = 0, rows = 0;   // grill / slots only
+	float w = 0.0f, h = 0.0f; // switches only: full size in DIPs, 0 = the default
 };
+
+// A switch's pocket half-extents, and the punched slot inside it. The slot keeps
+// its default margin from the pocket edge however the size is set, so a resized
+// switch is the default one stretched rather than a different part.
+float switchHalfWidthDips(const PanelComponent& c)
+{
+	return c.w > 0.0f ? 0.5f * c.w : kSwitchHalfWidthDips;
+}
+float switchHalfHeightDips(const PanelComponent& c)
+{
+	return c.h > 0.0f ? 0.5f * c.h : kSwitchHalfHeightDips;
+}
+float switchHoleHalfWidthDips(const PanelComponent& c)
+{
+	return (std::max)(0.5f, switchHalfWidthDips(c) - (kSwitchHalfWidthDips - kSwitchHoleHalfWidthDips));
+}
+float switchHoleHalfHeightDips(const PanelComponent& c)
+{
+	return (std::max)(0.5f, switchHalfHeightDips(c) - kSwitchHoleMarginDips);
+}
 
 struct PanelSpec
 {
@@ -1173,6 +1192,14 @@ std::vector<PanelComponent> parsePanelLayout(const std::string& text)
 			if (parseFloatToken(tok[coordAt + 2], v)) c.rows = (std::max)(1, (int)v);
 		}
 
+		if (c.kind == PanelComponent::Kind::Switch && tok.size() >= coordAt + 4)
+		{
+			if (parseFloatToken(tok[coordAt + 2], v) && v > 0.0f) c.w = v;
+			if (parseFloatToken(tok[coordAt + 3], v) && v > 0.0f) c.h = v;
+			// Both or neither: half a size is a typo, not a request.
+			if (c.w <= 0.0f || c.h <= 0.0f) c.w = c.h = 0.0f;
+		}
+
 		out.push_back(c);
 	}
 	return out;
@@ -1256,7 +1283,7 @@ KeepOut componentKeepOut(const PanelComponent& c, float dipsWide)
 		return box(r, r, 1.5f);
 	}
 	case PanelComponent::Kind::Switch:
-		return box(kSwitchHalfWidthDips, kSwitchHalfHeightDips, 1.5f);
+		return box(switchHalfWidthDips(c), switchHalfHeightDips(c), 1.5f);
 	case PanelComponent::Kind::Grill:
 		return box(0.5f * kVentPitchDips * (float)ventColsFor(dipsWide, c.cols),
 			0.5f * kVentPitchDips * 0.866f * (float)c.rows, 2.0f);
@@ -1545,7 +1572,7 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 	struct GrillW { float cx, cy, pitchX, pitchY, r; int cols, rows; };
 	struct SlotW { float cx, cy, pitchY, halfLen, halfThick; int rows; };
 	struct HoleW { float x, y, r; };
-	struct SwitchW { float cx, cy; }; // the slot is centred, so cy serves both
+	struct SwitchW { float cx, cy, halfW, halfH, holeHalfW, holeHalfH; }; // the slot is centred, so cy serves both
 
 	std::vector<PaintW> outputPaint;
 	std::vector<GrillW> grills;
@@ -1651,10 +1678,11 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 
 		case PanelComponent::Kind::Switch:
 		{
-			switches.push_back({ wx, wy });
-			addBacking({ wx, wy, -halfZ - 0.12f }, {
-				kSwitchHoleHalfWidthDips / dipsWide + 0.04f,
-				kSwitchHoleHalfHeightDips / dipsWide + 0.04f, 0.08f });
+			const float hhw = switchHoleHalfWidthDips(c) / dipsWide;
+			const float hhh = switchHoleHalfHeightDips(c) / dipsWide;
+			switches.push_back({ wx, wy, switchHalfWidthDips(c) / dipsWide,
+				switchHalfHeightDips(c) / dipsWide, hhw, hhh });
+			addBacking({ wx, wy, -halfZ - 0.12f }, { hhw + 0.04f, hhh + 0.04f, 0.08f });
 			break;
 		}
 
@@ -1683,12 +1711,8 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 		break;
 	}
 
-	const float swHalfW = kSwitchHalfWidthDips / dipsWide;
-	const float swHalfH = kSwitchHalfHeightDips / dipsWide;
 	const float swCorner = kSwitchCornerDips / dipsWide;
 	const float swFloorZ = halfZ - kSwitchDepth;
-	const float swHoleHalfW = kSwitchHoleHalfWidthDips / dipsWide;
-	const float swHoleHalfH = kSwitchHoleHalfHeightDips / dipsWide;
 	const float swHoleCorner = kSwitchHoleCornerDips / dipsWide;
 
 	// ONE backing plate behind the WHOLE panel, rather than a box per hole.
@@ -1740,10 +1764,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			// The pocket, then the same square hole the plate gets -- the plate
 			// alone is not enough, because behind it is the panel, and a hole
 			// in one part only exposes the other. Same lesson as the jack bore.
-			d = opSmoothSubtract(d, sdIndentTool(p, sw.cx, sw.cy, swHalfW, swHalfH,
+			d = opSmoothSubtract(d, sdIndentTool(p, sw.cx, sw.cy, sw.halfW, sw.halfH,
 				swCorner, swFloorZ), kIndentFillet);
 			d = opSubtract(d, taperedCut(sdRoundRect2D(p.x, p.y, sw.cx, sw.cy,
-				swHoleHalfW, swHoleHalfH, swHoleCorner), p.z, halfZ));
+				sw.holeHalfW, sw.holeHalfH, swHoleCorner), p.z, halfZ));
 		}
 
 		// Jack bores and LED punch-outs: clean through the plate. What the eye
@@ -1917,6 +1941,10 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 			// kSwitchPlateGapDips), buried well below the pocket floor so its
 			// underside never becomes a surface anything can see.
 			const float gap = kSwitchPlateGapDips / dipsWide;
+			const float swHalfW = switchHalfWidthDips(c) / dipsWide;
+			const float swHalfH = switchHalfHeightDips(c) / dipsWide;
+			const float swHoleHalfW = switchHoleHalfWidthDips(c) / dipsWide;
+			const float swHoleHalfH = switchHoleHalfHeightDips(c) / dipsWide;
 			const float top = swFloorZ + 0.010f;
 			const float bottom = swFloorZ - 0.05f;
 			const float hz = 0.5f * (top - bottom);
