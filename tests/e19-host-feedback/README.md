@@ -223,3 +223,52 @@ area in the **same screenshot pair** changed **9,333 of 232,200**, so the captur
 is live; the standalone changed **0 of 921,600** while its counters ran; and the
 rack is drawn as **bare rails with no VCV panel on it**. **E75**, on a second
 platform.
+
+## What linux measured, 2026-10-26 — the cell passes, on the `e83` fixture
+
+Same runner, REAPER **7.82** (the box's `/opt/REAPER`, symlinked to
+`$E19_SCRATCH/reaper_linux_x86_64/REAPER` and run with the scratch `HOME`, so
+the developer's `~/.config/REAPER` is never read or written). `main` at
+`09206a2`, the trace-armed build from step 1, and **`e83-vcv-scope-cabled.xml`
+in place of `e53`** — its five VCV panels are on the visible rack page, which is
+what the section above said this cell was waiting for.
+
+```bash
+python3 frame_chunk.py ../fixtures/e83-vcv-scope-cabled.xml "$E19_SCRATCH/prepared_chunk.b64"
+bash run-host.sh prepare.lua mint
+bash run-host.sh measure.lua vst3long 420      # long window; drive it while it rolls
+# the editor is the 1100x600 child under "VST3i: TiDE Rack ... - Track 1":
+DISPLAY=:2 xwininfo -root -tree
+```
+
+| clause | readout |
+|---|---|
+| animation | instance #4 `feedback send #13500` / `editor received feedback #13600`, `display-state update #6350 (65548 bytes)`, `light 0 update #26900` — still climbing after five rack rebuilds |
+| pixel diff, 65 s apart | Scope screen **1,559 of 14,300**, LFO panel **178**, module browser **0 of 138,000** (the in-frame control) |
+| menu, WT LFO selected | rack's 6 entries + **`Wave points >`**: `32 … 16384`, **1024 ticked** |
+| menu, empty canvas, deselected | the 6 alone |
+| DSP obeys the pick | fresh `LFO2` after each cable edit: **0.500142 (1024) / 0.500004 (32) / 0.500142 / 0.500004**, then an edit with no pick: **0.500004** |
+
+The A/B is E82's instrument moved into a host: a pick writes the option into
+the live module and traces nothing, but a **cable edit rebuilds the rack** and
+the fresh `RackProcessor: 'LFO2'` prints `first NONZERO OUTPUT` once. The cable
+edit is `e19x drag` (added for this), from the WT LFO's `WT` jack (593,488) to
+the Scope's `IN 2` (730,390) or `TRIG` (777,390). Dragging from a jack that
+already carries a cable picks that cable up, so alternate edits add and remove
+rather than accumulate, which is fine: any edit rebuilds. The trace prints
+whether or not the output is cabled (`outs=0` arms print it too).
+
+Menu mechanics under weston: the context menu and its submenu are each a
+separate override-redirect X window (141x185 and 120x248 here). Find them
+with `xwininfo -root -tree`, click `Wave points` at (65,170) in the first, and
+row *n* of the submenu at (35, 17 + 24.8·n).
+
+**Read `pos` against `t` in `measure.log` before counting a window.** On the
+first launch after the VM booted, REAPER's defer loop and transport ran ~44 s
+behind wall time (`t=43.7 pos=0.685`) and then caught up to real time. So a
+75 s window held ~32 s of transport. The relaunch ran in real time from t=3 s.
+Nothing in the plug-in's trace marks the stall; the transport log is the only
+place it shows.
+
+Not measured: the **bool** arm (no bool-bearing module in this fixture) and
+**linux/CLAP**.

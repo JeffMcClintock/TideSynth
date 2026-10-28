@@ -8,6 +8,10 @@
 //   e19x geom   <winid>                    "x y w h" in root coords
 //   e19x click  <winid> <x> <y> <n> [btn]  XTest click at window-relative x,y
 //   e19x key    <keysym-name> [<n>]        XTest key press/release
+//   e19x drag   <winid> <x0> <y0> <x1> <y1> press at x0,y0, move in steps, release
+//                                          at x1,y1 -- a patch-cable edit (E19's
+//                                          int/bool/enum arm forces a rack rebuild
+//                                          with one, as E82 did on the standalone)
 //
 // A ROOT grab returns garbage under XWayland; a per-window XGetImage does not.
 #include <X11/Xlib.h>
@@ -47,7 +51,7 @@ static int shot(Display* d, Window w, const char* out)
 
 int main(int argc, char** argv)
 {
-    if (argc < 2) { fprintf(stderr, "usage: e19x shot|geom|click|key ...\n"); return 2; }
+    if (argc < 2) { fprintf(stderr, "usage: e19x shot|geom|click|drag|key ...\n"); return 2; }
     Display* d = XOpenDisplay(NULL);
     if (!d) { fprintf(stderr, "cannot open display\n"); return 2; }
     int rc = 0;
@@ -82,6 +86,31 @@ int main(int argc, char** argv)
             usleep(40000);
         }
         printf("clicked btn%d %d,%d root %d,%d x%d\n", btn, x, y, rx, ry, n);
+    }
+    else if (!strcmp(argv[1], "drag") && argc == 7)
+    {
+        Window w = (Window)strtoul(argv[2], NULL, 0);
+        int x0 = atoi(argv[3]), y0 = atoi(argv[4]), x1 = atoi(argv[5]), y1 = atoi(argv[6]);
+        Window child; int rx0, ry0, rx1, ry1;
+        XTranslateCoordinates(d, w, DefaultRootWindow(d), x0, y0, &rx0, &ry0, &child);
+        XTranslateCoordinates(d, w, DefaultRootWindow(d), x1, y1, &rx1, &ry1, &child);
+        XTestFakeMotionEvent(d, DefaultScreen(d), rx0, ry0, 0);
+        XFlush(d); usleep(60000);
+        XTestFakeButtonEvent(d, 1, True, 0);
+        XFlush(d); usleep(60000);
+        // Intermediate motion, or the editor sees a press and a release with
+        // nothing between and treats it as a click rather than a drag.
+        const int steps = 20;
+        for (int i = 1; i <= steps; ++i)
+        {
+            XTestFakeMotionEvent(d, DefaultScreen(d),
+                rx0 + (rx1 - rx0) * i / steps, ry0 + (ry1 - ry0) * i / steps, 0);
+            XFlush(d); usleep(20000);
+        }
+        usleep(60000);
+        XTestFakeButtonEvent(d, 1, False, 0);
+        XFlush(d);
+        printf("dragged %d,%d -> %d,%d root %d,%d -> %d,%d\n", x0, y0, x1, y1, rx0, ry0, rx1, ry1);
     }
     else if (!strcmp(argv[1], "key") && argc >= 3)
     {

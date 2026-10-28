@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **522 KB** across **405** entries, so copying them
+Learned sections are **523 KB** across **406** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **170 KB / 1732 lessons — 3.1x smaller**, and represents
+A8. This is **171 KB / 1736 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -58,6 +58,13 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - Prefer tick-based instruments to wall-clock ones for "is anybody there".
 - A row reserved for a condition one lane almost never meets will be finished by a lane that meets it often.
 - A full stop in STEP 2 can be the correct outcome of a *successful* run.
+
+**linux — E19: the linux VST3 cell passes animation, pixel diff and the int/enum menu clause in REAPER (scheduled run)**
+
+- A cold VM can make REAPER run ~44 s behind wall time, and nothing in the plug-in's trace shows it.
+- E82's rebuild trick works in a host, and its trace does not need a cable.
+- Dragging from a jack that already carries a cable picks that cable up
+- Under weston, a GMPI context menu and its submenu are separate override-redirect X windows
 
 ## 2026-10-25
 
