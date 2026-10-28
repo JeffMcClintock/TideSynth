@@ -1543,3 +1543,78 @@ The 13 lines are the target's object rules (SeGmpiFactory/Processor/Editor/Contr
 **Next:** see the `linux` cell. **For Jeff:** (1) [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) is still open with E89 DONE; it says of itself that the lock is a guard and not a fix for the double firing, so it is yours to close or keep -- the next linux run will meet it in STEP 1 again either way. (2) E92 needed nothing from you after all; your `f9ad10372` was the ruling. (3) The bot token expires **2026-11-07**, 22 days out.
 
 **Branch/PR:** `tide/linux/E92-template-vst3-override`. The E92 flip and archive, this entry, the `linux` cell, the rotation and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
+## 2026-10-20 — windows — no item: the queue is empty for `win` for the fourth time, and the cause is finally measured — this box almost never runs in its scheduled slot (scheduled run)
+
+**Prompt:** 18210767f · Opus 5, `claude-opus-5` · app Claude desktop **2.42304.0** (CLI version not readable — `~/.claude/versions` is empty on this box) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item — nothing is eligible for `win`, and the walk below is derived this run rather than inherited. Filed **A45**. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`c67f5c2f2..20a60580f`). **Second scheduled run under the box lock, and the first on this platform:** `run-lock.py acquire` rc=0, `owner=self (NO agent ancestor matched -- this lock is age-capped only)`, pid 27316 — the documented Windows path, with the warning it is supposed to print.
+
+**STEP 1:** no open `platform:win` issue, and on this platform that verifies nothing — `build.yml:523` (`matrix.platform != 'win'`) excludes windows from filing, as five previous cells record. The only open issues in the repo are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (linux, triaged as E89, which is DONE and archived) and #44 (the digest). **STEP 1.5:** no open PR on `tide/win/**`, and **zero open PRs in the fleet** — `git ls-remote --heads origin` returns `main` alone.
+
+### The finding: this box almost never runs in its scheduled slot, and the catch-up fires at the worst possible moment
+
+This is the fourth windows run to end with no item for the same reason — **E19 and E82 are the only two rows this lane can take, both need an idle box, and the box has never been idle at run time.** The previous three (09-14, 09-16, 10-13) each recorded that as a circumstance. It is not a circumstance; it is structural, and the mechanism is this:
+
+| evidence | value |
+|---|---|
+| this box's cron | `0 20 * * 1`, `jitterSeconds: 396`, `enabled: true` |
+| `nextRunAt` | `2026-10-26T07:06:36Z` = **2026-10-26 20:06 Mon** local (`New Zealand Standard Time`, UTC+13 today) |
+| so the cron is read in | **local time** — a UTC reading would have put `nextRunAt` at 20:06Z |
+| the slot this run should have used | Monday **2026-10-19 20:06** local = `2026-10-19T07:06Z` — **no run against it** |
+| `lastRunAt`, i.e. this run | `2026-10-19T20:10:45Z` = **2026-10-20 09:10 Tue** local |
+| `claude` process start | **09:10:39** local — the run started **09:10:45**, six seconds later |
+| every other process on the box | `chrome`, `OUTLOOK`, `slack`, `VirtualBox`, `TextInputHost`, all **09:10:26–09:10:59** |
+| `GetLastInputInfo` at 09:12 | **1 second** of idle |
+
+So the box was logged in at 09:10, the missed Monday slot was caught up at app launch, and **app launch is by construction the moment the developer sits down.** A run that fires there cannot find an idle box no matter how the queue is ordered.
+
+**Four of the five firings since the cadence went weekly are morning or afternoon ones:** 2026-10-05 09:54 Mon, 2026-10-06 09:01 Tue, 2026-10-13 13:15 Tue, 2026-10-20 09:10 Tue. The one evening firing, 2026-10-01 22:07 Thu, was still on the **old** cron — which did land in its slot: sixteen consecutive days, 2026-09-16 to 2026-10-01, all at **22:02–22:07 local**. (The 10:0x→09:0x UTC shift across 09-27 is New Zealand DST, not a schedule change.)
+
+**A correction this run owes, because three entries leaned on it.** The 10-13 windows entry and the `win` NEXT cell say *"2026-10-06 → 2026-10-13, both **Mondays**, exactly 7 days apart — two consecutive on-schedule runs"*. **Both were Tuesdays** (09:01 and 13:15 local), **neither was the 20:06 Monday slot**, and both were catch-up firings — as is today. `JOURNAL.md` is append-only so that entry stands as written; A45 and this entry are the correction, and the `win` cell now says so above its own stale chain.
+
+**It also answers A7's one undiagnosed observation.** On its way to WONTFIX that row recorded *"a firing at 20:11 local that a 06:00 daily cron does not explain; cause unknown — manual trigger, catch-up, or otherwise — recorded as an observation, not a diagnosis."* Catch-up at app launch is the mechanism, measured here to the second.
+
+**The honest half, and it is why A45 picks nothing.** An evening slot that actually fires is *necessary* and is **not known to be sufficient**: the 09-16 run did land in its 22:03 local slot and still found the developer at the machine with three Visual Studio windows. A row claiming "fix the slot and the lane unblocks" would overstate itself exactly the way A44 did, so A45 offers four shapes — a better slot, skipping a missed slot instead of catching it up, an off-screen arm for the two clauses, or ruling them interactive-only — and picks none. Every one of them is about Jeff's own working hours and his own box.
+
+**A45 is not A7 and not A44, and both of those say not to re-file them.** A7 asked to change the macos cadence and was answered that 7x is deliberate; A45 asks nothing about frequency. A44 was about `watchdog-digest.py`'s liveness thresholds; A45 does not touch the digest, does not make windows daily, and does not widen `QUIET_DAYS`. What it *is* is A44's own parting suggestion taken literally — *"have each run record its own `nextRunAt` in the provenance line"* — arriving as the thing that suggestion would have caught.
+
+### STEP 2, walked rather than inherited
+
+Nine rows are `TODO` and reachable by `win` or `any`, and every one of them is parked:
+
+- **A35** says in terms it is *"PARKED ON ITS OWN TWO `PROPOSED:` ENTRIES … NOT AVAILABLE TO TAKE"*; both entries are still open.
+- **A37** is parked on its own Accept, not on the bookkeeping-hot-spots entry's blanket *"parks nothing"* line — the 10-13 reasoning, which still holds: *"the older links are recoverable from a named file"* is answered differently by each option. That entry is **nineteen days** past its own `Decide-by`.
+- **A42** is ineligible by its own words: *"(b) without (a) is not identical under every answer"*.
+- **A43** is the same shape and says *"a run should not pick"*.
+- **S8** carries `NEEDS-SPEC` first in its row.
+- **E2** is an umbrella that says of itself it is not takeable.
+- **E84** is a `.github/workflows/**` edit this credential deliberately cannot make.
+- **E19** and **E82** need an idle box, which is this entry's finding.
+- **X2** is `linux`, **E93** is `mac`.
+
+**E92 is off that list — it went DONE on 10-16**, so the inherited "ten rows" count is nine now. All four open `PROPOSED:` entries were read; all four say *"May proceed meanwhile: everything"* or *"EVERYTHING, without exception"*, so none parks a row by its own clause, and A35/A37 are parked by their rows' own Accepts instead. No `IN-REVIEW` row exists, so STEP 4's mechanical flip rule reaches nothing.
+
+**Id allocation per A42's guard:** `git ls-remote --heads origin` returns `main` alone, so no concurrent branch holds an id. Highest A-series on `main` is **A44** (`BACKLOG.md`) and **A41** (`BACKLOG-DONE.md`). So this row is **A45**.
+
+### Also done: the lock probe against the merged `main`, which the 10-14 entry left open on this platform
+
+That entry's own "Not verified" says *"I did not run the probe against the merged `main`, only against the branch."* Run here at `20a60580f` in a scratchpad worktree, native Windows `python3`: **14 arms, 0 failures**, and the control correctly reports **12 of 12** racers winning the deliberately-broken non-atomic lock, which is what makes arm 4's *1 of 12* a result.
+
+**Arm 14 is the one worth quoting**, because it pins the Windows-specific half the 10-13 run measured as broken before #652 was fixed: explicit-owner acquire rc=0, **unforced `release` rc=0** (`removed=True`) via `same box (pid ownership unavailable on this platform)`, another box still refused rc=1. Arms 5, 11, 12 and 13 — the four that failed on 10-13 — now pass as assertions of the *documented non-posix contract* rather than the posix one: a dead pid is **not** reclaimed here because liveness is unknown, and the age cap is the only route. The lock also worked end-to-end this run, which is the live confirmation.
+
+**Learned:**
+
+- **Check your own start time against the task's `nextRunAt` before saying anything about a lane's health.** Four runs described "the developer was at the machine" as bad luck. One `list_scheduled_tasks` plus one timezone conversion showed the runs were not happening in their scheduled slot at all — and the slot was an evening one chosen, presumably, to avoid exactly this. The provenance line already carries the prompt sha, model and app version; the one field that would have caught this in a week rather than a month is the one A44 suggested on its way out.
+- **A missed slot caught up at app launch is strictly worse than a skipped run, for any work that needs an idle machine.** The two are not equivalent-with-a-delay: app launch *selects for* the developer being present. This is a general hazard for agent schedules on a workstation, not a TIDE one.
+- **`cronExpression` alone does not tell you when a task runs; `nextRunAt` tells you how it is interpreted.** `0 20 * * 1` plus `nextRunAt 2026-10-26T07:06:36Z` is what establishes local-time evaluation (UTC+13 here). Reading the cron as UTC would have put every conclusion in this entry thirteen hours out, and the 10-13 entry's "both Mondays" is what that error looks like.
+- **Converting a UTC timestamp to a weekday is worth doing with the timezone database rather than by eye.** Two dates this project called Mondays were Tuesdays, and the DST boundary on 2026-09-27 moves the same local hour by one UTC hour mid-series — which reads as a schedule change if you only have the UTC column.
+- **A row can answer an old row's explicitly-undiagnosed observation without re-filing it.** A7 wrote down a firing its cron could not explain and said so; naming the mechanism two months later is a new finding, not a re-litigation of the WONTFIX.
+
+**Not verified:** **nothing was built, compiled or run as product code** — there was no item, so no local build of `main` on Windows this run, and "green" is CI's claim rather than mine (and I did not re-read the CI runs this time; the 10-14 entry's `ff6c245db` green is the last reading, four commits back). **No GUI was taken and no screenshot made** — the developer was at the machine, which is the finding itself. **A45 is a measurement plus a reading, not a fix:** I did not edit the scheduled task, which is outside every repo and not a run's to touch, and I did not test whether the harness can be told to skip a missed slot rather than catch it up — option (b) is a hypothesis about the harness, not a measured capability. **I did not test option (c)**, so "E82's clause may not need a visible window" is an inference from the command channel calling the editor's own input client, not a result; nobody has tried it off-screen. **macOS's and linux's crons remain unmeasured by me** — I can read only this box's task, so nothing here generalises to the other two lanes' slots. The lock probe measured this platform only; **it has still never run on linux or macOS, by anyone.**
+
+**Machine state:** `C:\SE\TideSynth` **stayed on `main` and was never checked out** — all work was in two scratchpad `git worktree`s (one at `origin/main` for the probe, one for this branch), both removed and pruned at the end. **The tree was clean on arrival for the first time in this lane's recent history** — the developer's four work-in-progress files became his own commit `27b36f71a` on 10-14, as that entry records, so there was no dirt to leave alone. No other repo was touched, read or fetched: `C:\SE\SE16`, `C:\SE\SynthEditLib`, `C:\SE\gmpi_ui`, `C:\SE\GMPI_Wrappers` and `C:\SE\GMPI` were not opened this run, because no item needed them. No credential value appears anywhere. Box lock released as the last act.
+
+**Next:** see the `win` cell. **For Jeff, three things:** (1) **A45 is the only thing waiting on you**, and it is a scheduling judgement only you can make — this box's run has fired in its actual slot once in five weeks, and the two rows this lane can take both need you *not* to be at the machine. (2) The bookkeeping-hot-spots `PROPOSED:` entry is **nineteen days** past its own `Decide-by`, with A37 parked behind it. (3) The bot token expires **2026-11-07**, 18 days out.
+
+**Branch/PR:** `tide/win/2026-10-20-queue-blocked`. The A45 row, this entry, the `win` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.

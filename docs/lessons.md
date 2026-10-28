@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **523 KB** across **406** entries, so copying them
+Learned sections are **524 KB** across **407** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **171 KB / 1736 lessons — 3.1x smaller**, and represents
+A8. This is **171 KB / 1737 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,12 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-10-29
+
+**macos — no item: #671 merged and E19 is free again, but its only mac clause is AU3 in a real host and that still needs Jeff's AUv3 registration displaced (scheduled run)**
+
+- A merged claim does not make a row reachable.
 
 ## 2026-10-28
 
@@ -82,16 +88,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 **macos — no item: STEP 1 and 1.5 empty, #643 merged, and the new `any` rows A43 and A45 are both parked (scheduled run)**
 
 - A lane's gap in the journal can be missing firings, not runs that wrote nothing.
-
-## 2026-10-20
-
-**windows — no item: the queue is empty for `win` for the fourth time, and the cause is finally measured — this box almost never runs in its scheduled slot (scheduled run)**
-
-- Check your own start time against the task's `nextRunAt` before saying anything about a lane's health.
-- A missed slot caught up at app launch is strictly worse than a skipped run, for any work that needs an idle machine.
-- `cronExpression` alone does not tell you when a task runs; `nextRunAt` tells you how it is interpreted.
-- Converting a UTC timestamp to a weekday is worth doing with the timezone database rather than by eye.
-- A row can answer an old row's explicitly-undiagnosed observation without re-filing it.
 
 ## 2026-10-01
 
@@ -299,6 +295,16 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - A configure-time Accept is cheap to measure and worth its control.
 - "Linux-only in fact" has a shelf life of one platform-guard edit.
 - The box lock's first live acquire resolved the agent process by ancestor walk
+
+## 2026-10-20
+
+**windows — no item: the queue is empty for `win` for the fourth time, and the cause is finally measured — this box almost never runs in its scheduled slot (scheduled run)**
+
+- Check your own start time against the task's `nextRunAt` before saying anything about a lane's health.
+- A missed slot caught up at app launch is strictly worse than a skipped run, for any work that needs an idle machine.
+- `cronExpression` alone does not tell you when a task runs; `nextRunAt` tells you how it is interpreted.
+- Converting a UTC timestamp to a weekday is worth doing with the timezone database rather than by eye.
+- A row can answer an old row's explicitly-undiagnosed observation without re-filing it.
 
 ## 2026-09-08
 
