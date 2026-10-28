@@ -591,6 +591,10 @@ foreach(_fmt ${FORMATS_LIST})
     # E14 -- TiDEPanelGui.cpp includes TidePathTracer.h and marches its distance
     # field, so every format target needs the library.
     target_link_libraries(${_tide_target} PRIVATE tide_render)
+    # GmpiUiTest.cpp (Svg Geometry) includes gmpi_ui's SvgParser.h, which wants
+    # "tinyXml2/tinyxml2.h" from SynthEditLib's modules/. Only the standalone
+    # wrapper happened to supply that path; the other formats failed C1083.
+    target_include_directories(${_tide_target} PRIVATE "${SYNTHEDITLIB_DIR}/modules")
   endif()
 endforeach()
 
@@ -1063,6 +1067,17 @@ foreach(_fmt ${FORMATS_LIST})
 
   if(_tide_installed)
     set(_tide_install_cmds "")
+    # Prefab skins -> loose in Resources/, out of Prefabs/. Run AFTER the
+    # Prefabs copy below, which brings the *.skin folders in with it.
+    set(_tide_install_skin_cmds "")
+    foreach(_tide_skin_dir_name ${_tide_skin_dir_names})
+      list(APPEND _tide_install_skin_cmds
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${_tide_installed}/Prefabs/${_tide_skin_dir_name}")
+    endforeach()
+    foreach(_tide_skin_file ${_tide_skin_files})
+      list(APPEND _tide_install_skin_cmds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_tide_skin_file}" "${_tide_installed}/")
+    endforeach()
     foreach(_tide_xml ${_tide_xmls})
       get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
       list(APPEND _tide_install_cmds
@@ -1084,6 +1099,7 @@ foreach(_fmt ${FORMATS_LIST})
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/../DefaultRack.synthedit"
         "${_tide_installed}/DefaultRack.synthedit"
+      ${_tide_install_skin_cmds}
       COMMENT "Staging bundle data into the installed ${_tide_target}"
       VERBATIM
     )
@@ -1120,6 +1136,18 @@ foreach(_fmt ${FORMATS_LIST})
     set(_tide_win_vst3_dest "C:\\Program Files\\Common Files\\VST3\\$<TARGET_FILE_NAME:${_tide_target}>")
     set(_tide_win_vst3_resources "${_tide_win_vst3_dest}\\Contents\\Resources")
 
+    # Prefab skins -> loose in Resources\, out of Prefabs\. AFTER the Prefabs
+    # copy below, which brings the *.skin folders in with it.
+    set(_tide_win_skin_cmds "")
+    foreach(_tide_skin_dir_name ${_tide_skin_dir_names})
+      list(APPEND _tide_win_skin_cmds
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${_tide_win_vst3_resources}/Prefabs/${_tide_skin_dir_name}")
+    endforeach()
+    foreach(_tide_skin_file ${_tide_skin_files})
+      list(APPEND _tide_win_skin_cmds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_tide_skin_file}" "${_tide_win_vst3_resources}/")
+    endforeach()
+
     set(_tide_win_install_cmds "")
     foreach(_tide_xml ${_tide_xmls})
       get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
@@ -1146,6 +1174,7 @@ foreach(_fmt ${FORMATS_LIST})
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/../DefaultRack.synthedit"
         "${_tide_win_vst3_resources}/DefaultRack.synthedit"
+      ${_tide_win_skin_cmds}
       COMMENT "Assembling the installed Windows VST3 as a real bundle folder (${_tide_target})"
       VERBATIM
     )
