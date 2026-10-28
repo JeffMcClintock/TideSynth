@@ -95,8 +95,9 @@ public:
 
 		const float coarseness = (flags & static_cast<int32_t>(gmpi::api::PointerFlags::KeyControl)) != 0 ? 0.001f : 0.005f;
 
-		// Respond to both axes: drag up or right increases, down or left decreases.
-		float newValue = pinpatchValue.value + coarseness * ((point.x - pointPrevious.x) - (point.y - pointPrevious.y));
+		// Follow the tower: value 1 is the top (vertical) or left (horizontal) end,
+		// so drag up or left increases, down or right decreases.
+		float newValue = pinpatchValue.value - coarseness * (getWidth(bounds) > getHeight(bounds) ? (point.x - pointPrevious.x) : (point.y - pointPrevious.y));
 		newValue = std::clamp(newValue, 0.0f, 1.0f);
 
 		pointPrevious = point;
@@ -144,7 +145,7 @@ public:
 		const auto isHorizontal = getWidth(bounds) > getHeight(bounds);
 		// triangular ridges on switch
 		const auto peakSize = (isHorizontal ? getWidth(bounds) : getHeight(bounds)) / 48.f;
-		const int numPeaks = ceilf(isHorizontal ? getHeight(bounds) : getWidth(bounds) / peakSize);
+		const int numPeaks = ceilf((isHorizontal ? getHeight(bounds) : getWidth(bounds)) / peakSize);
 		const float totalPeakSize = peakSize * (float)numPeaks;
 		const float remainingSize = (isHorizontal ? getWidth(bounds) : getHeight(bounds)) - totalPeakSize;
 		const auto offset = (std::max)(0.0f, remainingSize * (1.f - pinpatchValue.value));
