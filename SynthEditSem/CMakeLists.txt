@@ -181,6 +181,8 @@ gmpi_plugin(
     SOURCE_FILES
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDEknob.cpp
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDEknobGui.cpp
+	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDESliderSwitch.cpp  # the Oscillator's waveform switch
+	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEknob/TiDESliderSwitchGui.cpp
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/TiDEPanel/TiDEPanelGui.cpp
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/PatchPoint/PatchPoint.cpp
 	  ${CMAKE_CURRENT_SOURCE_DIR}/../modules/PatchPoint/PatchPointGui.cpp
@@ -221,6 +223,9 @@ gmpi_plugin(
 	  ${SYNTHEDITLIB_DIR}/modules/EnvelopeAdsr/envelope.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Oscillator/Oscillator.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/PlainImageGui.cpp
+	  # Svg Geometry -> Style -> Render: the Oscillator's waveform icons. One file
+	  # registers the whole Cadmium graphics family, so all of it comes along.
+	  ${SYNTHEDITLIB_DIR}/modules/SubControls4/GmpiUiTest.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/LabelGui.cpp
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/LEDGui.cpp  # SE LED: DefaultRack's GATE light
 	  ${SYNTHEDITLIB_DIR}/modules/Controls/ButtonGui.cpp
