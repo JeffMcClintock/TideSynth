@@ -796,6 +796,13 @@ if(_tide_shared_targets)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/../DefaultRack.synthedit"
       "${_tide_shared_resources}/DefaultRack.synthedit"
+    # Files the prefabs name by bare filename (the Oscillator's waveform SVG).
+    # They sit loose beside the XMLs, where GmpiResourceManager's last-resort
+    # lookup in the bundle resource folder finds them. Merged, not rm'd first:
+    # this IS the resource folder.
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+      "${CMAKE_CURRENT_SOURCE_DIR}/../Resources"
+      "${_tide_shared_resources}"
     COMMENT "Staging rack prefabs and pin XMLs (once, shared by every format target that needs them)"
     VERBATIM
   )
@@ -910,6 +917,8 @@ foreach(_fmt ${FORMATS_LIST})
     string(APPEND _tide_stage_body "mkdir -p \"$dest/Prefabs\"\n")
     string(APPEND _tide_stage_body
       "cp -R \"${CMAKE_CURRENT_SOURCE_DIR}/../RackModules/.\" \"$dest/Prefabs/\"\n")
+    string(APPEND _tide_stage_body
+      "cp -R \"${CMAKE_CURRENT_SOURCE_DIR}/../Resources/.\" \"$dest/\"\n")
 
     set(_tide_stage_script
       "${CMAKE_CURRENT_BINARY_DIR}/stage-resources-${_tide_target}-$<CONFIG>.sh")
@@ -973,6 +982,9 @@ foreach(_fmt ${FORMATS_LIST})
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/../DefaultRack.synthedit"
         "${_tide_resources}/DefaultRack.synthedit"
+      COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/../Resources"
+        "${_tide_resources}"
       COMMENT "Staging rack prefabs (${_tide_target})"
       VERBATIM
     )

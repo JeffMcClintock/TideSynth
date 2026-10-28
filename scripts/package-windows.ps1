@@ -238,6 +238,10 @@ foreach ($xml in $ResourceXmls) {
 }
 Copy-Item -LiteralPath $defaultRackSrc -Destination (Join-Path $resourcesOut $DEFAULT_RACK) -Force
 Copy-Item -LiteralPath $prefabs -Destination (Join-Path $resourcesOut 'Prefabs') -Recurse -Force
+# Files the prefabs name by bare filename, staged loose from the repo's Resources\.
+foreach ($f in Get-ChildItem -LiteralPath $resSrc -File -Filter '*.svg') {
+    Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $resourcesOut $f.Name) -Force
+}
 
 Write-Host "==> staged bundle"
 Write-Host "    $BUNDLE\Contents\$ARCH_DIR\$BUNDLE"
@@ -257,7 +261,7 @@ Write-Host "    $BUNDLE\Contents\Resources\  ($((Get-ChildItem -LiteralPath (Joi
 # and the .vst3/.clap/.gmpi/.exe are not. Prefabs\ is checked as a directory
 # because it is copied whole.
 $stagedResources = @(Get-ChildItem -LiteralPath $resSrc -File |
-                     Where-Object { $_.Extension -in '.xml', '.synthedit' } |
+                     Where-Object { $_.Extension -in '.xml', '.synthedit', '.svg' } |
                      ForEach-Object { $_.Name })
 $packagedResources = @(Get-ChildItem -LiteralPath $resourcesOut -File |
                        ForEach-Object { $_.Name })

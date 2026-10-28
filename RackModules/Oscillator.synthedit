@@ -36,7 +36,7 @@
                 <modules>
                     <module type="SE: SvgGeometry" handle="91000003">
                         <plugs>
-                            <plug default="C:\SE\TideSynth\RackModules\Oscillator-waveforms.svg"/>
+                            <plug default="Oscillator-waveforms.svg"/>
                         </plugs>
                         <structRect l="3900" r="3960" t="4120" b="4144"/>
                         <panelRect l="0" r="0" t="0" b="0"/>
