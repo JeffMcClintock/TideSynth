@@ -673,6 +673,38 @@ foreach(_fmt ${FORMATS_LIST})
   endif()
 endforeach()
 
+# PREFAB SKINS. A prefab's images live in a project-specific skin folder beside
+# it -- RackModules/Oscillator.skin/ for Oscillator.synthedit -- because that is
+# the first place SynthEdit looks for a bare filename when the prefab is the open
+# document. TIDE has no skins, so the build flattens every *.skin/ into the
+# plugin's resource folder, where GmpiResourceManager's last-resort lookup finds
+# the same bare name, and strips the *.skin/ folders back out of Prefabs/.
+#
+# Flattening means two prefabs must not ship the same filename: one would
+# silently win. Fail at configure instead.
+file(GLOB _tide_skin_dirs LIST_DIRECTORIES true CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/../RackModules/*.skin")
+set(_tide_skin_dir_names "")
+set(_tide_skin_files "")
+set(_tide_skin_leaves "")
+foreach(_tide_skin_dir ${_tide_skin_dirs})
+  if(NOT IS_DIRECTORY "${_tide_skin_dir}")
+    continue()
+  endif()
+  get_filename_component(_tide_skin_dir_name "${_tide_skin_dir}" NAME)
+  list(APPEND _tide_skin_dir_names "${_tide_skin_dir_name}")
+  file(GLOB_RECURSE _tide_skin_dir_files CONFIGURE_DEPENDS "${_tide_skin_dir}/*")
+  foreach(_tide_skin_file ${_tide_skin_dir_files})
+    get_filename_component(_tide_skin_leaf "${_tide_skin_file}" NAME)
+    if(_tide_skin_leaf IN_LIST _tide_skin_leaves)
+      message(FATAL_ERROR "Two prefab skins ship '${_tide_skin_leaf}' (second: ${_tide_skin_file}). "
+        "They are flattened into one resource folder, so the names must be unique.")
+    endif()
+    list(APPEND _tide_skin_leaves "${_tide_skin_leaf}")
+    list(APPEND _tide_skin_files "${_tide_skin_file}")
+  endforeach()
+endforeach()
+
 # FORMAT TARGETS THAT SHARE ONE DESTINATION STAGE ONCE, TOGETHER -- issue #314.
 #
 # The destinations below are per-target only where the plug-in is a real bundle.
@@ -758,6 +790,16 @@ if(_tide_shared_targets)
     set(_tide_shared_resources "$<TARGET_FILE_DIR:${_tide_stage_anchor}>/Resources")
   endif()
 
+  set(_tide_skin_stage_cmds "")
+  foreach(_tide_skin_dir_name ${_tide_skin_dir_names})
+    list(APPEND _tide_skin_stage_cmds
+      COMMAND ${CMAKE_COMMAND} -E rm -rf "${_tide_shared_resources}/Prefabs/${_tide_skin_dir_name}")
+  endforeach()
+  foreach(_tide_skin_file ${_tide_skin_files})
+    list(APPEND _tide_skin_stage_cmds
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_tide_skin_file}" "${_tide_shared_resources}/")
+  endforeach()
+
   set(_tide_stage_cmds "")
   foreach(_tide_xml ${_tide_xmls})
     get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
@@ -796,13 +838,8 @@ if(_tide_shared_targets)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/../DefaultRack.synthedit"
       "${_tide_shared_resources}/DefaultRack.synthedit"
-    # Files the prefabs name by bare filename (the Oscillator's waveform SVG).
-    # They sit loose beside the XMLs, where GmpiResourceManager's last-resort
-    # lookup in the bundle resource folder finds them. Merged, not rm'd first:
-    # this IS the resource folder.
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-      "${CMAKE_CURRENT_SOURCE_DIR}/../Resources"
-      "${_tide_shared_resources}"
+    # Prefab skins -> loose in the resource folder, out of Prefabs/ (see above).
+    ${_tide_skin_stage_cmds}
     COMMENT "Staging rack prefabs and pin XMLs (once, shared by every format target that needs them)"
     VERBATIM
   )
@@ -917,8 +954,12 @@ foreach(_fmt ${FORMATS_LIST})
     string(APPEND _tide_stage_body "mkdir -p \"$dest/Prefabs\"\n")
     string(APPEND _tide_stage_body
       "cp -R \"${CMAKE_CURRENT_SOURCE_DIR}/../RackModules/.\" \"$dest/Prefabs/\"\n")
-    string(APPEND _tide_stage_body
-      "cp -R \"${CMAKE_CURRENT_SOURCE_DIR}/../Resources/.\" \"$dest/\"\n")
+    foreach(_tide_skin_dir_name ${_tide_skin_dir_names})
+      string(APPEND _tide_stage_body "rm -rf \"$dest/Prefabs/${_tide_skin_dir_name}\"\n")
+    endforeach()
+    foreach(_tide_skin_file ${_tide_skin_files})
+      string(APPEND _tide_stage_body "cp -f \"${_tide_skin_file}\" \"$dest/\"\n")
+    endforeach()
 
     set(_tide_stage_script
       "${CMAKE_CURRENT_BINARY_DIR}/stage-resources-${_tide_target}-$<CONFIG>.sh")
@@ -952,6 +993,16 @@ foreach(_fmt ${FORMATS_LIST})
     # already contend over. The iOS arm above solved the same problem its own
     # way (M11) because it additionally needs a shell for
     # ${EFFECTIVE_PLATFORM_NAME}.
+    set(_tide_target_skin_cmds "")
+    foreach(_tide_skin_dir_name ${_tide_skin_dir_names})
+      list(APPEND _tide_target_skin_cmds
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${_tide_resources}/Prefabs/${_tide_skin_dir_name}")
+    endforeach()
+    foreach(_tide_skin_file ${_tide_skin_files})
+      list(APPEND _tide_target_skin_cmds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_tide_skin_file}" "${_tide_resources}/")
+    endforeach()
+
     set(_tide_target_stage_cmds "")
     foreach(_tide_xml ${_tide_xmls})
       get_filename_component(_tide_xml_leaf ${_tide_xml} NAME)
@@ -982,9 +1033,7 @@ foreach(_fmt ${FORMATS_LIST})
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/../DefaultRack.synthedit"
         "${_tide_resources}/DefaultRack.synthedit"
-      COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/../Resources"
-        "${_tide_resources}"
+      ${_tide_target_skin_cmds}
       COMMENT "Staging rack prefabs (${_tide_target})"
       VERBATIM
     )

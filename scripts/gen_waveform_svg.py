@@ -15,10 +15,11 @@ The slider lever is half the widget's height, so its centre travels H/2:
 value 0 (first menu item, Sine) at the bottom, value 1 (last, Pink) at the top.
 Detent i of N sits at v = i/(N-1), lever centre y = top + H*(0.25 + 0.5*(1-v)).
 
-Usage: gen_waveform_svg.py [CX TOP HEIGHT [PANEL_UNITS]] > Resources/Oscillator-waveforms.svg
+Usage: gen_waveform_svg.py [CX TOP HEIGHT [PANEL_UNITS]] > RackModules/Oscillator.skin/Oscillator-waveforms.svg
 
-Resources/ is staged wholesale into the plugin's resource folder, and only files the
-product uses ship -- so this script lives in scripts/, not beside its output.
+That is the prefab's project-specific skin: SynthEdit finds it there, and the
+TIDE build flattens it into the plugin's resource folder. Only files the product
+uses ship, so this script lives in scripts/, not beside its output.
 """
 import math, sys
 

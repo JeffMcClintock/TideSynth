@@ -238,7 +238,7 @@ foreach ($xml in $ResourceXmls) {
 }
 Copy-Item -LiteralPath $defaultRackSrc -Destination (Join-Path $resourcesOut $DEFAULT_RACK) -Force
 Copy-Item -LiteralPath $prefabs -Destination (Join-Path $resourcesOut 'Prefabs') -Recurse -Force
-# Files the prefabs name by bare filename, staged loose from the repo's Resources\.
+# Files the prefabs name by bare filename, flattened out of RackModules\*.skin\ by the build.
 foreach ($f in Get-ChildItem -LiteralPath $resSrc -File -Filter '*.svg') {
     Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $resourcesOut $f.Name) -Force
 }
