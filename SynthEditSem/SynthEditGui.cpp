@@ -888,9 +888,11 @@ public:
 				// the user's square snap setting -- so this is not a rack-only
 				// branch and needs no guard.
 				//
-				// This is the ALLOWED half of E31. The drag-drop insert at
-				// ViewBase.cpp's AddModule call is the same one-line fix in
-				// SynthEditLib, which is GATED; the row carries it.
+				// This is the double-click half of E31. The pick-and-place
+				// insert is snapped inside SynthEditLib's
+				// MfcDocPresenter::AddModule (2026-10-28), which this call also
+				// passes through -- harmlessly, since the point is already on
+				// the grid.
 				//
 				// BACKLOG E36 — insert first, THEN move. Placing correctly in
 				// one shot is not available: the free slot depends on the
