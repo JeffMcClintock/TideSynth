@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **521 KB** across **403** entries, so copying them
+Learned sections are **523 KB** across **406** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **170 KB / 1729 lessons — 3.1x smaller**, and represents
+A8. This is **171 KB / 1736 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -37,7 +37,27 @@ by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
 
+## 2026-10-28
+
+**macos — no item: nothing moved since the 10-27 walk except this lane's own cell, and #671 is now CONFLICTING (scheduled run)**
+
+- Each no-item bookkeeping PR that merges ahead of a waiting PR adds to that PR's conflict.
+
+## 2026-10-27
+
+**macos — no item: E82 merged, E19 claimed by the linux lane on #671, and nothing else is reachable by `mac` (scheduled run)**
+
+- When a merged PR's bookkeeping flip already rides on another platform's open PR, leave it there.
+
 ## 2026-10-26
+
+**windows — no item: this lane finally got the idle evening box it has been blocked on for five runs, and the queue had nothing left for it — E19 was claimed by the linux lane nine hours earlier. What delivered the idle box was a **13-hour clock error** (scheduled run)**
+
+- A workstation's clock can be hours wrong for most of a day, and then a routine NTP sync becomes a scheduler event.
+- `Win32_OperatingSystem.LastBootUpTime` and the boot entry in the event log disagreeing by exactly a timezone offset is the cheapest possible detector for this.
+- Prefer tick-based instruments to wall-clock ones for "is anybody there".
+- A row reserved for a condition one lane almost never meets will be finished by a lane that meets it often.
+- A full stop in STEP 2 can be the correct outcome of a *successful* run.
 
 **linux — E19: the linux VST3 cell passes animation, pixel diff and the int/enum menu clause in REAPER (scheduled run)**
 
@@ -72,16 +92,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `cronExpression` alone does not tell you when a task runs; `nextRunAt` tells you how it is interpreted.
 - Converting a UTC timestamp to a weekday is worth doing with the timezone database rather than by eye.
 - A row can answer an old row's explicitly-undiagnosed observation without re-filing it.
-
-## 2026-10-16
-
-**linux — E92: its Accept is MET on SE16 `origin/master` — Jeff's own commit answered the ruling the row was parked on, and four configures here measure it (scheduled run)**
-
-- Before filing the `PROPOSED:` entry a NEXT cell asks for, re-read the GATED file at `origin`.
-- A ruling can arrive as a commit in the GATED repo rather than as a merged `PROPOSED:` entry, and a run has to look there to see it.
-- A configure-time Accept is cheap to measure and worth its control.
-- "Linux-only in fact" has a shelf life of one platform-guard edit.
-- The box lock's first live acquire resolved the agent process by ancestor walk
 
 ## 2026-10-01
 
@@ -279,6 +289,16 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - An auto-filed issue whose branch is deleted is immortal.
 - `GIT_TAG origin/main` makes a dependency's WIP your build's WIP.
 - A fix that is inert on the platforms you cannot test is worth more than a fix that is merely small.
+
+## 2026-10-16
+
+**linux — E92: its Accept is MET on SE16 `origin/master` — Jeff's own commit answered the ruling the row was parked on, and four configures here measure it (scheduled run)**
+
+- Before filing the `PROPOSED:` entry a NEXT cell asks for, re-read the GATED file at `origin`.
+- A ruling can arrive as a commit in the GATED repo rather than as a merged `PROPOSED:` entry, and a run has to look there to see it.
+- A configure-time Accept is cheap to measure and worth its control.
+- "Linux-only in fact" has a shelf life of one platform-guard edit.
+- The box lock's first live acquire resolved the agent process by ancestor walk
 
 ## 2026-09-08
 

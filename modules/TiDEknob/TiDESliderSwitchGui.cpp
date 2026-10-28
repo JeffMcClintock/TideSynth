@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: ISC
 // Copyright 2007-2026 Jeff McClintock.
 #include "helpers/GmpiPluginEditor.h"
+#include "helpers/CachedBlur.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -29,8 +30,13 @@ class TiDEsliderSwitchGui final : public PluginEditor, public gmpi::api::IDrawin
 
  	void onSetpatchValue()
 	{
+		// Not nullptr: that repaints only `bounds`, and the shadow spills past it.
 		if (drawingHost)
-			drawingHost->invalidateRect(nullptr);
+		{
+			Rect dirty;
+			getClipArea(&dirty);
+			drawingHost->invalidateRect(&dirty);
+		}
 	}
 
 	// An unconnected colour pin arrives empty, which would decode as black —
@@ -51,6 +57,9 @@ class TiDEsliderSwitchGui final : public PluginEditor, public gmpi::api::IDrawin
 	}
 
 	Point pointPrevious{};
+
+	cachedBlur shadowBlur;
+	SizeU shadowSize{};
 
 public:
 	TiDEsliderSwitchGui()
@@ -119,10 +128,92 @@ public:
 
 		const float scale = (flags & static_cast<int32_t>(gmpi::api::PointerFlags::KeyControl)) != 0 ? 1.0f / 12000.0f : 1.0f / 1200.0f;
 
-		float newValue = std::clamp(pinpatchValue.value + delta * scale, 0.0f, 1.0f);
+		const auto newValue = std::clamp(pinpatchValue.value + delta * scale, 0.0f, 1.0f);
 
 		pinpatchValue = newValue;
 
+		return ReturnCode::Ok;
+	}
+
+	// The moving "tower": the ridged lever, in the same coordinates as `bounds`.
+	// Its size is constant -- only its position along the travel changes -- which
+	// is what lets the shadow below be rendered once and cached.
+	Rect getTowerRect(float& peakSizeOut, int& numPeaksOut) const
+	{
+		auto switchRect = bounds;
+		const auto isHorizontal = getWidth(bounds) > getHeight(bounds);
+		// triangular ridges on switch
+		const auto peakSize = (isHorizontal ? getWidth(bounds) : getHeight(bounds)) / 48.f;
+		const int numPeaks = ceilf(isHorizontal ? getHeight(bounds) : getWidth(bounds) / peakSize);
+		const float totalPeakSize = peakSize * (float)numPeaks;
+		const float remainingSize = (isHorizontal ? getWidth(bounds) : getHeight(bounds)) - totalPeakSize;
+		const auto offset = (std::max)(0.0f, remainingSize * (1.f - pinpatchValue.value));
+		if(isHorizontal)
+		{
+			switchRect.left += (std::max)(1.0f, offset);
+			switchRect.right = switchRect.left + peakSize * (float)numPeaks;
+		}
+		else
+		{
+			switchRect.top += (std::max)(1.0f, offset);
+			switchRect.bottom = switchRect.top + peakSize * (float)numPeaks;
+		}
+		peakSizeOut = peakSize;
+		numPeaksOut = numPeaks;
+		return switchRect;
+	}
+
+	// A soft drop shadow: the tower protrudes from the panel, so it throws a
+	// blurred copy of its own outline down and to the right (light from the top
+	// left), after HSliderGui's handle shadow. Sizes scale with the tower's short
+	// side so the look holds at any switch size.
+	struct ShadowMetrics { float blur, pad, offset; };
+	ShadowMetrics getShadowMetrics() const
+	{
+		const float shortSide = (std::min)(getWidth(bounds), getHeight(bounds));
+		const float blur = (std::max)(1.0f, std::ceil(shortSide * 0.2f));
+		return { blur, 2.0f * blur, 0.2f * shortSide };
+	}
+
+	void drawShadow(Graphics& g, const Rect& tower)
+	{
+		const auto m = getShadowMetrics();
+		const float w = getWidth(tower);
+		const float h = getHeight(tower);
+		const float bw = w + 2.0f * m.pad;
+		const float bh = h + 2.0f * m.pad;
+
+		// The tower never changes size, so the cache only needs rebuilding if the
+		// widget itself is resized.
+		const SizeU size{ (uint32_t)(std::max)(1.0f, bw), (uint32_t)(std::max)(1.0f, bh) };
+		if(size.width != shadowSize.width || size.height != shadowSize.height)
+		{
+			shadowBlur.invalidate();
+			shadowSize = size;
+		}
+
+		shadowBlur.tint = Color{ 0.0f, 0.0f, 0.0f, 0.6f };
+		shadowBlur.blurRadius = (int)m.blur;
+
+		const auto orig = g.getTransform();
+		g.setTransform(makeTranslation({ tower.left - m.pad + m.offset, tower.top - m.pad + m.offset }) * orig);
+		shadowBlur.draw(g, Rect{ 0.0f, 0.0f, (float)size.width, (float)size.height },
+			[&](Graphics& mask)
+			{
+				auto brush = mask.createSolidColorBrush(Colors::White);
+				mask.fillRectangle({ m.pad, m.pad, m.pad + w, m.pad + h }, brush);
+			});
+		g.setTransform(orig);
+	}
+
+	// The shadow spills past `bounds`; without this the host would clip it, and
+	// would not repaint the spill when the tower moves.
+	ReturnCode getClipArea(Rect* returnRect) override
+	{
+		const auto m = getShadowMetrics();
+		const float spill = m.pad + m.offset;
+		*returnRect = { bounds.left - spill, bounds.top - spill,
+			bounds.right + spill, bounds.bottom + spill };
 		return ReturnCode::Ok;
 	}
 
@@ -130,33 +221,28 @@ public:
 	{
 		Graphics g(drawingContext);
 
-		auto switchRect = bounds;
 		const auto isHorizontal = getWidth(bounds) > getHeight(bounds);
-		if(isHorizontal)
-		{
-			switchRect.left += (std::max)(1.0f, getWidth(bounds) * 0.5f * pinpatchValue.value);
-			switchRect.right = switchRect.left + getWidth(bounds) * 0.5f;
-		}
-		else
-		{
-			switchRect.top += (std::max)(1.0f, getHeight(bounds) * 0.5f * (1.0f - pinpatchValue.value));
-			switchRect.bottom = switchRect.top + getHeight(bounds) * 0.5f;
-		}
+		float peakSize{};
+		int numPeaks{};
+		const auto switchRect = getTowerRect(peakSize, numPeaks);
 
+		drawShadow(g, switchRect);
+
+		// white side of peaks
 		auto brush = g.createSolidColorBrush(colorOrDefault(pinStrokeColor.value, Colors::White));
 		g.fillRectangle(switchRect, brush);
 
 		// shadow on grippy peaks
 		brush.setColor({1.0f,1.0f,1.0f,0.2f});
 		auto peakRect = switchRect;
-		const auto dx = isHorizontal ? getWidth(bounds) / 8.f: 0.0f;
-		const auto dy = isHorizontal ? 0.0f : getHeight(bounds) / 8.f;
+		const auto dx = isHorizontal ? peakSize : 0.0f;
+		const auto dy = isHorizontal ? 0.0f : peakSize;
 		if(isHorizontal)
 			peakRect.right = peakRect.left + dx * 0.5f;
 		else
 			peakRect.bottom = peakRect.top + dy * 0.5f;
 
-		for(float peak = 0.0f; peak < 4.0f; peak++)
+		for(int n = 0 ; n < numPeaks ; ++n)
 		{
 			g.fillRectangle(peakRect, brush);
 
