@@ -20,10 +20,12 @@ Checks, per RackModules/*.synthedit:
   4. the panel is RackUnits x 48 DIPs wide and 384 tall (E5's ruled grid),
      and the container's PanelWndPosition/panel_rect agree with it
   5. the Layout pin is set explicitly (the pin's default is the demo layout,
-     not this module's), it parses, and its jack/knob entries match the patch
-     point / knob module centres EXACTLY, both directions, relative to the
-     panel's top-left; `jack out` entries pair with TiDE Patch Point Out and
-     plain/`jack in` entries with TiDE Patch Point In
+     not this module's), it parses, and every jack/knob entry it does have
+     sits EXACTLY on a matching module's centre, relative to the panel's
+     top-left -- `jack out` on a TiDE Patch Point Out, plain/`jack in` on a
+     TiDE Patch Point In, `knob` on an SE TiDE:knob. The entries themselves
+     are optional: those modules paint themselves (ITraceSource), so the
+     only error left is a painted feature with nothing under it
   6. every layout coordinate sits on the half-DIP widget grid, and every
      panel-visible child sits inside the panel rect
 
@@ -106,7 +108,7 @@ def parse_layout(text):
                 kind = "jack out"
             coords = coords[1:]
         try:
-            x, y = float(coords[0]), float(coords[1])
+            x, y = float(coords[0]), float(coords[1])  # a knob may add a radius
         except (IndexError, ValueError):
             errors.append(f"unparseable layout statement {line!r}")
             continue
@@ -190,17 +192,25 @@ def check_file(path):
                 out.append((cx - pl, cy - pt))
         return sorted(out)
 
+    def fmt(pts):
+        return ", ".join(f"({x:g},{y:g})" for x, y in pts) or "none"
+
+    # Knobs and patch points paint themselves (ITraceSource, since 2026-11-02):
+    # a module needs no Layout entry, and one at the same centre is simply
+    # redundant. What is still wrong is a PAINTED jack or knob with no module
+    # under it -- a socket nothing plugs into, a knob body nobody can turn --
+    # or one of the wrong direction, which would paint an input's ring where
+    # an output's black backing belongs.
     for kind, types in (("jack", ("TiDE Patch Point In",)),
                         ("jack out", ("TiDE Patch Point Out",)),
                         ("knob", (KNOB,))):
         painted = sorted((x, y) for k, x, y in entries if k == kind)
-        real = centres_of(types)
-        if painted != real:
-            def fmt(pts):
-                return ", ".join(f"({x:g},{y:g})" for x, y in pts) or "none"
+        real = set(centres_of(types))
+        orphans = [p for p in painted if p not in real]
+        if orphans:
             errors.append(
-                f"{kind} mismatch: Layout paints [{fmt(painted)}] but the "
-                f"functional modules sit at [{fmt(real)}] (move one, move both)")
+                f"{kind} mismatch: Layout paints [{fmt(orphans)}] where no "
+                f"{'/'.join(types)} sits (the modules are at [{fmt(sorted(real))}])")
 
     # -- everything visible sits on the plate -------------------------------
     for m in modules:

@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: ISC
 // Copyright 2007-2026 Jeff McClintock.
 #include "helpers/GmpiPluginEditor.h"
+#include "Extensions/TraceSpec.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
 #include <string>
 
 using namespace gmpi;
@@ -18,7 +21,7 @@ constexpr float kPointerInnerFraction = 0.25f;
 
 // Knob look ported from VectorKnob_VCV (SynthEditLib/modules/SubControlsXp/VectorRingGui.cpp):
 // a filled disc with a single radial pointer line, sharing VectorKnob's circular hit-test.
-class TiDEknobGui final : public PluginEditor, public gmpi::api::IDrawingLayer
+class TiDEknobGui final : public PluginEditor, public gmpi::api::IDrawingLayer, public synthedit::ITraceSource
 {
  	Pin<float> pinpatchValue;
  	Pin<std::wstring> pinHint;
@@ -211,7 +214,24 @@ public:
 		return ReturnCode::NoSupport;
 	}
 
-	// support IDrawingLayer
+	// ITraceSource: what the panel underneath should paint. A knob body centred
+	// under the pointer, reaching the pointer's visible tip -- the line's end plus
+	// half its thickness for the round cap. The host adds where this widget sits;
+	// the numbers here are from its own top-left.
+	ReturnCode getTraceSpec(gmpi::api::IString* returnSpec) override
+	{
+		Point center;
+		float radius;
+		float thickness;
+		calcDimensions(center, radius, thickness);
+
+		char spec[64];
+		const int n = std::snprintf(spec, sizeof(spec), "knob %g %g %g",
+			center.x - bounds.left, center.y - bounds.top, radius + thickness * 0.5f);
+		return returnSpec->setData(spec, (std::max)(0, n));
+	}
+
+	// support IDrawingLayer, ITraceSource
 	int32_t addRef() override
 	{
 		return PluginEditor::addRef();
@@ -228,6 +248,12 @@ public:
 		if((*iid) == gmpi::api::IDrawingLayer::guid)
 		{
 			*returnInterface = static_cast<gmpi::api::IDrawingLayer*>(this);
+			PluginEditor::addRef();
+			return ReturnCode::Ok;
+		}
+		if((*iid) == synthedit::ITraceSource::guid)
+		{
+			*returnInterface = static_cast<synthedit::ITraceSource*>(this);
 			PluginEditor::addRef();
 			return ReturnCode::Ok;
 		}

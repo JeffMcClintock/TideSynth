@@ -2,6 +2,9 @@
 // Copyright 2007-2026 Jeff McClintock.
 #include "helpers/GmpiPluginEditor.h"
 #include "helpers/BitmapMask.h"
+#include "Extensions/TraceSpec.h"
+#include <algorithm>
+#include <cstdio>
 
 using namespace gmpi;
 using namespace gmpi::editor;
@@ -9,7 +12,7 @@ using namespace gmpi::drawing;
 
 // Outputs get a light title (the TiDE panel paints their black backing), inputs a dark one.
 template<bool isOutput>
-class PatchPointGui final : public PluginEditor, public gmpi::api::IDrawingLayer
+class PatchPointGui final : public PluginEditor, public gmpi::api::IDrawingLayer, public synthedit::ITraceSource
 {
 	// Sized like a VCV Fundamental output cell (one jack's share of VCO's output box). Must match <PatchPoint center="15,25"> in PatchPoint.cpp.
 	static constexpr Size moduleSize{ 30.0f, 40.0f };
@@ -229,6 +232,17 @@ public:
 		return dx * dx + dy * dy <= radius * radius ? ReturnCode::Ok : ReturnCode::Fail;
 	}
 
+	// ITraceSource: the panel beneath paints the jack this module deliberately
+	// does not draw, centred where the clickable disc is. Local coordinates; the
+	// host adds where this widget sits. Outputs also get their black backing.
+	ReturnCode getTraceSpec(gmpi::api::IString* returnSpec) override
+	{
+		const auto c = jackCenter();
+		char spec[64];
+		const int n = std::snprintf(spec, sizeof(spec), "jack %s %g %g", isOutput ? "out" : "in", c.x, c.y);
+		return returnSpec->setData(spec, (std::max)(0, n));
+	}
+
 	int32_t addRef() override
 	{
 		return PluginEditor::addRef();
@@ -246,6 +260,12 @@ public:
 		if ((*iid) == gmpi::api::IDrawingLayer::guid)
 		{
 			*returnInterface = static_cast<gmpi::api::IDrawingLayer*>(this);
+			PluginEditor::addRef();
+			return ReturnCode::Ok;
+		}
+		if ((*iid) == synthedit::ITraceSource::guid)
+		{
+			*returnInterface = static_cast<synthedit::ITraceSource*>(this);
 			PluginEditor::addRef();
 			return ReturnCode::Ok;
 		}

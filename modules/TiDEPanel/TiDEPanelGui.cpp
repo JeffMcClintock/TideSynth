@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: ISC
 // Copyright 2007-2026 Jeff McClintock.
 #include "helpers/GmpiPluginEditor.h"
+#include "Extensions/TraceSpec.h"
 #include "TidePathTracer.h"
 #include <algorithm>
 #include <cmath>
@@ -1014,7 +1015,7 @@ void addPanelStudio(tide::render::Scene& scene, float k)
 // attribute-value normalisation turns newlines into spaces, so a default
 // carrying real newlines would arrive as one long line. '#' starts a comment.
 //
-//   knob [big|small] X Y
+//   knob [big|small] X Y [R]  (R = painted radius in DIPs; without it, big/small pick one)
 //   jack [in|out] X Y      (in if omitted; outputs get black paint)
 //   switch X Y [W H]      (W x H = the whole slot's size in DIPs; default 15.4 x 26.8)
 //   grill X Y [COLS ROWS]
@@ -1066,7 +1067,26 @@ struct PanelComponent
 	bool output = false;      // jacks only
 	int cols = 0, rows = 0;   // grill / slots only
 	float w = 0.0f, h = 0.0f; // switches only: full size in DIPs, 0 = the default
+	float r = 0.0f;           // knobs only: painted radius in DIPs, 0 = big/small's
+
+	bool operator==(const PanelComponent&) const = default;
 };
+
+// A knob's painted radius, and which of the two height proportions goes with it.
+// An explicit radius (from a knob module overhead, via ITraceSink) wins; a knob
+// with only a size keyword gets that size's constant. Height follows whichever
+// constant the radius is nearer, since the big knob is squat and the small one
+// is not.
+float knobRadiusDips(const PanelComponent& c)
+{
+	return c.r > 0.0f ? c.r : (c.big ? kKnobBigRadiusDips : kKnobSmallRadiusDips);
+}
+float knobHeightFrac(const PanelComponent& c)
+{
+	const float r = knobRadiusDips(c);
+	const bool squat = r >= 0.5f * (kKnobBigRadiusDips + kKnobSmallRadiusDips);
+	return squat ? kKnobBigHeightFrac : kKnobSmallHeightFrac;
+}
 
 // A switch's pocket half-extents, and the punched slot inside it. The slot keeps
 // its default margin from the pocket edge however the size is set, so a resized
@@ -1192,6 +1212,11 @@ std::vector<PanelComponent> parsePanelLayout(const std::string& text)
 			if (parseFloatToken(tok[coordAt + 2], v)) c.rows = (std::max)(1, (int)v);
 		}
 
+		if (c.kind == PanelComponent::Kind::Knob && tok.size() >= coordAt + 3)
+		{
+			if (parseFloatToken(tok[coordAt + 2], v) && v > 0.0f) c.r = v;
+		}
+
 		if (c.kind == PanelComponent::Kind::Switch && tok.size() >= coordAt + 4)
 		{
 			if (parseFloatToken(tok[coordAt + 2], v) && v > 0.0f) c.w = v;
@@ -1279,7 +1304,7 @@ KeepOut componentKeepOut(const PanelComponent& c, float dipsWide)
 	{
 	case PanelComponent::Kind::Knob:
 	{
-		const float r = c.big ? kKnobBigRadiusDips : kKnobSmallRadiusDips;
+		const float r = knobRadiusDips(c);
 		return box(r, r, 1.5f);
 	}
 	case PanelComponent::Kind::Switch:
@@ -1918,8 +1943,8 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 		{
 			// Seated ON the panel face: centre offset by its own half height so
 			// the base lands exactly on the front surface.
-			const float r = (c.big ? kKnobBigRadiusDips : kKnobSmallRadiusDips) / dipsWide;
-			const float hz = (c.big ? kKnobBigHeightFrac : kKnobSmallHeightFrac) * r;
+			const float r = knobRadiusDips(c) / dipsWide;
+			const float hz = knobHeightFrac(c) * r;
 			const float bevel = kKnobBevelFrac * r;
 			const Vec3 centre{ wx, wy, halfZ + hz };
 
@@ -2256,7 +2281,7 @@ FaceRenderer& faceRenderer()
 }
 }
 
-class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
+class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient, public synthedit::ITraceSink
 {
 	Pin<std::string> pinText;
 	Pin<std::string> pinTextColor;
@@ -2264,6 +2289,12 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 	Pin<std::string> pinLayout;
 	Pin<int32_t> pinMaterial;
 	Pin<std::string> pinPanelColor;
+
+	// Components the HOST handed over (ITraceSink): one per module sitting on this
+	// panel that asked for hardware under it, already in panel coordinates. These
+	// are the modules' own word for where they are, so they are never written
+	// into the Layout pin; a knob dragged in the editor just arrives here again.
+	std::vector<PanelComponent> hostComponents;
 
 	Bitmap faceBitmap;
 	Bitmap captionBitmap;
@@ -2342,13 +2373,41 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient
 		spec.colour = { c.r, c.g, c.b };
 
 		spec.components = parsePanelLayout(pinLayout.value);
+
+		// A Layout knob at the same centre as a host one is the SAME knob, written
+		// twice: prefabs authored before ITraceSink carry both. The host's wins,
+		// because it is the one that still moves. Two cylinders in one place would
+		// otherwise fight for the surface.
+		for (const auto& h : hostComponents)
+		{
+			std::erase_if(spec.components, [&](const PanelComponent& c) {
+				return c.kind == h.kind && c.x == h.x && c.y == h.y;
+			});
+		}
+		spec.components.insert(spec.components.end(), hostComponents.begin(), hostComponents.end());
 		return spec;
+	}
+
+	// The host's components, as text, for the cache key. Every field, because
+	// every field changes the picture.
+	std::string hostComponentsKey() const
+	{
+		std::string s;
+		for (const auto& c : hostComponents)
+		{
+			char line[128];
+			std::snprintf(line, sizeof(line), "%d %g %g %d %d %d %d %g %g %g;",
+				(int)c.kind, c.x, c.y, (int)c.big, (int)c.output, c.cols, c.rows, c.w, c.h, c.r);
+			s += line;
+		}
+		return s;
 	}
 
 	uint64_t specConfigHash() const
 	{
 		std::string all;
 		all += pinLayout.value;         all += '\x1f';
+		all += hostComponentsKey();     all += '\x1f';
 		all += std::to_string(pinRackUnits.value); all += '\x1f';
 		all += std::to_string(pinMaterial.value);  all += '\x1f';
 		all += pinPanelColor.value;
@@ -2734,6 +2793,59 @@ public:
 	{
 		faceRenderer().withdraw(this);
 		stopTimer();
+	}
+
+	// ITraceSink. Each spec is in its module's own coordinates and comes with that
+	// module's top-left in ours; parsing snaps the local centre, and the offset is
+	// whole DIPs (SynthEdit stores panelRect as integers), so the sum stays on the
+	// half-DIP grid. Snapped again anyway: a sub-view's pan need not be.
+	//
+	// Arrives on every render after a move, including moves of modules that are
+	// not over this panel at all, so an unchanged list must cost nothing: that is
+	// the compare. Only a real change dirties the face.
+	ReturnCode setTraceSpecs(const synthedit::TraceSpecEntry* entries, int32_t count) override
+	{
+		std::vector<PanelComponent> fresh;
+		for (int32_t i = 0; i < count; ++i)
+		{
+			for (auto c : parsePanelLayout(entries[i].spec))
+			{
+				c.x = snapToWidgetGrid(c.x + entries[i].x);
+				c.y = snapToWidgetGrid(c.y + entries[i].y);
+				fresh.push_back(c);
+			}
+		}
+
+		if (fresh == hostComponents)
+			return ReturnCode::Ok;
+
+		hostComponents = std::move(fresh);
+		onFaceChanged();
+		return ReturnCode::Ok;
+	}
+
+	int32_t addRef() override
+	{
+		return PluginEditor::addRef();
+	}
+
+	int32_t release() override
+	{
+		return PluginEditor::release();
+	}
+
+	ReturnCode queryInterface(const gmpi::api::Guid* iid, void** returnInterface) override
+	{
+		*returnInterface = {};
+
+		if ((*iid) == synthedit::ITraceSink::guid)
+		{
+			*returnInterface = static_cast<synthedit::ITraceSink*>(this);
+			PluginEditor::addRef();
+			return ReturnCode::Ok;
+		}
+
+		return PluginEditor::queryInterface(iid, returnInterface);
 	}
 
 	// IGNORES availableSize, deliberately -- see kRackHeightDips. Returning

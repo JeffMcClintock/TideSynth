@@ -29,6 +29,7 @@ Grammar (`parsePanelLayout`, `TiDEPanelGui.cpp:1185`):
 | separator | `;` or newline; `#` starts a comment |
 | `tok[0]` | `knob`, `jack`, `switch`, `grill`, `slots`, `led` |
 | optional size | `knob big`, `knob small` — shifts the coordinates one token right |
+| optional radius | `knob [big|small] x y R` — painted radius in DIPs; overrides the size keyword's constant |
 | optional direction | `jack in` (the default), `jack out` — shifts the coordinates one token right. Output jacks sit on black rounded boxes; outputs whose 30x40 cells come within 3 DIP of touching share one box |
 | `x y` | **DIPs from the panel's top-left**, and the **CENTRE** of the feature |
 | extras | `grill` takes `cols rows`; `slots` takes `rows` |
@@ -39,6 +40,26 @@ every kind without exception.
 **The rule: every `jack` and `knob` entry must sit at the same point as the
 centre of the functional module layered over it.** `grill` and `slots` have no
 module — they are decoration only.
+
+## Automatic tracking (knobs and patch points, since 2026-11-02)
+
+Knobs and patch points no longer need a `Layout` entry at all. `SE TiDE:knob`
+and `TiDE Patch Point In`/`Out` implement `synthedit::ITraceSource`
+(`GMPI/Extensions/TraceSpec.h`) and answer "what should be painted under
+you?" in their **own** coordinates: the knob with `knob cx cy r` (centre of
+its widget, radius = the pointer's visible tip, 0.44 x its smaller side), the
+patch point with `jack in|out cx cy` (its clickable disc, 15 DIPs above the
+rect's bottom). The panel implements `ITraceSink`. The **view**
+(`ViewBase::updateTraceSpecs`, SynthEditLib) is the only party that knows
+where both sit: after every layout and every drag it collects the sources
+whose centre lies over each sink, adds each one's offset, and hands the
+panel the list. The panel compares with what it had and only re-traces on a
+real change. Neither module is ever told its position, and nothing is
+written into the `Layout` pin.
+
+A `Layout` jack or knob at the same centre as a host-supplied one is dropped,
+so the prefabs that still carry both paint one feature, not two. Switches
+and LEDs are not sources yet; for them the rule above still applies.
 
 ## Verified, 2026-08-24 — and now checked by script
 
