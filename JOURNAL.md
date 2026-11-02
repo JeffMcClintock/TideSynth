@@ -154,7 +154,7 @@ Two more, smaller: **REAPER holds `measure.log` open**, so a relaunch whose `rm`
 
 **Next:** see the `win` cell — the cheapest remaining win debt is **win/CLAP**, whose drivers already exist. **For Jeff, three things:** (1) **the Outlook incident above**, and the input gate that now prevents it; (2) **E19's bool arm is owed on two platforms and needs a fixture, not a platform** — it may deserve its own row; (3) the bot token expires **2026-11-07**, five days from today — I did not re-check that date against the credential, and this is the closest any run has been to it.
 
-**Branch/PR:** `tide/win/E19-win-vst3-pixel-menu`.
+**Branch/PR:** `tide/win/E19-win-vst3-pixel-menu` — [#678](https://github.com/JeffMcClintock/TideSynth/pull/678). It changes `tests/`, the harness README, the E19 row, the `win` cell, the journal, the rotation and `docs/lessons.md`. `tests/**` is off the auto-merge allowlist, so it waits for Jeff by design.
 
 ## 2026-10-29 — macos — no item: #671 merged and E19 is free again, but its only mac clause is AU3 in a real host and that still needs Jeff's AUv3 registration displaced (scheduled run)
 
