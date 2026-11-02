@@ -179,11 +179,15 @@ of it.
 
 ## Rendering
 
-**Progressive.** A preview is traced synchronously at a fraction of the size
-(cost is linear in pixels, so 1/6 on a side is ~1/36th of the work and does not
-show) and the full trace runs on a worker, swapping in when it lands. Until
-then the preview is stretched over the panel: soft, but already the right
-material under the right lights, which a flat grey placeholder is not.
+**Progressive.** A panel's first preview is traced synchronously, so the very
+first frame is the face; the full trace runs on a worker, swapping in when it
+lands. Until then the preview is stretched over the panel: soft, but already
+the right material under the right lights, which a flat grey placeholder is
+not. Every later change to the face (a pin edit, a knob dragged across it)
+is traced entirely off the UI thread, preview on one worker and full on
+another, while the panel keeps showing the face it had — a drag changes the
+face at every half-DIP, and a synchronous preview per frame is the lag that
+was measured at 0.3–1.2 s a step before this.
 
 **Cached** by pixel size and panel configuration, shared across instances, with
 eviction — a live-edited layout would otherwise accumulate a multi-megabyte

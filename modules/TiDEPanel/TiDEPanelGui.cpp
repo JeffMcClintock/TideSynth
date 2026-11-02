@@ -2032,21 +2032,26 @@ tide::render::Image traceFaceplate(uint32_t pixelWidth, uint32_t pixelHeight,
 
 // The face, and how it gets made. THE WHOLE POLICY:
 //
-//   1. On a panel's first render its Draft preview is traced right there, on
+//   1. On a panel's FIRST render its Draft preview is traced right there, on
 //      the UI thread, at 100% size, so the very first frame is the face.
-//   2. The full trace is then queued for one background worker, at
+//   2. The full trace is then queued for a background worker, at
 //      the hardware resolution for 100% zoom.
 //   3. The panel shows the full trace when it lands.
 //
 // Each is traced once. Zoom and resize never start a trace. Only a change to
-// one of the face's pins does, and that is a new face. A preview-only build
-// stops after step 1 (see kPreviewOnly).
+// the face does, and that is a new face -- traced ENTIRELY on the worker,
+// preview first, while the panel keeps showing the face it had. Step 1 is the
+// one exception, because then there is nothing to keep showing. A knob
+// dragged across the panel changes the face at every half-DIP, and the UI
+// thread must not pay for that (it did, once: 80 ms a step on an idle
+// machine, 0.3-1.2 s with the full worker busy beside it; measured 2026-11-03).
+// A preview-only build never traces full (see kPreviewOnly).
 struct FaceTrace
 {
-	// 1 once the preview is in, which it always is by the time anyone else
-	// sees the trace; 2 once the full trace is. The worker writes `full` and
-	// its size, then stores 2 with release. Readers load with acquire before
-	// touching either.
+	// 0 while nothing has been traced yet; 1 once the preview is in; 2 once
+	// the full trace is. The worker writes an image and its size, then stores
+	// the stage with release. Readers load with acquire before touching
+	// either.
 	std::atomic<int> stage{ 0 };
 	uint64_t config = 0;                          // fixed at creation
 	PanelSpec spec;                               // fixed at creation
@@ -2056,8 +2061,8 @@ struct FaceTrace
 	uint32_t fullWidth = 0, fullHeight = 0;       // set by the worker
 };
 
-// The faces, keyed by the panel's config, and the one worker that does the
-// full traces.
+// The faces, keyed by the panel's config, and the two workers that trace
+// them (previews on one, full traces on the other).
 //
 // A process-lifetime cache rather than a member of the editor, for two
 // reasons. An identical panel elsewhere in the patch gets its face for free,
@@ -2068,12 +2073,14 @@ struct FaceTrace
 class FaceRenderer
 {
 public:
-	// UI thread. The face for `config`, at preview stage at least. On a miss
-	// the preview is traced right here, at `width` x `height`, before this
-	// returns. That is the only render that ever runs on the UI thread: tens
-	// of milliseconds in Release, several times that unoptimised.
+	// UI thread. The face for `config`. On a miss a new trace is created at
+	// `width` x `height` preview size and, only if `mayBlock`, its preview is
+	// traced right here before this returns -- the one render that ever runs
+	// on the UI thread: tens of milliseconds in Release, several times that
+	// unoptimised. Otherwise it comes back at stage 0, and the caller has to
+	// `want` it to get it traced.
 	std::shared_ptr<FaceTrace> get(uint64_t config, const PanelSpec& spec,
-		uint32_t width, uint32_t height)
+		uint32_t width, uint32_t height, bool mayBlock)
 	{
 		std::shared_ptr<FaceTrace> trace;
 		{
@@ -2094,13 +2101,16 @@ public:
 			trace->spec = spec;
 			trace->previewWidth = width;
 			trace->previewHeight = height;
-			[[maybe_unused]] const double t0 = TIDE_LOG_NOW;
-			trace->preview = traceFaceplate(width, height, spec,
-				tide::render::Quality::Draft);
-			trace->stage.store(1, std::memory_order_release);
-			TIDE_LOG("PREVIEW  ready %ux%u cfg=%08x  traced in %.0f ms on the UI thread%s",
-				width, height, (unsigned)config, TIDE_LOG_NOW - t0,
-				kPreviewOnly ? "  (preview-only build: final)" : "");
+			if (mayBlock)
+			{
+				[[maybe_unused]] const double t0 = TIDE_LOG_NOW;
+				trace->preview = traceFaceplate(width, height, spec,
+					tide::render::Quality::Draft);
+				trace->stage.store(1, std::memory_order_release);
+				TIDE_LOG("PREVIEW  ready %ux%u cfg=%08x  traced in %.0f ms on the UI thread%s",
+					width, height, (unsigned)config, TIDE_LOG_NOW - t0,
+					kPreviewOnly ? "  (preview-only build: final)" : "");
+			}
 		}
 
 		std::lock_guard<std::mutex> lock(mutex);
@@ -2114,22 +2124,23 @@ public:
 		return it->second;
 	}
 
-	// UI thread, Release builds only. Asks for `face`'s full trace at
-	// `width` x `height`, and RECORDS the ask: one standing want per editor,
-	// replaced when that editor asks again and withdrawn when it dies. The
-	// worker only full-traces what some editor still wants, so a closed patch
-	// or an abandoned layout edit costs nothing more. A list, not a slot: E65
-	// was a single last-writer-wins slot, and the middle panel of a
-	// three-panel rack lost the race and was never traced at all.
+	// UI thread. Asks for `face` to be traced: its preview if it has none,
+	// then, if `full`, its full trace at `width` x `height`. RECORDS the ask:
+	// one standing want per editor, replaced when that editor asks again and
+	// withdrawn when it dies. The worker only traces what some editor still
+	// wants, so a closed patch, an abandoned layout edit or the faces a knob
+	// passed through mid-drag cost nothing more. A list, not a slot: E65 was
+	// a single last-writer-wins slot, and the middle panel of a three-panel
+	// rack lost the race and was never traced at all.
 	//
 	// The first ask the worker picks sets the size. Another panel showing the
 	// same face on a display with a different scale gets it stretched.
-	void wantFull(const void* who, std::shared_ptr<FaceTrace> face,
-		uint32_t width, uint32_t height)
+	void want(const void* who, std::shared_ptr<FaceTrace> face,
+		uint32_t width, uint32_t height, bool full)
 	{
 		{
 			std::lock_guard<std::mutex> lock(mutex);
-			Want want{ who, std::move(face), width, height, ++seqCounter };
+			Want want{ who, std::move(face), width, height, full, ++seqCounter };
 			const auto w = std::find_if(wants.begin(), wants.end(),
 				[who](const Want& x) { return x.who == who; });
 			if (w == wants.end())
@@ -2139,11 +2150,12 @@ public:
 
 			if (!started)
 			{
-				worker = std::thread([this] { run(); });
+				previewWorker = std::thread([this] { run(false); });
+				fullWorker = std::thread([this] { run(true); });
 				started = true;
 			}
 		}
-		cv.notify_one();
+		cv.notify_all();
 	}
 
 	// The editor is going away: drop its standing want, so the worker does
@@ -2161,9 +2173,11 @@ public:
 			std::lock_guard<std::mutex> lock(mutex);
 			quit = true;
 		}
-		cv.notify_one();
-		if (worker.joinable())
-			worker.join();
+		cv.notify_all();
+		if (previewWorker.joinable())
+			previewWorker.join();
+		if (fullWorker.joinable())
+			fullWorker.join();
 	}
 
 private:
@@ -2172,14 +2186,18 @@ private:
 		const void* who = nullptr; // identity only, never dereferenced
 		std::shared_ptr<FaceTrace> face;
 		uint32_t width = 0, height = 0; // of the full trace
+		bool full = false;              // the full trace too, or just the preview
 		uint64_t seq = 0;               // recency: the newest ask is traced first
 	};
 
-	// The full image counts once it exists.
+	// Each image counts once it exists.
 	static size_t traceCost(const FaceTrace& t)
 	{
-		size_t pixels = (size_t)t.previewWidth * t.previewHeight;
-		if (t.stage.load(std::memory_order_acquire) >= 2)
+		const int stage = t.stage.load(std::memory_order_acquire);
+		size_t pixels = 0;
+		if (stage >= 1)
+			pixels += (size_t)t.previewWidth * t.previewHeight;
+		if (stage >= 2)
 			pixels += (size_t)t.fullWidth * t.fullHeight;
 		return pixels;
 	}
@@ -2214,13 +2232,19 @@ private:
 		}
 	}
 
-	// The newest want whose face still needs its full trace.
-	bool pickLocked(Want& out) const
+	// The newest want whose face still needs the stage this worker does: a
+	// preview for the preview worker, a full trace (of a face that already
+	// has its preview, and whose editor asked for full) for the full worker.
+	bool pickLocked(Want& out, bool full) const
 	{
 		const Want* newest = nullptr;
 		for (const auto& w : wants)
 		{
-			if (w.face->stage.load(std::memory_order_acquire) >= 2)
+			const int stage = w.face->stage.load(std::memory_order_acquire);
+			const bool due = full
+				? (stage == 1 && w.full && !kPreviewOnly)
+				: (stage == 0);
+			if (!due)
 				continue;
 			if (!newest || w.seq > newest->seq)
 				newest = &w;
@@ -2231,14 +2255,20 @@ private:
 		return true;
 	}
 
-	void run()
+	// Two workers, one per stage, so a preview never queues behind a full
+	// trace: a full is tens of seconds and cannot be cancelled, and a knob
+	// drag that had to wait for one would show the old body all that time
+	// (measured: 50 s, with a single worker). The preview worker only ever
+	// traces the NEWEST stage-0 want, so the faces a drag passes through are
+	// skipped, not traced one after another.
+	void run(const bool full)
 	{
 		for (;;)
 		{
 			Want job;
 			{
 				std::unique_lock<std::mutex> lock(mutex);
-				cv.wait(lock, [this, &job] { return quit || pickLocked(job); });
+				cv.wait(lock, [this, &job, full] { return quit || pickLocked(job, full); });
 				if (quit)
 					return;
 			}
@@ -2247,17 +2277,32 @@ private:
 			// wanted mid-trace is finished anyway, and cached.
 			FaceTrace& t = *job.face;
 			[[maybe_unused]] const double t0 = TIDE_LOG_NOW;
-			t.full = traceFaceplate(job.width, job.height, t.spec);
-			t.fullWidth = job.width;
-			t.fullHeight = job.height;
-			t.stage.store(2, std::memory_order_release);
-			TIDE_LOG("FULL     ready %ux%u cfg=%08x  traced in %.0f ms at %d spp",
-				job.width, job.height, (unsigned)t.config, TIDE_LOG_NOW - t0,
-				tide::render::samplesFor((int)job.width, (int)job.height));
+			if (!full)
+			{
+				t.preview = traceFaceplate(t.previewWidth, t.previewHeight, t.spec,
+					tide::render::Quality::Draft);
+				t.stage.store(1, std::memory_order_release);
+				TIDE_LOG("PREVIEW  ready %ux%u cfg=%08x  traced in %.0f ms on the worker",
+					t.previewWidth, t.previewHeight, (unsigned)t.config, TIDE_LOG_NOW - t0);
+			}
+			else
+			{
+				t.full = traceFaceplate(job.width, job.height, t.spec);
+				t.fullWidth = job.width;
+				t.fullHeight = job.height;
+				t.stage.store(2, std::memory_order_release);
+				TIDE_LOG("FULL     ready %ux%u cfg=%08x  traced in %.0f ms at %d spp",
+					job.width, job.height, (unsigned)t.config, TIDE_LOG_NOW - t0,
+					tide::render::samplesFor((int)job.width, (int)job.height));
+			}
 
-			// The cache just grew by a full image.
-			std::lock_guard<std::mutex> lock(mutex);
-			evictLocked();
+			// The cache just grew by an image, and a preview that landed is
+			// now due for the full worker.
+			{
+				std::lock_guard<std::mutex> lock(mutex);
+				evictLocked();
+			}
+			cv.notify_all();
 		}
 	}
 
@@ -2269,9 +2314,9 @@ private:
 	uint64_t seqCounter = 0;
 	bool quit = false;
 	bool started = false;
-	std::thread worker; // joined in the destructor: a detached thread still
-	                    // tracing inside this DLL when the host unloads it is
-	                    // a crash with no usable stack
+	std::thread previewWorker; // joined in the destructor: a detached thread
+	std::thread fullWorker;    // still tracing inside this DLL when the host
+	                           // unloads it is a crash with no usable stack
 };
 
 FaceRenderer& faceRenderer()
@@ -2305,11 +2350,12 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient, public
 
 	// The face, shared with any identical panel. Which of its stages is in
 	// `faceBitmap` now (0 before the first render), and that bitmap's size in
-	// pixels. `fullWanted` once this editor has asked for the full trace.
+	// pixels. `wantedStage` is the stage this editor has asked the worker for
+	// (0: nothing asked), and the timer polls until the face reaches it.
 	std::shared_ptr<FaceTrace> faceTrace;
 	int faceBitmapStage = 0;
 	SizeU faceSize{};
-	bool fullWanted = false;
+	int wantedStage = 0;
 	bool timerRunning = false;
 
 	// CpuReadable is what makes lockPixels() work at all, and SRGBPixels is what
@@ -2717,40 +2763,43 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient, public
 		if (faceDirty)
 		{
 			// Returns at once if this face has been traced before, by this panel
-			// or an identical one. Otherwise it traces the preview first, right
-			// here. See FaceRenderer::get.
+			// or an identical one. Otherwise, with no face on screen yet, it
+			// traces the preview right here; with one, the new face comes back
+			// untraced and the old bitmap stays up until the worker delivers.
+			// See FaceRenderer::get.
 			faceTrace = faceRenderer().get(specConfigHash(), buildSpec(),
 				(std::max)(1u, (uint32_t)std::lround(size.width * kPreviewScale)),
-				(std::max)(1u, (uint32_t)std::lround(size.height * kPreviewScale)));
+				(std::max)(1u, (uint32_t)std::lround(size.height * kPreviewScale)),
+				/*mayBlock*/ !faceBitmap);
 			faceBitmapStage = 0;
 			faceDirty = false;
 
-			// The old face's full trace is not wanted any more, even if this
-			// one never asks for its own because the cache already has it.
+			// The old face is not wanted any more, even if this one never
+			// asks for its own because the cache already has it.
 			faceRenderer().withdraw(this);
-			fullWanted = false;
+			wantedStage = 0;
 		}
 
-		// Ask for the full trace once this view is big enough to be worth it.
-		// A breadcrumb thumbnail never is (see kMinDetailScale). Checked every
-		// frame rather than once, because a view can open small and zoom in.
-		if constexpr (!kPreviewOnly)
-		{
-			if (!fullWanted && deviceScale >= kMinDetailScale
-				&& faceTrace->stage.load(std::memory_order_acquire) < 2)
-			{
-				const float fullScale = tide::render::clampf(rasterScale, kMinFullScale, kMaxFullScale);
-				faceRenderer().wantFull(this, faceTrace,
-					(std::max)(1u, (uint32_t)std::lround(size.width * fullScale)),
-					(std::max)(1u, (uint32_t)std::lround(size.height * fullScale)));
-				fullWanted = true;
-			}
-		}
-
-		// The full trace once it has landed, the preview until then. Rebuilt
-		// only when the stage moves.
+		// Ask for what this face still lacks: its preview, always; its full
+		// trace once this view is big enough to be worth it -- a breadcrumb
+		// thumbnail never is (see kMinDetailScale). Checked every frame rather
+		// than once, because a view can open small and zoom in.
 		const int stage = faceTrace->stage.load(std::memory_order_acquire);
-		if (stage != faceBitmapStage)
+		const int target = (!kPreviewOnly && deviceScale >= kMinDetailScale) ? 2 : 1;
+		if (wantedStage < target && stage < target)
+		{
+			const float fullScale = tide::render::clampf(rasterScale, kMinFullScale, kMaxFullScale);
+			faceRenderer().want(this, faceTrace,
+				(std::max)(1u, (uint32_t)std::lround(size.width * fullScale)),
+				(std::max)(1u, (uint32_t)std::lround(size.height * fullScale)),
+				target >= 2);
+			wantedStage = target;
+		}
+
+		// The full trace once it has landed, the preview until then, and the
+		// previous face's bitmap while there is nothing yet. Rebuilt only when
+		// the stage moves.
+		if (stage != faceBitmapStage && stage > 0)
 		{
 			const bool full = stage >= 2;
 			faceSize = full
@@ -2894,7 +2943,7 @@ public:
 		if (stage != faceBitmapStage)
 			invalidate();
 
-		if (stage >= 2 || !fullWanted)
+		if (stage >= wantedStage)
 		{
 			timerRunning = false;
 			return false; // returning false unregisters this client
@@ -2919,12 +2968,14 @@ public:
 
 		// From its fixed trace size to the panel's DIP bounds. Zoom is applied
 		// here, by the draw, and never by tracing again.
+		// No bitmap only when the cache already held this face at stage 0 (some
+		// other panel asked for it first): nothing to draw until the worker lands it.
 		const Rect faceSource{ 0.0f, 0.0f, (float)faceSize.width, (float)faceSize.height };
-		g.drawBitmap(faceBitmap, panelRect, faceSource);
+		if (faceBitmap)
+			g.drawBitmap(faceBitmap, panelRect, faceSource);
 
-		// Poll only while a full trace this editor asked for is still coming.
-		// A preview-only build never asks.
-		if (fullWanted && faceBitmapStage < 2 && !timerRunning)
+		// Poll only while a trace this editor asked for is still coming.
+		if (faceTrace->stage.load(std::memory_order_acquire) < wantedStage && !timerRunning)
 		{
 			startTimer(kPollMs);
 			timerRunning = true;
