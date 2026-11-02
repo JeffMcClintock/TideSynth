@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="606633040" SelectedViewType="256" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0">
+<Document file_format="150000" vst_latencyCompensation="1" SelectedViewHandle="606633040" SelectedViewType="128" emulate_ignore_pc="true" vst_preset_count="64" vst_version="1.0.0">
     <WindowLayout>
         <MainWindow l="418" t="419" r="3298" b="1955" monitor="\\.\DISPLAY1" ml="0" mt="0" mr="3840" mb="2160"/>
     </WindowLayout>
@@ -15,6 +15,13 @@
                 <param type="10" handle="162404167" private="true" hostControl="49">
                     <patch-list>
                         <s repeat="128"></s>
+                    </patch-list>
+                </param>
+                <param type="6" handle="732585325" shortName="Level" ignorePC="true" private="true" stateful="false" module="13007926" moduleParamId="0"/>
+                <param type="6" handle="1257603951" shortName="Oscillator PM Depth" module="174695687" moduleParamId="0">
+                    <patch-list>
+                        <s>5.02609</s>
+                        <s repeat="127">5</s>
                     </patch-list>
                 </param>
                 <param type="6" handle="1590000411" shortName="Level" ignorePC="true" private="true" stateful="false" module="1142937646" moduleParamId="0"/>
@@ -35,6 +42,17 @@
                 </plugs>
                 <structRect l="3834" r="3882" t="3834" b="3858"/>
                 <modules>
+                    <module type="TiDE Patch Point In" handle="13007926">
+                        <plugs>
+                            <plug default="FM"/>
+                        </plugs>
+                        <structRect l="3864" r="3924" t="3828" b="3908"/>
+                        <panelRect l="8" r="38" t="120" b="160"/>
+                    </module>
+                    <module type="SE TiDE:knob" handle="174695687">
+                        <structRect l="3996" r="4104" t="3804" b="3904"/>
+                        <panelRect l="33" r="48" t="140" b="154"/>
+                    </module>
                     <module type="TiDE Patch Point In" handle="258587584">
                         <plugs>
                             <plug default="SYNC"/>
@@ -107,6 +125,8 @@
                     <line type="Line" handle="94852515" lineType="1" fMod="91000003" tMod="91000005" fPlg="1"/>
                     <line type="Line" handle="1991779248" lineType="1" fMod="91000004" tMod="91000005" fPlg="4" tPlg="1"/>
                     <line type="Line" handle="1106310900" lineType="1" fMod="258587584" tMod="1888218636" fPlg="3" tPlg="4"/>
+                    <line type="Line" handle="840371022" lineType="1" fMod="13007926" tMod="1888218636" fPlg="3" tPlg="5"/>
+                    <line type="Line" handle="1730994779" lineType="1" fMod="174695687" tMod="1888218636" fPlg="6" tPlg="7"/>
                 </lines>
                 <PanelLocationCenter x="91.539001" y="212.84416"/>
                 <StructLocationCenter x="4154.5342" y="4054.1743"/>
@@ -175,6 +195,22 @@
                 <Pin name="Layout" datatype="string_utf8" default="grill 24 20; knob big 24 163; knob small 24 216; switch 24 247; led 14 272; led 34 272; jack 24 297; jack 24 337; slots 24 371"/>
                 <Pin name="Material" datatype="enum" metadata="Brushed Aluminium, Flat Aluminium, Powder-coated Steel"/>
                 <Pin name="Panel Color" datatype="string_utf8" default="FF2E3238"/>
+            </GUI>
+        </Plugin>
+        <Plugin id="SE TiDE:knob" name="knob" flags="384" category="TiDE">
+            <Parameters>
+                <Parameter id="0" datatype="float" name="patchValue"/>
+            </Parameters>
+            <Audio>
+                <Pin name="patchValue" datatype="float" private="true" parameterId="0"/>
+                <Pin name="Appearance" datatype="enum" isMinimised="true" metadata="knob"/>
+                <Pin name="Signal Out" datatype="float" direction="out" autoConfigureParameter="true"/>
+            </Audio>
+            <GUI>
+                <Pin name="patchValue" datatype="float" private="true" parameterId="0" parameterField="Normalized"/>
+                <Pin name="Hint In" datatype="string_utf8" private="true" parameterId="0" parameterField="Hint"/>
+                <Pin name="Background Color" datatype="string_utf8" default="00000000"/>
+                <Pin name="Stroke Color" datatype="string_utf8" default="FFF9692C"/>
             </GUI>
         </Plugin>
         <Plugin id="SE TiDE:sliderswitch" name="switch" flags="384" category="TiDE">
