@@ -272,3 +272,91 @@ place it shows.
 
 Not measured: the **bool** arm (no bool-bearing module in this fixture) and
 **linux/CLAP**.
+
+## What Windows measured, 2026-11-02 — the cell passes, on the `e83` fixture
+
+Same two `.lua` drivers and the same `run-host-win.sh`, REAPER **7.78**
+(the box's installed one — see the isolation note above), `main` at `9818c48`,
+the trace-armed Release build from step 1, and **`e83-vcv-scope-cabled.xml` in
+place of `e53`**, which is what the 2026-09-02 section above said this cell was
+waiting for. The whole measurement is one probe,
+[../e19_win_vst3_probe.py](../e19_win_vst3_probe.py), driven through a new
+Windows screen driver, [e19x_win.py](e19x_win.py) — the twin of `e19x.c`, which
+is X11-only.
+
+| clause | readout |
+|---|---|
+| pixel diff, 65 s apart | Scope screen **2,272 of 22,000**; whole editor 7,268 of 1,485,000; module browser **0 of 147,900** (in-frame ZERO control); REAPER's transport **1,131 of 64,800** in the same pair (LIVE-CAPTURE control) |
+| menu, WT LFO selected | the plug-in's own 18-item menu: `Goto Rack`, `About TIDE...`, `Cut/Copy/Paste/Delete`, and **`Wave points >`** — `32 … 16384`, **1024 ticked** |
+| menu, empty rack, deselected | the plug-in's own **7-item rack menu**, no `Wave points` |
+| DSP obeys the pick | fresh `LFO2` after each cable edit: **0.500143 (1024) / 0.500004 (32) / 0.500143 / 0.500004**, then an edit with NO pick: **0.500004** |
+| transport | `playstate=1` throughout, `pos` 0 → 106.6 in real time against `t` |
+
+**Run twice end to end, both clean** (`probe.log` exit 0): the four A/B values
+are identical to the sixth place across the two runs, and the Scope diff was
+2,272 then 2,287 of 22,000 with the browser control at 0 both times. One pass
+of a harness that needed this many corrections would not be worth quoting.
+
+`fx_ident` named the staged bundle on every launch, never
+`C:\Program Files\Common Files\VST3\TIDE-Rack.vst3` — which mattered more than
+usual this time, because the developer had installed his own build of the same
+plug-in **the same day**.
+
+The values are E82's to the sixth place (mac standalone 0.500143/0.500004) and
+linux's hosted VST3 to the fifth (0.500142/0.500004). **Three platforms and two
+hosting modes now agree on the same two numbers**, which is what makes this a
+statement about the option reaching the DSP rather than about one box.
+
+### The menu is read as TEXT here, and the deselected arm is a real control
+
+A Windows context menu is an ordinary `#32768` window that answers
+`MN_GETHMENU` with its `HMENU`, so `GetMenuItemInfoW` hands over every row's
+string and `MF_CHECKED` directly. That is strictly better than the linux leg,
+which can only screenshot an override-redirect window and click by computed row
+height — and it is why "1024 is ticked" is quoted above as a fact rather than
+as a reading of pixels.
+
+It also sharpens the control. Linux compared the WT LFO's menu against *"the 6
+alone"* on empty canvas; here both menus are identified as the plug-in's own by
+the `About TIDE` item they carry, so "no `Wave points` when deselected" is known
+to be TIDE answering, not the host.
+
+### Four Windows-only traps, each of which cost a measurement
+
+These are all in the driver now, and all four presented as *the plug-in
+misbehaving* rather than as the harness missing.
+
+1. **`MOUSEEVENTF_ABSOLUTE` without `MOUSEEVENTF_VIRTUALDESK` maps onto the
+   PRIMARY monitor**, not the virtual desktop. On this three-monitor box a
+   click meant for screen 892,603 was delivered at 1874,603 — `892 × 3840/5760`
+   — which is REAPER's ruler, and what came up was REAPER's timeline menu. The
+   Y was right throughout, because the virtual desktop is the same height as
+   the primary monitor, so it reads as a wrong menu rather than as a miss.
+2. **An unconditional `Escape` closes the FLOATING FX WINDOW.** Dismissing a
+   menu with two of them sends the second to REAPER, the editor is destroyed,
+   and `ClientToScreen` on the dead HWND then silently leaves the offset at
+   `0,0` — so every later click is delivered in RAW SCREEN COORDINATES to
+   whatever is underneath. Escape only while `#32768` is actually on screen.
+3. **`GetAncestor(editor, GA_ROOT)` answers 0 here**, so the window to raise has
+   to come from the enumeration that found the editor.
+4. **`SetForegroundWindow` is refused** to a process that does not own the
+   foreground window; it returns having raised nothing, REAPER's maximized main
+   window stays over the 1672×995 float, and clicks land on the host. Clicking
+   the float's own caption is what actually works.
+
+### The input-safety gate, and why it is not optional
+
+`check_target()` calls `WindowFromPoint` before every click and before BOTH
+ends of every drag, and raises rather than delivering input that would land
+outside the editor. This exists because the alternative happened: while trap 2
+was unknown, this probe's clicks and drags went into REAPER's track view and
+then into the developer's open Outlook window, one of them into its folder pane,
+which changed the folder on display. Nothing was deleted and no menu item was
+ever activated — every lookup after those clicks failed to find its item — but
+that was luck. **This box is a developer's workstation with his own
+applications running, so synthetic input that misses its target does not fail,
+it lands somewhere else.** One `WindowFromPoint` call per click is the whole
+price of making that impossible.
+
+Not measured on Windows: the **bool** arm (no bool-bearing module in this
+fixture, same as linux) and **win/CLAP**.

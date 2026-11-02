@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **524 KB** across **407** entries, so copying them
+Learned sections are **525 KB** across **408** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **171 KB / 1737 lessons — 3.1x smaller**, and represents
+A8. This is **172 KB / 1742 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,16 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-11-02
+
+**windows — E19: the win/VST3 cell passes pixel diff and int/enum in REAPER, run twice with identical numbers — and a stray click reached the developer's Outlook before the input gate existed (scheduled run)**
+
+- four Windows-only traps, and what makes them expensive is that all four present as the PLUG-IN misbehaving
+- `MOUSEEVENTF_ABSOLUTE` without `MOUSEEVENTF_VIRTUALDESK` maps onto the PRIMARY monitor, not the virtual desktop.
+- An unconditional `Escape` closes the floating FX window
+- `GetAncestor(editor, GA_ROOT)` answers 0 here
+- `SetForegroundWindow` is refused to a process that does not own the foreground window.
 
 ## 2026-10-29
 
@@ -71,23 +81,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - E82's rebuild trick works in a host, and its trace does not need a cable.
 - Dragging from a jack that already carries a cable picks that cable up
 - Under weston, a GMPI context menu and its submenu are separate override-redirect X windows
-
-## 2026-10-25
-
-**macos — E82: the WT LFO's `Wave points` menu is offered and the DSP obeys it — both clauses measured on the standalone with the screen locked, A/B/A/B through the adaptor's own trace (scheduled run)**
-
-- A channel `--drag` from the module browser selects the row and drops nothing; a `--double` click places the module.
-- The context menu follows the SELECTION, even over empty canvas.
-- When a parameter change leaves no trace, force a rebuild and read the fresh instance.
-- `--render-audio` cannot measure a TIDE rack today, and says so in its result.
-- "Needs an idle box" is one command away from being a fact rather than a mood.
-- A locked screen stopped nothing in this toolchain.
-
-## 2026-10-23
-
-**macos — no item: STEP 1 and 1.5 empty, #643 merged, and the new `any` rows A43 and A45 are both parked (scheduled run)**
-
-- A lane's gap in the journal can be missing firings, not runs that wrote nothing.
 
 ## 2026-10-01
 
@@ -305,6 +298,23 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - `cronExpression` alone does not tell you when a task runs; `nextRunAt` tells you how it is interpreted.
 - Converting a UTC timestamp to a weekday is worth doing with the timezone database rather than by eye.
 - A row can answer an old row's explicitly-undiagnosed observation without re-filing it.
+
+## 2026-10-23
+
+**macos — no item: STEP 1 and 1.5 empty, #643 merged, and the new `any` rows A43 and A45 are both parked (scheduled run)**
+
+- A lane's gap in the journal can be missing firings, not runs that wrote nothing.
+
+## 2026-10-25
+
+**macos — E82: the WT LFO's `Wave points` menu is offered and the DSP obeys it — both clauses measured on the standalone with the screen locked, A/B/A/B through the adaptor's own trace (scheduled run)**
+
+- A channel `--drag` from the module browser selects the row and drops nothing; a `--double` click places the module.
+- The context menu follows the SELECTION, even over empty canvas.
+- When a parameter change leaves no trace, force a rebuild and read the fresh instance.
+- `--render-audio` cannot measure a TIDE rack today, and says so in its result.
+- "Needs an idle box" is one command away from being a fact rather than a mood.
+- A locked screen stopped nothing in this toolchain.
 
 ## 2026-09-08
 
