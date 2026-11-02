@@ -2961,6 +2961,13 @@ public:
 		// it offered, rather than distorted to fill it.
 		const Size size = panelSizeDips();
 		updateBitmaps(g, size, getRasterScale(), getDeviceScale(g));
+		{
+			[[maybe_unused]] const auto clip = g.getAxisAlignedClip();
+			TIDE_LOG("RENDER   ed=%p clip [%.0f %.0f %.0f %.0f] bounds [%.0f %.0f %.0f %.0f] stage=%d bitmap=%d",
+				(void*)this, clip.left, clip.top, clip.right, clip.bottom,
+				bounds.left, bounds.top, bounds.right, bounds.bottom,
+				faceTrace ? faceTrace->stage.load() : -1, faceBitmap ? 1 : 0);
+		}
 
 		const Rect panelRect{
 			bounds.left, bounds.top,
