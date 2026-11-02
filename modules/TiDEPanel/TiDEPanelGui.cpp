@@ -2374,14 +2374,25 @@ class TiDEPanelGui final : public PluginEditor, public gmpi::TimerClient, public
 
 		spec.components = parsePanelLayout(pinLayout.value);
 
-		// A Layout knob at the same centre as a host one is the SAME knob, written
-		// twice: prefabs authored before ITraceSink carry both. The host's wins,
-		// because it is the one that still moves. Two cylinders in one place would
-		// otherwise fight for the surface.
+		// A Layout feature sitting inside a host one of the same kind is the SAME
+		// feature, written twice: prefabs authored before ITraceSink carry both,
+		// and a hand-placed pocket need not be centred exactly where the widget
+		// is. The host's wins, because it is the one that still moves. Two
+		// cylinders, or two pockets, in one place would otherwise fight for the
+		// surface.
 		for (const auto& h : hostComponents)
 		{
 			std::erase_if(spec.components, [&](const PanelComponent& c) {
-				return c.kind == h.kind && c.x == h.x && c.y == h.y;
+				if (c.kind != h.kind)
+					return false;
+				const float dx = c.x - h.x, dy = c.y - h.y;
+				switch (h.kind)
+				{
+				case PanelComponent::Kind::Knob:   return dx * dx + dy * dy <= knobRadiusDips(h) * knobRadiusDips(h);
+				case PanelComponent::Kind::Jack:   return dx * dx + dy * dy <= kJackSurroundDips * kJackSurroundDips;
+				case PanelComponent::Kind::Switch: return std::fabs(dx) <= switchHalfWidthDips(h) && std::fabs(dy) <= switchHalfHeightDips(h);
+				default:                           return dx == 0.0f && dy == 0.0f;
+				}
 			});
 		}
 		spec.components.insert(spec.components.end(), hostComponents.begin(), hostComponents.end());

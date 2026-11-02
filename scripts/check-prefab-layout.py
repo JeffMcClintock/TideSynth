@@ -54,8 +54,9 @@ JACK_BOTTOM_MARGIN = 15  # PatchPointGui jackBottomMargin: the jack is centred, 
 STOCK_JACKS = ("SE Patch Point in", "SE Patch Point out")
 
 # Layout kinds that pair with a functional module vs decoration-only.
-PAIRED_KINDS = {"jack", "knob"}
-DECOR_KINDS = {"grill", "slots", "switch", "led"}
+PAIRED_KINDS = {"jack", "knob", "switch"}
+DECOR_KINDS = {"grill", "slots", "led"}
+SWITCH = "SE TiDE:sliderswitch"
 
 
 def rect(el):
@@ -195,18 +196,30 @@ def check_file(path):
     def fmt(pts):
         return ", ".join(f"({x:g},{y:g})" for x, y in pts) or "none"
 
-    # Knobs and patch points paint themselves (ITraceSource, since 2026-11-02):
-    # a module needs no Layout entry, and one at the same centre is simply
-    # redundant. What is still wrong is a PAINTED jack or knob with no module
-    # under it -- a socket nothing plugs into, a knob body nobody can turn --
-    # or one of the wrong direction, which would paint an input's ring where
-    # an output's black backing belongs.
+    # Knobs, patch points and slider switches paint themselves (ITraceSource,
+    # since 2026-11-02): a module needs no Layout entry, and one within the
+    # module's footprint is simply redundant. What is still wrong is a PAINTED
+    # feature with no module under it -- a socket nothing plugs into, a knob
+    # body nobody can turn, a slot with no lever -- or a jack of the wrong
+    # direction, which would paint an input's ring where an output's black
+    # backing belongs. A switch pocket is hand-sized, so its centre need only
+    # fall inside the module's rect rather than on its centre.
+    def inside_a(types):
+        rects = []
+        for m in modules:
+            if m.get("type") in types:
+                l, t, r, b = rect(m.find("panelRect"))
+                rects.append((l - pl, t - pt, r - pl, b - pt))
+        return lambda p: any(l <= p[0] <= r and t <= p[1] <= b for l, t, r, b in rects)
+
     for kind, types in (("jack", ("TiDE Patch Point In",)),
                         ("jack out", ("TiDE Patch Point Out",)),
-                        ("knob", (KNOB,))):
+                        ("knob", (KNOB,)),
+                        ("switch", (SWITCH,))):
         painted = sorted((x, y) for k, x, y in entries if k == kind)
         real = set(centres_of(types))
-        orphans = [p for p in painted if p not in real]
+        covered = inside_a(types) if kind == "switch" else (lambda p: p in real)
+        orphans = [p for p in painted if not covered(p)]
         if orphans:
             errors.append(
                 f"{kind} mismatch: Layout paints [{fmt(orphans)}] where no "

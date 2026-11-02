@@ -49,7 +49,9 @@ and `TiDE Patch Point In`/`Out` implement `synthedit::ITraceSource`
 you?" in their **own** coordinates: the knob with `knob cx cy r` (centre of
 its widget, radius = the pointer's visible tip, 0.44 x its smaller side), the
 patch point with `jack in|out cx cy` (its clickable disc, 15 DIPs above the
-rect's bottom). The panel implements `ITraceSink`. The **view**
+rect's bottom), the slider switch with `switch cx cy W H` (its slot is its
+own rect; the pocket adds the panel's plate margins, 3.4 x 4.6 DIPs a side).
+The panel implements `ITraceSink`. The **view**
 (`ViewBase::updateTraceSpecs`, SynthEditLib) is the only party that knows
 where both sit: after every layout and every drag it collects the sources
 whose centre lies over each sink, adds each one's offset, and hands the
@@ -57,9 +59,10 @@ panel the list. The panel compares with what it had and only re-traces on a
 real change. Neither module is ever told its position, and nothing is
 written into the `Layout` pin.
 
-A `Layout` jack or knob at the same centre as a host-supplied one is dropped,
-so the prefabs that still carry both paint one feature, not two. Switches
-and LEDs are not sources yet; for them the rule above still applies.
+A `Layout` jack, knob or switch whose centre falls inside a host-supplied
+one's footprint is dropped, so the prefabs that still carry both paint one
+feature, not two. LEDs are not sources yet; for them the rule above still
+applies.
 
 ## Verified, 2026-08-24 — and now checked by script
 

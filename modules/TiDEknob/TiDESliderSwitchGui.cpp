@@ -2,8 +2,10 @@
 // Copyright 2007-2026 Jeff McClintock.
 #include "helpers/GmpiPluginEditor.h"
 #include "helpers/CachedBlur.h"
+#include "Extensions/TraceSpec.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <string>
 
 using namespace gmpi;
@@ -15,11 +17,18 @@ namespace
 constexpr float kPi = 3.14159265358979323846f;
 // Where the pointer line starts, as a fraction of the radius out from the center.
 constexpr float kPointerInnerFraction = 0.25f;
+
+// The plate the panel leaves around the punched slot the lever travels in. The
+// slot is this widget's bounds; the pocket the panel paints is the slot plus
+// these, so they are TiDEPanelGui's kSwitchHalfWidthDips - kSwitchHoleHalfWidthDips
+// and kSwitchHoleMarginDips, which that file explains.
+constexpr float kPocketMarginXDips = 3.4f;
+constexpr float kPocketMarginYDips = 4.6f;
 }
 
 // Knob look ported from VectorKnob_VCV (SynthEditLib/modules/SubControlsXp/VectorRingGui.cpp):
 // a filled disc with a single radial pointer line, sharing VectorKnob's circular hit-test.
-class TiDEsliderSwitchGui final : public PluginEditor, public gmpi::api::IDrawingLayer
+class TiDEsliderSwitchGui final : public PluginEditor, public gmpi::api::IDrawingLayer, public synthedit::ITraceSource
 {
  	Pin<float> pinpatchValue;
  	Pin<std::wstring> pinHint;
@@ -283,7 +292,22 @@ public:
 		return ReturnCode::NoSupport;
 	}
 
-	// support IDrawingLayer
+	// ITraceSource: the panel beneath paints the pocket and the slot the lever
+	// travels in. The slot is exactly this widget's bounds, whichever way it
+	// lies; the pocket is that plus the plate margins. Local coordinates, from
+	// this widget's top-left; the host adds where it sits.
+	ReturnCode getTraceSpec(gmpi::api::IString* returnSpec) override
+	{
+		const float w = getWidth(bounds);
+		const float h = getHeight(bounds);
+
+		char spec[80];
+		const int n = std::snprintf(spec, sizeof(spec), "switch %g %g %g %g",
+			w * 0.5f, h * 0.5f, w + 2.0f * kPocketMarginXDips, h + 2.0f * kPocketMarginYDips);
+		return returnSpec->setData(spec, (std::max)(0, n));
+	}
+
+	// support IDrawingLayer, ITraceSource
 	int32_t addRef() override
 	{
 		return PluginEditor::addRef();
@@ -300,6 +324,12 @@ public:
 		if((*iid) == gmpi::api::IDrawingLayer::guid)
 		{
 			*returnInterface = static_cast<gmpi::api::IDrawingLayer*>(this);
+			PluginEditor::addRef();
+			return ReturnCode::Ok;
+		}
+		if((*iid) == synthedit::ITraceSource::guid)
+		{
+			*returnInterface = static_cast<synthedit::ITraceSource*>(this);
 			PluginEditor::addRef();
 			return ReturnCode::Ok;
 		}
