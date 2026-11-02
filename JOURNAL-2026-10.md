@@ -1618,3 +1618,127 @@ That entry's own "Not verified" says *"I did not run the probe against the merge
 **Next:** see the `win` cell. **For Jeff, three things:** (1) **A45 is the only thing waiting on you**, and it is a scheduling judgement only you can make — this box's run has fired in its actual slot once in five weeks, and the two rows this lane can take both need you *not* to be at the machine. (2) The bookkeeping-hot-spots `PROPOSED:` entry is **nineteen days** past its own `Decide-by`, with A37 parked behind it. (3) The bot token expires **2026-11-07**, 18 days out.
 
 **Branch/PR:** `tide/win/2026-10-20-queue-blocked`. The A45 row, this entry, the `win` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+## 2026-10-23 — macos — no item: STEP 1 and 1.5 empty, #643 merged, and the new `any` rows A43 and A45 are both parked (scheduled run)
+
+**Prompt:** 1821076 · Opus 5.5, `claude-opus-5-5` · app Claude desktop (version not read this run) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded. `run-lock.py acquire` returned rc=0 (`owner=auto:ancestor-match`). This is the first scheduled run on macOS under the box lock.
+
+**STEP 1:** there is no open `platform:mac` issue. **STEP 1.5:** there are no open PRs in the fleet. [#643](https://github.com/JeffMcClintock/TideSynth/pull/643) (E91) **merged on 2026-10-13**, and E91 has already been archived. So the 10-13 cell's step (1) is closed, and no `IN-REVIEW` row is left to flip.
+
+**STEP 2:** I walked the rows again rather than relying on the earlier walk, because `BACKLOG.md` gained rows since `b0b0a01`. `git diff --stat b0b0a01 origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows only `BACKLOG.md` changes: three NEXT cells, A43 and A45 filed, A44 WONTFIX, and E89, E91 and E92 archived. `decisions.md` and `PLAN.md` did not change. The `mac`/`any` rows that are `TODO`:
+
+- **A43** says *"a run should not pick"* among (a), (b) and (c). Work that is identical under every answer does not exist, because (a) alone builds no lint.
+- **A45** is scoped to the **windows** box's scheduled task, which its own words say is *"NOT a run's to edit"*. The decision is Jeff's.
+- **A35, A37, A42, S8, E2 and E84** are unchanged and parked for the reasons the 10-20 windows entry lists.
+- **E19 and E82** need an idle box with a GUI. This run fired at 02:05 local, so the box may be idle. But computer-use approval is suppressed for scheduled tasks on this box (measured in earlier mac runs). So neither clause can be measured from here.
+- **E93** (`mac`) is still waiting on Jeff's AU2 scope call. The cell says not to build an AU2 consumer unasked.
+
+Nothing is eligible.
+
+### A measurement for A45, which its own entry says it lacked
+
+The 10-20 windows entry says *"macOS's and linux's crons remain unmeasured by me"*. Here is the mac one, from `list_scheduled_tasks` and `list_task_runs`:
+
+| evidence | value |
+|---|---|
+| cron | `0 2 * * *`, `jitterSeconds: 271`, read in local time (NZDT, UTC+13) |
+| this run | started `2026-10-22T13:05:03Z` = **2026-10-23 02:05 local**, **in its slot** |
+| previous run | `2026-10-12T13:05:21Z` = 2026-10-13 02:05 local, also in its slot |
+| between them | **no runs at all.** Nine daily slots (10-14 to 10-22 local) have no session against them, and nothing caught them up at app launch either |
+| 10-02 to 10-13 | twelve runs, all at 13:04–13:05Z, every one in its slot |
+
+So the mac lane does not show windows' A45 pattern. When this box runs, it runs in its 02:05 slot. When it misses, it seems to miss outright with no catch-up, unlike windows. I did not establish why the nine days were missed. Likely causes are the machine being asleep or off, or the app being closed. That is an inference, and I have not checked it. I filed nothing, because this is data for A45 rather than a new problem.
+
+**Default branch:** I did not build `main` locally. The last code commits on `main` are Jeff's (`46aee55`, `e8586e9`, `c67f5c2`).
+
+**Learned:**
+
+- **A lane's gap in the journal can be missing firings, not runs that wrote nothing.** `list_task_runs` tells the two apart in one call. Use it before reading anything into a quiet lane.
+
+**Not verified:** nothing was built or run, because there was no item. I did not read `docs/lessons.md` in full (175 KB), only the parts that bear on this walk. I did not check the Claude app version. The bot token expires **2026-11-07**, 15 days from today. I did not re-check that date.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean. The work was in a scratchpad `git worktree`, removed at the end. `~/Documents/GitHub/SynthEdit` (`master`, clean) was not touched. No GUI was used, and no credential value appears anywhere. I released the box lock as the last step.
+
+**Next:** see the `mac` cell. **For Jeff:** (1) E93 needs your AU2 scope call. (2) A43 and A45 each need a pick from you. (3) The bot token expires 2026-11-07.
+
+**Branch/PR:** `tide/mac/2026-10-23-queue-blocked`. This entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge.
+
+## 2026-10-24 — macos — no item: STEP 1 and 1.5 empty, and nothing in BACKLOG, decisions or PLAN has moved since the 10-23 walk (scheduled run)
+
+**Prompt:** 1821076 · Sonnet 5.5, `claude-sonnet-5-5` · app Claude desktop (version not read this run) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded. `run-lock.py acquire` returned rc=0.
+
+**Result:** STEP 1: `gh issue list --label platform:mac --state open` returns `[]`. STEP 1.5: `gh pr list --state open` returns `[]`. STEP 2: `git diff --stat 6538c2b origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows one line changed in `BACKLOG.md` (the 10-23 `mac` NEXT cell). The 10-23 walk therefore stands row for row: A43 and A45 parked, E93 waiting on Jeff, E19 and E82 need an idle GUI box that a scheduled run cannot approve for computer-use. Nothing is eligible.
+
+**Learned:** nothing new. The mac lane fired in its 02:05 slot again, one day after the last run.
+
+**Next:** run the three steps in the `mac` NEXT cell, using `dc80d88` as the new diff base.
+
+**Not verified:** nothing was built or run. I did not re-read `docs/lessons.md` in full. The bot token expires 2026-11-07; I did not re-check.
+
+**Branch/PR:** `tide/mac/noitem-2026-10-24`
+
+## 2026-10-25 — macos — E82: the WT LFO's `Wave points` menu is offered and the DSP obeys it — both clauses measured on the standalone with the screen locked, A/B/A/B through the adaptor's own trace (scheduled run)
+
+**Prompt:** 1821076 · Fable 5.1, `claude-fable-5-1` · app Claude desktop **3.6556.2** · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E82** and met its Accept. New [tests/e82_wtlfo_wave_points_probe.py](tests/e82_wtlfo_wave_points_probe.py) -- **18 checks, 0 failures, 27 s** -- plus the three bookkeeping files. **No product code changed, in this repo or any sibling.** `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`dc80d88..85a3147`, plus a new `gpu-backend` branch of Jeff's). `run-lock.py acquire` rc=0, `owner=auto:ancestor-match`, holder pid 69485.
+
+**STEP 1:** no open `platform:mac` issue; the only open issues in the repo are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (linux, E89 DONE) and #44 (the digest). **STEP 1.5:** zero open PRs in the fleet; `git ls-remote --heads origin` returned `main` and `gpu-backend` only. **STEP 2:** `git diff --stat dc80d88 origin/main -- BACKLOG.md docs/decisions.md PLAN.md` showed one line in `BACKLOG.md` -- the 10-24 `mac` cell -- so the 10-23 walk stood, and the walk's one condition for E82 and E19 was an idle box. It was idle: `ioreg` HID idle **122,023 s (33.9 h)**, `pmset -g log` says the display went off **2026-10-23 17:13** and never came back, console user `jeffmcclintock`, no Xcode, SynthEdit, DAW or IDE process. E82 is `TODO`, `any`, not blocked, and none of the four open `PROPOSED:` entries parks it (three say *everything*, E72's parks E72). DOING mark pushed first, `5fc223b`.
+
+### The row's two clauses, measured on the standalone built from `main` at `85a3147`
+
+| step | gesture (window DIPs) | readout |
+|---|---|---|
+| place a WT LFO | `--pointer-down 130,294 --double` on the browser's `LFO2` | `RackProcessor: 'LFO2' constructed` -- the DSP built it |
+| cable it | `--drag 590,540 592,220` (its `WT` jack to Out L) | rebuild, `connections ins=0000 outs=1`, `first NONZERO OUTPUT pin 0 (0.500143)` |
+| menu, module NOT selected | `--context-menu 565,352` | **7** -- the rack's own (E38's selection fact) |
+| menu, module selected | select, then the same | **20** -- the 7 plus **`Wave points`** submenu: `32 64 128 256 512 1024 2048 4096 8192 16384`, **1024 ticked** |
+| control: background | deselect, `--context-menu 700,330` | **7** |
+| control: unknown label | `--context-menu 565,352 NoSuchLabelXYZ` | `ok:false`, *"menu offers: Goto Rack, About TIDE..., Cut, Copy, Paste, Delete, 32, 64, ..."* |
+| pick 32 | `--context-menu 565,352 32` | `invoked: "32"`, re-list shows **32 ticked** |
+
+That is clause one: a right-click on a VCV panel offers an option the module owns. E82's own 09-14 finding said `WT LFO` would be the producer and that the five e75 probe points had all been on a module with nothing to offer; both halves hold.
+
+### Clause two -- "toggling it changes DSP behaviour" -- and the instrument that did NOT work first
+
+`--render-audio` was the obvious instrument and it measured nothing: **`peak 0`, `parametersUnprimed 5`** with the cable in place. The verb's own comment explains it -- *"TIDE's entire patch is one blob parameter, so this loop primes NOTHING for it and the render is built from an empty graph"* -- and names **E6** as the row it is filed on. So nothing new was filed; the lesson is to read `parametersUnprimed` before reading `peak`.
+
+What did work is the adaptor's own trace. A menu pick writes the chosen index into the live instance in `onSetPins` (`RackAdaptor.h:594`, `m.write(menuIntPins[slot])`) and traces nothing. But every rack rebuild constructs a fresh `RackProcessor`, which receives the option with its other pins and prints `first NONZERO OUTPUT` exactly once. A cable edit forces a rebuild. So: pick, edit a cable, read the new instance.
+
+| arm | pick | cable edit | `first NONZERO OUTPUT pin 0` |
+|---|---|---|---|
+| A (baseline) | 1024 (default) | WT -> Out L added | **0.500143** |
+| B | 32 | Out R -> WT added | **0.500004** |
+| A | 1024 | Out R cable dragged into space (removed) | **0.500143** |
+| B | 32 | Out R -> WT added | **0.500004** |
+| A | 1024 | Out R cable removed | **0.500143** |
+
+Alternates with the pick, repeats within it, five rebuilds. `Wave points` is `Wavetable::setWaveLen` (`modules/WTVCO/vcv/Wavetable.hpp`), which changes the slice length over the same 4096 stored samples and never resamples them -- so at 32 the LFO plays the sine's first 32-sample sliver instead of its cycle, and the first sample a fresh instance emits at the same phase is a different number. The direction and the ~36:1 ratio are consistent with that reading; I did not measure the waveform itself.
+
+### Also done: the box lock probe on macOS, which no posix box had run
+
+`python3 tests/e89_box_lock_probe.py` in a scratchpad worktree at `85a3147`: **control 12 of 12 (must fail, did), 14 arms, 0 failures, 8.2 s.** Arm 11 resolved the ancestor, arm 12 reproduced #583's 5.6 s gap and refused run B, arm 14's unforced `release` returned rc=0. The 10-14 and 10-20 win cells both said *"whichever posix box runs next should just run it and say so"*; it is run and said, and the lock also worked end to end this run.
+
+**Build:** fresh scratchpad tree from `origin/main` at `85a3147`, Ninja, Release, arm64, `SE_LOCAL_BUILD=OFF`, `TIDE_VCV_FUNDAMENTAL=ON`, `-DCMAKE_CXX_FLAGS=-DRACK_ADAPTOR_TRACE=1`, **no `*_FOLDER_OVERRIDE`** -- every dependency fetched at its own `origin/main` exactly as `main` declares. `TIDE_Rack_STANDALONE`: **374/374, 0 `error:`, 5 warnings.** So `main` builds the standalone on macOS at `85a3147`; the VST3, AU3 appex and CLAP targets were not built.
+
+**Learned:**
+
+- **A channel `--drag` from the module browser selects the row and drops nothing; a `--double` click places the module.** The browser-to-rack drop is a native drag the command channel never touches, so the one gesture that looks like "place a module" is the one that cannot.
+- **The context menu follows the SELECTION, even over empty canvas.** A background "control" taken while a module is selected returns the module's menu, which the probe's first control got wrong and the second measured: 20 selected, 7 deselected. E38 said this about the module's point; it is equally true of the background's.
+- **When a parameter change leaves no trace, force a rebuild and read the fresh instance.** The adaptor's one-shot per-instance lines (`constructed`, `connections`, `first NONZERO OUTPUT`) become an A/B instrument the moment something rebuilds the rack, and a cable edit does. Cheaper than audio, and it measures the DSP itself.
+- **`--render-audio` cannot measure a TIDE rack today, and says so in its result.** `parametersUnprimed` is the tell; `peak 0` after it is a reading about priming, not about the patch (E6).
+- **"Needs an idle box" is one command away from being a fact rather than a mood.** `ioreg -c IOHIDSystem` plus `pmset -g log` settled it in seconds, and the answer this time was 34 hours. A scheduled run that wants a GUI row should measure before parking.
+- **A locked screen stopped nothing in this toolchain.** The standalone launched, its socket answered, `--screenshot` returned real frames and the editor drove, all with the display off since the previous day. The 08-29 line through the tooling runs between the standalone and a DAW, not between the standalone and the run.
+
+**Not verified:** **nothing in a host** -- every measurement is the standalone, and E19's clauses are per-format; E82's Accept does not name a host and its row is flipped on the standalone alone. **The bool arm** (VCA-1's *Exponential response* and the other six bool-bearing modules) was not measured; `Wave points` is the `int/enum` arm only. **The waveform** behind the two numbers was not captured -- the cycle-versus-sliver reading is from `Wavetable.hpp`. **Only `TIDE_Rack_STANDALONE` was built**, so "main builds on macOS" is one target's claim. **Windows and Linux** ran nothing; the probe's coordinates are the standalone's default 1100x626 window on the shipped default rack and it exits 2 on any other size rather than clicking blind. **E19's row was not edited** -- its `int/bool/enum` clause now has a measured producer and a recipe, and flipping anything on E19 is that row's job. The `gpu-backend` branch was read, not built.
+
+**Rotation:** done. With this entry `JOURNAL.md` was 60,358 bytes; the oldest entry (10-14 windows, A44) moved to `JOURNAL-2026-10.md`, appended below what was there, verbatim. Six entries remain, above the four-entry floor.
+
+**Machine state:** `~/Documents/GitHub/TideSynth` **stayed on `main`, clean, and was never checked out** -- its local `main` is at `dc80d88` and deliberately not fast-forwarded. All work was in a scratchpad `git worktree` (this branch) and a scratchpad build tree, both removed at the end. **Five standalone launches, every one under `GMPI_STANDALONE_CONFIG_DIR` and `GMPI_STANDALONE_IPC_DIR` pointed at the scratchpad**; each arm's `session.xml` and `standalone.conf` landed in its own scratch directory. The developer's `~/Library/Application Support/TiDE Rack/` **files are unchanged** (`session.xml` Sep 22 11:59, `standalone.conf` and `session.previous.xml` Aug 31 12:55, no new entry) -- but **the directory's own mtime moved to 02:14:26**, the same created-and-removed-entry phenomenon the 09-07 entry recorded and could not attribute; contents provably untouched, cause still unknown. `~/Library/Audio/Plug-Ins/VST3/TIDE-Rack.vst3` untouched (Aug 28). No DAW was launched, no AUv3 registered, no GUI or computer-use, no screenshot of the display -- the frames came from the app's own `--screenshot`. `SynthEditLib`, `gmpi_ui`, `GMPI`, `GMPI_Wrappers` and `SynthEdit_Rack_Adaptor` were fetched and read only; all five are clean on `main` at `origin/main`, none was checked out or built, and the build fetched its own copies. `~/Documents/GitHub/SynthEdit` (`master`, clean) was not touched. **0 TIDE processes left**, checked. No credential value appears anywhere. Box lock released as the last act.
+
+**Next:** see the `mac` cell. **For Jeff:** (1) the E82 PR is `tests/` plus bookkeeping and waits for you by design -- the probe is self-contained and re-runnable in 27 s against any `-DRACK_ADAPTOR_TRACE=1` standalone. (2) E19's `int/bool/enum` clause now has a producer and a recipe; whether its per-host cells should reuse this instrument or insist on audio is your call. (3) Your `gpu-backend` branch has no PR; no run will touch it. (4) The bot token expires **2026-11-07**, 13 days out.
+
+**Branch/PR:** `tide/mac/E82-wtlfo-wave-points`, [#669](https://github.com/JeffMcClintock/TideSynth/pull/669). The probe, the E82 flip, this entry, the `mac` cell and the regenerated `docs/lessons.md` are on that branch. `tests/**` is off the auto-merge allowlist, so it waits for Jeff.
