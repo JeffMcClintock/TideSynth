@@ -95,6 +95,57 @@ Template:
 
 ---
 
+## 2026-11-10 — windows — E94: the bool arm is measured, headlessly, and E19's recommended readout turns out to be unobtainable — plus TIDE exposes 2,080 host parameters and none of them are the rack's (scheduled run)
+
+**Prompt:** 18210767f · Opus 5, `claude-opus-5` · app Claude desktop **4.23118.0** (`appVersion` in `%LOCALAPPDATA%\Claude\Logs\main.log`; no `claude` on PATH) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E94** — the fixture E19's bool clause has been missing since the row was filed — built it, and measured the clause in a bare VST3 host with no DAW, no window and no screen. `FLEET-PAUSED` absent. STEP 0's fetch succeeded. `run-lock.py acquire` rc=0 with the documented windows `owner=self (NO agent ancestor matched -- this lock is age-capped only)` warning; released at STEP 5.
+
+**STEP 1:** no open `platform:win` issue — the only open issues in the repo are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (linux, E89 DONE) and #44 (the digest). **STEP 1.5:** no open PR on `tide/win/**`; **zero open PRs in the fleet**, and `git ls-remote --heads origin` is `main` plus Jeff's `gpu-backend` only, so nothing is claimed anywhere. [#678](https://github.com/JeffMcClintock/TideSynth/pull/678) (the 11-02 win E19 cell) merged `2026-11-02T21:56Z` as `52bdd6a4f`.
+
+**STEP 2, and the choice is the one thing in this entry a future win run should copy.** The `win` NEXT cell named no item and pointed at **win/CLAP** as the cheapest remaining win debt. **`GetLastInputInfo` read 0 seconds of idle**: this run fired at **09:57 local on a Monday morning**, against a `0 20 * * 1` slot, with `chrome`/`OUTLOOK`/`slack`/three `VirtualBoxVM` up — the A45 catch-up-at-app-launch pattern again, and Jeff was at the keyboard. win/CLAP needs REAPER and a screen, and the 11-02 entry is the reason not to take one anyway. So I took the **2026-09-16 precedent** instead: that run also found the developer at the machine, declined the screen, and did the datatype census, which needed neither. E94's own row says its measurement venue "needs no host and no screen", which made it the obvious substitute.
+
+Row order checked rather than assumed: A35 is parked on its own two `PROPOSED:` entries by its own text; A42 and A43 each say a run must not pick between their options; A45 is a scheduling judgement for Jeff; A37's ceiling is undefined, so its Accept cannot be stated as a command; S8 is `NEEDS-SPEC` and moot; E2 "as one item is not takeable"; E84 is a `.github/workflows/**` edit this credential deliberately cannot make; X2 is linux, E93 is mac. All four open `PROPOSED:` entries still say *"may proceed meanwhile: everything"* (the third excepts only E72, archived).
+
+### PASS — the bool arm, A/B/A/B, run twice end to end with identical numbers
+
+`main` at `f6551b4d8`, Release, `-DTIDE_VCV_FUNDAMENTAL=ON -DSE_LOCAL_BUILD=OFF -DCMAKE_CXX_FLAGS=-DRACK_ADAPTOR_TRACE=1`, **0 `error C`/`error LNK` lines on the first pass** (Defender's cold-tree `.obj` trap did not fire). No `*_FOLDER_OVERRIDE`, so all ten deps were fetched into the build tree and **no sibling checkout of Jeff's was read**.
+
+| arm | `Invert output` | `'Mixer' first NONZERO INPUT` | `'Scope' first NONZERO INPUT` = the Mixer's output |
+|---|---|---|---|
+| A1 | 0 | 1.000000 | **+1.000000** |
+| B1 | **1** | 1.000000 | **−1.000000** |
+| A2 | 0 | 1.000000 | **+1.000000** |
+| B2 | **1** | 1.000000 | **−1.000000** |
+| control, option never written | (default 0) | 1.000000 | **+1.000000** |
+
+19 of 19 `PASS`, 0 `FAIL`, in each of the five arms. **The controls are what make the flip attributable:** the Mixer's own input and `'LFO' first NONZERO OUTPUT` are `1.000000` in all five, so the source is identical; `'Mixer' params: 1` in all five, so `Level` is 1 and the magnitude is unchanged; and the unedited roundtrip repeats the A value, so a difference needs the option to have been written.
+
+**The offer side is measured from the exact data the menu is built from**, not from a click: `bash tests/e82_rack_menu_probe.sh` over all 39 compiled-in models gives `Mixer options=2 entries=3` — `SEP`, **`BOOL Invert output` default 0**, `BOOL Average voltages` default 0 — against **`Scope options=0 entries=0`**, the module E82 first probed, and **12 of 39** models offering anything at all, which agrees with the 2026-09-16 census's `bool=11` plus `enum`.
+
+**Verification artifacts:** [tests/fixtures/e94-mixer-invert.xml](tests/fixtures/e94-mixer-invert.xml) + its [README](tests/fixtures/e94-mixer-invert.README.md), which states the decoded-document diff and every number above; [scripts/place-rack-module.py](scripts/place-rack-module.py), the re-runnable derivation; and two new arms on [tests/e80_vst3_feedback_probe.cpp](tests/e80_vst3_feedback_probe.cpp).
+
+**Learned — five things, and the first two change how the next run should read E19's row:**
+
+- **E19's recommended readout for this clause CANNOT EXIST.** The row says to read `RackProcessor: 'Mixer' first NONZERO OUTPUT`. The adaptor's trace is **one latch per instance and it checks inputs before outputs** (`SynthEdit_Rack_Adaptor/RackAdaptor.h:629-643`), so a module with a connected input never traces its own output — and a Mixer must have one to produce anything. Measured on the first cut of the fixture: `'Mixer' connections ins=100000 outs=0`, `first NONZERO INPUT pin 0 (1.000000)`, and no OUTPUT line at all. The fix is to **splice the module into the chain** so a downstream module's input trace reports its output, which is what the committed fixture does (LFO → Mixer → Scope, replacing LFO → Scope).
+
+- **TIDE's rack parameters are not host-automatable, and the number that looks like a VST3 `ParamID` is not one.** A save writes `Invert output` as `vstParameterNumber="30"`; `--list-params` reports the controller exposing **2,080 parameters, every one a MIDI CC, Channel Pressure or Pitch Bend, and none of the rack's own**. `setParamNormalized(30, …)` is refused and an `IParameterChanges` queue carrying id 30 changes nothing — four `--set-param` arms all read `+1.000000`. That `vstParameterNumber` is an index into TIDE's own patch list. This is **V2**'s territory and V2 is `BLOCKED`; nothing here is a reason to unblock it, but the next run that reaches for host automation as an instrument should know the lever is not connected.
+
+- **A freshly placed module has NO parameter entries, and that is not a defect.** This fixture's Mixer is two elements — one `<Module>` in `<DSP>`, one `<module>` plus rects in `<Editor>` — exactly as e83's Scope is, and `grep 987654321` over e83's decoded document returns two lines. The plug-in creates the parameters on load from the module's declared defaults: a `--save` of this fixture carries all three of the Mixer's. So a document can only carry a *toggled* option once the plug-in has written one, which is why the measurement chain is place → load-and-`--save` → edit one value.
+
+- **On Windows, `ElementTree.write(path)` put CRLF into the fixture and `git add` normalised it away**, so the file the derivation produced and the file the repository holds differed by three bytes and two md5s — the exact figure a fixture README exists to let a reader check. Caught by diffing `md5sum <file>` against `git show HEAD:<file> | md5sum`, which is worth doing for any generated binary-ish artifact on this box. The script now writes bytes with LF itself.
+
+- **The Windows standalone's command channel is a NAMED PIPE, not a unix socket**, so E94's "check first" on that question is answered: `\\.\pipe\gmpi-standalone.<pid>` (`GMPI_Wrappers/wrapper/Standalone/mcp/IpcServerWin.h:80-83`), same newline framing and JSONL responses as the posix server. **Every existing probe that drives it — `e38`, `e51`, `e62`, `e65`, `e82` — opens `socket.AF_UNIX` and therefore cannot connect on this platform.** Porting the transport is a small job and would give this box E82's menu-click venue; it is not done.
+
+**Also:** `'LFO2' first NONZERO OUTPUT pin 0 (0.500143)` on this box in a bare VST3 host — **E82's mac standalone number to the sixth place**, from a different host and a different hosting mode, which is independent agreement rather than a re-run.
+
+**Not verified:** the **click** itself — a right-click on the Mixer's panel reaching the option is E19's clause and needs a screen or the named-pipe port above. **win/CLAP** and **linux/CLAP** are still owed, and `string` still has no producer. I did **not** build or run SynthEdit or SynthEditCL, so *"SynthEdit still builds"* is not my claim; no shared repo was written to, and `SynthEdit_Rack_Adaptor`, `VCV_Fundamental_gmpi`, `GMPI_Wrappers` and `GMPI` were **read only**. *"`main` builds on Windows"* is mine only for this configuration (Release, `SE_LOCAL_BUILD=OFF`, VCV Fundamental on, `TIDE_Rack_VST3`). I did not re-read `BACKLOG.md` or `docs/lessons.md` in full, only where they bear on this walk.
+
+**Jeff's working tree:** `C:\SE\TideSynth` was dirty on arrival — `RackModules/VCO.synthedit` modified with a real content change, plus seven untracked `RackModules/VCO.skin/*.svg`. **Untouched, per STEP 5's third kind.** All work was in a scratchpad `git worktree`, so his checkout never left `main` and was never modified. No GUI was taken, no window was created, and no synthetic input was sent anywhere.
+
+**Next:** see the `win` cell. **For Jeff, three things:** (1) **E19's bool clause now has its producer** and the row should take `e94-mixer-invert.xml` in place of `e83` for that arm; (2) the 2,080-MIDI-parameter finding above, which is a fact about V2 rather than a request; (3) **the bot token's documented expiry was 2026-11-07, three days ago, and both identity paths still answered `tide-rack-bot`** — so either it was renewed or that date is stale, and the journal has been repeating it for weeks without anyone checking it against the credential.
+
+**Branch/PR:** `tide/win/E94-bool-fixture`. It changes `tests/`, `scripts/`, the E94 and E19 rows, the `win` cell, the journal and `docs/lessons.md`. `tests/**` and `scripts/**` are off the auto-merge allowlist, so it waits for Jeff by design.
 ## 2026-11-02 — windows — E19: the win/VST3 cell passes pixel diff and int/enum in REAPER, run twice with identical numbers — and a stray click reached the developer's Outlook before the input gate existed (scheduled run)
 
 **Prompt:** 18210767f · Opus 5, `claude-opus-5` · app Claude desktop **4.4212.0.0** (from the running `claude.exe` under `WindowsApps`; CLI not on PATH) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -351,25 +402,3 @@ The A/B values match E82's mac standalone (0.500143 / 0.500004), so the standalo
 **Next:** see the `linux` cell. The CLAP cell is the cheapest remaining linux debt. **For Jeff:** (1) E19's linux VST3 cell is measured green. Whether E19 now waits only on the mac AU3 cell, the bool arm and CLAP is your reading to make. (2) #583 is still open with E89 DONE. (3) The bot token expires **2026-11-07**, 12 days out.
 
 **Branch/PR:** `tide/linux/E19-vst3-linux-recheck`, [#671](https://github.com/JeffMcClintock/TideSynth/pull/671). The harness `drag` verb, the README section, the E19 cell, the E82 archive, this entry, the `linux` cell and the regenerated `docs/lessons.md` are on that branch. `tests/**` is touched, so it waits for Jeff.
-
-## 2026-10-26 — macos — no item: #669 (E82) is green and waiting on Jeff, and E19's mac AU3 cell still needs his AUv3 registration displaced (scheduled run)
-
-**Prompt:** 1821076 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **3.6556.2** (CLI version not readable, no `claude` on PATH) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded. `run-lock.py acquire` returned rc=0 (`owner=auto:ancestor-match`).
-
-**Result:** STEP 1: `gh issue list --label platform:mac --state open` returns `[]`. STEP 1.5: the only open PR is [#669](https://github.com/JeffMcClintock/TideSynth/pull/669) (E82, `tide/mac/E82-wtlfo-wave-points`, three bot commits). Every check is green, `mergeable: MERGEABLE`, and it has no reviews and no comments. So it is waiting for merge and I left it alone. STEP 2: `git diff --stat dc80d88 origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows only the 10-24 `mac` cell line. I followed the `mac` cell on #669's branch, since that cell is newer than `main`'s:
-
-- **(1)** #669 has not been handed back. Nothing to re-run.
-- **(2)** The box is idle again. HID idle was **208,378 s (~58 h)**, the display has been off since 2026-10-23 17:13, and the only long-lived processes are the two GitHub runners. But E19's remaining mac clause is the **AU3 host half**. The 2026-08-29 mac entry found that measuring a current build needs the developer's AUv3 registration displaced, and that an unattended run must not do that. `pluginkit -m -v` still shows only the 2026-08-31 registration (`com.tidesynth.tiderack.au3app.extension` 0.1.1, `~/Applications/TIDE-Rack-AUv3.app`). That build is eight weeks older than `main`, so measuring it would not answer the cell. The standalone half of the `int/bool/enum` clause is #669's work.
-- **(3)** E93: not built. **(4)** `gpu-backend` is Jeff's and was not touched.
-
-Nothing is eligible.
-
-**Not verified:** nothing was built or run. I did not read `docs/lessons.md` or the full `BACKLOG.md` in full, only the parts that bear on this walk: the `mac` cell, the E19 row, and E73 in `BACKLOG-DONE.md`. I left the `mac` NEXT cell untouched on purpose. #669 rewrites that line, and a second edit here would conflict with a PR that is waiting on Jeff. #669's cell already says what the next run should do. The bot token expires **2026-11-07**, 12 days from today. I did not re-check that date.
-
-**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean. The work was in a scratchpad `git worktree`, removed at the end. No other repo was touched, no GUI was used, and no credential value appears anywhere. I released the box lock as the last step.
-
-**Next:** follow the `mac` cell on #669. **For Jeff:** (1) #669 (E82) is ready for review. (2) E19's mac AU3 cell needs you present, to register a current `TIDE_VCV_FUNDAMENTAL=ON` + `RACK_ADAPTOR_TRACE` AUv3 over yours. (3) The bot token expires 2026-11-07.
-
-**Branch/PR:** `tide/mac/noitem-2026-10-26`. Journal-only. It will conflict with #669 at the top of `JOURNAL.md`; see the PR body.

@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **525 KB** across **408** entries, so copying them
+Learned sections are **529 KB** across **409** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **172 KB / 1742 lessons — 3.1x smaller**, and represents
+A8. This is **172 KB / 1748 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,17 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-11-10
+
+**windows — E94: the bool arm is measured, headlessly, and E19's recommended readout turns out to be unobtainable — plus TIDE exposes 2,080 host parameters and none of them are the rack's (scheduled run)**
+
+- five things, and the first two change how the next run should read E19's row
+- E19's recommended readout for this clause CANNOT EXIST.
+- TIDE's rack parameters are not host-automatable, and the number that looks like a VST3 `ParamID` is not one.
+- A freshly placed module has NO parameter entries, and that is not a defect.
+- On Windows, `ElementTree.write(path)` put CRLF into the fixture and `git add` normalised it away
+- The Windows standalone's command channel is a NAMED PIPE, not a unix socket
 
 ## 2026-11-02
 
