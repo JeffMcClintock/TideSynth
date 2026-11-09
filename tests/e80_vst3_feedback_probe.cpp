@@ -142,6 +142,25 @@
  * is no host main-thread tick to drive and the Linux --pump is a wall-clock
  * wait of the same length. See the comment in pump_main_thread().
  *
+ *   --list-params     (E94) print what the CONTROLLER exposes: count, and for
+ *                     each entry its index, its ParamID, its title and its
+ *                     default. Added because the two numbers are not the same
+ *                     and nothing says so: the `vstParameterNumber` a TiDE
+ *                     save writes is an INDEX into TIDE's patch list, not a
+ *                     VST3 ParamID. MEASURED on the e94 rack, 2026-11-10:
+ *                     **2,080 parameters, every one a MIDI CC, Channel
+ *                     Pressure or Pitch Bend, and none of the rack's own** --
+ *                     so a rack module's parameters are not host-automatable
+ *                     at all today, which is BACKLOG V2's territory and is
+ *                     why the --set-param arm below reads as a no-op.
+ *   --set-param ID:V  (E94) send one parameter change, as a DAW does: the
+ *                     controller through setParamNormalized, and the processor
+ *                     through an IParameterChanges queue on the FIRST block --
+ *                     first because the adaptor's `first NONZERO` trace is
+ *                     latched per instance, so a value arriving later cannot
+ *                     be read from it. Repeatable. See --list-params for why
+ *                     this currently cannot reach a rack module's option: the
+ *                     four arms E94 ran with it all read the unchanged value.
  *   --activate-first  (E88) setActive(true) BEFORE the state restore, the
  *                     order a host uses to load a preset onto a running
  *                     plug-in. Every other arm restores first, and that order
@@ -197,6 +216,7 @@
 #include "pluginterfaces/vst/ivstevents.h"
 #include "pluginterfaces/vst/ivsthostapplication.h"
 #include "pluginterfaces/vst/ivstmessage.h"
+#include "pluginterfaces/vst/ivstparameterchanges.h"
 
 using namespace Steinberg;
 using namespace Steinberg::Vst;
@@ -277,6 +297,87 @@ public:
     {
         if (p) *p = pos;
         return kResultOk;
+    }
+};
+
+/* ---- IParameterChanges, so an arm can TOGGLE a parameter ------------------
+ *
+ * Added 2026-11-10 for BACKLOG E94, which needs a rack module's bool menu
+ * option set without a menu, a window or a screen. A TiDE rack module's
+ * context-menu option IS an ordinary parameter -- the Mixer's `Invert output`
+ * saves as `<param type="4" module="94000094" moduleParamId="1"
+ * vstParameterNumber="30">` -- so setting that parameter drives the same pin
+ * the menu pick writes (RackAdaptor.h's menuBoolPins), one click short of the
+ * editor path.
+ *
+ * ONE POINT PER PARAMETER, AT SAMPLE 0 OF THE FIRST BLOCK, and the timing is
+ * the whole reason this is a parameter queue rather than a document edit: the
+ * adaptor's `first NONZERO` trace is latched per instance, so a value that
+ * arrives after the first nonzero sample cannot be read from it. */
+
+class ParamQueue : public IParamValueQueue
+{
+public:
+    ParamID id = 0;
+    ParamValue value = 0.0;
+
+    tresult PLUGIN_API queryInterface(const TUID _iid, void** obj) SMTG_OVERRIDE
+    {
+        if (iidIs(_iid, IParamValueQueue_iid) || iidIs(_iid, FUnknown_iid))
+        {
+            *obj = static_cast<IParamValueQueue*>(this);
+            return kResultOk;
+        }
+        *obj = nullptr;
+        return kNoInterface;
+    }
+    TIDE_PROBE_REFCOUNT
+
+    ParamID PLUGIN_API getParameterId() SMTG_OVERRIDE { return id; }
+    int32 PLUGIN_API getPointCount() SMTG_OVERRIDE { return 1; }
+
+    tresult PLUGIN_API getPoint(int32 index, int32& sampleOffset,
+                                ParamValue& v) SMTG_OVERRIDE
+    {
+        if (index != 0) return kResultFalse;
+        sampleOffset = 0;
+        v = value;
+        return kResultOk;
+    }
+
+    tresult PLUGIN_API addPoint(int32, ParamValue, int32&) SMTG_OVERRIDE
+    {
+        return kNotImplemented;   // the host writes these, the plug-in reads them
+    }
+};
+
+class ParamChanges : public IParameterChanges
+{
+public:
+    std::vector<ParamQueue> queues;
+
+    tresult PLUGIN_API queryInterface(const TUID _iid, void** obj) SMTG_OVERRIDE
+    {
+        if (iidIs(_iid, IParameterChanges_iid) || iidIs(_iid, FUnknown_iid))
+        {
+            *obj = static_cast<IParameterChanges*>(this);
+            return kResultOk;
+        }
+        *obj = nullptr;
+        return kNoInterface;
+    }
+    TIDE_PROBE_REFCOUNT
+
+    int32 PLUGIN_API getParameterCount() SMTG_OVERRIDE { return (int32)queues.size(); }
+
+    IParamValueQueue* PLUGIN_API getParameterData(int32 index) SMTG_OVERRIDE
+    {
+        return index >= 0 && index < (int32)queues.size() ? &queues[(size_t)index] : nullptr;
+    }
+
+    IParamValueQueue* PLUGIN_API addParameterData(const ParamID&, int32&) SMTG_OVERRIDE
+    {
+        return nullptr;           // as addPoint above: this direction is the host's
     }
 };
 
@@ -626,6 +727,8 @@ int main(int argc, char** argv)
     bool usePump = true, loadPreset = true, wantEditor = false, wantController = true;
     bool activateFirst = false;
     const char* savePath = nullptr;
+    ParamChanges paramChanges;   // --set-param; empty means no change is sent
+    bool listParams = false;
     int  blocks = 800;
     const int32  blockSize = 512;
     const double sampleRate = 44100.0;
@@ -641,6 +744,20 @@ int main(int argc, char** argv)
         else if (!strcmp(argv[i], "--activate-first")) activateFirst = true;
         else if (!strcmp(argv[i], "--blocks") && i + 1 < argc) blocks = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--save") && i + 1 < argc) savePath = argv[++i];
+        else if (!strcmp(argv[i], "--list-params")) listParams = true;
+        else if (!strcmp(argv[i], "--set-param") && i + 1 < argc)
+        {
+            /* <vstParameterNumber>:<normalised value>, repeatable. The number
+             * is the one the plug-in's own save writes as vstParameterNumber,
+             * not a pin index -- read it out of a --save of the same rack. */
+            const char* spec = argv[++i];
+            const char* colon = strchr(spec, ':');
+            if (!colon) { fprintf(stderr, "--set-param wants ID:VALUE, got %s\n", spec); return 2; }
+            ParamQueue q;
+            q.id    = (ParamID)strtoul(spec, nullptr, 10);
+            q.value = atof(colon + 1);
+            paramChanges.queues.push_back(q);
+        }
         else if (!bundle)     bundle = argv[i];
         else if (!presetPath) presetPath = argv[i];
     }
@@ -649,7 +766,7 @@ int main(int argc, char** argv)
         fprintf(stderr,
                 "usage: %s <path-to.vst3> <preset.xml> [--pump|--no-pump] [--no-preset]\n"
                 "       [--editor|--no-editor] [--no-controller] [--activate-first] [--blocks N]\n"
-                "       [--save <out.xml>]\n",
+                "       [--save <out.xml>] [--set-param ID:VALUE ...]\n",
                 argv[0]);
         return 2;
     }
@@ -1140,6 +1257,45 @@ int main(int argc, char** argv)
     events.ev.noteOn.length   = 0;
     events.ev.noteOn.noteId   = -1;
 
+    /* --list-params / --set-param: what the controller actually exposes.
+     *
+     * The id a host sets is the ParamID in ParameterInfo, which is NOT the
+     * `vstParameterNumber` a TiDE save writes -- that is the index into this
+     * list. Printing both is the only way to tell them apart from outside, and
+     * getting it wrong is silent: setParamNormalized on an unknown id returns
+     * kResultFalse and nothing else happens. */
+    if (listParams || !paramChanges.queues.empty())
+    {
+        const int32 n = controller ? controller->getParameterCount() : 0;
+        printf("\n      controller exposes %d parameter(s)\n", (int)n);
+        for (int32 i = 0; i < n; ++i)
+        {
+            ParameterInfo info{};
+            if (controller->getParameterInfo(i, info) != kResultOk) continue;
+            char title[128] = {0};
+            for (int c = 0; c < 127 && info.title[c]; ++c) title[c] = (char)info.title[c];
+            bool wanted = listParams;
+            for (const auto& q : paramChanges.queues) if (q.id == info.id) wanted = true;
+            if (wanted)
+                printf("        index %3d  id %5u  %-28s step=%d default=%g\n",
+                       (int)i, (unsigned)info.id, title,
+                       (int)info.stepCount, info.defaultNormalizedValue);
+        }
+    }
+
+    /* --set-param, controller side. A DAW moving a control tells BOTH halves:
+     * the controller so the editor's pin and the saved state agree, and the
+     * processor through the block's parameter queue below. Doing only the
+     * second would measure a processor that obeys a value its own state does
+     * not hold, which is not the thing a user's toggle does. */
+    for (const auto& q : paramChanges.queues)
+    {
+        const bool ok = controller
+            && controller->setParamNormalized(q.id, q.value) == kResultOk;
+        printf("      --set-param %u := %g  (controller->setParamNormalized %s)\n",
+               (unsigned)q.id, q.value, ok ? "ok" : "REFUSED or no controller");
+    }
+
     double peak = 0.0, sumsq = 0.0;
     uint64 frames = 0;
     int    processFailures = 0;
@@ -1158,7 +1314,12 @@ int main(int argc, char** argv)
         data.numOutputs             = audioOutBuses;
         data.inputs                 = nullptr;
         data.outputs                = audioOutBuses > 0 ? outBuses.data() : nullptr;
-        data.inputParameterChanges  = nullptr;
+        /* --set-param: the queue is offered on the FIRST block only, which is
+         * what makes it a toggle the instance sees before it has processed
+         * anything -- see the ParamChanges comment. Every later block passes
+         * nullptr, as every other arm always has. */
+        data.inputParameterChanges  = (b == 0 && !paramChanges.queues.empty())
+                                      ? &paramChanges : nullptr;
         data.outputParameterChanges = nullptr;
         data.inputEvents            = &events;
         data.outputEvents           = nullptr;
