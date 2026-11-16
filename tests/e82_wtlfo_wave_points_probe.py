@@ -54,9 +54,11 @@ Controls, each of which must hold or the probe fails:
 Exit codes: 0 pass - 1 a clause or a control failed - 2 setup.
 """
 
-import argparse, glob, json, os, pathlib, re, shutil, socket, subprocess, sys, tempfile, time
+import argparse, json, os, pathlib, re, shutil, subprocess, sys, time
 
-SUN_PATH_MAX = 103
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import standalone_channel as chan
+
 BROWSER_LFO2 = "130,294"
 SCROLL_AT = "700,400"
 WT_BODY = "565,352"
@@ -69,26 +71,11 @@ LABELS = ["32", "64", "128", "256", "512", "1024", "2048", "4096", "8192", "1638
 TRACE_OUT = re.compile(r"RackProcessor: 'LFO2' first NONZERO OUTPUT pin \d+ \(([-0-9.]+)\)")
 
 
-def talk(sock_path, verbs, timeout=30):
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.settimeout(timeout); s.connect(sock_path)
-    s.sendall("".join(v + "\n" for v in verbs).encode()); s.shutdown(socket.SHUT_WR)
-    buf = b""
-    try:
-        while True:
-            c = s.recv(65536)
-            if not c: break
-            buf += c
-    except socket.timeout:
-        pass
-    s.close()
-    out = []
-    for line in buf.decode(errors="replace").splitlines():
-        line = line.strip()
-        if line.startswith("{"):
-            try: out.append(json.loads(line))
-            except json.JSONDecodeError: pass
-    return out
+#: The transport lives in `standalone_channel`, which speaks AF_UNIX on posix
+#: and the named pipe on Windows. It used to be a local AF_UNIX `talk()` here,
+#: which is why this probe could not run on the Windows box at all (E19's
+#: win/STANDALONE cell). Nothing above the transport changed.
+talk = chan.talk
 
 
 class Trace:
@@ -121,11 +108,12 @@ def main():
     if not binary.is_file() or not os.access(binary, os.X_OK):
         print(f"SETUP FAILED -- not executable: {binary}"); return 2
 
-    ipc = pathlib.Path(tempfile.mkdtemp(prefix="/tmp/e82-"))
-    cfg = pathlib.Path(tempfile.mkdtemp(prefix="/tmp/e82cfg-"))
-    if len(str(ipc)) + 24 > SUN_PATH_MAX:
-        print("SETUP FAILED -- IPC path too long (sun_path)"); return 2
-    env = dict(os.environ, GMPI_STANDALONE_IPC_DIR=str(ipc), GMPI_STANDALONE_CONFIG_DIR=str(cfg))
+    ipc = chan.tempdir("e82-")
+    cfg = chan.tempdir("e82cfg-")
+    ok, detail = chan.path_is_usable(ipc)
+    if not ok:
+        print(f"SETUP FAILED -- {detail}"); return 2
+    env = chan.launch_env(ipc, cfg)
     stderr_path = cfg / "stderr.log"
     proc = subprocess.Popen([str(binary)], stdout=subprocess.DEVNULL,
                             stderr=open(stderr_path, "wb"), env=env)
@@ -137,16 +125,14 @@ def main():
         if not ok: failures.append(name)
 
     try:
-        sock = None
-        deadline = time.monotonic() + args.timeout
-        while time.monotonic() < deadline:
-            hits = glob.glob(str(ipc / "gmpi-standalone.*"))
-            if hits: sock = hits[0]; break
-            if proc.poll() is not None:
-                print(f"SETUP FAILED -- app exited rc={proc.returncode}"); return 2
-            time.sleep(0.5)
-        if not sock:
-            print("SETUP FAILED -- no socket"); return 2
+        try:
+            sock = chan.wait_for_channel(ipc, proc.pid, timeout=args.timeout,
+                                        is_alive=lambda: proc.poll() is None)
+        except chan.ChannelError as exc:
+            rc = proc.poll()
+            print(f"SETUP FAILED -- {exc}" + (f" (app rc={rc})" if rc is not None else ""))
+            return 2
+        print(f"  command channel: {sock}\n")
         time.sleep(3.0)
 
         info = next((x for x in talk(sock, ["--info"]) if x.get("cmd") == "info"), {})
