@@ -35,7 +35,7 @@ message(STATUS "Fetching GMPI WRAPPERS from github")
 FetchContent_Declare(
   gmpi_wrappers
   GIT_REPOSITORY https://github.com/JeffMcClintock/GMPI_Wrappers
-  GIT_TAG origin/main
+  GIT_TAG origin/release_1_6
   SOURCE_SUBDIR Core
 )
 FetchContent_MakeAvailable(gmpi_wrappers)
