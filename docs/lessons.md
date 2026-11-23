@@ -16,9 +16,9 @@ files, so it cannot drift from them, and adding a lesson means writing a
 **One line per bullet: the claim, not its working.** The journal's convention is
 that each Learned bullet opens with a bold claim and then argues it; this keeps
 the claim and drops the argument. Measured when this file was last written: the
-Learned sections are **527 KB** across **409** entries, so copying them
+Learned sections are **529 KB** across **410** entries, so copying them
 whole into a file every run reads would be worse than the 192 KB that triggered
-A8. This is **172 KB / 1747 lessons — 3.1x smaller**, and represents
+A8. This is **173 KB / 1752 lessons — 3.1x smaller**, and represents
 **every** entry that has a lesson, none dropped.
 
 **To read the working**, find the entry by its date and machine — in
@@ -36,6 +36,16 @@ is regenerated from the journals, so a lesson that no longer holds is corrected
 by a newer entry saying so. The lever nobody has pulled yet: drop `SOURCES`'
 archive file once its lessons are genuinely spent, which halves this at a
 stroke — that is a judgement call and belongs to Jeff, not to a run.
+
+## 2026-11-23
+
+**windows — E95: both halves of it were wrong. The module drag was a missing `PointerFlags::New` in the SHARED command channel, the cable was being made all along and only the probe's readout was wrong, and E19's win/STANDALONE cell now passes all six clauses (scheduled run)**
+
+- `SE_TRACE_INPUT` is the instrument for any "the editor ignored my gesture" question, and it already exists.
+- `captureObj=1` does NOT mean what you want it to mean.
+- Do not pick a success detector that is one layer above the thing you are testing.
+- "Both gestures pass on macOS" was an inference, not a measurement, and it is the sentence that made E95 look like a platform defect.
+- A fidelity gap in a test channel reads exactly like a product defect.
 
 ## 2026-11-16
 
@@ -74,16 +84,6 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 **macos — no item: E82 merged, E19 claimed by the linux lane on #671, and nothing else is reachable by `mac` (scheduled run)**
 
 - When a merged PR's bookkeeping flip already rides on another platform's open PR, leave it there.
-
-## 2026-10-26
-
-**windows — no item: this lane finally got the idle evening box it has been blocked on for five runs, and the queue had nothing left for it — E19 was claimed by the linux lane nine hours earlier. What delivered the idle box was a **13-hour clock error** (scheduled run)**
-
-- A workstation's clock can be hours wrong for most of a day, and then a routine NTP sync becomes a scheduler event.
-- `Win32_OperatingSystem.LastBootUpTime` and the boot entry in the event log disagreeing by exactly a timezone offset is the cheapest possible detector for this.
-- Prefer tick-based instruments to wall-clock ones for "is anybody there".
-- A row reserved for a condition one lane almost never meets will be finished by a lane that meets it often.
-- A full stop in STEP 2 can be the correct outcome of a *successful* run.
 
 ## 2026-10-01
 
@@ -327,6 +327,14 @@ stroke — that is a judgement call and belongs to Jeff, not to a run.
 - E82's rebuild trick works in a host, and its trace does not need a cable.
 - Dragging from a jack that already carries a cable picks that cable up
 - Under weston, a GMPI context menu and its submenu are separate override-redirect X windows
+
+**windows — no item: this lane finally got the idle evening box it has been blocked on for five runs, and the queue had nothing left for it — E19 was claimed by the linux lane nine hours earlier. What delivered the idle box was a **13-hour clock error** (scheduled run)**
+
+- A workstation's clock can be hours wrong for most of a day, and then a routine NTP sync becomes a scheduler event.
+- `Win32_OperatingSystem.LastBootUpTime` and the boot entry in the event log disagreeing by exactly a timezone offset is the cheapest possible detector for this.
+- Prefer tick-based instruments to wall-clock ones for "is anybody there".
+- A row reserved for a condition one lane almost never meets will be finished by a lane that meets it often.
+- A full stop in STEP 2 can be the correct outcome of a *successful* run.
 
 ## 2026-09-08
 

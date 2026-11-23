@@ -23,15 +23,26 @@ WHAT IS MEASURED, and the controls that make each clause mean something:
                       must visibly rotate under `--drag`, compared only inside
                       the knob's own box so the animating display cannot answer
                       for it
-  5  move a module    drag the panel by its title strip -- the rack must move it
-  6  cable two jacks  drag the WT output to the Out module's L input, swept over
-                      9 points +/- 4 DIP so a hit-test near-miss is excluded
+  5  move a module    drag the panel by its title strip -- the panel must move
+                      in the app's own screenshot
+  6  cable two jacks  drag the WT output to the Out module's L input (both
+                      derived), and the REBUILT LFO2 must report outs=1
 
-5 and 6 FAIL on this platform as of 2026-11-16, and 4 is why that is a finding
-rather than a broken probe: pointer events reach the editor, a widget inside the
-module panel obeys them, and the same gesture aimed at the rack does nothing at
-all -- no document change, no movement, at any of the 9 points. Both pass on
-macOS, where `tests/e82_wtlfo_wave_points_probe.py` cables these exact jacks.
+ALL SIX PASS as of 2026-11-23. They did not on 2026-11-16, and neither cause
+was the editor -- E95 was filed against the editor and both halves of it were
+wrong, which is worth knowing before trusting a clause here again:
+
+  * clause 5 was the CHANNEL. A real button-down carries `PointerFlags::New`;
+    CommandDispatcher's synthetic one did not, and SynthEditLib gates its
+    module drag on exactly that flag. Every platform was affected, not this
+    one -- no probe anywhere had ever tried to move a module over the channel.
+    Fixed in GMPI_Wrappers. `SE_TRACE_INPUT` prints the four gate conditions
+    and `new=0` was the only one failing.
+  * clause 6 was THIS PROBE. The cable was always made; the readout was wrong.
+    `document changed` is TIDE pushing a new DSP document, which a rack edit
+    does not do -- the connection reaches the processor another way. The
+    processor's own `connections ... outs=` line is the readout, which is what
+    e82_wtlfo_wave_points_probe.py uses on macOS.
 
 GEOMETRY IS DERIVED, NOT ASSUMED (`tests/rack_geometry.py`). The window is
 1100x626 everywhere and the channel takes DIPs, so DPI is already divided out --
@@ -61,6 +72,7 @@ LIGHT = re.compile(r"RackEditor: light (\d+) update #(\d+) value ([0-9.]+)")
 RENDER = re.compile(r"RackEditor: render #(\d+)")
 BUILDING = "building rack"
 CHANGED = "document changed"
+CONNS = re.compile(r"RackProcessor: 'LFO2' connections ins=(\S+) outs=(\d+)")
 
 
 def main():
@@ -194,31 +206,71 @@ def main():
               f"{moved_px} of {total_px} px changed inside the knob's own box")
 
         # 5 -- move the module ----------------------------------------------
+        # The observable is the PANEL, in the app's own screenshot. `document
+        # changed` is NOT the readout: TIDE pushes a new DSP document only when
+        # the DSP graph changes, and moving a module does not change it. The
+        # 2026-11-16 version required that line and read a working gesture as a
+        # failure once the flag below was in place.
         p = mark()
         chan.talk(addr, [f"--drag {geo.dip(title)} {geo.dip((title[0] + 90, title[1]))} --steps 30"])
-        changed = saw(p, CHANGED, 8)
+        pushed = saw(p, CHANGED, 3)
         time.sleep(1.5)
         after_shot = cfg / "moved.png"
         chan.talk(addr, [f"--screenshot {after_shot}"]); time.sleep(0.8)
         panel2, _ = geo.find_panel(after_shot, window=WINDOW)
-        check(changed and abs(panel2[0] - panel[0]) > 10,
+        check(abs(panel2[0] - panel[0]) > 10,
               "5 dragging the panel by its title strip MOVES the module",
-              f"`{CHANGED}` = {changed}; panel x {panel[0]:.1f} -> {panel2[0]:.1f}")
+              f"panel x {panel[0]:.1f} -> {panel2[0]:.1f}"
+              f"   (`{CHANGED}` = {pushed}, which a module move is not expected to produce)")
 
         # 6 -- cable ----------------------------------------------------------
-        out_l = "590,224"
-        hits = []
-        for dx in (-4, 0, 4):
-            for dy in (-4, 0, 4):
-                src = (wt[0] + dx, wt[1] + dy)
-                p = mark()
-                chan.talk(addr, [f"--drag {geo.dip(src)} {out_l} --steps 30"])
-                if saw(p, CHANGED, 6):
-                    hits.append(geo.dip(src))
-        check(bool(hits),
+        # Clause 5 moved the panel, so every coordinate derived above is stale.
+        found = geo.find_panel(after_shot, window=WINDOW)
+        jacks2 = geo.find_jacks(after_shot, panel=found)
+        if len(jacks2) < 3:
+            print(f"SETUP FAILED -- {len(jacks2)} jack(s) on the panel after the move")
+            return 2
+        bottom2 = max(j[1] for j in jacks2)
+        wt2 = max([j for j in jacks2 if abs(j[1] - bottom2) < 3], key=lambda j: j[0])
+
+        # The Out module's jacks are derived too, for the reason rack_geometry
+        # exists. Its L is the topmost jack in the canvas that is not on this
+        # panel; a jack drawn as several arcs clusters into one.
+        canvas = ((245.0, 0.0, 800.0, WINDOW[1] - 1.0), found[1])
+        off = [j for j in geo.find_jacks(after_shot, panel=canvas)
+               if not (panel2[0] - 10 <= j[0] <= panel2[2] + 10
+                       and panel2[1] - 10 <= j[1] <= panel2[3] + 10)]
+        clusters = []
+        for q in sorted(off, key=lambda r: r[1]):
+            for c in clusters:
+                if abs(c[-1][1] - q[1]) < 8 and abs(c[-1][0] - q[0]) < 12:
+                    c.append(q)
+                    break
+            else:
+                clusters.append([q])
+        targets = [(sum(x for x, _ in c) / len(c), sum(y for _, y in c) / len(c)) for c in clusters]
+        if len(targets) < 2:
+            print(f"SETUP FAILED -- {len(targets)} off-panel jack(s); the Out module should show two")
+            return 2
+        out_l = targets[0]
+
+        # THE READOUT IS THE PROCESSOR'S OWN CONNECTION COUNT, not the document.
+        # A cable edit rebuilds the rack and the adaptor prints what it was
+        # built with, so `outs` going 0 -> 1 is the DSP saying a cable arrived.
+        p = mark()
+        chan.talk(addr, [f"--drag {geo.dip(wt2)} {geo.dip(out_l)} --steps 30"])
+        deadline = time.monotonic() + 10
+        outs = None
+        while time.monotonic() < deadline:
+            seen = CONNS.findall(since(p))
+            if seen:
+                outs = int(seen[-1][1])
+                break
+            time.sleep(0.3)
+        check(outs == 1,
               "6 dragging the WT output jack to the Out module's L input MAKES A CABLE",
-              f"{len(hits)} of 9 sweep points (+/-4 DIP) produced an edit"
-              + (f": {hits}" if hits else " -- so this is not a hit-test near-miss"))
+              f"WT jack {geo.dip(wt2)} -> Out L {geo.dip(out_l)} (derived);"
+              f" the rebuilt LFO2 reports outs={outs}")
 
         chan.talk(addr, [f"--screenshot {cfg / 'end.png'}"])
         time.sleep(0.6)
