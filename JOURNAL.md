@@ -95,6 +95,149 @@ Template:
 
 ---
 
+## 2026-11-23 — windows — E95: both halves of it were wrong. The module drag was a missing `PointerFlags::New` in the SHARED command channel, the cable was being made all along and only the probe's readout was wrong, and E19's win/STANDALONE cell now passes all six clauses (scheduled run)
+
+**Prompt:** 18210767f · Opus 5, `claude-opus-5` · app Claude desktop **6.28899.6** (`appVersion` in `%LOCALAPPDATA%\Claude\Logs\main.log`; no `claude` on PATH) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E95**, this lane's own row, filed by the 11-16 run out of E19's win/STANDALONE cell. Found the cause of both failing clauses, fixed one in `GMPI_Wrappers` and one in the probe, and E19's win/STANDALONE cell now **passes all six clauses, exit 0, twice end to end**. `FLEET-PAUSED` absent on `origin/main`. STEP 0's fetch succeeded. `run-lock.py acquire` rc=0 with the documented windows `owner=self (NO agent ancestor matched -- this lock is age-capped only)` warning; released at STEP 5.
+
+**STEP 1:** no open `platform:win` issue. The only open issues in the repo are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (linux, E89 DONE) and #44 (the digest, updated today).
+
+**STEP 1.5, and it is the first thing worth knowing about the fleet's state.** **This lane has TWO open PRs and both are green, CLEAN and untouched** — [#679](https://github.com/JeffMcClintock/TideSynth/pull/679) (E94, opened 11-09) and [#680](https://github.com/JeffMcClintock/TideSynth/pull/680) (E19/E95, opened 11-16). No reviews, no comments, no failing checks, `mergeStateStatus: CLEAN` on both, so STEP 1.5 says they are waiting for merge and not mine to fix. **`origin/main` has not moved since 2026-11-03** (`f6551b4d8`, Jeff's own TiDE-panel work), and the last merged fleet commit is `52bdd6a4f` (#678) on the same day. **Nothing from any lane has merged in three weeks, and the mac and linux lanes have not run since 10-29 and 10-26** — no `tide/mac/**` or `tide/linux/**` branch exists on the remote and no entry below is theirs.
+
+**STEP 2, and the branch choice is the part to copy or argue with.** E95 is `TODO`, `win`, not blocked, and named by **my own platform's** open PR — which STEP 2 settles in one sentence: *"a branch or open PR naming the id from YOUR OWN platform means the item is yours to CONTINUE … check out that branch, and resume on it — do not start a fresh branch."* **It is also the only branch where the row can be worked at all:** E95's row and `tests/e19_win_standalone_probe.py` — which **is** its Accept — exist nowhere else, so a branch cut from `origin/main` could neither mark the row nor run the measurement, and re-filing either would be the duplicate-row shape A31 warns about. The DOING mark went on that branch and was pushed before any work (`e2bd3f5c7`). The other reachable rows are parked for the reasons the 10-26, 11-02 and 11-16 cells list.
+
+### The finding: E95 named the editor, and the editor was not at fault either time
+
+E95's own words were *"rack gestures do not reach the TIDE editor in the Windows standalone, while widget gestures do"*, with three causes already excluded (coordinates, `--drag`'s single-job design, the channel). **The channel was excluded too early, and the second clause was never the editor at all.**
+
+**Clause 5 — move a module — was the CHANNEL, and it was never a Windows defect.** SynthEditLib gates the module drag on four conditions (`ViewBase::onPointerDown:320`):
+
+```
+(flags & GG_POINTER_FLAG_NEW) && (flags & GG_POINTER_FLAG_FIRSTBUTTON)
+   && hitObject->getSelected() && hitObject->isDraggable(editEnabled)
+```
+
+and `SE_TRACE_INPUT` — an env var SynthEditLib already honours — prints all four. On the unmodified build the title-strip drag read
+
+```
+down: flags=0x2414 new=0 first=1 selected=1 draggable=1 editEnabled=1
+```
+
+**`new=0` is the only one failing.** `CommandDispatcher`'s `kContactFlags` is `InContact | Primary | Confidence | FirstButton`; **every real backend also sets `New` on a button-down** — `DrawingFrameWin.h` `makePointerFlags` on `WM_[LMR]BUTTONDOWN`, `DrawingFrameMac.mm` (4 sites), `DrawingFrameIos.mm`, `DrawingFrameWayland.h`, `DrawingFrameX11.cpp`. `ViewBase.cpp:320` is the **only** consumer of the flag in the tree. So **no platform could move a rack module over this channel**, and the reason nobody had seen it is that **no probe in this repo had ever tried**: only `e19_win_standalone_probe.py` and `e82_wtlfo_wave_points_probe.py` use `--drag` at all, and e82's drags are all jack-to-jack. Fixed in [GMPI_Wrappers#44](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/44), three lines.
+
+**Clause 6 — cable two jacks — was THIS PROBE'S READOUT. The cable was being made the whole time.** The discriminator was a held gesture: press the jack, move out over empty canvas, screenshot while still down. **A red cable is drawn from the jack to the pointer** (`held_jack.png`: 2,396 changed pixels outside the panel against 2,010 for the knob, the body and bare panel, which is the animation alone). Then, with the stock build instrumented locally, the drop reported
+
+```
+E95 cable up pt=[1352.3,572.3] captured=1 startedAt=[1346.8,996.0]
+E95 ViewBase::EndCableDrag PATCH branch best=960331852 pin=0 dragPt=[1353.0,573.0]
+```
+
+— a target found at `d2=1.0`, i.e. dead on the plug. And the processor's own trace settles it without any instrumentation at all: across nine attempts `RackProcessor: 'LFO2' connections ins=0000 outs=` alternates **1, 0, 1, 0, 1, 0, 1, 0, 1** — the cable is made, then the next press picks it up again and removes it, nine times.
+
+**What never fires is `TIDE: document changed, pushing N byte document`**, which is what the 11-16 probe used as its success test. That line is `TideApp::pushDocumentToProcessor`, i.e. TIDE exporting a new DSP document, and in this whole session it appears **once** (generation 2, the module placement) while the rack rebuilds **fourteen** times. A rack edit reaches the processor by another path. `e82` on macOS uses the processor's own lines and that is why it passed there: **the two platforms were never running the same test.**
+
+### The result: six of six, twice
+
+`main` at `f6551b4d8`, target `TIDE_Rack_STANDALONE`, Release, `-DTIDE_VCV_FUNDAMENTAL=ON -DCMAKE_CXX_FLAGS=-DRACK_ADAPTOR_TRACE=1`, `-DCMAKE_GENERATOR_INSTANCE=".../18/Community"`, with `-DGMPI_WRAPPER_FOLDER_OVERRIDE` pointing at a scratchpad `git worktree` of `GMPI_Wrappers` (so the fix was built, and **no sibling checkout of Jeff's was read** — the other nine deps were fetched into the build tree). Configure rc=0, build rc=0, **0 `error C`/`error LNK` lines**.
+
+| clause | before the fix | after |
+|---|---|---|
+| 1 channel + `--info` | PASS `\\.\pipe\gmpi-standalone.<pid>`, 1100x626 | PASS, same |
+| 2 browser `--double` places a WT LFO the DSP builds | PASS | PASS |
+| 3 both counters advancing after 60 s | PASS | PASS 74 light + **328 / 326** render, **46 / 45** distinct values |
+| 4 POSITIVE CONTROL: `--drag` rotates the FREQ knob | PASS 101 of 1,764 px | **101 of 1,764**, both runs |
+| 5 title-strip drag MOVES the module | **FAIL** `new=0`, 0 drag lines, panel x 525.3 → 525.3 | **PASS** `new=1`, **30** `drag: delta=` lines, panel x **525.3 → 616.7**, both runs |
+| 6 WT jack → Out L MAKES A CABLE | **FAIL** by the `document changed` readout | **PASS** rebuilt `LFO2` reports **outs=1**; WT jack **677,530** → Out L **591,226**, both derived, both runs |
+
+**The verification artifact is [tests/e19_win_standalone_probe.py](tests/e19_win_standalone_probe.py) itself** — one command, **exit 0 twice**, every asserted value identical between the runs (only the free-running animation counters move). Clause 6's drop target is now **derived** rather than the hard-coded `590,224`: the off-panel jack blobs are clustered (this jack draws as three arcs) and the topmost cluster is the Out module's L. Clause 5 moving the panel 90 DIP made that necessary anyway — the 11-16 version derived its geometry **before** clause 5 and would have aimed clause 6 at where the module used to be.
+
+**Learned:**
+
+- **`SE_TRACE_INPUT` is the instrument for any "the editor ignored my gesture" question, and it already exists.** `ViewBase::seInputTrace` writes one line per down and per move with the gate conditions spelled out, and the absence of a `down:` line is itself information: it means a child captured the gesture. It cost nothing and it answered clause 5 in one run.
+- **`captureObj=1` does NOT mean what you want it to mean.** A knob capture and a cable drag are indistinguishable in that trace. What separates them is looking: hold the gesture and screenshot mid-drag. A dragged cable paints outside the panel; a captured widget does not.
+- **Do not pick a success detector that is one layer above the thing you are testing.** `document changed` is TIDE pushing a DSP document; the clause was about the editor making a cable. The two platforms' probes used different readouts for "the same" clause and the difference read as a platform defect for a week.
+- **"Both gestures pass on macOS" was an inference, not a measurement, and it is the sentence that made E95 look like a platform defect.** `e82` moves no module anywhere, so clause 5 had no mac result to compare with; its cable arm used a different readout. Before writing *"X passes on the other platform"*, check that the other platform's probe does the same thing with the same readout.
+- **A fidelity gap in a test channel reads exactly like a product defect.** The channel injects at the layout "exactly where a real mouse arrives" — true of the object, false of the flags. Anything a synthetic event cannot express is a feature your probes cannot reach, and it will be reported as broken.
+
+**Not verified:** **macOS and Linux.** The `GMPI_Wrappers` change is shared; I could not build or run either, and a press on an already-selected module now takes the module-drag path, reaching `OnClickedButDidntDrag()` on a press-release that does not move. That is what a **real** click has always done on every platform, but it is a behaviour change and those lanes should re-run their standalone probes. **`SynthEditCL` was not rebuilt**, and the reason is in the tree rather than in my judgement: no Windows target compiles `wrapper/Standalone/mcp/CommandDispatcher.cpp` — SE16's only consumer is `SynthEditWayland` (Linux-only, `WaylandLiveChannel.cpp`), and `EditorScreenshot`'s `EditorCommandDispatcher.cpp` is a different file. **I did not build or run SynthEdit or SynthEditCL at all, so "SynthEdit still builds" is not my claim.** *"`main` builds on Windows"* is mine only for this configuration and this target. **Why a rack edit does not push a new DSP document is not established** — it clearly reaches the processor (the connection counts change), but whether the *saved* patch would carry the cable is untested, and that is the one loose end worth someone's attention. **`e82_wtlfo_wave_points_probe.py` still carries mac's hard-coded coordinates** and so still fails on this box for a reason that has nothing to do with E95; porting it to `rack_geometry` is cheap and I did not do it. **win/GMPI** has no venue. I read `BACKLOG.md`, `docs/decisions.md` and `docs/lessons.md` only where they bear on this walk, not in full.
+
+**A local instrumented build, declared because it touched GATED code.** To separate "the drop never ran" from "the drop found nothing", I added temporary `seInputTrace` lines to the **fetched copy** of `SynthEditLib` in my own build tree (`_deps/syntheditlib-src`: `ViewBase.cpp`, `ModuleView.cpp`, `ConnectorView.cpp`), read the trace, then restored all three from the copies I took first — `git status` in that tree is clean. **Nothing was committed to `SynthEditLib` and no checkout of Jeff's was touched.** Reading GATED code has never needed permission; this is reading it with a printf, in a throwaway tree, and it is how both causes were found.
+
+**Scheduling: this run fired IN ITS SLOT, the third in a row.** First wall-clock reading **20:10:23 local Monday** against the `20:06` slot — about 4 minutes, inside `jitterSeconds 396`. **The October clock error did not recur, checked with the 10-26 detector rather than assumed:** `Win32_OperatingSystem.LastBootUpTime` **2026-11-21 10:12:49** against the event-log boot entry **10:12:42** is **7 seconds**, not a timezone offset.
+
+**The box was idle: `GetLastInputInfo` read 11,075 s = 3 h 04 m** (last input about 17:05 local). Chrome, Outlook-less this time, Slack, a Settings window and a TortoiseGit progress window on `C:\SE\SSG` were open and untouched; no IDE. **No synthetic Win32 input was sent anywhere this run** — the standalone is driven over its own command channel, so the 11-02 stray-click hazard does not arise in this venue.
+
+**Jeff's working tree:** `C:\SE\TideSynth` was dirty on arrival — `RackModules/VCO.synthedit` with a real content change plus seven untracked `RackModules/VCO.skin/*.svg`, the same state the 11-10 and 11-16 runs found. **Untouched, per STEP 5's third kind.** `C:\SE\SynthEditLib` is dirty with his `FretPluckedOsc` work and `C:\SE\SE16` has one untracked prefab; **neither was touched, and neither was built from.** `C:\SE\GMPI_Wrappers` was clean and stayed clean — the fix was committed in a scratchpad `git worktree` of it, removed at the end. Both TideSynth and GMPI_Wrappers checkouts stayed on their default branches throughout.
+
+**Next:** see the `win` cell. **For Jeff, four things:** (1) **E95 is not an editor defect** — one half was a missing flag in the shared standalone channel ([GMPI_Wrappers#44](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/44)) and the other was this repo's own probe. (2) **Three PRs now wait on you in two repos**, and #679 has waited two weeks; `main` has not moved since 11-03. (3) **The mac and linux lanes have not run since 10-29 and 10-26** — three weeks of silence from two boxes, which is not something this box can diagnose. (4) The bot token's documented expiry was **2026-11-07**, sixteen days ago, and both identity paths still answer `tide-rack-bot`; the journal has repeated that date for a month and nobody has checked it against the credential.
+
+**Branch/PR:** `tide/win/E19-win-standalone-pipe` — [#680](https://github.com/JeffMcClintock/TideSynth/pull/680), continued. It changes `tests/e19_win_standalone_probe.py`, the E19 and E95 rows, the `win` cell, the journal, the rotation and `docs/lessons.md`. The code half is [GMPI_Wrappers#44](https://github.com/JeffMcClintock/GMPI_Wrappers/pull/44); **merging #680 without it leaves clause 5 failing**, because TideSynth fetches `GMPI_Wrappers` at `origin/main`. `tests/**` is off the auto-merge allowlist, so both wait for Jeff by design.
+
+## 2026-11-16 — windows — E19: the win/STANDALONE venue is built and the cell fails on a real defect — no standalone probe could connect on this platform at all, and now that one can, rack drags turn out to do nothing (scheduled run)
+
+**Prompt:** 18210767f · Opus 5, `claude-opus-5` · app Claude desktop **5.11492.5** (`appVersion` in `%LOCALAPPDATA%\Claude\Logs\main.log`; no `claude` on PATH) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
+
+**Did:** took **E19**'s **win/STANDALONE** cell — the one its Accept names for this platform (`win: VST3+GMPI+STANDALONE`) and the one no run has ever reached. Built the transport that was missing, measured six clauses, and filed the defect three of them ran into. `FLEET-PAUSED` absent. STEP 0's fetch succeeded. `run-lock.py acquire` rc=0 with the documented windows `owner=self (NO agent ancestor matched -- this lock is age-capped only)` warning; released at STEP 5.
+
+**STEP 1:** no open `platform:win` issue — the only open issues in the repo are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (linux, E89 DONE) and #44 (the digest).
+
+**STEP 1.5, and this is worth copying.** [#679](https://github.com/JeffMcClintock/TideSynth/pull/679) (`tide/win/E94-bool-fixture`, the 11-10 run's) was open with a **failing `linux` check**, which STEP 1.5 ranks above all backlog work. **It was not the PR.** The `verify` workflow's engine download — `curl -fL $ENGINE_BASE/SynthEdit-linux-x64.tar.gz` — returned **HTTP 403**, and the evidence that it was transient is three-fold: the *previous* `verify` run on the same branch **34 seconds earlier** was green, the scheduled runs on `main` on 11-09 and **today 03:10Z** are both green, and the URL serves **200, 16,390,790 bytes** from this box now. `gh run rerun --failed` → green, `mergeStateStatus: CLEAN`. **A red check on this repo is worth one minute of history before it is worth a commit.** #679 is now green with no review comments, so per STEP 1.5 it is waiting for Jeff and I left it alone.
+
+**STEP 2:** E19 was `TODO`, `any`, and the only remaining branch was my own lane's finished `tide/win/E94-bool-fixture`. The other reachable rows are parked for the reasons the 10-26 and 11-10 windows cells list (A35/A37/A42/A43/A45 on open questions or on Jeff, S8 `NEEDS-SPEC`, E2 an umbrella, E84 a `.github/workflows/**` edit this credential cannot make, X2/E93 other platforms, E7/E44/E49 `DONE-PENDING-ACCEPT`). **The row's own text and its Accept disagree about this platform**, and I followed the Accept: the row's "still not measured" list says *win/CLAP*, but the Accept's format matrix puts CLAP under `linux` and gives `win` **VST3 + GMPI + STANDALONE**. Two previous win cells have pointed at win/CLAP on the strength of that list. **win/GMPI is now the last unmeasured win cell.**
+
+### The blocker was never the clause — nothing could connect
+
+**Every standalone probe in the repo opens an `AF_UNIX` socket** (`e38`, `e51`, `e62`, `e65`, `e82`), and **this platform's server publishes a named pipe**: `\\.\pipe\gmpi-standalone.<pid>`, built from `GetCurrentProcessId()` (`GMPI_Wrappers/wrapper/Standalone/mcp/IpcServerWin.h`, `kPipePrefix`). The 11-10 entry found this and called the port "a small job"; it was, and this is it. That also answers **E94's own *"check first"*** question, which asked whether the Windows standalone serves the AF_UNIX channel at all. It does not.
+
+**The one protocol difference that matters, and it is not a detail.** The unix client frames a request by half-closing its write end and reads the reply to EOF. **A named pipe has no half-close** — closing the write end closes the connection and the replies with it. What replaces it is exact rather than a heuristic: `CommandProtocol::respondTo` runs one command line and returns **one** response line unconditionally, and `LineFramer` calls it once per line, so N commands produce exactly N lines and the client counts them. No idle timer and no guess about how long a verb may take.
+
+**Two things I got wrong first, both worth the next run's attention:**
+
+- **Testing whether a pipe exists by opening it CONSUMES an instance.** The server hands the connection to a client thread which reads zero bytes and disconnects. The real server re-arms before it serves so it survives that, but the self-test's stand-in did not — and the failure surfaced one call later as a `FileNotFoundError` from `talk()`, nowhere near its cause. `WaitNamedPipeW(name, 0)` asks the same question without connecting, and its errors separate the cases: **`ERROR_FILE_NOT_FOUND` (2) = not published; `ERROR_SEM_TIMEOUT` (121) / `ERROR_PIPE_BUSY` (231) = published, all instances busy.** Both busy answers count as published.
+- **The pipe name is CONSTRUCTED from the pid we launched, never searched.** The unix socket sits in a private `GMPI_STANDALONE_IPC_DIR`, so a glob there can only find this probe's app. **The Windows pipe namespace is global**, so the same glob would also match a standalone the developer has open, and a probe that drove the wrong app would measure the wrong thing *while passing*.
+
+**Verification artifact for the transport itself:** [tests/standalone_channel_selftest.py](tests/standalone_channel_selftest.py) — a stand-in server, no app and no plugin, **8 arms green including 3 MUST-FAIL controls** (an absent channel raises on the deadline; a dead app ends the wait in 0.00 s rather than waiting out 30 s; a server that answers once and goes quiet times out in 2.01 s rather than hanging, which is the arm the pipe needs and the socket got for free).
+
+### PASS, FAIL, and the control that makes the difference a finding
+
+`main` at `f6551b4d8`, target `TIDE_Rack_STANDALONE`, Release, `-DTIDE_VCV_FUNDAMENTAL=ON -DCMAKE_CXX_FLAGS=-DRACK_ADAPTOR_TRACE=1`, `-DCMAKE_GENERATOR_INSTANCE=".../18/Community"`, **no `*_FOLDER_OVERRIDE`**, so all deps were fetched into the build tree and no sibling checkout of Jeff's was read. Configure rc=0, build rc=0, **0 `error C`/`error LNK` lines on the first pass** (Defender's cold-tree `.obj` trap did not fire). One command, run twice end to end: [tests/e19_win_standalone_probe.py](tests/e19_win_standalone_probe.py).
+
+| clause | run 1 | run 2 |
+|---|---|---|
+| 1 channel published, `--info` answers | **PASS** `\\.\pipe\gmpi-standalone.<pid>`, **1100x626** | same |
+| 2 browser `--double` click places a WT LFO the DSP constructs | **PASS** `RackProcessor: 'LFO2' constructed` | same |
+| 3 both counters advancing after **60 s** | **PASS** 73 `light` + **326** `render` lines after the last `building rack`, **45** distinct light values | **PASS** 73 + **325**, **44** |
+| 4 **POSITIVE CONTROL** — `--drag` rotates the FREQ knob | **PASS** **101 of 1,764 px** inside the knob's own box | **101 of 1,764** |
+| 5 drag the panel by its title strip → the module moves | **FAIL** no `document changed`; panel x **525.3 → 525.3** | identical |
+| 6 drag the WT output jack → Out L → a cable | **FAIL** **0 of 9** points swept ±4 DIP | identical |
+| geometry, derived afresh each run | panel 525.3,288.7..600.7,562.7, zoom **0.714**, WT jack **586,530** | identical |
+
+The only numbers that move are the free-running animation counters, which is what a free-running animation should do; every value the probe asserts on is identical across the two runs.
+
+**Clause 4 is why 5 and 6 are a finding rather than a broken probe.** Pointer events reach the editor and a widget *inside the module panel* obeys them; the same gesture aimed at the rack does nothing at all. **Filed as E95.** Three causes are already excluded and the next run should not re-derive them: it is not the coordinates (the ±4 DIP sweep, over a jack centre derived from the app's own screenshot); it is not `--drag`'s single-dispatched-job design (a hand-rolled `--pointer-down` / 20× `--pointer-move` / `--pointer-up` fails identically); and it is not the channel (`CommandDispatcher::cmdDrag` is platform-neutral — `onPointerDown`, `onPointerMove`×steps, `onPointerUp` straight into the client). **Both gestures pass on macOS**, where `e82` cables these exact jacks.
+
+**Learned — the trap that cost the most, and it is not DPI.**
+
+- **Rack coordinates are not portable between platforms, and DPI is not the reason.** The window is 1100x626 everywhere and the channel takes DIPs, so DPI is already divided out — this box renders at 1.5× and the screenshot is 1650x939, which is exactly that. **What differs is the RACK's OWN ZOOM: 0.713 here against mac's 0.745.** Four per cent of a 380-unit panel is 11 DIP and a jack is ~7 DIP across, so `e82`'s `WT_JACK = "590,540"` against a measured centre of **586.3, 529.7** lands outside the jack — and the probe then fails at a clause with nothing to do with what it tests. [tests/rack_geometry.py](tests/rack_geometry.py) derives the panel and its jacks from a screenshot the probe already takes. **Do not add a per-platform coordinate table; that is the same bug with more rows.**
+- **`Out L` was wrong too, by less:** measured **590.1, 224.1** against the assumed `592,220`.
+- **A Git Bash heredoc eats a backslash.** `r"\\.\pipe\x"` written into a `<<'PY'` heredoc arrived as `\.\pipe\x`, and `CreateNamedPipeW` answered `ERROR_INVALID_NAME (123)` — which reads exactly like a wrong API call. Fifteen minutes went into a ctypes signature that was never the problem. **Write the script to a file.** This is [[windows-tmp-path-mismatch]]'s trap in a new place.
+- **The app's stderr through a redirect is block-buffered**, so a trace line can surface seconds after the gesture that caused it; an early version of the cable test read a *stale* `first NONZERO OUTPUT` from the placement and reported a cable that had not been made. Gate on `document changed` and poll — the same lesson the 11-02 entry recorded for REAPER's stderr.
+
+**Also measured, and it is independent agreement rather than a re-run:** `RackProcessor: 'LFO2' first NONZERO OUTPUT pin 0` reads **0.500131** in the Windows standalone at the default 1024 `Wave points`, against **0.500143** on the mac standalone (E82), **0.500142** on hosted linux VST3, and **0.500143** in a bare Windows VST3 host (E94). Four venues, three platforms, agreeing to the fourth decimal; the standalone's fifth place differs and I did not chase it.
+
+**Not verified:** E82's menu clauses on this platform — the ported `e82_wtlfo_wave_points_probe.py` now opens the channel, places the module and reaches **arm 1b** here before stopping on E95, so the menu half is blocked behind the cable, not behind the transport. **The other four standalone probes are NOT ported** — the helper is there and each needs its own geometry check, which is cheap but unverified, so I did not claim it. **win/GMPI** has no venue. I did **not** build or run SynthEdit or SynthEditCL, so *"SynthEdit still builds"* is not my claim; `GMPI_Wrappers` was **read only** and no shared repo was written to. *"`main` builds on Windows"* is mine only for this configuration. I did not re-read `docs/lessons.md` (179 KB) or `BACKLOG.md` in full, only where they bear on this walk.
+
+**Scheduling: this run fired IN ITS SLOT, the second in a row.** First wall-clock reading **20:10:58 local Monday** against the `20:06` slot — about 4 minutes, inside `jitterSeconds 396`. **The October clock error did not recur, checked with the 10-26 detector rather than assumed:** `Win32_OperatingSystem.LastBootUpTime` **2026-11-13 15:39:24** against the event-log boot entry **15:39:17** is **7 seconds** apart, not a timezone offset, and `Root Dispersion` is **9.08 s** against October's 46,808.97 s. The `Kernel-General` event 1s over the last five days are routine ~1.1 s syncs every ~9 h; the last was 15:17 local, ~4 h 53 m before the slot.
+
+**The box was idle: `GetLastInputInfo` read 19,129 s = 5 h 18 m** (last input about 14:52 local). Three Visual Studio instances and Outlook were open and untouched. **No synthetic Win32 input was sent anywhere this run** — the standalone is driven over its own command channel, which injects into the plugin's editor rather than through `SendInput`, so the 11-02 stray-click hazard does not arise in this venue at all. That is a real advantage of the standalone over the REAPER leg on a developer's workstation.
+
+**Jeff's working tree:** `C:\SE\TideSynth` was dirty on arrival — `RackModules/VCO.synthedit` with a real content change (`git diff --ignore-all-space` shows 444 lines, so not CRLF churn) plus seven untracked `RackModules/VCO.skin/*.svg`, the same state the 11-10 run found. **Untouched, per STEP 5's third kind.** All work was in a scratchpad `git worktree`, so his checkout never left `main` and was never modified. `GMPI_STANDALONE_CONFIG_DIR` was set on every launch and is honoured before the platform arms (`StandaloneSettings.cpp`), so `%APPDATA%\TIDE Rack\` was never read or written. No credential value appears anywhere.
+
+**Next:** see the `win` cell. **For Jeff, three things:** (1) **E95** — rack drags do nothing in the Windows standalone while widget drags work; a fix may land in GATED `EditorLib`, which would be a ruling question rather than a build-break repair. (2) **E19's row text and its Accept disagree about which formats `win` owes** — the text says win/CLAP, the Accept says VST3+GMPI+STANDALONE, and two cells have now been pointed by the text. (3) **The bot token's documented expiry was 2026-11-07, nine days ago, and both identity paths still answer `tide-rack-bot`** — the journal has repeated that date for weeks; it is either renewed or stale, and I did not check it against the credential.
+
+**Branch/PR:** `tide/win/E19-win-standalone-pipe`. It changes `tests/`, the E19 and new E95 rows, the `win` cell, the journal, the rotation and `docs/lessons.md`. `tests/**` is off the auto-merge allowlist, so it waits for Jeff by design.
+
 ## 2026-11-02 — windows — E19: the win/VST3 cell passes pixel diff and int/enum in REAPER, run twice with identical numbers — and a stray click reached the developer's Outlook before the input gate existed (scheduled run)
 
 **Prompt:** 18210767f · Opus 5, `claude-opus-5` · app Claude desktop **4.4212.0.0** (from the running `claude.exe` under `WindowsApps`; CLI not on PATH) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
@@ -233,143 +376,3 @@ Since 10-28 Jeff also landed product work on `main` directly (the Oscillator pre
 **Next:** see the `mac` cell. **For Jeff:** (1) #671 is green and waiting on you. Merging it also flips E82 to DONE. (2) E19's mac AU3 cell needs you present. (3) The bot token expires 2026-11-07.
 
 **Branch/PR:** `tide/mac/noitem-2026-10-27`. It changes the journal, the `mac` NEXT cell and `docs/lessons.md`. It will conflict with #671 at the top of `JOURNAL.md`.
-
-## 2026-10-26 — windows — no item: this lane finally got the idle evening box it has been blocked on for five runs, and the queue had nothing left for it — E19 was claimed by the linux lane nine hours earlier. What delivered the idle box was a **13-hour clock error** (scheduled run)
-
-**Prompt:** 18210767f · Opus 5, `claude-opus-5` · app Claude desktop **3.6556.2** (CLI version not readable — no `claude` on PATH and `~/.claude/versions` is empty on this box) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`, matching the hard-coded `GIT_AUTHOR_EMAIL`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** no backlog item — nothing is eligible for `win`, and the walk below is derived this run rather than inherited. Nothing was built and no product code ran. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`20a60580f..09206a242`). `run-lock.py acquire` rc=0, pid 25272, `owner=self (NO agent ancestor matched -- this lock is age-capped only)` — the documented Windows path, printing the warning it is supposed to print.
-
-**STEP 1:** no open `platform:win` issue, and on this platform that verifies nothing — `build.yml:523` (`matrix.platform != 'win'`) excludes windows from filing, as six previous cells record. The only open issues in the repo are [#583](https://github.com/JeffMcClintock/TideSynth/issues/583) (linux, triaged as E89, DONE and archived) and #44 (the digest). **STEP 1.5:** no open PR on `tide/win/**`. One PR is open in the fleet and it is not mine: [#671](https://github.com/JeffMcClintock/TideSynth/pull/671) (`tide/linux/E19-vst3-linux-recheck`), every check green, `tests/**` so off the auto-merge allowlist and waiting for Jeff by design. Green with nothing unresolved is not mine to touch, so I left it alone.
-
-### The finding: the box was unattended for the first time in this lane's history, and the queue was empty anyway
-
-Five windows runs in a row (09-14, 09-16, 10-13, 10-20 and this one) have ended with no item, and every one of the first four gave the same cause: **E19 and E82 were the only two rows this lane could take, both need an idle box, and the box was never idle.** The 10-20 entry measured why — the Monday 20:06 local slot is missed and the catch-up fires at Claude app launch, which is by construction when the developer sits down.
-
-**This run had the idle box.** `GetLastInputInfo` read **18,371 s — 5 h 06 m 11 s** at 22:59:04 local, so the last input was about **17:52:53**. One `devenv` and three `VirtualBoxVM` processes are up, both since early afternoon, and neither has been touched since. Nobody is at this machine.
-
-**And there was nothing to do with it, because the other two boxes finished both rows first.** E82's Accept was met by the mac lane on 10-25 ([#669](https://github.com/JeffMcClintock/TideSynth/pull/669), merged 2026-10-25T22:55Z as `09206a242`), and E19 was claimed by the linux lane at **2026-10-26T00:20Z**, **9 h 36 m before this run started**. So the lane's blocker has changed shape rather than cleared: it is no longer *"the box is never idle"*, it is *"this lane is awake so rarely that the two rows reserved for an idle box were completed by the boxes that run daily."* That is a scheduling consequence and it belongs to **A45**, which is already filed and already waiting on Jeff; I filed nothing, per the 10-23 mac precedent of not re-filing A45's own evidence as a new row.
-
-### What delivered the idle box: a 13-hour system clock error, corrected 2 m 21 s before this run fired
-
-This run started **09:56:34Z = 22:56:34 Monday local**. Its slot was `nextRunAt 2026-10-26T07:06:36Z` = **20:06 Mon local** (recorded by the 10-20 entry; `nextRunAt` is now `2026-11-02T07:06:36.000Z`, the same seconds, which is what confirms the slot was not re-pointed). So the run is **2 h 49 m 58 s late**, and `jitterSeconds 396` — 6 m 36 s at most — cannot cover that.
-
-**The mechanism is in the system event log, and it is not app launch this time.** `Microsoft-Windows-Kernel-General` **event 1** (system time change) fired twice at 22:54:13 local, and the material one says:
-
-| field | value |
-|---|---|
-| `OldTime` | `2026-10-25T20:54:12.586Z` |
-| `NewTime` | `2026-10-26T09:54:13.792Z` |
-| `TimeDeltaInMs` | **46801206** = **13 h 00 m 01.2 s forward** |
-| `ProcessName` | `svchost.exe` (w32time), `Reason 1` |
-| `TimeZoneBias` | `-780` (UTC+13, `New Zealand Standard Time` + DST) |
-| `RealTimeIsUniversal` | `false` |
-
-`w32tm /query /status` agrees and dates it: **`Last Successful Sync Time: 26/10/2026 9:54:12 am`** — that stamp is in the *pre-jump* clock, i.e. real 22:54:12 — with `Leap Indicator: 3(not synchronized)` and `Root Dispersion: 46808.97s`, which is the size of the jump.
-
-So **the clock came up about 13 h slow at boot and stayed that way for roughly nine hours.** Boot is `Kernel-General` event 12 stamped `00:47:29`, and `Win32_OperatingSystem.LastBootUpTime` — computed from the *corrected* clock — reads **13:47:29**: the same instant, 13 h apart, which is the cleanest proof of the skew. Why it came up slow, and why w32time's first successful sync took nine hours, are **not established** here. A `RealTimeIsUniversal=false` machine whose RTC holds UTC is the obvious candidate and the three running VirtualBox VMs are another; I measured neither, and changing a system clock setting is not a run's to do.
-
-**The slot and the correction are the same event.** Under the slow clock, local time read 07:06 Monday at the real 20:06 slot, so the cron's `0 20 * * 1` had not come round; it would next have matched at real **09:06 Tuesday local** — another catch-up into the developer's working morning, exactly the 10-20 pattern. The 22:54:13 correction made the Monday 20:06 slot past-due instead, and the scheduler fired the catch-up **2 m 21 s later**. A clock error is what bought this lane its first evening run.
-
-### Three instrument notes, because this box's timestamps are now known to lie
-
-- **Tick-based readings survived the jump and wall-clock stamps did not.** `GetLastInputInfo`/`GetTickCount` measure since boot, so the 5 h 06 m idle above is unaffected. Every absolute stamp this box recorded between 13:47 and 22:54 real time — process `StartTime`, the event log, anything a run or the digest wrote — is **13 h behind**. Relative orderings inside that window are intact, because the offset is uniform.
-- **The 10-20 entry's conclusions survive this, and it is worth saying why rather than leaving it hanging.** Its evidence was relative: app launch 09:10:39, the run 09:10:45 six seconds later, every other process 09:10:26–09:10:59, `GetLastInputInfo` 1 s. A uniform skew changes none of that. What a skew *can* corrupt is the one comparison that mixes sources — server-side `lastRunAt`/`nextRunAt` against a locally stamped event — which is precisely the comparison A45 rests on. Use the server-side pair on both sides where you can.
-- **`quser` printed `IDLE TIME: none` for the console session while `GetLastInputInfo` said five hours.** Do not use `quser` for this question on this box.
-
-### STEP 2, walked rather than inherited
-
-`git diff --stat 20a60580f origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows `BACKLOG.md` only, four lines: the `win` and `mac` NEXT cells, A45 filed, and E82 moved `TODO`→`IN-REVIEW`. `decisions.md` and `PLAN.md` have not changed since the 10-20 walk. Eleven rows are `TODO` and reachable by `win` or `any`, and every one is parked:
-
-- **E19** is **taken**. [#671](https://github.com/JeffMcClintock/TideSynth/pull/671) is an open PR from a different platform naming the id, which STEP 2 settles in one sentence — and the collision is real rather than nominal: that PR rewrites the whole E19 row and the `linux` cell, so a second branch editing it would conflict in the row it is reporting on. **This is the row this run would otherwise have taken**, and it is the only one the idle box above would have unlocked.
-- **E82** is `IN-REVIEW` on `origin/main` with [#669](https://github.com/JeffMcClintock/TideSynth/pull/669) merged, so STEP 4's mechanical flip reaches it — **but #671 already carries that flip and archive.** Doing it here would be a second edit to `BACKLOG.md`'s and `BACKLOG-DONE.md`'s most contended rows for no gain. Left to #671.
-- **A35** says in terms it is *"PARKED ON ITS OWN TWO `PROPOSED:` ENTRIES … NOT AVAILABLE TO TAKE"*; both are still open.
-- **A37** is parked on its own Accept, which asks for *"a stated ceiling"* and an archive convention that does not exist yet — and its own Size line says the convention question *"may want Jeff rather than a run"*. Under-specified by STEP 2's test, as the 10-13 and 10-20 runs read it.
-- **A42** is ineligible by its own words: *"(b) without (a) is not identical under every answer"*.
-- **A43** is the same shape and says *"a run should not pick"*.
-- **A45** is this lane's own scheduling row and picks nothing deliberately; every option is about Jeff's hours and his box.
-- **S8** carries `NEEDS-SPEC` first in its row.
-- **E2** is an umbrella that says of itself it is not takeable.
-- **E84** is a `.github/workflows/**` edit this credential deliberately cannot make.
-- **X2** is `linux`, **E93** is `mac`.
-
-All four open `PROPOSED:` entries in `docs/decisions.md` were read: they say *"May proceed meanwhile: everything"*, *"ALL ordinary work, without exception"*, *"everything except E72 itself"* (archived) and *"EVERYTHING, without exception"*. **None parks a row by its own clause**, so A35 and A37 are parked by their rows' own Accepts, as before. The three `DONE-PENDING-ACCEPT` rows (E7, E44, E49) await an acceptance judgement rather than a merge, so STEP 4's rule does not reach them.
-
-**Default branch:** not built here — there was no item. CI's reading is green: `build` **success** at `09206a242`, the current `main` head, and #671's own `windows` job passed in 11 m 19 s against the same content.
-
-**Learned:**
-
-- **A workstation's clock can be hours wrong for most of a day, and then a routine NTP sync becomes a scheduler event.** The correction made a missed slot past-due and the catch-up fired 2 m 21 s later. Any conclusion of the form *"the task fired at X"* on this box should be checked against `Kernel-General` event 1 over the same window before it is believed.
-- **`Win32_OperatingSystem.LastBootUpTime` and the boot entry in the event log disagreeing by exactly a timezone offset is the cheapest possible detector for this.** One is computed from the current clock and the other was stamped by the old one; the gap between them *is* the skew, with no NTP query needed.
-- **Prefer tick-based instruments to wall-clock ones for "is anybody there".** `GetLastInputInfo` is immune to a clock jump by construction, and it was the only reading this run did not have to re-derive. `quser`'s `IDLE TIME` column is useless here — it said `none` against a measured five hours.
-- **A row reserved for a condition one lane almost never meets will be finished by a lane that meets it often.** E19 and E82 were this lane's only two rows for five runs; by the time the idle box arrived, the mac box had closed E82 and the linux box had claimed E19 nine hours earlier. Reserving work for a rare condition is not the same as reserving it for the box that has the condition.
-- **A full stop in STEP 2 can be the correct outcome of a *successful* run.** Every guard passed, the one structural blocker cleared for the first time, and the answer was still "nothing is eligible" — because availability and eligibility are different properties and only one of them improved.
-
-**Not verified:** **nothing was built, compiled or run as product code**, so *"`main` builds on Windows"* is CI's claim and not mine, and I did not read the build logs — only the run conclusions. **No GUI was taken, no window created and no screenshot made**, even though the box was idle: the one row that wanted a window is taken by #671, and preparing a taken item's measurement is still working on a taken item. **The cause of the 13 h clock skew is not established** — RTC-as-UTC and the VirtualBox VMs are candidates I did not test, and I changed no system setting. **Why w32time's first successful sync took about nine hours is likewise unestablished.** I did not re-read `docs/lessons.md` in full (176 KB), only the parts bearing on this walk. **I did not verify #671's measurements**, only its state and its diff. The bot token expires **2026-11-07**, **12 days** from today; I did not re-check that date against the credential.
-
-**Rotation:** done, and it took **two** entries rather than one. With this entry `JOURNAL.md` was 71,733 bytes; moving the oldest (10-14 windows, E89/box-lock) left 63,605, still over the 60 KB stop, so the next oldest (10-16 linux, E92) went too, leaving **52,936 bytes and six entries** — above the four-entry floor, which is what the rule stops on. Both were appended to [JOURNAL-2026-10.md](JOURNAL-2026-10.md) below what was there, verbatim and in date order (that file is ascending in practice, whatever the header's *"newest-first"* says — its tail was already the other 10-14 entry). `extract-lessons.py --check` was green on a pristine `origin/main` worktree before any edit (1,725 lessons from 402 entries) and is green again after the regeneration (1,730 from 403) — measured on a separate checkout, because running it after the prepend only tells you your own edit is unwritten. **#671 rotates the 10-14 entry too and stops there**, so our first archive hunk is identical and the second is mine alone; expect to re-resolve the tail of the archive as well as the top of `JOURNAL.md`.
-
-**Machine state:** `C:\SE\TideSynth` **stayed on `main` and was never checked out** — all work was in one scratchpad `git worktree`, removed and pruned at the end. The tree was clean on arrival. No other repo was touched, read or fetched: `C:\SE\SE16`, `C:\SE\SynthEditLib`, `C:\SE\gmpi_ui`, `C:\SE\GMPI_Wrappers` and `C:\SE\GMPI` were not opened, because no item needed them — and the developer has a Visual Studio instance open, so not touching them was also the right call independent of the queue. No credential value appears anywhere. Box lock released as the last act.
-
-**Next:** see the `win` cell. **For Jeff, four things:** (1) **This box's clock was 13 hours slow from boot at 13:47 until w32time corrected it at 22:54** — worth a look, because it will recur on every boot if the cause is the RTC/UTC setting, and while it lasts every timestamp this box writes into the fleet's own records is 13 h out. (2) **A45 is still the one row waiting on you**, and this run sharpens it rather than answering it: the idle box arrived and the queue was empty, because the two rows held for it were finished by the two boxes that run daily. (3) [#671](https://github.com/JeffMcClintock/TideSynth/pull/671) is green and waiting on you, and **E19's win/VST3 cell is the next win item the moment that PR merges** — its two owed clauses (the rack-canvas pixel diff and `int/bool/enum`) now have a producer and a recipe from #669's `WT LFO` probe. (4) The bot token expires **2026-11-07**, 12 days out.
-
-**Branch/PR:** `tide/win/2026-10-26-queue-blocked`. This entry, the `win` cell, the rotation and the regenerated `docs/lessons.md` are on that branch. It is bookkeeping-only and should auto-merge. It will conflict with #671 at the top of `JOURNAL.md`, and at the tail of `JOURNAL-2026-10.md` because this rotation moved one entry more than #671's.
-
-## 2026-10-26 — linux — E19: the linux VST3 cell passes animation, pixel diff and the int/enum menu clause in REAPER (scheduled run)
-
-**Prompt:** 1821076 · Opus 5.5, `claude-opus-5-5` · app Claude desktop (version not read; CLI `2.1.220`) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** took **E19's linux/VST3 cell** and re-measured it for the first time since 2026-08-31, when it failed because the editor was bound to a retired processor. Every blocker that cell named has closed since: E74 (binding), E75 (visible fixture), E83 (cabled Scope), and E82 gave the menu clause an instrument. No product code changed. `tests/e19-host-feedback/e19x.c` gained a `drag` verb and the harness README gained the recipe and the numbers. **E82 flipped to DONE and was archived:** #669 merged 2026-10-25 22:55Z, and `gh pr view` confirms it. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded (`6538c2b..09206a2`). `run-lock.py acquire` returned rc=0, `owner=auto:ancestor-match`, and reclaimed a stale lock from pid 12021, dead and 547,071 s old. That was the 10-16 run's lock. Its pid was gone, so this is the documented reclaim and not a collision.
-
-**STEP 1:** the only open `platform:linux` issue is [#583](https://github.com/JeffMcClintock/TideSynth/issues/583). Its row, E89, is DONE, and the issue says of itself that it is not STEP 1's tier, so I walked past it. **STEP 1.5:** there are zero open PRs. Remote heads are `main` and Jeff's `gpu-backend`, which I did not touch. **STEP 2:** `git diff --stat 20a6058 origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows only NEXT-cell churn, E82 and A45. The 10-16 linux cell listed E19 as wanting a GUI arm via the weston recipe. That is a description, not a status: E19 is `TODO`, `any`, not blocked, and none of the open `PROPOSED:` entries parks it. I pushed the DOING mark first (`1a6b924`).
-
-**Result:** build from `origin/main` at `09206a2`: Ninja, Release, `TIDE_VCV_FUNDAMENTAL=ON`, `-DRACK_ADAPTOR_TRACE=1`, with every dependency fetched at its own `origin/main`. **611/611, 0 errors**, 176 warnings, so `main` builds on linux. The host was REAPER **7.82** (`/opt/REAPER`, run with a scratch `HOME`) on `weston --backend=headless --xwayland`. The fixture was `e83-vcv-scope-cabled.xml`, minted through `TrackFX_SetNamedConfigParm`. `fx_ident` named the staged bundle.
-
-| clause | readout |
-|---|---|
-| animation | `instance #4 feedback send #13500` / `editor received feedback #13600`; `display-state update #6350 arrived (65548 bytes)`; `light 0 update #26900 value 0.758`; the transport at `pos 220.9` at `t=221` |
-| pixel diff, 65 s apart | Scope screen **1,559 / 14,300 px**, LFO panel **178**, module browser **0 / 138,000** in the same pair |
-| menu, WT LFO selected | 6 rack entries plus **`Wave points >`**, with `32..16384` and **1024 ticked** |
-| menu, empty canvas, deselected | the 6 entries alone |
-| A/B, the fresh `LFO2` after a pick and a cable edit | **0.500142 (1024) / 0.500004 (32) / 0.500142 / 0.500004**; an edit with no pick after that gave **0.500004** |
-
-The A/B values match E82's mac standalone (0.500143 / 0.500004), so the standalone result carries over to a hosted VST3 on another OS. The re-opened submenus show the tick on 32 and then on 1024, following each pick.
-
-**Learned:**
-
-- **A cold VM can make REAPER run ~44 s behind wall time, and nothing in the plug-in's trace shows it.** The first measure run logged `t=43.7 pos=0.685`, then caught up to real time, so its "75 s" window held ~32 s of transport. The relaunch was real time from t=3 s. Read `pos` against `t` before counting a window.
-- **E82's rebuild trick works in a host, and its trace does not need a cable.** `first NONZERO OUTPUT` printed on arms where `LFO2 outs=0`. So any cable edit anywhere in the rack is enough to read a fresh instance.
-- **Dragging from a jack that already carries a cable picks that cable up** rather than adding a second one. My edits alternated between adding and removing. Any edit rebuilds, so this cost nothing, but a run that expects cables to pile up will misread `connections`.
-- **Under weston, a GMPI context menu and its submenu are separate override-redirect X windows**, 141x185 and 120x248 here. `xwininfo -root -tree` finds them, and `e19x shot`/`click` drive them by id.
-
-**Not verified:** **the bool arm**: no bool-bearing module is in `e83`. **linux/CLAP** was not attempted. **string** still has no producer, per the 09-16 census. The pixel diff counts changed pixels. It does not judge whether the trace is right. Only REAPER 7.82 was used, not the 7.43 the harness was written against. I did not run the drag verb's change through any compile except this box's `gcc -Wall`, which was clean. Nothing was built or measured for Windows or macOS.
-
-**Rotation:** done. With this entry `JOURNAL.md` was 63,060 bytes, so the oldest entry (10-14 windows, E89) moved to `JOURNAL-2026-10.md`, appended below what was there, verbatim. Seven entries remain, above the four-entry floor. `extract-lessons.py --write` regenerated `docs/lessons.md`, and `--check` is green after. (Before the write it reported stale, because this entry adds lessons.)
-
-**Machine state:** `~/TideSynth` stayed on `main`. I never checked it out, and its local `main` is behind `origin` and left that way. All work was in a scratchpad `git worktree` and a scratchpad build tree, both removed at the end. REAPER ran with `HOME` in the scratchpad, and the developer's `~/.config/REAPER` is unchanged (mtime Oct 20). `~/.vst3` was not touched: the staged bundle lived in the scratch `HOME`. The weston instance on socket `tide-e19` was started by this run and stopped at the end, and no REAPER or weston process was left. No other repo was touched, and no credential value appears anywhere. I released the box lock as the last step.
-
-**Next:** see the `linux` cell. The CLAP cell is the cheapest remaining linux debt. **For Jeff:** (1) E19's linux VST3 cell is measured green. Whether E19 now waits only on the mac AU3 cell, the bool arm and CLAP is your reading to make. (2) #583 is still open with E89 DONE. (3) The bot token expires **2026-11-07**, 12 days out.
-
-**Branch/PR:** `tide/linux/E19-vst3-linux-recheck`, [#671](https://github.com/JeffMcClintock/TideSynth/pull/671). The harness `drag` verb, the README section, the E19 cell, the E82 archive, this entry, the `linux` cell and the regenerated `docs/lessons.md` are on that branch. `tests/**` is touched, so it waits for Jeff.
-
-## 2026-10-26 — macos — no item: #669 (E82) is green and waiting on Jeff, and E19's mac AU3 cell still needs his AUv3 registration displaced (scheduled run)
-
-**Prompt:** 1821076 · Opus 5.5, `claude-opus-5-5` · app Claude desktop **3.6556.2** (CLI version not readable, no `claude` on PATH) · as **tide-rack-bot** (both paths: REST `tide-rack-bot`, GraphQL `tide-rack-bot 314850083`) · transport assertion `git@github.com:`, as required · scheduled run
-
-**Did:** no backlog item. `FLEET-PAUSED` is absent on `origin/main`. STEP 0's fetch succeeded. `run-lock.py acquire` returned rc=0 (`owner=auto:ancestor-match`).
-
-**Result:** STEP 1: `gh issue list --label platform:mac --state open` returns `[]`. STEP 1.5: the only open PR is [#669](https://github.com/JeffMcClintock/TideSynth/pull/669) (E82, `tide/mac/E82-wtlfo-wave-points`, three bot commits). Every check is green, `mergeable: MERGEABLE`, and it has no reviews and no comments. So it is waiting for merge and I left it alone. STEP 2: `git diff --stat dc80d88 origin/main -- BACKLOG.md docs/decisions.md PLAN.md` shows only the 10-24 `mac` cell line. I followed the `mac` cell on #669's branch, since that cell is newer than `main`'s:
-
-- **(1)** #669 has not been handed back. Nothing to re-run.
-- **(2)** The box is idle again. HID idle was **208,378 s (~58 h)**, the display has been off since 2026-10-23 17:13, and the only long-lived processes are the two GitHub runners. But E19's remaining mac clause is the **AU3 host half**. The 2026-08-29 mac entry found that measuring a current build needs the developer's AUv3 registration displaced, and that an unattended run must not do that. `pluginkit -m -v` still shows only the 2026-08-31 registration (`com.tidesynth.tiderack.au3app.extension` 0.1.1, `~/Applications/TIDE-Rack-AUv3.app`). That build is eight weeks older than `main`, so measuring it would not answer the cell. The standalone half of the `int/bool/enum` clause is #669's work.
-- **(3)** E93: not built. **(4)** `gpu-backend` is Jeff's and was not touched.
-
-Nothing is eligible.
-
-**Not verified:** nothing was built or run. I did not read `docs/lessons.md` or the full `BACKLOG.md` in full, only the parts that bear on this walk: the `mac` cell, the E19 row, and E73 in `BACKLOG-DONE.md`. I left the `mac` NEXT cell untouched on purpose. #669 rewrites that line, and a second edit here would conflict with a PR that is waiting on Jeff. #669's cell already says what the next run should do. The bot token expires **2026-11-07**, 12 days from today. I did not re-check that date.
-
-**Machine state:** `~/Documents/GitHub/TideSynth` stayed on `main`, clean. The work was in a scratchpad `git worktree`, removed at the end. No other repo was touched, no GUI was used, and no credential value appears anywhere. I released the box lock as the last step.
-
-**Next:** follow the `mac` cell on #669. **For Jeff:** (1) #669 (E82) is ready for review. (2) E19's mac AU3 cell needs you present, to register a current `TIDE_VCV_FUNDAMENTAL=ON` + `RACK_ADAPTOR_TRACE` AUv3 over yours. (3) The bot token expires 2026-11-07.
-
-**Branch/PR:** `tide/mac/noitem-2026-10-26`. Journal-only. It will conflict with #669 at the top of `JOURNAL.md`; see the PR body.
